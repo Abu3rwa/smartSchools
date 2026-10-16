@@ -136,7 +136,15 @@ export const generateLiveLessonReportPdf = async (report, { type, studentIds = [
   const page = await browser.newPage();
   try {
     await page.setContent(html, { waitUntil: "load" });
-    return await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+    const pdf = Buffer.from(await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+    }));
+    if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      throw new Error("The PDF renderer returned an invalid document.");
+    }
+    return pdf;
   } finally {
     await page.close();
   }

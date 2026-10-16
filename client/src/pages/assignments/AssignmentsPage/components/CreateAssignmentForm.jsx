@@ -136,25 +136,6 @@ const CreateAssignmentForm = ({
                 </details>
             )}
 
-            <section className="google-form-assignment-option">
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={isGoogleForm}
-                        disabled={submitting || googleFormPublished}
-                        onChange={(event) => setForm((prev) => ({
-                            ...prev,
-                            createGoogleForm: event.target.checked,
-                            ...(event.target.checked ? {} : { googleFormQuestions: [], scope: 'class', studentIds: [] })
-                        }))}
-                    />
-                    <span>
-                        <strong>{t('assignments:googleForms.createForm')}</strong>
-                        <small className="text-muted">{t('assignments:googleForms.createFormHelp')}</small>
-                    </span>
-                </label>
-            </section>
-
             <div className="create-grid">
                 <div className="form-group">
                     <label>{t('assignments:form.type')}</label>
@@ -235,6 +216,25 @@ const CreateAssignmentForm = ({
                     />
                 </div>
             </div>
+
+            <section className="google-form-assignment-option">
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={isGoogleForm}
+                        disabled={submitting || googleFormPublished}
+                        onChange={(event) => setForm((prev) => ({
+                            ...prev,
+                            createGoogleForm: event.target.checked,
+                            ...(event.target.checked ? {} : { googleFormQuestions: [], scope: 'class', studentIds: [] })
+                        }))}
+                    />
+                    <span>
+                        <strong>{t('assignments:googleForms.createForm')}</strong>
+                        <small className="text-muted">{t('assignments:googleForms.createFormHelp')}</small>
+                    </span>
+                </label>
+            </section>
 
             {isGoogleForm && (
                 <>

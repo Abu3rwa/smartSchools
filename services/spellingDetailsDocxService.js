@@ -63,6 +63,8 @@ const translations = {
         originalIncorrect: 'Original incorrect',
         retestAttempts: 'Retest attempts',
         retestCorrect: 'Retest correct',
+        gradedQuiz: 'Graded spelling quizzes',
+        averageQuizScore: 'Average quiz score',
         status: 'Status',
         resolved: 'Resolved',
         noData: 'No data',
@@ -99,6 +101,8 @@ const translations = {
         originalIncorrect: 'الأخطاء الأصلية',
         retestAttempts: 'محاولات الإعادة',
         retestCorrect: 'الصحيح في الإعادة',
+        gradedQuiz: 'اختبارات الإملاء المُقيّمة',
+        averageQuizScore: 'متوسط درجة الاختبار',
         status: 'الحالة',
         resolved: 'تمت المعالجة',
         noData: 'لا توجد بيانات',
@@ -239,6 +243,11 @@ export async function buildStudentSpellingDetailsDocx(details, { locale = 'en' }
                 ...section(words.retests, [makeTable([words.retests, words.attempts, words.correct, words.incorrect, words.recovery], [
                     ['', summary.retestAttempts, summary.retestCorrect, summary.retestIncorrect, summary.retestAttempts ? `${summary.retestRecoveryRate}%` : '—']
                 ])]),
+                ...section(words.gradedQuiz, [makeTable([words.gradedQuiz, words.attempts, words.averageQuizScore], [[
+                    '',
+                    summary.gradedQuizCount,
+                    summary.gradedQuizCount ? `${summary.gradedQuizAverage}%` : '—'
+                ]])]),
                 ...section(words.recoverySummary, [makeTable(
                     [words.recoveredWords, words.uniqueMissed, words.recoveryRate],
                     [[

@@ -79,6 +79,50 @@ const migrateSpellingEmailDeliveryIndexes = async () => {
   }
 };
 
+const migrateSpellingRetestQuizIndexes = async () => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return;
+
+    const sessionCollection = db.collection('spellingsessions');
+    const sessionIndexes = await sessionCollection.indexes();
+    if (!sessionIndexes.some((index) => index.name === 'school_student_retest_quiz_key_unique')) {
+      await sessionCollection.createIndex(
+        { school: 1, student: 1, retestQuizKey: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { retestQuizKey: { $type: 'string' } },
+          name: 'school_student_retest_quiz_key_unique'
+        }
+      );
+    }
+
+    const retestCollection = db.collection('spellingretestitems');
+    const retestIndexes = await retestCollection.indexes();
+    if (!retestIndexes.some((index) => index.name === 'spelling_retest_due_queue')) {
+      await retestCollection.createIndex(
+        { status: 1, dueAt: 1 },
+        { name: 'spelling_retest_due_queue' }
+      );
+    }
+
+    const emailCollection = db.collection('spellingemaildeliveries');
+    const emailIndexes = await emailCollection.indexes();
+    if (!emailIndexes.some((index) => index.name === 'session_retest_practice_unique')) {
+      await emailCollection.createIndex(
+        { session: 1, kind: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { kind: 'retest-practice' },
+          name: 'session_retest_practice_unique'
+        }
+      );
+    }
+  } catch (err) {
+    logger.warn(`Spelling retest quiz index migration skipped: ${err.message}`);
+  }
+};
+
 const migrateSpellingPassageIndexes = async () => {
   try {
     const db = mongoose.connection.db;
@@ -105,6 +149,7 @@ const connectDB = async () => {
     await migrateSpellingSessionIndexes();
     await migrateSpellingPassageIndexes();
     await migrateSpellingEmailDeliveryIndexes();
+    await migrateSpellingRetestQuizIndexes();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);
@@ -121,4 +166,3 @@ mongoose.connection.on('error', (err) => {
 });
 
 export default connectDB;
-

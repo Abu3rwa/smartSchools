@@ -6,6 +6,8 @@ import { getNextSpellingGrade, getSpellingGradeProgress } from '../utils/spellin
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
+import SpellingClassSettings from '../models/SpellingClassSettings.js';
+import Grade from '../models/Grade.js';
 
 const objectId = () => new mongoose.Types.ObjectId();
 
@@ -19,6 +21,17 @@ const objectId = () => new mongoose.Types.ObjectId();
  test('ignores accidental punctuation and symbols when grading spelling', () => {
      assert.equal(isCorrect('c@a!t.', 'cat'), true);
      assert.equal(isCorrect('c a t', 'cat'), false);
+ });
+
+ test('number characters remain in spelling answers and make mismatches incorrect', () => {
+     assert.equal(normalizeForGrading('then34343'), 'then34343');
+     assert.equal(isCorrect('34343', 'then'), false);
+     assert.equal(isCorrect('then34343', 'then'), false);
+     assert.deepEqual(evaluateSpellingAnswer({
+         mode: 'self-serve',
+         studentInput: '34343',
+         canonicalWord: 'then'
+     }), { correct: false, skipped: false, countsAsMistake: true });
  });
 
  test('skipped words are recorded without counting as mistakes', () => {
@@ -111,11 +124,75 @@ test('SpellingRetestItem defaults pending state and requires due date', () => {
     assert.equal(SpellingRetestItem.schema.path('dueAt').isRequired, true);
 });
 
+test('SpellingClassSettings validates retest intervals and retest items track mastery', () => {
+    const settings = new SpellingClassSettings({
+        school: objectId(),
+        class: objectId(),
+        retestIntervalDays: 60
+    });
+
+    assert.equal(settings.validateSync(), undefined);
+    const invalidSettings = new SpellingClassSettings({
+        school: objectId(),
+        class: objectId(),
+        retestIntervalDays: 14
+    });
+    assert.match(invalidSettings.validateSync().message, /retestIntervalDays/);
+
+    const retest = new SpellingRetestItem({
+        school: objectId(),
+        student: objectId(),
+        sourceWord: objectId(),
+        wordSnapshot: 'confidence',
+        grade: 'G3',
+        week: 2,
+        category: 'Animals',
+        sourceSession: objectId(),
+        sourceAttempt: objectId(),
+        dueAt: new Date(),
+        correctRetestStreak: 2,
+        incorrectRetestCount: 1
+    });
+    assert.equal(retest.validateSync(), undefined);
+});
+
+test('Grade supports idempotently linked spelling assessment quiz entries', () => {
+    const grade = new Grade({
+        school: objectId(),
+        student: objectId(),
+        subject: objectId(),
+        class: objectId(),
+        teacher: objectId(),
+        academicYear: '2026-2027',
+        gradeType: 'quiz',
+        category: 'quiz',
+        date: new Date(),
+        marks: 8,
+        maxMarks: 10,
+        month: 10,
+        semester: 1,
+        gradingSource: 'spelling_assessment',
+        spellingSession: objectId()
+    });
+
+    assert.equal(grade.validateSync(), undefined);
+    assert.ok(Grade.schema.indexes().some(([fields, options]) => (
+        fields.school === 1
+        && fields.spellingSession === 1
+        && options.unique
+        && options.partialFilterExpression.spellingSession.$type === 'objectId'
+    )));
+});
+
 test('SpellingSession validates modes and preserves attempt idempotency data', () => {
     const session = new SpellingSession({
         school: objectId(),
         student: objectId(),
         mode: 'self-serve',
+        assessmentType: 'retest-quiz',
+        retestQuizItems: [objectId()],
+        retestQuizKey: '2026-10-01T12:00:00.000Z',
+        retestIntervalDays: 30,
         maxMistakesAllowed: 3,
         retestDeadline: new Date(Date.now() + 86400000),
         createdBy: objectId(),
@@ -134,6 +211,9 @@ test('SpellingSession validates modes and preserves attempt idempotency data', (
     });
 
     assert.equal(session.validateSync(), undefined);
+    assert.equal(session.assessmentType, 'retest-quiz');
+    assert.equal(SpellingSession.schema.path('assessmentType').enumValues.includes('formal-spelling-test'), true);
     assert.equal(session.attempts[0].idempotencyKey, 'attempt-1');
     assert.equal(SpellingSession.schema.path('mode').enumValues.includes('teacher-led'), true);
+    assert.equal(session.assessmentType, 'retest-quiz');
 });

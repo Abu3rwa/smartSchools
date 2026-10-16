@@ -1,4 +1,6 @@
 import Student from '../models/Student.js';
+import Class from '../models/Class.js';
+import Grade from '../models/Grade.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
@@ -9,6 +11,7 @@ import { queueSpellingCompletionEmail } from './spellingEmailService.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 import SpellingClassSettings from '../models/SpellingClassSettings.js';
 import { getNextSpellingGrade, getSpellingGradeProgress, SPELLING_CURRICULUM_GRADES } from '../utils/spellingProgress.js';
+import { resolveSemesterForDate } from './gradebookConfigService.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPELLING_GRADE_MAX_WEEK = { KG: 40, G1: 36, G2: 36, G3: 36, G4: 36, G5: 36 };
@@ -16,6 +19,72 @@ const SPELLING_GRADE_MAX_WEEK = { KG: 40, G1: 36, G2: 36, G3: 36, G4: 36, G5: 36
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
+
+const recordRetestOutcome = async ({ schoolId, studentId, retestItemId, correct, skipped, sessionId, at, dbSession }) => {
+    if (!retestItemId || skipped) return;
+    const retestItem = await SpellingRetestItem.findOne({
+        _id: retestItemId,
+        school: schoolId,
+        student: studentId,
+        status: 'pending'
+    }).session(dbSession);
+    if (!retestItem) return;
+
+    if (correct) {
+        retestItem.correctRetestStreak = (Number(retestItem.correctRetestStreak) || 0) + 1;
+        if (retestItem.correctRetestStreak >= 3) {
+            retestItem.status = 'resolved';
+            retestItem.resolvedAt = at;
+            retestItem.resolvedBySession = sessionId;
+        }
+    } else {
+        retestItem.correctRetestStreak = 0;
+        retestItem.incorrectRetestCount = (Number(retestItem.incorrectRetestCount) || 0) + 1;
+    }
+    await retestItem.save({ session: dbSession });
+};
+
+const saveFormalSpellingGradebookEntry = async ({ schoolId, session, dbSession }) => {
+    if (session.assessmentType !== 'formal-spelling-test' || !session.attempts.length) return;
+    if (!session.gradebookSubject || !session.gradebookClass || !session.gradebookAcademicYear
+        || !(session.createdBy || session.administeredBy)) {
+        throw conflict('The formal spelling test is missing its Gradebook subject or class details');
+    }
+
+    const date = session.completedAt || new Date();
+    const month = date.getMonth() + 1;
+    const semester = await resolveSemesterForDate(schoolId, date);
+    await Grade.findOneAndUpdate(
+        { school: schoolId, spellingSession: session._id },
+        {
+            $set: {
+                subject: session.gradebookSubject,
+                class: session.gradebookClass,
+                teacher: session.createdBy || session.administeredBy,
+                academicYear: session.gradebookAcademicYear,
+                gradeType: 'quiz',
+                category: 'quiz',
+                date,
+                marks: Math.min(session.correctCount, session.attempts.length),
+                maxMarks: session.attempts.length,
+                month,
+                semester: semester || (month >= 8 && month <= 12 ? 1 : 2),
+                title: `Formal spelling assessment - ${session.curriculumGrade} - Week ${session.curriculumWeek}`,
+                description: `Spelling assessment score: ${Math.min(session.correctCount, session.attempts.length)} of ${session.attempts.length} words.`,
+                notes: '',
+                remarks: '',
+                assessmentGroupId: `spelling-${session._id}`,
+                gradingSource: 'spelling_assessment'
+            },
+            $setOnInsert: {
+                school: schoolId,
+                student: session.student,
+                spellingSession: session._id
+            }
+        },
+        { upsert: true, new: true, runValidators: true, session: dbSession }
+    );
+};
 
 const saveSpellingGradeProgress = async ({ schoolId, session, week, lastWordIndex, dbSession }) => {
     const studentFilter = { _id: session.student, school: schoolId };
@@ -266,8 +335,9 @@ const getSharedClassItem = async ({ session, dbSession }) => {
     throw conflict('The class spelling session could not advance past completed words');
 };
 
-export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, classSessionId = null, emailNotification = null, passageEmailAudience = null, passageGeneration = {} }) {
+export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, scheduledAt, formalAssessment = false, curriculumGrade, curriculumWeek, classSessionId = null, emailNotification = null, passageEmailAudience = null, passageGeneration = {} }) {
     if (!['teacher-led', 'self-serve'].includes(mode)) throw badRequest('Invalid spelling session mode');
+    if (formalAssessment && mode !== 'self-serve') throw badRequest('Formal spelling assessments must be self-serve');
     if (maxMistakesAllowed !== undefined && maxMistakesAllowed !== null && (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1 || maxMistakesAllowed > 50)) {
         throw badRequest('maxMistakesAllowed must be a positive integer between 1 and 50');
     }
@@ -278,7 +348,15 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         throw badRequest('Invalid passage email audience');
     }
 
-    const startedAt = new Date();
+    const now = new Date();
+    const scheduledStartAt = scheduledAt === undefined || scheduledAt === null
+        ? null
+        : new Date(scheduledAt);
+    if (scheduledAt !== undefined && scheduledAt !== null
+        && (Number.isNaN(scheduledStartAt.getTime()) || scheduledStartAt <= now)) {
+        throw badRequest('scheduledAt must be a valid future date');
+    }
+    const startedAt = scheduledStartAt || now;
     const deadline = retestDeadline ? new Date(retestDeadline) : new Date(startedAt.getTime() + (7 * DAY_MS));
     if (Number.isNaN(deadline.getTime()) || deadline < startedAt) throw badRequest('retestDeadline must be a valid future date');
 
@@ -293,14 +371,18 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     const activeSession = await SpellingSession.findOne({
         school: schoolId,
         student: studentId,
-        status: 'in-progress'
+        status: { $in: ['scheduled', 'in-progress'] }
     }).sort({ startedAt: -1 });
+    const assessmentType = formalAssessment ? 'formal-spelling-test' : 'spelling-assessment';
     if (activeSession) {
-        if (activeSession.mode === mode && activeSession.curriculumGrade === selectedGrade) {
+        if (activeSession.status === 'in-progress'
+            && activeSession.mode === mode
+            && activeSession.assessmentType === assessmentType
+            && activeSession.curriculumGrade === selectedGrade) {
             const current = await getCurrentSpellingItem({ schoolId, sessionId: activeSession._id });
             return current.session;
         }
-        throw conflict('This student already has an active spelling session. End it before starting a different grade or session.');
+        throw conflict('This student already has an active or scheduled spelling session. End it or wait for it to finish before scheduling another.');
     }
 
     let gradeProgress = getSpellingGradeProgress(student, selectedGrade);
@@ -405,6 +487,27 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     const classSettings = targetClassId
         ? await SpellingClassSettings.findOne({ school: schoolId, class: targetClassId }).lean()
         : null;
+    let gradebookDetails = {};
+    if (formalAssessment) {
+        const classDoc = targetClassId
+            ? await Class.findOne({ _id: targetClassId, school: schoolId }).select('academicYear subjects.subject').lean()
+            : null;
+        if (!classDoc || !classSettings?.gradebookSubject) {
+            throw badRequest('Link a Gradebook subject to this class in Spelling settings before starting a formal assessment');
+        }
+        if (!classDoc.subjects.some((entry) => String(entry.subject) === String(classSettings.gradebookSubject))) {
+            throw badRequest('The linked Gradebook subject is no longer assigned to this class');
+        }
+        gradebookDetails = {
+            gradebookSubject: classSettings.gradebookSubject,
+            gradebookClass: targetClassId,
+            gradebookAcademicYear: classDoc.academicYear || student.academicYear
+        };
+    }
+    const retestIntervalDays = classSettings?.retestIntervalDays || 7;
+    const effectiveRetestDeadline = retestDeadline
+        ? deadline
+        : new Date(startedAt.getTime() + retestIntervalDays * DAY_MS);
 
     // Resolve defaults from class settings if not explicitly specified by teacher
     const effectiveEmailNotification = emailNotification !== undefined && emailNotification !== null
@@ -428,8 +531,13 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         school: schoolId,
         student: studentId,
         mode,
+        status: scheduledStartAt ? 'scheduled' : 'in-progress',
+        scheduledAt: scheduledStartAt,
+        assessmentType,
+        ...gradebookDetails,
         maxMistakesAllowed: effectiveMaxMistakesAllowed,
-        retestDeadline: deadline,
+        retestDeadline: effectiveRetestDeadline,
+        retestIntervalDays,
         curriculumGrade: selectedGrade,
         curriculumWeek: selectedWeek,
         classSession: classSessionId,
@@ -442,13 +550,54 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
             requireTeacherApproval: true
         },
         dictationMode,
-        startedAt,
+        startedAt: now,
         createdBy: userId,
         administeredBy: mode === 'teacher-led' ? userId : null
     });
 
+    if (scheduledStartAt) return session;
+
     const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
     return current.session;
+}
+
+export async function activateDueScheduledSpellingSessions({ now = new Date(), limit = 500 } = {}) {
+    const dueSessions = await SpellingSession.find({
+        status: 'scheduled',
+        scheduledAt: { $lte: now }
+    })
+        .sort({ scheduledAt: 1 })
+        .limit(Math.min(Math.max(Number(limit) || 500, 1), 2000))
+        .setOptions({ skipTenantFilter: true })
+        .select('_id school student scheduledAt')
+        .lean();
+    let sessionsActivated = 0;
+
+    for (const dueSession of dueSessions) {
+        const activated = await withTransaction(async (dbSession) => {
+            const session = await SpellingSession.findOne({
+                _id: dueSession._id,
+                status: 'scheduled',
+                scheduledAt: { $lte: now }
+            }).setOptions({ skipTenantFilter: true }).session(dbSession);
+            if (!session) return false;
+
+            const activeSession = await SpellingSession.findOne({
+                school: dueSession.school,
+                student: dueSession.student,
+                status: 'in-progress'
+            }).setOptions({ skipTenantFilter: true }).select('_id').session(dbSession).lean();
+            if (activeSession) return false;
+
+            session.status = 'in-progress';
+            session.startedAt = now;
+            await session.save({ session: dbSession });
+            return true;
+        });
+        if (activated) sessionsActivated += 1;
+    }
+
+    return { sessionsActivated };
 }
 
 export async function startSpellingClassSession({
@@ -603,13 +752,21 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
             .map((attempt) => attempt.retestItemId)
             .filter(Boolean);
 
-        const retestItem = await SpellingRetestItem.findOne({
-            school: schoolId,
-            student: session.student,
-            status: 'pending',
-            sourceSession: { $ne: session._id },
-            _id: { $nin: attemptedRetestIds }
-        }).sort({ flaggedAt: 1, _id: 1 }).session(dbSession).lean();
+        let retestItem = null;
+        if (session.assessmentType === 'retest-quiz') {
+            retestItem = await SpellingRetestItem.findOne({
+                school: schoolId,
+                student: session.student,
+                status: 'pending',
+                _id: { $in: session.retestQuizItems, $nin: attemptedRetestIds }
+            }).sort({
+                correctRetestStreak: 1,
+                incorrectRetestCount: -1,
+                lastRetestedAt: 1,
+                flaggedAt: 1,
+                _id: 1
+            }).session(dbSession).lean();
+        }
 
         let item;
         if (retestItem) {
@@ -627,7 +784,11 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
                 category: retestItem.category,
                 isRetest: true
             };
-        } else if (session.curriculumGrade && session.curriculumWeek) {
+        } else if (
+            ['spelling-assessment', 'formal-spelling-test'].includes(session.assessmentType)
+            && session.curriculumGrade
+            && session.curriculumWeek
+        ) {
             const gradeProgress = getSpellingGradeProgress(student, session.curriculumGrade);
             const wordQuery = {
                 school: schoolId,
@@ -679,7 +840,9 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
         if (!item) {
             session.status = 'completed';
             session.completedAt = new Date();
-            session.completionReason = 'curriculum-exhausted';
+            session.completionReason = session.assessmentType === 'retest-quiz'
+                ? 'retest-quiz-complete'
+                : 'curriculum-exhausted';
             await session.save({ session: dbSession });
             return { session, item: null };
         }
@@ -801,12 +964,17 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
             return { session, attempt: attemptDocument, idempotent: false };
         }
 
-        if (item.isRetest && evaluatedCorrect) {
-            await SpellingRetestItem.updateOne(
-                { _id: item.retestItemId, school: schoolId, status: 'pending' },
-                { $set: { status: 'resolved', resolvedAt: now, resolvedBySession: session._id } },
-                { session: dbSession }
-            );
+        if (item.isRetest) {
+            await recordRetestOutcome({
+                schoolId,
+                studentId: session.student,
+                retestItemId: item.retestItemId,
+                correct: evaluatedCorrect,
+                skipped: isSkipped,
+                sessionId: session._id,
+                at: now,
+                dbSession
+            });
         } else if (!item.isRetest && outcome.countsAsMistake) {
             await SpellingRetestItem.updateOne(
                 { school: schoolId, student: session.student, wordSnapshot: item.word, status: 'pending' },
@@ -838,13 +1006,16 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
             });
         }
 
-        if (session.mistakeCount >= session.maxMistakesAllowed) {
+        if (session.assessmentType !== 'retest-quiz' && session.mistakeCount >= session.maxMistakesAllowed) {
             session.status = 'completed';
             session.completedAt = now;
             session.completionReason = 'mistake-limit';
         }
         await session.save({ session: dbSession });
-        if (session.status === 'completed') await queueSpellingCompletionEmail({ session, dbSession });
+        if (session.status === 'completed' && session.assessmentType !== 'retest-quiz') {
+            await queueSpellingCompletionEmail({ session, dbSession });
+            await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
+        }
         return { session, attempt: attemptDocument, idempotent: false };
     });
 }
@@ -879,22 +1050,35 @@ export async function markSpellingAttemptCorrect({ schoolId, sessionId, attemptI
             });
         }
 
-        await SpellingRetestItem.updateMany(
-            {
-                school: schoolId,
-                student: session.student,
-                sourceWord: attempt.wordId,
-                status: 'pending'
-            },
-            {
-                $set: {
-                    status: 'resolved',
-                    resolvedAt: correctedAt,
-                    resolvedBySession: session._id
-                }
-            },
-            { session: dbSession }
-        );
+        if (attempt.isRetest) {
+            await recordRetestOutcome({
+                schoolId,
+                studentId: session.student,
+                retestItemId: attempt.retestItemId,
+                correct: true,
+                skipped: false,
+                sessionId: session._id,
+                at: correctedAt,
+                dbSession
+            });
+        } else {
+            await SpellingRetestItem.updateMany(
+                {
+                    school: schoolId,
+                    student: session.student,
+                    sourceWord: attempt.wordId,
+                    status: 'pending'
+                },
+                {
+                    $set: {
+                        status: 'resolved',
+                        resolvedAt: correctedAt,
+                        resolvedBySession: session._id
+                    }
+                },
+                { session: dbSession }
+            );
+        }
 
         if (session.classSession) {
             const group = await SpellingClassSession.findOne({
@@ -911,6 +1095,9 @@ export async function markSpellingAttemptCorrect({ schoolId, sessionId, attemptI
         }
 
         await session.save({ session: dbSession });
+        if (session.status === 'completed') {
+            await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
+        }
         return { session, attempt, idempotent: false };
     });
 }
@@ -929,6 +1116,7 @@ export async function completeSpellingSession({ schoolId, sessionId, reason = 'm
         session.currentItem = { wordId: null, retestItemId: null, sequence: null };
         await session.save({ session: dbSession });
         await queueSpellingCompletionEmail({ session, dbSession });
+        await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
         return { session, idempotent: false };
     });
 }

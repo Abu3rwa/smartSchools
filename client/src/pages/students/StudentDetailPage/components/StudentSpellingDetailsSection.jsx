@@ -112,6 +112,8 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('retestCorrect')} value={summary.retestCorrect} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="warning" label={t('uniqueWordsEverMissed')} value={summary.uniqueWordsEverMissed} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="info" label={t('retestRecoveryRate')} value={summary.retestAttempts ? `${summary.retestRecoveryRate}%` : '—'} /></Grid>
+            <Grid size={{ xs: 6, md: 3 }}><Metric label={t('gradedRetestQuizzes')} value={summary.gradedQuizCount} /></Grid>
+            <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('averageQuizScore')} value={summary.gradedQuizCount ? `${summary.gradedQuizAverage}%` : '—'} /></Grid>
         </Grid>
         <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('recoveredWords')} value={`${summary.recoveredWords} / ${summary.uniqueWordsEverMissed}`} /></Grid>

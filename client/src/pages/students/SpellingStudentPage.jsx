@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, Stack, TextField, Typography } from '@mui/material';
 import { HiOutlineArrowLeft, HiOutlineSpeakerWave } from 'react-icons/hi2';
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
@@ -334,6 +334,11 @@ const SpellingStudentPage = () => {
         return mode === 'self-serve' && typed ? `${typed} × ${word}` : word;
     };    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
+    const retestWordTotal = session?.assessmentType === 'retest-quiz' ? session.retestQuizItems?.length || 0 : 0;
+    const retestWordsCompleted = Math.min(session?.attempts?.length || 0, retestWordTotal);
+    const retestCurrentWordNumber = session?.status === 'in-progress'
+        ? Math.min(retestWordsCompleted + 1, retestWordTotal)
+        : retestWordsCompleted;
 
     return (
         <Box sx={{ maxWidth: 760, mx: 'auto', p: 3 }}>
@@ -384,6 +389,25 @@ const SpellingStudentPage = () => {
                                         </Typography>
                                     )}
                                 </Stack>
+                                {retestWordTotal > 0 && (
+                                    <Box sx={{ mt: 1, minWidth: 180 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {t('retestProgress', {
+                                                current: retestCurrentWordNumber,
+                                                total: retestWordTotal,
+                                                completed: retestWordsCompleted
+                                            })}
+                                        </Typography>
+                                        <LinearProgress
+                                            aria-label={t('retestProgressAria', {
+                                                completed: retestWordsCompleted,
+                                                total: retestWordTotal
+                                            })}
+                                            variant="determinate"
+                                            value={(retestWordsCompleted / retestWordTotal) * 100}
+                                        />
+                                    </Box>
+                                )}
                             </Box>
                         </Stack>
                     </Stack>
@@ -483,13 +507,16 @@ const SpellingStudentPage = () => {
                                                         {revealedAttempt.skipped ? t('skipped') : revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
                                                     </Typography>
                                                     {!revealedAttempt.correct && (
-                                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+                                                        <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
                                                             <Typography variant="body2">
                                                                 Your answer: <strong>{String(revealedAttempt.input || '').trim() || 'Skipped'}</strong>
                                                             </Typography>
-                                                            <Typography variant="body2">
-                                                                Correct spelling: <strong>{revealedAttempt.word}</strong>
-                                                            </Typography>
+                                                            {!revealedAttempt.skipped && (
+                                                                <>
+                                                                    <Typography component="span" color="error.main" aria-label="Incorrect">×</Typography>
+                                                                    <Typography variant="body2">Correct spelling: <strong>{revealedAttempt.word}</strong></Typography>
+                                                                </>
+                                                            )}
                                                         </Stack>
                                                     )}
                                                     {revealedAttempt.audio?.definition && (
@@ -556,7 +583,12 @@ const SpellingStudentPage = () => {
             </>}
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6">{t('sessionHistory')}</Typography>
-            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{entry.curriculumGrade ? `${entry.curriculumGrade} - ` : ''}{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>)}</Stack>
+            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => {
+                const gradedQuiz = entry.assessmentType === 'retest-quiz';
+                const quizTotal = entry.attempts?.length || 0;
+                const quizScore = quizTotal ? Math.round((entry.attempts.filter((attempt) => attempt.correct).length / quizTotal) * 100) : 0;
+                return <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{gradedQuiz ? `${t('gradedRetestQuiz')} · ` : ''}{entry.curriculumGrade ? `${entry.curriculumGrade} - ` : ''}{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect{gradedQuiz ? ` · ${t('score')}: ${quizScore}%` : ''}</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>;
+            })}</Stack>
             <Dialog open={Boolean(selectedHistorySession)} onClose={() => setSelectedHistorySession(null)} fullWidth maxWidth="sm">
                 <DialogTitle>{t('sessionDetails')}</DialogTitle>
                 <DialogContent dividers>
@@ -570,8 +602,7 @@ const SpellingStudentPage = () => {
                                 <Stack spacing={1} sx={{ mt: 1 }}>
                                     {answerReviewAttempts(selectedAttempts, selectedHistorySession?.mode).map((attempt) => (
                                         <Stack key={attempt._id || attempt.sequence} direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <Typography sx={{ flex: 1 }}>Your answer: <strong>{attempt.studentInput}</strong></Typography>
-                                            <Typography sx={{ flex: 1 }}>Correct spelling: <strong>{attempt.wordSnapshot}</strong></Typography>
+                                            <Typography sx={{ flex: 1 }}>Your answer: <strong>{previousWordLabel(attempt, selectedHistorySession?.mode)}</strong></Typography>
                                             {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
                                         </Stack>
                                     ))}

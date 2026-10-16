@@ -1,14 +1,19 @@
-import { Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
 
 const SpellingSettingsTab = ({
     maxMistakesAllowed,
     setMaxMistakesAllowed,
+    retestIntervalDays,
+    setRetestIntervalDays,
     emailNotification,
     setEmailNotification,
     passageEmailAudience,
     setPassageEmailAudience,
     passageEnabled,
     setPassageEnabled,
+    gradebookSubjectId,
+    setGradebookSubjectId,
+    gradebookSubjects = [],
     passageTrigger,
     setPassageTrigger,
     passageStyle,
@@ -29,9 +34,49 @@ const SpellingSettingsTab = ({
                     </Typography>
                 </Box>
                 <TextField label="Max mistakes before session ends" type="number" value={maxMistakesAllowed} inputProps={{ min: 1, max: 50 }} onChange={(event) => setMaxMistakesAllowed(Math.max(1, Math.min(50, Number(event.target.value) || 1)))} />
+                <Box>
+                    <Typography variant="subtitle1">Formal spelling assessment Gradebook link</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Completed formal spelling assessments are added to this class subject under Quiz. Retest quizzes and ordinary spelling sessions are not added.
+                    </Typography>
+                </Box>
+                {gradebookSubjects.length > 0 ? (
+                    <FormControl fullWidth>
+                        <InputLabel>Gradebook subject</InputLabel>
+                        <Select
+                            value={gradebookSubjectId}
+                            label="Gradebook subject"
+                            onChange={(event) => setGradebookSubjectId(event.target.value)}
+                        >
+                            <MenuItem value="">Do not add formal spelling assessments to Gradebook</MenuItem>
+                            {gradebookSubjects.map((subject) => (
+                                <MenuItem key={subject._id} value={subject._id}>{subject.name}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                ) : (
+                    <Alert severity="warning">Add subjects to this class before linking formal spelling assessments to the Gradebook.</Alert>
+                )}
+                <Box>
+                    <Typography variant="subtitle1">Graded spelling retest quiz</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Missed words become available in a self-serve graded quiz after this interval. Students receive the selected practice words by email when it is available. Words rotate through the queue, oldest review first.
+                    </Typography>
+                </Box>
                 <FormControl fullWidth>
-                    <InputLabel>Send results email to</InputLabel>
-                    <Select value={emailNotification} label="Send results email to" onChange={(event) => setEmailNotification(event.target.value)}>
+                    <InputLabel>Retest interval</InputLabel>
+                    <Select value={retestIntervalDays} label="Retest interval" onChange={(event) => setRetestIntervalDays(Number(event.target.value))}>
+                        <MenuItem value={7}>1 week</MenuItem>
+                        <MenuItem value={30}>1 month</MenuItem>
+                        <MenuItem value={60}>2 months</MenuItem>
+                    </Select>
+                </FormControl>
+                <Typography variant="body2" color="text.secondary">
+                    Each quiz includes all due words the student previously misspelled. Words stay in the retest pool until the student spells each correctly on three consecutive quizzes, with less-confident words first.
+                </Typography>
+                <FormControl fullWidth>
+                    <InputLabel>Send spelling results and retest quiz emails to</InputLabel>
+                    <Select value={emailNotification} label="Send spelling results and retest quiz emails to" onChange={(event) => setEmailNotification(event.target.value)}>
                         <MenuItem value="none">Do not send</MenuItem>
                         <MenuItem value="student-only">Student only</MenuItem>
                         <MenuItem value="parents-only">Parents/guardians only</MenuItem>

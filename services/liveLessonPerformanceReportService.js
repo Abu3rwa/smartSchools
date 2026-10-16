@@ -40,7 +40,14 @@ const awaySeconds = (events, endAt) => {
 
 const percent = (value, total) => total ? Math.round((value / total) * 100) : 0;
 
-export const buildLiveLessonPerformanceReport = async ({ req, classId, dateFrom, dateTo, resolveClass }) => {
+export const buildLiveLessonPerformanceReport = async ({
+  req,
+  classId,
+  dateFrom,
+  dateTo,
+  resolveClass,
+  resolveStudents,
+}) => {
   if (!classId || !/^[a-f\d]{24}$/i.test(String(classId))) {
     throw Object.assign(new Error("Choose a valid class."), { statusCode: 400 });
   }
@@ -68,15 +75,22 @@ export const buildLiveLessonPerformanceReport = async ({ req, classId, dateFrom,
     school: req.schoolId,
     classId: classDoc._id,
     status: "ended",
-    startedAt: { $gte: start, $lte: end },
+    $or: [
+      { startedAt: { $gte: start, $lte: end } },
+      { startedAt: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+    ],
   })
-    .sort({ startedAt: 1, _id: 1 })
+    .sort({ startedAt: 1, createdAt: 1, _id: 1 })
     .limit(MAX_SESSIONS_PER_REPORT + 1)
-    .select("_id lessonSnapshot rosterSnapshot startedAt endedAt")
+    .select("_id lessonSnapshot rosterSnapshot rosterCapturedAt startedAt endedAt createdAt classId")
     .lean();
   if (sessions.length > MAX_SESSIONS_PER_REPORT) {
     throw Object.assign(new Error("This date range contains too many sessions. Narrow the range to 500 sessions or fewer."), { statusCode: 400 });
   }
+  const sessionWithoutRoster = sessions.find((session) => !session.rosterCapturedAt);
+  const fallbackRoster = sessionWithoutRoster && resolveStudents
+    ? await resolveStudents(sessionWithoutRoster)
+    : null;
 
   const sessionIds = sessions.map((session) => session._id);
   const [responses, events] = sessionIds.length
@@ -127,7 +141,9 @@ export const buildLiveLessonPerformanceReport = async ({ req, classId, dateFrom,
 
   for (const session of sessions) {
     const sid = toId(session._id);
-    const roster = Array.isArray(session.rosterSnapshot) ? session.rosterSnapshot : [];
+    const roster = session.rosterCapturedAt
+      ? Array.isArray(session.rosterSnapshot) ? session.rosterSnapshot : []
+      : fallbackRoster || [];
     const questionCount = (session.lessonSnapshot?.slides || []).filter((slide) => slide.question).length;
     const sessionResponses = responsesBySession.get(sid) || [];
     const sessionJoined = joinedStudentsBySession.get(sid) || new Set();
@@ -174,7 +190,7 @@ export const buildLiveLessonPerformanceReport = async ({ req, classId, dateFrom,
     sessionMetrics.push({
       sessionId: sid,
       title: session.lessonSnapshot?.title || "Live lesson",
-      date: session.startedAt,
+      date: session.startedAt || session.createdAt,
       attendanceRate: percent(sessionJoined.size, roster.length),
       engagementRate: percent(new Set(sessionResponses.map((response) => toId(response.studentId))).size, roster.length),
       accuracyRate: percent(sessionResponses.filter((response) => response.isCorrect).length, sessionResponses.length),

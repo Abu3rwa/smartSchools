@@ -85,6 +85,123 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     await assert.rejects(() => recordSpellingIntegrityEvent(integrityEvent), /Active spelling session not found/);
 }, { timeout: 30000 });
 
+integrationTest('retest words remain queued until three consecutive correct retests', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const userId = new mongoose.Types.ObjectId();
+    const sourceSessionId = new mongoose.Types.ObjectId();
+    const sourceAttemptId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId });
+
+    await Student.create({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-mastery-${studentId}`,
+        firstName: 'Retest',
+        lastName: 'Mastery',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G3', currentWeek: 1, lastWordIndex: 0 }
+    });
+    const [word] = await SpellingWord.create([{
+        school: schoolId,
+        grade: 'G3',
+        week: 1,
+        category: 'Integration',
+        word: 'otter',
+        normalizedWord: 'otter',
+        order: 1
+    }]);
+    const [retestItem] = await SpellingRetestItem.create([{
+        school: schoolId,
+        student: studentId,
+        sourceWord: word._id,
+        wordSnapshot: word.word,
+        grade: word.grade,
+        week: word.week,
+        category: word.category,
+        sourceSession: sourceSessionId,
+        sourceAttempt: sourceAttemptId,
+        dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    }]);
+
+    const answers = ['otter', 'otterx', 'otter', 'otter', 'otter'];
+    const expectedStreaks = [1, 0, 1, 2, 3];
+    for (let retestNumber = 1; retestNumber <= answers.length; retestNumber += 1) {
+        const [session] = await SpellingSession.create([{
+            school: schoolId,
+            student: studentId,
+            mode: 'self-serve',
+            status: 'in-progress',
+            assessmentType: 'retest-quiz',
+            retestQuizItems: [retestItem._id],
+            maxMistakesAllowed: 50,
+            retestDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            curriculumGrade: 'G3',
+            curriculumWeek: 1
+        }]);
+        const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        await recordSpellingAttempt({
+            schoolId,
+            sessionId: session._id,
+            userId,
+            sequence: current.item.sequence,
+            studentInput: answers[retestNumber - 1],
+            idempotencyKey: `mastery-${retestNumber}`
+        });
+        await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        const progress = await SpellingRetestItem.findById(retestItem._id).lean();
+        assert.equal(progress.correctRetestStreak, expectedStreaks[retestNumber - 1]);
+        assert.equal(progress.incorrectRetestCount, retestNumber > 1 ? 1 : 0);
+        assert.equal(progress.status, retestNumber === answers.length ? 'resolved' : 'pending');
+    }
+}, { timeout: 30000 });
+
+integrationTest('formal spelling assessments load curriculum words', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId });
+
+    await Student.create({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-formal-${studentId}`,
+        firstName: 'Formal',
+        lastName: 'Assessment',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G3', currentWeek: 1, lastWordIndex: 0 }
+    });
+    await SpellingWord.create({
+        school: schoolId,
+        grade: 'G3',
+        week: 1,
+        category: 'Integration',
+        word: 'otter',
+        normalizedWord: 'otter',
+        order: 1
+    });
+
+    const session = await SpellingSession.create({
+        school: schoolId,
+        student: studentId,
+        mode: 'self-serve',
+        assessmentType: 'formal-spelling-test',
+        maxMistakesAllowed: 3,
+        retestDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        curriculumGrade: 'G3',
+        curriculumWeek: 1
+    });
+    const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+
+    assert.equal(current.session.status, 'in-progress');
+    assert.equal(current.item.word, 'otter');
+});
+
 integrationTest('self-serve grade progress resumes independently and skipped words do not create mistakes', async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     const schoolId = new mongoose.Types.ObjectId();

@@ -727,6 +727,83 @@
   background: #fff;
   box-shadow: 0 30px 95px rgba(8, 24, 33, 0.3);
 }
+.live-preview-dialog {
+  display: flex;
+  width: min(1120px, 100%);
+  max-height: calc(100vh - 2rem);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 30px 95px rgba(8, 24, 33, 0.3);
+}
+.live-preview-dialog .live-import-header p {
+  margin: 0.45rem 0 0;
+  color: #71808b;
+  font-size: 0.88rem;
+}
+.live-preview-dialog .live-preview-slide-strip {
+  flex: 0 0 auto;
+  margin: 0 1.5rem;
+}
+.live-preview-dialog-content {
+  min-height: 0;
+  padding: 0.4rem 1.5rem 1rem;
+  overflow-y: auto;
+}
+.live-preview-dialog-content .live-slide {
+  min-height: 360px;
+  aspect-ratio: 16 / 9;
+}
+.live-preview-question {
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid #e1e8e9;
+  border-radius: 14px;
+  background: #fafcfc;
+}
+.live-preview-question h3 {
+  margin: 0.5rem 0;
+}
+.live-preview-question ol {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 1.5rem;
+}
+.live-preview-question li.correct {
+  color: #116e59;
+  font-weight: 700;
+}
+.live-preview-question li strong {
+  font-size: 0.82rem;
+}
+.live-preview-question > p {
+  color: #617284;
+  line-height: 1.5;
+}
+.live-preview-status {
+  margin: 1.5rem;
+  color: #617284;
+}
+.live-preview-error {
+  color: #9c3030;
+}
+.live-preview-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.5rem;
+  border-top: 1px solid #e9eef0;
+}
+.live-preview-navigation > span {
+  color: #71808c;
+  font-size: 0.86rem;
+}
+.live-preview-navigation > div {
+  display: flex;
+  gap: 0.6rem;
+}
 .live-import-header {
   display: flex;
   align-items: center;
@@ -1015,8 +1092,175 @@
     max-height: calc(100vh - 1rem);
     border-radius: 16px;
   }
+  .live-preview-dialog {
+    max-height: calc(100vh - 1rem);
+    border-radius: 16px;
+  }
+  .live-preview-dialog-content {
+    padding-right: 0.8rem;
+    padding-left: 0.8rem;
+  }
+  .live-preview-dialog-content .live-slide {
+    min-height: 340px;
+  }
+  .live-preview-dialog .live-preview-slide-strip {
+    margin-right: 0.8rem;
+    margin-left: 0.8rem;
+  }
+  .live-preview-navigation {
+    padding: 0.75rem 0.8rem;
+  }
   .live-import-toolbar {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+@media screen {
+  [data-theme="dark"] .live-lessons-page {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-list-filters,
+  .live-list-table thead,
+  .live-import-header,
+  .live-preview-heading,
+  .live-import-footer,
+  .live-lesson-card,
+  .live-session-row,
+  .live-list-table-wrap,
+  .live-share-dialog,
+  .live-import-dialog,
+  .live-preview-dialog,
+  .live-import-preview,
+  .live-preview-chip,
+  .live-question-card,
+  .live-control-card,
+  .live-safety-setting,
+  .live-list-empty,
+  .live-list-pagination
+) {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-lesson-card h2,
+  .live-session-row h3,
+  .live-list-table th,
+  .live-list-table td,
+  .live-share-dialog h2,
+  .live-import-dialog h2,
+  .live-import-preview h3,
+  .live-preview-chip strong,
+  .live-question-card h3,
+  .live-list-empty h3
+) {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-list-filters label,
+  .live-lessons-actions p,
+  .live-empty-state p,
+  .live-lesson-card-top,
+  .live-session-meta,
+  .live-list-table td small,
+  .live-import-toolbar p,
+  .live-preview-note,
+  .live-edit-field label,
+  .live-lesson-card p,
+  .live-session-row p,
+  .live-list-description,
+  .live-list-empty p,
+  .live-list-pagination > span,
+  .live-share-invitations li,
+  .live-preview-chip span,
+  .live-import-help,
+  .live-question-meta
+) {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea
+) {
+  background-color: var(--bg-input);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea
+)::placeholder {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-list-table tr,
+  .live-session-row,
+  .live-share-invitations li,
+  .live-import-preview-row
+) {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-list-table tbody tr:hover,
+  .live-session-row:hover,
+  .live-import-preview-row:hover
+) {
+  background-color: var(--bg-card-hover);
+}
+
+[data-theme="dark"] .live-lessons-page .live-list-table thead {
+  background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-lessons-tabs button:not(.active),
+  .live-secondary-button,
+  .live-list-pagination button:not(:disabled),
+  .live-dialog-close,
+  .live-file-drop,
+  .live-preview-chip
+) {
+  border-color: var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-lessons-tabs button:not(.active):hover,
+  .live-secondary-button:hover:not(:disabled),
+  .live-list-pagination button:hover:not(:disabled),
+  .live-preview-chip:hover
+) {
+  background-color: var(--bg-card-hover);
+}
+
+[data-theme="dark"] .live-lessons-page .live-empty-state {
+  border-color: var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page .live-lesson-tag {
+  background: var(--bg-secondary);
+  color: var(--primary);
+}
+
+[data-theme="dark"] .live-lessons-page .live-lesson-management {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .live-lessons-page .live-preview-workspace {
+  background: var(--bg-primary);
+}
 }

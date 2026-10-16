@@ -123,6 +123,12 @@ const gradeSchema = new mongoose.Schema({
         ref: 'HomeworkSubmission',
         default: null
     },
+    spellingSession: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SpellingSession',
+        default: null,
+        index: true
+    },
     liveSession: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'LiveSession',
@@ -145,7 +151,7 @@ const gradeSchema = new mongoose.Schema({
     },
     gradingSource: {
         type: String,
-        enum: ['manual', 'homework_submission', 'live_session', 'google_forms'],
+        enum: ['manual', 'homework_submission', 'live_session', 'google_forms', 'spelling_assessment'],
         default: 'manual'
     },
     // Phase 1: Gradebook Enhancement — optional fields (backward-compatible)
@@ -213,6 +219,10 @@ gradeSchema.index({ school: 1, assessmentGroupId: 1, teacher: 1 });
 gradeSchema.index(
     { school: 1, assignment: 1, student: 1 },
     { unique: true, partialFilterExpression: { assignment: { $exists: true, $ne: null } } }
+);
+gradeSchema.index(
+    { school: 1, spellingSession: 1 },
+    { unique: true, partialFilterExpression: { spellingSession: { $type: 'objectId' } } }
 );
 
 // Virtual for percentage

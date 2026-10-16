@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { HiOutlineArrowDownTray, HiOutlineArrowLeft, HiOutlineDocumentArrowDown, HiOutlinePause, HiOutlinePlay } from "react-icons/hi2";
+import { HiOutlineArrowDownTray, HiOutlineArrowLeft, HiOutlinePause, HiOutlinePlay } from "react-icons/hi2";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../../config/api";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
@@ -21,13 +21,25 @@ const getMonthRange = () => {
   };
 };
 
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-}[character]));
+const pdfResponseError = async (data, fallback) => {
+  if (data instanceof Blob) {
+    const text = await data.text();
+    try {
+      const payload = JSON.parse(text);
+      return payload.message || fallback;
+    } catch {
+      return text.slice(0, 300) || fallback;
+    }
+  }
+  return data?.message || fallback;
+};
+
+const assertPdfBlob = async (blob) => {
+  const signature = await blob.slice(0, 5).text();
+  if (signature !== "%PDF-") {
+    throw new Error(await pdfResponseError(blob, "The server returned an invalid PDF file."));
+  }
+};
 
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
@@ -37,73 +49,8 @@ const downloadBlob = (blob, filename) => {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
-
-const buildSessionHtml = (report, students) => {
-  const metric = (label, value) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
-  const questionRows = (report.perQuestion || []).map((question, index) => `
-    <tr><td>${index + 1}</td><td>${escapeHtml(question.title || question.prompt)}</td>
-    <td>${question.answered || 0}</td><td>${question.correct || 0}</td><td>${question.percentCorrect || 0}%</td></tr>
-  `).join("");
-  const studentSections = students.map((student) => `
-    <section class="student">
-      <h2>${escapeHtml(student.name)}</h2>
-      <div class="metrics">${metric("Attendance", student.joined ? "Present" : "Absent")}
-      ${metric("Score", `${student.scorePercent || 0}%`)}${metric("Correct", student.correct || 0)}
-      ${metric("Answered", student.answered || 0)}${metric("Away time", `${student.totalAwaySeconds || 0}s`)}</div>
-      <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Response time</th></tr></thead>
-      <tbody>${(student.answerDetails || []).map((answer) => `
-        <tr><td>${answer.questionNumber || ""}</td><td>${escapeHtml(answer.prompt)}</td>
-        <td>${escapeHtml(answer.selectedAnswer || "—")}</td><td>${escapeHtml(answer.correctAnswer || "—")}</td>
-        <td>${escapeHtml(answer.status === "answered" ? answer.isCorrect ? "Correct" : "Incorrect" : answer.status?.replace(/_/g, " ") || "—")}</td>
-        <td>${answer.latencyMs == null ? "—" : `${(answer.latencyMs / 1000).toFixed(1)}s`}</td></tr>
-      `).join("")}</tbody></table>
-    </section>
-  `).join("");
-  const className = report.session?.class?.name || "Class";
-  const started = report.session?.startedAt ? new Date(report.session.startedAt).toLocaleString() : "Not started";
-  const ended = report.session?.endedAt ? new Date(report.session.endedAt).toLocaleString() : "In progress";
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(report.session?.title || "Live session report")}</title>
-  <style>body{font:14px Arial,sans-serif;color:#203746;max-width:1100px;margin:36px auto;padding:0 24px}
-  header{border-bottom:3px solid #168078;padding-bottom:16px}h1{margin:5px 0;color:#173b49}h2{margin:28px 0 10px}
-  p,.muted{color:#61727a}.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:20px 0}
-  .metrics div{border:1px solid #dce8e5;border-radius:9px;padding:12px}.metrics span{display:block;color:#63757d;font-size:12px}
-  .metrics strong{display:block;color:#176c68;font-size:18px;margin-top:5px}table{width:100%;border-collapse:collapse;margin:12px 0 24px}
-  th,td{border:1px solid #d8e0e1;padding:8px;text-align:left;vertical-align:top}th{background:#eff5f3;font-size:12px}
-  .student{break-before:page}@media(max-width:700px){body{margin:15px;padding:0 12px}.metrics{grid-template-columns:repeat(2,1fr)}}@media print{.student{break-before:page}}</style>
-  </head><body><header><p class="muted">LIVE LESSON REPORT</p><h1>${escapeHtml(report.session?.title || "Session report")}</h1>
-  <p>${escapeHtml(className)} · ${escapeHtml(report.session?.subject || "Subject not set")}</p><p>${escapeHtml(started)} — ${escapeHtml(ended)}</p></header>
-  <section><div class="metrics">${metric("Students", report.summary?.rosterCount || 0)}
-  ${metric("Joined", report.summary?.joinedCount || 0)}${metric("Questions", report.summary?.questionCount || 0)}
-  ${metric("Answers", report.summary?.submittedAnswers || 0)}</div>
-  <h2>Class question results</h2><table><thead><tr><th>#</th><th>Question</th><th>Answered</th><th>Correct</th><th>Accuracy</th></tr></thead>
-  <tbody>${questionRows || "<tr><td colspan='5'>No questions were included.</td></tr>"}</tbody></table></section>${studentSections}</body></html>`;
-};
-
-const buildPerformanceHtml = (report, students) => `<!doctype html><html><head><meta charset="utf-8"><title>Class performance report</title>
-  <style>body{font:14px Arial,sans-serif;color:#203746;max-width:1100px;margin:36px auto;padding:0 24px}
-  header{border-bottom:3px solid #168078;padding-bottom:16px}h1{color:#173b49}.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:20px 0}
-  .metrics div{border:1px solid #dce8e5;border-radius:9px;padding:12px}.metrics span{display:block;color:#63757d;font-size:12px}
-  .metrics strong{display:block;color:#176c68;font-size:18px;margin-top:5px}table{width:100%;border-collapse:collapse;margin:12px 0 24px}
-  th,td{border:1px solid #d8e0e1;padding:8px;text-align:left}th{background:#eff5f3;font-size:12px}
-  @media(max-width:700px){body{margin:15px;padding:0 12px}.metrics{grid-template-columns:repeat(2,1fr)}}@media print{section{break-inside:avoid}}</style>
-  </head><body><header><p>CLASS PERFORMANCE &amp; ENGAGEMENT</p><h1>${escapeHtml(report.class?.name || "Class")}</h1>
-  <p>${escapeHtml(report.dateFrom)} — ${escapeHtml(report.dateTo)}</p></header><section>
-  <div class="metrics">${[
-    ["Sessions", report.summary?.sessionCount || 0],
-    ["Attendance", `${report.summary?.averageAttendanceRate || 0}%`],
-    ["Participation", `${report.summary?.participationRate || 0}%`],
-    ["Answer completion", `${report.summary?.averageEngagementRate || 0}%`],
-    ["Accuracy", `${report.summary?.averageAccuracyRate || 0}%`],
-    ["Avg. session", `${report.summary?.averageSessionMinutes || 0} min`],
-  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
-  <h2>Session trends</h2><table><thead><tr><th>Date</th><th>Lesson</th><th>Attendance</th><th>Participation</th><th>Accuracy</th></tr></thead><tbody>
-  ${(report.sessions || []).map((session) => `<tr><td>${escapeHtml(session.date ? new Date(session.date).toLocaleDateString() : "—")}</td>
-  <td>${escapeHtml(session.title)}</td><td>${session.attendanceRate}%</td><td>${session.engagementRate}%</td><td>${session.accuracyRate}%</td></tr>`).join("") || "<tr><td colspan='5'>No completed sessions were recorded in this period.</td></tr>"}
-  </tbody></table><h2>Student performance</h2><table><thead><tr><th>Student</th><th>Sessions</th><th>Attendance</th><th>Answer completion</th><th>Accuracy</th><th>Answers</th></tr></thead><tbody>
-  ${students.map((student) => `<tr><td>${escapeHtml(student.name)}</td><td>${student.sessions}</td><td>${student.attendanceRate}%</td><td>${student.engagementRate}%</td><td>${student.accuracyRate}%</td><td>${student.answers}</td></tr>`).join("") || "<tr><td colspan='6'>No students were included.</td></tr>"}
-  </tbody></table></section></body></html>`;
 
 const LiveLessonReviewPage = ({ mode }) => {
   const { sessionId } = useParams();
@@ -224,6 +171,7 @@ const LiveLessonReviewPage = ({ mode }) => {
     const classId = report?.session?.class?._id || report?.session?.class;
     if (mode !== "report" || report?.session?.status !== "ended" || !classId || !performanceRange.from || !performanceRange.to) {
       setPerformance(null);
+      setPerformanceLoading(false);
       return undefined;
     }
     let active = true;
@@ -232,6 +180,7 @@ const LiveLessonReviewPage = ({ mode }) => {
       dateFrom: performanceRange.from,
       dateTo: performanceRange.to,
     });
+    setPerformance(null);
     setPerformanceLoading(true);
     setPerformanceError("");
     api.get(`/live/sessions/performance?${params.toString()}`)
@@ -312,42 +261,22 @@ const LiveLessonReviewPage = ({ mode }) => {
       : [...current, studentId]);
   };
 
-  const downloadSessionHtml = (studentIds = []) => {
-    if (!report) return;
-    const students = studentIds.length
-      ? (report.perStudent || []).filter((student) => studentIds.includes(student.studentId))
-      : report.perStudent || [];
-    const title = (report.session?.title || "session-report").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    downloadBlob(new Blob([buildSessionHtml(report, students)], { type: "text/html;charset=utf-8" }), `live-${title || "session"}-report.html`);
-  };
-
   const downloadSessionPdf = async (studentIds = []) => {
     if (!report) return;
     setReportExporting(true);
     setExportError("");
     try {
       const response = await api.post(`/live/sessions/${sessionId}/report/export.pdf`, {
-        report,
         studentIds,
       }, { responseType: "blob" });
+      await assertPdfBlob(response.data);
       const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
       downloadBlob(response.data, `live-session-${scope}-report.pdf`);
     } catch (requestError) {
-      setExportError(requestError.response?.data?.message || "Could not export the session report PDF.");
+      setExportError(await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the session report PDF."));
     } finally {
       setReportExporting(false);
     }
-  };
-
-  const downloadPerformanceHtml = () => {
-    if (!performance) return;
-    const students = performanceStudentIds.length
-      ? performanceStudents.filter((student) => performanceStudentIds.includes(student.studentId))
-      : performanceStudents;
-    downloadBlob(
-      new Blob([buildPerformanceHtml(performance, students)], { type: "text/html;charset=utf-8" }),
-      `class-performance-${performance.dateFrom}-to-${performance.dateTo}.html`
-    );
   };
 
   const downloadPerformancePdf = async (studentIds = []) => {
@@ -364,10 +293,11 @@ const LiveLessonReviewPage = ({ mode }) => {
       const response = await api.get(`/live/sessions/performance/export.pdf?${params.toString()}`, {
         responseType: "blob",
       });
+      await assertPdfBlob(response.data);
       const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
       downloadBlob(response.data, `class-performance-${scope}-${performance.dateFrom}-to-${performance.dateTo}.pdf`);
     } catch (requestError) {
-      setPerformanceError(requestError.response?.data?.message || "Could not export the class performance PDF.");
+      setPerformanceError(await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the class performance PDF."));
     } finally {
       setPerformanceExporting(false);
     }
@@ -463,9 +393,8 @@ const LiveLessonReviewPage = ({ mode }) => {
                 {report.session.status === "live" && <small>In progress · updates every 10 seconds · unanswered counts may change</small>}
               </div>
               <div className="live-report-export-actions no-print">
-                <button className="live-session-secondary" onClick={() => downloadSessionHtml()}><HiOutlineArrowDownTray /> HTML</button>
                 <button className="live-session-primary" onClick={() => downloadSessionPdf()} disabled={reportExporting}>
-                  <HiOutlineDocumentArrowDown /> {reportExporting ? "Preparing PDF…" : "Class PDF"}
+                  <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download class PDF"}
                 </button>
               </div>
             </div>
@@ -482,11 +411,8 @@ const LiveLessonReviewPage = ({ mode }) => {
               <div className="live-report-section-heading">
                 <div><h2>Class performance &amp; engagement</h2><p>Track attendance, participation, and accuracy across completed live lessons.</p></div>
                 <div className="live-report-export-actions no-print">
-                  <button className="live-session-secondary" onClick={downloadPerformanceHtml} disabled={!performance}>
-                    <HiOutlineArrowDownTray /> HTML
-                  </button>
                   <button className="live-session-primary" onClick={() => downloadPerformancePdf()} disabled={!performance || performanceExporting}>
-                    <HiOutlineDocumentArrowDown /> {performanceExporting ? "Preparing PDF…" : "Class PDF"}
+                    <HiOutlineArrowDownTray /> {performanceExporting ? "Preparing PDF…" : "Download class PDF"}
                   </button>
                 </div>
               </div>
@@ -520,11 +446,29 @@ const LiveLessonReviewPage = ({ mode }) => {
                     <div className="live-performance-chart" aria-label="Class attendance, participation, and accuracy trend chart">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={performance.sessions} margin={{ top: 10, right: 18, left: -15, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })} />
-                          <YAxis domain={[0, 100]} unit="%" />
-                          <Tooltip labelFormatter={(value) => new Date(value).toLocaleDateString()} formatter={(value) => [`${value}%`]} />
-                          <Legend />
+                          <CartesianGrid stroke="var(--border-color)" strokeDasharray="3 3" vertical={false} />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
+                            tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            axisLine={{ stroke: "var(--border-color)" }}
+                            tickLine={{ stroke: "var(--border-color)" }}
+                          />
+                          <YAxis
+                            domain={[0, 100]}
+                            unit="%"
+                            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
+                            axisLine={{ stroke: "var(--border-color)" }}
+                            tickLine={{ stroke: "var(--border-color)" }}
+                          />
+                          <Tooltip
+                            labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                            formatter={(value) => [`${value}%`]}
+                            contentStyle={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+                            labelStyle={{ color: "var(--text-primary)" }}
+                            itemStyle={{ color: "var(--text-secondary)" }}
+                          />
+                          <Legend wrapperStyle={{ color: "var(--text-secondary)" }} />
                           <Line type="monotone" dataKey="attendanceRate" name="Attendance" stroke="#168078" strokeWidth={3} dot={{ r: 3 }} />
                           <Line type="monotone" dataKey="engagementRate" name="Participation" stroke="#ed9d37" strokeWidth={3} dot={{ r: 3 }} />
                           <Line type="monotone" dataKey="accuracyRate" name="Accuracy" stroke="#5576c5" strokeWidth={3} dot={{ r: 3 }} />
@@ -535,8 +479,8 @@ const LiveLessonReviewPage = ({ mode }) => {
                   <div className="live-report-section-heading live-performance-student-heading">
                     <div><h3>Individual student performance</h3><p>Select one student for an individual report or several for a batch PDF.</p></div>
                     <button className="live-session-secondary no-print" onClick={() => downloadPerformancePdf(performanceStudentIds)} disabled={!performanceStudentIds.length || performanceStudentIds.length > 150 || performanceExporting}>
-                      <HiOutlineDocumentArrowDown />
-                      {performanceStudentIds.length === 1 ? "Individual PDF" : `Selected PDF (${performanceStudentIds.length})`}
+                      <HiOutlineArrowDownTray />
+                      {performanceStudentIds.length === 1 ? "Download individual PDF" : `Download selected PDF (${performanceStudentIds.length})`}
                     </button>
                   </div>
                   <div className="live-report-table-wrap live-performance-student-table"><table>
@@ -607,7 +551,7 @@ const LiveLessonReviewPage = ({ mode }) => {
               <div className="live-report-export-actions no-print">
                 <span className="live-report-count">{(report.perStudent || []).length} students</span>
                 <button className="live-session-secondary" onClick={() => downloadSessionPdf(selectedStudentIds)} disabled={!selectedStudentIds.length || selectedStudentIds.length > 150 || reportExporting}>
-                  <HiOutlineDocumentArrowDown /> Selected PDF ({selectedStudentIds.length})
+                  <HiOutlineArrowDownTray /> Download selected PDF ({selectedStudentIds.length})
                 </button>
               </div>
             </div>
@@ -628,9 +572,8 @@ const LiveLessonReviewPage = ({ mode }) => {
                 </label>
               </div>
               <div className="live-report-export-actions no-print">
-                <button className="live-session-secondary" onClick={() => selectedReportStudent && downloadSessionHtml([selectedReportStudent.studentId])} disabled={!selectedReportStudent}><HiOutlineArrowDownTray /> HTML</button>
                 <button className="live-session-primary" onClick={() => selectedReportStudent && downloadSessionPdf([selectedReportStudent.studentId])} disabled={!selectedReportStudent || reportExporting}>
-                  <HiOutlineDocumentArrowDown /> {reportExporting ? "Preparing PDF…" : "Student PDF"}
+                  <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download student PDF"}
                 </button>
               </div>
             </div>

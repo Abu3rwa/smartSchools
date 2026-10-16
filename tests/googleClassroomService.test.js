@@ -80,6 +80,40 @@ test('buildCourseWorkMaterials maps valid external URLs to Classroom link materi
     ]);
 });
 
+test('buildCourseWorkMaterials attaches a generated Google Form responder link', () => {
+    const assignment = baseAssignment({
+        metadata: {
+            googleForm: {
+                responderUri: 'https://docs.google.com/forms/d/abc123/viewform'
+            }
+        }
+    });
+
+    assert.deepEqual(buildCourseWorkMaterials(assignment), [
+        { link: { url: 'https://docs.google.com/forms/d/abc123/viewform', title: 'Google Form' } }
+    ]);
+});
+
+test('buildCourseWorkMaterials includes the Google Form only once when it is already an assignment link', () => {
+    const responderUri = 'https://docs.google.com/forms/d/abc123/viewform';
+    const assignment = baseAssignment({
+        links: [{ type: 'external_url', title: 'Google Form', url: responderUri }],
+        metadata: { googleForm: { responderUri } }
+    });
+
+    assert.deepEqual(buildCourseWorkMaterials(assignment), [
+        { link: { url: responderUri, title: 'Google Form' } }
+    ]);
+});
+
+test('buildCourseWorkMaterials ignores invalid Google Form responder URLs', () => {
+    const assignment = baseAssignment({
+        metadata: { googleForm: { responderUri: 'javascript:alert(1)' } }
+    });
+
+    assert.deepEqual(buildCourseWorkMaterials(assignment), []);
+});
+
 test('buildCourseWorkPayload maps app fields to Classroom coursework', () => {
     const payload = buildCourseWorkPayload({
         assignment: baseAssignment({

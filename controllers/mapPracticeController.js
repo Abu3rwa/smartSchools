@@ -6,6 +6,7 @@ import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import MapPracticeAssignment from '../models/MapPracticeAssignment.js';
 import MapPracticeAttempt from '../models/MapPracticeAttempt.js';
 import MapPracticeSettings from '../models/MapPracticeSettings.js';
+import MapTestRecord from '../models/MapTestRecord.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
 
@@ -60,13 +61,23 @@ export const getStudentMapPracticePlans = asyncHandler(async (req, res) => {
 
   const plans = await MapPracticePlan.find({ school: req.schoolId, student: student._id }).sort({ updatedAt: -1 }).lean();
   const planIds = plans.map((plan) => plan._id);
-  const [sets, skills, assignments, attempts] = await Promise.all([
+  const [sets, skills, assignments, attempts, mapRecords] = await Promise.all([
     MapPracticeSet.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).sort({ order: 1 }).lean(),
     MapPracticePlanSkill.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).populate('skill', 'code name').lean(),
     MapPracticeAssignment.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).populate('set', 'title questionCount').sort({ dueDate: 1, createdAt: -1 }).lean(),
-    MapPracticeAttempt.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).select('plan set status submittedAt score maxScore reviewStatus savedAt').sort({ submittedAt: -1, savedAt: -1 }).limit(20).lean()
+    MapPracticeAttempt.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } })
+      .select('plan set status submittedAt score maxScore reviewStatus savedAt answers.question answers.isCorrect')
+      .populate({ path: 'answers.question', select: 'skill', populate: { path: 'skill', select: 'code name' } })
+      .sort({ submittedAt: -1, savedAt: -1 })
+      .limit(20)
+      .lean(),
+    MapTestRecord.find({ school: req.schoolId, student: student._id })
+      .select('academicYear importedSubject importedGrade mapEvidence testDate testWindow ritScore percentile growthPercentile domainScores skillResults extractionStatus createdAt')
+      .sort({ testDate: -1, createdAt: -1 })
+      .limit(30)
+      .lean()
   ]);
-  res.json({ success: true, data: { student, plans, sets, skills, assignments, attempts } });
+  res.json({ success: true, data: { student, plans, sets, skills, assignments, attempts, mapRecords } });
 });
 
 export const getMyMapPracticeHome = asyncHandler(async (req, res) => {

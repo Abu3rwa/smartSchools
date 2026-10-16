@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineCheck, HiOutlineClipboardDocument, HiOutlinePencilSquare, HiOutlinePlay, HiOutlinePlus, HiOutlinePresentationChartBar, HiOutlineShare, HiOutlineStop, HiOutlineTrash } from "react-icons/hi2";
+import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineCheck, HiOutlineClipboardDocument, HiOutlineEye, HiOutlinePencilSquare, HiOutlinePlay, HiOutlinePlus, HiOutlinePresentationChartBar, HiOutlineShare, HiOutlineStop, HiOutlineTrash } from "react-icons/hi2";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
@@ -108,6 +108,10 @@ const LiveLessonsPage = () => {
   const [shareRecipient, setShareRecipient] = useState("");
   const [shareSaving, setShareSaving] = useState(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
+  const [previewLesson, setPreviewLesson] = useState(null);
+  const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const [endingSessionId, setEndingSessionId] = useState("");
   const [deletingFinishedSessions, setDeletingFinishedSessions] = useState(false);
   const [sessionDraft, setSessionDraft] = useState(null);
@@ -350,6 +354,24 @@ const LiveLessonsPage = () => {
       setError(requestError.response?.data?.message || "Could not open this lesson for editing.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openLessonPreview = async (lessonId) => {
+    setPreviewLesson(null);
+    setPreviewSlideIndex(0);
+    setPreviewError("");
+    setPreviewLoading(true);
+    try {
+      const response = await api.get(`/live/lessons/${lessonId}`);
+      setPreviewLesson(response.data?.data?.lesson || null);
+      if (!response.data?.data?.lesson) {
+        setPreviewError("This lesson could not be loaded.");
+      }
+    } catch (requestError) {
+      setPreviewError(requestError.response?.data?.message || "Could not preview this lesson.");
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -887,6 +909,7 @@ const LiveLessonsPage = () => {
                         )}
                       </td>
                       <td className="live-list-row-actions">
+                        <button className="live-secondary-button" onClick={() => void openLessonPreview(lesson._id)}><HiOutlineEye /> Preview</button>
                         <button className="live-primary-button" onClick={() => openSessionDialog(lesson, false)} disabled={!((lesson.classId?._id || lesson.classId) || lessonClasses[lesson._id] || lessonListState.classId)}><HiOutlinePlay /> Start</button>
                         <button className="live-secondary-button" onClick={() => openSessionDialog(lesson, true)} disabled={!((lesson.classId?._id || lesson.classId) || lessonClasses[lesson._id] || lessonListState.classId)}>Schedule</button>
                         <button className="live-secondary-button" onClick={() => openLessonEditor(lesson._id)}><HiOutlinePencilSquare /> Edit</button>
@@ -1011,6 +1034,72 @@ const LiveLessonsPage = () => {
             <button disabled={!sessionPagination.pages || sessionListState.page >= sessionPagination.pages} onClick={() => updateSessionList({ page: sessionListState.page + 1 })}>Next</button>
           </div>
         </>
+      )}
+
+      {(previewLoading || previewLesson || previewError) && (
+        <div className="live-import-overlay" role="presentation" onClick={() => { if (!previewLoading) { setPreviewLesson(null); setPreviewError(""); } }}>
+          <section className="live-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="live-preview-title" onClick={(event) => event.stopPropagation()}>
+            <header className="live-import-header">
+              <div>
+                <span className="live-eyebrow">LESSON PREVIEW</span>
+                <h2 id="live-preview-title">{previewLesson?.title || "Preview lesson"}</h2>
+                {previewLesson?.description && <p>{previewLesson.description}</p>}
+              </div>
+              <button className="live-dialog-close" onClick={() => { setPreviewLesson(null); setPreviewError(""); }} aria-label="Close lesson preview" disabled={previewLoading}>×</button>
+            </header>
+            {previewLoading && <p className="live-preview-status" role="status">Loading lesson preview…</p>}
+            {previewError && <p className="live-preview-status live-preview-error" role="alert">{previewError}</p>}
+            {previewLesson && (() => {
+              const slides = previewLesson.slides || [];
+              const slide = slides[previewSlideIndex];
+              return (
+                <>
+                  <div className="live-preview-slide-strip">
+                    {slides.map((item, index) => (
+                      <button
+                        type="button"
+                        className={`live-preview-chip ${previewSlideIndex === index ? "active" : ""}`}
+                        key={`${index}-${item.title || item.type}`}
+                        onClick={() => setPreviewSlideIndex(index)}
+                        aria-current={previewSlideIndex === index ? "step" : undefined}
+                      >
+                        <span>{String(index + 1).padStart(2, "0")}</span>{item.title || item.type}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="live-preview-dialog-content">
+                    {slide ? (
+                      <>
+                        <LiveLessonSlide slide={slide} index={previewSlideIndex} total={slides.length} language={previewLesson.language} />
+                        {slide.question && (
+                          <section className="live-preview-question">
+                            <span className="live-eyebrow">QUESTION</span>
+                            <h3>{slide.question.prompt}</h3>
+                            <ol type="A">
+                              {(slide.question.options || []).map((option) => (
+                                <li key={option.id} className={option.id === slide.question.correctOptionId ? "correct" : ""}>
+                                  {option.text}{option.id === slide.question.correctOptionId && <strong> · Correct answer</strong>}
+                                </li>
+                              ))}
+                            </ol>
+                            {slide.question.explanation && <p><strong>Explanation:</strong> {slide.question.explanation}</p>}
+                          </section>
+                        )}
+                      </>
+                    ) : <p className="live-preview-status">This lesson has no slides to preview.</p>}
+                  </div>
+                  <footer className="live-preview-navigation">
+                    <span>{slides.length ? `Slide ${previewSlideIndex + 1} of ${slides.length}` : "No slides"}</span>
+                    <div>
+                      <button type="button" className="live-secondary-button" disabled={previewSlideIndex <= 0} onClick={() => setPreviewSlideIndex((index) => index - 1)}>Previous</button>
+                      <button type="button" className="live-primary-button" disabled={previewSlideIndex >= slides.length - 1} onClick={() => setPreviewSlideIndex((index) => index + 1)}>Next</button>
+                    </div>
+                  </footer>
+                </>
+              );
+            })()}
+          </section>
+        </div>
       )}
 
       {sessionDraft && (

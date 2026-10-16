@@ -31,14 +31,17 @@ export const studentSpellingDocx = asyncHandler(async (req, res) => {
     if (!data.student) return res.status(404).json({ success: false, message: 'Student not found' });
     const rows = data.sessions.map((session) => [
         new Date(session.startedAt).toLocaleDateString(),
-        session.mode,
+        session.assessmentType === 'retest-quiz' ? 'Graded spelling quiz' : session.mode,
         session.correctCount,
         session.mistakeCount,
-        session.status
+        session.status,
+        session.assessmentType === 'retest-quiz' && session.attempts.length
+            ? `${Math.round((session.attempts.filter((attempt) => attempt.correct).length / session.attempts.length) * 10000) / 100}%`
+            : ''
     ]);
     const safeName = `${data.student.firstName}-${data.student.lastName}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     return sendDocx(res, `spelling-${safeName}.docx`, `Spelling Report: ${data.student.firstName} ${data.student.lastName}`, [
-        reportTable(['Date', 'Mode', 'Correct', 'Incorrect', 'Status'], rows.length ? rows : [['No sessions', '', '', '', '']]),
+        reportTable(['Date', 'Assessment', 'Correct', 'Incorrect', 'Status', 'Quiz score'], rows.length ? rows : [['No sessions', '', '', '', '', '']]),
         new Paragraph({ children: [new TextRun(`Pending retests: ${data.retests.length}`)] })
     ]);
 });
@@ -46,8 +49,16 @@ export const studentSpellingDocx = asyncHandler(async (req, res) => {
 export const classSpellingDocx = asyncHandler(async (req, res) => {
     const data = await buildClassSpellingReport({ schoolId: req.schoolId, classId: req.params.classId });
     if (!data.class) return res.status(404).json({ success: false, message: 'Class not found' });
-    const rows = data.rows.map((row) => [`${row.firstName} ${row.lastName}`, row.sessions, row.correct, row.incorrect, `${row.accuracy}%`]);
+    const rows = data.rows.map((row) => [
+        `${row.firstName} ${row.lastName}`,
+        row.sessions,
+        row.correct,
+        row.incorrect,
+        `${row.accuracy}%`,
+        row.gradedQuizzes,
+        row.gradedQuizzes ? `${row.averageGradedQuizScore}%` : '—'
+    ]);
     return sendDocx(res, `spelling-class-${req.params.classId}.docx`, `Spelling Report: ${data.class.name}`, [
-        reportTable(['Student', 'Sessions', 'Correct', 'Incorrect', 'Accuracy'], rows)
+        reportTable(['Student', 'Sessions', 'Correct', 'Incorrect', 'Accuracy', 'Graded quizzes', 'Quiz average'], rows)
     ]);
 });

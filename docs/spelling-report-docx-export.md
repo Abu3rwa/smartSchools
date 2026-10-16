@@ -35,6 +35,7 @@ Use the existing `studentDetails` response produced by `buildStudentSpellingDeta
 | Retest alert | `summary.pendingRetests`, `overdueRetests` | Clearly distinguish pending and overdue counts |
 | Original tests | `summary.originalAttempts`, `originalCorrect`, `originalIncorrect`, `originalAccuracy` | Four summary metrics |
 | Retests | `summary.retestAttempts`, `retestCorrect`, `retestIncorrect`, `retestRecoveryRate` | Four metrics; recovery displays `—` when there are no retest attempts |
+| Graded retest quizzes | `summary.gradedQuizCount`, `gradedQuizAverage` | Show quiz count and average score; show `—` when there are no completed quizzes |
 | Words missed | `summary.uniqueWordsEverMissed` | Use the API's exact property name |
 | Performance by grade | `byGrade[]` | Chart and accessible data table, always ordered KG, G1, G2, G3, G4, G5 |
 | Missed words | `missedWords[]` | Word, grade, original incorrect count, retest attempts, retest correct, and Pending/Resolved status |
@@ -43,6 +44,8 @@ Use the existing `studentDetails` response produced by `buildStudentSpellingDeta
 The current service returns only grades with recorded attempts. Keep that behavior: don't imply that a missing grade has zero performance unless the product explicitly decides to show every grade.
 
 Sort missed words with pending first, then by `originalIncorrectCount` descending, matching the details page. The details page also offers month and original-miss session filters, defaulted to **All months** and **All sessions**. These filters scope which words and original incorrect counts are shown; retest progress and pending status remain the current totals for each word. Keep status as visible text as well as colour.
+
+A missed word remains pending through retests until it is spelled correctly on three consecutive quizzes. Each due quiz includes all due pending words and prioritizes the least-confident words first.
 
 ## Print design
 

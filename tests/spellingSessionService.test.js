@@ -39,6 +39,19 @@ test('startSpellingSession rejects invalid modes before database access', async 
     );
 });
 
+test('formal spelling assessments must be self-serve before database access', async () => {
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId: 'school-1',
+            studentId: 'student-1',
+            userId: 'user-1',
+            mode: 'teacher-led',
+            formalAssessment: true
+        }),
+        (error) => error.statusCode === 400 && /Formal spelling assessments must be self-serve/.test(error.message)
+    );
+});
+
 test('startSpellingClassSession rejects invalid grade and mode before database access', async () => {
     await assert.rejects(
         () => startSpellingClassSession({
@@ -115,6 +128,32 @@ test('startSpellingSession rejects invalid or past deadlines before database acc
             retestDeadline: new Date(Date.now() - 1000)
         }),
         (error) => error.statusCode === 400 && /valid future date/.test(error.message)
+    );
+});
+
+test('startSpellingSession rejects invalid or non-future scheduled dates before database access', async () => {
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId: 'school-1',
+            studentId: 'student-1',
+            userId: 'user-1',
+            mode: 'self-serve',
+            maxMistakesAllowed: 3,
+            scheduledAt: 'not-a-date'
+        }),
+        (error) => error.statusCode === 400 && /scheduledAt must be a valid future date/.test(error.message)
+    );
+
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId: 'school-1',
+            studentId: 'student-1',
+            userId: 'user-1',
+            mode: 'self-serve',
+            maxMistakesAllowed: 3,
+            scheduledAt: new Date(Date.now() - 1000)
+        }),
+        (error) => error.statusCode === 400 && /scheduledAt must be a valid future date/.test(error.message)
     );
 });
 

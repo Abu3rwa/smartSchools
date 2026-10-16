@@ -14,8 +14,14 @@ export const buildDescription = (assignment) => {
 };
 
 export const buildCourseWorkMaterials = (assignment) => (
-    (Array.isArray(assignment?.links) ? assignment.links : [])
-        .filter((link) => link?.type === 'external_url')
+    [
+        ...(Array.isArray(assignment?.links) ? assignment.links : [])
+            .filter((link) => link?.type === 'external_url')
+            .map((link) => ({ url: link.url, title: link.title })),
+        ...(assignment?.metadata?.googleForm?.responderUri
+            ? [{ url: assignment.metadata.googleForm.responderUri, title: 'Google Form' }]
+            : [])
+    ]
         .map((link) => {
             const rawUrl = String(link.url || '').trim();
             try {
@@ -38,6 +44,8 @@ export const buildCourseWorkMaterials = (assignment) => (
             }
         })
         .filter(Boolean)
+        .filter((material, index, materials) =>
+            materials.findIndex((candidate) => candidate.link.url === material.link.url) === index)
 );
 
 export const desiredClassroomState = (assignment) =>

@@ -44,12 +44,14 @@
 }
 
 .assignments-page .filters-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
+.assignments-page .filters-grid .form-group,
 .assignments-page .filters .form-group {
+  flex: 1 1 160px;
   margin: 0;
 }
 
@@ -57,6 +59,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  padding: 0 24px 16px;
 }
 
 .assignments-page .create-grid .full {
@@ -141,7 +144,8 @@
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  padding: 12px 24px 8px;
+  border-top: 1px solid var(--border-color);
 }
 
 .assignments-page .create-options label {
@@ -166,14 +170,31 @@
 
 .assignments-page .assignment-table th,
 .assignments-page .assignment-table td {
-  padding: 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-color);
   text-align: left;
+  vertical-align: middle;
 }
 
+.assignments-page .assignment-table th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+/* action-cell: keep td as a normal block; use an inner div for flex */
 .assignments-page .action-cell {
+  white-space: nowrap;
+}
+
+.assignments-page .action-cell-inner {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .assignments-page .btn.btn-danger {
@@ -352,7 +373,10 @@
     width: 100%;
   }
 
-  .assignments-page .filters-grid,
+  .assignments-page .filters-grid {
+    flex-direction: column;
+  }
+
   .assignments-page .create-grid {
     grid-template-columns: 1fr;
   }

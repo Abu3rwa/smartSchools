@@ -114,6 +114,8 @@ import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processDueSpellingEmails } from "./services/spellingEmailService.js";
+import { scheduleDueSpellingRetestQuizzes } from "./services/spellingRetestQuizSchedulerService.js";
+import { activateDueScheduledSpellingSessions } from "./services/spellingSessionService.js";
 import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
 import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
@@ -576,6 +578,46 @@ const server = httpServer.listen(PORT, () => {
     };
     setTimeout(runSpellingEmailScheduler, 5 * 1000);
     activeIntervals.push(setInterval(runSpellingEmailScheduler, SPELLING_EMAIL_SCHEDULER_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_SPELLING_RETEST_SCHEDULER !== "false") {
+    let spellingRetestJobRunning = false;
+    const runSpellingRetestScheduler = async () => {
+      if (spellingRetestJobRunning) return;
+      spellingRetestJobRunning = true;
+      try {
+        const result = await scheduleDueSpellingRetestQuizzes();
+        if ((result?.quizzesScheduled || 0) > 0) {
+          logger.info("Spelling retest quiz scheduler run", result);
+        }
+      } catch (err) {
+        logger.error("Spelling retest quiz scheduler error:", err?.message || err);
+      } finally {
+        spellingRetestJobRunning = false;
+      }
+    };
+    setTimeout(runSpellingRetestScheduler, 5 * 1000);
+    activeIntervals.push(setInterval(runSpellingRetestScheduler, SPELLING_EMAIL_SCHEDULER_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_SPELLING_SESSION_SCHEDULER !== "false") {
+    let spellingSessionJobRunning = false;
+    const runSpellingSessionScheduler = async () => {
+      if (spellingSessionJobRunning) return;
+      spellingSessionJobRunning = true;
+      try {
+        const result = await activateDueScheduledSpellingSessions();
+        if ((result?.sessionsActivated || 0) > 0) {
+          logger.info("Scheduled spelling assessments activated", result);
+        }
+      } catch (err) {
+        logger.error("Scheduled spelling assessment activation error:", err?.message || err);
+      } finally {
+        spellingSessionJobRunning = false;
+      }
+    };
+    setTimeout(runSpellingSessionScheduler, 5 * 1000);
+    activeIntervals.push(setInterval(runSpellingSessionScheduler, SPELLING_EMAIL_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_CURRICULUM_AI_IMPORT_RUNNER !== "false") {

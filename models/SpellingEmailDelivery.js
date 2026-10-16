@@ -5,7 +5,7 @@ const spellingEmailDeliverySchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     session: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingSession', required: true },
     passage: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingPassage', default: null },
-    kind: { type: String, enum: ['results', 'passage'], default: 'results' },
+    kind: { type: String, enum: ['results', 'passage', 'retest-practice'], default: 'results' },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     recipients: { type: [String], default: [] },
     subject: { type: String, required: true, maxlength: 220 },
@@ -22,6 +22,14 @@ spellingEmailDeliverySchema.index({ school: 1, status: 1, nextAttemptAt: 1 });
 spellingEmailDeliverySchema.index(
     { passage: 1, kind: 1 },
     { unique: true, partialFilterExpression: { passage: { $type: 'objectId' } } }
+);
+spellingEmailDeliverySchema.index(
+    { session: 1, kind: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { kind: 'retest-practice' },
+        name: 'session_retest_practice_unique'
+    }
 );
 spellingEmailDeliverySchema.plugin(tenantIsolationPlugin);
 

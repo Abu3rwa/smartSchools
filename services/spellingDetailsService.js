@@ -192,6 +192,24 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     const totalRetest = retestAttempts.length;
     const retestCorrect = retestAttempts.filter((attempt) => attempt.correct).length;
     const recoveredWords = [...missedWords.values()].filter((item) => item.retestCorrect > 0).length;
+    const gradedQuizzes = sessions
+        .filter((session) => session.assessmentType === 'retest-quiz' && session.status === 'completed')
+        .map((session) => {
+            const attempts = (session.attempts || []).filter((attempt) => (
+                !grade || attempt.grade === String(grade).toUpperCase()
+            ));
+            return {
+                id: String(session._id),
+                startedAt: session.startedAt,
+                correct: attempts.filter((attempt) => attempt.correct).length,
+                total: attempts.length,
+                score: roundPercentage(attempts.filter((attempt) => attempt.correct).length, attempts.length)
+            };
+        })
+        .filter((quiz) => quiz.total > 0);
+    const gradedQuizAverage = gradedQuizzes.length
+        ? Math.round((gradedQuizzes.reduce((total, quiz) => total + quiz.score, 0) / gradedQuizzes.length) * 100) / 100
+        : 0;
     return {
         student: {
             id: student._id,
@@ -216,8 +234,11 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
             originalAccuracy: roundPercentage(originalAttempts.filter((attempt) => attempt.correct).length, totalOriginal),
             retestRecoveryRate: roundPercentage(retestCorrect, totalRetest),
             recoveredWords,
-            recoveryRate: roundPercentage(recoveredWords, missedWords.size)
+            recoveryRate: roundPercentage(recoveredWords, missedWords.size),
+            gradedQuizCount: gradedQuizzes.length,
+            gradedQuizAverage
         },
+        gradedQuizzes,
         byGrade,
         timeline: [...timelineMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
         missedWords: [...missedWords.values()].sort((a, b) => b.originalIncorrectCount - a.originalIncorrectCount),

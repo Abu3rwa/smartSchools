@@ -66,6 +66,8 @@ const SpellingTeacherPage = () => {
     const [classGrade, setClassGrade] = useState('KG');
     const [classGradeProgress, setClassGradeProgress] = useState({ week: null, status: 'loading', error: '' });
     const [maxMistakesAllowed, setMaxMistakesAllowed] = useState(3);
+    const [retestIntervalDays, setRetestIntervalDays] = useState(7);
+    const [gradebookSubjectId, setGradebookSubjectId] = useState('');
     const [emailNotification, setEmailNotification] = useState('student-and-parents');
     const [passageEmailAudience, setPassageEmailAudience] = useState('none');
     const [passageEnabled, setPassageEnabled] = useState(false);
@@ -123,6 +125,8 @@ const SpellingTeacherPage = () => {
 
     const applyDefaultsToFields = useCallback((settings) => {
         setMaxMistakesAllowed(settings?.defaultMaxMistakes || 3);
+        setRetestIntervalDays(settings?.retestIntervalDays || 7);
+        setGradebookSubjectId(settings?.gradebookSubject?._id || settings?.gradebookSubject || '');
         setEmailNotification(settings?.defaultEmailAudience || 'student-and-parents');
         setPassageEnabled(settings?.passageGeneration?.enabled === true);
         setPassageTrigger(settings?.passageGeneration?.trigger || 'manual');
@@ -320,7 +324,7 @@ const SpellingTeacherPage = () => {
         }
     }, []);
 
-    const startStudentSession = async (student) => {
+    const startStudentSession = async (student, { mode = assessmentMode, scheduledAt = null, formalTest = false } = {}) => {
         const level = rowLevels[student._id] || {};
         if (!student._id || !level.grade) return;
         setRowActionLoadingId(student._id);
@@ -329,11 +333,13 @@ const SpellingTeacherPage = () => {
             const result = await dispatch(startTeacherSpellingSession({
                 studentId: student._id,
                 curriculumGrade: level.grade,
-                mode: assessmentMode,
+                mode,
                 emailNotification,
                 passageEmailAudience,
                 passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true },
-                maxMistakesAllowed
+                maxMistakesAllowed,
+                scheduledAt,
+                formalAssessment: formalTest
             }));
             if (startTeacherSpellingSession.fulfilled.match(result)) {
                 if (result.payload.curriculumGrade && result.payload.curriculumGrade !== level.grade) {
@@ -344,23 +350,40 @@ const SpellingTeacherPage = () => {
                 }
                 // In teacher-led mode, open the live grading modal immediately.
                 // In self-serve mode, the student works independently on their device; keep the teacher on the roster.
-                if (assessmentMode === 'teacher-led') {
+                if (mode === 'teacher-led' && !scheduledAt) {
                     setStudentId(student._id);
                     activeSessionIdRef.current = result.payload._id;
                     await loadCurrentItem(result.payload._id);
                 } else {
-                    notify(t('sessionStarted', { name: `${student.firstName} ${student.lastName}` }) || 'Session started for student', 'success');
+                    const messageKey = scheduledAt
+                        ? 'formalTestScheduledToast'
+                        : formalTest ? 'formalTestStartedToast' : 'sessionStarted';
+                    notify(t(messageKey, {
+                        name: `${student.firstName} ${student.lastName}`,
+                        date: scheduledAt ? new Date(scheduledAt).toLocaleString() : undefined
+                    }), 'success');
                 }
+                await loadActiveSessions({ showLoading: false });
+                return true;
             } else {
                 notify(result.payload || t('sessionError'), 'error');
             }
             await loadActiveSessions({ showLoading: false });
+            return false;
         } catch (error) {
             notify(error.response?.data?.message || 'Unable to start the session.', 'error');
+            return false;
         } finally {
             setRowActionLoadingId(null);
         }
     };
+
+    const startFormalTest = (student) => startStudentSession(student, { mode: 'self-serve', formalTest: true });
+    const scheduleFormalTest = (student, scheduledAt) => startStudentSession(student, {
+        mode: 'self-serve',
+        scheduledAt,
+        formalTest: true
+    });
 
     const performEndRowActiveSession = async (student, rowActiveSession) => {
         setRowActionLoadingId(student._id);
@@ -770,8 +793,10 @@ const SpellingTeacherPage = () => {
             const payload = {
                 defaultMaxMistakes: maxMistakesAllowed,
                 defaultEmailAudience: emailNotification,
+                retestIntervalDays,
                 passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true, passageEmailAudience }
-                ,dictationMode: { enabled: dictationEnabled, autoPlayOnShow: dictationAutoPlay }
+                ,dictationMode: { enabled: dictationEnabled, autoPlayOnShow: dictationAutoPlay },
+                gradebookSubject: gradebookSubjectId || null
             };
             await api.patch(`/spelling/classes/${classId}/settings`, payload);
             setClassDefaults(payload);
@@ -944,6 +969,8 @@ const SpellingTeacherPage = () => {
                     onViewStudentSessions={loadStudentHistory}
                     onEndActiveSession={endRowActiveSession}
                     onStartStudentSession={startStudentSession}
+                    onStartFormalTest={startFormalTest}
+                    onScheduleFormalTest={scheduleFormalTest}
                     onExportStudentReport={exportStudentReport}
                 />}
             </>}
@@ -951,12 +978,19 @@ const SpellingTeacherPage = () => {
             {activeTab === 2 && <SpellingSettingsTab
                 maxMistakesAllowed={maxMistakesAllowed}
                 setMaxMistakesAllowed={setMaxMistakesAllowed}
+                retestIntervalDays={retestIntervalDays}
+                setRetestIntervalDays={setRetestIntervalDays}
                 emailNotification={emailNotification}
                 setEmailNotification={setEmailNotification}
                 passageEmailAudience={passageEmailAudience}
                 setPassageEmailAudience={setPassageEmailAudience}
                 passageEnabled={passageEnabled}
                 setPassageEnabled={setPassageEnabled}
+                gradebookSubjectId={gradebookSubjectId}
+                setGradebookSubjectId={setGradebookSubjectId}
+                gradebookSubjects={(selectedClass?.subjects || [])
+                    .map((entry) => entry.subject)
+                    .filter((subject) => subject && typeof subject === 'object')}
                 passageTrigger={passageTrigger}
                 setPassageTrigger={setPassageTrigger}
                 passageStyle={passageStyle}

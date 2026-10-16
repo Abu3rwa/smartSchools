@@ -867,9 +867,7 @@ const awayDurationForStudent = (events, studentId, endAt) => {
   return Math.round(total / 1000);
 };
 
-export const getLiveSessionReport = asyncHandler(async (req, res) => {
-  const session = await findOwnedSession(req, res);
-  if (!session) return;
+const buildLiveSessionReportData = async (req, session) => {
   const [students, responses, events, classDoc] = await Promise.all([
     getSessionStudents(session),
     LiveResponse.find({ sessionId: session._id, school: req.schoolId }).lean(),
@@ -987,41 +985,50 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
   });
   const startedAt = session.startedAt || null;
   const reportEndedAt = session.endedAt || null;
-  return res.json({
-    success: true,
-    data: {
-      session: {
-        id: String(session._id),
-        title: session.lessonSnapshot.title,
-        status: session.status,
-        class: classDoc,
-        subject: session.lessonSnapshot.subject || "",
-        subjectId: session.lessonSnapshot.subjectId || null,
-        startedAt,
-        endedAt: reportEndedAt,
-        durationMs: startedAt
-          ? Math.max(0, ((reportEndedAt || new Date()).getTime() - new Date(startedAt).getTime()))
-          : 0,
-        updatedAt: new Date(),
-        questionOpen: Boolean(session.questionOpen),
-      },
-      summary: {
-        rosterCount: students.length,
-        joinedCount: perStudent.filter((student) => student.joined).length,
-        questionCount: questionSlides.length,
-        presentedQuestionCount,
-        submittedAnswers: responses.length,
-      },
-      perQuestion,
-      perStudent,
+  return {
+    session: {
+      id: String(session._id),
+      title: session.lessonSnapshot.title,
+      status: session.status,
+      class: classDoc,
+      subject: session.lessonSnapshot.subject || "",
+      subjectId: session.lessonSnapshot.subjectId || null,
+      startedAt,
+      endedAt: reportEndedAt,
+      durationMs: startedAt
+        ? Math.max(0, ((reportEndedAt || new Date()).getTime() - new Date(startedAt).getTime()))
+        : 0,
+      updatedAt: new Date(),
+      questionOpen: Boolean(session.questionOpen),
     },
-  });
+    summary: {
+      rosterCount: students.length,
+      joinedCount: perStudent.filter((student) => student.joined).length,
+      questionCount: questionSlides.length,
+      presentedQuestionCount,
+      submittedAnswers: responses.length,
+    },
+    perQuestion,
+    perStudent,
+  };
+};
+
+export const getLiveSessionReport = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  const data = await buildLiveSessionReportData(req, session);
+  return res.json({ success: true, data });
 });
 
-const sendLiveLessonPdf = (res, buffer, filename) => res
-  .type("application/pdf")
-  .set("Content-Disposition", `attachment; filename="${filename}"`)
-  .send(buffer);
+const sendLiveLessonPdf = (res, pdfData, filename) => {
+  const pdfBuffer = Buffer.from(pdfData);
+  return res
+    .status(200)
+    .type("application/pdf")
+    .set("Content-Disposition", `attachment; filename="${filename}"`)
+    .set("Content-Length", String(pdfBuffer.length))
+    .send(pdfBuffer);
+};
 
 const parseReportStudentIds = (value) => {
   if (value === undefined) return [];
@@ -1040,6 +1047,7 @@ export const getLiveLessonPerformanceReport = asyncHandler(async (req, res) => {
     dateFrom: req.query.dateFrom,
     dateTo: req.query.dateTo,
     resolveClass: findTeacherClass,
+    resolveStudents: getSessionStudents,
   });
   return res.json({ success: true, data });
 });
@@ -1051,6 +1059,7 @@ export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res
     dateFrom: req.query.dateFrom,
     dateTo: req.query.dateTo,
     resolveClass: findTeacherClass,
+    resolveStudents: getSessionStudents,
   });
   const requestedStudentIds = req.query.studentIds
     ? String(req.query.studentIds).split(",").filter(Boolean)
@@ -1066,11 +1075,7 @@ export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res
 export const exportLiveSessionReportPdf = asyncHandler(async (req, res) => {
   const session = await findOwnedSession(req, res);
   if (!session) return;
-  const report = req.body?.report;
-  if (!report || String(report.session?.id || "") !== String(session._id)
-    || !Array.isArray(report.perStudent) || !Array.isArray(report.perQuestion)) {
-    return res.status(400).json({ success: false, message: "The session report data is invalid." });
-  }
+  const report = await buildLiveSessionReportData(req, session);
   const studentIds = parseReportStudentIds(req.body?.studentIds);
   if (studentIds.length && studentIds.some((id) => !report.perStudent.some((student) => student.studentId === id))) {
     return res.status(400).json({ success: false, message: "The selected students are not in this session report." });

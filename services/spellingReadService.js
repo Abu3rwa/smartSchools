@@ -26,6 +26,7 @@ export async function listSpellingSessions({
         : {
             school: schoolId,
             $or: [
+                { status: 'scheduled' },
                 { status: 'in-progress' },
                 { 'attempts.0': { $exists: true } }
             ]
@@ -41,7 +42,7 @@ export async function listSpellingSessions({
         .limit(Math.min(Math.max(Number(limit) || 50, 1), maxLimit))
         .select(activeOnly
             ? 'student mode status startedAt mistakeCount currentItem nextSequence curriculumGrade curriculumWeek'
-            : 'student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
+            : 'student mode status assessmentType scheduledAt startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError retestEmailStatus')
         .lean();
     if (viewerRole !== 'student') {
         const activeSessions = sessions.filter((session) => session.status === 'in-progress');

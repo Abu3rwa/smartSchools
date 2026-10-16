@@ -81,6 +81,7 @@ const AssignmentsTable = ({
                                     <td>{formatAssignmentDueDate(assignment.dueDate)}</td>
                                     <td>{assignment.maxMarks}</td>
                                     <td className="action-cell">
+                                        <div className="action-cell-inner">
                                         {assignment.status === 'draft' && canCreateAssignments && (
                                             <div className="reminder-dropdown" style={{ display: 'inline-block', position: 'relative' }}>
                                                 <select
@@ -185,6 +186,7 @@ const AssignmentsTable = ({
                                                 {t('assignments:actions.delete')}
                                             </button>
                                         )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

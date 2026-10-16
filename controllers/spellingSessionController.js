@@ -88,6 +88,8 @@ export const startSession = asyncHandler(async (req, res) => {
         mode: req.body.mode,
         maxMistakesAllowed: maxMistakes,
         retestDeadline: req.body.retestDeadline,
+        scheduledAt: req.body.scheduledAt,
+        formalAssessment: req.body.formalAssessment === true,
         curriculumGrade: req.body.curriculumGrade,
         curriculumWeek: req.body.curriculumWeek ? Number(req.body.curriculumWeek) : undefined,
         emailNotification: req.body.emailNotification ?? null,

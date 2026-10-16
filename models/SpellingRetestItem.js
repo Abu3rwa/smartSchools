@@ -53,6 +53,20 @@ const spellingRetestItemSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+    lastRetestedAt: {
+        type: Date,
+        default: null
+    },
+    correctRetestStreak: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    incorrectRetestCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     dueAt: {
         type: Date,
         required: true
@@ -77,6 +91,10 @@ const spellingRetestItemSchema = new mongoose.Schema({
 
 spellingRetestItemSchema.index({ school: 1, student: 1, status: 1, flaggedAt: 1 });
 spellingRetestItemSchema.index({ school: 1, student: 1, dueAt: 1, status: 1 });
+spellingRetestItemSchema.index(
+    { status: 1, dueAt: 1 },
+    { name: 'spelling_retest_due_queue' }
+);
 spellingRetestItemSchema.index(
     { school: 1, student: 1, wordSnapshot: 1 },
     { unique: true, partialFilterExpression: { status: 'pending' } }

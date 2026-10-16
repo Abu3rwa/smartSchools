@@ -716,6 +716,88 @@
   }
 }
 
+@media screen {
+  [data-theme="dark"] .live-session-page {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-session-page :is(
+    .live-session-back,
+    .live-presentation-back,
+    .live-fullscreen-toggle,
+    .live-presentation-toolbar,
+    .live-waiting-banner,
+    .live-teacher-controls,
+    .live-question-controls,
+    .live-end-confirm,
+    .live-question-card,
+    .live-answer-option,
+    .live-control-card,
+    .live-student-waiting
+  ) {
+    border-color: var(--border-color);
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-session-page :is(
+    .live-session-heading h1,
+    .live-presentation-title strong,
+    .live-question-card h2,
+    .live-control-card h2,
+    .live-roster-heading h2,
+    .live-student-waiting h2,
+    .live-end-confirm h2
+  ) {
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-session-page :is(
+    .live-presentation-title span,
+    .live-waiting-banner span,
+    .live-teacher-controls p,
+    .live-slide-controls > span,
+    .live-question-topline,
+    .live-answer-option small,
+    .live-control-card > p,
+    .live-roster-heading p,
+    .live-roster-student small,
+    .live-answer-student small,
+    .live-sidebar-empty,
+    .live-student-waiting p
+  ) {
+    color: var(--text-secondary);
+  }
+
+  [data-theme="dark"] .live-session-page :is(
+    .live-session-back,
+    .live-presentation-back,
+    .live-fullscreen-toggle,
+    .live-session-secondary,
+    .live-answer-option
+  ):not(:disabled):hover {
+    border-color: var(--primary);
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-session-page .live-answer-option.selected {
+    border-color: var(--primary);
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-session-page .live-answer-student,
+  [data-theme="dark"] .live-session-page .live-presentation-toolbar {
+    border-color: var(--border-color);
+  }
+
+  [data-theme="dark"] .live-session-page .live-student-waiting {
+    background: var(--bg-card);
+  }
+}
+
 .live-session-page {
   position: relative;
   min-height: calc(100vh - 72px);

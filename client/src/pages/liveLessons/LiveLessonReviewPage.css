@@ -232,3 +232,127 @@
   .live-performance-chart { height: 260px; }
   .live-performance-student-heading { align-items: flex-start; flex-direction: column; }
 }
+
+@media screen {
+  [data-theme="dark"] .live-review-page {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-review-header {
+    background: var(--bg-primary);
+  }
+
+  [data-theme="dark"] .live-review-header h1,
+  [data-theme="dark"] .live-review-card h2,
+  [data-theme="dark"] .live-report-summary strong,
+  [data-theme="dark"] .live-question-result h3,
+  [data-theme="dark"] .live-question-metrics strong,
+  [data-theme="dark"] .live-report-answer-group summary,
+  [data-theme="dark"] .live-performance-student-heading h3 {
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-review-card,
+  [data-theme="dark"] .live-question-result,
+  [data-theme="dark"] .live-report-answer-group,
+  [data-theme="dark"] .live-report-presence-details {
+    border-color: var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-report-class-section:first-child {
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+  }
+
+  [data-theme="dark"] .live-report-summary > div,
+  [data-theme="dark"] .live-question-metrics > div,
+  [data-theme="dark"] .live-report-answer-group[open] summary,
+  [data-theme="dark"] .live-report-presence-details summary span,
+  [data-theme="dark"] .live-replay-event-list span,
+  [data-theme="dark"] .live-student-report-summary > span {
+    border-color: var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  [data-theme="dark"] .live-report-table-wrap th,
+  [data-theme="dark"] .live-report-table-wrap td,
+  [data-theme="dark"] .live-report-answer-group[open] summary,
+  [data-theme="dark"] .live-report-answer-group {
+    border-color: var(--border-color);
+  }
+
+  [data-theme="dark"] .live-report-table-wrap th {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  [data-theme="dark"] .live-report-table-wrap tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+
+  [data-theme="dark"] .live-report-heading p,
+  [data-theme="dark"] .live-report-section-heading p,
+  [data-theme="dark"] .live-report-context span,
+  [data-theme="dark"] .live-report-summary span,
+  [data-theme="dark"] .live-report-caveat,
+  [data-theme="dark"] .live-report-presence-list,
+  [data-theme="dark"] .live-report-option-counts,
+  [data-theme="dark"] .live-gradebook-controls label,
+  [data-theme="dark"] .live-gradebook-status,
+  [data-theme="dark"] .live-replay-topline span,
+  [data-theme="dark"] .live-replay-controls > span,
+  [data-theme="dark"] .live-question-title,
+  [data-theme="dark"] .live-question-options > div,
+  [data-theme="dark"] .live-question-option > div > strong,
+  [data-theme="dark"] .live-question-result-footer,
+  [data-theme="dark"] .live-question-metrics span,
+  [data-theme="dark"] .live-performance-controls label,
+  [data-theme="dark"] .live-performance-summary span,
+  [data-theme="dark"] .live-performance-status {
+    color: var(--text-secondary);
+  }
+
+  [data-theme="dark"] .live-review-page :is(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea
+  ) {
+    border-color: var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-performance-presets button:not(.active) {
+    border-color: var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-performance-presets button.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--primary-foreground, #fff);
+  }
+
+  [data-theme="dark"] .live-review-page .live-session-secondary {
+    border-color: var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-performance-summary > div {
+    border-color: var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  [data-theme="dark"] .live-performance-chart .recharts-cartesian-grid-horizontal line {
+    stroke: var(--border-color);
+  }
+
+  [data-theme="dark"] .live-performance-chart .recharts-legend-item-text {
+    color: var(--text-secondary) !important;
+  }
+}

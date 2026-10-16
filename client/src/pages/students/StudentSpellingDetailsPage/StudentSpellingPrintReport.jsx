@@ -46,7 +46,9 @@ const StudentSpellingPrintReport = ({ details }) => {
         { label: t('retestIncorrect'), value: summary.retestIncorrect },
         { label: t('retestRecoveryRate'), value: summary.retestAttempts ? formatPercent(summary.retestRecoveryRate) : '—' },
         { label: t('recoveredWords'), value: `${summary.recoveredWords} / ${summary.uniqueWordsEverMissed}` },
-        { label: t('recoveryRate'), value: summary.uniqueWordsEverMissed ? formatPercent(summary.recoveryRate) : '—' }
+        { label: t('recoveryRate'), value: summary.uniqueWordsEverMissed ? formatPercent(summary.recoveryRate) : '—' },
+        { label: t('gradedRetestQuizzes'), value: summary.gradedQuizCount },
+        { label: t('averageQuizScore'), value: summary.gradedQuizCount ? formatPercent(summary.gradedQuizAverage) : '—' }
     ];
     const orderedSessionRecovery = [...sessionRecovery]
         .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));

@@ -6,8 +6,10 @@ const spellingClassSettingsSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    gradebookSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     defaultMaxMistakes: { type: Number, min: 1, max: 50, default: 3 },
     defaultEmailAudience: { type: String, enum: SPELLING_EMAIL_AUDIENCES, default: DEFAULT_SPELLING_EMAIL_AUDIENCE },
+    retestIntervalDays: { type: Number, enum: [7, 30, 60], default: 7 },
     dictationMode: {
         enabled: { type: Boolean, default: false },
         autoPlayOnShow: { type: Boolean, default: true }

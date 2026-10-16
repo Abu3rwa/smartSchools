@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, InputLabel, MenuItem, Select, Stack, Typography, Box } from '@mui/material';
 
 const getSessionDate = (session) => new Date(session.completedAt || session.startedAt || session.createdAt);
@@ -6,6 +7,7 @@ const getMonthKey = (date) => (Number.isNaN(date.getTime()) ? '' : `${date.getFu
 
 export const StudentSessionsDialog = ({ student, sessions, loading = false, error = '', onClose, onOpenSession }) => {
     const [month, setMonth] = useState('');
+    const { t } = useTranslation('spelling');
 
     const months = useMemo(() => {
         const keys = new Set((sessions || []).map((session) => getMonthKey(getSessionDate(session))).filter(Boolean));
@@ -49,14 +51,20 @@ export const StudentSessionsDialog = ({ student, sessions, loading = false, erro
                             <Stack key={session._id} direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between" sx={{ py: 1.5 }}>
                                 <Box>
                                     <Typography variant="subtitle2">
-                                        {session.completedAt ? new Date(session.completedAt).toLocaleString() : 'In progress'}
+                                        {session.status === 'scheduled'
+                                            ? t('scheduledFor', { date: new Date(session.scheduledAt).toLocaleString() })
+                                            : session.completedAt ? new Date(session.completedAt).toLocaleString() : 'In progress'}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         {session.mode === 'self-serve' ? 'Self-serve' : 'Teacher-led'} · {session.attempts?.length || 0} words · {session.mistakeCount || 0} mistakes
                                     </Typography>
                                 </Box>
                                 <Stack direction="row" spacing={1} alignItems="center">
-                                    <Chip size="small" label={session.status} color={session.status === 'completed' ? 'success' : 'warning'} />
+                                    <Chip
+                                        size="small"
+                                        label={session.status === 'scheduled' ? t('scheduledStatus') : session.status}
+                                        color={session.status === 'completed' ? 'success' : session.status === 'scheduled' ? 'info' : 'warning'}
+                                    />
                                     <Chip size="small" label={passageStatus === 'not sent' ? 'Not sent' : passageStatus} variant="outlined" />
                                     <Button size="small" variant="contained" onClick={() => onOpenSession(student, session)}>View details</Button>
                                 </Stack>

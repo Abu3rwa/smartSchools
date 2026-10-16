@@ -46,8 +46,40 @@ const spellingSessionSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['in-progress', 'completed', 'abandoned'],
+        enum: ['scheduled', 'in-progress', 'completed', 'abandoned'],
         default: 'in-progress'
+    },
+    scheduledAt: {
+        type: Date,
+        default: null
+    },
+    assessmentType: {
+        type: String,
+        enum: ['spelling-assessment', 'formal-spelling-test', 'retest-quiz'],
+        default: 'spelling-assessment'
+    },
+    gradebookSubject: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subject',
+        default: null
+    },
+    gradebookClass: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Class',
+        default: null
+    },
+    gradebookAcademicYear: {
+        type: String,
+        trim: true,
+        default: null
+    },
+    retestQuizItems: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SpellingRetestItem'
+    }],
+    retestQuizKey: {
+        type: String,
+        default: undefined
     },
     maxMistakesAllowed: {
         type: Number,
@@ -58,6 +90,11 @@ const spellingSessionSchema = new mongoose.Schema({
     retestDeadline: {
         type: Date,
         required: true
+    },
+    retestIntervalDays: {
+        type: Number,
+        enum: [7, 30, 60],
+        default: 7
     },
     curriculumGrade: {
         type: String,
@@ -80,7 +117,7 @@ const spellingSessionSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        default: null
     },
     administeredBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -109,7 +146,7 @@ const spellingSessionSchema = new mongoose.Schema({
     },
     completionReason: {
         type: String,
-        enum: ['mistake-limit', 'curriculum-exhausted', 'teacher-ended', 'manual-complete'],
+        enum: ['mistake-limit', 'curriculum-exhausted', 'teacher-ended', 'manual-complete', 'retest-quiz-complete'],
         default: null
     },
     nextSequence: {
@@ -154,6 +191,11 @@ const spellingSessionSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    retestEmailStatus: {
+        type: String,
+        enum: ['pending', 'sent', 'failed', 'not-applicable'],
+        default: null
+    },
     attempts: {
         type: [spellingAttemptSchema],
         default: []
@@ -164,6 +206,14 @@ const spellingSessionSchema = new mongoose.Schema({
 
 spellingSessionSchema.index({ school: 1, student: 1, status: 1, startedAt: -1 });
 spellingSessionSchema.index({ school: 1, createdAt: -1 });
+spellingSessionSchema.index(
+    { school: 1, student: 1, retestQuizKey: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { retestQuizKey: { $type: 'string' } },
+        name: 'school_student_retest_quiz_key_unique'
+    }
+);
 spellingSessionSchema.index({ school: 1, student: 1, 'handRaise.raisedAt': 1 }, { partialFilterExpression: { 'handRaise.raisedAt': { $type: 'date' } } });
 spellingSessionSchema.plugin(tenantIsolationPlugin);
 
