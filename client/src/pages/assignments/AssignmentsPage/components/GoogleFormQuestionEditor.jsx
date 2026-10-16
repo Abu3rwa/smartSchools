@@ -26,7 +26,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
         const url = window.URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = 'google-form-questions-template.csv';
+        anchor.download = 'google-form-questions-sample.csv';
         anchor.click();
         window.URL.revokeObjectURL(url);
     };
@@ -69,6 +69,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                 <div>
                     <h4>{t('assignments:googleForms.questionsTitle')}</h4>
                     <p className="text-muted">{t('assignments:googleForms.questionsHelp')}</p>
+                    <p className="text-muted">{t('assignments:googleForms.csv.help')}</p>
                 </div>
                 <div className="assignment-csv-import__actions">
                     <button

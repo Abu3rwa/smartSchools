@@ -22,6 +22,7 @@ export const DEFAULT_ASSIGNMENT_FORM = {
     attachmentFiles: [],
     existingAttachments: [],
     removeAttachmentIds: [],
+    createGoogleForm: false,
     googleFormQuestions: [],
     scope: 'class',
     studentIds: []
@@ -33,6 +34,7 @@ export const createDefaultAssignmentForm = () => ({
     attachmentFiles: [],
     existingAttachments: [],
     removeAttachmentIds: [],
+    createGoogleForm: false,
     googleFormQuestions: [],
     scope: 'class',
     studentIds: []

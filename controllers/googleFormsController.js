@@ -94,7 +94,10 @@ const findAccessibleAssignment = async (req, assignmentId) => {
     const assignment = await Assignment.findOne({
         _id: assignmentId,
         school: req.schoolId,
-        assignmentTypeKey: 'google_form'
+        $or: [
+            { 'metadata.googleForm.formId': { $exists: true, $ne: '' } },
+            { assignmentTypeKey: 'google_form' }
+        ]
     });
     if (!assignment) return { error: { status: 404, message: 'Google Form assignment not found.' } };
     if (req.user.role === 'teacher') {

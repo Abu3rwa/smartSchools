@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import assignmentService from '../../../services/assignmentService';
@@ -30,6 +31,7 @@ import './AssignmentsPage.css';
 
 const AssignmentsPage = () => {
     const { t } = useTranslation(['assignments']);
+    const [searchParams] = useSearchParams();
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
     const subjects = useSelector(selectSubjects);
@@ -41,6 +43,13 @@ const AssignmentsPage = () => {
     const [googleFormResults, setGoogleFormResults] = useState(null);
     const [loadingGoogleFormResults, setLoadingGoogleFormResults] = useState(false);
     const [createFormOpen, setCreateFormOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('assignments');
+
+    useEffect(() => {
+        if (searchParams.has('google_forms_connected') || searchParams.has('google_forms_error')) {
+            setActiveTab('integrations');
+        }
+    }, [searchParams]);
 
     const {
         assignmentTypes,
@@ -85,10 +94,10 @@ const AssignmentsPage = () => {
     const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
 
     useEffect(() => {
-        if (selectedType?.key === 'google_form' && selectedClass) {
+        if (form.createGoogleForm && selectedClass) {
             dispatch(fetchStudentsByClass(selectedClass));
         }
-    }, [dispatch, selectedClass, selectedType?.key]);
+    }, [dispatch, form.createGoogleForm, selectedClass]);
 
     const fetchAssignmentTypes = async () => {
         try {
@@ -161,7 +170,7 @@ const AssignmentsPage = () => {
             toast.error(t('assignments:toasts.typeTitleRequired'));
             return;
         }
-        if (selectedType?.key === 'google_form'
+        if (form.createGoogleForm
             && form.scope === 'selected_students'
             && (!Array.isArray(form.studentIds) || form.studentIds.length === 0)) {
             toast.error(t('assignments:googleForms.selectStudents'));
@@ -199,16 +208,20 @@ const AssignmentsPage = () => {
                 notifyOnAssign: form.notifyOnAssign,
                 notifyAudience: form.notifyAudience || 'both',
                 notifyOnGrade: form.notifyOnGrade,
-                scope: selectedType?.key === 'google_form'
+                createGoogleForm: Boolean(form.createGoogleForm),
+                scope: form.createGoogleForm
                     ? form.scope || 'class'
                     : editingAssignment?.scope || 'class',
-                studentIds: selectedType?.key === 'google_form' && form.scope === 'selected_students'
+                studentIds: form.createGoogleForm && form.scope === 'selected_students'
                     ? form.studentIds || []
-                    : (selectedType?.key !== 'google_form' && editingAssignment?.scope === 'selected_students'
+                    : (!form.createGoogleForm && editingAssignment?.scope === 'selected_students'
                         ? editingAssignment.studentIds || []
                         : []),
-                ...(selectedType?.key === 'google_form' && !editingAssignment?.googleForm?.responderUri
+                ...(form.createGoogleForm && !editingAssignment?.googleForm?.responderUri
                     ? { metadata: { googleForm: { questions: form.googleFormQuestions || [] } } }
+                    : {}),
+                ...(!form.createGoogleForm && editingAssignment?.googleForm && !editingAssignment.googleForm.responderUri
+                    ? { metadata: null }
                     : {}),
                 academicYear,
                 removeAttachmentIds: Array.isArray(form.removeAttachmentIds) && form.removeAttachmentIds.length > 0
@@ -243,6 +256,7 @@ const AssignmentsPage = () => {
     };
 
     const onEditAssignment = (assignment) => {
+        setActiveTab('assignments');
         setCreateFormOpen(true);
         setEditingAssignment(assignment);
         setForm((prev) => ({
@@ -269,6 +283,7 @@ const AssignmentsPage = () => {
             googleFormQuestions: Array.isArray(assignment.googleForm?.questions)
                 ? assignment.googleForm.questions
                 : [],
+            createGoogleForm: Boolean(assignment.googleForm),
             scope: assignment.scope || 'class',
             studentIds: Array.isArray(assignment.studentIds) ? assignment.studentIds : []
         }));
@@ -281,6 +296,7 @@ const AssignmentsPage = () => {
     };
 
     const onStartCreateAssignment = () => {
+        setActiveTab('assignments');
         setEditingAssignment(null);
         resetForm();
         setCreateFormOpen(true);
@@ -453,6 +469,21 @@ const AssignmentsPage = () => {
         setGradeStudents(normalizeGradeStudentsFromClassStudents(classStudents));
     }, [classStudents, gradeStudents.length, gradingAssignment, setGradeStudents]);
 
+    const handleTabKeyDown = (event) => {
+        const tabs = canCreateAssignments ? ['assignments', 'integrations'] : ['assignments'];
+        const currentIndex = tabs.indexOf(activeTab);
+        let nextIndex = currentIndex;
+        if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        const nextTab = tabs[nextIndex];
+        setActiveTab(nextTab);
+        document.getElementById(`${nextTab}-tab`)?.focus();
+    };
+
     return (
         <div className="assignments-page">
             <AssignmentsHeader
@@ -460,58 +491,121 @@ const AssignmentsPage = () => {
                 onCreateAssignment={onStartCreateAssignment}
             />
 
-            <AssignmentsFilters
-                selectedClass={selectedClass}
-                onClassChange={(classId) => {
-                    if (classId !== selectedClass) {
-                        setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
-                    }
-                    setSelectedClass(classId);
-                }}
-                selectedSubject={selectedSubject}
-                onSubjectChange={setSelectedSubject}
-                selectedStatus={selectedStatus}
-                onStatusChange={setSelectedStatus}
-                availableClasses={availableClasses}
-                availableSubjects={availableSubjects}
-            />
+            <div className="assignments-page__tabs" role="tablist" aria-label={t('assignments:tabs.label')}>
+                <button
+                    type="button"
+                    role="tab"
+                    id="assignments-tab"
+                    aria-controls="assignments-panel"
+                    aria-selected={activeTab === 'assignments'}
+                    tabIndex={activeTab === 'assignments' ? 0 : -1}
+                    className={activeTab === 'assignments' ? 'is-active' : ''}
+                    onClick={() => setActiveTab('assignments')}
+                    onKeyDown={handleTabKeyDown}
+                >
+                    {t('assignments:tabs.history')}
+                </button>
+                {canCreateAssignments && (
+                    <button
+                        type="button"
+                        role="tab"
+                        id="integrations-tab"
+                        aria-controls="integrations-panel"
+                        aria-selected={activeTab === 'integrations'}
+                        tabIndex={activeTab === 'integrations' ? 0 : -1}
+                        className={activeTab === 'integrations' ? 'is-active' : ''}
+                        onClick={() => setActiveTab('integrations')}
+                        onKeyDown={handleTabKeyDown}
+                    >
+                        {t('assignments:tabs.integrations')}
+                    </button>
+                )}
+            </div>
 
-            <CreateAssignmentForm
-                open={canCreateAssignments && createFormOpen}
-                submitting={submitting}
-                form={form}
-                setForm={setForm}
-                assignmentTypes={assignmentTypes}
-                classStudents={classStudents}
-                selectedClass={selectedClass}
-                selectedSubject={selectedSubject}
-                isEditing={Boolean(editingAssignment)}
-                onCancelEdit={onCancelEdit}
-                onClose={onCancelEdit}
-                onSubmit={onCreateAssignment}
-                classroom={classroom}
-                existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
-                googleFormPublished={Boolean(editingAssignment?.googleForm?.responderUri)}
-            />
+            <section
+                id="assignments-panel"
+                role="tabpanel"
+                aria-labelledby="assignments-tab"
+                hidden={activeTab !== 'assignments'}
+                className="assignments-page__tab-panel"
+            >
+                <AssignmentsFilters
+                    selectedClass={selectedClass}
+                    onClassChange={(classId) => {
+                        if (classId !== selectedClass) {
+                            setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
+                        }
+                        setSelectedClass(classId);
+                    }}
+                    selectedSubject={selectedSubject}
+                    onSubjectChange={setSelectedSubject}
+                    selectedStatus={selectedStatus}
+                    onStatusChange={setSelectedStatus}
+                    availableClasses={availableClasses}
+                    availableSubjects={availableSubjects}
+                />
 
-            <AssignmentsTable
-                loading={loading}
-                assignments={assignments}
-                canCreateAssignments={canCreateAssignments}
-                onPublishAssignment={onPublishAssignment}
-                onOpenGradePanel={openGradePanel}
-                onEditAssignment={onEditAssignment}
-                onDeleteAssignment={onDeleteAssignment}
-                onSendReminder={onSendReminder}
-                sendingReminder={sendingReminder}
-                publishingAssignment={publishingAssignment}
-                classroom={classroom}
-                onOpenGoogleFormResults={openGoogleFormResults}
-            />
+                <CreateAssignmentForm
+                    open={canCreateAssignments && createFormOpen}
+                    submitting={submitting}
+                    form={form}
+                    setForm={setForm}
+                    assignmentTypes={assignmentTypes}
+                    classStudents={classStudents}
+                    selectedClass={selectedClass}
+                    selectedSubject={selectedSubject}
+                    isEditing={Boolean(editingAssignment)}
+                    onCancelEdit={onCancelEdit}
+                    onClose={onCancelEdit}
+                    onSubmit={onCreateAssignment}
+                    classroom={classroom}
+                    existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
+                    googleFormPublished={Boolean(editingAssignment?.googleForm?.responderUri)}
+                />
+
+                <AssignmentsTable
+                    loading={loading}
+                    assignments={assignments}
+                    canCreateAssignments={canCreateAssignments}
+                    onPublishAssignment={onPublishAssignment}
+                    onOpenGradePanel={openGradePanel}
+                    onEditAssignment={onEditAssignment}
+                    onDeleteAssignment={onDeleteAssignment}
+                    onSendReminder={onSendReminder}
+                    sendingReminder={sendingReminder}
+                    publishingAssignment={publishingAssignment}
+                    classroom={classroom}
+                    onOpenGoogleFormResults={openGoogleFormResults}
+                />
+
+                <GoogleFormResultsPanel
+                    results={googleFormResults}
+                    loading={loadingGoogleFormResults}
+                    onClose={() => setGoogleFormResults(null)}
+                    onSync={openGoogleFormResults}
+                />
+
+                <AssignmentGradePanel
+                    gradingAssignment={gradingAssignment}
+                    gradeStudents={gradeStudents}
+                    gradeRows={gradeRows}
+                    onGradeChange={onGradeChange}
+                    onClose={() => setGradingAssignment(null)}
+                    onSubmitGrades={onSubmitGrades}
+                    submitting={submittingGrades}
+                    showBehaviorAction={isClassworkAssignment(gradingAssignment)}
+                    onOpenBehavior={setBehaviorStudent}
+                />
+            </section>
 
             {canCreateAssignments && (
-                <details className="assignment-integrations">
-                    <summary>{t('assignments:integrations.title')}</summary>
+                <section
+                    id="integrations-panel"
+                    role="tabpanel"
+                    aria-labelledby="integrations-tab"
+                    hidden={activeTab !== 'integrations'}
+                    className="assignments-page__tab-panel"
+                >
                     <p className="text-muted">{t('assignments:integrations.help')}</p>
                     <ClassroomPanel
                         classroom={classroom}
@@ -519,27 +613,8 @@ const AssignmentsPage = () => {
                         availableSubjects={availableSubjects}
                     />
                     <GoogleFormsPanel user={user} />
-                </details>
+                </section>
             )}
-
-            <GoogleFormResultsPanel
-                results={googleFormResults}
-                loading={loadingGoogleFormResults}
-                onClose={() => setGoogleFormResults(null)}
-                onSync={openGoogleFormResults}
-            />
-
-            <AssignmentGradePanel
-                gradingAssignment={gradingAssignment}
-                gradeStudents={gradeStudents}
-                gradeRows={gradeRows}
-                onGradeChange={onGradeChange}
-                onClose={() => setGradingAssignment(null)}
-                onSubmitGrades={onSubmitGrades}
-                submitting={submittingGrades}
-                showBehaviorAction={isClassworkAssignment(gradingAssignment)}
-                onOpenBehavior={setBehaviorStudent}
-            />
 
             {behaviorStudent && isClassworkAssignment(gradingAssignment) && (
                 <ClassworkBehaviorModal

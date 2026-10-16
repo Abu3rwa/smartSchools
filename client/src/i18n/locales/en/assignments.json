@@ -3,6 +3,11 @@
     "title": "Assignments",
     "subtitle": "Create, publish, and track class assignments in one place."
   },
+  "tabs": {
+    "label": "Assignment page sections",
+    "history": "Assignment history",
+    "integrations": "Integrations"
+  },
   "filters": {
     "class": "Class",
     "selectClass": "Select class",
@@ -172,6 +177,8 @@
     "disconnect": "Disconnect Google services",
     "sharedAccessNotice": "This shared connection requests access for Google Classroom, Google Forms, Gmail sending, and Gmail sent-mail cleanup. Gmail cleanup can move matching sent messages to Trash. Disconnecting revokes access to all of these services.",
     "verifiedEmailNotice": "Quiz forms collect each respondent's verified Google-account email. Students must use the account registered on their student record.",
+    "createForm": "Create a Google Form for this assignment",
+    "createFormHelp": "Keep the assignment type above (Homework, Classwork, Quiz, etc.). The form is an optional way for students to complete it.",
     "assignmentScope": "Assign quiz to",
     "assignToClass": "Everyone in this class",
     "assignToSelected": "Selected students only",
@@ -180,7 +187,8 @@
     "questionsTitle": "Quiz questions",
     "questionsHelp": "Add multiple-choice, true/false, or short-answer questions. Short answers are saved for teacher review and are not auto-scored.",
     "csv": {
-      "downloadTemplate": "Download question CSV template",
+      "downloadTemplate": "Download sample CSV",
+      "help": "Use one row per question. Separate multiple-choice options with |. The sample includes multiple-choice, true/false, and short-answer questions.",
       "import": "Import questions from CSV",
       "importing": "Importing questions...",
       "replaceConfirm": "Importing this CSV will replace the questions currently entered. Continue?",

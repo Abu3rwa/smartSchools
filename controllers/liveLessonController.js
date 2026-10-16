@@ -28,6 +28,8 @@ import {
 } from "../realtime/liveLessonsGateway.js";
 import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
 import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
+import { buildLiveLessonPerformanceReport } from "../services/liveLessonPerformanceReportService.js";
+import { generateLiveLessonReportPdf } from "../services/liveLessonReportPdfService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
 import { getTeacherClassIds, getTeacherSubjectIds } from "../helpers/teacherScoping.js";
@@ -1014,6 +1016,67 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
       perStudent,
     },
   });
+});
+
+const sendLiveLessonPdf = (res, buffer, filename) => res
+  .type("application/pdf")
+  .set("Content-Disposition", `attachment; filename="${filename}"`)
+  .send(buffer);
+
+const parseReportStudentIds = (value) => {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 150 || value.some((id) => !validId(id))) {
+    const error = new Error("Select no more than 150 valid students for a batch PDF.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return [...new Set(value.map(String))];
+};
+
+export const getLiveLessonPerformanceReport = asyncHandler(async (req, res) => {
+  const data = await buildLiveLessonPerformanceReport({
+    req,
+    classId: req.query.classId,
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo,
+    resolveClass: findTeacherClass,
+  });
+  return res.json({ success: true, data });
+});
+
+export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res) => {
+  const data = await buildLiveLessonPerformanceReport({
+    req,
+    classId: req.query.classId,
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo,
+    resolveClass: findTeacherClass,
+  });
+  const requestedStudentIds = req.query.studentIds
+    ? String(req.query.studentIds).split(",").filter(Boolean)
+    : undefined;
+  const studentIds = parseReportStudentIds(requestedStudentIds);
+  if (studentIds.length && studentIds.some((id) => !data.students.some((student) => student.studentId === id))) {
+    return res.status(400).json({ success: false, message: "The selected students are not in this class report." });
+  }
+  const pdf = await generateLiveLessonReportPdf(data, { type: "performance", studentIds });
+  return sendLiveLessonPdf(res, pdf, "class-live-performance-report.pdf");
+});
+
+export const exportLiveSessionReportPdf = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  const report = req.body?.report;
+  if (!report || String(report.session?.id || "") !== String(session._id)
+    || !Array.isArray(report.perStudent) || !Array.isArray(report.perQuestion)) {
+    return res.status(400).json({ success: false, message: "The session report data is invalid." });
+  }
+  const studentIds = parseReportStudentIds(req.body?.studentIds);
+  if (studentIds.length && studentIds.some((id) => !report.perStudent.some((student) => student.studentId === id))) {
+    return res.status(400).json({ success: false, message: "The selected students are not in this session report." });
+  }
+  const pdf = await generateLiveLessonReportPdf(report, { type: "session", studentIds });
+  return sendLiveLessonPdf(res, pdf, "live-session-report.pdf");
 });
 
 const getSessionGradeContext = async (req, session) => {

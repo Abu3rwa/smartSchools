@@ -30,7 +30,7 @@ const CreateAssignmentForm = ({
     const [importingCsv, setImportingCsv] = useState(false);
     if (!open) return null;
     const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
-    const isGoogleForm = selectedType?.key === 'google_form';
+    const isGoogleForm = Boolean(form.createGoogleForm || googleFormPublished);
 
     const handleCsvImport = async (event) => {
         const file = event.target.files?.[0];
@@ -135,6 +135,25 @@ const CreateAssignmentForm = ({
                     </div>
                 </details>
             )}
+
+            <section className="google-form-assignment-option">
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={isGoogleForm}
+                        disabled={submitting || googleFormPublished}
+                        onChange={(event) => setForm((prev) => ({
+                            ...prev,
+                            createGoogleForm: event.target.checked,
+                            ...(event.target.checked ? {} : { googleFormQuestions: [], scope: 'class', studentIds: [] })
+                        }))}
+                    />
+                    <span>
+                        <strong>{t('assignments:googleForms.createForm')}</strong>
+                        <small className="text-muted">{t('assignments:googleForms.createFormHelp')}</small>
+                    </span>
+                </label>
+            </section>
 
             <div className="create-grid">
                 <div className="form-group">

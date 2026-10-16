@@ -7,12 +7,15 @@ import {
   createLiveSessionGradebookEntries,
   deleteFinishedLiveSessions,
   endLiveSession,
+  exportLiveLessonPerformanceReportPdf,
+  exportLiveSessionReportPdf,
   deleteLiveSession,
   deleteLiveLesson,
   getLiveLesson,
   getLiveSession,
   getLiveSessionReplay,
   getLiveSessionReport,
+  getLiveLessonPerformanceReport,
   getLiveSessionGradebookPreview,
   getLiveLessonSettings,
   importLiveLessonCsv,
@@ -64,6 +67,8 @@ router.patch("/lessons/:id/done", authorize("teacher", "admin", "department_prin
 
 router.post("/sessions", authorize("teacher", "admin", "department_principal"), createLiveSession);
 router.get("/sessions", authorize("teacher", "admin", "department_principal"), listLiveSessions);
+router.get("/sessions/performance", authorize("teacher", "admin", "department_principal"), getLiveLessonPerformanceReport);
+router.get("/sessions/performance/export.pdf", authorize("teacher", "admin", "department_principal"), exportLiveLessonPerformanceReportPdf);
 router.post("/sessions/:id/end", authorize("teacher", "admin", "department_principal"), endLiveSession);
 router.get("/sessions/available", authorize("student"), listAvailableLiveSessions);
 router.post("/sessions/:id/join", authorize("student"), joinLiveSessionById);
@@ -72,6 +77,7 @@ router.delete("/sessions/finished", authorize("teacher", "admin", "department_pr
 router.delete("/sessions/:id", authorize("teacher", "admin", "department_principal"), deleteLiveSession);
 router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal"), getLiveSessionReplay);
 router.get("/sessions/:id/report", authorize("teacher", "admin", "department_principal"), getLiveSessionReport);
+router.post("/sessions/:id/report/export.pdf", authorize("teacher", "admin", "department_principal"), exportLiveSessionReportPdf);
 router.get("/sessions/:id/gradebook-preview", authorize("teacher", "admin", "department_principal"), getLiveSessionGradebookPreview);
 router.post("/sessions/:id/gradebook", authorize("teacher", "admin", "department_principal"), createLiveSessionGradebookEntries);
 router.get("/sessions/:id", authorize("teacher", "admin", "department_principal", "student"), getLiveSession);

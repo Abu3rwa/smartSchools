@@ -21,12 +21,6 @@ const DEFAULT_ASSIGNMENT_TYPES = [
         defaults: { maxMarks: 20, allowLateSubmission: false, notifyOnAssign: false, notifyOnGrade: true }
     },
     {
-        key: 'google_form',
-        name: 'Google Form quiz',
-        sortOrder: 35,
-        defaults: { maxMarks: 20, allowLateSubmission: false, notifyOnAssign: true, notifyOnGrade: true }
-    },
-    {
         key: 'test',
         name: 'Test',
         sortOrder: 40,
@@ -135,7 +129,7 @@ export const getAssignmentTypes = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         data: {
-            items: rows.map(mapType)
+            items: rows.filter((row) => row.key !== 'google_form').map(mapType)
         }
     });
 });
@@ -150,6 +144,12 @@ export const createAssignmentType = asyncHandler(async (req, res) => {
         return res.status(400).json({
             success: false,
             message: 'name is required'
+        });
+    }
+    if (requestedKey === 'google_form') {
+        return res.status(400).json({
+            success: false,
+            message: 'Google Forms is an optional assignment format, not an assignment type.'
         });
     }
 

@@ -110,7 +110,7 @@ const AssignmentsTable = ({
                                                 {t('assignments:actions.grade')}
                                             </button>
                                         )}
-                                        {assignment.assignmentType?.key === 'google_form'
+                                        {assignment.googleForm?.responderUri
                                             && assignment.status !== 'draft'
                                             && canCreateAssignments
                                             && onOpenGoogleFormResults && (
