@@ -63,6 +63,15 @@
     border-color: var(--border-color-hover);
 }
 
+.header-shortcut-btn.locked {
+    border-style: dashed;
+}
+
+.header-shortcut-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
 .header-shortcut-btn.active {
     background: color-mix(in srgb, var(--primary-500) 16%, var(--bg-tertiary));
     border-color: color-mix(in srgb, var(--primary-500) 45%, var(--border-color));

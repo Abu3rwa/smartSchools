@@ -137,7 +137,7 @@ const sendAtRiskNotification = async ({ schoolId, student, notMetCount, threshol
  * Respects school-level settings.notifications.studentNotifications.onTaskAssigned
  * and settings.notifications.parentNotifications.onTaskAssigned.
  */
-const sendTaskAssignedNotification = async ({ schoolId, student, taskTitle, taskId }) => {
+const sendTaskAssignedNotification = async ({ schoolId, teacherId, student, taskTitle, taskId }) => {
     try {
         // Load school notification settings
         const school = await School.findById(schoolId).select('settings.notifications').lean();
@@ -192,6 +192,9 @@ const sendTaskAssignedNotification = async ({ schoolId, student, taskTitle, task
                         text: message,
                         html: htmlContent,
                         schoolId,
+                        preferredUserId: teacherId,
+                        allowAdminFallback: false,
+                        allowSmtp: false,
                     });
                 } catch (err) {
                     logger.warn('ae_task_student_email_failed', { error: err?.message });
@@ -258,6 +261,9 @@ const sendTaskAssignedNotification = async ({ schoolId, student, taskTitle, task
                             text: parentMessage,
                             html: parentHtml,
                             schoolId,
+                            preferredUserId: teacherId,
+                            allowAdminFallback: false,
+                            allowSmtp: false,
                         });
                     } catch (err) {
                         logger.warn('ae_task_parent_email_failed', { error: err?.message, email });

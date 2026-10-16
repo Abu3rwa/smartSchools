@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Menu, MenuItem, Checkbox, ListItemText, Divider } from '@mui/material';
+import { HiOutlineLockClosed } from 'react-icons/hi2';
 
 const ShortcutsMenu = ({
     anchorEl,
@@ -89,10 +90,11 @@ const ShortcutsMenu = ({
                     <MenuItem
                         key={shortcut.path}
                         onClick={() => onToggleShortcut(shortcut.path)}
-                        disabled={disableAdd}
+                        disabled={disableAdd || (shortcut.locked && !checked)}
                     >
                         <Checkbox checked={checked} size="small" />
                         <ListItemText primary={t(`layout.sidebar:items.${shortcut.labelKey}`)} />
+                        {shortcut.locked && <HiOutlineLockClosed aria-hidden="true" />}
                     </MenuItem>
                 );
             })}

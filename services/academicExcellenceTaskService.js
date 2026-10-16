@@ -78,6 +78,7 @@ export const assignTask = async (teacherId, studentId, objectiveKey, taskData = 
     if (fullStudent) {
         academicExcellenceNotificationService.sendTaskAssignedNotification({
             schoolId,
+            teacherId,
             student: fullStudent,
             taskTitle: createdTask.title,
             taskId: String(createdTask._id),

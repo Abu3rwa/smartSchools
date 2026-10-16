@@ -7,7 +7,11 @@ import {
   selectSchoolPageAccess,
   fetchSchoolFeatures,
 } from "../store/slices/schoolFeaturesSlice";
-import { getSchoolPageKeyForPath, SCHOOL_PAGE_ACCESS_PAGES } from "../constants/schoolPageAccess";
+import {
+  getSchoolPageKeyForPath,
+  isSchoolPageLocked,
+  SCHOOL_PAGE_ACCESS_PAGES,
+} from "../constants/schoolPageAccess";
 
 const SchoolPageAccessGate = ({ children }) => {
   const location = useLocation();
@@ -28,7 +32,12 @@ const SchoolPageAccessGate = ({ children }) => {
     return () => window.removeEventListener("school-page-locked", handlePageLocked);
   }, [pageKey]);
 
-  if (!pageKey || !["teacher", "student"].includes(user?.role)) return children;
+  const pageSettings = SCHOOL_PAGE_ACCESS_PAGES.find((page) => page.key === pageKey);
+  if (
+    !pageKey ||
+    !["admin", "teacher", "student", "department_principal", "staff"].includes(user?.role) ||
+    pageSettings?.recoveryRoles?.includes(user?.role)
+  ) return children;
 
   if (!pageAccess) {
     return (
@@ -48,12 +57,11 @@ const SchoolPageAccessGate = ({ children }) => {
     );
   }
 
-  if (pageAccess[user.role]?.[pageKey] !== false && serverDeniedPageKey !== pageKey) return children;
+  if (!isSchoolPageLocked(pageAccess, user.role, pageKey) && serverDeniedPageKey !== pageKey) return children;
 
-  const page = SCHOOL_PAGE_ACCESS_PAGES.find((item) => item.key === pageKey);
   return (
     <section className="card" role="status" style={{ margin: "2rem auto", maxWidth: 680, padding: "2rem", textAlign: "center" }}>
-      <h2>{page?.label || "Page"} temporarily unavailable</h2>
+      <h2>{pageSettings?.label || "Page"} temporarily unavailable</h2>
       <p>Your school administrator has temporarily locked this page. Please contact them if you need access.</p>
     </section>
   );

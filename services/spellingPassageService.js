@@ -180,6 +180,7 @@ export async function sendSpellingPassage({ schoolId, sessionId, userId }) {
         {
             $set: {
                 recipients,
+                senderUser: userId,
                 subject: passageEmail.subject,
                 text: passageEmail.text,
                 html: passageEmail.html,

@@ -8,6 +8,7 @@ import SpellingClassSession from '../models/SpellingClassSession.js';
 import { withTransaction } from '../utils/withTransaction.js';
 import { evaluateSpellingAnswer, normalizeForGrading } from '../utils/spellingGrading.js';
 import { queueSpellingCompletionEmail } from './spellingEmailService.js';
+import gmailOAuthService from './gmailOAuthService.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 import SpellingClassSettings from '../models/SpellingClassSettings.js';
 import { getNextSpellingGrade, getSpellingGradeProgress, SPELLING_CURRICULUM_GRADES } from '../utils/spellingProgress.js';
@@ -513,6 +514,17 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     const effectiveEmailNotification = emailNotification !== undefined && emailNotification !== null
         ? emailNotification
         : (classSettings?.defaultEmailAudience || DEFAULT_SPELLING_EMAIL_AUDIENCE);
+
+    if (formalAssessment && effectiveEmailNotification !== 'none') {
+        const gmailStatus = await gmailOAuthService.getTokenStatus(userId);
+        const hasSendScope = gmailStatus.grantedScopes?.includes('https://www.googleapis.com/auth/gmail.send');
+        if (!gmailStatus.connected || !hasSendScope) {
+            const error = new Error('Connect or reconnect your Google account with Gmail sending access before starting a formal spelling quiz. No other sender will be used.');
+            error.statusCode = 401;
+            error.code = 'GMAIL_REAUTH_REQUIRED';
+            throw error;
+        }
+    }
 
     const effectivePassageEmailAudience = passageEmailAudience !== undefined && passageEmailAudience !== null
         ? passageEmailAudience

@@ -203,6 +203,7 @@ export async function queueSpellingCompletionEmail({ session, dbSession }) {
         school: session.school,
         session: session._id,
         student: session.student,
+        senderUser: session.createdBy || session.administeredBy || null,
         recipients,
         subject,
         html,
@@ -261,6 +262,7 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
         school: session.school,
         session: session._id,
         student: session.student,
+        senderUser: session.createdBy || session.administeredBy || null,
         kind: 'retest-practice',
         recipients,
         subject,
@@ -292,6 +294,8 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
                 text: delivery.text,
                 html: delivery.html,
                 schoolId: delivery.school,
+                preferredUserId: delivery.senderUser || null,
+                allowAdminFallback: false,
                 allowSmtp: false
             });
             await SpellingEmailDelivery.updateOne({ _id: delivery._id, status: 'processing' }, { $set: { status: 'sent', sentAt: new Date(), lastError: '' } });

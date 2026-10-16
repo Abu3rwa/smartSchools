@@ -11,7 +11,12 @@ import Class from '../models/Class.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { FEATURE_KEYS, getPlanName, isRecognizedPlan, normalizePlan, toSchoolPlan } from '../constants/features.js';
-import { buildFeatureMetadata, resolveSchoolFeatureContext, requireFeature } from '../middleware/featureGate.js';
+import {
+    buildFeatureMetadata,
+    invalidateSchoolFeatureContext,
+    resolveSchoolFeatureContext,
+    requireFeature
+} from '../middleware/featureGate.js';
 import {
     getAttendanceReminderSettingsFromSchool,
     validateAttendanceReminderSettingsPayload
@@ -38,7 +43,11 @@ import {
     normalizeStudentGroupingReportSettings,
     STUDENT_GROUPING_REPORT_SETTING_KEYS
 } from '../utils/studentGroupingReportSettings.js';
-import { getSchoolPageAccess, SCHOOL_PAGE_ACCESS_PAGES } from '../config/schoolPageAccess.js';
+import {
+    getSchoolPageAccess,
+    SCHOOL_PAGE_ACCESS_PAGES,
+    SCHOOL_PAGE_ACCESS_ROLES
+} from '../config/schoolPageAccess.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import {
@@ -218,21 +227,20 @@ router.get('/me/page-access/current', requireSchoolContext, asyncHandler(async (
 
 router.patch('/me/page-access', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
     const patch = req.body?.pageAccess;
-    const roles = ['teacher', 'student'];
+    const roles = SCHOOL_PAGE_ACCESS_ROLES;
     const validPageKeys = new Set(SCHOOL_PAGE_ACCESS_PAGES.map(({ key }) => key));
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)
         || Object.keys(patch).some((role) => !roles.includes(role))) {
-        return res.status(400).json({ success: false, message: 'Provide page availability for teacher and/or student roles.' });
+        return res.status(400).json({ success: false, message: 'Provide page availability for admin, teacher, and/or student roles.' });
     }
 
     const school = await School.findById(req.schoolId);
     if (!school) return res.status(404).json({ success: false, message: 'School not found' });
 
     const saved = school.settings?.userPageAccess || {};
-    const next = {
-        teacher: { ...(saved.teacher || {}) },
-        student: { ...(saved.student || {}) }
-    };
+    const next = Object.fromEntries(
+        roles.map((role) => [role, { ...(saved[role] || {}) }])
+    );
 
     for (const role of roles) {
         if (patch[role] === undefined) continue;
@@ -241,12 +249,20 @@ router.patch('/me/page-access', requireSchoolContext, authorize('admin'), asyncH
             || Object.values(patch[role]).some((enabled) => typeof enabled !== 'boolean')) {
             return res.status(400).json({ success: false, message: `Invalid ${role} page availability settings.` });
         }
+        const attemptsToLockRecoveryPage = Object.entries(patch[role]).some(([key, enabled]) => {
+            const page = SCHOOL_PAGE_ACCESS_PAGES.find((item) => item.key === key);
+            return enabled === false && page?.recoveryRoles?.includes(role);
+        });
+        if (attemptsToLockRecoveryPage) {
+            return res.status(400).json({ success: false, message: 'Required recovery pages cannot be locked for this role.' });
+        }
         Object.assign(next[role], patch[role]);
     }
 
     school.settings.userPageAccess = next;
     school.markModified('settings.userPageAccess');
     await school.save();
+    invalidateSchoolFeatureContext(req.schoolId);
 
     res.json({
         success: true,

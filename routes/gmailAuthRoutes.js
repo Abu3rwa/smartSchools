@@ -20,7 +20,7 @@ const signStatePayload = (encodedPayload) => {
 const buildSignedState = (userId, returnTo = 'settings', cleanupAccess = false) => {
     const payload = {
         userId,
-        returnTo: returnTo === 'notifications' ? 'notifications' : 'settings',
+        returnTo: ['notifications', 'spelling'].includes(returnTo) ? returnTo : 'settings',
         cleanupAccess,
         nonce: crypto.randomBytes(16).toString('hex'),
         exp: Date.now() + OAUTH_STATE_TTL_MS
@@ -69,7 +69,7 @@ const parseSignedState = (state) => {
 router.get('/url', protect, async (req, res) => {
     try {
         const cleanupAccess = req.query.cleanup === 'true';
-        const returnTo = req.query.returnTo === 'notifications' ? 'notifications' : 'settings';
+        const returnTo = ['notifications', 'spelling'].includes(req.query.returnTo) ? req.query.returnTo : 'settings';
         const state = buildSignedState(req.user._id.toString(), returnTo, cleanupAccess);
         const authUrl = gmailOAuthService.getAuthUrl(state, { includeModifyScope: cleanupAccess });
 
@@ -97,7 +97,9 @@ router.get('/callback', async (req, res) => {
     try {
         const { code, state, error } = req.query;
         const parsedState = parseSignedState(state);
-        redirectPath = parsedState?.returnTo === 'notifications' ? '/portal/notifications' : '/settings';
+        redirectPath = parsedState?.returnTo === 'notifications'
+            ? '/portal/notifications'
+            : parsedState?.returnTo === 'spelling' ? '/portal/spelling' : '/settings';
         cleanupAccess = Boolean(parsedState?.cleanupAccess);
 
         if (error) {

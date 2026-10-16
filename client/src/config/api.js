@@ -135,6 +135,11 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        if (error.response?.data?.code === 'GMAIL_REAUTH_REQUIRED') {
+            window.dispatchEvent(new CustomEvent('google-reauth-required'));
+            return Promise.reject(error);
+        }
+
         if (status === 401 && localStorage.getItem('supportPreview') === 'true') {
             return Promise.reject(error);
         }

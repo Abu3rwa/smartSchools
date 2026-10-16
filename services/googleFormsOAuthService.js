@@ -111,7 +111,7 @@ class GoogleFormsOAuthService {
                 const reason = error?.response?.data?.error || error?.message || '';
                 if (/invalid_grant/i.test(reason)) {
                     if (user.googleFormsTokens.oauthClientId === process.env.GOOGLE_CLIENT_ID) {
-                        await user.clearGoogleSuiteTokens();
+                        await user.clearGoogleSuiteTokens({ requireGmailReauth: true });
                     } else {
                         await user.clearGoogleFormsTokens();
                     }

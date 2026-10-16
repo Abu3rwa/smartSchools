@@ -29,6 +29,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 import FeatureGate from "./components/FeatureGate";
 
 import ErrorBoundary from "./components/ErrorBoundary";
+import GoogleReauthPrompt from "./components/GoogleReauthPrompt";
 
 const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
 const RegisterSchoolPage = lazy(() => import("./pages/auth/RegisterSchoolPage"));
@@ -374,6 +375,7 @@ function App() {
     <CacheProvider value={emotionCache}>
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
+        <GoogleReauthPrompt />
         <ErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>

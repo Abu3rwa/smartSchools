@@ -382,7 +382,7 @@ export const resendNotification = asyncHandler(async (req, res) => {
     await notification.save();
 
     // Resend
-    await notificationService.sendEmail(notification);
+    await notificationService.sendEmail(notification, req.user._id);
 
     res.json({
         success: true,

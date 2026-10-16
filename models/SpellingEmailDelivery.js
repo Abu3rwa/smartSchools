@@ -7,6 +7,7 @@ const spellingEmailDeliverySchema = new mongoose.Schema({
     passage: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingPassage', default: null },
     kind: { type: String, enum: ['results', 'passage', 'retest-practice'], default: 'results' },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+    senderUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     recipients: { type: [String], default: [] },
     subject: { type: String, required: true, maxlength: 220 },
     html: { type: String, required: true },

@@ -20,6 +20,11 @@ const featureContextCache = new Map();
 const FEATURE_CACHE_TTL_MS = 30 * 1000; // 30 seconds
 const FEATURE_CACHE_VERSION = 2; // bump when staticPlanBase logic changes
 
+export const invalidateSchoolFeatureContext = (schoolId) => {
+    if (!schoolId) return;
+    featureContextCache.delete(`${schoolId}_v${FEATURE_CACHE_VERSION}`);
+};
+
 export const resolveSchoolFeatureContext = async (schoolId) => {
     if (!schoolId) return null;
 
@@ -30,7 +35,7 @@ export const resolveSchoolFeatureContext = async (schoolId) => {
     }
 
     const [school, subscription] = await Promise.all([
-        School.findById(schoolId).select('subscription.plan settings.features').lean(),
+        School.findById(schoolId).select('subscription.plan settings.features settings.userPageAccess').lean(),
         Subscription.findOne({ school: schoolId }).lean()
     ]);
 

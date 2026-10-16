@@ -104,7 +104,7 @@ class GoogleClassroomOAuthService {
             } catch (error) {
                 const reason = error?.response?.data?.error || error?.message || '';
                 if (/invalid_grant/i.test(reason)) {
-                    await user.clearGoogleSuiteTokens();
+                    await user.clearGoogleSuiteTokens({ requireGmailReauth: true });
                     throw new ClassroomSyncError(
                         'AUTH_REVOKED',
                         'Google service access was revoked or expired. Please reconnect your account.'

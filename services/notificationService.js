@@ -2292,26 +2292,32 @@ class NotificationService {
     const schoolName = await this._resolveSchoolName(notification.school);
     const mailOptions = addSchoolNameToMailContent(baseMailOptions, schoolName);
 
-    // 1. Try the provided userId (Gmail OAuth — primary transport)
+    // An explicit sender is authoritative. Never impersonate them through an admin or SMTP account.
     if (userId) {
       try {
-        const hasGmail = await gmailOAuthService.hasValidTokens(userId);
-        if (hasGmail) {
-          const result = await gmailOAuthService.sendEmail(userId, mailOptions);
-          await notification.markAsSent("email");
-          logger.info("Email sent via Gmail OAuth", {
-            to: notification.recipientEmail,
-            messageId: result.messageId,
-          });
-          return;
-        }
+        const result = await gmailOAuthService.sendEmail(userId, mailOptions);
+        await notification.markAsSent("email");
+        logger.info("Email sent via Gmail OAuth", {
+          to: notification.recipientEmail,
+          messageId: result.messageId,
+        });
+        return;
       } catch (error) {
-        logger.error("Gmail OAuth send failed for provided user:", error.message);
-        // Fall through to admin fallback
+        const senderError = error.code
+          ? error
+          : Object.assign(new Error(error.message || "The connected Google account could not send this email. No alternate sender was used."), {
+            statusCode: 502,
+            code: "GMAIL_SEND_FAILED",
+          });
+        logger.error("Gmail OAuth send failed for the requested sender:", senderError.message);
+        notification.status = "failed";
+        notification.lastError = senderError.message;
+        await notification.save();
+        throw senderError;
       }
     }
 
-    // 2. Fallback: find an admin in the school with Gmail connected
+    // Admin and SMTP fallbacks are only for system-generated email without an explicit sender.
     const schoolId = notification.school;
     if (schoolId) {
       try {

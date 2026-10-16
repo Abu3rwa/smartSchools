@@ -38,6 +38,7 @@ export const sendTransactionalEmail = async ({
     html,
     schoolId = null,
     preferredUserId = null,
+    allowAdminFallback = true,
     allowSmtp = true
 }) => {
     const recipientEmail = normalizeRecipientList(to);
@@ -53,25 +54,24 @@ export const sendTransactionalEmail = async ({
         html
     };
 
-    // 1. Gmail OAuth — primary transport (preferred user)
+    // An explicit sender is authoritative: never send their mail through an admin or SMTP account.
     if (preferredUserId) {
         const senderId = preferredUserId.toString();
         try {
-            if (await gmailOAuthService.hasValidTokens(senderId)) {
-                const result = await gmailOAuthService.sendEmail(senderId, mailOptions);
-                return {
-                    channel: 'gmail_oauth',
-                    messageId: result.messageId,
-                    threadId: result.threadId
-                };
-            }
-        } catch {
-            // Fall through to admin Gmail
+            const result = await gmailOAuthService.sendEmail(senderId, mailOptions);
+            return {
+                channel: 'gmail_oauth',
+                messageId: result.messageId,
+                threadId: result.threadId
+            };
+        } catch (error) {
+            if (!error.code) error.code = 'GMAIL_SEND_FAILED';
+            throw error;
         }
     }
 
-    // 2. Gmail OAuth — admin fallback
-    if (schoolId) {
+    // Gmail OAuth — admin fallback for system-generated email with no explicit sender.
+    if (allowAdminFallback && schoolId) {
         const adminsWithGmail = await User.find({
             school: schoolId,
             role: 'admin',
@@ -102,7 +102,12 @@ export const sendTransactionalEmail = async ({
     // SMTP is retained for legacy transactional callers, but individual features
     // can disable it when delivery must use an approved OAuth sender.
     if (!allowSmtp) {
-        throw new Error('No configured Gmail OAuth transport available');
+        const error = new Error(preferredUserId
+            ? 'The connected Google account could not send this email. No alternate sender was used.'
+            : 'A Google account must be connected before this email can be sent.');
+        error.statusCode = 401;
+        error.code = 'GMAIL_REAUTH_REQUIRED';
+        throw error;
     }
 
     // 3. SMTP — last-resort fallback

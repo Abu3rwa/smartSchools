@@ -7,6 +7,7 @@ import { getPlatformBranding } from './platformBrandingService.js';
 import { GOOGLE_SUITE_SCOPES } from '../config/googleSuiteOAuthScopes.js';
 
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 
 class GmailOAuthService {
     constructor() {
@@ -159,7 +160,12 @@ class GmailOAuthService {
         }
 
         if (!user.hasGmailConnected()) {
-            throw new Error('Gmail not connected. Please authenticate with Google first.');
+            user.set('gmailTokens.reauthorizationRequired', true);
+            await user.save({ validateBeforeSave: false });
+            const error = new Error('Connect or reconnect your Google account to send this email. No other sender was used.');
+            error.statusCode = 401;
+            error.code = 'GMAIL_REAUTH_REQUIRED';
+            throw error;
         }
 
         if (!force && !user.gmailTokenNeedsRefresh()) {
@@ -189,8 +195,11 @@ class GmailOAuthService {
             const isInvalidGrant = error?.response?.data?.error === 'invalid_grant'
                 || String(error?.message || '').includes('invalid_grant');
             if (isInvalidGrant) {
-                await user.clearGoogleSuiteTokens();
+                await user.clearGoogleSuiteTokens({ requireGmailReauth: true });
                 logger.warn(`Cleared revoked Gmail tokens for user ${user._id}`);
+                error.statusCode = 401;
+                error.code = 'GMAIL_REAUTH_REQUIRED';
+                error.message = 'Google access expired or was revoked. Reconnect your Google account to send email.';
             }
             throw error;
         }
@@ -266,6 +275,14 @@ class GmailOAuthService {
     async sendEmail(userId, mailOptions) {
         try {
             const user = await this.refreshTokenIfNeeded(userId, false);
+            if (!user.gmailTokens?.grantedScopes?.includes(GMAIL_SEND_SCOPE)) {
+                user.set('gmailTokens.reauthorizationRequired', true);
+                await user.save({ validateBeforeSave: false });
+                const error = new Error('Reconnect Google and grant Gmail sending access. No other sender was used.');
+                error.statusCode = 401;
+                error.code = 'GMAIL_REAUTH_REQUIRED';
+                throw error;
+            }
             const branding = await getPlatformBranding();
 
             if (!user.gmailTokens || !user.gmailTokens.email) {
@@ -422,15 +439,33 @@ class GmailOAuthService {
      * @returns {Object} Token status
      */
     async getTokenStatus(userId) {
-        const user = await User.findById(userId);
+        let user = await User.findById(userId);
 
-        if (!user || !user.hasGmailConnected()) {
+        if (!user || !user.hasGmailConnected() || user.gmailTokens?.reauthorizationRequired) {
             return {
                 connected: false,
                 email: null,
                 expiresAt: null,
-                grantedScopes: []
+                grantedScopes: [],
+                requiresReauth: Boolean(user?.gmailTokens?.reauthorizationRequired)
             };
+        }
+
+        if (user.gmailTokenNeedsRefresh()) {
+            try {
+                user = await this.refreshTokenIfNeeded(userId);
+            } catch (error) {
+                if (error.code === 'GMAIL_REAUTH_REQUIRED') {
+                    return {
+                        connected: false,
+                        email: null,
+                        expiresAt: null,
+                        grantedScopes: [],
+                        requiresReauth: true
+                    };
+                }
+                throw error;
+            }
         }
 
         return {

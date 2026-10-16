@@ -11,8 +11,15 @@ const formatAuditUser = (user) => {
 
 const PageAccessTab = () => {
   const dispatch = useDispatch();
+  const roles = ['admin', 'teacher', 'student', 'department_principal', 'staff'];
   const [pages, setPages] = useState([]);
-  const [pageAccess, setPageAccess] = useState({ teacher: {}, student: {} });
+  const [pageAccess, setPageAccess] = useState({
+    admin: {},
+    teacher: {},
+    student: {},
+    department_principal: {},
+    staff: {},
+  });
   const [previewAudits, setPreviewAudits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,7 +32,13 @@ const PageAccessTab = () => {
     try {
       const response = await api.get('/schools/me/page-access');
       setPages(response.data.data.pages || []);
-      setPageAccess(response.data.data.pageAccess || { teacher: {}, student: {} });
+      setPageAccess(response.data.data.pageAccess || {
+        admin: {},
+        teacher: {},
+        student: {},
+        department_principal: {},
+        staff: {},
+      });
       setPreviewAudits(response.data.data.previewAudits || []);
     } catch (loadError) {
       setError(loadError.response?.data?.message || 'Could not load page access settings.');
@@ -66,8 +79,8 @@ const PageAccessTab = () => {
   return (
     <div className="tab-content">
       <div className="card" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
-        <h2>Teacher and student page access</h2>
-        <p>These controls apply only to your school. Locked pages are blocked in navigation and by the API. School administrators retain access. A platform-wide super-admin disable cannot be overridden here.</p>
+        <h2>Page access</h2>
+        <p>These controls apply to your school. Locked pages are blocked in navigation, by the page gate, and by the API. The School Settings recovery page always remains available to administrators.</p>
         <p>Turning access off temporarily does not delete lesson or student data.</p>
         {loading ? <p>Loading page access settings…</p> : (
           <>
@@ -75,24 +88,28 @@ const PageAccessTab = () => {
             <div style={{ overflowX: 'auto' }}>
               <table className="users-table">
                 <thead>
-                  <tr><th>Page or feature</th><th>Teacher access</th><th>Student access</th></tr>
+                  <tr><th>Page or feature</th><th>Admin access</th><th>Teacher access</th><th>Student access</th><th>Department principal access</th><th>Staff access</th></tr>
                 </thead>
                 <tbody>
                   {pages.map((page) => (
                     <tr key={page.key}>
                       <td><strong>{page.label}</strong><br /><small>{page.description}</small></td>
-                      {['teacher', 'student'].map((role) => (
+                      {roles.map((role) => {
+                        const recoveryOnly = page.recoveryRoles?.includes(role);
+                        return (
                         <td key={role}>
                           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem' }}>
                             <input
                               type="checkbox"
-                              checked={pageAccess[role]?.[page.key] !== false}
+                              checked={recoveryOnly || pageAccess[role]?.[page.key] !== false}
+                              disabled={recoveryOnly}
                               onChange={(event) => updateAccess(role, page.key, event.target.checked)}
                             />
-                            {pageAccess[role]?.[page.key] === false ? 'Locked' : 'Available'}
+                            {recoveryOnly ? 'Always available' : pageAccess[role]?.[page.key] === false ? 'Locked' : 'Available'}
                           </label>
                         </td>
-                      ))}
+                      );
+                      })}
                     </tr>
                   ))}
                 </tbody>

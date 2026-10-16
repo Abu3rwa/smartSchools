@@ -123,7 +123,7 @@ export const protect = async (req, res, next) => {
                 req.school.settings.currentAcademicYear = req.academicYear;
             }
 
-            const pageKey = getSchoolPageForApiPath(req.originalUrl || req.path);
+            const pageKey = getSchoolPageForApiPath(req.originalUrl || req.path, user.role);
             if (getSchoolPageAccessForRole(req.school.settings, user.role, pageKey) === false) {
                 return res.status(423).json({
                     success: false,

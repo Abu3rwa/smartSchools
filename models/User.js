@@ -271,6 +271,10 @@ const userSchema = new mongoose.Schema({
             type: [String],
             default: []
         },
+        reauthorizationRequired: {
+            type: Boolean,
+            default: false
+        },
         expiryDate: Date,
         isActive: {
             type: Boolean,
@@ -416,6 +420,7 @@ userSchema.methods.updateGmailTokens = async function (tokens, email) {
         grantedScopes: grantedScopes.length > 0
             ? grantedScopes
             : this.gmailTokens?.grantedScopes || [],
+        reauthorizationRequired: false,
         expiryDate: new Date(tokens.expiry_date),
         isActive: true
     };
@@ -429,6 +434,7 @@ userSchema.methods.clearGmailTokens = async function () {
         accessToken: null,
         refreshToken: null,
         grantedScopes: [],
+        reauthorizationRequired: false,
         expiryDate: null,
         isActive: false
     };
@@ -548,12 +554,13 @@ userSchema.methods.clearGoogleFormsTokens = async function () {
     return this.save({ validateBeforeSave: false });
 };
 
-userSchema.methods.clearGoogleSuiteTokens = async function () {
+userSchema.methods.clearGoogleSuiteTokens = async function ({ requireGmailReauth = false } = {}) {
     this.gmailTokens = {
         email: null,
         accessToken: null,
         refreshToken: null,
         grantedScopes: [],
+        reauthorizationRequired: requireGmailReauth,
         expiryDate: null,
         isActive: false
     };

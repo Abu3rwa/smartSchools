@@ -543,8 +543,7 @@ const sendPasswordResetEmail = async (user, resetUrl) => {
         subject,
         text,
         html,
-        schoolId: user.school,
-        preferredUserId: user._id
+        schoolId: user.school
     });
 };
 

@@ -13,7 +13,10 @@ import {
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
 import { selectSchoolPageAccess } from "../../store/slices/schoolFeaturesSlice";
-import { getSchoolPageKeyForPath } from "../../constants/schoolPageAccess";
+import {
+  getSchoolPageKeyForPath,
+  isSchoolPageLocked,
+} from "../../constants/schoolPageAccess";
 import {
   fetchSubPendingCountThunk,
   selectPendingCount,
@@ -96,6 +99,7 @@ const Sidebar = () => {
   const schoolPageAccess = useSelector(selectSchoolPageAccess);
   const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [serverDeniedPages, setServerDeniedPages] = useState(() => new Set());
   const isRtl = i18n.dir() === "rtl";
 
   const canSeeMessages = useMemo(() => {
@@ -167,6 +171,17 @@ const Sidebar = () => {
     };
   }, [dispatch, isTeacher]);
 
+  useEffect(() => {
+    const handlePageLocked = (event) => {
+      const pageKey = event.detail?.page;
+      if (!pageKey) return;
+      setServerDeniedPages((current) => new Set(current).add(pageKey));
+    };
+    window.addEventListener("school-page-locked", handlePageLocked);
+    return () =>
+      window.removeEventListener("school-page-locked", handlePageLocked);
+  }, []);
+
   const SECTION_ORDER = [
     "overview",
     "communication",
@@ -215,27 +230,27 @@ const Sidebar = () => {
       ],
       section: "communication",
     },
-    {
-      path: "/portal/my-schedule",
-      icon: HiOutlineCalendarDays,
-      labelKey: "mySchedule",
-      teacher: true,
-      section: "teaching",
-    },
-    {
-      path: "/portal/my-timetable",
-      icon: HiOutlineClock,
-      labelKey: "myTimetable",
-      teacher: true,
-      section: "teaching",
-    },
-    {
-      path: "/portal/my-attendance",
-      icon: HiOutlineUserCircle,
-      labelKey: "myAttendance",
-      teacher: true,
-      section: "teaching",
-    },
+    // {
+    //   path: "/portal/my-schedule",
+    //   icon: HiOutlineCalendarDays,
+    //   labelKey: "mySchedule",
+    //   teacher: true,
+    //   section: "teaching",
+    // },
+    // {
+    //   path: "/portal/my-timetable",
+    //   icon: HiOutlineClock,
+    //   labelKey: "myTimetable",
+    //   teacher: true,
+    //   section: "teaching",
+    // },
+    // {
+    //   path: "/portal/my-attendance",
+    //   icon: HiOutlineUserCircle,
+    //   labelKey: "myAttendance",
+    //   teacher: true,
+    //   section: "teaching",
+    // },
     {
       path: "/portal/classes",
       icon: HiOutlineRectangleGroup,
@@ -479,75 +494,75 @@ const Sidebar = () => {
       permissions: [PERMISSIONS.MANAGE_SBR_SCALES],
       section: "admin",
     },
-    {
-      path: "/portal/sbr",
-      icon: HiOutlineDocumentChartBar,
-      labelKey: "sbrReports",
-      roles: ["admin", "teacher", "parent"],
-      permissions: [
-        PERMISSIONS.GENERATE_SBR_REPORTS,
-        PERMISSIONS.VIEW_SBR_REPORTS,
-      ],
-      section: "assessment",
-    },
-    {
-      path: "/portal/schedules",
-      icon: HiOutlineCalendar,
-      labelKey: "scheduleManagement",
-      roles: ["admin"],
-      section: "operations",
-    },
-    {
-      path: "/portal/timetable",
-      icon: HiOutlineClock,
-      labelKey: "timetable",
-      roles: ["admin", "teacher", "department_principal"],
-      section: "operations",
-    },
-    {
-      path: "/portal/school-calendar",
-      icon: HiOutlineCalendarDays,
-      labelKey: "schoolCalendar",
-      roles: ["admin", "department_principal", "teacher"],
-      permissions: [PERMISSIONS.MANAGE_EVENTS],
-      section: "operations",
-    },
-    {
-      path: "/portal/attendance",
-      icon: HiOutlineUsers,
-      labelKey: "attendance",
-      roles: ["admin", "department_principal"],
-      section: "operations",
-    },
-    {
-      path: "/portal/attendance-requests",
-      icon: HiOutlineInboxArrowDown,
-      labelKey: "attendanceRequests",
-      roles: ["admin", "department_principal", "teacher", "parent"],
-      section: "operations",
-    },
-    {
-      path: "/portal/review-attendance-requests",
-      icon: HiOutlineTicket,
-      labelKey: "attendanceTickets",
-      roles: ["admin", "department_principal"],
-      section: "operations",
-    },
-    {
-      path: "/portal/attendance-reminders",
-      icon: HiOutlineMegaphone,
-      labelKey: "attendanceReminders",
-      roles: ["admin"],
-      section: "operations",
-    },
-    {
-      path: "/portal/substitutions",
-      icon: HiOutlineUserPlus,
-      labelKey: "subRequests",
-      roles: ["admin", "department_principal", "teacher"],
-      section: "operations",
-      badgeCount: isTeacher ? pendingSubCount?.count || 0 : 0,
-    },
+    // {
+    //   path: "/portal/sbr",
+    //   icon: HiOutlineDocumentChartBar,
+    //   labelKey: "sbrReports",
+    //   roles: ["admin", "teacher", "parent"],
+    //   permissions: [
+    //     PERMISSIONS.GENERATE_SBR_REPORTS,
+    //     PERMISSIONS.VIEW_SBR_REPORTS,
+    //   ],
+    //   section: "assessment",
+    // },
+    // {
+    //   path: "/portal/schedules",
+    //   icon: HiOutlineCalendar,
+    //   labelKey: "scheduleManagement",
+    //   roles: ["admin"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/timetable",
+    //   icon: HiOutlineClock,
+    //   labelKey: "timetable",
+    //   roles: ["admin", "teacher", "department_principal"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/school-calendar",
+    //   icon: HiOutlineCalendarDays,
+    //   labelKey: "schoolCalendar",
+    //   roles: ["admin", "department_principal", "teacher"],
+    //   permissions: [PERMISSIONS.MANAGE_EVENTS],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/attendance",
+    //   icon: HiOutlineUsers,
+    //   labelKey: "attendance",
+    //   roles: ["admin", "department_principal"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/attendance-requests",
+    //   icon: HiOutlineInboxArrowDown,
+    //   labelKey: "attendanceRequests",
+    //   roles: ["admin", "department_principal", "teacher", "parent"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/review-attendance-requests",
+    //   icon: HiOutlineTicket,
+    //   labelKey: "attendanceTickets",
+    //   roles: ["admin", "department_principal"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/attendance-reminders",
+    //   icon: HiOutlineMegaphone,
+    //   labelKey: "attendanceReminders",
+    //   roles: ["admin"],
+    //   section: "operations",
+    // },
+    // {
+    //   path: "/portal/substitutions",
+    //   icon: HiOutlineUserPlus,
+    //   labelKey: "subRequests",
+    //   roles: ["admin", "department_principal", "teacher"],
+    //   section: "operations",
+    //   badgeCount: isTeacher ? pendingSubCount?.count || 0 : 0,
+    // },
     {
       path: "/portal/behavior",
       icon: HiOutlineFaceSmile,
@@ -630,13 +645,13 @@ const Sidebar = () => {
       roles: ["student"],
       section: "assessment",
     },
-    // {
-    //   path: "/portal/student-attendance",
-    //   icon: HiOutlineClipboardDocumentCheck,
-    //   labelKey: "myAttendance",
-    //   roles: ["student"],
-    //   section: "operations",
-    // },
+    {
+      path: "/portal/student-attendance",
+      icon: HiOutlineClipboardDocumentCheck,
+      labelKey: "myAttendance",
+      roles: ["student"],
+      section: "operations",
+    },
     {
       path: "/portal/practice",
       icon: HiOutlineSparkles,
@@ -651,14 +666,14 @@ const Sidebar = () => {
       roles: ["student"],
       section: "assessment",
     },
-    // {
-    //   path: "/portal/academic-excellence",
-    //   icon: HiOutlineStar,
-    //   labelKey: "academicExcellence",
-    //   roles: ["student"],
-    //   feature: "academicIntelligence",
-    //   section: "insights",
-    // },
+    {
+      path: "/portal/academic-excellence",
+      icon: HiOutlineStar,
+      labelKey: "academicExcellence",
+      roles: ["student"],
+      feature: "academicIntelligence",
+      section: "insights",
+    },
     {
       path: "/portal/reading",
       icon: HiOutlineRectangleStack,
@@ -667,14 +682,14 @@ const Sidebar = () => {
       feature: "readingAssistant",
       section: "teaching",
     },
-    // {
-    //   path: "/portal/revision",
-    //   icon: HiOutlineArrowPath,
-    //   labelKey: "revisionPlans",
-    //   roles: ["teacher", "admin"],
-    //   feature: "revisionPlanning",
-    //   section: "support",
-    // },
+    {
+      path: "/portal/revision",
+      icon: HiOutlineArrowPath,
+      labelKey: "revisionPlans",
+      roles: ["teacher", "admin"],
+      feature: "revisionPlanning",
+      section: "support",
+    },
     {
       path: "/portal/finance",
       icon: HiOutlineBanknotes,
@@ -831,15 +846,6 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
-    const pageKey = getSchoolPageKeyForPath(item.path);
-    if (
-      ["teacher", "student"].includes(user?.role) &&
-      pageKey &&
-      schoolPageAccess?.[user.role]?.[pageKey] === false
-    ) {
-      return false;
-    }
-
     if (
       item.liveLessons &&
       import.meta.env.VITE_LIVE_LESSONS_ENABLED !== "true"
@@ -927,15 +933,53 @@ const Sidebar = () => {
               <div className="sidebar-section-divider" />
             )}
             {items.map((item) => {
+              const pageKey = getSchoolPageKeyForPath(item.path);
+              const isPageLocked =
+                isSchoolPageLocked(schoolPageAccess, user?.role, pageKey) ||
+                serverDeniedPages.has(pageKey);
               const isLocked =
                 item.feature && schoolFeatures?.[item.feature] === false;
+              const itemClassName = `nav-item ${isPageLocked ? "locked" : ""} ${isLocked ? "locked" : ""}`;
+              const lockIcon = isPageLocked || isLocked;
+
+              if (isPageLocked) {
+                return (
+                  <button
+                    key={item.path}
+                    type="button"
+                    className={itemClassName}
+                    disabled
+                    title={t("layout.sidebar:actions.featureLocked")}
+                    aria-label={`${t(`layout.sidebar:items.${item.labelKey}`)} — ${t("layout.sidebar:actions.featureLocked")}`}
+                  >
+                    <item.icon className="nav-icon" size={20} />
+                    {sidebarOpen && (
+                      <span className="nav-label">
+                        {t(`layout.sidebar:items.${item.labelKey}`)}
+                      </span>
+                    )}
+                    {sidebarOpen && (
+                      <HiOutlineLockClosed
+                        className="nav-feature-lock"
+                        size={14}
+                      />
+                    )}
+                    {!sidebarOpen && (
+                      <span className="nav-lock-dot" aria-hidden="true">
+                        <HiOutlineLockClosed size={10} />
+                      </span>
+                    )}
+                  </button>
+                );
+              }
+
               return (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   end={item.end || false}
                   className={({ isActive }) =>
-                    `nav-item ${isActive ? "active" : ""} ${isLocked ? "locked" : ""}`
+                    `${itemClassName} ${isActive ? "active" : ""}`
                   }
                 >
                   <item.icon className="nav-icon" size={20} />
@@ -944,7 +988,7 @@ const Sidebar = () => {
                       {t(`layout.sidebar:items.${item.labelKey}`)}
                     </span>
                   )}
-                  {isLocked && sidebarOpen && (
+                  {lockIcon && sidebarOpen && (
                     <HiOutlineLockClosed
                       className="nav-feature-lock"
                       size={14}
@@ -955,7 +999,7 @@ const Sidebar = () => {
                       {t("layout.sidebar:actions.upgrade")}
                     </span>
                   )} */}
-                  {isLocked && !sidebarOpen && (
+                  {lockIcon && !sidebarOpen && (
                     <span
                       className="nav-lock-dot"
                       aria-label={t("layout.sidebar:actions.featureLocked")}
