@@ -45,11 +45,15 @@ export const buildLiveLessonPerformanceReport = async ({
   classId,
   dateFrom,
   dateTo,
+  studentId: selectedStudentId,
   resolveClass,
   resolveStudents,
 }) => {
   if (!classId || !/^[a-f\d]{24}$/i.test(String(classId))) {
     throw Object.assign(new Error("Choose a valid class."), { statusCode: 400 });
+  }
+  if (selectedStudentId && !/^[a-f\d]{24}$/i.test(String(selectedStudentId))) {
+    throw Object.assign(new Error("Choose a valid student."), { statusCode: 400 });
   }
   const { start, end } = parseDateRange(dateFrom, dateTo);
   const classDoc = await resolveClass(req, classId);
@@ -132,8 +136,10 @@ export const buildLiveLessonPerformanceReport = async ({
 
   const studentStats = new Map();
   const sessionMetrics = [];
+  const studentSessionMetrics = [];
   let totalRoster = 0;
   let totalJoined = 0;
+  let totalParticipating = 0;
   let totalQuestions = 0;
   let totalAnswers = 0;
   let totalCorrect = 0;
@@ -150,12 +156,18 @@ export const buildLiveLessonPerformanceReport = async ({
     const durationMinutes = session.startedAt && session.endedAt
       ? Math.max(0, (new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000)
       : 0;
+    const rosterIds = new Set(roster.map((student) => toId(student.studentId)).filter(Boolean));
+    const rosterResponses = sessionResponses.filter((response) => rosterIds.has(toId(response.studentId)));
     totalRoster += roster.length;
-    totalJoined += sessionJoined.size;
+    totalJoined += [...sessionJoined].filter((id) => rosterIds.has(id)).length;
     totalQuestions += roster.length * questionCount;
-    totalAnswers += sessionResponses.length;
-    totalCorrect += sessionResponses.filter((response) => response.isCorrect).length;
+    totalAnswers += rosterResponses.length;
+    totalCorrect += rosterResponses.filter((response) => response.isCorrect).length;
     durationSumMinutes += durationMinutes;
+    const participatingIds = new Set(sessionResponses
+      .map((response) => toId(response.studentId))
+      .filter((id) => rosterIds.has(id)));
+    totalParticipating += participatingIds.size;
 
     for (const student of roster) {
       const studentId = toId(student.studentId);
@@ -179,6 +191,20 @@ export const buildLiveLessonPerformanceReport = async ({
       const joined = sessionJoined.has(studentId);
       if (joined) stats.joined += 1;
       const studentResponses = sessionResponses.filter((response) => toId(response.studentId) === studentId);
+      if (selectedStudentId && studentId === String(selectedStudentId)) {
+        studentSessionMetrics.push({
+          sessionId: sid,
+          studentId,
+          name: student.name || "Student",
+          title: session.lessonSnapshot?.title || "Live lesson",
+          date: session.startedAt || session.createdAt,
+          joined,
+          participated: studentResponses.length > 0,
+          answers: studentResponses.length,
+          correct: studentResponses.filter((response) => response.isCorrect).length,
+          questions: questionCount,
+        });
+      }
       stats.answers += studentResponses.length;
       stats.correct += studentResponses.filter((response) => response.isCorrect).length;
       stats.awaySeconds += awaySeconds(
@@ -191,10 +217,16 @@ export const buildLiveLessonPerformanceReport = async ({
       sessionId: sid,
       title: session.lessonSnapshot?.title || "Live lesson",
       date: session.startedAt || session.createdAt,
-      attendanceRate: percent(sessionJoined.size, roster.length),
-      engagementRate: percent(new Set(sessionResponses.map((response) => toId(response.studentId))).size, roster.length),
-      accuracyRate: percent(sessionResponses.filter((response) => response.isCorrect).length, sessionResponses.length),
-      responseCount: sessionResponses.length,
+      rosterCount: roster.length,
+      joinedCount: [...sessionJoined].filter((id) => rosterIds.has(id)).length,
+      participatingCount: participatingIds.size,
+      questionOpportunities: roster.length * questionCount,
+      submittedAnswers: rosterResponses.length,
+      correctAnswers: rosterResponses.filter((response) => response.isCorrect).length,
+      attendanceRate: percent([...sessionJoined].filter((id) => rosterIds.has(id)).length, roster.length),
+      engagementRate: percent(participatingIds.size, roster.length),
+      accuracyRate: percent(rosterResponses.filter((response) => response.isCorrect).length, rosterResponses.length),
+      responseCount: rosterResponses.length,
       questionCount,
       durationMinutes: Math.round(durationMinutes),
     });
@@ -222,8 +254,7 @@ export const buildLiveLessonPerformanceReport = async ({
       sessionCount: sessions.length,
       studentCount: students.length,
       averageAttendanceRate: percent(totalJoined, totalRoster),
-      participationRate: percent(new Set(responses.map((response) =>
-        `${toId(response.sessionId)}:${toId(response.studentId)}`)).size, totalRoster),
+      participationRate: percent(totalParticipating, totalRoster),
       averageEngagementRate: percent(totalAnswers, totalQuestions),
       averageAccuracyRate: percent(totalCorrect, totalAnswers),
       responseCount: totalAnswers,
@@ -231,5 +262,8 @@ export const buildLiveLessonPerformanceReport = async ({
     },
     sessions: sessionMetrics,
     students,
+    studentSessionMetrics: selectedStudentId
+      ? studentSessionMetrics
+      : [],
   };
 };

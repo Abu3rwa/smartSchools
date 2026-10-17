@@ -61,7 +61,10 @@ export const validationRules = {
     // Class validations
     createClass: [
         body('grade').isInt({ min: 1, max: 12 }).withMessage('Grade must be between 1 and 12'),
-        body('academicYear').notEmpty().withMessage('Academic year is required')
+        body('academicYear')
+            .optional({ checkFalsy: true })
+            .isString()
+            .withMessage('Academic year must be a string')
     ],
 
     // Subject validations

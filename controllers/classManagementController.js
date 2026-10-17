@@ -279,17 +279,26 @@ export const createClass = asyncHandler(async (req, res) => {
         resolvedClassTeacher = teacher?._id;
     }
 
-    const classData = await Class.create({
-        school: req.schoolId,
-        grade,
-        section,
-        academicYear: effectiveAcademicYear,
-        classTeacher: resolvedClassTeacher || undefined,
-        room,
-        capacity,
-        department: (await resolveDepartmentId(department, req.schoolId)) || undefined,
-        name: `Grade ${grade}${section ? '-' + section : ''}`
-    });
+    let classData;
+    try {
+        classData = await Class.create({
+            school: req.schoolId,
+            grade,
+            section,
+            academicYear: effectiveAcademicYear,
+            classTeacher: resolvedClassTeacher || undefined,
+            room,
+            capacity,
+            department: (await resolveDepartmentId(department, req.schoolId)) || undefined,
+            name: `Grade ${grade}${section ? '-' + section : ''}`
+        });
+    } catch (error) {
+        if (error?.code !== 11000) throw error;
+        return res.status(409).json({
+            success: false,
+            message: 'A class already exists for this grade, section, and academic year.'
+        });
+    }
 
     res.status(201).json({
         success: true,

@@ -104,10 +104,13 @@ const LiveLessonsPage = () => {
   const [teachers, setTeachers] = useState([]);
   const [incomingShares, setIncomingShares] = useState([]);
   const [outgoingShares, setOutgoingShares] = useState([]);
+  const [selectedIncomingShareIds, setSelectedIncomingShareIds] = useState([]);
   const [shareLessons, setShareLessons] = useState([]);
   const [shareRecipient, setShareRecipient] = useState("");
   const [shareSaving, setShareSaving] = useState(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
+  const [bulkDeletingLessons, setBulkDeletingLessons] = useState(false);
+  const [bulkRespondingToShares, setBulkRespondingToShares] = useState(false);
   const [previewLesson, setPreviewLesson] = useState(null);
   const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -225,7 +228,10 @@ const LiveLessonsPage = () => {
         api.get("/live/shares/incoming"),
         api.get("/live/shares/outgoing"),
       ]);
-      setIncomingShares(incomingResponse.data?.data?.invitations || []);
+      const invitations = incomingResponse.data?.data?.invitations || [];
+      setIncomingShares(invitations);
+      const pendingIds = new Set(invitations.map((invitation) => String(invitation._id)));
+      setSelectedIncomingShareIds((current) => current.filter((id) => pendingIds.has(String(id))));
       setOutgoingShares(outgoingResponse.data?.data?.invitations || []);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not load lesson-sharing invitations.");
@@ -539,6 +545,40 @@ const LiveLessonsPage = () => {
     }
   };
 
+  const deleteSelectedLessons = async () => {
+    const lessonIds = [...new Set(selectedLessonIds.map(String))];
+    if (!lessonIds.length || bulkDeletingLessons) return;
+    if (!window.confirm(`Permanently delete ${lessonIds.length} selected lesson${lessonIds.length === 1 ? "" : "s"} and all deletable associated session history? Lessons with a live session or Gradebook-linked history will be kept.`)) return;
+
+    setBulkDeletingLessons(true);
+    setError("");
+    setNotice("");
+    const deletedIds = [];
+    const failures = [];
+    try {
+      for (let index = 0; index < lessonIds.length; index += 100) {
+        const batch = lessonIds.slice(index, index + 100);
+        const response = await api.post("/live/lessons/bulk-delete", { lessonIds: batch });
+        const data = response.data?.data || {};
+        deletedIds.push(...(data.deletedIds || []));
+        failures.push(...(data.failures || []));
+      }
+      const deletedSet = new Set(deletedIds.map(String));
+      setSelectedLessonIds((current) => current.filter((id) => !deletedSet.has(String(id))));
+      setNotice(`${deletedIds.length} lesson${deletedIds.length === 1 ? "" : "s"} deleted.${failures.length ? ` ${failures.length} could not be deleted: ${failures.map((failure) => failure.message).join("; ")}` : ""}`);
+      await loadData();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || `Bulk delete stopped after deleting ${deletedIds.length} lessons. Reload the list and try again for the remaining selections.`);
+      if (deletedIds.length) {
+        const deletedSet = new Set(deletedIds.map(String));
+        setSelectedLessonIds((current) => current.filter((id) => !deletedSet.has(String(id))));
+        await loadData();
+      }
+    } finally {
+      setBulkDeletingLessons(false);
+    }
+  };
+
   const shareLessonWithTeacher = async () => {
     if (!shareLessons.length || !shareRecipient) return;
     setShareSaving(true);
@@ -573,6 +613,43 @@ const LiveLessonsPage = () => {
       await Promise.all([loadShares(), loadData()]);
     } catch (requestError) {
       setError(requestError.response?.data?.message || `Could not ${action} this lesson invitation.`);
+    }
+  };
+
+  const respondToSelectedShares = async (action, invitationIds = selectedIncomingShareIds) => {
+    const ids = [...new Set(invitationIds.map(String))];
+    if (!ids.length || bulkRespondingToShares) return;
+    if (action === "decline" && !window.confirm(`Decline ${ids.length} lesson invitation${ids.length === 1 ? "" : "s"}?`)) return;
+
+    setBulkRespondingToShares(true);
+    setError("");
+    setNotice("");
+    const completedIds = [];
+    const failures = [];
+    try {
+      for (let index = 0; index < ids.length; index += 100) {
+        const batch = ids.slice(index, index + 100);
+        const response = await api.post("/live/shares/bulk-respond", {
+          invitationIds: batch,
+          action,
+        });
+        const data = response.data?.data || {};
+        completedIds.push(...(data.completedIds || []));
+        failures.push(...(data.failures || []));
+      }
+      const completedSet = new Set(completedIds.map(String));
+      setSelectedIncomingShareIds((current) => current.filter((id) => !completedSet.has(String(id))));
+      setNotice(`${completedIds.length} invitation${completedIds.length === 1 ? "" : "s"} ${action === "accept" ? "accepted" : "declined"}.${failures.length ? ` ${failures.length} could not be processed: ${failures.map((failure) => failure.message).join("; ")}` : ""}`);
+      await Promise.all([loadShares(), loadData()]);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || `Bulk ${action} stopped after processing ${completedIds.length} invitations. Reload invitations and try again for the remaining selections.`);
+      if (completedIds.length) {
+        const completedSet = new Set(completedIds.map(String));
+        setSelectedIncomingShareIds((current) => current.filter((id) => !completedSet.has(String(id))));
+        await Promise.all([loadShares(), loadData()]);
+      }
+    } finally {
+      setBulkRespondingToShares(false);
     }
   };
 
@@ -772,14 +849,33 @@ const LiveLessonsPage = () => {
                 {promptCopied ? "Copied to clipboard" : "Copy AI prompt + sample"}
               </button>
               {["teacher", "admin"].includes(user?.role) && selectedLessonIds.length > 0 && (
+                <>
+                  <button
+                    className="live-secondary-button"
+                    onClick={() => {
+                      setShareLessons(lessons.filter((lesson) => selectedLessonIds.includes(String(lesson._id))));
+                      setShareRecipient("");
+                    }}
+                  >
+                    <HiOutlineShare /> Share selected ({selectedLessonIds.length})
+                  </button>
+                  <button className="live-delete-session" onClick={deleteSelectedLessons} disabled={bulkDeletingLessons}>
+                    <HiOutlineTrash /> {bulkDeletingLessons ? "Deleting…" : `Delete selected (${selectedLessonIds.length})`}
+                  </button>
+                </>
+              )}
+              {["teacher", "admin"].includes(user?.role) && filteredLessons.length > 0 && (
                 <button
-                  className="live-secondary-button"
-                  onClick={() => {
-                    setShareLessons(lessons.filter((lesson) => selectedLessonIds.includes(String(lesson._id))));
-                    setShareRecipient("");
-                  }}
+                  className="live-text-button"
+                  onClick={() => setSelectedLessonIds((current) => (
+                    filteredLessons.every((lesson) => current.includes(String(lesson._id)))
+                      ? current.filter((id) => !filteredLessons.some((lesson) => String(lesson._id) === String(id)))
+                      : [...new Set([...current, ...filteredLessons.map((lesson) => String(lesson._id))])]
+                  ))}
                 >
-                  <HiOutlineShare /> Share selected ({selectedLessonIds.length})
+                  {filteredLessons.every((lesson) => selectedLessonIds.includes(String(lesson._id)))
+                    ? "Clear all filtered selections"
+                    : `Select all filtered lessons (${filteredLessons.length})`}
                 </button>
               )}
               <button className="live-primary-button" onClick={openImportEditor}><HiOutlineArrowUpTray /> Import CSV lesson</button>
@@ -789,17 +885,75 @@ const LiveLessonsPage = () => {
             <section className="live-share-invitations" aria-label="Lesson sharing invitations">
               {incomingShares.length > 0 && (
                 <div>
-                  <h2>Lessons shared with you</h2>
+                  <div className="live-share-bulk-heading">
+                    <h2>Lessons shared with you</h2>
+                    <label>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all incoming lesson invitations"
+                        checked={incomingShares.length > 0 && incomingShares.every((invitation) => selectedIncomingShareIds.includes(String(invitation._id)))}
+                        onChange={(event) => setSelectedIncomingShareIds(event.target.checked
+                          ? incomingShares.map((invitation) => String(invitation._id))
+                          : [])}
+                      />
+                      Select all
+                    </label>
+                  </div>
+                  <div className="live-share-bulk-actions">
+                    <button
+                      className="live-primary-button"
+                      disabled={bulkRespondingToShares}
+                      onClick={() => respondToSelectedShares("accept", incomingShares.map((invitation) => String(invitation._id)))}
+                    >
+                      {bulkRespondingToShares ? "Processing…" : "Accept all"}
+                    </button>
+                    <button
+                      className="live-secondary-button"
+                      disabled={bulkRespondingToShares}
+                      onClick={() => respondToSelectedShares("decline", incomingShares.map((invitation) => String(invitation._id)))}
+                    >
+                      Decline all
+                    </button>
+                    {selectedIncomingShareIds.length > 0 && (
+                      <>
+                        <button
+                          className="live-primary-button"
+                          disabled={bulkRespondingToShares}
+                          onClick={() => respondToSelectedShares("accept")}
+                        >
+                          Accept selected ({selectedIncomingShareIds.length})
+                        </button>
+                        <button
+                          className="live-secondary-button"
+                          disabled={bulkRespondingToShares}
+                          onClick={() => respondToSelectedShares("decline")}
+                        >
+                          Decline selected ({selectedIncomingShareIds.length})
+                        </button>
+                      </>
+                    )}
+                  </div>
                   <ul>
                     {incomingShares.map((invitation) => (
                       <li key={invitation._id}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select invitation for ${invitation.lesson?.title || "shared lesson"}`}
+                          checked={selectedIncomingShareIds.includes(String(invitation._id))}
+                          disabled={bulkRespondingToShares}
+                          onChange={(event) => setSelectedIncomingShareIds((current) => (
+                            event.target.checked
+                              ? [...new Set([...current, String(invitation._id)])]
+                              : current.filter((id) => String(id) !== String(invitation._id))
+                          ))}
+                        />
                         <div>
                           <strong>{invitation.lesson?.title || "Shared lesson"}</strong>
                           <span>From {[invitation.sender?.firstName, invitation.sender?.lastName].filter(Boolean).join(" ") || "a teacher"}{invitation.lesson?.subject ? ` · ${invitation.lesson.subject}` : ""}</span>
                         </div>
                         <div className="live-share-actions">
-                          <button className="live-primary-button" onClick={() => respondToShare(invitation._id, "accept")}>Accept and add</button>
-                          <button className="live-secondary-button" onClick={() => respondToShare(invitation._id, "decline")}>Decline</button>
+                          <button className="live-primary-button" disabled={bulkRespondingToShares} onClick={() => respondToShare(invitation._id, "accept")}>Accept and add</button>
+                          <button className="live-secondary-button" disabled={bulkRespondingToShares} onClick={() => respondToShare(invitation._id, "decline")}>Decline</button>
                         </div>
                       </li>
                     ))}
@@ -883,7 +1037,7 @@ const LiveLessonsPage = () => {
                         {["teacher", "admin"].includes(user?.role) && (
                           <input
                             type="checkbox"
-                            aria-label={`Select ${lesson.title} to share`}
+                            aria-label={`Select ${lesson.title} for bulk actions`}
                             checked={selectedLessonIds.includes(String(lesson._id))}
                             onChange={(event) => setSelectedLessonIds((current) => (
                               event.target.checked

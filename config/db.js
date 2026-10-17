@@ -140,6 +140,101 @@ const migrateSpellingPassageIndexes = async () => {
   }
 };
 
+export const migrateTeacherEmployeeIdIndex = async (db = mongoose.connection.db) => {
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the teacher employee ID index.');
+  }
+
+  const collection = db.collection('teachers');
+  const collectionExists = await db.listCollections({ name: 'teachers' }).hasNext();
+  if (!collectionExists) {
+    await collection.createIndex(
+      { school: 1, employeeId: 1 },
+      { unique: true, name: 'school_1_employeeId_1' }
+    );
+    logger.success('Created school-scoped unique teacher employee ID index');
+    return;
+  }
+
+  const indexes = await collection.indexes();
+  const legacyGlobalIndex = indexes.find((index) =>
+    index.unique === true &&
+    index.key?.employeeId === 1 &&
+    Object.keys(index.key).length === 1
+  );
+
+  if (legacyGlobalIndex) {
+    await collection.dropIndex(legacyGlobalIndex.name);
+    logger.success(`Dropped legacy global teacher employee ID index ${legacyGlobalIndex.name}`);
+  }
+
+  const currentIndexes = await collection.indexes();
+  const schoolScopedIndex = currentIndexes.find((index) =>
+    index.unique === true &&
+    index.key?.school === 1 &&
+    index.key?.employeeId === 1 &&
+    Object.keys(index.key).length === 2
+  );
+
+  if (!schoolScopedIndex) {
+    await collection.createIndex(
+      { school: 1, employeeId: 1 },
+      { unique: true, name: 'school_1_employeeId_1' }
+    );
+    logger.success('Created school-scoped unique teacher employee ID index');
+  }
+};
+
+const migrateClassUniqueIndex = async () => {
+  const db = mongoose.connection.db;
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the class unique index.');
+  }
+
+  const collection = db.collection('classes');
+  const collectionExists = await db.listCollections({ name: 'classes' }).hasNext();
+  if (!collectionExists) {
+    await collection.createIndex(
+      { school: 1, grade: 1, section: 1, academicYear: 1 },
+      { unique: true, name: 'school_1_grade_1_section_1_academicYear_1' }
+    );
+    logger.success('Created school-scoped unique class index');
+    return;
+  }
+
+  const indexes = await collection.indexes();
+  const legacyGlobalIndex = indexes.find((index) =>
+    index.unique === true &&
+    index.key?.grade === 1 &&
+    index.key?.section === 1 &&
+    index.key?.academicYear === 1 &&
+    Object.keys(index.key).length === 3
+  );
+
+  if (legacyGlobalIndex) {
+    await collection.dropIndex(legacyGlobalIndex.name);
+    logger.success(`Dropped legacy global class index ${legacyGlobalIndex.name}`);
+  }
+
+  const currentIndexes = await collection.indexes();
+  const schoolScopedIndex = currentIndexes.find((index) =>
+    index.unique === true &&
+    index.key?.school === 1 &&
+    index.key?.grade === 1 &&
+    index.key?.section === 1 &&
+    index.key?.academicYear === 1 &&
+    Object.keys(index.key).length === 4
+  );
+
+  if (!schoolScopedIndex) {
+    await collection.createIndex(
+      { school: 1, grade: 1, section: 1, academicYear: 1 },
+      { unique: true, name: 'school_1_grade_1_section_1_academicYear_1' }
+    );
+    logger.success('Created school-scoped unique class index');
+  }
+};
+
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -150,6 +245,8 @@ const connectDB = async () => {
     await migrateSpellingPassageIndexes();
     await migrateSpellingEmailDeliveryIndexes();
     await migrateSpellingRetestQuizIndexes();
+    await migrateTeacherEmployeeIdIndex();
+    await migrateClassUniqueIndex();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);

@@ -34,9 +34,21 @@ export const fetchClass = createAsyncThunk(
 // Alias for backward compatibility if any
 export const fetchSingleClass = fetchClass;
 
-export const createClass = createAsyncThunk('classes/createClass', async (newClass) => {
-  const response = await classService.createClass(newClass);
-  return response;
+export const createClass = createAsyncThunk('classes/createClass', async (newClass, { rejectWithValue }) => {
+  try {
+    const response = await classService.createClass(newClass);
+    return response;
+  } catch (error) {
+    const validationMessages = error.response?.data?.errors
+      ?.map((item) => item.message)
+      .filter(Boolean);
+    return rejectWithValue(
+      validationMessages?.join(', ')
+        || error.response?.data?.message
+        || error.message
+        || 'Failed to create class'
+    );
+  }
 });
 
 export const deleteClass = createAsyncThunk(

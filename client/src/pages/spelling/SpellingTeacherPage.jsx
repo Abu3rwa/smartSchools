@@ -787,6 +787,23 @@ const SpellingTeacherPage = () => {
         }
     };
 
+    const exportWordAudioLibrary = async () => {
+        setExportingWordLibrary(true);
+        try {
+            const response = await api.get('/spelling/word-audio/export', { responseType: 'blob' });
+            const filename = filenameFromContentDisposition(
+                response.headers?.['content-disposition'],
+                'spelling-word-audio-library.csv'
+            );
+            downloadBlob(response.data, filename);
+            notify('Audio export downloaded.', 'success');
+        } catch (error) {
+            notify(error.response?.data?.message || 'Unable to export the audio CSV.', 'error');
+        } finally {
+            setExportingWordLibrary(false);
+        }
+    };
+
     const saveClassSettings = async () => {
         if (!classId) return;
         try {
@@ -923,6 +940,7 @@ const SpellingTeacherPage = () => {
                 onPreviewWordList={previewWordList}
                 onCommitWordList={commitWordList}
                 onExportWordLibrary={exportWordLibrary}
+                onExportWordAudioLibrary={exportWordAudioLibrary}
                 onDeleteWord={deleteCurriculumWord}
                 deletingWordId={deletingWordId}
             />}

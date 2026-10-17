@@ -586,6 +586,33 @@
   color: #294b4c;
   font-size: 1rem;
 }
+.live-share-bulk-heading,
+.live-share-bulk-heading label,
+.live-share-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+.live-share-bulk-heading {
+  justify-content: space-between;
+}
+.live-share-bulk-heading h2 {
+  margin-bottom: 0;
+}
+.live-share-bulk-heading label {
+  color: #62727e;
+  font-size: 0.82rem;
+}
+.live-share-bulk-heading input,
+.live-share-invitations li > input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #167b78;
+}
+.live-share-bulk-actions {
+  margin: 0.8rem 0;
+}
 .live-share-invitations ul {
   display: grid;
   gap: 0.5rem;

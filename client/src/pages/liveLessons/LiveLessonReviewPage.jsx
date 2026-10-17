@@ -4,6 +4,10 @@ import { HiOutlineArrowDownTray, HiOutlineArrowLeft, HiOutlinePause, HiOutlinePl
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../../config/api";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
+import {
+  buildClassEngagementChartData,
+  buildStudentEngagementChartData,
+} from "./liveLessonEngagementCharts";
 import "./LiveLessonReviewPage.css";
 
 const toDateInput = (date) => {
@@ -64,6 +68,12 @@ const LiveLessonReviewPage = ({ mode }) => {
   const [reportStudentId, setReportStudentId] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [performance, setPerformance] = useState(null);
+  const [performanceStudentTrend, setPerformanceStudentTrend] = useState([]);
+  const [performanceStudentTrendLoading, setPerformanceStudentTrendLoading] = useState(false);
+  const [performanceStudentTrendError, setPerformanceStudentTrendError] = useState("");
+  const [engagementGranularity, setEngagementGranularity] = useState("lesson");
+  const [engagementScope, setEngagementScope] = useState("class");
+  const [engagementStudentSelection, setEngagementStudentSelection] = useState("");
   const [performanceError, setPerformanceError] = useState("");
   const [performanceLoading, setPerformanceLoading] = useState(false);
   const [performanceExporting, setPerformanceExporting] = useState(false);
@@ -235,9 +245,52 @@ const LiveLessonReviewPage = ({ mode }) => {
     (student) => student.studentId === reportStudentId,
   ) || report?.perStudent?.[0] || null;
   const performanceStudents = performance?.students || [];
+  const engagementStudentId = performanceStudents.some(
+    (student) => student.studentId === engagementStudentSelection,
+  ) ? engagementStudentSelection : performanceStudents[0]?.studentId || "";
+  const engagementStudent = performanceStudents.find(
+    (student) => student.studentId === engagementStudentId,
+  );
+  const engagementChartData = engagementScope === "student"
+    ? buildStudentEngagementChartData(performanceStudentTrend, engagementGranularity)
+    : buildClassEngagementChartData(performance?.sessions || [], engagementGranularity);
   const availableGradeSubjects = report?.session?.subjectId
     ? gradeSubjects.filter((subject) => subject._id === report.session.subjectId)
     : gradeSubjects;
+
+  useEffect(() => {
+    const classId = report?.session?.class?._id || report?.session?.class;
+    if (mode !== "report" || report?.session?.status !== "ended" || !classId
+      || !performanceRange.from || !performanceRange.to || !engagementStudentId) {
+      setPerformanceStudentTrend([]);
+      setPerformanceStudentTrendLoading(false);
+      return undefined;
+    }
+    let active = true;
+    const params = new URLSearchParams({
+      classId: String(classId),
+      dateFrom: performanceRange.from,
+      dateTo: performanceRange.to,
+      studentId: engagementStudentId,
+    });
+    setPerformanceStudentTrend([]);
+    setPerformanceStudentTrendLoading(true);
+    setPerformanceStudentTrendError("");
+    api.get(`/live/sessions/performance?${params.toString()}`)
+      .then((response) => {
+        if (active) setPerformanceStudentTrend(response.data?.data?.studentSessionMetrics || []);
+      })
+      .catch((requestError) => {
+        if (active) {
+          setPerformanceStudentTrend([]);
+          setPerformanceStudentTrendError(requestError.response?.data?.message || "Could not load this student's engagement trend.");
+        }
+      })
+      .finally(() => {
+        if (active) setPerformanceStudentTrendLoading(false);
+      });
+    return () => { active = false; };
+  }, [mode, report?.session?.status, report?.session?.class, performanceRange.from, performanceRange.to, engagementStudentId]);
 
   const setPerformancePeriod = (preset) => {
     setPerformancePreset(preset);
@@ -442,40 +495,82 @@ const LiveLessonReviewPage = ({ mode }) => {
                     <div><strong>{performance.summary.averageAccuracyRate}%</strong><span>Accuracy</span></div>
                     <div><strong>{performance.summary.averageSessionMinutes}m</strong><span>Avg. session</span></div>
                   </div>
-                  {performance.sessions.length ? (
-                    <div className="live-performance-chart" aria-label="Class attendance, participation, and accuracy trend chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={performance.sessions} margin={{ top: 10, right: 18, left: -15, bottom: 5 }}>
-                          <CartesianGrid stroke="var(--border-color)" strokeDasharray="3 3" vertical={false} />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
-                            tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                            axisLine={{ stroke: "var(--border-color)" }}
-                            tickLine={{ stroke: "var(--border-color)" }}
-                          />
-                          <YAxis
-                            domain={[0, 100]}
-                            unit="%"
-                            tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
-                            axisLine={{ stroke: "var(--border-color)" }}
-                            tickLine={{ stroke: "var(--border-color)" }}
-                          />
-                          <Tooltip
-                            labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                            formatter={(value) => [`${value}%`]}
-                            contentStyle={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
-                            labelStyle={{ color: "var(--text-primary)" }}
-                            itemStyle={{ color: "var(--text-secondary)" }}
-                          />
-                          <Legend wrapperStyle={{ color: "var(--text-secondary)" }} />
-                          <Line type="monotone" dataKey="attendanceRate" name="Attendance" stroke="#168078" strokeWidth={3} dot={{ r: 3 }} />
-                          <Line type="monotone" dataKey="engagementRate" name="Participation" stroke="#ed9d37" strokeWidth={3} dot={{ r: 3 }} />
-                          <Line type="monotone" dataKey="accuracyRate" name="Accuracy" stroke="#5576c5" strokeWidth={3} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : <p className="live-performance-status">No completed live lessons were found in this period.</p>}
+                  <div className="live-engagement-chart-controls no-print">
+                    <label>Chart scope
+                      <select value={engagementScope} onChange={(event) => setEngagementScope(event.target.value)}>
+                        <option value="class">Class engagement</option>
+                        <option value="student">Individual student</option>
+                      </select>
+                    </label>
+                    {engagementScope === "student" && (
+                      <label>Student
+                        <select
+                          value={engagementStudentId}
+                          onChange={(event) => setEngagementStudentSelection(event.target.value)}
+                          disabled={!performanceStudents.length}
+                        >
+                          {performanceStudents.map((student) => (
+                            <option key={student.studentId} value={student.studentId}>{student.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <label>Show data by
+                      <select value={engagementGranularity} onChange={(event) => setEngagementGranularity(event.target.value)}>
+                        <option value="lesson">Each lesson</option>
+                        <option value="week">Weekly</option>
+                        <option value="month">Monthly</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="live-performance-chart-note">
+                    Engagement shows attendance and observable answering, not attention or learning. Accuracy remains separate in the summary and student table.
+                  </p>
+                  {engagementScope === "student" && performanceStudentTrendLoading
+                    ? <p className="live-performance-status">Loading {engagementStudent?.name || "student"} engagement…</p>
+                    : engagementScope === "student" && performanceStudentTrendError
+                      ? <p className="live-report-export-error" role="alert">{performanceStudentTrendError}</p>
+                      : engagementChartData.length ? (
+                        <div className="live-performance-chart" aria-label={`${engagementScope === "student" ? `${engagementStudent?.name || "Student"}'s` : "Class"} engagement chart`}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={engagementChartData} margin={{ top: 10, right: 18, left: -15, bottom: 5 }}>
+                              <CartesianGrid stroke="var(--border-color)" strokeDasharray="3 3" vertical={false} />
+                              <XAxis
+                                dataKey="label"
+                                tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
+                                interval="preserveStartEnd"
+                                axisLine={{ stroke: "var(--border-color)" }}
+                                tickLine={{ stroke: "var(--border-color)" }}
+                              />
+                              <YAxis
+                                domain={[0, 100]}
+                                unit="%"
+                                tick={{ fill: "var(--text-secondary)", fontSize: 12 }}
+                                axisLine={{ stroke: "var(--border-color)" }}
+                                tickLine={{ stroke: "var(--border-color)" }}
+                              />
+                              <Tooltip
+                                labelFormatter={(label, payload) => `${label}${payload?.[0]?.payload?.lessonCount > 1 ? ` · ${payload[0].payload.lessonCount} lessons` : ""}`}
+                                formatter={(value, name, item) => {
+                                  const metric = name === "Attendance" ? "attendance"
+                                    : name === "Answered at least once" ? "participation" : "answerCompletion";
+                                  const data = item.payload;
+                                  return [`${value}% (${data[`${metric}Numerator`]}/${data[`${metric}Denominator`]})`, name];
+                                }}
+                                contentStyle={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+                                labelStyle={{ color: "var(--text-primary)" }}
+                                itemStyle={{ color: "var(--text-secondary)" }}
+                              />
+                              <Legend wrapperStyle={{ color: "var(--text-secondary)" }} />
+                              <Line type="monotone" dataKey="attendanceRate" name="Attendance" stroke="#168078" strokeWidth={3} dot={{ r: 3 }} />
+                              <Line type="monotone" dataKey="participationRate" name="Answered at least once" stroke="#ed9d37" strokeWidth={3} dot={{ r: 3 }} />
+                              <Line type="monotone" dataKey="answerCompletionRate" name="Answer completion" stroke="#5576c5" strokeWidth={3} dot={{ r: 3 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : <p className="live-performance-status">{engagementScope === "student"
+                        ? "No rostered lessons for this student were found in this period."
+                        : "No completed live lessons were found in this period."}</p>}
                   <div className="live-report-section-heading live-performance-student-heading">
                     <div><h3>Individual student performance</h3><p>Select one student for an individual report or several for a batch PDF.</p></div>
                     <button className="live-session-secondary no-print" onClick={() => downloadPerformancePdf(performanceStudentIds)} disabled={!performanceStudentIds.length || performanceStudentIds.length > 150 || performanceExporting}>

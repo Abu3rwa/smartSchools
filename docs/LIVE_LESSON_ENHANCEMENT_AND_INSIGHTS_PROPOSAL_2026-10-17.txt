@@ -1,0 +1,565 @@
+LIVE LESSONS: ENHANCEMENT, PRESENTATION, AND INSIGHTS PROPOSAL
+Date: 2026-10-17
+Status: Product thinking only. No code changes are included in this proposal.
+
+======================================================================
+1. PRIMARY GOAL: LESS TEACHER WORK, BETTER STUDENT INSIGHT
+======================================================================
+
+The primary purpose of Live Lessons is to reduce teachers' workload while
+making student performance easier to see and act on. The feature should do
+the repetitive collecting, organizing, calculating, and summarizing of
+lesson evidence automatically, so the teacher can spend less time preparing
+reports and checking answers one by one, and more time teaching students.
+
+The product should answer two questions quickly:
+1. What is each student understanding, and where does that student need
+   support?
+2. What is the one useful next action for the teacher or student?
+
+Make Live Lessons a low-workload teaching loop:
+
+PLAN -> TEACH -> CHECK UNDERSTANDING -> RESPOND -> FOLLOW UP
+
+The system should automatically capture lesson answers, summarize class and
+individual performance, identify patterns worth a teacher's attention, and
+make the next step easy. Teachers should not have to manually count answers,
+copy results into separate reports, or inspect every response just to find
+which students need help. Students should be able to see their own
+performance and a clear, encouraging next step. School leaders should be
+able to see broad patterns without mistaking participation for learning.
+
+Product principles:
+- Automate routine work; ask the teacher only for decisions that require
+  professional judgment.
+- Make individual student performance visible, specific, and easy to follow
+  over time.
+- Put the next useful teaching action ahead of charts and raw event data.
+- Generate concise summaries and reports from recorded responses without
+  requiring teachers to write them manually.
+- Keep student-level evidence available to authorized staff, with sensible
+  class and school boundaries.
+- Separate engagement, attendance, and correctness; they measure different
+  things.
+- Treat unanswered questions as missing evidence, not automatically wrong.
+- Treat tab visibility and presence data as technical signals, not proof of
+  attention, intent, or misconduct.
+- Make every score explainable by linking it back to the student's answers
+  and the question that produced it.
+- Preserve teacher control: insights suggest actions; teachers decide what
+  to do.
+
+======================================================================
+2. WHAT THE FEATURE ALREADY DOES
+======================================================================
+
+The existing foundation is substantial:
+- Teachers create, preview, edit, reuse, and organize slide-based lessons.
+- Lessons can be linked to a class and subject, scheduled, and presented live.
+- Teachers can pause, navigate slides, open and close questions, reveal
+  results, hide lesson content, use a class timer, and view the session
+  roster.
+- Students can join live lessons for their enrolled classes, submit one
+  answer per question, and see correctness when results are revealed.
+- Lessons can be shared between teachers. A recipient can accept a copy or
+  decline the invitation.
+- Teachers can bulk-select lessons to share or delete and can bulk-accept or
+  bulk-decline incoming lesson invitations.
+- Session history supports search, filters, reports, replay, and cleanup.
+- Session snapshots preserve the lesson and class roster as they were when
+  the session started.
+- Reports include attendance, participation, accuracy, response counts,
+  duration, per-student information, and time away from the lesson page.
+- A teacher can review answers and optionally create linked classwork
+  Gradebook entries.
+
+The next opportunity is not to add more metrics for their own sake. It is
+to do more of the reporting and pattern-finding automatically, then present
+each student's performance and the class's learning needs in a way that is
+fast to understand and easy to act on.
+
+======================================================================
+3. RECOMMENDED EXPERIENCE BY AUDIENCE
+======================================================================
+
+A. TEACHER: BEFORE CLASS
+
+Present a lesson library as a teaching workspace rather than just a file
+list:
+- "Continue teaching": upcoming or waiting sessions that need attention.
+- "My lessons": searchable lessons with class, subject, grade, slide count,
+  and last used date.
+- "Shared with me": incoming invitations and accepted copies.
+- "Recently taught": completed sessions with report and replay shortcuts.
+- Clear actions: Preview, Edit, Start, Schedule, Share, Mark done, Delete.
+- Bulk actions should be visibly grouped after lessons are selected.
+- A lesson preview should show its sequence and indicate which slides contain
+  questions, examples, media, or teacher notes.
+- Before starting, summarize class, subject, roster size, question count,
+  and any setup warnings such as an empty roster or a lesson with no
+  questions.
+
+Potential later addition:
+- A lesson-preparation checklist: objective, key vocabulary, question
+  coverage, estimated duration, and accessible media.
+- Allow teachers to duplicate a lesson for adaptation while preserving the
+  original and its history.
+- Add optional lesson tags such as "review", "new concept", "assessment",
+  and "intervention".
+
+B. TEACHER: DURING CLASS
+
+Keep the presentation itself focused and uncluttered. Put live class
+monitoring in a companion teacher panel or collapsible drawer so monitoring
+does not compete with the lesson content.
+
+The companion panel should answer:
+- How many students are on the roster?
+- How many have joined?
+- For the open question, how many have answered and how many are still
+  waiting?
+- Is the class ready to reveal results?
+- Which answer choices are being selected?
+- Which students may need a check-in or additional explanation?
+
+Recommended live sequence:
+1. Show a neutral participation count while answers are being collected.
+2. Let the teacher decide when to close the question.
+3. Show the response distribution without exposing individual answers to
+   classmates.
+4. Reveal the correct answer and explanation.
+5. Offer a short teacher action: discuss, model again, ask a follow-up, or
+   continue.
+
+Avoid public student ranking or a high-pressure speed leaderboard. Response
+latency can help a teacher notice questions that take longer, but should not
+be used by itself to label a student or grade their understanding.
+
+C. TEACHER: AFTER CLASS
+
+The report should be produced automatically when a session ends. The
+teacher should not need to assemble it from individual student records.
+Lead with a compact summary and a recommended next step:
+- Attendance: joined students / roster.
+- Participation: students who answered at least one question / roster.
+- Understanding: correct answers / submitted answers, alongside the number
+  of submitted answers.
+- Questions needing review: questions with low accuracy or concentrated
+  misconceptions.
+- Follow-up candidates: students with repeated unanswered questions, low
+  accuracy across several sessions, or a notable change from their own
+  baseline.
+- A short automatically generated class summary, such as "Most students
+  understood equivalent fractions; several selected the numerator-only
+  distractor on Question 4."
+- A compact list of students who need a follow-up, with the answer evidence
+  that explains why they are listed.
+
+Include engagement charts in the report and in the class/student progress
+views:
+- Class engagement chart: show how the class participated in each lesson,
+  then allow the teacher to switch to weekly or monthly summaries.
+- Individual student engagement chart: show one student's participation
+  across lessons, weeks, or months, so the teacher can see consistency and
+  change without comparing the student publicly with classmates.
+- Student performance chart: show correctness/understanding separately
+  from engagement. A student can participate actively while still needing
+  help with the material.
+- Let the teacher move from a class chart point to the students and answers
+  behind it, and from a student chart point to that lesson's report.
+
+Then provide drill-downs:
+- Question view: question text, answer-choice distribution, correct answer,
+  explanation, and response count.
+- Student view: questions answered, chosen answers, correctness, strengths,
+  skills/questions to revisit, and change from that student's own previous
+  performance.
+- Lesson view: slide sequence and where participation or difficulty changed.
+- Session view: replay, timeline, attendance changes, pause/resume, and
+  question events.
+
+Keep "Create classwork grades" as an explicit review-and-confirm action.
+Show the proposed subject, date, marks, maximum marks, and students before
+saving. Never silently create grades from a live-session insight.
+
+The default path should be summary first, detail only when the teacher needs
+it. A teacher should be able to identify the students and questions needing
+attention without opening every answer. Preserve the detailed answer record
+for verification, parent communication, or a closer review.
+
+D. SCHOOL LEADER / DEPARTMENT VIEW
+
+Provide a class- and date-filtered overview focused on instructional
+coverage:
+- Number of live lessons delivered.
+- Classes and subjects with recent lesson activity.
+- Participation and question-response trends.
+- Class-level engagement charts by lesson, week, and month, with filters
+  for class, subject, and date range.
+- Question-level areas where many classes show difficulty.
+- Lesson reuse and sharing activity.
+- Classes with little or no live-lesson activity in the selected period.
+
+Do not rank teachers using raw engagement or answer accuracy. Class size,
+lesson difficulty, roster completeness, subject, access to devices, and
+teaching purpose all affect the numbers. Use the overview to support
+conversation and resource planning, not to create a high-stakes scorecard.
+
+E. STUDENT: PERFORMANCE THEY CAN UNDERSTAND
+
+Give each student a private, age-appropriate view of their own performance:
+- Which questions they answered correctly.
+- Which ideas or question types they should practise again.
+- How their engagement and learning performance are changing across
+  lessons, weeks, and months.
+- One clear next step, such as reviewing an example or trying a follow-up
+  question.
+
+Keep the feedback specific to evidence from the lesson. Avoid class
+rankings, public comparison, fixed ability labels, and unexplained scores.
+Show missing answers as "not answered" rather than automatically treating
+them as incorrect. The teacher controls whether and when a session summary
+is shared with students.
+
+======================================================================
+4. USEFUL INSIGHTS WE CAN PROVIDE
+======================================================================
+
+INSIGHT 1: CLASS PARTICIPATION
+Question: Did students have an opportunity to take part?
+Evidence: Roster snapshot, joined students, and students submitting answers.
+Presentation: Show roster, joined count, and answer count separately.
+Action: Check access or invite students who have not joined; check whether
+the lesson offered enough answer opportunities.
+Caution: Joining is not the same as attending to or understanding a lesson.
+
+INSIGHT 2: ENGAGEMENT OVER TIME
+Question: Is each student taking part consistently, and is class
+participation changing?
+Evidence: Whether each rostered student joined and submitted answers to
+available questions in each session.
+Presentation: Provide a class chart and a selectable individual-student
+chart. Support three views: per lesson/session, weekly, and monthly. Show
+the numerator and denominator on every point, such as "8 of 10 students
+answered" or "this student answered 3 of 4 available questions."
+Action: Identify lessons or periods with participation changes, check
+whether students had access, and decide whether a follow-up or class
+conversation is needed.
+Caution: Engagement is an observable participation measure, not attention,
+effort, motivation, or proof of learning. Do not interpret missing sessions
+as zero engagement if a student was not on the roster or the lesson was not
+available to them.
+
+INSIGHT 3: QUESTION-LEVEL MISCONCEPTIONS
+Question: Which concept or distractor caused difficulty?
+Evidence: Correctness and selected option per response, linked to the
+question and slide.
+Presentation: Sort questions by low accuracy, but always show response
+count. Identify the most-selected incorrect choice.
+Action: Re-teach the concept, explain the distractor, or assign a follow-up
+question.
+Caution: Small response counts make percentages unstable. Show counts and
+avoid drawing strong conclusions from one or two answers.
+
+INSIGHT 4: INDIVIDUAL FOLLOW-UP
+Question: Which students may benefit from a teacher check-in?
+Evidence: Student's accuracy and participation across multiple sessions,
+plus per-question answer history.
+Presentation: Provide a private teacher-only list with evidence and a
+click-through to the student answer record.
+Action: Offer a small-group explanation, alternate example, or one-to-one
+check-in.
+Caution: Do not label a learner as incapable or disengaged based on one
+lesson. Use "may need follow-up" rather than diagnostic language.
+
+INSIGHT 5: CHANGE IN LEARNING OVER TIME
+Question: Is understanding improving after instruction or review?
+Evidence: Accuracy and response patterns on comparable questions or
+repeated lesson objectives across sessions.
+Presentation: Provide a separate correctness/performance chart by student
+and class, with per-lesson, weekly, and monthly views. Trend across lessons,
+weeks, or months only when the questions or objectives are sufficiently
+comparable. Keep this chart visually and conceptually separate from
+engagement charts.
+Action: Decide whether to move on, revisit, or gather more evidence.
+Caution: A change in lesson difficulty or question design can make a simple
+score comparison misleading.
+
+INSIGHT 6: LESSON EFFECTIVENESS
+Question: Which lesson sections invite participation or need refinement?
+Evidence: Response coverage and answer-choice patterns by question slide,
+compared across uses of the same lesson.
+Presentation: Show which questions consistently produce confusion or low
+response, with the lesson version and date.
+Action: Edit unclear wording, add an example, change distractors, or insert
+an additional check for understanding.
+Caution: Snapshot each session's lesson version. Later edits must not
+rewrite earlier evidence.
+
+INSIGHT 7: RESPONSE TIME
+Question: Which questions took longer for this class?
+Evidence: Stored answer latency.
+Presentation: Median and spread by question, not only an average. Compare
+with the same question or lesson when possible.
+Action: Review whether instructions were unclear, reading load was high, or
+students needed more thinking time.
+Caution: Network and device delays affect latency. Do not infer effort,
+ability, or distraction from response time alone.
+
+INSIGHT 8: LESSON ADOPTION AND SHARING
+Question: Are teachers able to reuse and adapt useful material?
+Evidence: Lesson starts, lesson reuse, invitation status, and copied lessons.
+Presentation: Show shared lessons, pending invitations, accepted copies,
+and recent reuse in the library.
+Action: Find useful material to share in a department or subject team.
+Caution: Sharing count is not a measure of lesson quality or instructional
+impact.
+
+INSIGHT 9: FOLLOW-UP COVERAGE
+Question: Was there an instructional response after a low-understanding
+signal?
+Evidence: Teacher-added follow-up note, later linked activity/session, or
+reviewed Gradebook entry (if the product later records this relationship).
+Presentation: Mark follow-up as teacher-recorded, not automatically inferred.
+Action: Close the teaching loop and see whether the next check improved.
+Caution: Do not claim that an intervention caused a result without
+appropriate evidence.
+
+======================================================================
+5. PRESENTATION AND INFORMATION DESIGN
+======================================================================
+
+Use progressive disclosure:
+
+LEVEL 1 - QUICK READ
+- A few summary cards with plain-language labels.
+- Clear counts, percentages, and denominators.
+- One or two evidence-based suggested actions.
+- Visible empty states such as "No questions were answered in this session."
+- A small class engagement trend chart with a toggle for per lesson, week,
+  and month.
+- A student-by-student performance table that opens a private individual
+  engagement and learning chart.
+
+LEVEL 2 - INVESTIGATE
+- Question distributions.
+- Student answer table.
+- Lesson and session comparisons.
+- Filters for date range, class, subject, lesson, and student.
+- Interactive class and individual charts. Selecting a point opens its
+  lesson/session details and the students or answers included in that point.
+
+LEVEL 3 - AUDIT / EXPORT
+- Full answer-level detail.
+- Replay timeline and event details.
+- Printable class and individual reports.
+- Gradebook preview and explicit confirmation.
+
+Visual rules:
+- Always pair percentages with counts, e.g. "6 of 10 answered" or
+  "4/7 correct"; never show a bare percentage when the denominator matters.
+- Use consistent terms: attendance = joined, participation = answered at
+  least one question, accuracy = correct among submitted answers.
+- Use colour as a secondary signal and include text labels for accessibility.
+- Make no-data, incomplete-data, and zero-performance states visibly
+  different.
+- Let teachers move from any aggregate number to the responses behind it.
+- Keep engagement and learning performance as separate chart series or
+  panels; do not blend participation and correctness into one score.
+- Use lesson/session as the most detailed time point, with week and month
+  rollups. Label each time period and show the number of lessons included.
+- For weekly/monthly rollups, calculate from total eligible students and
+  total available answer opportunities, rather than averaging lesson
+  percentages equally. Show the underlying counts so teachers can interpret
+  small or uneven periods.
+- Preserve the session roster as the denominator for each lesson. For
+  trends, distinguish "not rostered / no lesson" from "rostered but did not
+  join" and from "joined but did not answer."
+- Make each individual chart private to the student and authorized staff;
+  do not show student ranking or names on a class-wide chart.
+- Provide a print-friendly view that removes controls but preserves context,
+  filters, date range, and definitions.
+
+Suggested class report order:
+1. Class, teacher, date range, and number of sessions.
+2. Class engagement chart with per-lesson, weekly, and monthly views.
+3. Attendance and participation summary.
+4. Understanding summary with submitted-response denominator and a
+   separate performance trend.
+5. Questions to revisit.
+6. Student follow-up list, with links to individual performance charts.
+7. Session-by-session trend and detailed question/answer tables.
+8. Method notes and metric definitions.
+
+======================================================================
+6. PRACTICAL USE CASES
+======================================================================
+
+TEACHER PREPARING TOMORROW'S LESSON
+- Review the last lesson's difficult questions.
+- Add a worked example or rewrite a confusing prompt.
+- Select a short retrieval question to check whether the misconception has
+  changed.
+
+TEACHER RESPONDING DURING A LESSON
+- Notice that most submitted answers share the same incorrect option.
+- Pause the slide sequence, explain why that choice is tempting but wrong,
+  and give another example before proceeding.
+
+TEACHER PLANNING SMALL-GROUP SUPPORT
+- Use evidence from multiple sessions to identify students who may need
+  another explanation.
+- Form a temporary group for instruction, not a permanent ability label.
+- Recheck the skill in a later lesson.
+
+SUBJECT TEAM SHARING
+- Share a lesson with colleagues.
+- Recipients accept an independent copy, adapt it for their class, and
+  compare their own class evidence without changing the original author's
+  lesson or session history.
+
+DEPARTMENT REVIEW
+- Look for common topics where several classes show the same misconception.
+- Share a strong explanation or example across the department.
+- Identify classes needing devices, access support, or planning time before
+  interpreting low participation as an instructional issue.
+
+PARENT / STUDENT COMMUNICATION
+- If a school later enables student-facing summaries, show specific
+  strengths, one practice target, and a next step.
+- Do not expose class-level comparisons, other students' answers, or
+  teacher-only notes.
+
+======================================================================
+7. RECOMMENDED ROADMAP
+======================================================================
+
+PHASE 1 - MAKE CURRENT REPORTS ACTIONABLE
+Priority: High; low conceptual risk.
+- Automatically prepare a concise class summary after every completed
+  session; do not make the teacher build it manually.
+- Add an at-a-glance student performance table with correct/submitted
+  answers, questions missed, and links directly to the supporting answers.
+- Automatically group students by the follow-up they may need, such as
+  "review Question 4" or "ready for the next concept"; the teacher can
+  adjust the groups rather than create them from scratch.
+- Surface low-understanding questions and common incorrect choices.
+- Add "review this question" links from the summary to the exact slide and
+  responses.
+- Put each student's strengths and practice targets in a private,
+  easy-to-scan view.
+- Clarify metric definitions and show counts beside percentages.
+- Improve empty, incomplete, and low-sample states so teachers are not
+  asked to investigate misleading signals.
+- Allow optional teacher follow-up notes, but do not require notes for the
+  system to produce useful reports.
+
+PHASE 2 - CLASS AND LESSON TRENDS
+Priority: High; requires careful aggregation.
+- Build a student performance timeline across lessons and subjects, using
+  comparable question sets or clear cautions where questions differ.
+- Automatically identify students whose performance is improving, steady,
+  or may need another check, based on enough evidence.
+- Improve the existing class/date performance report with question-level
+  and lesson-level comparisons.
+- Reuse prior lesson evidence to help teachers decide what to review next.
+- Generate filtered summaries and accessible reports without requiring
+  manual copying or spreadsheet work.
+
+PHASE 3 - LIVE TEACHER COACHING PANEL
+Priority: Medium; changes the live-teaching UI.
+- Add a companion roster and question-response panel.
+- Show who has joined and who has answered without interrupting
+  presentation.
+- Show response distributions only when the teacher closes the question.
+- Add a one-click teacher action to revisit a slide or ask a follow-up.
+- Do not reveal student-specific correctness publicly.
+
+PHASE 4 - SCHOOL-WIDE INSIGHT OVERVIEW
+Priority: Medium; requires access and governance decisions.
+- Add class/subject/period filters and department-level aggregation.
+- Present coverage and trends, not teacher rankings.
+- Establish role-based access, audit logging, minimum group-size rules, and
+  a documented purpose for every report.
+- Confirm retention, privacy, and school policy for event-level presence
+  data.
+
+PHASE 5 - STUDENT PERFORMANCE VIEW
+Priority: Later; keep student visibility teacher-controlled.
+- Provide a student-friendly view of the student's own performance after a
+  lesson when the teacher or school enables it.
+- Highlight one demonstrated strength and one next practice opportunity.
+- Keep feedback specific to evidence and avoid fixed labels.
+
+======================================================================
+8. SUCCESS MEASURES
+======================================================================
+
+Measure whether the feature improves teaching workflow and follow-up:
+- Teacher time spent preparing, reviewing, and sharing a lesson report
+  compared with the current workflow.
+- Teacher-reported reduction in manual answer checking and report writing.
+- Time from session end to finding students who need follow-up.
+- Share of students who can access and understand their own performance
+  feedback.
+- Share of students with a clear, evidence-based next step after a lesson.
+- Share of completed sessions with at least one answerable question.
+- Student join and answer coverage, reported separately.
+- Share of reports opened after a live session.
+- Share of low-understanding reports followed by a teacher-recorded action.
+- Repeat performance on comparable questions or targeted follow-up checks.
+- Teacher-reported usefulness and time needed to find the next action.
+- Lesson reuse and adaptation across a subject team.
+- Rate of successful Gradebook preview-to-confirm flows, where used.
+
+Do not define success as maximizing answer accuracy, session length, tab
+visibility, or number of lessons created. Those figures can be gamed and do
+not necessarily mean learning improved.
+
+======================================================================
+9. DATA, PRIVACY, AND INTERPRETATION GUARDRAILS
+======================================================================
+
+- Keep answer keys and explanations teacher-only until the teacher reveals
+  results, consistent with the current live-session rules.
+- Enforce school, class, teacher, and department access on every new
+  aggregate and drill-down endpoint.
+- Show only the minimum student information required for the teaching task.
+- Establish appropriate retention for event timelines and presence data.
+- Avoid using focus-loss/presence events for automated discipline,
+  behavioral grades, or claims that a student was not paying attention.
+- Avoid automated ability labels, public rankings, or unsupported
+  intervention recommendations.
+- Make the basis of every insight inspectable: date range, sessions,
+  question count, response count, exclusions, and formulas.
+- Suppress or qualify metrics based on very small response counts.
+- Keep incomplete rosters and missing responses visible as data-quality
+  issues, not student failures.
+- Make Gradebook entry creation explicit and reviewable; analytics should
+  never silently alter an official grade.
+
+======================================================================
+10. RECOMMENDED FIRST RELEASE
+======================================================================
+
+Start with Phase 1. It uses the current report data to reduce manual work
+and show student performance without introducing a new scoring system:
+
+1. Automatically produce the class summary, including attendance,
+   participation, accuracy, and response counts.
+2. Show a student-by-student performance table without requiring the
+   teacher to open each student record.
+3. Automatically show each question's response distribution and
+   most-selected incorrect choice.
+4. Give the teacher an evidence-linked list of students and questions that
+   may need follow-up, with suggested groups the teacher can adjust.
+5. Let the teacher open underlying answers, revisit the lesson, or confirm
+   a classwork grade only when needed.
+6. Explain how every metric is calculated and identify small samples.
+
+After teachers validate this workflow, build the live companion panel and
+then student/class trends. This order first saves teachers time and makes
+individual performance visible; broader analytics come after the core
+teaching workflow is useful and trusted.
+
+END OF PROPOSAL

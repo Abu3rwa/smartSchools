@@ -224,15 +224,32 @@ const ClassesPage = () => {
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
-            toast.success(response?.message || t('classes:toast.imported', { count: imported }));
+            if (imported > 0) {
+                toast.success(response?.message || t('classes:toast.imported', { count: imported }));
+            }
             if (failed > 0) {
-                toast.error(t('classes:toast.importFailedRows', { count: failed }));
+                const issues = response?.errors || response?.data?.errors || [];
+                const details = issues.slice(0, 2).map((issue) => (
+                    `Row ${issue.row}${issue.field ? ` (${issue.field})` : ''}: ${issue.message}`
+                ));
+                const failureSummary = t('classes:toast.importFailedRows', { count: failed });
+                toast.error(details.length ? `${failureSummary} ${details.join('; ')}` : failureSummary, {
+                    duration: 10000
+                });
             } else if (skipped > 0) {
                 toast(t('classes:toast.importSkippedRows', { count: skipped }));
             }
             dispatch(fetchClasses(classQueryParams));
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || t('classes:toast.importFailed'));
+            const responseData = importError?.response?.data;
+            const issues = responseData?.data?.errors || responseData?.errors || [];
+            const details = issues.slice(0, 2).map((issue) => (
+                `Row ${issue.row}${issue.field ? ` (${issue.field})` : ''}: ${issue.message}`
+            ));
+            const message = responseData?.message || t('classes:toast.importFailed');
+            toast.error(details.length ? `${message} ${details.join('; ')}` : message, {
+                duration: 10000
+            });
         }
     };
 

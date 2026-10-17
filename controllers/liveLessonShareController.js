@@ -130,6 +130,49 @@ export const declineLiveLessonShare = asyncHandler(async (req, res) => {
   }
 });
 
+export const respondToLiveLessonShares = asyncHandler(async (req, res) => {
+  const { invitationIds, action } = req.body || {};
+  if (!Array.isArray(invitationIds) || invitationIds.length < 1 || invitationIds.length > 100
+    || invitationIds.some((id) => typeof id !== "string") || new Set(invitationIds).size !== invitationIds.length
+    || !["accept", "decline"].includes(action)) {
+    return res.status(400).json({
+      success: false,
+      message: "Choose between 1 and 100 unique invitations and an accept or decline action.",
+    });
+  }
+
+  const completedIds = [];
+  const failures = [];
+  for (const invitationId of invitationIds) {
+    try {
+      if (action === "accept") {
+        await acceptShareInvitation({
+          schoolId: req.schoolId,
+          recipientId: req.user._id,
+          invitationId,
+        });
+      } else {
+        await transitionShareInvitation({
+          schoolId: req.schoolId,
+          actorId: req.user._id,
+          invitationId,
+          actor: "recipient",
+          status: "declined",
+        });
+      }
+      completedIds.push(invitationId);
+    } catch (error) {
+      if (!(error instanceof LiveLessonShareError)) throw error;
+      failures.push({ invitationId, statusCode: error.statusCode, message: error.message });
+    }
+  }
+  return res.json({
+    success: true,
+    data: { action, completedIds, failures },
+    message: `${completedIds.length} invitation${completedIds.length === 1 ? "" : "s"} ${action === "accept" ? "accepted" : "declined"}; ${failures.length} could not be processed.`,
+  });
+});
+
 export const revokeLiveLessonShare = asyncHandler(async (req, res) => {
   try {
     const invitation = await transitionShareInvitation({

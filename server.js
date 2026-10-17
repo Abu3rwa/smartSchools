@@ -125,7 +125,7 @@ import { validateTenantIsolation } from "./utils/validateTenantIsolation.js";
 // Validate environment variables
 validateEnvironment();
 // Connect to database
-connectDB();
+await connectDB();
 const app = express();
 app.set("trust proxy", 1); // Render single-proxy; update if adding Cloudflare
 // CORS configuration — BE-007: origins from env var

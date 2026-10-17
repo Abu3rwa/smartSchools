@@ -60,6 +60,7 @@ const SpellingCurriculumTab = ({
     onPreviewWordList,
     onCommitWordList,
     onExportWordLibrary,
+    onExportWordAudioLibrary,
     onDeleteWord,
     deletingWordId
 }) => {
@@ -147,14 +148,24 @@ const SpellingCurriculumTab = ({
                         <Stack spacing={2}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}>
                                 <Typography variant="h6">{t('wordListTitle')}</Typography>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={onExportWordLibrary}
-                                    disabled={exportingWordLibrary}
-                                >
-                                    {exportingWordLibrary ? t('exportingWordLibrary') : t('exportWordLibrary')}
-                                </Button>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={onExportWordLibrary}
+                                        disabled={exportingWordLibrary}
+                                    >
+                                        {exportingWordLibrary ? t('exportingWordLibrary') : t('exportWordLibrary')}
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={onExportWordAudioLibrary}
+                                        disabled={exportingWordLibrary}
+                                    >
+                                        Export audio CSV
+                                    </Button>
+                                </Stack>
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
                                 {t('wordLibraryExportDescription')}

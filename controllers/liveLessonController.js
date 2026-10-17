@@ -93,6 +93,68 @@ const createJoinCode = () =>
 
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
 
+const deleteOwnedLiveLessonAndHistory = async ({ schoolId, ownerId, lessonId }) => {
+  let sessionIds = [];
+  let lessonFound = false;
+  let liveSessionExists = false;
+  let sessionGradesExist = false;
+  const transaction = await mongoose.startSession();
+  try {
+    await transaction.withTransaction(async () => {
+      sessionIds = [];
+      lessonFound = false;
+      liveSessionExists = false;
+      sessionGradesExist = false;
+      const lesson = await LiveLesson.findOne({
+        _id: lessonId,
+        school: schoolId,
+        ownerId,
+      }).session(transaction);
+      if (!lesson) return;
+      lessonFound = true;
+      const sessions = await LiveSession.find({ school: schoolId, lessonId: lesson._id })
+        .select("_id status")
+        .session(transaction);
+      if (sessions.some((session) => session.status === "live")) {
+        liveSessionExists = true;
+        return;
+      }
+      sessionIds = sessions.map((session) => session._id);
+      if (sessionIds.length) {
+        sessionGradesExist = Boolean(await Grade.exists({
+          school: schoolId,
+          liveSession: { $in: sessionIds },
+        }).session(transaction));
+        if (sessionGradesExist) return;
+        await LiveResponse.deleteMany({ school: schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
+        await LiveSessionEvent.deleteMany({ school: schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
+        await LiveSession.deleteMany({ school: schoolId, _id: { $in: sessionIds } }, { session: transaction });
+      }
+      await lesson.deleteOne({ session: transaction });
+    });
+  } finally {
+    await transaction.endSession();
+  }
+
+  if (!lessonFound) return { ok: false, statusCode: 404, message: "Lesson not found." };
+  if (liveSessionExists) {
+    return {
+      ok: false,
+      statusCode: 409,
+      message: "End all live sessions for this lesson before deleting it and its history.",
+    };
+  }
+  if (sessionGradesExist) {
+    return {
+      ok: false,
+      statusCode: 409,
+      message: "This lesson has session history linked to gradebook entries. Remove those gradebook entries first, or keep the lesson and session history.",
+    };
+  }
+  sessionIds.forEach((sessionId) => closeLiveSessionConnections(sessionId));
+  return { ok: true };
+};
+
 const resolveLessonAssignment = async (req, classId, subjectId) => {
   if (!classId && !subjectId) return { classId: null, subjectId: null, subject: "" };
   if (!validId(classId) || !validId(subjectId)) {
@@ -382,55 +444,42 @@ export const setLiveLessonDone = asyncHandler(async (req, res) => {
 
 export const deleteLiveLesson = asyncHandler(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
-  let sessionIds = [];
-  let lessonFound = false;
-  let liveSessionExists = false;
-  let sessionGradesExist = false;
-  const transaction = await mongoose.startSession();
-  try {
-    await transaction.withTransaction(async () => {
-      sessionIds = [];
-      lessonFound = false;
-      liveSessionExists = false;
-      const lesson = await LiveLesson.findOne({
-        _id: req.params.id,
-        school: req.schoolId,
-        ownerId: req.user._id,
-      }).session(transaction);
-      if (!lesson) return;
-      lessonFound = true;
-      const sessions = await LiveSession.find({ school: req.schoolId, lessonId: lesson._id })
-        .select("_id status")
-        .session(transaction);
-      if (sessions.some((session) => session.status === "live")) {
-        liveSessionExists = true;
-        return;
-      }
-      sessionIds = sessions.map((session) => session._id);
-      if (sessionIds.length) {
-        sessionGradesExist = Boolean(await Grade.exists({
-          school: req.schoolId,
-          liveSession: { $in: sessionIds },
-        }).session(transaction));
-        if (sessionGradesExist) return;
-        await LiveResponse.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
-        await LiveSessionEvent.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
-        await LiveSession.deleteMany({ school: req.schoolId, _id: { $in: sessionIds } }, { session: transaction });
-      }
-      await lesson.deleteOne({ session: transaction });
-    });
-  } finally {
-    await transaction.endSession();
-  }
-  if (!lessonFound) return res.status(404).json({ success: false, message: "Lesson not found." });
-  if (liveSessionExists) {
-    return res.status(409).json({ success: false, message: "End all live sessions for this lesson before deleting it and its history." });
-  }
-  if (sessionGradesExist) {
-    return res.status(409).json({ success: false, message: "This lesson has session history linked to gradebook entries. Remove those gradebook entries first, or keep the lesson and session history." });
-  }
-  sessionIds.forEach((sessionId) => closeLiveSessionConnections(sessionId));
+  const result = await deleteOwnedLiveLessonAndHistory({
+    schoolId: req.schoolId,
+    ownerId: req.user._id,
+    lessonId: req.params.id,
+  });
+  if (!result.ok) return res.status(result.statusCode).json({ success: false, message: result.message });
   return res.json({ success: true, message: "Lesson and associated session history deleted." });
+});
+
+export const bulkDeleteLiveLessons = asyncHandler(async (req, res) => {
+  const lessonIds = req.body?.lessonIds;
+  if (!Array.isArray(lessonIds) || lessonIds.length < 1 || lessonIds.length > 100
+    || lessonIds.some((id) => typeof id !== "string" || !validId(id))
+    || new Set(lessonIds).size !== lessonIds.length) {
+    return res.status(400).json({
+      success: false,
+      message: "Choose between 1 and 100 unique valid lessons to delete.",
+    });
+  }
+
+  const deletedIds = [];
+  const failures = [];
+  for (const lessonId of lessonIds) {
+    const result = await deleteOwnedLiveLessonAndHistory({
+      schoolId: req.schoolId,
+      ownerId: req.user._id,
+      lessonId,
+    });
+    if (result.ok) deletedIds.push(lessonId);
+    else failures.push({ lessonId, statusCode: result.statusCode, message: result.message });
+  }
+  return res.json({
+    success: true,
+    data: { deletedIds, failures },
+    message: `${deletedIds.length} lesson${deletedIds.length === 1 ? "" : "s"} deleted; ${failures.length} could not be deleted.`,
+  });
 });
 
 export const createLiveSession = asyncHandler(async (req, res) => {
@@ -1046,6 +1095,7 @@ export const getLiveLessonPerformanceReport = asyncHandler(async (req, res) => {
     classId: req.query.classId,
     dateFrom: req.query.dateFrom,
     dateTo: req.query.dateTo,
+    studentId: req.query.studentId,
     resolveClass: findTeacherClass,
     resolveStudents: getSessionStudents,
   });

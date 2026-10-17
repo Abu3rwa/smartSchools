@@ -1,4 +1,6 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 import { authorize, protect } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import uploadImportTemplate from '../middleware/uploadImportTemplate.js';
@@ -33,7 +35,12 @@ import {
     spellingDashboard,
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
-import { deleteSpellingWord, exportSpellingWordLibrary, listSpellingWords } from '../controllers/spellingWordController.js';
+import {
+    deleteSpellingWord,
+    exportSpellingWordAudioLibrary,
+    exportSpellingWordLibrary,
+    listSpellingWords
+} from '../controllers/spellingWordController.js';
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
@@ -50,11 +57,25 @@ import { approvePassage, cancelPassageSend, discardPassage, generatePassage, get
 import { updateStudentSpellingPlacement } from '../controllers/spellingStudentController.js';
 
 const router = express.Router();
+const wordAudioImportUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => {
+        const extension = path.extname(String(file.originalname || '')).toLowerCase();
+        const mimeType = String(file.mimetype || '').toLowerCase();
+        if (extension === '.csv' && (!mimeType || ['text/csv', 'application/vnd.ms-excel'].includes(mimeType))) {
+            cb(null, true);
+            return;
+        }
+        cb(new Error('Invalid CSV file type. Allowed format: .csv'), false);
+    }
+});
 
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
 router.get('/word-lists/export', exportSpellingWordLibrary);
+router.get('/word-audio/export', exportSpellingWordAudioLibrary);
 router.delete('/word-lists/:wordId', authorize('admin', 'department_principal', 'teacher'), deleteSpellingWord);
 router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
@@ -64,7 +85,7 @@ router.get('/students/:studentId/details/docx', authorize('admin', 'department_p
 router.patch('/students/:studentId/placement', authorize('admin', 'department_principal', 'teacher'), express.json(), updateStudentSpellingPlacement);
 router.post('/word-lists/import/preview', authorize('admin'), uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', authorize('admin'), express.json(), commitSpellingWords);
-router.post('/word-audio/import', authorize('admin'), uploadImportTemplate.single('file'), importWordAudioCsv);
+router.post('/word-audio/import', authorize('admin'), wordAudioImportUpload.single('file'), importWordAudioCsv);
 router.get('/word-audio/examples', authorize('admin'), searchWordAudioExamples);
 router.delete('/word-audio/examples', express.json(), authorize('admin'), deleteWordAudioExample);
 router.patch('/word-audio/examples', express.json(), authorize('admin'), replaceWordAudioExample);

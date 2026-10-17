@@ -5,6 +5,7 @@ import {
   createLiveSession,
   createLiveLesson,
   createLiveSessionGradebookEntries,
+  bulkDeleteLiveLessons,
   deleteFinishedLiveSessions,
   endLiveSession,
   exportLiveLessonPerformanceReportPdf,
@@ -38,6 +39,7 @@ import {
   listLiveLessonShareTeachers,
   listOutgoingLiveLessonShares,
   revokeLiveLessonShare,
+  respondToLiveLessonShares,
 } from "../controllers/liveLessonShareController.js";
 
 const router = express.Router();
@@ -45,6 +47,7 @@ router.use(protect, requireSchoolContext);
 
 router.post("/lessons/:lessonId/shares", authorize("teacher", "admin"), createLiveLessonShare);
 router.post("/shares/bulk", authorize("teacher", "admin"), createLiveLessonShares);
+router.post("/shares/bulk-respond", authorize("teacher", "admin"), respondToLiveLessonShares);
 router.get("/shares/teachers", authorize("teacher", "admin"), listLiveLessonShareTeachers);
 router.get("/shares/incoming", authorize("teacher", "admin"), listIncomingLiveLessonShares);
 router.get("/shares/outgoing", authorize("teacher", "admin"), listOutgoingLiveLessonShares);
@@ -58,6 +61,7 @@ router.post("/lessons/preview", authorize("teacher", "admin", "department_princi
 router.post("/lessons/import", authorize("teacher", "admin", "department_principal"), importLiveLessonCsv);
 router.post("/lessons", authorize("teacher", "admin", "department_principal"), createLiveLesson);
 router.get("/lessons", authorize("teacher", "admin", "department_principal"), listLiveLessons);
+router.post("/lessons/bulk-delete", authorize("teacher", "admin"), bulkDeleteLiveLessons);
 router
   .route("/lessons/:id")
   .get(authorize("teacher", "admin", "department_principal"), getLiveLesson)

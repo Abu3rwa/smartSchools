@@ -3,8 +3,7 @@ import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingClassSession from '../models/SpellingClassSession.js';
 import WordAudio from '../models/WordAudio.js';
-import DictionaryEntry from '../models/DictionaryEntry.js';
-import { buildSpellingWordLibraryCsv } from '../utils/spellingWordExport.js';
+import { buildSpellingWordAudioCsv, buildSpellingWordImportCsv } from '../utils/spellingWordExport.js';
 import { normalizeWordKey } from '../utils/wordAudio.js';
 
 export const listSpellingWords = asyncHandler(async (req, res) => {
@@ -33,18 +32,42 @@ export const exportSpellingWordLibrary = asyncHandler(async (req, res) => {
         .sort({ grade: 1, week: 1, category: 1, order: 1 })
         .select('grade week category word order definition')
         .lean();
-    const wordKeys = [...new Set(words.map((word) => normalizeWordKey(word.word)).filter(Boolean))];
-    const [audioEntries, dictionaryEntries] = wordKeys.length
-        ? await Promise.all([
-            WordAudio.find({ word: { $in: wordKeys } }).lean(),
-            DictionaryEntry.find({ word: { $in: wordKeys } }).lean()
-        ])
-        : [[], []];
-    const csv = buildSpellingWordLibraryCsv({ words, audioEntries, dictionaryEntries });
+    if (words.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'There are no spelling words to export. Import a word list first.'
+        });
+    }
+    const csv = buildSpellingWordImportCsv({ words });
 
     res.set({
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': 'attachment; filename="spelling-word-library.csv"',
+        'Cache-Control': 'no-store'
+    });
+    return res.send(csv);
+});
+
+export const exportSpellingWordAudioLibrary = asyncHandler(async (req, res) => {
+    const words = await SpellingWord.find({ school: req.schoolId })
+        .sort({ grade: 1, week: 1, category: 1, order: 1 })
+        .select('grade week category word order definition')
+        .lean();
+    if (words.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'There are no spelling words to export. Import a word list first.'
+        });
+    }
+    const wordKeys = [...new Set(words.map((word) => normalizeWordKey(word.word)).filter(Boolean))];
+    const audioEntries = wordKeys.length
+        ? await WordAudio.find({ word: { $in: wordKeys } }).lean()
+        : [];
+    const csv = buildSpellingWordAudioCsv({ words, audioEntries });
+
+    res.set({
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="spelling-word-audio-library.csv"',
         'Cache-Control': 'no-store'
     });
     return res.send(csv);

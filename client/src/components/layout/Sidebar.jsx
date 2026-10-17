@@ -512,13 +512,13 @@ const Sidebar = () => {
     //   roles: ["admin"],
     //   section: "operations",
     // },
-    // {
-    //   path: "/portal/timetable",
-    //   icon: HiOutlineClock,
-    //   labelKey: "timetable",
-    //   roles: ["admin", "teacher", "department_principal"],
-    //   section: "operations",
-    // },
+    {
+      path: "/portal/timetable",
+      icon: HiOutlineClock,
+      labelKey: "timetable",
+      roles: ["admin", "teacher", "department_principal"],
+      section: "operations",
+    },
     // {
     //   path: "/portal/school-calendar",
     //   icon: HiOutlineCalendarDays,
@@ -582,7 +582,7 @@ const Sidebar = () => {
       path: "/portal/subjects",
       icon: HiOutlineTag,
       labelKey: "subjects",
-      roles: ["teacher"],
+      roles: ["teacher", "Admin"],
       section: "teaching",
     },
     {
