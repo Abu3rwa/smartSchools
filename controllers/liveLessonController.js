@@ -43,7 +43,7 @@ import { normalizeLiveLessonMeetingUrl, sendLiveLessonInvitationEmails } from ".
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
 import { buildPortalLink } from "../helpers/portalUrl.js";
-import { getTeacherClassIds, getTeacherSubjectIds } from "../helpers/teacherScoping.js";
+import { getTeacherSubjectIds } from "../helpers/teacherScoping.js";
 import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
@@ -832,20 +832,7 @@ export const listLiveSessions = asyncHandler(async (req, res) => {
   }
   const filter = { school: req.schoolId };
   if (req.user.role === "teacher") {
-    const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
-      .select("_id")
-      .lean();
-    if (!teacher) {
-      return res.status(403).json({ success: false, message: "Teacher profile not found." });
-    }
-    const assignedClassIds = await getTeacherClassIds(teacher._id);
-    filter.classId = {
-      $in: await Class.find({
-        _id: { $in: assignedClassIds },
-        school: req.schoolId,
-        isActive: { $ne: false },
-      }).distinct("_id"),
-    };
+    filter.teacherId = req.user._id;
   }
   if (req.user.role === "department_principal") {
     if (!req.departmentId) {
