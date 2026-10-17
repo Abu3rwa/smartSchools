@@ -2,6 +2,7 @@ import Class from "../models/Class.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
+import { activeLiveSessionDurationMs, getSessionPauseAccounting } from "./liveSessionTime.js";
 
 const MAX_SESSIONS_PER_REPORT = 500;
 const toId = (value) => String(value || "");
@@ -86,7 +87,7 @@ export const buildLiveLessonPerformanceReport = async ({
   })
     .sort({ startedAt: 1, createdAt: 1, _id: 1 })
     .limit(MAX_SESSIONS_PER_REPORT + 1)
-    .select("_id lessonSnapshot rosterSnapshot rosterCapturedAt startedAt endedAt createdAt classId")
+    .select("_id lessonSnapshot rosterSnapshot rosterCapturedAt startedAt endedAt createdAt classId totalPausedMs paused pausedAt")
     .lean();
   if (sessions.length > MAX_SESSIONS_PER_REPORT) {
     throw Object.assign(new Error("This date range contains too many sessions. Narrow the range to 500 sessions or fewer."), { statusCode: 400 });
@@ -105,7 +106,10 @@ export const buildLiveLessonPerformanceReport = async ({
       LiveSessionEvent.find({
         school: req.schoolId,
         sessionId: { $in: sessionIds },
-        type: { $in: ["presence:joined", "presence:left", "presence:away", "presence:back"] },
+        type: { $in: [
+          "presence:joined", "presence:left", "presence:away", "presence:back",
+          "session:paused", "session:resumed", "session:ended",
+        ] },
       })
         .select("sessionId type at actor payload")
         .sort({ at: 1 })
@@ -153,9 +157,14 @@ export const buildLiveLessonPerformanceReport = async ({
     const questionCount = (session.lessonSnapshot?.slides || []).filter((slide) => slide.question).length;
     const sessionResponses = responsesBySession.get(sid) || [];
     const sessionJoined = joinedStudentsBySession.get(sid) || new Set();
-    const durationMinutes = session.startedAt && session.endedAt
-      ? Math.max(0, (new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000)
-      : 0;
+    const sessionEvents = events.filter((event) => toId(event.sessionId) === sid);
+    const pauseAccounting = getSessionPauseAccounting(sessionEvents);
+    const durationMinutes = activeLiveSessionDurationMs({
+      ...session,
+      totalPausedMs: Number(session.totalPausedMs) || pauseAccounting.totalPausedMs,
+      pausedAt: session.pausedAt || pauseAccounting.pausedAt,
+      paused: Boolean(session.paused || (!session.endedAt && pauseAccounting.pausedAt)),
+    }) / 60000;
     const rosterIds = new Set(roster.map((student) => toId(student.studentId)).filter(Boolean));
     const rosterResponses = sessionResponses.filter((response) => rosterIds.has(toId(response.studentId)));
     totalRoster += roster.length;

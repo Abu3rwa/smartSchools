@@ -10,6 +10,7 @@ import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
 import logger from "../utils/logger.js";
+import { resumeLiveSessionPause } from "../services/liveSessionTime.js";
 import {
   appendLiveEvent,
   formatRoster,
@@ -318,7 +319,12 @@ const handleAction = async (socket, message) => {
     if (Boolean(session.paused) === paused) {
       return fail(socket, requestId, "BAD_STATE", paused ? "The session is already paused." : "The session is not paused.");
     }
-    session.paused = paused;
+    if (paused) {
+      session.paused = true;
+      session.pausedAt = new Date();
+    } else {
+      resumeLiveSessionPause(session);
+    }
     if (paused && session.questionOpen) session.questionOpen = false;
     await session.save();
     await appendLiveEvent(
@@ -383,8 +389,8 @@ const handleAction = async (socket, message) => {
   } else if (action === "session:end") {
     if (session.status === "waiting") return fail(socket, requestId, "BAD_STATE", "Start the session before ending it.");
     session.status = "ended";
-    session.paused = false;
     session.endedAt = new Date();
+    resumeLiveSessionPause(session, session.endedAt);
     session.questionOpen = false;
     session.studentsFullscreen = false;
     await session.save();

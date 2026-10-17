@@ -45,6 +45,30 @@ test("lesson granularity keeps separate lessons even when their timestamps match
   assert.equal(result.length, 2);
 });
 
+test("lesson engagement chart data keeps observable engagement separate from answer completion", () => {
+  const [lesson] = buildClassEngagementChartData([{
+    sessionId: "chromebook-essay",
+    title: "Informative Essay Writing - How to Use Your Chromebook Effectively",
+    date: "2026-10-15T10:00:00.000Z",
+    rosterCount: 16,
+    joinedCount: 15,
+    participatingCount: 14,
+    questionOpportunities: 64,
+    submittedAnswers: 26,
+  }], "lesson");
+
+  assert.equal(lesson.answerCompletionRate, 41);
+  assert.equal(lesson.answerCompletionNumerator, 26);
+  assert.equal(lesson.answerCompletionDenominator, 64);
+  assert.equal(lesson.participationRate, 88);
+  assert.equal(lesson.participationNumerator, 14);
+  assert.equal(lesson.participationDenominator, 16);
+  assert.equal(lesson.attendanceRate, 94);
+  assert.equal(lesson.attendanceNumerator, 15);
+  assert.equal(lesson.attendanceDenominator, 16);
+  assert.equal(Object.hasOwn(lesson, "accuracyRate"), false);
+});
+
 test("student monthly chart counts only sessions where they were rostered", () => {
   const result = buildStudentEngagementChartData([
     {

@@ -462,6 +462,153 @@
 .live-list-filters .live-text-button {
   margin-left: auto;
 }
+.live-folder-organizer {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.9fr) minmax(280px, 1.4fr);
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #e3eaec;
+  border-radius: 14px;
+  background: #fff;
+}
+.live-folder-navigation {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+}
+.live-folder-select {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 8px;
+  color: #405562;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.live-folder-select:hover,
+.live-folder-select.active,
+.live-folder-tree-row.active {
+  color: #145f5d;
+  background: #e9f6f2;
+}
+.live-folder-select small {
+  color: #74858e;
+  font-size: 0.73rem;
+}
+.live-folder-tree {
+  display: grid;
+  gap: 0.1rem;
+}
+.live-folder-tree-node {
+  min-width: 0;
+}
+.live-folder-tree-row {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.live-folder-tree-row .live-folder-select {
+  flex: 1;
+  min-width: 0;
+}
+.live-folder-tree-row > button:not(.live-folder-select) {
+  width: 27px;
+  height: 29px;
+  border: 0;
+  border-radius: 6px;
+  color: #627580;
+  background: transparent;
+  cursor: pointer;
+}
+.live-folder-tree-row > button:not(.live-folder-select):hover:not(:disabled) {
+  color: #145f5d;
+  background: #e3efec;
+}
+.live-folder-tree-row > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.live-folder-management {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.25rem;
+}
+.live-folder-management > div:first-child > strong {
+  color: #263f4c;
+}
+.live-folder-management p {
+  max-width: 620px;
+  margin: 0.35rem 0 0;
+  color: #74838c;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.live-folder-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.live-folder-management-actions .live-secondary-button,
+.live-folder-management-actions .live-delete-session {
+  min-height: 36px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+}
+.live-lesson-organize-menu {
+  position: relative;
+  flex: 0 0 100%;
+  margin-top: 0.15rem;
+  color: #167775;
+  font-size: 0.78rem;
+}
+.live-lesson-organize-menu summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 700;
+}
+.live-lesson-organize-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid #e3eaec;
+  border-radius: 9px;
+  background: #f8fbfa;
+}
+.live-lesson-organize-content label {
+  display: grid;
+  gap: 0.25rem;
+  color: #62727e;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.live-lesson-organize-content select {
+  min-height: 35px;
+  max-width: 200px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d8e1e4;
+  border-radius: 7px;
+  background: #fff;
+}
+.live-lesson-organize-content .live-secondary-button,
+.live-lesson-organize-content .live-delete-session {
+  min-height: 35px;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+}
 .live-list-table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -521,6 +668,20 @@
   color: #788791;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.live-launch-class-choice {
+  display: grid;
+  min-width: 175px;
+  gap: 0.3rem;
+}
+.live-launch-class-choice .live-launch-class-default,
+.live-launch-class-choice .live-launch-class-label {
+  color: #788791;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.live-launch-class-choice select {
+  width: 100%;
 }
 .live-list-row-actions {
   display: flex;
@@ -1084,6 +1245,13 @@
   .live-list-filters {
     align-items: stretch;
   }
+  .live-folder-organizer {
+    grid-template-columns: 1fr;
+  }
+  .live-folder-management {
+    border-top: 1px solid #e3eaec;
+    padding-top: 0.8rem;
+  }
   .live-list-filters label {
     flex: 1 1 40%;
   }
@@ -1166,6 +1334,8 @@
   .live-question-card,
   .live-control-card,
   .live-safety-setting,
+  .live-folder-organizer,
+  .live-lesson-organize-content,
   .live-list-empty,
   .live-list-pagination
 ) {
@@ -1204,6 +1374,9 @@
   .live-list-description,
   .live-list-empty p,
   .live-list-pagination > span,
+  .live-folder-management p,
+  .live-folder-management > div:first-child > strong,
+  .live-lesson-organize-content label,
   .live-share-invitations li,
   .live-preview-chip span,
   .live-import-help,
@@ -1220,6 +1393,23 @@
   background-color: var(--bg-input);
   border-color: var(--border-color);
   color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-folder-select,
+  .live-folder-tree-row > button:not(.live-folder-select),
+  .live-lesson-organize-menu
+) {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .live-lessons-page :is(
+  .live-folder-select:hover,
+  .live-folder-select.active,
+  .live-folder-tree-row.active
+) {
+  color: var(--text-primary);
+  background: rgba(54, 150, 139, 0.2);
 }
 
 [data-theme="dark"] .live-lessons-page :is(

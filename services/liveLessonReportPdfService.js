@@ -102,12 +102,12 @@ const renderPerformanceReport = (report, studentIds) => {
     <section><div class="metrics">${metricCards([
     ["Sessions", report.summary?.sessionCount || 0],
     ["Attendance", `${report.summary?.averageAttendanceRate || 0}%`],
-    ["Participation", `${report.summary?.participationRate || 0}%`],
+    ["Answered at least once", `${report.summary?.participationRate || 0}%`],
     ["Answer completion", `${report.summary?.averageEngagementRate || 0}%`],
     ["Accuracy", `${report.summary?.averageAccuracyRate || 0}%`],
     ["Avg. session", `${report.summary?.averageSessionMinutes || 0} min`],
   ])}</div>
-    <h2>Session trends</h2><table><thead><tr><th>Date</th><th>Lesson</th><th>Attendance</th><th>Participation</th><th>Accuracy</th></tr></thead>
+    <h2>Session trends</h2><table><thead><tr><th>Date</th><th>Lesson</th><th>Attendance</th><th>Answered at least once</th><th>Accuracy</th></tr></thead>
     <tbody>${sessionRows || "<tr><td colspan='5'>No completed sessions were recorded in this period.</td></tr>"}</tbody></table>
     <h2>Student performance</h2><table><thead><tr><th>Student</th><th>Sessions</th><th>Attendance</th><th>Answer completion</th><th>Accuracy</th><th>Answers</th></tr></thead>
     <tbody>${studentRows || "<tr><td colspan='6'>No student data is available.</td></tr>"}</tbody></table></section>

@@ -4,6 +4,7 @@ import { requireSchoolContext } from "../middleware/tenantIsolation.js";
 import {
   createLiveSession,
   createLiveLesson,
+  createLiveLessonFolder,
   createLiveSessionGradebookEntries,
   bulkDeleteLiveLessons,
   deleteFinishedLiveSessions,
@@ -12,6 +13,7 @@ import {
   exportLiveSessionReportPdf,
   deleteLiveSession,
   deleteLiveLesson,
+  deleteLiveLessonFolder,
   getLiveLesson,
   getLiveSession,
   getLiveSessionReplay,
@@ -24,11 +26,18 @@ import {
   joinLiveSession,
   listAvailableLiveSessions,
   listLiveLessons,
+  listLiveLessonFolders,
   listLiveSessions,
   previewLiveLessonCsv,
   setLiveLessonDone,
   updateLiveLesson,
   updateLiveLessonSettings,
+  setLiveSessionReplayAvailability,
+  addLiveLessonFolderShortcut,
+  removeLiveLessonFolderShortcut,
+  reorderLiveLessonFolderShortcuts,
+  reorderLiveLessonFolders,
+  updateLiveLessonFolder,
 } from "../controllers/liveLessonController.js";
 import {
   acceptLiveLessonShare,
@@ -61,6 +70,14 @@ router.post("/lessons/preview", authorize("teacher", "admin", "department_princi
 router.post("/lessons/import", authorize("teacher", "admin", "department_principal"), importLiveLessonCsv);
 router.post("/lessons", authorize("teacher", "admin", "department_principal"), createLiveLesson);
 router.get("/lessons", authorize("teacher", "admin", "department_principal"), listLiveLessons);
+router.get("/lessons/folders", authorize("teacher", "admin", "department_principal"), listLiveLessonFolders);
+router.post("/lessons/folders", authorize("teacher", "admin", "department_principal"), createLiveLessonFolder);
+router.patch("/lessons/folders/order", authorize("teacher", "admin", "department_principal"), reorderLiveLessonFolders);
+router.patch("/lessons/folders/:folderId/lessons/order", authorize("teacher", "admin", "department_principal"), reorderLiveLessonFolderShortcuts);
+router.post("/lessons/folders/:folderId/lessons/:lessonId", authorize("teacher", "admin", "department_principal"), addLiveLessonFolderShortcut);
+router.delete("/lessons/folders/:folderId/lessons/:lessonId", authorize("teacher", "admin", "department_principal"), removeLiveLessonFolderShortcut);
+router.patch("/lessons/folders/:folderId", authorize("teacher", "admin", "department_principal"), updateLiveLessonFolder);
+router.delete("/lessons/folders/:folderId", authorize("teacher", "admin", "department_principal"), deleteLiveLessonFolder);
 router.post("/lessons/bulk-delete", authorize("teacher", "admin"), bulkDeleteLiveLessons);
 router
   .route("/lessons/:id")
@@ -74,12 +91,13 @@ router.get("/sessions", authorize("teacher", "admin", "department_principal"), l
 router.get("/sessions/performance", authorize("teacher", "admin", "department_principal"), getLiveLessonPerformanceReport);
 router.get("/sessions/performance/export.pdf", authorize("teacher", "admin", "department_principal"), exportLiveLessonPerformanceReportPdf);
 router.post("/sessions/:id/end", authorize("teacher", "admin", "department_principal"), endLiveSession);
+router.patch("/sessions/:id/replay-availability", authorize("teacher", "admin", "department_principal"), setLiveSessionReplayAvailability);
 router.get("/sessions/available", authorize("student"), listAvailableLiveSessions);
 router.post("/sessions/:id/join", authorize("student"), joinLiveSessionById);
 router.post("/sessions/join", authorize("student"), joinLiveSession);
 router.delete("/sessions/finished", authorize("teacher", "admin", "department_principal"), deleteFinishedLiveSessions);
 router.delete("/sessions/:id", authorize("teacher", "admin", "department_principal"), deleteLiveSession);
-router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal"), getLiveSessionReplay);
+router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal", "student"), getLiveSessionReplay);
 router.get("/sessions/:id/report", authorize("teacher", "admin", "department_principal"), getLiveSessionReport);
 router.post("/sessions/:id/report/export.pdf", authorize("teacher", "admin", "department_principal"), exportLiveSessionReportPdf);
 router.get("/sessions/:id/gradebook-preview", authorize("teacher", "admin", "department_principal"), getLiveSessionGradebookPreview);

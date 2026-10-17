@@ -1299,7 +1299,7 @@ function App() {
                 <Route
                   path="live-lessons/sessions/:sessionId/replay"
                   element={
-                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                    <RoleRoute roles={["admin", "department_principal", "teacher", "student"]}>
                       <LiveLessonReviewPage mode="replay" />
                     </RoleRoute>
                   }

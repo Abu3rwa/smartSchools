@@ -143,11 +143,16 @@ const LiveLessonSessionPage = () => {
   const revealed = Boolean(state?.revealed);
   const timerDurationMinutes = Number(state?.timerDurationMinutes ?? session?.timerDurationMinutes ?? 0);
   const timerStartedAt = state?.startedAt || session?.startedAt;
-  const timerEndAt = timerStartedAt && timerDurationMinutes > 0
-    ? new Date(timerStartedAt).getTime() + timerDurationMinutes * 60_000
+  const timerPausedAt = state?.pausedAt || session?.pausedAt;
+  const totalPausedMs = Number(state?.totalPausedMs ?? session?.totalPausedMs ?? 0);
+  const timerElapsedAt = isPaused && timerPausedAt
+    ? new Date(timerPausedAt).getTime()
+    : timerNow;
+  const timerElapsedMs = timerStartedAt
+    ? Math.max(0, timerElapsedAt - new Date(timerStartedAt).getTime() - totalPausedMs)
     : 0;
-  const timerSecondsRemaining = timerEndAt
-    ? Math.max(0, Math.ceil((timerEndAt - timerNow) / 1000))
+  const timerSecondsRemaining = timerStartedAt && timerDurationMinutes > 0
+    ? Math.max(0, Math.ceil((timerDurationMinutes * 60_000 - timerElapsedMs) / 1000))
     : null;
   const timerExpired = timerSecondsRemaining === 0;
   const timerText = timerSecondsRemaining === null
@@ -171,7 +176,8 @@ const LiveLessonSessionPage = () => {
   }, [slide?._id]);
 
   useEffect(() => {
-    if (sessionStatus !== "live" || !timerEndAt) return undefined;
+    if (sessionStatus !== "live" || isPaused || !timerStartedAt || timerDurationMinutes <= 0) return undefined;
+    const timerEndAt = new Date(timerStartedAt).getTime() + timerDurationMinutes * 60_000 + totalPausedMs;
     setTimerNow(Date.now());
     const timer = window.setInterval(() => {
       const now = Date.now();
@@ -179,7 +185,7 @@ const LiveLessonSessionPage = () => {
       if (now >= timerEndAt) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [sessionStatus, timerEndAt]);
+  }, [isPaused, sessionStatus, timerStartedAt, timerDurationMinutes, totalPausedMs]);
 
   useEffect(() => {
     const syncFullscreen = () => {

@@ -51,6 +51,8 @@ test("performance report returns roster-scoped session engagement and selected s
       actor: { userId: studentId },
       at: new Date("2026-05-04T10:00:00.000Z"),
     },
+    { sessionId, type: "session:paused", at: new Date("2026-05-04T10:05:00.000Z") },
+    { sessionId, type: "session:resumed", at: new Date("2026-05-04T10:15:00.000Z") },
   ]);
 
   try {
@@ -69,6 +71,7 @@ test("performance report returns roster-scoped session engagement and selected s
     assert.equal(report.sessions[0].submittedAnswers, 1);
     assert.equal(report.sessions[0].questionOpportunities, 2);
     assert.equal(report.sessions[0].attendanceRate, 50);
+    assert.equal(report.sessions[0].durationMinutes, 20);
     assert.equal(report.studentSessionMetrics.length, 1);
     assert.equal(report.studentSessionMetrics[0].studentId, studentId);
     assert.equal(report.studentSessionMetrics[0].joined, true);

@@ -35,6 +35,25 @@ export const getSessionStudents = async (session) => {
 export const liveEventActorRole = (role) =>
   ["teacher", "admin", "department_principal"].includes(role) ? "teacher" : role;
 
+export const resolveLiveSessionSubjectId = (lesson, classSubjects = []) => {
+  const assignedSubjectIds = new Set(classSubjects
+    .map((assignment) => String(assignment.subject?._id || assignment.subject || ""))
+    .filter(Boolean));
+  if (lesson.subjectId && assignedSubjectIds.has(String(lesson.subjectId))) {
+    return String(lesson.subjectId);
+  }
+
+  const normalizedLessonSubject = String(lesson.subject || "").trim().toLowerCase();
+  if (!normalizedLessonSubject) return null;
+  const matchingSubjectIds = new Set(classSubjects
+    .filter((assignment) => (
+      assignment.subject?.name?.trim().toLowerCase() === normalizedLessonSubject
+    ))
+    .map((assignment) => String(assignment.subject?._id || assignment.subject || ""))
+    .filter(Boolean));
+  return matchingSubjectIds.size === 1 ? [...matchingSubjectIds][0] : null;
+};
+
 export const appendLiveEvent = async (session, type, actor, payload = {}, at = new Date()) => {
   const updated = await LiveSession.findOneAndUpdate(
     { _id: session._id, school: session.school },
@@ -59,6 +78,7 @@ export const appendLiveEvent = async (session, type, actor, payload = {}, at = n
 export const safeSlide = (slide) => {
   if (!slide) return null;
   const serialized = typeof slide.toObject === "function" ? slide.toObject() : { ...slide };
+  delete serialized.speakerNotes;
   if (serialized.question) {
     const safeQuestion = { ...serialized.question };
     delete safeQuestion.correctOptionId;
@@ -67,6 +87,34 @@ export const safeSlide = (slide) => {
   }
   return serialized;
 };
+
+export const sanitizeStudentReplayEvents = (events) => events
+  .filter((event) => [
+    "session:started",
+    "session:paused",
+    "session:resumed",
+    "session:ended",
+    "slide:changed",
+    "slide:hidden",
+    "question:opened",
+    "question:closed",
+    "results:revealed",
+    "students:fullscreen",
+    "students:fullscreen-exited",
+  ].includes(event.type))
+  .map((event) => ({
+    seq: event.seq,
+    type: event.type,
+    at: event.at,
+    offsetMs: event.offsetMs,
+    actor: { role: "teacher" },
+    payload: {
+      ...(event.payload?.slideId ? { slideId: event.payload.slideId } : {}),
+      ...(Number.isInteger(event.payload?.index) ? { index: event.payload.index } : {}),
+      ...(typeof event.payload?.hidden === "boolean" ? { hidden: event.payload.hidden } : {}),
+      ...(typeof event.payload?.enabled === "boolean" ? { enabled: event.payload.enabled } : {}),
+    },
+  }));
 
 export const getStateForUser = async (session, user) => {
   const slides = session.lessonSnapshot?.slides || [];
@@ -89,6 +137,8 @@ export const getStateForUser = async (session, user) => {
     startedAt: session.startedAt || null,
     timerDurationMinutes: session.timerDurationMinutes || 0,
     paused: Boolean(session.paused),
+    pausedAt: session.pausedAt || null,
+    totalPausedMs: Number(session.totalPausedMs) || 0,
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: slides.length,
     slideHidden: session.slideHidden,

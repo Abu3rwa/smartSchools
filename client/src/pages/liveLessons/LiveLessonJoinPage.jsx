@@ -9,6 +9,7 @@ const REFRESH_INTERVAL_MS = 10000;
 const LiveLessonJoinPage = () => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
+  const [replays, setReplays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [joiningSessionId, setJoiningSessionId] = useState("");
   const [error, setError] = useState("");
@@ -18,6 +19,7 @@ const LiveLessonJoinPage = () => {
     try {
       const response = await api.get("/live/sessions/available");
       setSessions(response.data?.data?.sessions || []);
+      setReplays(response.data?.data?.replays || []);
       setError("");
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not check for live class sessions.");
@@ -57,38 +59,79 @@ const LiveLessonJoinPage = () => {
         {error && <div className="live-join-error" role="alert">{error}</div>}
         {loading ? (
           <div className="live-join-empty"><HiOutlineArrowPath className="live-join-spinner" /><span>Checking your classes…</span></div>
-        ) : sessions.length ? (
-          <div className="live-available-sessions" aria-live="polite">
-            {sessions.map((session) => (
-              <article className="live-available-session" key={session._id}>
-                <div className="live-available-session-info">
-                  <span className="live-available-status">LIVE NOW</span>
-                  <h2>{session.title}</h2>
-                  <p>
-                    {session.classId?.name || "Your class"}
-                    {session.classId?.grade ? ` · Grade ${session.classId.grade}` : ""}
-                    {session.classId?.section ? ` · ${session.classId.section}` : ""}
-                  </p>
-                  <span className="live-available-progress">
-                    Slide {Math.min((session.currentSlideIndex || 0) + 1, session.totalSlides)} of {session.totalSlides}
-                  </span>
-                </div>
-                <button
-                  className="live-join-action"
-                  onClick={() => join(session._id)}
-                  disabled={Boolean(joiningSessionId)}
-                >
-                  {joiningSessionId === session._id ? "Joining…" : <>Join lesson <HiOutlineArrowRight /></>}
-                </button>
-              </article>
-            ))}
-          </div>
         ) : (
-          <div className="live-join-empty" aria-live="polite">
-            <span className="live-join-pulse" />
-            <strong>No live lessons right now</strong>
-            <span>We’ll show a Join button here as soon as a teacher starts a lesson for your class.</span>
-          </div>
+          <>
+            <section className="live-join-section">
+              <h2>Live now</h2>
+              {sessions.length ? (
+                <div className="live-available-sessions" aria-live="polite">
+                  {sessions.map((session) => (
+                    <article className="live-available-session" key={session._id}>
+                      <div className="live-available-session-info">
+                        <span className="live-available-status">LIVE NOW</span>
+                        <h2>{session.title}</h2>
+                        <p>
+                          {session.classId?.name || "Your class"}
+                          {session.classId?.grade ? ` · Grade ${session.classId.grade}` : ""}
+                          {session.classId?.section ? ` · ${session.classId.section}` : ""}
+                        </p>
+                        <span className="live-available-progress">
+                          Slide {Math.min((session.currentSlideIndex || 0) + 1, session.totalSlides)} of {session.totalSlides}
+                        </span>
+                      </div>
+                      <button
+                        className="live-join-action"
+                        onClick={() => join(session._id)}
+                        disabled={Boolean(joiningSessionId)}
+                      >
+                        {joiningSessionId === session._id ? "Joining…" : <>Join lesson <HiOutlineArrowRight /></>}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="live-join-empty compact" aria-live="polite">
+                  <span className="live-join-pulse" />
+                  <strong>No live lessons right now</strong>
+                  <span>We’ll show a Join button here when a teacher starts a lesson for your class.</span>
+                </div>
+              )}
+            </section>
+            <section className="live-join-section">
+              <h2>Lesson replays shared by your teachers</h2>
+              {replays.length ? (
+                <div className="live-available-sessions" aria-live="polite">
+                  {replays.map((replay) => (
+                    <article className="live-available-session" key={replay._id}>
+                      <div className="live-available-session-info">
+                        <span className="live-replay-status">REPLAY AVAILABLE</span>
+                        <h2>{replay.title}</h2>
+                        <p>
+                          {replay.classId?.name || "Your class"}
+                          {replay.classId?.grade ? ` · Grade ${replay.classId.grade}` : ""}
+                          {replay.classId?.section ? ` · ${replay.classId.section}` : ""}
+                        </p>
+                        <span className="live-available-progress">
+                          Lesson from {new Date(replay.startedAt || replay.endedAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <button
+                        className="live-join-action"
+                        onClick={() => navigate(`/portal/live-lessons/sessions/${replay._id}/replay`)}
+                      >
+                        Watch replay <HiOutlineArrowRight />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="live-join-empty compact">
+                  <strong>No shared replays yet</strong>
+                  <span>Replays will appear here when a teacher makes one available to your class.</span>
+                </div>
+              )}
+            </section>
+          </>
         )}
 
         <button className="live-join-refresh" onClick={() => loadSessions(true)} disabled={loading || Boolean(joiningSessionId)}>

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { HiOutlineArrowDownTray, HiOutlineArrowLeft, HiOutlinePause, HiOutlinePlay } from "react-icons/hi2";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../../config/api";
+import { selectUser } from "../../store/slices/authSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
 import {
   buildClassEngagementChartData,
@@ -59,6 +61,7 @@ const downloadBlob = (blob, filename) => {
 const LiveLessonReviewPage = ({ mode }) => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const user = useSelector(selectUser);
   const [report, setReport] = useState(null);
   const [replay, setReplay] = useState(null);
   const [error, setError] = useState("");
@@ -90,6 +93,10 @@ const LiveLessonReviewPage = ({ mode }) => {
   const [gradeError, setGradeError] = useState("");
   const [gradeLoading, setGradeLoading] = useState(false);
   const [gradeSaving, setGradeSaving] = useState(false);
+  const [replayAvailabilitySaving, setReplayAvailabilitySaving] = useState(false);
+  const [replayAvailabilityError, setReplayAvailabilityError] = useState("");
+  const isStudentReplay = mode === "replay" && (replay?.viewerRole === "student" || user?.role === "student");
+  const lessonsBackPath = user?.role === "student" ? "/portal/live-lessons/join" : "/portal/live-lessons";
 
   useEffect(() => {
     let active = true;
@@ -239,6 +246,22 @@ const LiveLessonReviewPage = ({ mode }) => {
         student.studentId === studentId ? { ...student, marks } : student
       )),
     }) : current);
+  };
+
+  const updateReplayAvailability = async (available) => {
+    setReplayAvailabilitySaving(true);
+    setReplayAvailabilityError("");
+    try {
+      const response = await api.patch(`/live/sessions/${sessionId}/replay-availability`, { available });
+      setReport((current) => current ? {
+        ...current,
+        session: { ...current.session, replayAvailable: response.data?.data?.replayAvailable === true },
+      } : current);
+    } catch (requestError) {
+      setReplayAvailabilityError(requestError.response?.data?.message || "Could not update replay availability.");
+    } finally {
+      setReplayAvailabilitySaving(false);
+    }
   };
 
   const selectedReportStudent = report?.perStudent?.find(
@@ -422,13 +445,13 @@ const LiveLessonReviewPage = ({ mode }) => {
     };
   }, [replay, seconds, studentFilter]);
 
-  if (error) return <main className="live-review-page"><div className="live-error-banner">{error}<button onClick={() => navigate("/portal/live-lessons")}>Back to lessons</button></div></main>;
+  if (error) return <main className="live-review-page"><div className="live-error-banner">{error}<button onClick={() => navigate(lessonsBackPath)}>Back to lessons</button></div></main>;
   if ((mode === "report" && !report) || (mode === "replay" && !replay)) return <main className="live-review-page"><div className="live-loading">Loading session review…</div></main>;
 
   return (
     <main className="live-review-page">
       <header className="live-review-header">
-        <button className="live-session-back" onClick={() => navigate("/portal/live-lessons")}><HiOutlineArrowLeft /> Back</button>
+        <button className="live-session-back" onClick={() => navigate(lessonsBackPath)}><HiOutlineArrowLeft /> Back</button>
         <div><span className="live-eyebrow">{mode === "report" ? "SESSION REPORT" : "SESSION REPLAY"}</span><h1>{replay?.lesson?.title || report?.session?.title || "Live lesson review"}</h1></div>
       </header>
       {mode === "report" ? (
@@ -458,6 +481,24 @@ const LiveLessonReviewPage = ({ mode }) => {
               <div><strong>{report.summary?.questionCount || 0}</strong><span>Questions</span></div>
               <div><strong>{report.summary?.submittedAnswers || 0}</strong><span>Answers submitted</span></div>
             </div>
+            {report.session.status === "ended" && report.session.isOwner && (
+              <div className="live-replay-sharing no-print">
+                <div>
+                  <strong>Student replay access</strong>
+                  <span>Share this lesson replay with students enrolled in {report.session.class?.name || "this class"}. Students see the lesson, not classmates’ answers or names.</span>
+                </div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={report.session.replayAvailable === true}
+                    disabled={replayAvailabilitySaving}
+                    onChange={(event) => updateReplayAvailability(event.target.checked)}
+                  />
+                  {replayAvailabilitySaving ? "Saving…" : report.session.replayAvailable ? "Available to students" : "Not shared"}
+                </label>
+                {replayAvailabilityError && <p className="live-report-export-error" role="alert">{replayAvailabilityError}</p>}
+              </div>
+            )}
           </section>
           {report.session.status === "ended" && (
             <section className="live-review-card live-report-performance">
@@ -490,7 +531,7 @@ const LiveLessonReviewPage = ({ mode }) => {
                   <div className="live-performance-summary">
                     <div><strong>{performance.summary.sessionCount}</strong><span>Sessions</span></div>
                     <div><strong>{performance.summary.averageAttendanceRate}%</strong><span>Attendance</span></div>
-                    <div><strong>{performance.summary.participationRate}%</strong><span>Students participating</span></div>
+                    <div><strong>{performance.summary.participationRate}%</strong><span>Answered at least once</span></div>
                     <div><strong>{performance.summary.averageEngagementRate}%</strong><span>Answer completion</span></div>
                     <div><strong>{performance.summary.averageAccuracyRate}%</strong><span>Accuracy</span></div>
                     <div><strong>{performance.summary.averageSessionMinutes}m</strong><span>Avg. session</span></div>
@@ -533,7 +574,7 @@ const LiveLessonReviewPage = ({ mode }) => {
                       : engagementChartData.length ? (
                         <div className="live-performance-chart" aria-label={`${engagementScope === "student" ? `${engagementStudent?.name || "Student"}'s` : "Class"} engagement chart`}>
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={engagementChartData} margin={{ top: 10, right: 18, left: -15, bottom: 5 }}>
+                            <BarChart data={engagementChartData} margin={{ top: 10, right: 18, left: -15, bottom: 5 }}>
                               <CartesianGrid stroke="var(--border-color)" strokeDasharray="3 3" vertical={false} />
                               <XAxis
                                 dataKey="label"
@@ -562,10 +603,10 @@ const LiveLessonReviewPage = ({ mode }) => {
                                 itemStyle={{ color: "var(--text-secondary)" }}
                               />
                               <Legend wrapperStyle={{ color: "var(--text-secondary)" }} />
-                              <Line type="monotone" dataKey="attendanceRate" name="Attendance" stroke="#168078" strokeWidth={3} dot={{ r: 3 }} />
-                              <Line type="monotone" dataKey="participationRate" name="Answered at least once" stroke="#ed9d37" strokeWidth={3} dot={{ r: 3 }} />
-                              <Line type="monotone" dataKey="answerCompletionRate" name="Answer completion" stroke="#5576c5" strokeWidth={3} dot={{ r: 3 }} />
-                            </LineChart>
+                              <Bar dataKey="attendanceRate" name="Attendance" fill="#168078" maxBarSize={38} radius={[5, 5, 0, 0]} />
+                              <Bar dataKey="participationRate" name="Answered at least once" fill="#ed9d37" maxBarSize={38} radius={[5, 5, 0, 0]} />
+                              <Bar dataKey="answerCompletionRate" name="Answer completion" fill="#5576c5" maxBarSize={38} radius={[5, 5, 0, 0]} />
+                            </BarChart>
                           </ResponsiveContainer>
                         </div>
                       ) : <p className="live-performance-status">{engagementScope === "student"
@@ -794,8 +835,8 @@ const LiveLessonReviewPage = ({ mode }) => {
         </div>
       ) : (
         <section className="live-review-card live-replay-player">
-          <div className="live-replay-topline"><div><h2>Recorded session</h2><span>{replay.session.startedAt ? new Date(replay.session.startedAt).toLocaleString() : "Session has not started"}</span></div>
-            <label>Filter student<select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)}><option value="">Everyone</option>{replay.students.map((student) => <option key={student.studentId} value={student.studentId}>{student.name}</option>)}</select></label>
+          <div className="live-replay-topline"><div><h2>{isStudentReplay ? "Lesson replay" : "Recorded session"}</h2><span>{replay.session.startedAt ? new Date(replay.session.startedAt).toLocaleString() : "Session has not started"}</span></div>
+            {!isStudentReplay && <label>Filter student<select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)}><option value="">Everyone</option>{replay.students.map((student) => <option key={student.studentId} value={student.studentId}>{student.name}</option>)}</select></label>}
           </div>
           <LiveLessonSlide slide={replayState?.slide} index={replayState?.currentSlideIndex || 0} total={replay.lesson?.slides?.length || 0} language={replay.lesson?.language} allowScripts hidden={replayState?.slideHidden}>
             {replayState?.slide?.question && (
@@ -805,14 +846,14 @@ const LiveLessonReviewPage = ({ mode }) => {
                 <div className="live-answer-options">
                   {replayState.slide.question.options.map((option) => {
                     const optionAnswers = replayState.answers.filter((event) => event.payload?.selectedOptionId === option.id);
-                    return <div className="live-answer-option" key={option.id}><span>{option.id.toUpperCase()}</span>{option.text}<small>{optionAnswers.length} responses</small></div>;
+                    return <div className="live-answer-option" key={option.id}><span>{option.id.toUpperCase()}</span>{option.text}{!isStudentReplay && <small>{optionAnswers.length} responses</small>}</div>;
                   })}
                 </div>
               </section>
             )}
           </LiveLessonSlide>
           {replayState?.paused && <div className="live-replay-paused">The live session was paused at this point.</div>}
-          {replayState?.slide?.question && (
+          {!isStudentReplay && replayState?.slide?.question && (
             <>
               <div className="live-replay-answer-log"><strong>Answers recorded on this question</strong>
                 {replayState.answers.map((event, index) => {

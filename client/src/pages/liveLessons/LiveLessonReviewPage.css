@@ -197,6 +197,13 @@
 .live-review-page .live-session-secondary:disabled { cursor: not-allowed; opacity: .55; }
 .live-report-export-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; }
 .live-report-export-error { margin: .65rem 0; color: #a13e39; font-size: .82rem; }
+.live-replay-sharing { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: .85rem 1rem; border: 1px solid #dcebe7; border-radius: 12px; background: #f7fbf9; }
+.live-replay-sharing > div { display: grid; gap: .2rem; }
+.live-replay-sharing strong { color: #284654; font-size: .88rem; }
+.live-replay-sharing span { max-width: 650px; color: #71818a; font-size: .78rem; line-height: 1.45; }
+.live-replay-sharing label { display: inline-flex; align-items: center; gap: .5rem; color: #3d5964; font-size: .8rem; font-weight: 750; }
+.live-replay-sharing input { width: 17px; height: 17px; accent-color: #167b78; }
+.live-replay-sharing p { flex-basis: 100%; margin: 0; }
 .live-report-performance { overflow: hidden; }
 .live-performance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin: 1.1rem 0; }
 .live-performance-controls label { display: flex; flex-direction: column; gap: .3rem; color: #64747d; font-size: .75rem; font-weight: 750; }
@@ -353,6 +360,20 @@
   [data-theme="dark"] .live-performance-summary > div {
     border-color: var(--border-color);
     background: var(--bg-secondary);
+  }
+
+  [data-theme="dark"] .live-replay-sharing {
+    border-color: var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  [data-theme="dark"] .live-replay-sharing strong,
+  [data-theme="dark"] .live-replay-sharing label {
+    color: var(--text-primary);
+  }
+
+  [data-theme="dark"] .live-replay-sharing span {
+    color: var(--text-secondary);
   }
 
   [data-theme="dark"] .live-performance-chart .recharts-cartesian-grid-horizontal line {

@@ -4,6 +4,7 @@ import Class from "../models/Class.js";
 import Grade from "../models/Grade.js";
 import GradebookColumn from "../models/GradebookColumn.js";
 import LiveLesson from "../models/LiveLesson.js";
+import LiveLessonFolder from "../models/LiveLessonFolder.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
@@ -21,6 +22,9 @@ import {
   getStateForUser,
   isStudentEnrolled,
   listClassStudents,
+  resolveLiveSessionSubjectId,
+  sanitizeStudentReplayEvents,
+  safeSlide,
 } from "../services/liveLessonService.js";
 import {
   broadcastLiveSessionState,
@@ -28,6 +32,11 @@ import {
 } from "../realtime/liveLessonsGateway.js";
 import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
 import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
+import {
+  activeLiveSessionDurationMs,
+  getSessionPauseAccounting,
+  resumeLiveSessionPause,
+} from "../services/liveSessionTime.js";
 import { buildLiveLessonPerformanceReport } from "../services/liveLessonPerformanceReportService.js";
 import { generateLiveLessonReportPdf } from "../services/liveLessonReportPdfService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
@@ -130,6 +139,11 @@ const deleteOwnedLiveLessonAndHistory = async ({ schoolId, ownerId, lessonId }) 
         await LiveSessionEvent.deleteMany({ school: schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
         await LiveSession.deleteMany({ school: schoolId, _id: { $in: sessionIds } }, { session: transaction });
       }
+      await LiveLessonFolder.updateMany(
+        { school: schoolId, ownerId, lessonIds: lesson._id },
+        { $pull: { lessonIds: lesson._id } },
+        { session: transaction },
+      );
       await lesson.deleteOne({ session: transaction });
     });
   } finally {
@@ -372,6 +386,190 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: { lessons } });
 });
 
+export const listLiveLessonFolders = asyncHandler(async (req, res) => {
+  const folders = await LiveLessonFolder.find({
+    school: req.schoolId,
+    ownerId: req.user._id,
+  })
+    .sort({ parentId: 1, sortOrder: 1, name: 1 })
+    .lean();
+  return res.json({ success: true, data: { folders } });
+});
+
+export const createLiveLessonFolder = asyncHandler(async (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const parentId = req.body?.parentId || null;
+  if (!name || name.length > 100) {
+    return res.status(400).json({ success: false, message: "Folder names must be between 1 and 100 characters." });
+  }
+  if (parentId && !validId(parentId)) {
+    return res.status(400).json({ success: false, message: "Choose a valid parent folder." });
+  }
+  if (parentId && !await LiveLessonFolder.exists({
+    _id: parentId,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  })) {
+    return res.status(404).json({ success: false, message: "Parent folder not found." });
+  }
+  const sortOrder = await LiveLessonFolder.countDocuments({
+    school: req.schoolId,
+    ownerId: req.user._id,
+    parentId,
+  });
+  const folder = await LiveLessonFolder.create({
+    school: req.schoolId,
+    ownerId: req.user._id,
+    name,
+    parentId,
+    sortOrder,
+  });
+  return res.status(201).json({ success: true, data: { folder } });
+});
+
+export const updateLiveLessonFolder = asyncHandler(async (req, res) => {
+  if (!validId(req.params.folderId)) {
+    return res.status(400).json({ success: false, message: "Invalid folder ID." });
+  }
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name || name.length > 100) {
+    return res.status(400).json({ success: false, message: "Folder names must be between 1 and 100 characters." });
+  }
+  const folder = await LiveLessonFolder.findOneAndUpdate(
+    { _id: req.params.folderId, school: req.schoolId, ownerId: req.user._id },
+    { $set: { name } },
+    { new: true, runValidators: true },
+  );
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  return res.json({ success: true, data: { folder } });
+});
+
+export const deleteLiveLessonFolder = asyncHandler(async (req, res) => {
+  if (!validId(req.params.folderId)) {
+    return res.status(400).json({ success: false, message: "Invalid folder ID." });
+  }
+  const folder = await LiveLessonFolder.findOne({
+    _id: req.params.folderId,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  });
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  const hasChildren = await LiveLessonFolder.exists({
+    school: req.schoolId,
+    ownerId: req.user._id,
+    parentId: folder._id,
+  });
+  if (hasChildren || folder.lessonIds.length) {
+    return res.status(409).json({
+      success: false,
+      message: "Remove subfolders and lesson shortcuts before deleting this folder.",
+    });
+  }
+  const deletion = await LiveLessonFolder.deleteOne({
+    _id: folder._id,
+    school: req.schoolId,
+    ownerId: req.user._id,
+    lessonIds: { $size: 0 },
+  });
+  if (!deletion.deletedCount) {
+    return res.status(409).json({
+      success: false,
+      message: "Folder contents changed. Remove subfolders and lesson shortcuts before deleting it.",
+    });
+  }
+  return res.json({ success: true, message: "Empty folder deleted." });
+});
+
+export const addLiveLessonFolderShortcut = asyncHandler(async (req, res) => {
+  const { folderId, lessonId } = req.params;
+  if (!validId(folderId) || !validId(lessonId)) {
+    return res.status(400).json({ success: false, message: "Choose a valid folder and lesson." });
+  }
+  const [folder, lesson] = await Promise.all([
+    LiveLessonFolder.findOne({ _id: folderId, school: req.schoolId, ownerId: req.user._id }),
+    LiveLesson.findOne({ _id: lessonId, school: req.schoolId, ownerId: req.user._id }).select("_id"),
+  ]);
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
+  await LiveLessonFolder.updateOne(
+    { _id: folder._id, school: req.schoolId, ownerId: req.user._id },
+    { $addToSet: { lessonIds: lesson._id } },
+  );
+  return res.json({ success: true, message: "Lesson shortcut added to folder." });
+});
+
+export const removeLiveLessonFolderShortcut = asyncHandler(async (req, res) => {
+  const { folderId, lessonId } = req.params;
+  if (!validId(folderId) || !validId(lessonId)) {
+    return res.status(400).json({ success: false, message: "Choose a valid folder and lesson." });
+  }
+  const folder = await LiveLessonFolder.findOneAndUpdate(
+    { _id: folderId, school: req.schoolId, ownerId: req.user._id },
+    { $pull: { lessonIds: lessonId } },
+    { new: true },
+  ).select("_id");
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  return res.json({ success: true, message: "Lesson shortcut removed. The lesson itself was not changed." });
+});
+
+export const reorderLiveLessonFolderShortcuts = asyncHandler(async (req, res) => {
+  const { folderId } = req.params;
+  const lessonIds = req.body?.lessonIds;
+  if (!validId(folderId) || !Array.isArray(lessonIds) ||
+    lessonIds.some((id) => typeof id !== "string" || !validId(id)) ||
+    new Set(lessonIds).size !== lessonIds.length) {
+    return res.status(400).json({ success: false, message: "Submit the unique lesson IDs in this folder's new order." });
+  }
+  const folder = await LiveLessonFolder.findOne({
+    _id: folderId,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  });
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  const currentIds = folder.lessonIds.map(String);
+  if (lessonIds.length !== currentIds.length ||
+    lessonIds.some((id) => !currentIds.includes(id))) {
+    return res.status(400).json({ success: false, message: "Folder contents changed. Refresh and try reordering again." });
+  }
+  folder.lessonIds = lessonIds;
+  await folder.save();
+  return res.json({ success: true, message: "Folder lesson order saved." });
+});
+
+export const reorderLiveLessonFolders = asyncHandler(async (req, res) => {
+  const parentId = req.body?.parentId || null;
+  const folderIds = req.body?.folderIds;
+  if ((parentId && !validId(parentId)) || !Array.isArray(folderIds) ||
+    folderIds.some((id) => typeof id !== "string" || !validId(id)) ||
+    new Set(folderIds).size !== folderIds.length) {
+    return res.status(400).json({ success: false, message: "Submit the unique sibling folder IDs in their new order." });
+  }
+  if (parentId && !await LiveLessonFolder.exists({
+    _id: parentId,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  })) {
+    return res.status(404).json({ success: false, message: "Parent folder not found." });
+  }
+  const siblings = await LiveLessonFolder.find({
+    school: req.schoolId,
+    ownerId: req.user._id,
+    parentId,
+  }).select("_id").lean();
+  const currentIds = siblings.map((folder) => String(folder._id));
+  if (folderIds.length !== currentIds.length ||
+    folderIds.some((id) => !currentIds.includes(id))) {
+    return res.status(400).json({ success: false, message: "Folder structure changed. Refresh and try reordering again." });
+  }
+  await LiveLessonFolder.bulkWrite(folderIds.map((folderId, sortOrder) => ({
+    updateOne: {
+      filter: { _id: folderId, school: req.schoolId, ownerId: req.user._id },
+      update: { $set: { sortOrder } },
+    },
+  })));
+  return res.json({ success: true, message: "Folder order saved." });
+});
+
 export const getLiveLesson = asyncHandler(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
   const lesson = await LiveLesson.findOne({
@@ -503,23 +701,8 @@ export const createLiveSession = asyncHandler(async (req, res) => {
   ]);
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found or not owned by you." });
   if (!classDoc) return res.status(403).json({ success: false, message: "You are not assigned to that class." });
-  if (lesson.classId && String(lesson.classId) !== String(classDoc._id)) {
-    return res.status(400).json({ success: false, message: "This lesson is assigned to a different class." });
-  }
   await classDoc.populate("subjects.subject", "name");
-  const normalizedLessonSubject = String(lesson.subject || "").trim().toLowerCase();
-  const assignedSubjectIds = [...new Set((classDoc.subjects || [])
-    .map((assignment) => String(assignment.subject?._id || assignment.subject))
-    .filter(Boolean))];
-  const matchingSubjectIds = [...new Set((classDoc.subjects || [])
-    .filter((assignment) => assignment.subject?.name?.trim().toLowerCase() === normalizedLessonSubject)
-    .map((assignment) => String(assignment.subject._id)))];
-  if (lesson.subjectId && !assignedSubjectIds.includes(String(lesson.subjectId))) {
-    return res.status(400).json({ success: false, message: "This lesson’s assigned subject is not available for the selected class." });
-  }
-  const canonicalSubjectId = lesson.subjectId
-    ? String(lesson.subjectId)
-    : matchingSubjectIds.length === 1 ? matchingSubjectIds[0] : null;
+  const canonicalSubjectId = resolveLiveSessionSubjectId(lesson, classDoc.subjects || []);
   const rosterSnapshot = (await listClassStudents(classDoc._id)).map((student) => ({
     studentId: String(student.user?._id || ""),
     name: `${student.firstName} ${student.lastName}`.trim(),
@@ -710,14 +893,38 @@ export const listLiveSessions = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1, _id: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
-    .select("lessonSnapshot.title lessonSnapshot.subject lessonSnapshot.subjectId classId teacherId status joinCode currentSlideIndex createdAt scheduledAt timerDurationMinutes startedAt endedAt")
+    .select("lessonSnapshot.title lessonSnapshot.subject lessonSnapshot.subjectId classId teacherId status joinCode currentSlideIndex createdAt scheduledAt timerDurationMinutes startedAt endedAt paused pausedAt totalPausedMs")
     .populate("classId", "name grade section")
     .lean(),
     LiveSession.countDocuments(filter),
   ]);
+  const pauseEvents = sessions.length
+    ? await LiveSessionEvent.find({
+      school: req.schoolId,
+      sessionId: { $in: sessions.map((session) => session._id) },
+      type: { $in: ["session:paused", "session:resumed", "session:ended"] },
+    }).select("sessionId type at").sort({ at: 1 }).lean()
+    : [];
+  const pauseEventsBySession = new Map();
+  for (const event of pauseEvents) {
+    const sessionId = String(event.sessionId);
+    const events = pauseEventsBySession.get(sessionId) || [];
+    events.push(event);
+    pauseEventsBySession.set(sessionId, events);
+  }
+  const sessionsWithPauseAccounting = sessions.map((session) => {
+    const storedPausedMs = Number(session.totalPausedMs) || 0;
+    if (storedPausedMs > 0 || session.pausedAt) return session;
+    const accounting = getSessionPauseAccounting(pauseEventsBySession.get(String(session._id)));
+    return {
+      ...session,
+      totalPausedMs: accounting.totalPausedMs,
+      pausedAt: accounting.pausedAt,
+    };
+  });
   return res.json({
     success: true,
-    data: { sessions, pagination: { page, limit, total, pages: Math.ceil(total / limit) } },
+    data: { sessions: sessionsWithPauseAccounting, pagination: { page, limit, total, pages: Math.ceil(total / limit) } },
   });
 });
 
@@ -741,7 +948,6 @@ export const endLiveSession = asyncHandler(async (req, res) => {
     {
       $set: {
         status: "ended",
-        paused: false,
         endedAt: new Date(),
         questionOpen: false,
         studentsFullscreen: false,
@@ -752,6 +958,8 @@ export const endLiveSession = asyncHandler(async (req, res) => {
   if (!endedSession) {
     return res.status(409).json({ success: false, message: "This session has already ended." });
   }
+  resumeLiveSessionPause(endedSession, endedSession.endedAt);
+  await endedSession.save();
 
   await appendLiveEvent(endedSession, "session:ended", {
     role: req.user.role,
@@ -775,18 +983,31 @@ export const listAvailableLiveSessions = asyncHandler(async (req, res) => {
   ].filter(Boolean).map(String))];
 
   if (!classIds.length) {
-    return res.json({ success: true, data: { sessions: [] } });
+    return res.json({ success: true, data: { sessions: [], replays: [] } });
   }
 
-  const sessions = await LiveSession.find({
-    school: req.schoolId,
-    classId: { $in: classIds },
-    status: "live",
-  })
-    .sort({ startedAt: -1 })
-    .select("lessonSnapshot.title lessonSnapshot.slides._id classId currentSlideIndex startedAt")
-    .populate("classId", "name grade section")
-    .lean();
+  const [sessions, replays] = await Promise.all([
+    LiveSession.find({
+      school: req.schoolId,
+      classId: { $in: classIds },
+      status: "live",
+    })
+      .sort({ startedAt: -1 })
+      .select("lessonSnapshot.title lessonSnapshot.slides._id classId currentSlideIndex startedAt")
+      .populate("classId", "name grade section")
+      .lean(),
+    LiveSession.find({
+      school: req.schoolId,
+      classId: { $in: classIds },
+      status: "ended",
+      replayAvailable: true,
+    })
+      .sort({ endedAt: -1, _id: -1 })
+      .limit(50)
+      .select("lessonSnapshot.title classId startedAt endedAt")
+      .populate("classId", "name grade section")
+      .lean(),
+  ]);
 
   return res.json({
     success: true,
@@ -798,6 +1019,13 @@ export const listAvailableLiveSessions = asyncHandler(async (req, res) => {
         currentSlideIndex: session.currentSlideIndex,
         totalSlides: session.lessonSnapshot?.slides?.length || 0,
         startedAt: session.startedAt,
+      })),
+      replays: replays.map((session) => ({
+        _id: String(session._id),
+        title: session.lessonSnapshot?.title || "Live lesson",
+        classId: session.classId,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
       })),
     },
   });
@@ -873,17 +1101,34 @@ export const getLiveSession = asyncHandler(async (req, res) => {
 });
 
 export const getLiveSessionReplay = asyncHandler(async (req, res) => {
-  const session = await findOwnedSession(req, res);
-  if (!session) return;
-  const [students, events] = await Promise.all([
-    getSessionStudents(session),
-    LiveSessionEvent.find({ sessionId: session._id, school: req.schoolId })
-      .sort({ seq: 1 })
-      .lean(),
-  ]);
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ success: false, message: "Invalid session ID." });
+  }
+  const session = await LiveSession.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!session) return res.status(404).json({ success: false, message: "Live session not found." });
+  const isStudent = req.user.role === "student";
+  if (isStudent) {
+    if (!(await isStudentEnrolled(session.classId, req.user._id))) {
+      return res.status(403).json({ success: false, message: "You are not enrolled in this session's class." });
+    }
+    if (session.status !== "ended" || !session.replayAvailable) {
+      return res.status(403).json({ success: false, message: "This session replay is not available to students." });
+    }
+  } else if (!await findOwnedSession(req, res)) {
+    return;
+  }
+  const events = await LiveSessionEvent.find({ sessionId: session._id, school: req.schoolId })
+    .sort({ seq: 1 })
+    .lean();
+  const students = isStudent ? [] : await getSessionStudents(session);
+  const replayEvents = isStudent ? sanitizeStudentReplayEvents(events) : events;
   return res.json({
     success: true,
     data: {
+      viewerRole: isStudent ? "student" : req.user.role,
       session: {
         id: String(session._id),
         status: session.status,
@@ -893,10 +1138,44 @@ export const getLiveSessionReplay = asyncHandler(async (req, res) => {
           ? Math.max(0, (session.endedAt || new Date()).getTime() - session.startedAt.getTime())
           : 0,
       },
-      lesson: session.lessonSnapshot,
+      lesson: isStudent
+        ? {
+          ...session.lessonSnapshot,
+          slides: (session.lessonSnapshot.slides || []).map((slide) => safeSlide(slide)),
+        }
+        : session.lessonSnapshot,
       students,
-      events,
+      events: replayEvents,
     },
+  });
+});
+
+export const setLiveSessionReplayAvailability = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ success: false, message: "Invalid session ID." });
+  }
+  if (typeof req.body?.available !== "boolean") {
+    return res.status(400).json({ success: false, message: "Choose whether the replay should be available to students." });
+  }
+  const session = await LiveSession.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!session) return res.status(404).json({ success: false, message: "Live session not found." });
+  if (String(session.teacherId) !== String(req.user._id)) {
+    return res.status(403).json({ success: false, message: "Only the session owner can change replay availability." });
+  }
+  if (session.status !== "ended") {
+    return res.status(409).json({ success: false, message: "Only an ended session replay can be shared with students." });
+  }
+  session.replayAvailable = req.body.available;
+  await session.save();
+  return res.json({
+    success: true,
+    data: { replayAvailable: session.replayAvailable },
+    message: session.replayAvailable
+      ? "Replay is now available to students in this class."
+      : "Replay is no longer available to students.",
   });
 });
 
@@ -924,6 +1203,13 @@ const buildLiveSessionReportData = async (req, session) => {
     Class.findOne({ _id: session.classId, school: req.schoolId }).select("name grade section academicYear").lean(),
   ]);
   const questionSlides = session.lessonSnapshot.slides.filter((slide) => slide.question);
+  const pauseAccounting = getSessionPauseAccounting(events);
+  const durationSession = {
+    ...session.toObject(),
+    totalPausedMs: Number(session.totalPausedMs) || pauseAccounting.totalPausedMs,
+    pausedAt: session.pausedAt || pauseAccounting.pausedAt,
+    paused: Boolean(session.paused || (!session.endedAt && pauseAccounting.pausedAt)),
+  };
   const responseByStudentSlide = new Map(
     responses.map((response) => [`${String(response.studentId)}:${response.slideId}`, response]),
   );
@@ -1039,14 +1325,14 @@ const buildLiveSessionReportData = async (req, session) => {
       id: String(session._id),
       title: session.lessonSnapshot.title,
       status: session.status,
+      replayAvailable: session.replayAvailable === true,
+      isOwner: String(session.teacherId) === String(req.user._id),
       class: classDoc,
       subject: session.lessonSnapshot.subject || "",
       subjectId: session.lessonSnapshot.subjectId || null,
       startedAt,
       endedAt: reportEndedAt,
-      durationMs: startedAt
-        ? Math.max(0, ((reportEndedAt || new Date()).getTime() - new Date(startedAt).getTime()))
-        : 0,
+      durationMs: activeLiveSessionDurationMs(durationSession),
       updatedAt: new Date(),
       questionOpen: Boolean(session.questionOpen),
     },
@@ -1438,31 +1724,45 @@ export const deleteLiveSession = asyncHandler(async (req, res) => {
       message: "End the live session before deleting it from history.",
     });
   }
-  const linkedGradesExist = await Grade.exists({ school: req.schoolId, liveSession: session._id });
-  if (linkedGradesExist) {
-    return res.status(409).json({
-      success: false,
-      message: "This session is linked to gradebook entries. Keep the session report so those grades remain traceable.",
+  const transaction = await mongoose.startSession();
+  try {
+    await transaction.withTransaction(async () => {
+      await Grade.updateMany(
+        { school: req.schoolId, liveSession: session._id },
+        { $unset: { liveSession: "" } },
+        { session: transaction },
+      );
+      await LiveResponse.deleteMany(
+        { sessionId: session._id, school: req.schoolId },
+        { session: transaction },
+      );
+      await LiveSessionEvent.deleteMany(
+        { sessionId: session._id, school: req.schoolId },
+        { session: transaction },
+      );
+      await LiveSession.deleteOne(
+        { _id: session._id, school: req.schoolId },
+        { session: transaction },
+      );
     });
+  } finally {
+    await transaction.endSession();
   }
-
-  await Promise.all([
-    LiveResponse.deleteMany({ sessionId: session._id, school: req.schoolId }),
-    LiveSessionEvent.deleteMany({ sessionId: session._id, school: req.schoolId }),
-  ]);
-  await session.deleteOne();
   closeLiveSessionConnections(session._id);
-  return res.json({ success: true, message: "Session history deleted." });
+  return res.json({
+    success: true,
+    message: "Session history deleted. Gradebook scores were kept and unlinked from the session.",
+  });
 });
 
 export const deleteFinishedLiveSessions = asyncHandler(async (req, res) => {
   const transaction = await mongoose.startSession();
   let deletedSessionIds = [];
-  let skippedGradebookCount = 0;
+  let unlinkedGradebookCount = 0;
   try {
     await transaction.withTransaction(async () => {
       deletedSessionIds = [];
-      skippedGradebookCount = 0;
+      unlinkedGradebookCount = 0;
       const finishedSessions = await LiveSession.find({
         school: req.schoolId,
         teacherId: req.user._id,
@@ -1475,10 +1775,15 @@ export const deleteFinishedLiveSessions = asyncHandler(async (req, res) => {
         school: req.schoolId,
         liveSession: { $in: sessionIds },
       }).session(transaction);
-      const linkedIds = new Set(linkedSessionIds.map(String));
-      deletedSessionIds = sessionIds.filter((id) => !linkedIds.has(String(id)));
-      skippedGradebookCount = linkedIds.size;
-      if (!deletedSessionIds.length) return;
+      deletedSessionIds = sessionIds;
+      unlinkedGradebookCount = linkedSessionIds.length;
+      if (linkedSessionIds.length) {
+        await Grade.updateMany(
+          { school: req.schoolId, liveSession: { $in: sessionIds } },
+          { $unset: { liveSession: "" } },
+          { session: transaction },
+        );
+      }
 
       await LiveResponse.deleteMany(
         { school: req.schoolId, sessionId: { $in: deletedSessionIds } },
@@ -1501,7 +1806,7 @@ export const deleteFinishedLiveSessions = asyncHandler(async (req, res) => {
     success: true,
     data: {
       deletedCount: deletedSessionIds.length,
-      skippedGradebookCount,
+      unlinkedGradebookCount,
     },
   });
 });

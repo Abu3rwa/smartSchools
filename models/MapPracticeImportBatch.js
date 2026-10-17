@@ -16,7 +16,7 @@ const fileSummarySchema = new mongoose.Schema({
     skipped: { type: Number, default: 0, min: 0 },
     errors: { type: Number, default: 0, min: 0 },
     status: { type: String, enum: ['preview', 'imported', 'failed', 'partial'], default: 'preview' }
-}, { _id: false });
+}, { _id: false, suppressReservedKeysWarning: true });
 
 const mapPracticeImportBatchSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
