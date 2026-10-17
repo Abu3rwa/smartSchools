@@ -11,6 +11,17 @@ const userSchema = new mongoose.Schema({
         trim: true,
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
     },
+    accountRemovedAt: {
+        type: Date,
+        default: null,
+        select: false
+    },
+    accountRemovedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+        select: false
+    },
     password: {
         type: String,
         required: [true, 'Password is required'],

@@ -19,6 +19,7 @@ const liveSessionSchema = new Schema(
     status: { type: String, enum: ["waiting", "live", "ended"], default: "waiting", index: true },
     replayAvailable: { type: Boolean, default: false },
     scheduledAt: { type: Date },
+    meetingUrl: { type: String, trim: true, maxlength: 2048, default: "" },
     timerDurationMinutes: { type: Number, min: 0, max: 240, default: 0 },
     paused: { type: Boolean, default: false },
     pausedAt: { type: Date },

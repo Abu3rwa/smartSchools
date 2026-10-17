@@ -778,6 +778,14 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
                 flaggedAt: 1,
                 _id: 1
             }).session(dbSession).lean();
+        } else if (['spelling-assessment', 'formal-spelling-test'].includes(session.assessmentType)) {
+            retestItem = await SpellingRetestItem.findOne({
+                school: schoolId,
+                student: session.student,
+                status: 'pending',
+                sourceSession: { $ne: session._id },
+                _id: { $nin: attemptedRetestIds }
+            }).sort({ flaggedAt: 1, _id: 1 }).session(dbSession).lean();
         }
 
         let item;

@@ -566,12 +566,13 @@ const SpellingTeacherPage = () => {
         try {
             let fullSession = session;
             if (!Array.isArray(session.attempts)) {
-                const [sessionResponse, passageResponse] = await Promise.all([
-                    api.get(`/spelling/sessions/${session._id}`),
-                    api.get(`/spelling/sessions/${session._id}/passage`)
-                ]);
+                const sessionResponse = await api.get(`/spelling/sessions/${session._id}`);
+                fullSession = sessionResponse.data.data;
+            }
+            if (fullSession.status === 'completed') {
+                const passageResponse = await api.get(`/spelling/sessions/${session._id}/passage`);
                 fullSession = {
-                    ...sessionResponse.data.data,
+                    ...fullSession,
                     practicePassage: passageResponse.data.data
                 };
             }

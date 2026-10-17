@@ -10,6 +10,13 @@ const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
+export const createAccountInviteConflictError = (message, code) => {
+    const error = new Error(message);
+    error.statusCode = 409;
+    error.code = code;
+    return error;
+};
+
 const escapeHtml = (value) =>
     String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -187,7 +194,10 @@ export const upsertInvitedUser = async ({
             }).setOptions({ skipTenantFilter: true });
 
             if (duplicate) {
-                throw new Error(`Email "${normalizedEmail}" is already in use`);
+                throw createAccountInviteConflictError(
+                    `Email "${normalizedEmail}" is already in use`,
+                    'ACCOUNT_EMAIL_IN_USE',
+                );
             }
             user.email = normalizedEmail;
         }
@@ -210,10 +220,16 @@ export const upsertInvitedUser = async ({
             created = true;
         } else {
             if (user.school?.toString() !== schoolId.toString()) {
-                throw new Error(`Email "${normalizedEmail}" is linked to another school account`);
+                throw createAccountInviteConflictError(
+                    `Email "${normalizedEmail}" is linked to another school account. A super admin must permanently remove that account before this email can be reused.`,
+                    'ACCOUNT_EMAIL_LINKED_TO_ANOTHER_SCHOOL',
+                );
             }
             if (user.role !== role) {
-                throw new Error(`Email "${normalizedEmail}" is linked to a non-${role} account`);
+                throw createAccountInviteConflictError(
+                    `Email "${normalizedEmail}" is linked to a non-${role} account`,
+                    'ACCOUNT_ROLE_CONFLICT',
+                );
             }
         }
     }

@@ -13,7 +13,11 @@
     "email": "البريد الإلكتروني",
     "role": "الدور",
     "school": "المدرسة",
-    "status": "الحالة"
+    "status": "الحالة",
+    "actions": "الإجراءات"
+  },
+  "actions": {
+    "removeAccount": "إزالة الحساب"
   },
   "status": {
     "active": "نشط",

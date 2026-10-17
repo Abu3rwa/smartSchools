@@ -1,11 +1,84 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
+import Student from '../models/Student.js';
+import SpellingRetestItem from '../models/SpellingRetestItem.js';
+import SpellingSession from '../models/SpellingSession.js';
+import SpellingWord from '../models/SpellingWord.js';
 import {
+    getCurrentSpellingItem,
     recordSpellingAttempt,
     startSpellingClassSession,
     startSpellingSession
 } from '../services/spellingSessionService.js';
 import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
+
+test('regular and formal sessions select pending missed words before curriculum words', async (t) => {
+    let activeSession;
+    let retestQuery;
+    let retestSort;
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const sessionId = new mongoose.Types.ObjectId();
+    const retestId = new mongoose.Types.ObjectId();
+    const sourceWordId = new mongoose.Types.ObjectId();
+    const pendingRetest = {
+        _id: retestId,
+        sourceWord: sourceWordId,
+        wordSnapshot: 'missed-word',
+        grade: 'G2',
+        week: 1,
+        category: 'Earlier words'
+    };
+
+    const query = (result) => ({
+        session() { return this; },
+        sort(value) {
+            retestSort = value;
+            return this;
+        },
+        lean: async () => result,
+        then: (resolve, reject) => Promise.resolve(result).then(resolve, reject)
+    });
+
+    t.mock.method(mongoose, 'startSession', async () => ({
+        withTransaction: async (callback) => callback(),
+        endSession: async () => {}
+    }));
+    t.mock.method(SpellingSession, 'findOne', () => query(activeSession));
+    t.mock.method(Student, 'findOne', () => query({ _id: studentId }));
+    t.mock.method(SpellingRetestItem, 'findOne', (filter) => {
+        retestQuery = filter;
+        return query(pendingRetest);
+    });
+    t.mock.method(SpellingWord, 'findOne', () => query({ definition: 'A missed word' }));
+
+    for (const assessmentType of ['spelling-assessment', 'formal-spelling-test']) {
+        activeSession = {
+            _id: sessionId,
+            school: schoolId,
+            student: studentId,
+            status: 'in-progress',
+            assessmentType,
+            attempts: [],
+            currentItem: { wordId: null, retestItemId: null, sequence: null },
+            nextSequence: 1,
+            save: async () => {}
+        };
+        retestQuery = null;
+        retestSort = null;
+
+        const current = await getCurrentSpellingItem({ schoolId, sessionId });
+
+        assert.equal(current.item.word, 'missed-word');
+        assert.equal(current.item.isRetest, true);
+        assert.equal(current.item.retestItemId, retestId);
+        assert.equal(retestQuery.status, 'pending');
+        assert.equal(retestQuery.sourceSession.$ne, sessionId);
+        assert.deepEqual(retestQuery._id.$nin, []);
+        assert.deepEqual(retestSort, { flaggedAt: 1, _id: 1 });
+    }
+});
 
 test('validateSpellingIntegrityEvent accepts a page-hidden event and normalizes optional fields', () => {
     const event = validateSpellingIntegrityEvent({

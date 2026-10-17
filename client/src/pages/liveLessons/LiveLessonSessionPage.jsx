@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   HiOutlineArrowLeft,
   HiOutlineArrowRight,
@@ -82,6 +82,7 @@ const LivePresentationToolbar = ({
 
 const LiveLessonSessionPage = () => {
   const { sessionId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const user = useSelector(selectUser);
   const role = user?.role === "student"
@@ -376,7 +377,28 @@ const LiveLessonSessionPage = () => {
           <button onClick={() => setActionError("")}>Dismiss</button>
         </div>
       )}
+      {location.state?.invitationNotice && (
+        <div className="live-invitation-notice" role="status">
+          {location.state.invitationNotice}
+        </div>
+      )}
       <div className="live-session-layout">
+        {role === "student" && session.meetingUrl && sessionStatus !== "ended" && (
+          <aside className="live-meeting-banner">
+            <div>
+              <strong>Your class has an online meeting</strong>
+              <span>Keep the Live Lesson open while you join the meeting.</span>
+            </div>
+            <a
+              className="live-session-primary"
+              href={session.meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Join meeting
+            </a>
+          </aside>
+        )}
         <section className="live-session-main">
           {isTeacher && sessionStatus === "waiting" && (
             <div className="live-waiting-banner">

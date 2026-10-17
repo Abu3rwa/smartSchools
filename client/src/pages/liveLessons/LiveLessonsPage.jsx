@@ -163,6 +163,7 @@ const LiveLessonsPage = () => {
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
   const [bulkDeletingLessons, setBulkDeletingLessons] = useState(false);
   const [folderSaving, setFolderSaving] = useState(false);
+  const [folderDialog, setFolderDialog] = useState(null);
   const [shortcutTargets, setShortcutTargets] = useState({});
   const [bulkRespondingToShares, setBulkRespondingToShares] = useState(false);
   const [previewLesson, setPreviewLesson] = useState(null);
@@ -956,6 +957,8 @@ const LiveLessonsPage = () => {
         ? localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000))
         : "",
       timerDurationMinutes: 45,
+      meetingUrl: "",
+      sendInvitationEmail: false,
     });
   };
 
@@ -979,21 +982,31 @@ const LiveLessonsPage = () => {
         lessonId: sessionDraft.lesson._id,
         classId: sessionDraft.classId,
         timerDurationMinutes: Number(sessionDraft.timerDurationMinutes),
+        meetingUrl: sessionDraft.meetingUrl.trim(),
+        sendInvitationEmail: sessionDraft.sendInvitationEmail,
         ...(sessionDraft.scheduled
           ? { scheduledAt: scheduleDate.toISOString() }
           : {}),
       });
       const sessionId = response.data.data.session._id;
       const isScheduled = sessionDraft.scheduled;
+      const invitationEmail = response.data.data.invitationEmail;
+      const invitationNotice = invitationEmail
+        ? invitationEmail.error
+          ? `The session was created, but invitation emails could not be sent: ${invitationEmail.error}`
+          : `Invitation emails: ${invitationEmail.sent} sent, ${invitationEmail.failed} failed${invitationEmail.skipped ? `, ${invitationEmail.skipped} skipped (no student email address)` : ""}.`
+        : "";
       setSessionDraft(null);
       if (isScheduled) {
         setSessionListState({ ...defaultListState, status: "waiting" });
         setTab("sessions");
         setNotice(
-          `“${response.data.data.session.lessonTitle}” is scheduled. Open the waiting session and start it when the class is ready.`,
+          `“${response.data.data.session.lessonTitle}” is scheduled. Open the waiting session and start it when the class is ready.${invitationNotice ? ` ${invitationNotice}` : ""}`,
         );
       } else {
-        navigate(`/portal/live-lessons/sessions/${sessionId}`);
+        navigate(`/portal/live-lessons/sessions/${sessionId}`, {
+          state: invitationNotice ? { invitationNotice } : undefined,
+        });
       }
     } catch (requestError) {
       setError(
@@ -1075,47 +1088,59 @@ const LiveLessonsPage = () => {
     }
   };
 
-  const createFolder = async (parentId = null) => {
-    const name = window.prompt(parentId ? "Name the subfolder" : "Name the folder");
-    if (name === null) return;
-    setFolderSaving(true);
-    setError("");
-    try {
-      const response = await api.post("/live/lessons/folders", {
-        name,
-        parentId,
-      });
-      const folder = response.data?.data?.folder;
-      setFolders((current) => [...current, folder]);
-      setLessonListState((current) => ({
-        ...current,
-        folderId: String(folder._id),
-        page: 1,
-      }));
-      setNotice(`Folder “${folder.name}” created.`);
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || "Could not create folder.");
-    } finally {
-      setFolderSaving(false);
-    }
+  const createFolder = (parentId = null) => {
+    setFolderDialog({ mode: "create", parentId, name: "" });
   };
 
-  const renameFolder = async (folder) => {
-    const name = window.prompt("Rename folder", folder.name);
-    if (name === null) return;
+  const renameFolder = (folder) => {
+    setFolderDialog({
+      mode: "rename",
+      folder,
+      name: folder.name,
+    });
+  };
+
+  const saveFolderDialog = async (event) => {
+    event.preventDefault();
+    const name = folderDialog?.name.trim();
+    if (!name || folderSaving) return;
     setFolderSaving(true);
     setError("");
     try {
-      const response = await api.patch(`/live/lessons/folders/${folder._id}`, { name });
-      const updatedFolder = response.data?.data?.folder;
-      setFolders((current) =>
-        current.map((item) =>
-          String(item._id) === String(folder._id) ? updatedFolder : item,
-        ),
-      );
-      setNotice(`Folder renamed to “${updatedFolder.name}”.`);
+      if (folderDialog.mode === "rename") {
+        const response = await api.patch(
+          `/live/lessons/folders/${folderDialog.folder._id}`,
+          { name },
+        );
+        const updatedFolder = response.data?.data?.folder;
+        setFolders((current) =>
+          current.map((folder) =>
+            String(folder._id) === String(updatedFolder._id)
+              ? updatedFolder
+              : folder,
+          ),
+        );
+        setNotice(`Folder renamed to “${updatedFolder.name}”.`);
+      } else {
+        const response = await api.post("/live/lessons/folders", {
+          name,
+          parentId: folderDialog.parentId,
+        });
+        const folder = response.data?.data?.folder;
+        setFolders((current) => [...current, folder]);
+        setLessonListState((current) => ({
+          ...current,
+          folderId: String(folder._id),
+          page: 1,
+        }));
+        setNotice(`Folder “${folder.name}” created.`);
+      }
+      setFolderDialog(null);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Could not rename folder.");
+      setError(
+        requestError.response?.data?.message ||
+          `Could not ${folderDialog.mode === "rename" ? "rename" : "create"} folder.`,
+      );
     } finally {
       setFolderSaving(false);
     }
@@ -1745,12 +1770,23 @@ const LiveLessonsPage = () => {
             <>
               <section className="live-folder-organizer" aria-label="Organize lessons">
                 <nav className="live-folder-navigation" aria-label="Lesson folders">
+                  <div className="live-folder-navigation-heading">
+                    <span>Folders</span>
+                    <button
+                      className="live-folder-create-button"
+                      disabled={folderSaving}
+                      onClick={() => createFolder()}
+                    >
+                      <HiOutlinePlus /> New
+                    </button>
+                  </div>
                   <button
                     className={`live-folder-select ${!lessonListState.folderId ? "active" : ""}`}
                     onClick={() => updateLessonList({ folderId: "", page: 1 })}
                     aria-current={!lessonListState.folderId ? "page" : undefined}
                   >
-                    <span>All lessons</span><small>{lessons.length}</small>
+                    <span>All lessons</span>
+                    <small>{lessons.length}</small>
                   </button>
                   <button
                     className={`live-folder-select ${lessonListState.folderId === "__unfiled__" ? "active" : ""}`}
@@ -1763,39 +1799,44 @@ const LiveLessonsPage = () => {
                   <div className="live-folder-tree">{renderFolderTree()}</div>
                 </nav>
                 <div className="live-folder-management">
-                  <div>
-                    <strong>{activeFolder ? activeFolder.name : "Organize your lessons"}</strong>
-                    <p>Folders change how lessons are organized, not their class, content, or history. A lesson can have shortcuts in multiple folders.</p>
+                  <div className="live-folder-management-heading">
+                    <div>
+                      <span className="live-folder-eyebrow">
+                        {activeFolder ? "SELECTED FOLDER" : "LESSON LIBRARY"}
+                      </span>
+                      <h2>{activeFolder?.name || "All lessons"}</h2>
+                    </div>
                   </div>
                   <div className="live-folder-management-actions">
-                    <button
-                      className="live-secondary-button"
-                      disabled={folderSaving}
-                      onClick={() => createFolder()}
-                    ><HiOutlinePlus /> New folder</button>
                     {activeFolder && (
                       <>
                         <button
                           className="live-secondary-button"
                           disabled={folderSaving}
                           onClick={() => createFolder(String(activeFolder._id))}
-                        ><HiOutlinePlus /> New subfolder</button>
+                        ><HiOutlinePlus /> Add subfolder</button>
                         <button
                           className="live-secondary-button"
                           disabled={folderSaving}
                           onClick={() => renameFolder(activeFolder)}
-                        ><HiOutlinePencilSquare /> Rename</button>
+                        ><HiOutlinePencilSquare /> Rename folder</button>
                         <button
                           className="live-delete-session"
                           disabled={folderSaving}
                           onClick={() => deleteFolder(activeFolder)}
-                        ><HiOutlineTrash /> Delete empty folder</button>
+                        ><HiOutlineTrash /> Delete empty</button>
                       </>
                     )}
                   </div>
+                  <p className="live-folder-helper">
+                    {activeFolder
+                      ? "Lessons can appear in multiple folders. Assignments and session history stay unchanged."
+                      : "Create folders for units, weeks, or topics. Add lessons as shortcuts without changing the originals."}
+                  </p>
                 </div>
               </section>
-              <div className="live-list-filters">
+              <div className="live-list-filters" aria-label="Filter lessons">
+                <span className="live-list-filters-heading">Filter lessons</span>
                 <label>
                   Assigned class
                   <select
@@ -2648,6 +2689,45 @@ const LiveLessonsPage = () => {
               </label>
             )}
             <label className="live-edit-field">
+              Online meeting link (optional)
+              <input
+                type="url"
+                inputMode="url"
+                maxLength={2048}
+                placeholder="https://meet.google.com/..."
+                value={sessionDraft.meetingUrl}
+                onChange={(event) =>
+                  setSessionDraft((current) => ({
+                    ...current,
+                    meetingUrl: event.target.value,
+                  }))
+                }
+              />
+              <span>
+                Students in this class can open the meeting separately from the
+                Live Lesson. Use a secure HTTPS link.
+              </span>
+            </label>
+            <label className="live-edit-field live-invitation-option">
+              <span>
+                <input
+                  type="checkbox"
+                  checked={sessionDraft.sendInvitationEmail}
+                  onChange={(event) =>
+                    setSessionDraft((current) => ({
+                      ...current,
+                      sendInvitationEmail: event.target.checked,
+                    }))
+                  }
+                />
+                Email an invitation to students
+              </span>
+              <span>
+                Optional. Sends the Live Lesson link, scheduled time (if set),
+                and meeting link (if provided) to student email addresses.
+              </span>
+            </label>
+            <label className="live-edit-field">
               Class timer (minutes)
               <input
                 type="number"
@@ -2693,6 +2773,86 @@ const LiveLessonsPage = () => {
               </button>
             </footer>
           </section>
+        </div>
+      )}
+
+      {folderDialog && (
+        <div
+          className="live-import-overlay"
+          role="presentation"
+          onClick={() => !folderSaving && setFolderDialog(null)}
+        >
+          <form
+            className="live-share-dialog live-folder-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="live-folder-dialog-title"
+            onSubmit={saveFolderDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span className="live-eyebrow">LESSON ORGANIZATION</span>
+                <h2 id="live-folder-dialog-title">
+                  {folderDialog.mode === "rename"
+                    ? "Rename folder"
+                    : folderDialog.parentId
+                      ? "Create subfolder"
+                      : "Create folder"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="live-dialog-close"
+                onClick={() => setFolderDialog(null)}
+                aria-label="Close folder dialog"
+                disabled={folderSaving}
+              >
+                ×
+              </button>
+            </header>
+            <label className="live-edit-field" htmlFor="live-folder-name">
+              Folder name
+              <input
+                id="live-folder-name"
+                type="text"
+                autoFocus
+                required
+                maxLength={100}
+                value={folderDialog.name}
+                onChange={(event) =>
+                  setFolderDialog((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="For example, Week 1"
+                disabled={folderSaving}
+              />
+              <span>Use a unit, week, topic, or any name that helps you find lessons.</span>
+            </label>
+            <footer>
+              <button
+                type="button"
+                className="live-secondary-button"
+                onClick={() => setFolderDialog(null)}
+                disabled={folderSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="live-primary-button"
+                disabled={folderSaving || !folderDialog.name.trim()}
+              >
+                {folderSaving
+                  ? "Saving…"
+                  : folderDialog.mode === "rename"
+                    ? "Save name"
+                    : "Create folder"}
+              </button>
+            </footer>
+          </form>
         </div>
       )}
 

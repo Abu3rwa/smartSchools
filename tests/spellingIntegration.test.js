@@ -202,6 +202,127 @@ integrationTest('formal spelling assessments load curriculum words', async () =>
     assert.equal(current.item.word, 'otter');
 });
 
+integrationTest('new regular and formal sessions prioritize previously missed words', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId: studentIds[0], extraStudentIds: [studentIds[1]] });
+
+    await Student.create(studentIds.map((studentId, index) => ({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-retest-priority-${studentId}`,
+        firstName: 'Retest',
+        lastName: `Priority ${index}`,
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G3', currentWeek: 1, lastWordIndex: 0 }
+    })));
+    const [olderMissedWord, newerMissedWord] = await SpellingWord.create([
+        {
+            school: schoolId,
+            grade: 'G2',
+            week: 1,
+            category: 'Earlier integration words',
+            word: 'older-missed',
+            normalizedWord: 'older-missed',
+            order: 1
+        },
+        {
+            school: schoolId,
+            grade: 'G2',
+            week: 1,
+            category: 'Earlier integration words',
+            word: 'newer-missed',
+            normalizedWord: 'newer-missed',
+            order: 2
+        }
+    ]);
+    await SpellingWord.create([
+        { school: schoolId, grade: 'G3', week: 1, category: 'Current integration words', word: 'curriculum-word', normalizedWord: 'curriculum-word', order: 1 },
+        { school: schoolId, grade: 'G3', week: 1, category: 'Current integration words', word: 'next-curriculum-word', normalizedWord: 'next-curriculum-word', order: 2 }
+    ]);
+
+    for (const [index, assessmentType] of ['spelling-assessment', 'formal-spelling-test'].entries()) {
+        const studentId = studentIds[index];
+        await SpellingRetestItem.create([olderMissedWord, newerMissedWord].map((word, wordIndex) => ({
+            school: schoolId,
+            student: studentId,
+            sourceWord: word._id,
+            wordSnapshot: word.word,
+            grade: word.grade,
+            week: word.week,
+            category: word.category,
+            sourceSession: new mongoose.Types.ObjectId(),
+            sourceAttempt: new mongoose.Types.ObjectId(),
+            flaggedAt: new Date(Date.now() - (2 - wordIndex) * 24 * 60 * 60 * 1000),
+            dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        })));
+
+        const session = assessmentType === 'spelling-assessment'
+            ? await startSpellingSession({
+                schoolId,
+                studentId,
+                userId,
+                mode: 'self-serve',
+                maxMistakesAllowed: 3,
+                curriculumGrade: 'G3'
+            })
+            : await SpellingSession.create({
+                school: schoolId,
+                student: studentId,
+                mode: 'self-serve',
+                assessmentType,
+                maxMistakesAllowed: 3,
+                retestDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                curriculumGrade: 'G3',
+                curriculumWeek: 1
+            });
+
+        let current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        assert.equal(current.item.word, 'older-missed');
+        assert.equal(current.item.isRetest, true);
+
+        await recordSpellingAttempt({
+            schoolId,
+            sessionId: session._id,
+            userId,
+            sequence: current.item.sequence,
+            studentInput: 'older-missed',
+            idempotencyKey: `older-miss-${assessmentType}`
+        });
+        current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        assert.equal(current.item.word, 'newer-missed');
+        assert.equal(current.item.isRetest, true);
+
+        await recordSpellingAttempt({
+            schoolId,
+            sessionId: session._id,
+            userId,
+            sequence: current.item.sequence,
+            studentInput: 'newer-missed',
+            idempotencyKey: `newer-miss-${assessmentType}`
+        });
+        current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        assert.equal(current.item.word, 'curriculum-word');
+        assert.equal(current.item.isRetest, false);
+
+        await recordSpellingAttempt({
+            schoolId,
+            sessionId: session._id,
+            userId,
+            sequence: current.item.sequence,
+            studentInput: 'wrong-answer',
+            idempotencyKey: `current-miss-${assessmentType}`
+        });
+        current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+        assert.equal(current.item.word, 'next-curriculum-word');
+        assert.equal(current.item.isRetest, false);
+    }
+}, { timeout: 30000 });
+
 integrationTest('self-serve grade progress resumes independently and skipped words do not create mistakes', async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     const schoolId = new mongoose.Types.ObjectId();

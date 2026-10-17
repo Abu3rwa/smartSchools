@@ -39,9 +39,12 @@ import {
 } from "../services/liveSessionTime.js";
 import { buildLiveLessonPerformanceReport } from "../services/liveLessonPerformanceReportService.js";
 import { generateLiveLessonReportPdf } from "../services/liveLessonReportPdfService.js";
+import { normalizeLiveLessonMeetingUrl, sendLiveLessonInvitationEmails } from "../services/liveLessonInvitationService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
+import { buildPortalLink } from "../helpers/portalUrl.js";
 import { getTeacherClassIds, getTeacherSubjectIds } from "../helpers/teacherScoping.js";
+import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
   if (!validId(req.params.id)) {
@@ -681,9 +684,25 @@ export const bulkDeleteLiveLessons = asyncHandler(async (req, res) => {
 });
 
 export const createLiveSession = asyncHandler(async (req, res) => {
-  const { lessonId, classId, scheduledAt, timerDurationMinutes = 0 } = req.body || {};
+  const {
+    lessonId,
+    classId,
+    scheduledAt,
+    timerDurationMinutes = 0,
+    meetingUrl: requestedMeetingUrl = "",
+    sendInvitationEmail = false,
+  } = req.body || {};
   if (!validId(lessonId) || !validId(classId)) {
     return res.status(400).json({ success: false, message: "Choose a valid lesson and class." });
+  }
+  if (typeof sendInvitationEmail !== "boolean") {
+    return res.status(400).json({ success: false, message: "Choose whether to email the student invitations." });
+  }
+  let meetingUrl;
+  try {
+    meetingUrl = normalizeLiveLessonMeetingUrl(requestedMeetingUrl);
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
   }
   if (!Number.isInteger(timerDurationMinutes) || timerDurationMinutes < 0 || timerDurationMinutes > 240) {
     return res.status(400).json({ success: false, message: "Timer duration must be between 0 and 240 whole minutes." });
@@ -733,10 +752,37 @@ export const createLiveSession = asyncHandler(async (req, res) => {
     classId: classDoc._id,
     teacherId: req.user._id,
     ...(scheduleDate ? { scheduledAt: scheduleDate } : {}),
+    meetingUrl,
     timerDurationMinutes,
     joinCode,
   });
   await appendLiveEvent(session, "session:created", { role: req.user.role, userId: req.user._id });
+  let invitationEmail;
+  if (sendInvitationEmail) {
+    const sessionUrl = buildPortalLink(`/live-lessons/sessions/${session._id}`);
+    try {
+      invitationEmail = await sendLiveLessonInvitationEmails({
+        session,
+        roster: await Student.find({
+          school: req.schoolId,
+          $or: [{ currentClass: classDoc._id }, { enrolledClasses: classDoc._id }],
+        })
+          .select("user email studentEmail")
+          .populate("user", "_id email")
+          .lean(),
+        teacherName: req.user.name || req.user.firstName || "Your teacher",
+        className: classDoc.name || "your class",
+        sessionUrl,
+        timeZone: await getSchoolTimeZone(req.schoolId),
+      });
+    } catch (error) {
+      logger.error("live_lesson_invitation_email_failed", {
+        sessionId: String(session._id),
+        error: error.message,
+      });
+      invitationEmail = { requested: true, sent: 0, failed: 0, skipped: 0, error: "Invitation emails could not be prepared." };
+    }
+  }
   return res.status(201).json({
     success: true,
     data: {
@@ -747,8 +793,10 @@ export const createLiveSession = asyncHandler(async (req, res) => {
         classId: session.classId,
         lessonTitle: lesson.title,
         scheduledAt: session.scheduledAt,
+        meetingUrl: session.meetingUrl,
         timerDurationMinutes: session.timerDurationMinutes,
       },
+      ...(invitationEmail ? { invitationEmail } : {}),
     },
   });
 });
@@ -1087,6 +1135,9 @@ export const getLiveSession = asyncHandler(async (req, res) => {
     lessonLanguage: session.lessonSnapshot.language || "en",
     classId: String(session.classId),
     scheduledAt: session.scheduledAt,
+    ...((isStudent && session.status !== "ended") || isAuthorizedStaff || isOwner
+      ? { meetingUrl: session.meetingUrl || "" }
+      : {}),
     timerDurationMinutes: session.timerDurationMinutes || 0,
     timeZone: await getSchoolTimeZone(req.schoolId),
     currentSlideIndex: session.currentSlideIndex,

@@ -5,7 +5,8 @@ import {
     HiOutlineUserGroup,
     HiOutlineSearch,
     HiOutlineShieldCheck,
-    HiOutlineMail
+    HiOutlineMail,
+    HiOutlineTrash
 } from 'react-icons/hi';
 import TablePagination from '../../../components/common/TablePagination';
 import '../../../components/superAdmin/SuperAdminBase.css';
@@ -19,6 +20,9 @@ const SuperAdminUsersPage = () => {
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+    const [actionMessage, setActionMessage] = useState('');
+    const [actionError, setActionError] = useState('');
+    const [removingUserId, setRemovingUserId] = useState('');
 
     useEffect(() => {
         fetchUsers();
@@ -73,9 +77,32 @@ const SuperAdminUsersPage = () => {
         return t(`superAdminUsers:role.${normalized}`, { defaultValue: normalized });
     };
 
+    const permanentlyRemoveAccount = async (account) => {
+        const confirmation = window.prompt(
+            `Permanently remove ${account.email}?\n\nThe login will be disabled, the email released, and linked student/teacher profiles anonymized. Historical school records will be preserved.\n\nType the account email to continue.`,
+        );
+        if (!confirmation || confirmation.trim().toLowerCase() !== account.email.toLowerCase()) return;
+        setActionMessage('');
+        setActionError('');
+        setRemovingUserId(account._id);
+        try {
+            await api.delete(`/users/${account._id}`, {
+                data: { confirmEmail: confirmation },
+            });
+            setUsers((current) => current.filter((user) => user._id !== account._id));
+            setActionMessage(`Account removed and email released: ${account.email}`);
+        } catch (error) {
+            setActionError(error.response?.data?.message || 'The account could not be removed.');
+        } finally {
+            setRemovingUserId('');
+        }
+    };
+
     return (
         <div className="admin-dashboard">
             <h1>{t('superAdminUsers:page.title')}</h1>
+            {actionMessage && <p role="status">{actionMessage}</p>}
+            {actionError && <p role="alert">{actionError}</p>}
 
             {/* Search */}
             <div className="admin-toolbar">
@@ -110,6 +137,7 @@ const SuperAdminUsersPage = () => {
                                     <th>{t('superAdminUsers:table.role')}</th>
                                     <th>{t('superAdminUsers:table.school')}</th>
                                     <th>{t('superAdminUsers:table.status')}</th>
+                                    <th>{t('superAdminUsers:table.actions', { defaultValue: 'Actions' })}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -137,6 +165,21 @@ const SuperAdminUsersPage = () => {
                                                     ? t('superAdminUsers:status.active')
                                                     : t('superAdminUsers:status.inactive')}
                                             </span>
+                                        </td>
+                                        <td>
+                                            {user.role !== 'super_admin' && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-danger btn-sm"
+                                                    disabled={removingUserId === user._id}
+                                                    onClick={() => permanentlyRemoveAccount(user)}
+                                                >
+                                                    <HiOutlineTrash size={14} />
+                                                    {removingUserId === user._id
+                                                        ? 'Removing…'
+                                                        : t('superAdminUsers:actions.removeAccount', { defaultValue: 'Remove account' })}
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
