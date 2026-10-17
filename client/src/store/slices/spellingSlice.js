@@ -39,9 +39,9 @@ export const fetchStudentSpellingDetails = createAsyncThunk('spelling/fetchStude
     }
 });
 
-export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, maxMistakesAllowed = 3, mode = 'teacher-led', scheduledAt, formalAssessment = false }, { rejectWithValue }) => {
+export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, maxMistakesAllowed = 3, mode = 'teacher-led', scheduledAt, formalAssessment = false, formalTestWordListEmail = false, formalTestWordListEmailAudience, formalTestWordListEmailTimezone }, { rejectWithValue }) => {
     try {
-        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, scheduledAt, formalAssessment });
+        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, scheduledAt, formalAssessment, formalTestWordListEmail, formalTestWordListEmailAudience, formalTestWordListEmailTimezone });
         return response.data.data;
     } catch (error) {
         return rejectWithValue(requestError(error, 'Unable to start the teacher session.'));
@@ -119,6 +119,15 @@ export const endSpellingSession = createAsyncThunk('spelling/endSession', async 
     }
 });
 
+export const cancelScheduledSpellingSession = createAsyncThunk('spelling/cancelScheduledSession', async (sessionId, { rejectWithValue }) => {
+    try {
+        const response = await api.post(`/spelling/sessions/${sessionId}/cancel-scheduled`);
+        return response.data.data;
+    } catch (error) {
+        return rejectWithValue(requestError(error, 'Unable to cancel the scheduled spelling test.'));
+    }
+});
+
 const spellingSlice = createSlice({
     name: 'spelling',
     initialState: {
@@ -158,7 +167,9 @@ const spellingSlice = createSlice({
             .addCase(startTeacherSpellingSession.pending, (state) => { state.loading = true; state.error = null; })
             .addCase(startTeacherSpellingSession.fulfilled, (state, action) => { state.loading = false; state.session = action.payload; })
             .addCase(startTeacherSpellingSession.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
-            .addCase(fetchActiveSpellingSession.fulfilled, (state, action) => { state.session = action.payload; })
+            .addCase(fetchActiveSpellingSession.fulfilled, (state, action) => {
+                if (action.payload || !action.meta.arg?.preserveExisting) state.session = action.payload;
+            })
             .addCase(fetchSpellingCurrentItem.fulfilled, (state, action) => {
                 state.session = action.payload.session;
                 state.currentItem = action.payload.item;

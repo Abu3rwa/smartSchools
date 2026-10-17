@@ -8,12 +8,75 @@ import SpellingSession from '../models/SpellingSession.js';
 import SpellingClassSession from '../models/SpellingClassSession.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingIntegrityEvent from '../models/SpellingIntegrityEvent.js';
-import { completeSpellingSession, getCurrentSpellingItem, markSpellingAttemptCorrect, recordSpellingAttempt, startSpellingClassSession, startSpellingSession } from '../services/spellingSessionService.js';
+import { abandonSpellingSession, activateDueScheduledSpellingSessions, completeSpellingSession, getCurrentSpellingItem, markSpellingAttemptCorrect, recordSpellingAttempt, startSpellingClassSession, startSpellingSession } from '../services/spellingSessionService.js';
 import { listSpellingIntegrityEvents, listSpellingSessions, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 const enabled = process.env.RUN_SPELLING_INTEGRATION === 'true' && Boolean(process.env.MONGODB_URI);
 const integrationTest = enabled ? test : test.skip;
 const ids = [];
+
+integrationTest('practice can run before a scheduled formal test, which activates after practice ends', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId });
+
+    await Student.create({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-scheduled-${studentId}`,
+        firstName: 'Scheduled',
+        lastName: 'Integration',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G3', currentWeek: 1, lastWordIndex: 0 }
+    });
+    await SpellingWord.create({
+        school: schoolId,
+        grade: 'G3',
+        week: 1,
+        category: 'Integration',
+        word: 'otter',
+        normalizedWord: 'otter',
+        order: 1
+    });
+
+    const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+    const [scheduledSession] = await SpellingSession.create([{
+        school: schoolId,
+        student: studentId,
+        mode: 'self-serve',
+        status: 'scheduled',
+        assessmentType: 'formal-spelling-test',
+        formalAssessment: true,
+        scheduledAt,
+        startedAt: scheduledAt,
+        curriculumGrade: 'G3',
+        curriculumWeek: 1,
+        createdBy: userId
+    }]);
+
+    const practiceSession = await startSpellingSession({
+        schoolId,
+        studentId,
+        userId,
+        mode: 'self-serve',
+        maxMistakesAllowed: 3
+    });
+    assert.equal(practiceSession.status, 'in-progress');
+
+    const dueTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const whilePracticing = await activateDueScheduledSpellingSessions({ now: dueTime });
+    assert.equal(whilePracticing.sessionsActivated, 0);
+    assert.equal((await SpellingSession.findById(scheduledSession._id).lean()).status, 'scheduled');
+
+    await abandonSpellingSession({ schoolId, sessionId: practiceSession._id });
+    const afterPractice = await activateDueScheduledSpellingSessions({ now: dueTime });
+    assert.equal(afterPractice.sessionsActivated, 1);
+    assert.equal((await SpellingSession.findById(scheduledSession._id).lean()).status, 'in-progress');
+}, { timeout: 30000 });
 
 integrationTest('session transitions are stable and concurrent duplicate answers are rejected', async () => {
     await mongoose.connect(process.env.MONGODB_URI);

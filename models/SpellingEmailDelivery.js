@@ -5,7 +5,7 @@ const spellingEmailDeliverySchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     session: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingSession', required: true },
     passage: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingPassage', default: null },
-    kind: { type: String, enum: ['results', 'passage', 'retest-practice'], default: 'results' },
+    kind: { type: String, enum: ['results', 'passage', 'retest-practice', 'formal-test-prep'], default: 'results' },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     senderUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     recipients: { type: [String], default: [] },

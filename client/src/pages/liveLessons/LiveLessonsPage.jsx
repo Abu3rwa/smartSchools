@@ -46,6 +46,7 @@ const defaultListState = {
   dateTo: "",
   status: "",
 };
+const SHOW_LESSON_FOLDERS = false;
 
 const normalizeListState = (saved = {}) => {
   const preferences = saved && typeof saved === "object" ? saved : {};
@@ -1334,18 +1335,19 @@ const LiveLessonsPage = () => {
   const lessonSubjects = listSubjectsForClass(lessonListState.classId);
   const sessionSubjects = listSubjectsForClass(sessionListState.classId);
   const editorSubjects = listSubjectsForClass(form.classId);
-  const activeFolder = folders.find(
-    (folder) => String(folder._id) === lessonListState.folderId,
-  );
+  const activeFolder = SHOW_LESSON_FOLDERS
+    ? folders.find((folder) => String(folder._id) === lessonListState.folderId)
+    : null;
   const folderLessonIds = new Set(folders.flatMap((folder) => (folder.lessonIds || []).map(String)));
   const filteredLessons = [...lessons]
     .filter(
       (lesson) =>
-        (lessonListState.folderId === "__unfiled__"
-          ? !folderLessonIds.has(String(lesson._id))
-          : activeFolder
-            ? activeFolder.lessonIds.some((id) => String(id) === String(lesson._id))
-            : true) &&
+        (!SHOW_LESSON_FOLDERS ||
+          (lessonListState.folderId === "__unfiled__"
+            ? !folderLessonIds.has(String(lesson._id))
+            : activeFolder
+              ? activeFolder.lessonIds.some((id) => String(id) === String(lesson._id))
+              : true)) &&
         (lessonListState.showDone || !lesson.isDone) &&
         (!lessonListState.subject ||
           String(lesson.subjectId?._id || lesson.subjectId || "") ===
@@ -1768,6 +1770,7 @@ const LiveLessonsPage = () => {
             </div>
           ) : (
             <>
+              {SHOW_LESSON_FOLDERS && (
               <section className="live-folder-organizer" aria-label="Organize lessons">
                 <nav className="live-folder-navigation" aria-label="Lesson folders">
                   <div className="live-folder-navigation-heading">
@@ -1835,6 +1838,7 @@ const LiveLessonsPage = () => {
                   </p>
                 </div>
               </section>
+              )}
               <div className="live-list-filters" aria-label="Filter lessons">
                 <span className="live-list-filters-heading">Filter lessons</span>
                 <label>
@@ -2061,7 +2065,7 @@ const LiveLessonsPage = () => {
                           >
                             <HiOutlineTrash /> Delete
                           </button>
-                          <details className="live-lesson-organize-menu">
+                          {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
                             <summary>Organize</summary>
                             <div className="live-lesson-organize-content">
                               <label>
@@ -2112,7 +2116,7 @@ const LiveLessonsPage = () => {
                                 </>
                               )}
                             </div>
-                          </details>
+                          </details>}
                         </td>
                       </tr>
                     ))}
@@ -2776,7 +2780,7 @@ const LiveLessonsPage = () => {
         </div>
       )}
 
-      {folderDialog && (
+      {SHOW_LESSON_FOLDERS && folderDialog && (
         <div
           className="live-import-overlay"
           role="presentation"

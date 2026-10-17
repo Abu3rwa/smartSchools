@@ -5,14 +5,21 @@ import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingClassSession from '../models/SpellingClassSession.js';
+import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import { withTransaction } from '../utils/withTransaction.js';
 import { evaluateSpellingAnswer, normalizeForGrading } from '../utils/spellingGrading.js';
-import { queueSpellingCompletionEmail } from './spellingEmailService.js';
+import {
+    buildFormalTestWordList,
+    processSpellingEmailDelivery,
+    queueFormalSpellingTestWordListEmail,
+    queueSpellingCompletionEmail
+} from './spellingEmailService.js';
 import gmailOAuthService from './gmailOAuthService.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 import SpellingClassSettings from '../models/SpellingClassSettings.js';
 import { getNextSpellingGrade, getSpellingGradeProgress, SPELLING_CURRICULUM_GRADES } from '../utils/spellingProgress.js';
 import { resolveSemesterForDate } from './gradebookConfigService.js';
+import logger from '../utils/logger.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPELLING_GRADE_MAX_WEEK = { KG: 40, G1: 36, G2: 36, G3: 36, G4: 36, G5: 36 };
@@ -336,9 +343,26 @@ const getSharedClassItem = async ({ session, dbSession }) => {
     throw conflict('The class spelling session could not advance past completed words');
 };
 
-export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, scheduledAt, formalAssessment = false, curriculumGrade, curriculumWeek, classSessionId = null, emailNotification = null, passageEmailAudience = null, passageGeneration = {} }) {
+export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, scheduledAt, formalAssessment = false, formalTestWordListEmail = false, formalTestWordListEmailAudience = null, formalTestWordListEmailTimezone = 'UTC', curriculumGrade, curriculumWeek, classSessionId = null, emailNotification = null, passageEmailAudience = null, passageGeneration = {} }) {
     if (!['teacher-led', 'self-serve'].includes(mode)) throw badRequest('Invalid spelling session mode');
     if (formalAssessment && mode !== 'self-serve') throw badRequest('Formal spelling assessments must be self-serve');
+    if (typeof formalTestWordListEmail !== 'boolean') throw badRequest('formalTestWordListEmail must be a boolean');
+    if (formalTestWordListEmail && (!formalAssessment || scheduledAt === undefined || scheduledAt === null)) {
+        throw badRequest('Formal test word-list emails are only available for scheduled formal assessments');
+    }
+    if (formalTestWordListEmailAudience !== null && formalTestWordListEmailAudience !== undefined
+        && !isSpellingEmailAudience(formalTestWordListEmailAudience)) {
+        throw badRequest('Invalid formal test email audience');
+    }
+    if (typeof formalTestWordListEmailTimezone !== 'string' || !formalTestWordListEmailTimezone.trim()) {
+        throw badRequest('formalTestWordListEmailTimezone must be a valid time zone');
+    }
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: formalTestWordListEmailTimezone });
+    } catch (error) {
+        if (error instanceof RangeError) throw badRequest('formalTestWordListEmailTimezone must be a valid time zone');
+        throw error;
+    }
     if (maxMistakesAllowed !== undefined && maxMistakesAllowed !== null && (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1 || maxMistakesAllowed > 50)) {
         throw badRequest('maxMistakesAllowed must be a positive integer between 1 and 50');
     }
@@ -372,7 +396,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     const activeSession = await SpellingSession.findOne({
         school: schoolId,
         student: studentId,
-        status: { $in: ['scheduled', 'in-progress'] }
+        status: 'in-progress'
     }).sort({ startedAt: -1 });
     const assessmentType = formalAssessment ? 'formal-spelling-test' : 'spelling-assessment';
     if (activeSession) {
@@ -383,7 +407,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
             const current = await getCurrentSpellingItem({ schoolId, sessionId: activeSession._id });
             return current.session;
         }
-        throw conflict('This student already has an active or scheduled spelling session. End it or wait for it to finish before scheduling another.');
+        throw conflict('This student already has an active spelling session. End it or wait for it to finish before starting another.');
     }
 
     let gradeProgress = getSpellingGradeProgress(student, selectedGrade);
@@ -514,8 +538,9 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     const effectiveEmailNotification = emailNotification !== undefined && emailNotification !== null
         ? emailNotification
         : (classSettings?.defaultEmailAudience || DEFAULT_SPELLING_EMAIL_AUDIENCE);
+    const formalTestEmailAudience = formalTestWordListEmailAudience || effectiveEmailNotification;
 
-    if (formalAssessment && effectiveEmailNotification !== 'none') {
+    if (formalAssessment && (effectiveEmailNotification !== 'none' || formalTestWordListEmail)) {
         const gmailStatus = await gmailOAuthService.getTokenStatus(userId);
         const hasSendScope = gmailStatus.grantedScopes?.includes('https://www.googleapis.com/auth/gmail.send');
         if (!gmailStatus.connected || !hasSendScope) {
@@ -539,7 +564,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         autoPlayOnShow: classSettings?.dictationMode?.autoPlayOnShow !== false
     };
 
-    const session = await SpellingSession.create({
+    const sessionData = {
         school: schoolId,
         student: studentId,
         mode,
@@ -565,9 +590,64 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         startedAt: now,
         createdBy: userId,
         administeredBy: mode === 'teacher-led' ? userId : null
-    });
+    };
 
-    if (scheduledStartAt) return session;
+    let scheduledWordList = null;
+    if (formalTestWordListEmail) {
+        const pendingRetests = await SpellingRetestItem.find({
+            school: schoolId,
+            student: studentId,
+            status: 'pending'
+        }).sort({ flaggedAt: 1, _id: 1 }).lean();
+        const curriculumFilter = { school: schoolId, grade: selectedGrade };
+        if (gradeProgress.week === selectedWeek) {
+            curriculumFilter.$or = [
+                { week: selectedWeek, order: { $gt: gradeProgress.lastWordIndex } },
+                { week: { $gt: selectedWeek } }
+            ];
+        } else {
+            curriculumFilter.week = { $gte: selectedWeek };
+        }
+        const curriculumWords = await SpellingWord.find(curriculumFilter).sort({ week: 1, order: 1 }).lean();
+        scheduledWordList = buildFormalTestWordList({ pendingRetests, curriculumWords });
+    }
+
+    const scheduledResult = scheduledWordList
+        ? await withTransaction(async (dbSession) => {
+            const [createdSession] = await SpellingSession.create([sessionData], { session: dbSession });
+            const delivery = await queueFormalSpellingTestWordListEmail({
+                session: createdSession,
+                ...scheduledWordList,
+                audience: formalTestEmailAudience,
+                timeZone: formalTestWordListEmailTimezone,
+                dbSession
+            });
+            return { session: createdSession, deliveryId: delivery._id };
+        })
+        : { session: await SpellingSession.create(sessionData), deliveryId: null };
+    let session = scheduledResult.session;
+
+    if (scheduledStartAt) {
+        if (!scheduledResult.deliveryId) return session;
+        let emailDelivery;
+        try {
+            emailDelivery = await processSpellingEmailDelivery({ deliveryId: scheduledResult.deliveryId });
+        } catch (error) {
+            logger.error('formal_spelling_test_prep_email_processing_failed', {
+                deliveryId: String(scheduledResult.deliveryId),
+                sessionId: String(session._id),
+                message: error.message
+            });
+            emailDelivery = { status: 'pending', lastError: error.message };
+        }
+        return {
+            ...session.toObject(),
+            formalTestPrepEmail: {
+                status: emailDelivery?.status || 'pending',
+                lastError: emailDelivery?.lastError || ''
+            }
+        };
+    }
 
     const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
     return current.session;
@@ -1138,6 +1218,36 @@ export async function completeSpellingSession({ schoolId, sessionId, reason = 'm
         await queueSpellingCompletionEmail({ session, dbSession });
         await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
         return { session, idempotent: false };
+    });
+}
+
+export async function cancelScheduledSpellingSession({ schoolId, sessionId }) {
+    return withTransaction(async (dbSession) => {
+        const session = await SpellingSession.findOneAndUpdate(
+            { _id: sessionId, school: schoolId, status: 'scheduled' },
+            { $set: { status: 'abandoned', completedAt: new Date() } },
+            { new: true, session: dbSession }
+        );
+        if (!session) {
+            const existing = await SpellingSession.findOne({ _id: sessionId, school: schoolId })
+                .select('status')
+                .session(dbSession)
+                .lean();
+            if (!existing) throw notFound('Spelling session not found');
+            throw conflict('Only a scheduled spelling session can be cancelled');
+        }
+
+        await SpellingEmailDelivery.updateMany(
+            {
+                school: schoolId,
+                session: session._id,
+                kind: 'formal-test-prep',
+                status: { $in: ['staging', 'pending'] }
+            },
+            { $set: { status: 'cancelled', lastError: 'Scheduled spelling test cancelled' } },
+            { session: dbSession }
+        );
+        return session;
     });
 }
 

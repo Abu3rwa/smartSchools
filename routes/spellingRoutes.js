@@ -11,6 +11,7 @@ import {
 import {
     abandonSession,
     advanceClassWordHandler,
+    cancelScheduledSession,
     completeSession,
     createSpellingIntegrityEvent,
     getSpellingIntegrityEvents,
@@ -108,6 +109,7 @@ router.patch('/sessions/:id/attempt', recordAttempt);
 router.patch('/sessions/:id/attempts/:attemptId/correct', authorize('admin', 'department_principal', 'teacher'), express.json(), markAttemptCorrect);
 router.post('/sessions/:id/advance-class-word', authorize('admin', 'department_principal', 'teacher'), express.json(), advanceClassWordHandler);
 router.post('/sessions/:id/complete', completeSession);
+router.post('/sessions/:id/cancel-scheduled', authorize('admin', 'department_principal', 'teacher'), cancelScheduledSession);
 router.post('/sessions/:id/abandon', abandonSession);
 router.get('/sessions/:id', getSession);
 router.get('/sessions/:id/passage', getPassage);

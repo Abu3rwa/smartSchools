@@ -6,6 +6,7 @@ import SpellingPassage from '../models/SpellingPassage.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
 import logger from '../utils/logger.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
+import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 const MAX_ATTEMPTS = 3;
 const escapeHtml = (value) => String(value ?? '')
@@ -52,6 +53,18 @@ export const resolveSpellingCompletionRecipients = (student, audience) => {
             || (audience === 'parents-only' && ['father', 'mother', 'guardian'].includes(entry.type)))
         .map((entry) => String(entry.email || '').trim().toLowerCase())
         .filter(Boolean))];
+};
+
+export const buildFormalTestWordList = ({ pendingRetests, curriculumWords }) => {
+    const lowConfidenceWordIds = new Set(pendingRetests.map((item) => String(item.sourceWord)));
+    const lowConfidenceWordValues = new Set(pendingRetests.map((item) => normalizeForGrading(item.wordSnapshot)));
+    return {
+        lowConfidenceWords: pendingRetests.map((item) => item.wordSnapshot),
+        curriculumWords: curriculumWords
+            .filter((word) => !lowConfidenceWordIds.has(String(word._id))
+                && !lowConfidenceWordValues.has(normalizeForGrading(word.word)))
+            .map((word) => word.word)
+    };
 };
 
 export async function queueSpellingCompletionEmail({ session, dbSession }) {
@@ -271,22 +284,86 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
     }], { session: dbSession }).then(([delivery]) => delivery);
 }
 
-export async function processDueSpellingEmails({ now = new Date(), limit = 25 } = {}) {
+export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWords, curriculumWords, timeZone = 'UTC' }) => {
+    const scheduledDate = new Date(session.scheduledAt).toLocaleString(undefined, { timeZone });
+    const wordList = (words) => words.map((word) => `<li style="padding:4px 0;">${escapeHtml(word)}</li>`).join('');
+    const lowConfidenceList = wordList(lowConfidenceWords);
+    const curriculumList = wordList(curriculumWords);
+    const portalUrl = process.env.PORTAL_URL || process.env.CLIENT_URL || '';
+    const subject = `Words to prepare for your spelling test on ${scheduledDate}`;
+    const text = [
+        `Your formal spelling test is scheduled for ${scheduledDate}.`,
+        '',
+        'Previously missed words to review:',
+        ...(lowConfidenceWords.length ? lowConfidenceWords.map((word) => `- ${word}`) : ['- None']),
+        '',
+        'Other words in the planned test:',
+        ...(curriculumWords.length ? curriculumWords.map((word) => `- ${word}`) : ['- None']),
+        '',
+        'The test may end early if the mistake limit is reached.',
+        portalUrl ? `Open the spelling portal: ${portalUrl}` : ''
+    ].filter((line) => line !== '').join('\n');
+    const html = xss(`
+        <div style="font-family:Segoe UI,Arial,sans-serif;color:#1a2436;max-width:600px;margin:0 auto;padding:24px;">
+            <h2 style="color:#2c5aa0;">Prepare for your spelling test</h2>
+            <p>Your formal spelling test is scheduled for <strong>${escapeHtml(scheduledDate)}</strong>.</p>
+            <p>Previously missed words to review:</p>
+            ${lowConfidenceList ? `<ul>${lowConfidenceList}</ul>` : '<p>None</p>'}
+            <p>Other words in the planned test:</p>
+            ${curriculumList ? `<ul>${curriculumList}</ul>` : '<p>None</p>'}
+            <p>The test may end early if the mistake limit is reached.</p>
+            ${portalUrl ? `<p><a href="${escapeHtml(portalUrl)}">Open the spelling portal</a></p>` : ''}
+        </div>
+    `);
+    return { subject, text, html };
+};
+
+export async function queueFormalSpellingTestWordListEmail({ session, lowConfidenceWords, curriculumWords, audience, timeZone, dbSession }) {
+    const student = await Student.findOne({ _id: session.student, school: session.school })
+        .populate('user', 'email')
+        .session(dbSession);
+    if (!student) throw new Error('Student not found while preparing formal spelling test email');
+    const recipients = resolveSpellingCompletionRecipients(student, audience);
+    if (recipients.length === 0) {
+        throw Object.assign(new Error('No email address is configured for the selected formal test email audience'), { statusCode: 400 });
+    }
+
+    const email = buildFormalSpellingTestWordListEmail({ session, lowConfidenceWords, curriculumWords, timeZone });
+    const [delivery] = await SpellingEmailDelivery.create([{
+        school: session.school,
+        session: session._id,
+        student: session.student,
+        senderUser: session.createdBy || null,
+        kind: 'formal-test-prep',
+        recipients,
+        ...email
+    }], { session: dbSession });
+    return delivery;
+}
+
+export async function processDueSpellingEmails({ now = new Date(), limit = 25, deliveryId = null } = {}) {
     const stats = { claimed: 0, sent: 0, failed: 0 };
     for (let index = 0; index < Math.min(Math.max(Number(limit) || 25, 1), 100); index += 1) {
         const delivery = await SpellingEmailDelivery.findOneAndUpdate(
-            { status: { $in: ['pending', 'failed'] }, attempts: { $lt: MAX_ATTEMPTS }, nextAttemptAt: { $lte: now } },
+            {
+                ...(deliveryId ? { _id: deliveryId } : {}),
+                status: { $in: ['pending', 'failed'] },
+                attempts: { $lt: MAX_ATTEMPTS },
+                nextAttemptAt: { $lte: now }
+            },
             { $set: { status: 'processing' }, $inc: { attempts: 1 } },
             { new: true, sort: { nextAttemptAt: 1, createdAt: 1 } }
         );
         if (!delivery) break;
         stats.claimed += 1;
-        await SpellingSession.updateOne(
-            { _id: delivery.session, school: delivery.school },
-            delivery.kind === 'retest-practice'
-                ? { $inc: { emailAttempts: 1 }, $set: { retestEmailStatus: 'pending' } }
-                : { $inc: { emailAttempts: 1 }, $set: { emailStatus: 'pending' } }
-        );
+        if (delivery.kind !== 'formal-test-prep') {
+            await SpellingSession.updateOne(
+                { _id: delivery.session, school: delivery.school },
+                delivery.kind === 'retest-practice'
+                    ? { $inc: { emailAttempts: 1 }, $set: { retestEmailStatus: 'pending' } }
+                    : { $inc: { emailAttempts: 1 }, $set: { emailStatus: 'pending' } }
+            );
+        }
         try {
             await sendTransactionalEmail({
                 to: delivery.recipients,
@@ -304,7 +381,7 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
                     { _id: delivery.session, school: delivery.school },
                     { $set: { retestEmailStatus: 'sent' } }
                 );
-            } else {
+            } else if (delivery.kind !== 'formal-test-prep') {
                 await SpellingSession.updateOne({ _id: delivery.session, school: delivery.school }, { $set: { emailStatus: 'sent', emailSentAt: new Date(), emailError: null } });
             }
             if (delivery.kind === 'passage') {
@@ -334,7 +411,7 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
                     { _id: delivery.session, school: delivery.school },
                     { $set: { retestEmailStatus: exhausted ? 'failed' : 'pending' } }
                 );
-            } else {
+            } else if (delivery.kind !== 'formal-test-prep') {
                 await SpellingSession.updateOne({ _id: delivery.session, school: delivery.school }, { $set: { emailStatus: exhausted ? 'failed' : 'pending', emailError: error.message } });
             }
             if (delivery.kind === 'passage') {
@@ -344,4 +421,10 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
         }
     }
     return stats;
+}
+
+export async function processSpellingEmailDelivery({ deliveryId }) {
+    if (!deliveryId) throw new Error('A spelling email delivery ID is required');
+    await processDueSpellingEmails({ limit: 1, deliveryId });
+    return SpellingEmailDelivery.findById(deliveryId).select('status lastError').lean();
 }

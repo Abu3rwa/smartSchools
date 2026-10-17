@@ -10,6 +10,7 @@ import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
 import {
     abandonSpellingSession,
     advanceClassWord,
+    cancelScheduledSpellingSession,
     completeSpellingSession,
     getCurrentSpellingItem,
     markSpellingAttemptCorrect,
@@ -90,6 +91,9 @@ export const startSession = asyncHandler(async (req, res) => {
         retestDeadline: req.body.retestDeadline,
         scheduledAt: req.body.scheduledAt,
         formalAssessment: req.body.formalAssessment === true,
+        formalTestWordListEmail: req.body.formalTestWordListEmail ?? false,
+        formalTestWordListEmailAudience: req.body.formalTestWordListEmailAudience ?? null,
+        formalTestWordListEmailTimezone: req.body.formalTestWordListEmailTimezone ?? 'UTC',
         curriculumGrade: req.body.curriculumGrade,
         curriculumWeek: req.body.curriculumWeek ? Number(req.body.curriculumWeek) : undefined,
         emailNotification: req.body.emailNotification ?? null,
@@ -358,6 +362,11 @@ export const completeSession = asyncHandler(async (req, res) => {
         reason: req.body?.reason
     });
     return res.status(200).json({ success: true, data: result });
+});
+
+export const cancelScheduledSession = asyncHandler(async (req, res) => {
+    const session = await cancelScheduledSpellingSession({ schoolId: req.schoolId, sessionId: req.params.id });
+    return res.status(200).json({ success: true, data: session });
 });
 
 export const abandonSession = asyncHandler(async (req, res) => {

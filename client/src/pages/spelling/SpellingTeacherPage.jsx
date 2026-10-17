@@ -23,6 +23,7 @@ import {
     fetchSpellingWords,
     selectSpelling,
     endSpellingSession,
+    cancelScheduledSpellingSession,
     startTeacherSpellingSession,
     submitTeacherSpellingAttempt
 } from '../../store/slices/spellingSlice';
@@ -324,7 +325,13 @@ const SpellingTeacherPage = () => {
         }
     }, []);
 
-    const startStudentSession = async (student, { mode = assessmentMode, scheduledAt = null, formalTest = false } = {}) => {
+    const startStudentSession = async (student, {
+        mode = assessmentMode,
+        scheduledAt = null,
+        formalTest = false,
+        formalTestWordListEmail = false,
+        formalTestWordListEmailAudience
+    } = {}) => {
         const level = rowLevels[student._id] || {};
         if (!student._id || !level.grade) return;
         setRowActionLoadingId(student._id);
@@ -339,7 +346,10 @@ const SpellingTeacherPage = () => {
                 passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true },
                 maxMistakesAllowed,
                 scheduledAt,
-                formalAssessment: formalTest
+                formalAssessment: formalTest,
+                formalTestWordListEmail,
+                formalTestWordListEmailAudience,
+                formalTestWordListEmailTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             }));
             if (startTeacherSpellingSession.fulfilled.match(result)) {
                 if (result.payload.curriculumGrade && result.payload.curriculumGrade !== level.grade) {
@@ -358,10 +368,20 @@ const SpellingTeacherPage = () => {
                     const messageKey = scheduledAt
                         ? 'formalTestScheduledToast'
                         : formalTest ? 'formalTestStartedToast' : 'sessionStarted';
-                    notify(t(messageKey, {
+                    const prepEmailStatus = result.payload.formalTestPrepEmail?.status;
+                    const prepEmailMessageKey = prepEmailStatus === 'sent'
+                        ? 'formalTestPrepEmailSent'
+                        : prepEmailStatus ? 'formalTestPrepEmailPending' : null;
+                    const prepEmailError = result.payload.formalTestPrepEmail?.lastError;
+                    const message = [
+                        t(messageKey, {
                         name: `${student.firstName} ${student.lastName}`,
                         date: scheduledAt ? new Date(scheduledAt).toLocaleString() : undefined
-                    }), 'success');
+                        }),
+                        prepEmailMessageKey ? t(prepEmailMessageKey) : '',
+                        prepEmailStatus !== 'sent' && prepEmailError ? prepEmailError : ''
+                    ].filter(Boolean).join(' ');
+                    notify(message, prepEmailStatus && prepEmailStatus !== 'sent' ? 'warning' : 'success');
                 }
                 await loadActiveSessions({ showLoading: false });
                 return true;
@@ -379,10 +399,12 @@ const SpellingTeacherPage = () => {
     };
 
     const startFormalTest = (student) => startStudentSession(student, { mode: 'self-serve', formalTest: true });
-    const scheduleFormalTest = (student, scheduledAt) => startStudentSession(student, {
+    const scheduleFormalTest = (student, scheduledAt, formalTestWordListEmail, formalTestWordListEmailAudience) => startStudentSession(student, {
         mode: 'self-serve',
         scheduledAt,
-        formalTest: true
+        formalTest: true,
+        formalTestWordListEmail,
+        formalTestWordListEmailAudience
     });
 
     const performEndRowActiveSession = async (student, rowActiveSession) => {
@@ -401,6 +423,25 @@ const SpellingTeacherPage = () => {
     const endRowActiveSession = async (student) => {
         const rowActiveSession = activeSessionMap[student._id];
         if (!rowActiveSession) return;
+
+        if (rowActiveSession.status === 'scheduled') {
+            requestConfirm(
+                t('cancelScheduledTest'),
+                t('cancelScheduledTestDescription', { name: student.firstName || t('student') }),
+                async () => {
+                    setRowActionLoadingId(student._id);
+                    try {
+                        const result = await dispatch(cancelScheduledSpellingSession(rowActiveSession._id));
+                        const succeeded = cancelScheduledSpellingSession.fulfilled.match(result);
+                        notify(succeeded ? t('scheduledTestCancelled') : (result.payload || t('sessionError')), succeeded ? 'success' : 'error');
+                        if (succeeded) await loadActiveSessions({ showLoading: false });
+                    } finally {
+                        setRowActionLoadingId(null);
+                    }
+                }
+            );
+            return;
+        }
 
         const currentSessionSentPassage = rowActiveSession.practicePassage?.status === 'sent';
         if (currentSessionSentPassage) {

@@ -2,16 +2,79 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import Student from '../models/Student.js';
+import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
+import SpellingPassage from '../models/SpellingPassage.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingWord from '../models/SpellingWord.js';
 import {
     getCurrentSpellingItem,
+    cancelScheduledSpellingSession,
     recordSpellingAttempt,
     startSpellingClassSession,
     startSpellingSession
 } from '../services/spellingSessionService.js';
+import { listSpellingSessions } from '../services/spellingReadService.js';
 import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
+
+test('active roster prioritizes a practice session over a future scheduled test', async (t) => {
+    const scheduledSession = {
+        _id: 'scheduled-session',
+        status: 'scheduled',
+        startedAt: new Date(Date.now() + 60 * 60 * 1000)
+    };
+    const practiceSession = {
+        _id: 'practice-session',
+        status: 'in-progress',
+        startedAt: new Date()
+    };
+    const query = (result) => ({
+        sort() { return this; },
+        limit() { return this; },
+        select() { return this; },
+        lean: async () => result
+    });
+
+    t.mock.method(SpellingSession, 'find', () => query([scheduledSession, practiceSession]));
+    t.mock.method(SpellingPassage, 'find', () => query([]));
+
+    const sessions = await listSpellingSessions({
+        schoolId: new mongoose.Types.ObjectId(),
+        studentId: new mongoose.Types.ObjectId(),
+        viewerRole: 'student',
+        activeOnly: true
+    });
+
+    assert.deepEqual(sessions.map((session) => session._id), ['practice-session', 'scheduled-session']);
+});
+
+test('cancelling a scheduled spelling session also cancels its pending preparation email', async (t) => {
+    const schoolId = new mongoose.Types.ObjectId();
+    const sessionId = new mongoose.Types.ObjectId();
+    const cancelledSession = { _id: sessionId, school: schoolId, status: 'abandoned' };
+    let emailCancellationFilter;
+
+    t.mock.method(mongoose, 'startSession', async () => ({
+        withTransaction: async (callback) => callback(),
+        endSession: async () => {}
+    }));
+    t.mock.method(SpellingSession, 'findOneAndUpdate', async (filter, update) => {
+        assert.equal(filter.status, 'scheduled');
+        assert.equal(update.$set.status, 'abandoned');
+        return cancelledSession;
+    });
+    t.mock.method(SpellingEmailDelivery, 'updateMany', async (filter, update) => {
+        emailCancellationFilter = filter;
+        assert.equal(update.$set.status, 'cancelled');
+    });
+
+    const result = await cancelScheduledSpellingSession({ schoolId, sessionId });
+
+    assert.equal(result, cancelledSession);
+    assert.equal(emailCancellationFilter.session, sessionId);
+    assert.equal(emailCancellationFilter.kind, 'formal-test-prep');
+    assert.deepEqual(emailCancellationFilter.status.$in, ['staging', 'pending']);
+});
 
 test('regular and formal sessions select pending missed words before curriculum words', async (t) => {
     let activeSession;

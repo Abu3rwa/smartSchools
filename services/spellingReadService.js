@@ -22,7 +22,7 @@ export async function listSpellingSessions({
     activeOnly = false
 }) {
     const query = activeOnly
-        ? { school: schoolId, status: 'in-progress' }
+        ? { school: schoolId, status: { $in: ['scheduled', 'in-progress'] } }
         : {
             school: schoolId,
             $or: [
@@ -41,9 +41,17 @@ export async function listSpellingSessions({
         .sort({ startedAt: -1 })
         .limit(Math.min(Math.max(Number(limit) || 50, 1), maxLimit))
         .select(activeOnly
-            ? 'student mode status startedAt mistakeCount currentItem nextSequence curriculumGrade curriculumWeek'
+            ? 'student mode status assessmentType scheduledAt startedAt mistakeCount currentItem nextSequence curriculumGrade curriculumWeek'
             : 'student mode status assessmentType scheduledAt startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError retestEmailStatus')
         .lean();
+    if (activeOnly) {
+        sessions.sort((first, second) => {
+            const firstPriority = first.status === 'in-progress' ? 0 : 1;
+            const secondPriority = second.status === 'in-progress' ? 0 : 1;
+            return firstPriority - secondPriority
+                || new Date(second.startedAt).getTime() - new Date(first.startedAt).getTime();
+        });
+    }
     if (viewerRole !== 'student') {
         const activeSessions = sessions.filter((session) => session.status === 'in-progress');
         const wordIds = activeSessions.map((session) => session.currentItem?.wordId).filter(Boolean);

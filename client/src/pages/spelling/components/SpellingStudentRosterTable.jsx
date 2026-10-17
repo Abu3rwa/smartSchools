@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, Menu, MenuItem, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormControlLabel, IconButton, InputLabel, Menu, MenuItem, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineEllipsisVertical } from 'react-icons/hi2';
@@ -30,6 +30,8 @@ const SpellingStudentRosterTable = ({
     const [actionsStudent, setActionsStudent] = useState(null);
     const [scheduleStudent, setScheduleStudent] = useState(null);
     const [scheduleDate, setScheduleDate] = useState('');
+    const [emailFormalTestWordList, setEmailFormalTestWordList] = useState(false);
+    const [formalTestEmailAudience, setFormalTestEmailAudience] = useState('student-and-parents');
     const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
     const minScheduleDate = new Date(Date.now() + 60 * 1000);
     minScheduleDate.setMinutes(minScheduleDate.getMinutes() - minScheduleDate.getTimezoneOffset());
@@ -39,6 +41,8 @@ const SpellingStudentRosterTable = ({
         const defaultDate = new Date(Date.now() + 5 * 60 * 1000);
         defaultDate.setMinutes(defaultDate.getMinutes() - defaultDate.getTimezoneOffset());
         setScheduleDate(defaultDate.toISOString().slice(0, 16));
+        setEmailFormalTestWordList(false);
+        setFormalTestEmailAudience('student-and-parents');
         setScheduleStudent(student);
         setActionsAnchor(null);
         setActionsStudent(null);
@@ -49,7 +53,12 @@ const SpellingStudentRosterTable = ({
         const scheduledAt = new Date(scheduleDate).toISOString();
         setScheduleSubmitting(true);
         try {
-            const succeeded = await onScheduleFormalTest(scheduleStudent, scheduledAt);
+            const succeeded = await onScheduleFormalTest(
+                scheduleStudent,
+                scheduledAt,
+                emailFormalTestWordList,
+                formalTestEmailAudience
+            );
             if (succeeded) setScheduleStudent(null);
         } finally {
             setScheduleSubmitting(false);
@@ -169,8 +178,27 @@ const SpellingStudentRosterTable = ({
                                         <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
                                             {rowActiveSession
                                                 ? <>
-                                                    <Button size="small" variant="contained" onClick={() => onOpenSessionReview(student, rowActiveSession)} disabled={rowBusy}>Open session</Button>
-                                                    <Button size="small" color="error" variant="outlined" onClick={() => onEndActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
+                                                    {rowActiveSession.status === 'scheduled' ? (
+                                                        <>
+                                                            <Chip
+                                                                size="small"
+                                                                color="info"
+                                                                label={t('scheduledFor', { date: new Date(rowActiveSession.scheduledAt).toLocaleString() })}
+                                                            />
+                                                            <Button
+                                                                size="small"
+                                                                variant="contained"
+                                                                onClick={() => onStartStudentSession(student)}
+                                                                disabled={rowBusy || !level.grade}
+                                                            >
+                                                                {t('startStudentSession')}
+                                                            </Button>
+                                                            <Button size="small" color="error" variant="outlined" onClick={() => onEndActiveSession(student)} disabled={rowBusy}>{t('cancelScheduledTest')}</Button>
+                                                        </>
+                                                    ) : <>
+                                                        <Button size="small" variant="contained" onClick={() => onOpenSessionReview(student, rowActiveSession)} disabled={rowBusy}>Open session</Button>
+                                                        <Button size="small" color="error" variant="outlined" onClick={() => onEndActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
+                                                    </>}
                                                 </>
                                                 : <Button size="small" variant="contained" onClick={() => onStartStudentSession(student)} disabled={rowBusy || !level.grade}>{t('startStudentSession')}</Button>}
                                             <Button size="small" variant="contained" onClick={() => onViewStudentSessions(student)} disabled={rowBusy}>
@@ -235,7 +263,7 @@ const SpellingStudentRosterTable = ({
             onClose={() => {
                 if (!scheduleSubmitting) setScheduleStudent(null);
             }}
-            maxWidth="xs"
+            maxWidth="sm"
             fullWidth
         >
             <DialogTitle>{t('scheduleFormalTest')}</DialogTitle>
@@ -255,6 +283,30 @@ const SpellingStudentRosterTable = ({
                         InputLabelProps={{ shrink: true }}
                         fullWidth
                     />
+                    <FormControlLabel
+                        control={(
+                            <Checkbox
+                                checked={emailFormalTestWordList}
+                                onChange={(event) => setEmailFormalTestWordList(event.target.checked)}
+                            />
+                        )}
+                        label={t('emailFormalTestWordList')}
+                    />
+                    {emailFormalTestWordList && (
+                        <FormControl fullWidth>
+                            <InputLabel id="formal-test-email-audience-label">{t('formalTestEmailAudience')}</InputLabel>
+                            <Select
+                                value={formalTestEmailAudience}
+                                labelId="formal-test-email-audience-label"
+                                label={t('formalTestEmailAudience')}
+                                onChange={(event) => setFormalTestEmailAudience(event.target.value)}
+                            >
+                                <MenuItem value="student-only">{t('studentOnly')}</MenuItem>
+                                <MenuItem value="parents-only">{t('parentsOnly')}</MenuItem>
+                                <MenuItem value="student-and-parents">{t('studentAndParents')}</MenuItem>
+                            </Select>
+                        </FormControl>
+                    )}
                     {scheduleDate && new Date(scheduleDate).getTime() <= Date.now() && (
                         <Typography color="error" variant="body2">{t('scheduledDateMustBeFuture')}</Typography>
                     )}

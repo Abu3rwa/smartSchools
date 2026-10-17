@@ -78,10 +78,20 @@ const SpellingStudentPage = () => {
             ? 10000
             : session.mode === 'self-serve' ? 8000 : 4000;
         const refreshSession = () => {
-            dispatch(fetchSpellingCurrentItem(session._id));
             if (session.status !== 'in-progress') {
                 dispatch(fetchSpellingHistory());
                 dispatch(fetchSpellingRetests());
+                dispatch(fetchActiveSpellingSession({ preserveExisting: true })).then((result) => {
+                    if (fetchActiveSpellingSession.fulfilled.match(result)
+                        && result.payload
+                        && String(result.payload._id) !== String(session._id)) {
+                        dispatch(fetchSpellingCurrentItem(result.payload._id));
+                    } else {
+                        dispatch(fetchSpellingCurrentItem(session._id));
+                    }
+                });
+            } else {
+                dispatch(fetchSpellingCurrentItem(session._id));
             }
         };
         const intervalId = window.setInterval(refreshSession, pollInterval);
