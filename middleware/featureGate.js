@@ -35,7 +35,7 @@ export const resolveSchoolFeatureContext = async (schoolId) => {
     }
 
     const [school, subscription] = await Promise.all([
-        School.findById(schoolId).select('subscription.plan settings.features settings.userPageAccess').lean(),
+        School.findById(schoolId).select('subscription.plan settings.features').lean(),
         Subscription.findOne({ school: schoolId }).lean()
     ]);
 

@@ -6,9 +6,11 @@ import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import MapPracticeAssignment from '../models/MapPracticeAssignment.js';
 import MapPracticeAttempt from '../models/MapPracticeAttempt.js';
 import MapPracticeSettings from '../models/MapPracticeSettings.js';
+import MapPracticeImportBatch from '../models/MapPracticeImportBatch.js';
 import MapTestRecord from '../models/MapTestRecord.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
+import { withTransaction } from '../utils/withTransaction.js';
 
 export const getMapPracticeSettings = asyncHandler(async (req, res) => {
   if (!['admin', 'teacher'].includes(req.user.role)) {
@@ -142,6 +144,66 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
   );
 
   res.status(201).json({ success: true, data: { assignment } });
+});
+
+export const deleteMapPracticeSet = asyncHandler(async (req, res) => {
+  if (!['admin', 'teacher'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Teacher access required.' });
+  }
+
+  const set = await MapPracticeSet.findOne({ _id: req.params.setId, school: req.schoolId }).lean();
+  if (!set) return res.status(404).json({ success: false, message: 'Practice set not found.' });
+  if (req.user.role === 'teacher' && !(await ensureTeacherCanAccessStudent({ req, studentId: set.student }))) {
+    return res.status(403).json({ success: false, message: 'Not authorized to delete this practice set.' });
+  }
+
+  const questions = await MapPracticeQuestion.find({ school: req.schoolId, set: set._id })
+    .select('skill')
+    .lean();
+  const skillIds = [...new Set(questions.map((question) => String(question.skill)))];
+  const removedSkillIds = [];
+  let deletedAttempts = 0;
+
+  await withTransaction(async (session) => {
+    const attemptDeletion = await MapPracticeAttempt.deleteMany({ school: req.schoolId, set: set._id }, { session });
+    deletedAttempts = attemptDeletion.deletedCount || 0;
+    await MapPracticeAssignment.deleteMany({ school: req.schoolId, set: set._id }, { session });
+    await MapPracticeQuestion.deleteMany({ school: req.schoolId, set: set._id }, { session });
+    await MapPracticeSet.deleteOne({ _id: set._id, school: req.schoolId }, { session });
+    await MapPracticeImportBatch.updateMany(
+      { school: req.schoolId, 'files.firstSetId': set._id },
+      { $set: { 'files.$[file].firstSetId': null } },
+      { session, arrayFilters: [{ 'file.firstSetId': set._id }] },
+    );
+
+    for (const skillId of skillIds) {
+      const skillStillUsed = await MapPracticeQuestion.exists({
+        school: req.schoolId,
+        plan: set.plan,
+        skill: skillId,
+      }).session(session);
+      if (!skillStillUsed) removedSkillIds.push(skillId);
+    }
+
+    if (removedSkillIds.length) {
+      await MapPracticePlanSkill.deleteMany({
+        school: req.schoolId,
+        plan: set.plan,
+        student: set.student,
+        skill: { $in: removedSkillIds },
+      }, { session });
+      await MapPracticePlan.updateOne(
+        { _id: set.plan, school: req.schoolId },
+        { $pull: { skills: { $in: removedSkillIds } } },
+        { session },
+      );
+    }
+  });
+
+  res.json({
+    success: true,
+    data: { setId: set._id, deletedAttempts, removedSkillIds },
+  });
 });
 
 export const getMapPracticeAssignmentQuestions = asyncHandler(async (req, res) => {

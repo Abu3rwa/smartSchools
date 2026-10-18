@@ -3,25 +3,33 @@ import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle } from
 import { useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../config/api';
-import { selectIsAuthenticated } from '../store/slices/authSlice';
+import { selectIsAuthenticated, selectUser } from '../store/slices/authSlice';
 
 const GoogleReauthPrompt = () => {
   const location = useLocation();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectUser);
+  const canReconnectGoogle = ['admin', 'teacher', 'department_principal', 'staff'].includes(user?.role);
   const [open, setOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!canReconnectGoogle) {
+      setOpen(false);
+      setError('');
+      return undefined;
+    }
     const handleReconnectRequired = () => {
       setError('');
       setOpen(true);
     };
     window.addEventListener('google-reauth-required', handleReconnectRequired);
     return () => window.removeEventListener('google-reauth-required', handleReconnectRequired);
-  }, []);
+  }, [canReconnectGoogle]);
 
   useEffect(() => {
+    if (!canReconnectGoogle) return;
     const params = new URLSearchParams(location.search);
     const reconnectError = params.get('gmail_error');
     if (!reconnectError) return;
@@ -29,10 +37,10 @@ const GoogleReauthPrompt = () => {
       ? 'Google sign-in was cancelled. Reconnect to send email from your own account.'
       : `Google sign-in could not be completed (${reconnectError}). Please try again.`);
     setOpen(true);
-  }, [location.search]);
+  }, [canReconnectGoogle, location.search]);
 
   useEffect(() => {
-    if (!isAuthenticated) return undefined;
+    if (!isAuthenticated || !canReconnectGoogle) return undefined;
     let checking = false;
     const checkGoogleAuthorization = async () => {
       if (checking || document.visibilityState === 'hidden') return;
@@ -55,7 +63,7 @@ const GoogleReauthPrompt = () => {
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', checkGoogleAuthorization);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, canReconnectGoogle]);
 
   const reconnectGoogle = async () => {
     setConnecting(true);
@@ -73,6 +81,8 @@ const GoogleReauthPrompt = () => {
       setConnecting(false);
     }
   };
+
+  if (!canReconnectGoogle) return null;
 
   return (
     <Dialog open={open} onClose={() => !connecting && setOpen(false)} aria-labelledby="google-reauth-title">

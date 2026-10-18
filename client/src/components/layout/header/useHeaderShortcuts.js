@@ -1,27 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../../config/api';
 import { MAX_SHORTCUTS, SHORTCUT_CANDIDATES } from './shortcutCandidates';
-import { getSchoolPageKeyForPath, isSchoolPageLocked } from '../../../constants/schoolPageAccess';
 import {
     getShortcutsStorageKey,
     normalizeShortcutPaths,
     resolveCurrentShortcutPath,
 } from './shortcutUtils';
 
-export const useHeaderShortcuts = ({ user, schoolFeatures, pageAccess, locationPathname }) => {
+export const useHeaderShortcuts = ({ user, schoolFeatures, locationPathname }) => {
     const [_revision, setRevision] = useState(0);
-    const [serverDeniedPages, setServerDeniedPages] = useState(() => new Set());
     const didInitialBackendSyncRef = useRef(false);
-
-    useEffect(() => {
-        const handlePageLocked = (event) => {
-            const pageKey = event.detail?.page;
-            if (!pageKey) return;
-            setServerDeniedPages((current) => new Set(current).add(pageKey));
-        };
-        window.addEventListener('school-page-locked', handlePageLocked);
-        return () => window.removeEventListener('school-page-locked', handlePageLocked);
-    }, []);
 
     const hasPermission = useCallback((permission) => {
         if (!user) return false;
@@ -44,18 +32,11 @@ export const useHeaderShortcuts = ({ user, schoolFeatures, pageAccess, locationP
         return true;
     }, [hasPermission, schoolFeatures, user]);
 
-    const isShortcutLocked = useCallback((item) => (
-        Boolean(item) && (
-            isSchoolPageLocked(pageAccess, user?.role, getSchoolPageKeyForPath(item.path)) ||
-            serverDeniedPages.has(getSchoolPageKeyForPath(item.path))
-        )
-    ), [pageAccess, serverDeniedPages, user?.role]);
-
     const availableShortcuts = useMemo(
         () => SHORTCUT_CANDIDATES
             .filter((item) => isShortcutAccessible(item))
-            .map((item) => ({ ...item, locked: isShortcutLocked(item) })),
-        [isShortcutAccessible, isShortcutLocked],
+            .map((item) => ({ ...item })),
+        [isShortcutAccessible],
     );
 
     const shortcutsStorageKey = useMemo(() => getShortcutsStorageKey(user), [user]);
@@ -168,7 +149,7 @@ export const useHeaderShortcuts = ({ user, schoolFeatures, pageAccess, locationP
             nextPaths = selectedShortcutPaths.filter((item) => item !== path);
         } else {
             const shortcut = availableShortcuts.find((item) => item.path === path);
-            if (!shortcut || shortcut.locked) return;
+            if (!shortcut) return;
             if (selectedShortcutPaths.length >= MAX_SHORTCUTS) return;
             nextPaths = [...selectedShortcutPaths, path];
         }
@@ -191,11 +172,11 @@ export const useHeaderShortcuts = ({ user, schoolFeatures, pageAccess, locationP
     const currentShortcut = availableShortcuts.find((item) => item.path === currentShortcutPath);
     const canPinCurrentPage = !!currentShortcut &&
         !selectedShortcutPaths.includes(currentShortcutPath) &&
-        !currentShortcut.locked;
+        selectedShortcutPaths.length < MAX_SHORTCUTS;
 
     const pinCurrentPage = useCallback(() => {
         if (!currentShortcutPath) return;
-        if (!currentShortcut || currentShortcut.locked) return;
+        if (!currentShortcut) return;
         if (selectedShortcutPaths.includes(currentShortcutPath)) return;
         if (selectedShortcutPaths.length >= MAX_SHORTCUTS) return;
 

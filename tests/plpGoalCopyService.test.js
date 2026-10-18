@@ -106,7 +106,7 @@ test('normalizeDestinationRecordIds removes blanks and duplicate selections', ()
     );
 });
 
-test('destination compatibility enforces same school, class, academic year and round', () => {
+test('destination compatibility enforces same school, class, academic year and round but permits any record status', () => {
     const source = {
         school: 'school-1',
         class: 'class-1',
@@ -125,5 +125,6 @@ test('destination compatibility enforces same school, class, academic year and r
     assert.equal(isCompatibleDestinationRecord(source, { ...destination, academicYear: '2025-2026' }), false);
     assert.equal(isCompatibleDestinationRecord(source, { ...destination, cycle: 'cycle-2' }), false);
     assert.equal(isCompatibleDestinationRecord(source, { ...destination, student: 'student-1' }), false);
-    assert.equal(isCompatibleDestinationRecord(source, { ...destination, status: 'locked' }), false);
+    assert.equal(isCompatibleDestinationRecord(source, { ...destination, status: 'submitted' }), true);
+    assert.equal(isCompatibleDestinationRecord(source, { ...destination, status: 'locked' }), true);
 });

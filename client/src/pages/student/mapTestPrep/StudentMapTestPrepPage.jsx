@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../../config/api';
-import { getMapPracticeSetProgress } from './studentMapPracticeProgress';
+import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress } from './studentMapPracticeProgress';
 import './StudentMapTestPrepPage.css';
 
 const StudentMapTestPrepPage = () => {
@@ -70,11 +70,12 @@ const StudentMapTestPrepPage = () => {
       const nextQuestions = Array.isArray(assignmentData.questions) ? assignmentData.questions : [];
       const attemptResponse = await api.post(`/map-test-prep/practice/assignments/${selectedAssignment._id}/start`);
       const attemptData = attemptResponse.data?.data || {};
+      const attemptState = getMapPracticeAttemptState(nextQuestions, attemptData.attempt);
       setAssignment(assignmentData.assignment || selectedAssignment);
       setQuestions(nextQuestions);
       setAttempt(attemptData.attempt || null);
-      setCurrentIndex(0);
-      setLocalAnswers({});
+      setCurrentIndex(attemptState.currentIndex);
+      setLocalAnswers(attemptState.answers);
       setResultSummary(null);
       if (!attemptData.attempt?._id) {
         setMessage('The set is ready. Start answering when you are ready.');
@@ -301,6 +302,7 @@ const StudentMapTestPrepPage = () => {
                     {(() => {
                       const progress = getMapPracticeSetProgress(home?.attempts || [], assignmentItem.set?._id, assignmentItem.set?.questionCount || 0);
                       const setAttempt = home?.attempts?.find((item) => String(item.set?._id || item.set) === String(assignmentItem.set?._id));
+                      const action = getMapPracticeSetAction(setAttempt, progress);
                       return (
                         <>
                     <div className="student-map-prep-card-header">
@@ -312,8 +314,8 @@ const StudentMapTestPrepPage = () => {
                       <span>{progress.answered} of {progress.total} answered</span>
                       <div className="student-map-prep-progress-mini-bar"><i style={{ width: `${progress.percentage}%` }} /></div>
                     </div>
-                    <button type="button" className="btn btn-primary" onClick={() => startAssignment(assignmentItem)}>
-                      {setAttempt?.status === 'in_progress' ? 'Continue' : 'Start'}
+                    <button type="button" className="btn btn-primary" disabled={action.disabled} onClick={() => startAssignment(assignmentItem)}>
+                      {action.label}
                     </button>
                         </>
                       );

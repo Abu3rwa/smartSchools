@@ -128,13 +128,6 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        if (status === 423 && error.response?.data?.code === 'SCHOOL_PAGE_LOCKED') {
-            window.dispatchEvent(new CustomEvent('school-page-locked', {
-                detail: { page: error.response.data.page }
-            }));
-            return Promise.reject(error);
-        }
-
         if (error.response?.data?.code === 'GMAIL_REAUTH_REQUIRED') {
             window.dispatchEvent(new CustomEvent('google-reauth-required'));
             return Promise.reject(error);

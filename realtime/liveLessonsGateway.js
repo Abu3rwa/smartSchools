@@ -151,42 +151,6 @@ const persistPresence = async (session, socket, action, reason) => {
   await emitRoster(session);
 };
 
-const answerStateForTeacher = async (session, slide) => {
-  const students = await getSessionStudents(session);
-  const responses = await LiveResponse.find({
-    sessionId: session._id,
-    slideId: String(slide._id),
-  }).lean();
-  const responseByStudent = new Map(responses.map((response) => [String(response.studentId), response]));
-  const studentRows = students.map((student) => {
-    const studentId = String(student.studentId);
-    const response = responseByStudent.get(studentId);
-    return {
-      studentId,
-      name: student.name,
-      status: response ? (response.isCorrect ? "correct" : "wrong") : "unanswered",
-      selectedOptionId: response?.selectedOptionId || null,
-      latencyMs: response?.latencyMs ?? null,
-    };
-  });
-  return {
-    slideId: String(slide._id),
-    kind: slide.question.kind,
-    totalStudents: studentRows.length,
-    answered: responses.length,
-    correctCount: responses.filter((response) => response.isCorrect).length,
-    wrongCount: responses.filter((response) => !response.isCorrect).length,
-    unansweredCount: Math.max(0, studentRows.length - responses.length),
-    perOption: Object.fromEntries(
-      slide.question.options.map((option) => [
-        option.id,
-        responses.filter((response) => response.selectedOptionId === option.id).length,
-      ]),
-    ),
-    students: studentRows,
-  };
-};
-
 const handleAction = async (socket, message) => {
   const { action, data = {}, requestId } = message;
   const session = await LiveSession.findOne({
@@ -281,8 +245,6 @@ const handleAction = async (socket, message) => {
       submittedAt,
     );
     send(socket, { type: "ack", requestId, ok: true, data: { locked: true } });
-    const answers = await answerStateForTeacher(session, slide);
-    broadcast(session._id, { type: "answers:update", data: answers }, true);
     return;
   }
 
@@ -309,8 +271,20 @@ const handleAction = async (socket, message) => {
     session.status = "live";
     session.paused = false;
     session.startedAt = new Date();
+    const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
+    session.questionOpen = Boolean(
+      slide?.question && !session.revealedSlideIds.includes(String(slide._id)),
+    );
     await session.save();
     await appendLiveEvent(session, "session:started", { role: "teacher", userId: socket.__liveUserId });
+    if (session.questionOpen) {
+      await appendLiveEvent(
+        session,
+        "question:opened",
+        { role: "teacher", userId: socket.__liveUserId },
+        { slideId: String(slide._id) },
+      );
+    }
   } else if (action === "session:pause" || action === "session:resume") {
     if (session.status !== "live") {
       return fail(socket, requestId, "BAD_STATE", "Only a live session can be paused or resumed.");
@@ -319,35 +293,66 @@ const handleAction = async (socket, message) => {
     if (Boolean(session.paused) === paused) {
       return fail(socket, requestId, "BAD_STATE", paused ? "The session is already paused." : "The session is not paused.");
     }
+    const currentSlide = session.lessonSnapshot.slides[session.currentSlideIndex];
     if (paused) {
       session.paused = true;
       session.pausedAt = new Date();
+      if (session.questionOpen) {
+        session.questionOpen = false;
+        await appendLiveEvent(
+          session,
+          "question:closed",
+          { role: "teacher", userId: socket.__liveUserId },
+          { slideId: String(currentSlide._id) },
+        );
+      }
     } else {
       resumeLiveSessionPause(session);
+      session.questionOpen = Boolean(
+        currentSlide?.question && !session.revealedSlideIds.includes(String(currentSlide._id)),
+      );
     }
-    if (paused && session.questionOpen) session.questionOpen = false;
     await session.save();
     await appendLiveEvent(
       session,
       paused ? "session:paused" : "session:resumed",
       { role: "teacher", userId: socket.__liveUserId },
     );
+    if (!paused && session.questionOpen) {
+      await appendLiveEvent(
+        session,
+        "question:opened",
+        { role: "teacher", userId: socket.__liveUserId },
+        { slideId: String(currentSlide._id) },
+      );
+    }
   } else if (action === "slide:change") {
     const index = Number(data.index);
     if (!Number.isInteger(index) || index < 0 || index >= session.lessonSnapshot.slides.length) {
       return fail(socket, requestId, "VALIDATION", "Slide index is out of range.");
     }
     if (session.status !== "live") return fail(socket, requestId, "BAD_STATE", "Start the lesson before changing slides.");
-    if (session.questionOpen) {
-      const current = session.lessonSnapshot.slides[session.currentSlideIndex];
+    const current = session.lessonSnapshot.slides[session.currentSlideIndex];
+    if (session.questionOpen && current?.question) {
       session.questionOpen = false;
       await appendLiveEvent(session, "question:closed", { role: "teacher", userId: socket.__liveUserId }, { slideId: String(current._id) });
     }
     session.currentSlideIndex = index;
     session.slideHidden = false;
-    await session.save();
     const slide = session.lessonSnapshot.slides[index];
+    session.questionOpen = Boolean(
+      slide?.question && !session.revealedSlideIds.includes(String(slide._id)),
+    );
+    await session.save();
     await appendLiveEvent(session, "slide:changed", { role: "teacher", userId: socket.__liveUserId }, { index, slideId: String(slide._id) });
+    if (session.questionOpen) {
+      await appendLiveEvent(
+        session,
+        "question:opened",
+        { role: "teacher", userId: socket.__liveUserId },
+        { slideId: String(slide._id) },
+      );
+    }
   } else if (action === "slide:hide") {
     if (session.status !== "live" || typeof data.hidden !== "boolean") {
       return fail(socket, requestId, "VALIDATION", "A live session and a boolean hidden value are required.");
@@ -368,21 +373,20 @@ const handleAction = async (socket, message) => {
       { role: "teacher", userId: socket.__liveUserId },
       { enabled: data.enabled },
     );
-  } else if (action === "question:open" || action === "question:close") {
-    const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
-    if (session.status !== "live" || !slide?.question) {
-      return fail(socket, requestId, "BAD_STATE", "The current slide is not a live question.");
-    }
-    const opening = action === "question:open";
-    session.questionOpen = opening;
-    await session.save();
-    await appendLiveEvent(session, opening ? "question:opened" : "question:closed", { role: "teacher", userId: socket.__liveUserId }, { slideId: String(slide._id) });
   } else if (action === "results:reveal") {
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     if (session.status !== "live" || !slide?.question) {
       return fail(socket, requestId, "BAD_STATE", "The current slide is not a live question.");
     }
     session.revealedSlideIds.addToSet(String(slide._id));
+    if (session.questionOpen) {
+      await appendLiveEvent(
+        session,
+        "question:closed",
+        { role: "teacher", userId: socket.__liveUserId },
+        { slideId: String(slide._id) },
+      );
+    }
     session.questionOpen = false;
     await session.save();
     await appendLiveEvent(session, "results:revealed", { role: "teacher", userId: socket.__liveUserId }, { slideId: String(slide._id) });

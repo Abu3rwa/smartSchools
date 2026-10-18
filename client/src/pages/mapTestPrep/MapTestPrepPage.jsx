@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import api from '../../config/api';
 import { getMapPracticeImportAction } from './mapPracticeImportState';
 import './MapTestPrepPage.css';
@@ -83,6 +83,7 @@ const MapTestPrepPage = () => {
   const [rosterStudentDetailsLoading, setRosterStudentDetailsLoading] = useState(false);
   const [rosterStudentDetailsError, setRosterStudentDetailsError] = useState('');
   const [rosterAssigningSetId, setRosterAssigningSetId] = useState(null);
+  const [rosterDeletingSetId, setRosterDeletingSetId] = useState(null);
   const [rosterAssignmentDueDates, setRosterAssignmentDueDates] = useState({});
   const fileInputRef = useRef(null);
   const [settings, setSettings] = useState({
@@ -163,6 +164,28 @@ const MapTestPrepPage = () => {
       setRosterStudentDetailsError(requestError.response?.data?.message || t('mapTestPrep:overview.details.assignFailed'));
     } finally {
       setRosterAssigningSetId(null);
+    }
+  };
+
+  const deleteRosterSet = async (set) => {
+    if (!window.confirm(t('mapTestPrep:overview.details.deleteSetConfirm', { title: set.title }))) return;
+    const setId = String(set._id);
+    setRosterDeletingSetId(setId);
+    setRosterStudentDetailsError('');
+    try {
+      const response = await api.delete(`/map-test-prep/practice/sets/${setId}`);
+      const removedSkillIds = new Set((response.data?.data?.removedSkillIds || []).map(String));
+      setRosterStudentDetails((current) => ({
+        ...current,
+        sets: (current?.sets || []).filter((item) => String(item._id) !== setId),
+        assignments: (current?.assignments || []).filter((item) => String(item.set?._id || item.set) !== setId),
+        attempts: (current?.attempts || []).filter((item) => String(item.set) !== setId),
+        skills: (current?.skills || []).filter((item) => !removedSkillIds.has(String(item.skill?._id || item.skill))),
+      }));
+    } catch (requestError) {
+      setRosterStudentDetailsError(requestError.response?.data?.message || t('mapTestPrep:overview.details.deleteSetFailed'));
+    } finally {
+      setRosterDeletingSetId(null);
     }
   };
 
@@ -284,6 +307,25 @@ const MapTestPrepPage = () => {
       dispatchImport({ type: 'IMPORT_DONE', result: response.data?.data || {} });
       await loadClasses();
     } catch (requestError) {
+      if (importState.token) {
+        try {
+          let statusResponse;
+          for (let attempt = 0; attempt < 4; attempt += 1) {
+            statusResponse = await api.get(`/map-test-prep/practice/import/status/${encodeURIComponent(importState.token)}`);
+            if (statusResponse.data?.data?.committed) break;
+            if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          }
+          const committedImport = statusResponse?.data?.data;
+          if (committedImport?.committed) {
+            dispatchImport({ type: 'IMPORT_DONE', result: committedImport });
+            await loadClasses();
+            return;
+          }
+        } catch {
+          // Keep the original commit error visible if the status check also fails.
+        }
+      }
+
       const serverMessage = requestError.response?.data?.message;
       const requestId = requestError.response?.data?.requestId;
       const message = serverMessage
@@ -320,26 +362,6 @@ const MapTestPrepPage = () => {
     ? rosterStudents.filter((student) => String(student._id) === selectedRosterStudentId)
     : rosterStudents;
 
-  const mapScoreHistory = useMemo(() => {
-    const scoreByDate = new Map();
-    (rosterStudentDetails?.mapRecords || []).forEach((record) => {
-      const evidence = record.mapEvidence || [];
-      const subject = record.importedSubject || evidence[0]?.subject;
-      const score = record.ritScore !== null && record.ritScore !== undefined && record.ritScore !== '' && Number.isFinite(Number(record.ritScore))
-        ? Number(record.ritScore)
-        : Number(evidence.find((item) => item.ritScore !== null && item.ritScore !== undefined && item.ritScore !== '' && Number.isFinite(Number(item.ritScore)))?.ritScore);
-      const date = record.testDate || evidence[0]?.assessmentDate || record.createdAt;
-      if (!subject || !Number.isFinite(score) || !date) return;
-      const dateKey = new Date(date).toISOString().slice(0, 10);
-      const point = scoreByDate.get(dateKey) || { dateKey, date: new Date(date).toLocaleDateString() };
-      point[subject] = score;
-      scoreByDate.set(dateKey, point);
-    });
-    return [...scoreByDate.values()].sort((first, second) => first.dateKey.localeCompare(second.dateKey));
-  }, [rosterStudentDetails]);
-
-  const mapScoreSubjects = useMemo(() => [...new Set(mapScoreHistory.flatMap((point) => Object.keys(point).filter((key) => key !== 'date' && key !== 'dateKey')))], [mapScoreHistory]);
-
   const practiceScoreHistory = useMemo(() => (rosterStudentDetails?.attempts || [])
     .filter((attempt) => attempt.submittedAt && Number(attempt.maxScore) > 0)
     .map((attempt) => ({
@@ -356,7 +378,7 @@ const MapTestPrepPage = () => {
         const skill = answer.question?.skill;
         if (answer.isCorrect === null || answer.isCorrect === undefined || !skill) return;
         const key = String(skill._id || skill.code);
-        const stat = bySkill.get(key) || { name: skill.name || skill.code, total: 0, correct: 0 };
+        const stat = bySkill.get(key) || { key, name: skill.name || skill.code, total: 0, correct: 0 };
         stat.total += 1;
         if (answer.isCorrect) stat.correct += 1;
         bySkill.set(key, stat);
@@ -493,20 +515,6 @@ const MapTestPrepPage = () => {
                     <>
                       <div className="map-roster-chart-grid">
                         <section className="map-roster-chart-card">
-                          <h4>{t('mapTestPrep:overview.details.mapScoreTrend')}</h4>
-                          {mapScoreHistory.length ? (
-                            <ResponsiveContainer width="100%" height={280}>
-                              <LineChart data={mapScoreHistory}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" />
-                                <YAxis domain={['auto', 'auto']} />
-                                <Tooltip />
-                                {mapScoreSubjects.map((subject, index) => <Line key={subject} type="monotone" dataKey={subject} name={subject} stroke={['#0d9488', '#6366f1', '#f59e0b', '#ec4899'][index % 4]} connectNulls dot={{ r: 4 }} />)}
-                              </LineChart>
-                            </ResponsiveContainer>
-                          ) : <p>{t('mapTestPrep:overview.details.noMapScores')}</p>}
-                        </section>
-                        <section className="map-roster-chart-card">
                           <h4>{t('mapTestPrep:overview.details.practiceTrend')}</h4>
                           {practiceScoreHistory.length ? (
                             <ResponsiveContainer width="100%" height={280}>
@@ -523,6 +531,11 @@ const MapTestPrepPage = () => {
                       </div>
                       <section className="map-roster-chart-card map-roster-skill-chart">
                         <h4>{t('mapTestPrep:overview.details.skillAccuracy')}</h4>
+                                        <div className="map-skill-accuracy-legend" aria-label={t('mapTestPrep:overview.details.accuracyLevels')}>
+                                          <span><i className="low" />{t('mapTestPrep:overview.details.needsSupport')}</span>
+                          <span><i className="medium" />{t('mapTestPrep:overview.details.developingAccuracy')}</span>
+                          <span><i className="high" />{t('mapTestPrep:overview.details.strongAccuracy')}</span>
+                        </div>
                         {practiceSkillPerformance.length ? (
                           <ResponsiveContainer width="100%" height={Math.max(260, practiceSkillPerformance.length * 38)}>
                             <BarChart data={practiceSkillPerformance} layout="vertical" margin={{ left: 12, right: 24 }}>
@@ -530,14 +543,22 @@ const MapTestPrepPage = () => {
                               <XAxis type="number" domain={[0, 100]} unit="%" />
                               <YAxis type="category" dataKey="name" width={150} />
                               <Tooltip formatter={(value, _name, item) => [`${value}% (${item.payload.correct}/${item.payload.total})`, t('mapTestPrep:overview.details.skillAccuracy')]} />
-                              <Bar dataKey="accuracy" name={t('mapTestPrep:overview.details.skillAccuracy')} fill="#0d9488" radius={[0, 5, 5, 0]} />
+                              <Bar dataKey="accuracy" name={t('mapTestPrep:overview.details.skillAccuracy')} radius={[0, 5, 5, 0]}>
+                                {practiceSkillPerformance.map((skill) => (
+                                  <Cell
+                                    key={skill.key}
+                                    fill={skill.accuracy < 60 ? '#dc2626' : skill.accuracy < 80 ? '#f59e0b' : '#16a34a'}
+                                  />
+                                ))}
+                              </Bar>
                             </BarChart>
                           </ResponsiveContainer>
                         ) : <p>{t('mapTestPrep:overview.details.noSkillResults')}</p>}
                       </section>
-                      <section className="map-roster-map-records">
-                        <h4>{t('mapTestPrep:overview.details.mapDetails')}</h4>
-                        {(rosterStudentDetails.mapRecords || []).length ? rosterStudentDetails.mapRecords.map((record) => {
+                      {(rosterStudentDetails.mapRecords || []).length > 0 && (
+                        <section className="map-roster-map-records">
+                          <h4>{t('mapTestPrep:overview.details.mapDetails')}</h4>
+                          {rosterStudentDetails.mapRecords.map((record) => {
                           const subject = record.importedSubject || record.mapEvidence?.[0]?.subject || '—';
                           const rit = record.ritScore ?? record.mapEvidence?.find((item) => item.ritScore !== null && item.ritScore !== undefined)?.ritScore;
                           const areas = record.domainScores || [];
@@ -566,8 +587,9 @@ const MapTestPrepPage = () => {
                               )}
                             </article>
                           );
-                        }) : <p>{t('mapTestPrep:overview.details.noMapScores')}</p>}
-                      </section>
+                          })}
+                        </section>
+                      )}
                       {rosterStudentDetails.plans?.length ? rosterStudentDetails.plans.map((plan) => {
                       const planId = String(plan._id);
                       const planSets = (rosterStudentDetails.sets || []).filter((set) => String(set.plan) === planId);
@@ -592,6 +614,7 @@ const MapTestPrepPage = () => {
                                   <div><strong>{set.title}</strong><span>{t('mapTestPrep:overview.details.setQuestions', { count: set.questionCount || 0 })} · {t(`mapTestPrep:overview.details.setStatus.${set.status}`)}</span></div>
                                   <div className="map-roster-assignment-control">
                                     {assignment ? <span>{t('mapTestPrep:overview.details.assigned')}{assignment.dueDate ? ` · ${new Date(assignment.dueDate).toLocaleDateString()}` : ''}</span> : <><span>{t('mapTestPrep:overview.details.notAssigned')}</span><label><span>{t('mapTestPrep:overview.details.dueDate')}</span><input type="date" value={rosterAssignmentDueDates[setId] || ''} onChange={(event) => setRosterAssignmentDueDates((current) => ({ ...current, [setId]: event.target.value }))} /></label><button type="button" className="btn btn-primary" disabled={rosterAssigningSetId === setId} onClick={() => void assignRosterSet(plan, set)}>{rosterAssigningSetId === setId ? t('mapTestPrep:overview.details.assigning') : t('mapTestPrep:overview.details.assign')}</button></>}
+                                    <button type="button" className="btn btn-secondary map-set-delete-button" disabled={rosterDeletingSetId === setId} onClick={() => void deleteRosterSet(set)}>{rosterDeletingSetId === setId ? t('mapTestPrep:overview.details.deletingSet') : t('mapTestPrep:overview.details.deleteSet')}</button>
                                     {attempt && <small>{t('mapTestPrep:overview.details.attemptStatus', { status: t(`mapTestPrep:overview.details.attempt.${attempt.status}`), score: attempt.maxScore ? `${attempt.score}/${attempt.maxScore}` : '—' })}</small>}
                                   </div>
                                 </article>

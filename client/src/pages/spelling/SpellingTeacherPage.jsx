@@ -9,7 +9,6 @@ import { downloadBlob, filenameFromContentDisposition } from '../../utils/downlo
 import { downloadStudentSpellingDetailsDocx } from '../../services/spellingDetailsDocxExport';
 import './SpellingTeacherPage.css';
 import TeacherSessionDialog from './components/TeacherSessionDialog';
-import SpellingClassSessionControls from './components/SpellingClassSessionControls';
 import SpellingStudentRosterTable from './components/SpellingStudentRosterTable';
 import SpellingCurriculumTab from './components/SpellingCurriculumTab';
 import SpellingSettingsTab from './components/SpellingSettingsTab';
@@ -62,10 +61,6 @@ const SpellingTeacherPage = () => {
     const [message, setMessage] = useState('');
     const [messageSeverity, setMessageSeverity] = useState('info');
     const [loading, setLoading] = useState(false);
-    const [classStarting, setClassStarting] = useState(false);
-    const [assessmentMode, setAssessmentMode] = useState('self-serve');
-    const [classGrade, setClassGrade] = useState('KG');
-    const [classGradeProgress, setClassGradeProgress] = useState({ week: null, status: 'loading', error: '' });
     const [maxMistakesAllowed, setMaxMistakesAllowed] = useState(3);
     const [retestIntervalDays, setRetestIntervalDays] = useState(7);
     const [gradebookSubjectId, setGradebookSubjectId] = useState('');
@@ -76,8 +71,6 @@ const SpellingTeacherPage = () => {
     const [passageStyle, setPassageStyle] = useState('sentence-list');
     const [dictationEnabled, setDictationEnabled] = useState(false);
     const [dictationAutoPlay, setDictationAutoPlay] = useState(true);
-    const [classDefaults, setClassDefaults] = useState(null);
-    const [sessionOverrideOpen, setSessionOverrideOpen] = useState(false);
     const [importFile, setImportFile] = useState(null);
     const [importPreview, setImportPreview] = useState(null);
     const [importing, setImporting] = useState(false);
@@ -91,7 +84,7 @@ const SpellingTeacherPage = () => {
     const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', description: '', onConfirm: null });
     const [endSessionPassageReview, setEndSessionPassageReview] = useState(null);
     const [sessionsStudent, setSessionsStudent] = useState(null);
-    const [wordFilters, setWordFilters] = useState({ grade: 'KG', week: '', category: '' });
+    const [wordFilters, setWordFilters] = useState({ grade: '', week: '', category: '' });
     const [deletingWordId, setDeletingWordId] = useState(null);
     const [correctingAttemptId, setCorrectingAttemptId] = useState(null);
     const [rowLevels, setRowLevels] = useState({});
@@ -100,8 +93,6 @@ const SpellingTeacherPage = () => {
     const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
     const [studentHistoryMap, setStudentHistoryMap] = useState({});
     const [activeSessionMap, setActiveSessionMap] = useState({});
-    const activeSessionMapRef = useRef(activeSessionMap);
-    activeSessionMapRef.current = activeSessionMap;
     const activeSessionRequestRef = useRef(false);
     const [sessionsLoading, setSessionsLoading] = useState(false);
     const [sessionsError, setSessionsError] = useState('');
@@ -151,34 +142,11 @@ const SpellingTeacherPage = () => {
         dispatch(fetchClass(classId));
         api.get(`/spelling/classes/${classId}/settings`).then(({ data }) => {
             const settings = data.data;
-            setClassDefaults(settings);
             applyDefaultsToFields(settings);
         }).catch(() => {});
         setStudentId('');
         setRowLevels({});
-        setSessionOverrideOpen(false);
     }, [classId, dispatch, applyDefaultsToFields]);
-
-    useEffect(() => {
-        if (!classId || !classGrade) {
-            setClassGradeProgress({ week: null, status: 'loading', error: '' });
-            return undefined;
-        }
-        let cancelled = false;
-        setClassGradeProgress((current) => ({ ...current, status: 'loading', error: '' }));
-        api.get('/spelling/sessions/class/progress', { params: { classId, grade: classGrade } })
-            .then(({ data }) => {
-                if (!cancelled) setClassGradeProgress({ ...data.data, error: '' });
-            })
-            .catch((error) => {
-                if (!cancelled) setClassGradeProgress({
-                    week: null,
-                    status: 'error',
-                    error: error.response?.data?.message || t('classProgressError')
-                });
-            });
-        return () => { cancelled = true; };
-    }, [classId, classGrade, t]);
 
     useEffect(() => {
         if (!classStudents.length) return;
@@ -233,18 +201,6 @@ const SpellingTeacherPage = () => {
         }
         loadActiveSessions();
     }, [classId, classStudents, loadActiveSessions]);
-
-    useEffect(() => {
-        if (!classId || !classStudents.length) return undefined;
-        const hasActiveSession = Object.keys(activeSessionMapRef.current).length > 0;
-
-        // Poll only the lightweight active-session list, never completed history.
-        const pollMs = hasActiveSession ? 5000 : 20000;
-        const intervalId = window.setInterval(() => {
-            loadActiveSessions({ showLoading: false });
-        }, pollMs);
-        return () => window.clearInterval(intervalId);
-    }, [classId, classStudents, loadActiveSessions, activeSessionMap]);
 
     const loadStudentHistory = async (student) => {
         setSessionsStudent(student);
@@ -326,7 +282,7 @@ const SpellingTeacherPage = () => {
     }, []);
 
     const startStudentSession = async (student, {
-        mode = assessmentMode,
+        mode = 'self-serve',
         scheduledAt = null,
         formalTest = false,
         formalTestWordListEmail = false,
@@ -484,32 +440,6 @@ const SpellingTeacherPage = () => {
         }
     };
 
-    const startClassSession = async () => {
-        if (!classStudents.length) return;
-        setClassStarting(true);
-        setMessage('');
-        try {
-            const response = await api.post('/spelling/sessions/class', {
-                classId,
-                mode: assessmentMode,
-                maxMistakesAllowed,
-                curriculumGrade: classGrade,
-                emailNotification,
-                passageEmailAudience,
-                passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true }
-            });
-            notify(t('classCreated', {
-                count: response.data.data.sessions.length,
-                className: selectedClass?.name || t('class')
-            }), 'success');
-            await loadActiveSessions({ showLoading: false });
-        } catch (error) {
-            notify(error.response?.data?.message || t('sessionError'), 'error');
-        } finally {
-            setClassStarting(false);
-        }
-    };
-
     const gradeAttempt = useCallback(async (correct) => {
         if (!activeSession || !currentItem || loading || gradingFeedback) return;
         setLoading(true);
@@ -551,24 +481,6 @@ const SpellingTeacherPage = () => {
             setCorrectingAttemptId(null);
         }
     };
-
-    const advanceClassWord = useCallback(async () => {
-        if (!activeSession || !currentItem || loading) return;
-        setLoading(true);
-        try {
-            const response = await api.post(`/spelling/sessions/${activeSession._id}/advance-class-word`, { wordId: currentItem.wordId });
-            const { session, item } = response.data.data;
-            if (activeSessionIdRef.current === activeSession._id) {
-                setActiveSession(session);
-                setCurrentItem(item);
-                if (session.status !== 'in-progress') await loadActiveSessions({ showLoading: false });
-            }
-        } catch (error) {
-            notify(error.response?.data?.message || 'Unable to move to the next word.', 'error');
-        } finally {
-            setLoading(false);
-        }
-    }, [activeSession, currentItem, loadActiveSessions, loading, notify]);
 
     const closeTeacherSessionModal = () => {
         activeSessionIdRef.current = null;
@@ -858,16 +770,10 @@ const SpellingTeacherPage = () => {
                 gradebookSubject: gradebookSubjectId || null
             };
             await api.patch(`/spelling/classes/${classId}/settings`, payload);
-            setClassDefaults(payload);
             notify('Spelling settings saved.', 'success');
         } catch (error) {
             notify(error.response?.data?.message || 'Unable to save spelling settings.', 'error');
         }
-    };
-
-    const toggleSessionOverride = () => {
-        if (sessionOverrideOpen) applyDefaultsToFields(classDefaults);
-        setSessionOverrideOpen((open) => !open);
     };
 
     return (
@@ -945,7 +851,6 @@ const SpellingTeacherPage = () => {
                 dictionaryEntry={dictionaryEntry}
                 loading={loading}
                 onGradeAttempt={gradeAttempt}
-                onNextClassWord={advanceClassWord}
                 onMarkAttemptCorrect={correctSpellingAttempt}
                 correctingAttemptId={correctingAttemptId}
             />
@@ -988,36 +893,11 @@ const SpellingTeacherPage = () => {
             />}
 
             {activeTab === 0 && <>
-                <SpellingClassSessionControls
-                    t={t}
-                    assessmentMode={assessmentMode}
-                    setAssessmentMode={setAssessmentMode}
-                    classGrade={classGrade}
-                    setClassGrade={setClassGrade}
-                    classGradeProgress={classGradeProgress}
-                    startClassSession={startClassSession}
-                    classId={classId}
-                    classStudents={classStudents}
-                    classStarting={classStarting}
-                    maxMistakesAllowed={maxMistakesAllowed}
-                    setMaxMistakesAllowed={setMaxMistakesAllowed}
-                    emailNotification={emailNotification}
-                    setEmailNotification={setEmailNotification}
-                    passageEmailAudience={passageEmailAudience}
-                    setPassageEmailAudience={setPassageEmailAudience}
-                    passageEnabled={passageEnabled}
-                    setPassageEnabled={setPassageEnabled}
-                    passageTrigger={passageTrigger}
-                    setPassageTrigger={setPassageTrigger}
-                    passageStyle={passageStyle}
-                    setPassageStyle={setPassageStyle}
-                    sessionOverrideOpen={sessionOverrideOpen}
-                    toggleSessionOverride={toggleSessionOverride}
-                />
                 {classId && <SpellingStudentRosterTable
                     selectedClass={selectedClass}
                     classStudents={classStudents}
                     overviewLoading={overviewLoading}
+                    onRefreshActiveSessions={() => loadActiveSessions()}
                     rowLevels={rowLevels}
                     activeSessionMap={activeSessionMap}
                     studentHistoryMap={studentHistoryMap}

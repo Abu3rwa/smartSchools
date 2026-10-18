@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import {
     HiOutlineDatabase,
     HiOutlineRefresh,
@@ -11,10 +12,13 @@ import {
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import api from '../../../../config/api';
+import { selectUser } from '../../../../store/slices/authSlice';
 import './DatabaseStorageCard.css';
 
 const DatabaseStorageCard = () => {
-    const [loading, setLoading] = useState(true);
+    const user = useSelector(selectUser);
+    const canViewDatabaseStorage = ['admin', 'super_admin'].includes(user?.role);
+    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [cleaning, setCleaning] = useState(false);
     const [storageData, setStorageData] = useState(null);
@@ -38,11 +42,12 @@ const DatabaseStorageCard = () => {
 
         try {
             const res = await api.get('/system/storage/stats');
-            if (res.data?.success) {
-                setStorageData(res.data.data);
+            if (!res.data?.success || !res.data?.data) {
+                throw new Error(res.data?.message || 'Failed to load database storage metrics');
             }
+            setStorageData(res.data.data);
         } catch (err) {
-            const msg = err.response?.data?.message || 'Failed to load database storage metrics';
+            const msg = err.response?.data?.message || err.message || 'Failed to load database storage metrics';
             setError(msg);
         } finally {
             setLoading(false);
@@ -51,8 +56,14 @@ const DatabaseStorageCard = () => {
     }, []);
 
     useEffect(() => {
-        fetchStorageStats();
-    }, [fetchStorageStats]);
+        if (!canViewDatabaseStorage) {
+            setLoading(false);
+            setStorageData(null);
+            setError('');
+            return;
+        }
+
+    }, [canViewDatabaseStorage]);
 
     const handleToggleTarget = (key) => {
         setTargets((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -85,6 +96,10 @@ const DatabaseStorageCard = () => {
         }
     };
 
+    if (!canViewDatabaseStorage) {
+        return null;
+    }
+
     if (loading) {
         return (
             <div className="storage-card" id="database-storage">
@@ -102,6 +117,43 @@ const DatabaseStorageCard = () => {
                 <div style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <HiOutlineExclamationCircle size={20} />
                     <span>{error}</span>
+                </div>
+                <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => fetchStorageStats()}
+                    style={{ marginTop: '1rem' }}
+                >
+                    <HiOutlineRefresh size={16} />
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    if (!storageData) {
+        return (
+            <div className="storage-card" id="database-storage">
+                <div className="storage-card-header">
+                    <div className="storage-card-header-left">
+                        <div className="storage-card-icon">
+                            <HiOutlineDatabase size={24} />
+                        </div>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '1.15rem' }}>MongoDB Atlas Cluster Storage</h3>
+                            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                Load current database storage statistics when needed.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => fetchStorageStats()}
+                    >
+                        <HiOutlineDatabase size={16} />
+                        Load Storage Stats
+                    </button>
                 </div>
             </div>
         );
@@ -147,6 +199,13 @@ const DatabaseStorageCard = () => {
                     </button>
                 </div>
             </div>
+
+            {error && (
+                <div className="storage-alert warning" role="alert">
+                    <HiOutlineExclamationCircle size={20} />
+                    <span>{error}</span>
+                </div>
+            )}
 
             {/* Alert banner matching user's Atlas notice */}
             <div className={`storage-alert ${status}`}>
@@ -226,7 +285,11 @@ const DatabaseStorageCard = () => {
                         <p>{categories?.routineTelemetry?.description}</p>
                     </div>
                     <div className="storage-category-metrics">
-                        <div className="storage-category-size">~{categories?.routineTelemetry?.estimatedMB} MB</div>
+                        <div className="storage-category-size">
+                            {categories?.routineTelemetry?.estimatedMB == null
+                                ? 'Estimate unavailable'
+                                : `~${categories.routineTelemetry.estimatedMB} MB`}
+                        </div>
                         <div className="storage-category-count">
                             {categories?.routineTelemetry?.count?.toLocaleString()} requests & heartbeats
                         </div>
@@ -244,7 +307,11 @@ const DatabaseStorageCard = () => {
                         <p>{categories?.sentEmails?.description}</p>
                     </div>
                     <div className="storage-category-metrics">
-                        <div className="storage-category-size">~{categories?.sentEmails?.estimatedMB} MB</div>
+                        <div className="storage-category-size">
+                            {categories?.sentEmails?.estimatedMB == null
+                                ? 'Estimate unavailable'
+                                : `~${categories.sentEmails.estimatedMB} MB`}
+                        </div>
                         <div className="storage-category-count">
                             {categories?.sentEmails?.count?.toLocaleString()} sent deliveries & reports
                         </div>
@@ -262,7 +329,11 @@ const DatabaseStorageCard = () => {
                         <p>{categories?.oldNotifications?.description}</p>
                     </div>
                     <div className="storage-category-metrics">
-                        <div className="storage-category-size">~{categories?.oldNotifications?.estimatedMB} MB</div>
+                        <div className="storage-category-size">
+                            {categories?.oldNotifications?.estimatedMB == null
+                                ? 'Estimate unavailable'
+                                : `~${categories.oldNotifications.estimatedMB} MB`}
+                        </div>
                         <div className="storage-category-count">
                             {categories?.oldNotifications?.count?.toLocaleString()} notifications
                         </div>

@@ -21,7 +21,6 @@ const initialState = {
     trialEndsAt: null,
     currentPeriodEnd: null,
     features: {},
-    pageAccess: null,
     featureMetadata: {},
     limits: null,
     usage: null,
@@ -52,7 +51,6 @@ const schoolFeaturesSlice = createSlice({
                 state.trialEndsAt = action.payload.trialEndsAt || null;
                 state.currentPeriodEnd = action.payload.currentPeriodEnd || null;
                 state.features = action.payload.features || {};
-                state.pageAccess = action.payload.pageAccess || null;
                 state.featureMetadata = action.payload.featureMetadata || {};
                 state.limits = action.payload.limits || null;
                 state.usage = action.payload.usage || null;
@@ -74,7 +72,6 @@ export const selectSubscriptionStatus = (state) => state.schoolFeatures.subscrip
 export const selectSubscriptionTrialEndsAt = (state) => state.schoolFeatures.trialEndsAt;
 export const selectSubscriptionCurrentPeriodEnd = (state) => state.schoolFeatures.currentPeriodEnd;
 export const selectSchoolFeatures = (state) => state.schoolFeatures.features || {};
-export const selectSchoolPageAccess = (state) => state.schoolFeatures.pageAccess;
 export const selectFeatureMetadataMap = (state) => state.schoolFeatures.featureMetadata || {};
 export const selectFeatureMetadata = (state, featureKey) =>
     state.schoolFeatures.featureMetadata?.[featureKey] || null;

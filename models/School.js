@@ -587,10 +587,6 @@ const schoolSchema = new mongoose.Schema({
         },
         features: {
             ...schoolFeatureSchemaDefinition
-        },
-        userPageAccess: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
         }
     },
     // AI Report settings

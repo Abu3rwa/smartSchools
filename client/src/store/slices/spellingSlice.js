@@ -39,7 +39,7 @@ export const fetchStudentSpellingDetails = createAsyncThunk('spelling/fetchStude
     }
 });
 
-export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, maxMistakesAllowed = 3, mode = 'teacher-led', scheduledAt, formalAssessment = false, formalTestWordListEmail = false, formalTestWordListEmailAudience, formalTestWordListEmailTimezone }, { rejectWithValue }) => {
+export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, maxMistakesAllowed = 3, mode = 'self-serve', scheduledAt, formalAssessment = false, formalTestWordListEmail = false, formalTestWordListEmailAudience, formalTestWordListEmailTimezone }, { rejectWithValue }) => {
     try {
         const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, scheduledAt, formalAssessment, formalTestWordListEmail, formalTestWordListEmailAudience, formalTestWordListEmailTimezone });
         return response.data.data;

@@ -15,7 +15,6 @@ export default function useLiveLessonSocket(sessionId, role) {
   const [connection, setConnection] = useState("connecting");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
-  const [answers, setAnswers] = useState(null);
   const [roster, setRoster] = useState([]);
 
   useEffect(() => {
@@ -25,22 +24,25 @@ export default function useLiveLessonSocket(sessionId, role) {
     let heartbeatTimer;
     let socket;
     const pendingRequests = pendingRef.current;
-    const token = localStorage.getItem("token");
 
     const connect = () => {
       if (disposed) return;
+      const token = localStorage.getItem("token");
+      const currentSocket = new WebSocket(socketUrl());
       setConnection("connecting");
-      socket = new WebSocket(socketUrl());
-      socketRef.current = socket;
-      socket.addEventListener("open", () => {
+      socket = currentSocket;
+      socketRef.current = currentSocket;
+      currentSocket.addEventListener("open", () => {
         if (!token) {
+          disposed = true;
+          setConnection("closed");
           setError("Your login session has expired. Sign in again.");
-          socket.close();
+          currentSocket.close();
           return;
         }
-        socket.send(JSON.stringify({ type: "auth", token }));
+        currentSocket.send(JSON.stringify({ type: "auth", token }));
       });
-      socket.addEventListener("message", (event) => {
+      currentSocket.addEventListener("message", (event) => {
         let message;
         try {
           message = JSON.parse(event.data);
@@ -50,14 +52,14 @@ export default function useLiveLessonSocket(sessionId, role) {
         }
         if (message.type === "authenticated") {
           setConnection("connected");
-          socket.send(JSON.stringify({ type: "join", sessionId }));
-          socket.__reportedAway = false;
+          currentSocket.send(JSON.stringify({ type: "join", sessionId }));
+          currentSocket.__reportedAway = false;
           if (role === "student" && document.visibilityState === "hidden") {
             window.setTimeout(() => emitPresence(true), 0);
           }
           heartbeatTimer = window.setInterval(() => {
-            if (socket.readyState === WebSocket.OPEN) {
-              socket.send(JSON.stringify({
+            if (currentSocket.readyState === WebSocket.OPEN) {
+              currentSocket.send(JSON.stringify({
                 type: "action",
                 action: "presence:ping",
                 requestId: `ping-${Date.now()}`,
@@ -79,10 +81,7 @@ export default function useLiveLessonSocket(sessionId, role) {
         } else if (message.type === "session:state" || message.type === "teacher:state") {
           setState(message.data);
           setRoster(message.data.roster || []);
-          setAnswers(message.data.answers || null);
           setError("");
-        } else if (message.type === "answers:update") {
-          setAnswers(message.data);
         } else if (message.type === "roster:update") {
           setRoster(message.data?.roster || []);
         } else if (message.type === "results:revealed") {
@@ -98,11 +97,54 @@ export default function useLiveLessonSocket(sessionId, role) {
           disposed = true;
           setConnection("closed");
           setError("This live session was deleted by the teacher.");
-          socket.close(4004, "Live session deleted");
+          currentSocket.close(4004, "Live session deleted");
         }
       });
-      socket.addEventListener("close", (event) => {
+      currentSocket.addEventListener("close", (event) => {
         window.clearInterval(heartbeatTimer);
+        if (
+          event.code === 1008 &&
+          ["Unauthorized", "Authentication timeout"].includes(event.reason)
+        ) {
+          setConnection("reconnecting");
+          setError("Refreshing your login before reconnecting to the lesson…");
+          void (async () => {
+            try {
+              let latestToken = localStorage.getItem("token");
+              if (!latestToken) throw new Error("Your login session has expired.");
+              if (latestToken === token) {
+                await api.get("/auth/me");
+                latestToken = localStorage.getItem("token");
+              }
+              if (!latestToken) {
+                throw new Error("Your login session has expired. Sign in again.");
+              }
+              if (latestToken === token && event.reason === "Unauthorized") {
+                throw new Error("Your login session could not be refreshed. Sign in again.");
+              }
+              if (disposed) return;
+              reconnectTimer = window.setTimeout(
+                connect,
+                event.reason === "Authentication timeout" ? 2500 : 250,
+              );
+            } catch (refreshError) {
+              if (disposed) return;
+              if (
+                event.reason === "Authentication timeout" &&
+                (!refreshError.response || refreshError.response.status >= 500)
+              ) {
+                setConnection("reconnecting");
+                setError("The server is temporarily unavailable. Retrying the lesson connection…");
+                reconnectTimer = window.setTimeout(connect, 2500);
+                return;
+              }
+              disposed = true;
+              setConnection("closed");
+              setError(refreshError.message || "Could not refresh your login. Sign in again.");
+            }
+          })();
+          return;
+        }
         if (event.code === 1008 || event.code === 4004) {
           disposed = true;
           setConnection("closed");
@@ -112,7 +154,7 @@ export default function useLiveLessonSocket(sessionId, role) {
         }
         if (!disposed) reconnectTimer = window.setTimeout(connect, 2500);
       });
-      socket.addEventListener("error", () => {
+      currentSocket.addEventListener("error", () => {
         setError("The live lesson connection was interrupted. Reconnecting…");
       });
     };
@@ -163,5 +205,5 @@ export default function useLiveLessonSocket(sessionId, role) {
     });
   }, []);
 
-  return { state, answers, roster, connection, error, sendAction };
+  return { state, roster, connection, error, sendAction };
 }

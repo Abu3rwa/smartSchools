@@ -51,7 +51,7 @@ export default function PlpCopyGoalModal({ goal, onClose, onCopied }) {
         setError('');
         try {
             const response = await api.post(`/plp/goals/${goal._id}/copy`, {
-                destinationRecordIds: selectedIds,
+                destinationStudentIds: selectedIds,
                 copyDueDates,
                 copyOperationId,
             });
@@ -84,7 +84,7 @@ export default function PlpCopyGoalModal({ goal, onClose, onCopied }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div>
                         <h2 id="plp-copy-goal-title" style={{ margin: 0 }}>Copy goal plan</h2>
-                        <p style={{ margin: '6px 0 12px' }}>Copy “{goal.title}” as an independent plan to students in this class and round.</p>
+                        <p style={{ margin: '6px 0 12px' }}>Copy “{goal.title}” as an independent plan to active students in this class and round.</p>
                     </div>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} aria-label="Close copy goal dialog">Close</button>
                 </div>
@@ -108,18 +108,21 @@ export default function PlpCopyGoalModal({ goal, onClose, onCopied }) {
                 <p className="plp-evidence-meta">Student work, feedback, completion status, evidence, and progress notes are never copied.</p>
 
                 {loading && <p>Loading eligible students…</p>}
-                {!loading && destinations.length === 0 && <p>No other in-progress student records are available in this class and round.</p>}
+                {!loading && destinations.length === 0 && <p>No other active students are enrolled in this class for this academic year.</p>}
                 {destinations.length > 0 && (
                     <div style={{ maxHeight: 220, overflowY: 'auto', display: 'grid', gap: 6, margin: '12px 0' }}>
                         {destinations.map((destination) => (
-                            <label key={destination._id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <label key={destination.studentId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                 <input
                                     type="checkbox"
-                                    checked={selectedIds.includes(destination._id)}
-                                    onChange={() => toggleDestination(destination._id)}
+                                    checked={selectedIds.includes(destination.studentId)}
+                                    onChange={() => toggleDestination(destination.studentId)}
                                 />
                                 {destination.student?.firstName} {destination.student?.lastName}
                                 {destination.student?.studentId ? ` (${destination.student.studentId})` : ''}
+                                {destination.recordStatus
+                                    ? ` · ${destination.recordStatus} record`
+                                    : ' · new record will be created'}
                             </label>
                         ))}
                     </div>

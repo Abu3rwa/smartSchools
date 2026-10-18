@@ -11,7 +11,7 @@ import {
     selectLanguage,
     setLanguage,
 } from '../../store/slices/uiSlice';
-import { selectSchoolFeatures, selectSchoolPageAccess } from '../../store/slices/schoolFeaturesSlice';
+import { selectSchoolFeatures } from '../../store/slices/schoolFeaturesSlice';
 import {
     HiOutlineHome,
     HiOutlineMoon,
@@ -23,14 +23,12 @@ import {
     HiOutlineStar,
     HiOutlinePlus,
 } from 'react-icons/hi';
-import { HiOutlineLockClosed } from 'react-icons/hi2';
 import notificationService from '../../services/notificationService';
 import ShortcutsMenu from './header/ShortcutsMenu';
 import RoleSwitcher from './header/RoleSwitcher';
 import ImpersonationBanner from './header/ImpersonationBanner';
 import AcademicYearFilter from './header/AcademicYearFilter';
 import { useHeaderShortcuts } from './header/useHeaderShortcuts';
-import { getSchoolPageKeyForPath, isSchoolPageLocked } from '../../constants/schoolPageAccess';
 import './Header.css';
 
 const Header = () => {
@@ -41,7 +39,6 @@ const Header = () => {
     const user = useSelector(selectUser);
     const isStudent = user?.role === 'student';
     const schoolFeatures = useSelector(selectSchoolFeatures);
-    const pageAccess = useSelector(selectSchoolPageAccess);
     const theme = useSelector(selectTheme);
     const language = useSelector(selectLanguage);
     const muiTheme = useTheme();
@@ -66,24 +63,8 @@ const Header = () => {
     } = useHeaderShortcuts({
         user,
         schoolFeatures,
-        pageAccess,
         locationPathname: location.pathname,
     });
-    const isDashboardLocked = isSchoolPageLocked(
-        pageAccess,
-        user?.role,
-        getSchoolPageKeyForPath('/portal/dashboard'),
-    );
-    const isNotificationsLocked = isSchoolPageLocked(
-        pageAccess,
-        user?.role,
-        getSchoolPageKeyForPath('/portal/notifications'),
-    );
-    const isSettingsLocked = isSchoolPageLocked(
-        pageAccess,
-        user?.role,
-        getSchoolPageKeyForPath('/portal/settings'),
-    );
 
     useEffect(() => {
         let cancelled = false;
@@ -135,13 +116,10 @@ const Header = () => {
                     <button
                         className="header-btn student-home-btn"
                         onClick={() => navigate('/portal/dashboard')}
-                        disabled={isDashboardLocked}
                         aria-label={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
-                        title={isDashboardLocked
-                            ? t('layout.sidebar:actions.featureLocked')
-                            : t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
+                        title={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
                     >
-                        {isDashboardLocked ? <HiOutlineLockClosed size={20} /> : <HiOutlineHome size={20} />}
+                        <HiOutlineHome size={20} />
                     </button>
                 )}
                 {!isDesktop && !isStudent && (
@@ -168,15 +146,11 @@ const Header = () => {
                                 return (
                                     <button
                                         key={shortcut.path}
-                                        className={`header-shortcut-btn ${isActive ? 'active' : ''} ${shortcut.locked ? 'locked' : ''}`}
+                                        className={`header-shortcut-btn ${isActive ? 'active' : ''}`}
                                         onClick={() => navigate(shortcut.path)}
-                                        disabled={shortcut.locked}
-                                        title={shortcut.locked
-                                            ? t('layout.sidebar:actions.featureLocked')
-                                            : t(`layout.sidebar:items.${shortcut.labelKey}`)}
+                                        title={t(`layout.sidebar:items.${shortcut.labelKey}`)}
                                     >
                                         {t(`layout.sidebar:items.${shortcut.labelKey}`)}
-                                        {shortcut.locked && <HiOutlineLockClosed size={14} aria-hidden="true" />}
                                     </button>
                                 );
                             })}
@@ -229,10 +203,8 @@ const Header = () => {
                     className="header-btn notification-btn"
                     onClick={handleNotificationClick}
                     aria-label={notificationsAriaLabel}
-                    disabled={isNotificationsLocked}
-                    title={isNotificationsLocked ? t('layout.sidebar:actions.featureLocked') : undefined}
                 >
-                    {isNotificationsLocked ? <HiOutlineLockClosed size={20} /> : <HiOutlineBell size={20} />}
+                    <HiOutlineBell size={20} />
                     {notificationCount > 0 && (
                         <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
                     )}
@@ -261,13 +233,8 @@ const Header = () => {
                         transformOrigin={{ vertical: 'top', horizontal: isRtl ? 'left' : 'right' }}
                         PaperProps={{ sx: { minWidth: 180, mt: 1.5 } }}
                     >
-                        <MenuItem
-                            disabled={isSettingsLocked}
-                            onClick={() => { setUserMenuAnchor(null); navigate('/portal/settings'); }}
-                        >
-                            {isSettingsLocked
-                                ? <HiOutlineLockClosed size={18} style={{ marginInlineEnd: 8 }} />
-                                : <HiOutlineCog size={18} style={{ marginInlineEnd: 8 }} />}
+                        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/portal/settings'); }}>
+                            <HiOutlineCog size={18} style={{ marginInlineEnd: 8 }} />
                             {t('layout.header:menu.settings')}
                         </MenuItem>
                         <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>

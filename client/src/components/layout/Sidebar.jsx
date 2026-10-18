@@ -12,11 +12,6 @@ import {
   selectAppName,
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
-import { selectSchoolPageAccess } from "../../store/slices/schoolFeaturesSlice";
-import {
-  getSchoolPageKeyForPath,
-  isSchoolPageLocked,
-} from "../../constants/schoolPageAccess";
 import {
   fetchSubPendingCountThunk,
   selectPendingCount,
@@ -96,10 +91,8 @@ const Sidebar = () => {
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
   const schoolFeatures = useSelector(selectSchoolFeatures);
-  const schoolPageAccess = useSelector(selectSchoolPageAccess);
   const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
-  const [serverDeniedPages, setServerDeniedPages] = useState(() => new Set());
   const isRtl = i18n.dir() === "rtl";
 
   const canSeeMessages = useMemo(() => {
@@ -170,17 +163,6 @@ const Sidebar = () => {
       window.clearInterval(intervalId);
     };
   }, [dispatch, isTeacher]);
-
-  useEffect(() => {
-    const handlePageLocked = (event) => {
-      const pageKey = event.detail?.page;
-      if (!pageKey) return;
-      setServerDeniedPages((current) => new Set(current).add(pageKey));
-    };
-    window.addEventListener("school-page-locked", handlePageLocked);
-    return () =>
-      window.removeEventListener("school-page-locked", handlePageLocked);
-  }, []);
 
   const SECTION_ORDER = [
     "overview",
@@ -441,7 +423,7 @@ const Sidebar = () => {
       path: "/portal/presentations",
       icon: HiOutlinePresentationChartBar,
       labelKey: "presentations",
-      roles: ["admin", "department_principal", "teacher"],
+      roles: ["admin"],
       permissions: [PERMISSIONS.MANAGE_PRESENTATIONS],
       feature: "presentationBuilder",
       section: "teaching",
@@ -466,7 +448,7 @@ const Sidebar = () => {
       path: "/portal/worksheets",
       icon: HiOutlineDocumentCheck,
       labelKey: "worksheetChecker",
-      roles: ["admin", "teacher"],
+      roles: ["admin"],
       feature: "worksheetChecker",
       section: "teaching",
     },
@@ -582,14 +564,14 @@ const Sidebar = () => {
       path: "/portal/subjects",
       icon: HiOutlineTag,
       labelKey: "subjects",
-      roles: ["teacher", "Admin"],
+      roles: ["Admin"],
       section: "teaching",
     },
     {
       path: "/portal/reading/texts",
       icon: HiOutlineRectangleStack,
       labelKey: "reading",
-      roles: ["admin", "teacher"],
+      roles: ["admin"],
       feature: "readingAssistant",
       section: "teaching",
     },
@@ -686,7 +668,7 @@ const Sidebar = () => {
       path: "/portal/revision",
       icon: HiOutlineArrowPath,
       labelKey: "revisionPlans",
-      roles: ["teacher", "admin"],
+      roles: ["admin"],
       feature: "revisionPlanning",
       section: "support",
     },
@@ -694,7 +676,7 @@ const Sidebar = () => {
       path: "/portal/finance",
       icon: HiOutlineBanknotes,
       labelKey: "financeDashboard",
-      roles: ["admin", "department_principal"],
+      roles: ["admin"],
       permissions: [
         PERMISSIONS.VIEW_FEE_STRUCTURES,
         PERMISSIONS.VIEW_INVOICES,
@@ -933,45 +915,9 @@ const Sidebar = () => {
               <div className="sidebar-section-divider" />
             )}
             {items.map((item) => {
-              const pageKey = getSchoolPageKeyForPath(item.path);
-              const isPageLocked =
-                isSchoolPageLocked(schoolPageAccess, user?.role, pageKey) ||
-                serverDeniedPages.has(pageKey);
               const isLocked =
                 item.feature && schoolFeatures?.[item.feature] === false;
-              const itemClassName = `nav-item ${isPageLocked ? "locked" : ""} ${isLocked ? "locked" : ""}`;
-              const lockIcon = isPageLocked || isLocked;
-
-              if (isPageLocked) {
-                return (
-                  <button
-                    key={item.path}
-                    type="button"
-                    className={itemClassName}
-                    disabled
-                    title={t("layout.sidebar:actions.featureLocked")}
-                    aria-label={`${t(`layout.sidebar:items.${item.labelKey}`)} — ${t("layout.sidebar:actions.featureLocked")}`}
-                  >
-                    <item.icon className="nav-icon" size={20} />
-                    {sidebarOpen && (
-                      <span className="nav-label">
-                        {t(`layout.sidebar:items.${item.labelKey}`)}
-                      </span>
-                    )}
-                    {sidebarOpen && (
-                      <HiOutlineLockClosed
-                        className="nav-feature-lock"
-                        size={14}
-                      />
-                    )}
-                    {!sidebarOpen && (
-                      <span className="nav-lock-dot" aria-hidden="true">
-                        <HiOutlineLockClosed size={10} />
-                      </span>
-                    )}
-                  </button>
-                );
-              }
+              const itemClassName = `nav-item ${isLocked ? "locked" : ""}`;
 
               return (
                 <NavLink
@@ -988,7 +934,7 @@ const Sidebar = () => {
                       {t(`layout.sidebar:items.${item.labelKey}`)}
                     </span>
                   )}
-                  {lockIcon && sidebarOpen && (
+                  {isLocked && sidebarOpen && (
                     <HiOutlineLockClosed
                       className="nav-feature-lock"
                       size={14}
@@ -999,7 +945,7 @@ const Sidebar = () => {
                       {t("layout.sidebar:actions.upgrade")}
                     </span>
                   )} */}
-                  {lockIcon && !sidebarOpen && (
+                  {isLocked && !sidebarOpen && (
                     <span
                       className="nav-lock-dot"
                       aria-label={t("layout.sidebar:actions.featureLocked")}

@@ -30,7 +30,6 @@
   "valid": "صالحة",
   "importedWords": "تمت إضافة {{inserted}} كلمة جديدة وتحديث {{updated}} كلمة موجودة.",
   "importAlreadyApplied": "تم تطبيق استيراد كلمات الإملاء هذا من قبل.",
-  "createClassSession": "إنشاء اختبار للفصل",
   "creating": "جارٍ الإنشاء...",
   "studentId": "معرّف الطالب: {{id}}",
   "startStudentSession": "بدء اختبار الطالب",
@@ -63,6 +62,8 @@
   "allStudentsOverview": "نظرة عامة على جميع الطلاب",
   "studentLevelSaved": "تم حفظ صف وأسبوع الإملاء للطالب.",
   "studentLevelSaveError": "تعذر حفظ مستوى إملاء الطالب.",
+  "refreshSessions": "تحديث الجلسات",
+  "refreshingSessions": "جارٍ التحديث...",
   "saving": "جارٍ الحفظ...",
   "assessmentMode": "وضع الاختبار",
   "teacherLed": "بإشراف المعلم",
@@ -146,7 +147,6 @@
   ,"teacherWillReviewSkippedWords": "سيراجع معلمك الكلمات التي تخطيتها بصوت عالٍ معك."
   ,"noData": "لا توجد بيانات بعد."
   ,"switchStudent": "تبديل الطالب"
-  ,"nextClassWord": "الكلمة التالية"
   ,"backToStudent": "العودة إلى الطالب"
   ,"replaceExistingList": "استبدال قائمة الكلمات الحالية للصفوف الموجودة في هذا الملف"
   ,"replaceExistingWarning": "ستتم إزالة جميع الكلمات الحالية لهذه الصفوف واستبدالها بهذا الملف. يتم الاحتفاظ بسجل إنجاز الطلاب والتقارير، ولا تُطرح الكلمات الموجودة في القائمتين مرة أخرى. أنهِ الجلسات النشطة لهذه الصفوف أولاً."
@@ -154,14 +154,6 @@
   ,"replacedWords": "تم استبدال قائمة الكلمات: {{inserted}} جديدة، {{kept}} محتفظ بها، {{removed}} قديمة محذوفة."
   ,"activeSessionOtherGrade": "الجلسة النشطة في {{grade}}"
   ,"studentCurrentWeek": "الأسبوع {{week}}"
-  ,"skipToNextClassWord": "تخطي إلى الكلمة التالية (طلاب غائبون)"
-  ,"alreadyCompletedClassWord": "لقد أكملت كلمة الصف هذه بشكل صحيح. انتظر الكلمة التالية."
-  ,"waitingForClass": "تم تسجيل إجابتك. انتظر حتى ينتهي باقي الصف من هذه الكلمة."
-  ,"classProgressHelp": "يتقدم الصف معًا بالترتيب في كلمات الصف المختار. سيظهر للطلاب الذين أكملوا الكلمة الحالية بشكل صحيح أنهم أكملوها."
-  ,"currentGradeWeek": "الصف {{grade}} في الأسبوع {{week}} حاليًا."
-  ,"loadingClassProgress": "جارٍ تحميل تقدم الصف الحالي..."
-  ,"noGradeWeeks": "لا توجد أسابيع إملاء متاحة للصف {{grade}}."
-  ,"classProgressError": "تعذر تحميل أسبوع الصف الحالي."
   ,"exportPdfPrint": "تصدير PDF / طباعة"
   ,"preparingPrint": "جارٍ تجهيز التقرير..."
   ,"spellingReportTitle": "تقرير إملاء الطالب"

@@ -46,57 +46,17 @@ const getDbOverview = async (db) => {
     };
 };
 
-/**
- * Fetch top collections by data size
- */
-const getTopCollections = async (db) => {
+const getCollectionDataMB = async (db, collectionName) => {
     try {
-        const collections = await db.listCollections().toArray();
-        const results = [];
-
-        for (const coll of collections) {
-            if (coll.name.startsWith('system.')) continue;
-            try {
-                const s = await db.collection(coll.name).aggregate([
-                    { $collStats: { storageStats: {} } }
-                ]).toArray();
-
-                if (s.length > 0 && s[0].storageStats) {
-                    const st = s[0].storageStats;
-                    const dataMB = Number(((st.size || 0) / (1024 * 1024)).toFixed(2));
-                    const storageMB = Number(((st.storageSize || 0) / (1024 * 1024)).toFixed(2));
-                    const totalMB = Number((((st.storageSize || 0) + (st.totalIndexSize || 0)) / (1024 * 1024)).toFixed(2));
-
-                    results.push({
-                        name: coll.name,
-                        count: st.count || 0,
-                        dataMB,
-                        storageMB,
-                        totalMB
-                    });
-                }
-            } catch {
-                // If collStats fails, fetch count
-                try {
-                    const count = await db.collection(coll.name).countDocuments();
-                    results.push({
-                        name: coll.name,
-                        count,
-                        dataMB: 0,
-                        storageMB: 0,
-                        totalMB: 0
-                    });
-                } catch {
-                    // skip collection if count fails
-                }
-            }
-        }
-
-        results.sort((a, b) => b.dataMB - a.dataMB);
-        return results.slice(0, 15);
+        const [stats] = await db.collection(collectionName).aggregate([
+            { $collStats: { storageStats: {} } }
+        ]).toArray();
+        return stats?.storageStats
+            ? Number(((stats.storageStats.size || 0) / (1024 * 1024)).toFixed(2))
+            : null;
     } catch (err) {
-        logger.warn(`Could not list collection stats: ${err.message}`);
-        return [];
+        logger.warn(`Could not fetch storage stats for ${collectionName}: ${err.message}`);
+        return null;
     }
 };
 
@@ -111,53 +71,48 @@ export const getStorageStats = asyncHandler(async (req, res) => {
         return res.status(503).json({ success: false, message: 'Database not connected' });
     }
 
-    const overview = await getDbOverview(db);
-    const topCollections = await getTopCollections(db);
-
-    // Deep drill into cleanable categories
     const behaviorsColl = db.collection('behaviors');
+    const [
+        overview,
+        behaviorsDataMB,
+        notificationsDataMB,
+        emailDeliveriesMB,
+        counts
+    ] = await Promise.all([
+        getDbOverview(db),
+        getCollectionDataMB(db, 'behaviors'),
+        getCollectionDataMB(db, 'notifications'),
+        getCollectionDataMB(db, 'spellingemaildeliveries'),
+        Promise.all([
+            behaviorsColl.countDocuments().catch(() => 0),
+            behaviorsColl.countDocuments({ eventType: 'api_request' }).catch(() => 0),
+            behaviorsColl.countDocuments({ eventType: 'session_heartbeat' }).catch(() => 0),
+            db.collection('notifications').countDocuments().catch(() => 0),
+            db.collection('spellingemaildeliveries').countDocuments({ status: 'sent' }).catch(() => 0),
+            db.collection('emailreports').countDocuments().catch(() => 0),
+            db.collection('communicationemaillogs').countDocuments().catch(() => 0),
+            db.collection('aitokenusages').countDocuments().catch(() => 0),
+            db.collection('importruns').countDocuments().catch(() => 0)
+        ])
+    ]);
+
     const [
         totalBehaviors,
         apiRequestsCount,
         heartbeatsCount,
-        pageViewsCount,
         notificationsCount,
-        readNotificationsCount,
-        spellingEmailsTotal,
         spellingEmailsSent,
         emailReportsTotal,
         commLogsTotal,
         aiTokensTotal,
         importRunsTotal
-    ] = await Promise.all([
-        behaviorsColl.countDocuments().catch(() => 0),
-        behaviorsColl.countDocuments({ eventType: 'api_request' }).catch(() => 0),
-        behaviorsColl.countDocuments({ eventType: 'session_heartbeat' }).catch(() => 0),
-        behaviorsColl.countDocuments({ eventType: 'page_view' }).catch(() => 0),
-        db.collection('notifications').countDocuments().catch(() => 0),
-        db.collection('notifications').countDocuments({ status: { $in: ['read', 'delivered'] } }).catch(() => 0),
-        db.collection('spellingemaildeliveries').countDocuments().catch(() => 0),
-        db.collection('spellingemaildeliveries').countDocuments({ status: 'sent' }).catch(() => 0),
-        db.collection('emailreports').countDocuments().catch(() => 0),
-        db.collection('communicationemaillogs').countDocuments().catch(() => 0),
-        db.collection('aitokenusages').countDocuments().catch(() => 0),
-        db.collection('importruns').countDocuments().catch(() => 0)
-    ]);
+    ] = counts;
 
     const routineTelemetryCount = apiRequestsCount + heartbeatsCount;
 
-    // Estimate telemetry size (behaviors average object size is ~900 bytes to 1KB with metadata)
-    const behaviorsEntry = topCollections.find((c) => c.name === 'behaviors');
-    const behaviorsDataMB = behaviorsEntry?.dataMB || 0;
-    const telemetryEstimatedMB = totalBehaviors > 0
+    const telemetryEstimatedMB = totalBehaviors > 0 && behaviorsDataMB !== null
         ? Number(((routineTelemetryCount / totalBehaviors) * behaviorsDataMB).toFixed(2))
-        : 0;
-
-    const notificationsEntry = topCollections.find((c) => c.name === 'notifications');
-    const notificationsDataMB = notificationsEntry?.dataMB || 0;
-
-    const emailDeliveriesEntry = topCollections.find((c) => c.name === 'spellingemaildeliveries');
-    const emailDeliveriesMB = emailDeliveriesEntry?.dataMB || 0;
+        : totalBehaviors === 0 ? 0 : null;
 
     const categories = {
         routineTelemetry: {
@@ -206,28 +161,7 @@ export const getStorageStats = asyncHandler(async (req, res) => {
         success: true,
         data: {
             overview,
-            categories,
-            topCollections,
-            details: {
-                behaviors: {
-                    total: totalBehaviors,
-                    apiRequests: apiRequestsCount,
-                    heartbeats: heartbeatsCount,
-                    pageViews: pageViewsCount,
-                    other: totalBehaviors - routineTelemetryCount
-                },
-                notifications: {
-                    total: notificationsCount,
-                    readOrDelivered: readNotificationsCount,
-                    unread: notificationsCount - readNotificationsCount
-                },
-                emails: {
-                    spellingDeliveriesTotal: spellingEmailsTotal,
-                    spellingDeliveriesSent: spellingEmailsSent,
-                    emailReportsTotal,
-                    communicationLogsTotal: commLogsTotal
-                }
-            }
+            categories
         }
     });
 });

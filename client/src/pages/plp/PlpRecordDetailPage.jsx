@@ -624,6 +624,7 @@ export default function PlpRecordDetailPage() {
 
     const locked = record.status === 'locked';
     const canWrite = !locked && ['teacher', 'admin'].includes(user?.role);
+    const canCopyGoals = ['teacher', 'admin'].includes(user?.role);
     const isSupervisor = user?.role === 'department_principal';
     const publishedCycles = cycles
         .filter((cycle) => cycle.status === 'published' && cycle.academicYear === record.academicYear)
@@ -871,21 +872,29 @@ export default function PlpRecordDetailPage() {
                                     {goal.reviewOutcome && <div className="plp-evidence-meta">Last review: {goal.reviewOutcome}{goal.lastReviewedAt ? ` · ${new Date(goal.lastReviewedAt).toLocaleDateString()}` : ''}</div>}
                                     {goal.reviewNote && <p style={{ margin: '5px 0 0' }}>Review note: {goal.reviewNote}</p>}
                                 </div>
-                                {canWrite && (
+                                {(canWrite || canCopyGoals) && (
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-                                        <select value={goal.status} onChange={(e) => updateGoalStatus(goal._id, e.target.value)}>
-                                            <option value="active">active</option>
-                                            <option value="completed">completed</option>
-                                            <option value="carried_forward">carried_forward</option>
-                                            <option value="archived">archived</option>
-                                        </select>
-                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCopyingGoal(goal)} disabled={record.status !== 'in_progress'}>
-                                            Copy plan
-                                        </button>
-                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => openGoalReview(goal)}>
-                                            Review
-                                        </button>
-                                        <button className="btn btn-secondary btn-sm" onClick={() => removeGoal(goal)}>Delete</button>
+                                        {canWrite && (
+                                            <select value={goal.status} onChange={(e) => updateGoalStatus(goal._id, e.target.value)}>
+                                                <option value="active">active</option>
+                                                <option value="completed">completed</option>
+                                                <option value="carried_forward">carried_forward</option>
+                                                <option value="archived">archived</option>
+                                            </select>
+                                        )}
+                                        {canCopyGoals && (
+                                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCopyingGoal(goal)}>
+                                                Copy plan
+                                            </button>
+                                        )}
+                                        {canWrite && (
+                                            <>
+                                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => openGoalReview(goal)}>
+                                                    Review
+                                                </button>
+                                                <button className="btn btn-secondary btn-sm" onClick={() => removeGoal(goal)}>Delete</button>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1169,7 +1178,7 @@ export default function PlpRecordDetailPage() {
             </div>
                 </>
             )}
-            {copyingGoal && canWrite && (
+            {copyingGoal && canCopyGoals && (
                 <PlpCopyGoalModal
                     goal={copyingGoal}
                     onClose={() => setCopyingGoal(null)}

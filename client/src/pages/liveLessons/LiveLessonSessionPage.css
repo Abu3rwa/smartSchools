@@ -1142,6 +1142,46 @@
 .live-control-card small {
   color: #73848a;
 }
+.live-session-replay-sharing {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid #dcebe7;
+  border-radius: 10px;
+  background: #f7fbf9;
+}
+.live-session-replay-sharing > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.live-session-replay-sharing strong {
+  color: #284654;
+  font-size: 0.85rem;
+}
+.live-session-replay-sharing span,
+.live-session-replay-sharing label {
+  color: #71818a;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.live-session-replay-sharing label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #3d5964;
+  font-weight: 750;
+}
+.live-session-replay-sharing input {
+  width: 17px;
+  height: 17px;
+  accent-color: #167b78;
+}
+.live-session-replay-sharing p {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.78rem;
+}
 .live-ended-banner {
   border: 1px solid #d8e4e6;
   border-radius: 12px;

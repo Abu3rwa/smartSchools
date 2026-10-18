@@ -422,32 +422,24 @@ const SpellingStudentPage = () => {
                         </Stack>
                     </Stack>
 
-                    <Box sx={{ maxWidth: 700, width: '100%', mx: 'auto', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
-                        {session?.attempts?.length > 0 && <Box sx={{ width: '100%' }}>
-                            <Typography variant="subtitle1">Previous words</Typography>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                                {session.attempts.map((attempt) => <Chip
-                                    key={attempt._id || attempt.sequence}
-                                    label={previousWordLabel(attempt, session.mode)}
-                                    color={isSkippedSpellingAttempt(attempt, session.mode) ? 'warning' : attempt.correct ? 'success' : 'error'}
-                                    variant="outlined"
-                                    title={isSkippedSpellingAttempt(attempt, session.mode) ? t('skipped') : attempt.correct ? 'Correct' : 'Incorrect'}
-                                />)}
-                            </Stack>
-                        </Box>}
+                    <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 2fr) minmax(280px, 1fr)' },
+                        gridTemplateRows: { xs: 'minmax(0, 1fr) auto', md: 'minmax(0, 1fr)' },
+                        gap: 2,
+                        alignItems: 'stretch',
+                        maxWidth: 1400,
+                        width: '100%',
+                        mx: 'auto',
+                        flex: 1,
+                        minHeight: 0
+                    }}>
+                        <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         {session?.status !== 'in-progress' ? (
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
                                 {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
                             </Stack>
-                        ) : currentItem?.alreadyCompleted ? (
-                            <Alert severity="success" role="status">
-                                {t('alreadyCompletedClassWord')}
-                            </Alert>
-                        ) : currentItem?.waitingForClass ? (
-                            <Alert severity="info" role="status">
-                                {t('waitingForClass')}
-                            </Alert>
                         ) : session.mode === 'teacher-led' ? (
                             <Stack spacing={2}>
                                 <Alert severity="info">{t('teacherLedActive')}</Alert>
@@ -468,20 +460,30 @@ const SpellingStudentPage = () => {
                             <Box aria-live="polite" aria-atomic="true" sx={{ width: '100%' }}>
                                 <Stack spacing={2} sx={{ width: '100%' }}>
                                     {currentItem.definition && (
-                                        <Box sx={{ textAlign: 'center', px: 2 }}>
-                                            <Typography variant="caption" color="text.secondary">Definition</Typography>
-                                            <Typography variant="body1">{currentItem.definition}</Typography>
+                                        <Box sx={{
+                                            textAlign: 'left',
+                                            px: 2.5,
+                                            py: 2,
+                                            border: 1,
+                                            borderColor: 'primary.light',
+                                            borderLeft: 5,
+                                            borderRadius: 2,
+                                            bgcolor: 'primary.50',
+                                            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.07)'
+                                        }}>
+                                            <Typography variant="overline" sx={{ color: 'primary.dark', fontWeight: 800, letterSpacing: '.08em' }}>Definition</Typography>
+                                            <Typography variant="body1" sx={{ color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.6 }}>{currentItem.definition}</Typography>
                                         </Box>
                                     )}
                                     {/* Words with dictionary audio use the voice panel; others keep the original play button. */}
                                     {!currentItem.audio && (
                                     <Button
-                                        variant="outlined"
+                                        variant="contained"
                                         size="large"
                                         startIcon={<HiOutlineSpeakerWave />}
                                         onClick={() => speakWord(currentItem.word, currentItem.audio)}
                                         disabled={audioPlaying}
-                                        sx={{ minHeight: 56, fontSize: '1.05rem', alignSelf: 'center', px: 4 }}
+                                        sx={{ minHeight: 56, fontSize: '1.05rem', alignSelf: 'center', px: 4, fontWeight: 700, boxShadow: '0 4px 12px rgba(25, 118, 210, 0.24)' }}
                                     >
                                         {audioPlaying ? 'Playing…' : t('hearWord')}
                                     </Button>
@@ -499,7 +501,7 @@ const SpellingStudentPage = () => {
                                         severity={currentItem.handRaised ? 'success' : 'info'}
                                         role="note"
                                         action={currentItem.handRaised ? null : (
-                                            <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
+                                        <Button color="inherit" size="small" variant="contained" onClick={raiseHand} sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } }}>Raise your hand</Button>
                                         )}
                                     >
                                         {currentItem.handRaised
@@ -569,7 +571,7 @@ const SpellingStudentPage = () => {
                                                 onContextMenu={(event) => event.preventDefault()}
                                             />
                                             <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1}>
-                                                <Button type="submit" variant="contained" size="large" disabled={loading || !input.trim()} sx={{ flex: 1 }}>
+                                                <Button type="submit" variant="contained" size="large" disabled={loading || !input.trim()} sx={{ flex: 1, minHeight: 50, fontWeight: 700, boxShadow: '0 4px 12px rgba(25, 118, 210, 0.22)' }}>
                                                     {t('submitAnswer')}
                                                 </Button>
                                             </Stack>
@@ -582,6 +584,41 @@ const SpellingStudentPage = () => {
                                 <Typography variant="body1" color="text.secondary">Loading next word...</Typography>
                             </Stack>
                         )}
+                        </Box>
+                        <Card
+                            variant="outlined"
+                            component="section"
+                            aria-labelledby="spelling-previous-words-title"
+                            sx={{
+                                minWidth: 0,
+                                minHeight: 0,
+                                maxHeight: { xs: 240, md: '100%' },
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}
+                        >
+                            <CardContent sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, '&:last-child': { pb: 2 } }}>
+                                <Typography id="spelling-previous-words-title" variant="h6" sx={{ mb: 1 }}>
+                                    Previous words
+                                </Typography>
+                                <Stack spacing={1} sx={{ flex: 1, overflowY: 'auto', minHeight: 0, pr: 0.5 }}>
+                                    {session?.attempts?.length ? session.attempts.map((attempt) => (
+                                        <Chip
+                                            key={attempt._id || attempt.sequence}
+                                            label={previousWordLabel(attempt, session.mode)}
+                                            color={isSkippedSpellingAttempt(attempt, session.mode) ? 'warning' : attempt.correct ? 'success' : 'error'}
+                                            variant="outlined"
+                                            title={isSkippedSpellingAttempt(attempt, session.mode) ? t('skipped') : attempt.correct ? 'Correct' : 'Incorrect'}
+                                            sx={{ maxWidth: '100%', justifyContent: 'flex-start' }}
+                                        />
+                                    )) : (
+                                        <Typography variant="body2" color="text.secondary">
+                                            No previous words yet.
+                                        </Typography>
+                                    )}
+                                </Stack>
+                            </CardContent>
+                        </Card>
                     </Box>
                 </DialogContent>
             </Dialog>

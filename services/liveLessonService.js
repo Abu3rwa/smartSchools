@@ -161,46 +161,11 @@ export const getStateForUser = async (session, user) => {
     : null;
 
   const roster = await getSessionStudents(session);
-  const responses = slide?.question
-    ? await LiveResponse.find({ sessionId: session._id, slideId: String(slide._id) })
-        .select("studentId selectedOptionId isCorrect latencyMs")
-        .lean()
-    : [];
-  const responseByStudent = new Map(responses.map((response) => [String(response.studentId), response]));
-  const students = roster.map((studentRecord) => {
-    const studentId = String(studentRecord.studentId);
-    const response = responseByStudent.get(studentId);
-    return {
-      studentId,
-      name: studentRecord.name,
-      status: response ? (response.isCorrect ? "correct" : "wrong") : "unanswered",
-      selectedOptionId: response?.selectedOptionId || null,
-      latencyMs: response?.latencyMs ?? null,
-    };
-  });
-  state.roster = students.map(({ studentId, name }) => ({
-    studentId,
+  state.roster = roster.map(({ studentId, name }) => ({
+    studentId: String(studentId),
     name,
     presence: "not_joined",
   }));
-  state.answers = slide?.question
-    ? {
-        slideId: String(slide._id),
-        kind: slide.question.kind,
-        totalStudents: students.length,
-        answered: responses.length,
-        correctCount: responses.filter((response) => response.isCorrect).length,
-        wrongCount: responses.filter((response) => !response.isCorrect).length,
-        unansweredCount: Math.max(0, students.length - responses.length),
-        perOption: Object.fromEntries(
-          slide.question.options.map((option) => [
-            option.id,
-            responses.filter((response) => response.selectedOptionId === option.id).length,
-          ]),
-        ),
-        students,
-      }
-    : null;
   return state;
 };
 

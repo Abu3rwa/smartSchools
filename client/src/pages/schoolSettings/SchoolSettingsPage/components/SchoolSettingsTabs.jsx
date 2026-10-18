@@ -10,7 +10,6 @@ import {
   HiOutlineAcademicCap
 } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineLockClosed } from 'react-icons/hi2';
 
 const SchoolSettingsTabs = ({
   activeTab,
@@ -19,7 +18,7 @@ const SchoolSettingsTabs = ({
   canManageSchoolSettings,
   canManageCommunicationSettings,
   canManageGradeScaling,
-  canManagePageAccess
+  canViewSupportPreviewAudits
 }) => {
   const { t } = useTranslation(['schoolSettings']);
 
@@ -49,13 +48,13 @@ const SchoolSettingsTabs = ({
             {t('schoolSettings:tabs.usersAndRoles')}
           </button>
         )}
-        {canManagePageAccess && (
+        {canViewSupportPreviewAudits && (
           <button
-            className={`settings-nav-btn ${activeTab === 'pageaccess' ? 'active' : ''}`}
-            onClick={() => onTabChange('pageaccess')}
+            className={`settings-nav-btn ${activeTab === 'supportpreviews' ? 'active' : ''}`}
+            onClick={() => onTabChange('supportpreviews')}
           >
-            <HiOutlineLockClosed size={18} />
-            Page access & previews
+            <HiOutlineUserGroup size={18} />
+            Support previews
           </button>
         )}
         {canManageSchoolSettings && (

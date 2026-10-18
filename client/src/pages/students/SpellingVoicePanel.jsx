@@ -55,9 +55,10 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
             sx={{
                 width: '100%',
                 border: 1,
-                borderColor: 'divider',
+                borderColor: 'primary.light',
                 borderRadius: 2,
                 bgcolor: 'background.paper',
+                boxShadow: '0 5px 18px rgba(15, 23, 42, 0.08)',
                 overflow: 'hidden'
             }}
         >
@@ -96,7 +97,7 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
             </Button>
 
             <Collapse in={open} timeout={reduceMotion ? 0 : 'auto'} unmountOnExit id={panelId}>
-                <Stack spacing={2.5} sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+                <Stack spacing={2.5} sx={{ p: 2, borderTop: 1, borderColor: 'primary.light', background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.045), rgba(124, 58, 237, 0.045))' }}>
                     <ToggleButtonGroup
                         exclusive
                         size="small"
@@ -128,19 +129,19 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
                         const examples = section.examples || [];
                         if (examples.length === 0) return null;
                         return (
-                            <Stack key={dictionary} component="section" aria-label={`${dictionaryLabel(dictionary)} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                                <Typography variant="subtitle2">{dictionaryLabel(dictionary)}</Typography>
+                            <Stack key={dictionary} component="section" aria-label={`${dictionaryLabel(dictionary)} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+                                <Typography variant="subtitle2" sx={{ color: 'primary.dark', fontWeight: 700 }}>{dictionaryLabel(dictionary)}</Typography>
                                 <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
                                 {examples.map((url, index) => (
                                     <Button
                                         key={url}
                                         size="small"
-                                        variant="text"
+                                        variant="contained"
                                         aria-label={`${dictionaryLabel(dictionary)} example sentence ${index + 1}`}
                                         startIcon={<HiOutlineSpeakerWave />}
                                         onClick={() => onPlayExample(url)}
                                         disabled={disabled}
-                                        sx={{ ...TARGET, textTransform: 'none' }}
+                                        sx={{ ...TARGET, textTransform: 'none', fontWeight: 700, boxShadow: 'none', bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark', boxShadow: 'none' } }}
                                     >
                                         {`Example ${index + 1}`}
                                     </Button>
@@ -166,10 +167,11 @@ const VoiceOption = ({ id, label, ariaLabel, selected, withIcon = false, ...rest
             textTransform: 'none',
             fontWeight: selected ? 600 : 400,
             '&.Mui-selected': {
-                color: 'primary.main',
-                bgcolor: 'action.selected',
+                color: 'primary.contrastText',
+                bgcolor: 'primary.main',
                 borderColor: 'primary.main'
-            }
+            },
+            '&.Mui-selected:hover': { bgcolor: 'primary.dark' }
         }}
         {...rest}
     >

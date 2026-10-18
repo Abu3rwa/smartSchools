@@ -3,7 +3,6 @@ import { withTransaction } from '../utils/withTransaction.js';
 import SpellingImportJob from '../models/SpellingImportJob.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
-import SpellingClassSession from '../models/SpellingClassSession.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 const REQUIRED_HEADERS = ['grade', 'week', 'category', 'word', 'order'];
@@ -210,35 +209,9 @@ async function replaceSpellingWordLists({ schoolId, job }) {
             };
         });
 
-        const groups = await SpellingClassSession.find({
-            school: schoolId,
-            grade: { $in: grades },
-            status: 'in-progress'
-        }).session(session);
-        const groupPositions = groups.map((group) => ({ group, position: oldById.get(String(group.currentWord)) }));
-
         const keptCount = newDocs.filter((doc) => doc._id).length;
         await SpellingWord.deleteMany({ school: schoolId, grade: { $in: grades } }, { session });
         if (newDocs.length > 0) await SpellingWord.insertMany(newDocs, { session, ordered: true });
-
-        // Keep each class on (or after) the position it was at in the old list.
-        for (const { group, position } of groupPositions) {
-            const next = await SpellingWord.findOne({
-                school: schoolId,
-                grade: group.grade,
-                ...(position ? { $or: [{ week: { $gt: position.week } }, { week: position.week, order: { $gte: position.order } }] } : {})
-            }).sort({ week: 1, order: 1 }).session(session).lean();
-            if (next) {
-                group.currentWord = next._id;
-                for (const participant of group.participants) {
-                    participant.submittedWord = null;
-                    participant.correct = false;
-                }
-            } else {
-                group.status = 'completed';
-            }
-            await group.save({ session });
-        }
 
         job.status = 'committed';
         job.committedAt = new Date();

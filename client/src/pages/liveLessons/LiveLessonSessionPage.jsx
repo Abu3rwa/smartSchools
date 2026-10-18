@@ -92,7 +92,6 @@ const LiveLessonSessionPage = () => {
       : "observer";
   const {
     state: socketState,
-    answers,
     roster,
     connection,
     error: socketError,
@@ -101,6 +100,8 @@ const LiveLessonSessionPage = () => {
   const [session, setSession] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [replayAvailabilitySaving, setReplayAvailabilitySaving] = useState(false);
+  const [replayAvailabilityError, setReplayAvailabilityError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [localAnswer, setLocalAnswer] = useState("");
   const [endConfirm, setEndConfirm] = useState(false);
@@ -137,7 +138,6 @@ const LiveLessonSessionPage = () => {
     state?.currentSlideIndex ?? session?.currentSlideIndex ?? 0;
   const totalSlides = state?.totalSlides ?? session?.totalSlides ?? 0;
   const selectedAnswer = state?.myAnswer?.selectedOptionId || localAnswer;
-  const currentAnswers = answers || state?.answers;
   const currentRoster = roster.length
     ? roster
     : state?.roster || session?.roster || [];
@@ -223,6 +223,27 @@ const LiveLessonSessionPage = () => {
     [sendAction],
   );
 
+  const updateReplayAvailability = async (available) => {
+    setReplayAvailabilitySaving(true);
+    setReplayAvailabilityError("");
+    try {
+      const response = await api.patch(
+        `/live/sessions/${sessionId}/replay-availability`,
+        { available },
+      );
+      setSession((current) => current ? {
+        ...current,
+        replayAvailable: response.data?.data?.replayAvailable === true,
+      } : current);
+    } catch (requestError) {
+      setReplayAvailabilityError(
+        requestError.response?.data?.message || "Could not update replay availability.",
+      );
+    } finally {
+      setReplayAvailabilitySaving(false);
+    }
+  };
+
   useEffect(() => {
     if ((!isTeacher && role !== "teacher") || sessionStatus !== "live") return undefined;
 
@@ -268,17 +289,6 @@ const LiveLessonSessionPage = () => {
       } else if (key === "h") {
         event.preventDefault();
         void act("slide:hide", { hidden: !state?.slideHidden });
-      } else if (
-        key === "o" &&
-        slide?.question &&
-        !state?.questionOpen &&
-        !revealed
-      ) {
-        event.preventDefault();
-        void act("question:open");
-      } else if (key === "c" && state?.questionOpen) {
-        event.preventDefault();
-        void act("question:close");
       } else if (key === "r" && slide?.question && !revealed) {
         event.preventDefault();
         void act("results:reveal");
@@ -507,21 +517,6 @@ const LiveLessonSessionPage = () => {
                           >
                             <span>{option.id.toUpperCase()}</span>
                             {option.text}
-                            {(isTeacher || isObserver) &&
-                              currentAnswers?.students?.some(
-                                (student) =>
-                                  student.selectedOptionId === option.id,
-                              ) && (
-                                <small>
-                                  {
-                                    currentAnswers.students.filter(
-                                      (student) =>
-                                        student.selectedOptionId === option.id,
-                                    ).length
-                                  }{" "}
-                                  answers
-                                </small>
-                              )}
                           </button>
                         );
                       })}
@@ -612,33 +607,12 @@ const LiveLessonSessionPage = () => {
                     className="live-keyboard-hint"
                     aria-label="Keyboard shortcuts"
                   >
-                    ← → slides · O open · C close · R release · H hide · F
+                    ← → slides · R release · H hide · F
                     fullscreen
                   </span>
                 </div>
                 {slide?.question && (
                   <div className="live-question-controls">
-                    {!state?.questionOpen ? (
-                      <button
-                        className="live-session-primary"
-                        title="Open question (O)"
-                        onClick={() => act("question:open")}
-                        disabled={
-                          connection !== "connected" || isPaused || revealed
-                        }
-                      >
-                        Open question <kbd>O</kbd>
-                      </button>
-                    ) : (
-                      <button
-                        className="live-session-secondary"
-                        title="Close question (C)"
-                        onClick={() => act("question:close")}
-                        disabled={connection !== "connected" || isPaused}
-                      >
-                        Close question <kbd>C</kbd>
-                      </button>
-                    )}
                     <button
                       className="live-session-secondary"
                       title="Release answers (R)"
@@ -779,39 +753,6 @@ const LiveLessonSessionPage = () => {
                 )}
               </div>
             </div>
-            {slide?.question && (
-              <div className="live-control-card">
-                <div className="live-roster-heading">
-                  <div>
-                    <h2>Live responses</h2>
-                    <p>
-                      {currentAnswers?.answered || 0} of{" "}
-                      {currentAnswers?.totalStudents || currentRoster.length}{" "}
-                      answered
-                    </p>
-                  </div>
-                </div>
-                <div className="live-response-counts">
-                  <span className="correct">
-                    {currentAnswers?.correctCount || 0} correct
-                  </span>
-                  <span className="wrong">
-                    {currentAnswers?.wrongCount || 0} wrong
-                  </span>
-                  <span className="unanswered">
-                    {currentAnswers?.unansweredCount ?? currentRoster.length}{" "}
-                    waiting
-                  </span>
-                </div>
-                {currentAnswers?.students?.map((student) => (
-                  <div className="live-answer-student" key={student.studentId}>
-                    <span className={`live-answer-state ${student.status}`} />
-                    <span>{student.name}</span>
-                    <small>{student.status}</small>
-                  </div>
-                ))}
-              </div>
-            )}
             {isTeacher && slide?.question && state?.teacherAnswer && (
               <div className="live-control-card">
                 <h2>Teacher answer key</h2>
@@ -851,6 +792,30 @@ const LiveLessonSessionPage = () => {
                 >
                   Replay lesson
                 </button>
+                {isTeacher && (
+                  <div className="live-session-replay-sharing">
+                    <div>
+                      <strong>Student replay access</strong>
+                      <span>Share this lesson replay with students in this class.</span>
+                    </div>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={session.replayAvailable === true}
+                        disabled={replayAvailabilitySaving}
+                        onChange={(event) => updateReplayAvailability(event.target.checked)}
+                      />
+                      {replayAvailabilitySaving
+                        ? "Saving…"
+                        : session.replayAvailable
+                          ? "Available to students"
+                          : "Not shared"}
+                    </label>
+                    {replayAvailabilityError && (
+                      <p role="alert">{replayAvailabilityError}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </aside>

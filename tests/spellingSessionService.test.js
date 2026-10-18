@@ -11,7 +11,6 @@ import {
     getCurrentSpellingItem,
     cancelScheduledSpellingSession,
     recordSpellingAttempt,
-    startSpellingClassSession,
     startSpellingSession
 } from '../services/spellingSessionService.js';
 import { listSpellingSessions } from '../services/spellingReadService.js';
@@ -162,6 +161,19 @@ test('validateSpellingIntegrityEvent rejects malformed payloads', () => {
     assert.throws(() => validateSpellingIntegrityEvent({ eventId, eventType: 'page_hidden', occurredAt: 'invalid-date' }), /valid date/);
 });
 
+test('teacher-led spelling sessions are rejected before database access', async () => {
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId: 'school-1',
+            studentId: 'student-1',
+            userId: 'user-1',
+            mode: 'teacher-led',
+            maxMistakesAllowed: 3
+        }),
+        (error) => error.statusCode === 400 && /Teacher-led spelling sessions are no longer available/.test(error.message)
+    );
+});
+
 test('startSpellingSession rejects invalid modes before database access', async () => {
     await assert.rejects(
         () => startSpellingSession({
@@ -185,32 +197,6 @@ test('formal spelling assessments must be self-serve before database access', as
             formalAssessment: true
         }),
         (error) => error.statusCode === 400 && /Formal spelling assessments must be self-serve/.test(error.message)
-    );
-});
-
-test('startSpellingClassSession rejects invalid grade and mode before database access', async () => {
-    await assert.rejects(
-        () => startSpellingClassSession({
-            schoolId: 'school-1',
-            classId: 'class-1',
-            studentIds: ['student-1'],
-            userId: 'user-1',
-            mode: 'unsupported',
-            curriculumGrade: 'KG'
-        }),
-        (error) => error.statusCode === 400 && /Invalid spelling session mode/.test(error.message)
-    );
-
-    await assert.rejects(
-        () => startSpellingClassSession({
-            schoolId: 'school-1',
-            classId: 'class-1',
-            studentIds: ['student-1'],
-            userId: 'user-1',
-            mode: 'self-serve',
-            curriculumGrade: 'G6'
-        }),
-        (error) => error.statusCode === 400 && /valid spelling grade/.test(error.message)
     );
 });
 

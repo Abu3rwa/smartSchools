@@ -12,7 +12,6 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
 import SubscriptionExpiredBanner from '../SubscriptionExpiredBanner';
-import SchoolPageAccessGate from '../SchoolPageAccessGate';
 import StudentLiveLessonPopup from '../liveLessons/StudentLiveLessonPopup';
 import './MainLayout.css';
 
@@ -85,9 +84,7 @@ const MainLayout = () => {
                     <Header />
                     <main id="main-content" className="page-content">
                         {shouldShowBanner && <SubscriptionExpiredBanner />}
-                        <SchoolPageAccessGate>
-                            <Outlet />
-                        </SchoolPageAccessGate>
+                        <Outlet />
                     </main>
                 </div>
             </div>

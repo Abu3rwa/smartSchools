@@ -58,6 +58,5 @@ export const isCompatibleDestinationRecord = (source, destination) => {
         && String(destination.class) === String(source.class)
         && destination.academicYear === source.academicYear
         && samePeriod
-        && destination.status === 'in_progress'
         && String(destination.student) !== String(source.student);
 };

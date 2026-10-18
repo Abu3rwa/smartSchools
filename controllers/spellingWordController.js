@@ -1,13 +1,13 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
-import SpellingClassSession from '../models/SpellingClassSession.js';
 import WordAudio from '../models/WordAudio.js';
 import { buildSpellingWordAudioCsv, buildSpellingWordImportCsv } from '../utils/spellingWordExport.js';
 import { normalizeWordKey } from '../utils/wordAudio.js';
 
 export const listSpellingWords = asyncHandler(async (req, res) => {
     const query = {};
+    if (req.schoolId) query.school = req.schoolId;
     if (req.query.grade) query.grade = String(req.query.grade).toUpperCase();
     if (req.query.week) query.week = Number(req.query.week);
     if (req.query.category) query.category = String(req.query.category).trim();
@@ -77,19 +77,12 @@ export const deleteSpellingWord = asyncHandler(async (req, res) => {
     const word = await SpellingWord.findOne({ _id: req.params.wordId, school: req.schoolId }).select('_id').lean();
     if (!word) return res.status(404).json({ success: false, message: 'Spelling word not found' });
 
-    const [activeSession, activeClassSession] = await Promise.all([
-        SpellingSession.findOne({
-            school: req.schoolId,
-            status: 'in-progress',
-            'currentItem.wordId': word._id
-        }).select('_id').lean(),
-        SpellingClassSession.findOne({
-            school: req.schoolId,
-            status: 'in-progress',
-            currentWord: word._id
-        }).select('_id').lean()
-    ]);
-    if (activeSession || activeClassSession) {
+    const activeSession = await SpellingSession.findOne({
+        school: req.schoolId,
+        status: 'in-progress',
+        'currentItem.wordId': word._id
+    }).select('_id').lean();
+    if (activeSession) {
         return res.status(409).json({ success: false, message: 'This word is currently being used in an active spelling session' });
     }
 

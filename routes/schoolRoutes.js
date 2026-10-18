@@ -43,11 +43,6 @@ import {
     normalizeStudentGroupingReportSettings,
     STUDENT_GROUPING_REPORT_SETTING_KEYS
 } from '../utils/studentGroupingReportSettings.js';
-import {
-    getSchoolPageAccess,
-    SCHOOL_PAGE_ACCESS_PAGES,
-    SCHOOL_PAGE_ACCESS_ROLES
-} from '../config/schoolPageAccess.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import {
@@ -191,7 +186,6 @@ router.get('/me/features', requireSchoolContext, asyncHandler(async (req, res) =
             trialEndsAt: featureContext.subscription?.trialEndsAt || featureContext.school?.subscription?.trialEndsAt || null,
             currentPeriodEnd: featureContext.subscription?.currentPeriodEnd || featureContext.school?.subscription?.currentPeriodEnd || null,
             features: featureContext.features,
-            pageAccess: getSchoolPageAccess(featureContext.school?.settings),
             limits,
             usage,
             featureMetadata: buildFeatureMetadata(featureContext.features, featureContext.plan)
@@ -199,10 +193,7 @@ router.get('/me/features', requireSchoolContext, asyncHandler(async (req, res) =
     });
 }));
 
-router.get('/me/page-access', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
-    const school = await School.findById(req.schoolId).select('settings.userPageAccess');
-    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
-
+router.get('/me/support-preview-audits', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
     const audits = await SchoolAdminPreviewAudit.find({ school: req.schoolId })
         .sort({ startedAt: -1 })
         .limit(50)
@@ -211,63 +202,7 @@ router.get('/me/page-access', requireSchoolContext, authorize('admin'), asyncHan
 
     res.json({
         success: true,
-        data: {
-            pages: SCHOOL_PAGE_ACCESS_PAGES,
-            pageAccess: getSchoolPageAccess(school.settings),
-            previewAudits: audits
-        }
-    });
-}));
-
-router.get('/me/page-access/current', requireSchoolContext, asyncHandler(async (req, res) => {
-    const school = await School.findById(req.schoolId).select('settings.userPageAccess');
-    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
-    res.json({ success: true, data: { pageAccess: getSchoolPageAccess(school.settings) } });
-}));
-
-router.patch('/me/page-access', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
-    const patch = req.body?.pageAccess;
-    const roles = SCHOOL_PAGE_ACCESS_ROLES;
-    const validPageKeys = new Set(SCHOOL_PAGE_ACCESS_PAGES.map(({ key }) => key));
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch)
-        || Object.keys(patch).some((role) => !roles.includes(role))) {
-        return res.status(400).json({ success: false, message: 'Provide page availability for admin, teacher, and/or student roles.' });
-    }
-
-    const school = await School.findById(req.schoolId);
-    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
-
-    const saved = school.settings?.userPageAccess || {};
-    const next = Object.fromEntries(
-        roles.map((role) => [role, { ...(saved[role] || {}) }])
-    );
-
-    for (const role of roles) {
-        if (patch[role] === undefined) continue;
-        if (!patch[role] || typeof patch[role] !== 'object' || Array.isArray(patch[role])
-            || Object.keys(patch[role]).some((key) => !validPageKeys.has(key))
-            || Object.values(patch[role]).some((enabled) => typeof enabled !== 'boolean')) {
-            return res.status(400).json({ success: false, message: `Invalid ${role} page availability settings.` });
-        }
-        const attemptsToLockRecoveryPage = Object.entries(patch[role]).some(([key, enabled]) => {
-            const page = SCHOOL_PAGE_ACCESS_PAGES.find((item) => item.key === key);
-            return enabled === false && page?.recoveryRoles?.includes(role);
-        });
-        if (attemptsToLockRecoveryPage) {
-            return res.status(400).json({ success: false, message: 'Required recovery pages cannot be locked for this role.' });
-        }
-        Object.assign(next[role], patch[role]);
-    }
-
-    school.settings.userPageAccess = next;
-    school.markModified('settings.userPageAccess');
-    await school.save();
-    invalidateSchoolFeatureContext(req.schoolId);
-
-    res.json({
-        success: true,
-        message: 'Page availability updated for this school.',
-        data: { pageAccess: getSchoolPageAccess(school.settings) }
+        data: { previewAudits: audits }
     });
 }));
 

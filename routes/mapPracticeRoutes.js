@@ -2,13 +2,14 @@ import express from 'express';
 import { protect, authorizeWithPermission } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { uploadMapPracticeCsv, previewMapPracticeFiles, importMapPracticeFiles, getMapPracticeImportStudents, getMapPracticeOverview, archiveMapPracticeQuestionsNotInFile, downloadMapPracticeImportErrors } from '../controllers/mapPracticeImportController.js';
+import { uploadMapPracticeCsv, previewMapPracticeFiles, importMapPracticeFiles, getMapPracticeImportStatus, getMapPracticeImportStudents, getMapPracticeOverview, archiveMapPracticeQuestionsNotInFile, downloadMapPracticeImportErrors } from '../controllers/mapPracticeImportController.js';
 import {
   getMapPracticeSettings,
   saveMapPracticeSettings,
   getStudentMapPracticePlans,
   getMyMapPracticeHome,
   createMapPracticeAssignment,
+  deleteMapPracticeSet,
   getMapPracticeAssignmentQuestions
 } from '../controllers/mapPracticeController.js';
 import {
@@ -38,10 +39,12 @@ router.post('/preview-files', authorizeWithPermission(['admin', 'teacher'], []),
 router.post('/import/preview', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);
 router.post('/import-files', authorizeWithPermission(['admin', 'teacher'], []), importMapPracticeFiles);
 router.post('/import/commit', authorizeWithPermission(['admin', 'teacher'], []), importMapPracticeFiles);
+router.get('/import/status/:token', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeImportStatus);
 router.post('/import/archive-not-in-file', authorizeWithPermission(['admin', 'teacher'], []), archiveMapPracticeQuestionsNotInFile);
 router.get('/import/errors/:token/:fileHash', authorizeWithPermission(['admin', 'teacher'], []), downloadMapPracticeImportErrors);
 router.get('/students/:studentId/plans', authorizeWithPermission(['admin', 'teacher', 'student'], []), getStudentMapPracticePlans);
 router.post('/assignments', authorizeWithPermission(['admin', 'teacher'], []), createMapPracticeAssignment);
+router.delete('/sets/:setId', authorizeWithPermission(['admin', 'teacher'], []), deleteMapPracticeSet);
 router.get('/assignments/:assignmentId/questions', authorizeWithPermission(['student', 'admin', 'teacher'], []), getMapPracticeAssignmentQuestions);
 router.get('/me/home', authorizeWithPermission(['student'], []), getMyMapPracticeHome);
 router.post('/assignments/:assignmentId/start', authorizeWithPermission(['student', 'admin', 'teacher'], []), startMapPracticeAttempt);

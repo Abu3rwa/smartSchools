@@ -5,7 +5,6 @@ import logger from '../utils/logger.js';
 import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
 import { isValidAcademicYear, resolveSchoolAcademicYear } from '../utils/academicYear.js';
 import SchoolAdminPreviewAudit from '../models/SchoolAdminPreviewAudit.js';
-import { getSchoolPageAccessForRole, getSchoolPageForApiPath } from '../config/schoolPageAccess.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -123,15 +122,6 @@ export const protect = async (req, res, next) => {
                 req.school.settings.currentAcademicYear = req.academicYear;
             }
 
-            const pageKey = getSchoolPageForApiPath(req.originalUrl || req.path, user.role);
-            if (getSchoolPageAccessForRole(req.school.settings, user.role, pageKey) === false) {
-                return res.status(423).json({
-                    success: false,
-                    message: 'This page is temporarily unavailable because your school has locked it.',
-                    code: 'SCHOOL_PAGE_LOCKED',
-                    page: pageKey
-                });
-            }
         }
 
         // Run the rest of the request in tenant context so ALL Mongoose queries are

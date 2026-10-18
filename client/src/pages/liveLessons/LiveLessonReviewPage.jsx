@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { HiOutlineArrowDownTray, HiOutlineArrowLeft, HiOutlinePause, HiOutlinePlay } from "react-icons/hi2";
+import {
+  HiOutlineArrowDownTray,
+  HiOutlineArrowLeft,
+  HiOutlineChevronLeft,
+  HiOutlineChevronRight,
+  HiOutlinePause,
+  HiOutlinePlay,
+} from "react-icons/hi2";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
@@ -93,8 +100,6 @@ const LiveLessonReviewPage = ({ mode }) => {
   const [gradeError, setGradeError] = useState("");
   const [gradeLoading, setGradeLoading] = useState(false);
   const [gradeSaving, setGradeSaving] = useState(false);
-  const [replayAvailabilitySaving, setReplayAvailabilitySaving] = useState(false);
-  const [replayAvailabilityError, setReplayAvailabilityError] = useState("");
   const isStudentReplay = mode === "replay" && (replay?.viewerRole === "student" || user?.role === "student");
   const lessonsBackPath = user?.role === "student" ? "/portal/live-lessons/join" : "/portal/live-lessons";
 
@@ -248,22 +253,6 @@ const LiveLessonReviewPage = ({ mode }) => {
     }) : current);
   };
 
-  const updateReplayAvailability = async (available) => {
-    setReplayAvailabilitySaving(true);
-    setReplayAvailabilityError("");
-    try {
-      const response = await api.patch(`/live/sessions/${sessionId}/replay-availability`, { available });
-      setReport((current) => current ? {
-        ...current,
-        session: { ...current.session, replayAvailable: response.data?.data?.replayAvailable === true },
-      } : current);
-    } catch (requestError) {
-      setReplayAvailabilityError(requestError.response?.data?.message || "Could not update replay availability.");
-    } finally {
-      setReplayAvailabilitySaving(false);
-    }
-  };
-
   const selectedReportStudent = report?.perStudent?.find(
     (student) => student.studentId === reportStudentId,
   ) || report?.perStudent?.[0] || null;
@@ -398,6 +387,7 @@ const LiveLessonReviewPage = ({ mode }) => {
     if (!replay) return null;
     const targetMs = seconds * 1000;
     let currentSlideIndex = 0;
+    let activeSlideOffsetMs = 0;
     let slideHidden = false;
     let questionOpen = false;
     let paused = false;
@@ -408,6 +398,7 @@ const LiveLessonReviewPage = ({ mode }) => {
       if (event.offsetMs > targetMs) break;
       if (event.type === "slide:changed") {
         currentSlideIndex = event.payload?.index ?? currentSlideIndex;
+        activeSlideOffsetMs = event.offsetMs;
         slideHidden = false;
       } else if (event.type === "slide:hidden") {
         slideHidden = Boolean(event.payload?.hidden);
@@ -432,6 +423,7 @@ const LiveLessonReviewPage = ({ mode }) => {
     const slide = replay.lesson?.slides?.[currentSlideIndex];
     return {
       currentSlideIndex,
+      activeSlideOffsetMs,
       slideHidden,
       questionOpen,
       paused,
@@ -444,6 +436,17 @@ const LiveLessonReviewPage = ({ mode }) => {
       presenceEvents: presenceEvents.filter((event) => !studentFilter || String(event.actor?.userId || event.payload?.studentId) === studentFilter),
     };
   }, [replay, seconds, studentFilter]);
+  const slideChangeEvents = (replay?.events || []).filter((event) => (
+    event.type === "slide:changed" && Number.isInteger(event.payload?.index)
+  ));
+  const previousSlideEvent = [...slideChangeEvents].reverse().find((event) => (
+    event.offsetMs < (replayState?.activeSlideOffsetMs ?? 0) &&
+    event.payload.index !== replayState?.currentSlideIndex
+  ));
+  const nextSlideEvent = slideChangeEvents.find((event) => (
+    event.offsetMs > (replayState?.activeSlideOffsetMs ?? 0) &&
+    event.payload.index !== replayState?.currentSlideIndex
+  ));
 
   if (error) return <main className="live-review-page"><div className="live-error-banner">{error}<button onClick={() => navigate(lessonsBackPath)}>Back to lessons</button></div></main>;
   if ((mode === "report" && !report) || (mode === "replay" && !replay)) return <main className="live-review-page"><div className="live-loading">Loading session review…</div></main>;
@@ -481,24 +484,6 @@ const LiveLessonReviewPage = ({ mode }) => {
               <div><strong>{report.summary?.questionCount || 0}</strong><span>Questions</span></div>
               <div><strong>{report.summary?.submittedAnswers || 0}</strong><span>Answers submitted</span></div>
             </div>
-            {report.session.status === "ended" && report.session.isOwner && (
-              <div className="live-replay-sharing no-print">
-                <div>
-                  <strong>Student replay access</strong>
-                  <span>Share this lesson replay with students enrolled in {report.session.class?.name || "this class"}. Students see the lesson, not classmates’ answers or names.</span>
-                </div>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={report.session.replayAvailable === true}
-                    disabled={replayAvailabilitySaving}
-                    onChange={(event) => updateReplayAvailability(event.target.checked)}
-                  />
-                  {replayAvailabilitySaving ? "Saving…" : report.session.replayAvailable ? "Available to students" : "Not shared"}
-                </label>
-                {replayAvailabilityError && <p className="live-report-export-error" role="alert">{replayAvailabilityError}</p>}
-              </div>
-            )}
           </section>
           {report.session.status === "ended" && (
             <section className="live-review-card live-report-performance">
@@ -866,10 +851,28 @@ const LiveLessonReviewPage = ({ mode }) => {
             </>
           )}
           <div className="live-replay-controls">
+            <button
+              className="live-session-secondary"
+              onClick={() => {
+                setPlaying(false);
+                setSeconds(Math.ceil(previousSlideEvent.offsetMs / 1000));
+              }}
+              disabled={!previousSlideEvent}
+              aria-label="Go to previous slide"
+            ><HiOutlineChevronLeft /> Previous</button>
             <button className="live-session-secondary" onClick={() => setPlaying((value) => !value)}>{playing ? <HiOutlinePause /> : <HiOutlinePlay />}{playing ? "Pause" : "Play"}</button>
             <span>{new Date((new Date(replay.session.startedAt || 0)).getTime() + seconds * 1000).toLocaleTimeString()}</span>
             <input type="range" min="0" max={durationSeconds} value={seconds} onChange={(event) => { setPlaying(false); setSeconds(Number(event.target.value)); }} aria-label="Seek replay timeline" />
             <span>{Math.floor(durationSeconds / 60)}:{String(durationSeconds % 60).padStart(2, "0")}</span>
+            <button
+              className="live-session-secondary"
+              onClick={() => {
+                setPlaying(false);
+                setSeconds(Math.ceil(nextSlideEvent.offsetMs / 1000));
+              }}
+              disabled={!nextSlideEvent}
+              aria-label="Go to next slide"
+            >Next <HiOutlineChevronRight /></button>
           </div>
           <div className="live-replay-event-list"><strong>Lesson timeline</strong>
             {(replay.events || []).filter((event) => event.offsetMs <= seconds * 1000 && (!studentFilter || String(event.actor?.userId || event.payload?.studentId) === studentFilter)).slice(-8).map((event) => <span key={event.seq}>{Math.floor(event.offsetMs / 1000)}s · {event.type.replace(":", " ")}</span>)}

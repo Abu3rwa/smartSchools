@@ -1120,6 +1120,7 @@ export const getLiveSession = asyncHandler(async (req, res) => {
     lessonSubject: session.lessonSnapshot.subject || "",
     lessonGrade: session.lessonSnapshot.grade || "",
     lessonLanguage: session.lessonSnapshot.language || "en",
+    ...(isOwner ? { replayAvailable: session.replayAvailable === true } : {}),
     classId: String(session.classId),
     scheduledAt: session.scheduledAt,
     ...((isStudent && session.status !== "ended") || isAuthorizedStaff || isOwner

@@ -449,92 +449,79 @@ export const getGoalCopyDestinations = asyncHandler(async (req, res) => {
         .select('_id school teacher class academicYear cycle month status')
         .lean();
     if (!sourceRecord) return res.status(404).json({ success: false, message: 'Record not found' });
-    if (sourceRecord.status !== 'in_progress') {
-        return res.status(400).json({ success: false, message: 'Goals can only be copied from an in-progress record' });
-    }
     await assertTeacherRecordWriteAccess(req.user, sourceRecord);
 
     const samePeriod = sourceRecord.cycle
         ? { cycle: sourceRecord.cycle }
         : { cycle: null, month: sourceRecord.month };
-    const records = await PlpStudentRecord.find({
+    const students = await Student.find({
         school: req.user.school,
-        academicYear: sourceRecord.academicYear,
-        class: sourceRecord.class,
-        ...samePeriod,
-        status: 'in_progress',
-        _id: { $ne: sourceRecord._id },
-        student: { $ne: sourceRecord.student },
+        status: 'active',
+        _id: { $ne: sourceRecord.student },
+        $or: [
+            { currentClass: sourceRecord.class },
+            { enrolledClasses: sourceRecord.class },
+        ],
     })
-        .populate('student', 'firstName lastName studentId')
-        .populate('cycle', 'title cycleCode')
-        .sort({ 'student.firstName': 1, 'student.lastName': 1 })
+        .select('_id firstName lastName studentId')
+        .sort({ firstName: 1, lastName: 1 })
         .lean();
-    const eligibleRecords = [];
-    for (const record of records) {
-        try {
-            await assertTeacherRecordWriteAccess(req.user, record);
-            eligibleRecords.push(record);
-        } catch (error) {
-            if (error.statusCode !== 403) throw error;
-        }
-    }
+    const records = students.length
+        ? await PlpStudentRecord.find({
+            school: req.user.school,
+            academicYear: sourceRecord.academicYear,
+            teacher: sourceRecord.teacher,
+            ...samePeriod,
+            student: { $in: students.map((student) => student._id) },
+        }).select('_id student status').lean()
+        : [];
+    const recordsByStudent = new Map(records.map((record) => [String(record.student), record]));
 
     res.json({
         success: true,
-        data: eligibleRecords.map((record) => ({
-            _id: record._id,
-            student: record.student,
-            class: record.class,
-            academicYear: record.academicYear,
-            cycle: record.cycle,
-            month: record.month,
+        data: students.map((student) => ({
+            studentId: student._id,
+            student,
+            recordId: recordsByStudent.get(String(student._id))?._id || null,
+            recordStatus: recordsByStudent.get(String(student._id))?.status || null,
         })),
     });
 });
 
 export const copyGoalToRecords = asyncHandler(async (req, res) => {
-    const destinationRecordIds = normalizeDestinationRecordIds(req.body.destinationRecordIds);
+    const destinationStudentIds = normalizeDestinationRecordIds(req.body.destinationStudentIds);
     const copyOperationId = String(req.body.copyOperationId || '').trim();
     const copyDueDates = req.body.copyDueDates === true;
 
-    if (!destinationRecordIds.length || destinationRecordIds.length > 25) {
-        return res.status(400).json({ success: false, message: 'Choose between 1 and 25 destination records' });
+    if (!destinationStudentIds.length || destinationStudentIds.length > 100) {
+        return res.status(400).json({ success: false, message: 'Choose between 1 and 100 destination students' });
     }
     if (!/^[A-Za-z0-9-]{8,100}$/.test(copyOperationId)) {
         return res.status(400).json({ success: false, message: 'A valid copy operation ID is required' });
     }
-    if (!destinationRecordIds.every((id) => mongoose.isValidObjectId(id))) {
-        return res.status(400).json({ success: false, message: 'One or more destination record IDs are invalid' });
+    if (!destinationStudentIds.every((id) => mongoose.isValidObjectId(id))) {
+        return res.status(400).json({ success: false, message: 'One or more destination student IDs are invalid' });
     }
 
     const sourceGoal = await PlpGoal.findOne({ _id: req.params.goalId, school: req.user.school }).lean();
     if (!sourceGoal) return res.status(404).json({ success: false, message: 'Goal not found' });
     const sourceRecord = await PlpStudentRecord.findOne({ _id: sourceGoal.plpRecord, school: req.user.school })
-        .select('_id school teacher class academicYear cycle month student status')
+        .select('_id school teacher class academicYear cycle month student status theme focusTrait')
         .lean();
     if (!sourceRecord) return res.status(404).json({ success: false, message: 'Source record not found' });
-    if (sourceRecord.status !== 'in_progress') {
-        return res.status(400).json({ success: false, message: 'Goals can only be copied from an in-progress record' });
-    }
     await assertTeacherRecordWriteAccess(req.user, sourceRecord);
 
-    const destinationRecords = await PlpStudentRecord.find({
+    const destinationStudents = await Student.find({
         school: req.user.school,
-        _id: { $in: destinationRecordIds },
-    }).select('_id school teacher class academicYear cycle month student status').lean();
-    if (destinationRecords.length !== destinationRecordIds.length) {
-        return res.status(400).json({ success: false, message: 'One or more destination records are unavailable' });
-    }
-
-    for (const destination of destinationRecords) {
-        await assertTeacherRecordWriteAccess(req.user, destination);
-        if (!isCompatibleDestinationRecord(sourceRecord, destination)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Destinations must be different students in the same class, academic year, and round, with an in-progress record',
-            });
-        }
+        status: 'active',
+        _id: { $in: destinationStudentIds, $ne: sourceRecord.student },
+        $or: [
+            { currentClass: sourceRecord.class },
+            { enrolledClasses: sourceRecord.class },
+        ],
+    }).select('_id firstName lastName studentId').lean();
+    if (destinationStudents.length !== destinationStudentIds.length) {
+        return res.status(400).json({ success: false, message: 'One or more destination students are not active in this class and academic year' });
     }
 
     if (sourceGoal.linkedSubjectId) {
@@ -573,8 +560,38 @@ export const copyGoalToRecords = asyncHandler(async (req, res) => {
         .sort({ createdAt: 1 })
         .lean();
     const outcomes = [];
-    for (const destinationRecord of destinationRecords) {
+    const samePeriod = sourceRecord.cycle
+        ? { cycle: sourceRecord.cycle }
+        : { cycle: null, month: sourceRecord.month };
+    for (const destinationStudent of destinationStudents) {
         const result = await withTransaction(async (session) => {
+            let destinationRecord = await PlpStudentRecord.findOne({
+                school: req.user.school,
+                academicYear: sourceRecord.academicYear,
+                teacher: sourceRecord.teacher,
+                ...samePeriod,
+                student: destinationStudent._id,
+            }).session(session).lean();
+
+            if (!destinationRecord) {
+                const [createdRecord] = await PlpStudentRecord.create([{
+                    school: req.user.school,
+                    academicYear: sourceRecord.academicYear,
+                    cycle: sourceRecord.cycle || null,
+                    month: sourceRecord.month,
+                    theme: sourceRecord.theme || 'confidence',
+                    focusTrait: sourceRecord.focusTrait || null,
+                    teacher: sourceRecord.teacher,
+                    class: sourceRecord.class,
+                    student: destinationStudent._id,
+                }], { session, ordered: true });
+                destinationRecord = createdRecord.toObject();
+            }
+            await assertTeacherRecordWriteAccess(req.user, destinationRecord);
+            if (!isCompatibleDestinationRecord(sourceRecord, destinationRecord)) {
+                throw Object.assign(new Error('The destination student has a PLP record for a different class, year, or round'), { statusCode: 400 });
+            }
+
             const existingGoal = await PlpGoal.findOne({
                 school: req.user.school,
                 plpRecord: destinationRecord._id,
@@ -600,7 +617,7 @@ export const copyGoalToRecords = asyncHandler(async (req, res) => {
                     copyOperationId,
                     actorId: req.user._id,
                 }),
-            ], { session });
+            ], { session, ordered: true });
             const copiedTasks = sourceTasks.length
                 ? await PlpTask.create(sourceTasks.map((task) => buildCopiedTask({
                     sourceTask: task,
@@ -608,7 +625,7 @@ export const copyGoalToRecords = asyncHandler(async (req, res) => {
                     goalId: copiedGoal._id,
                     actorId: req.user._id,
                     copyDueDates,
-                })), { session })
+                })), { session, ordered: true })
                 : [];
             const actorRole = req.user.role === 'admin' ? 'admin' : 'teacher';
             await PlpInteraction.create([{
@@ -620,7 +637,7 @@ export const copyGoalToRecords = asyncHandler(async (req, res) => {
                 actionType: 'status_change',
                 visibility: 'internal',
                 payload: { to: 'active', copiedFromGoalId: sourceGoal._id },
-            }], { session });
+            }], { session, ordered: true });
             await writePlpAudit({
                 school: req.user.school,
                 actor: req.user._id,
@@ -662,8 +679,7 @@ export const copyGoalToRecords = asyncHandler(async (req, res) => {
             }
         }
         outcomes.push({
-            recordId: destinationRecord._id,
-            studentId: destinationRecord.student,
+            studentId: destinationStudent._id,
             goalId: result.goalId,
             taskIds: result.taskIds,
             alreadyCopied: result.alreadyCopied,

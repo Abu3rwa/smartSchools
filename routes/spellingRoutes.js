@@ -10,19 +10,16 @@ import {
 } from '../controllers/spellingImportController.js';
 import {
     abandonSession,
-    advanceClassWordHandler,
     cancelScheduledSession,
     completeSession,
     createSpellingIntegrityEvent,
     getSpellingIntegrityEvents,
-    getClassSessionProgress,
     getCurrentItem,
     listRaisedHands,
     lowerHand,
     markAttemptCorrect,
     raiseHand,
     recordAttempt,
-    startClassSession,
     startSession
 } from '../controllers/spellingSessionController.js';
 import {
@@ -94,8 +91,6 @@ router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
 router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
 router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
-router.post('/sessions/class', authorize('admin', 'department_principal', 'teacher'), express.json(), startClassSession);
-router.get('/sessions/class/progress', authorize('admin', 'department_principal', 'teacher'), getClassSessionProgress);
 router.post('/sessions', authorize('admin', 'department_principal', 'teacher'), startSession);
 router.get('/sessions', listSessions);
 router.get('/sessions/active', getActiveSession);
@@ -107,7 +102,6 @@ router.post('/sessions/:id/integrity-events', authorize('student'), createSpelli
 router.get('/sessions/:id/integrity-events', authorize('admin', 'department_principal', 'teacher'), getSpellingIntegrityEvents);
 router.patch('/sessions/:id/attempt', recordAttempt);
 router.patch('/sessions/:id/attempts/:attemptId/correct', authorize('admin', 'department_principal', 'teacher'), express.json(), markAttemptCorrect);
-router.post('/sessions/:id/advance-class-word', authorize('admin', 'department_principal', 'teacher'), express.json(), advanceClassWordHandler);
 router.post('/sessions/:id/complete', completeSession);
 router.post('/sessions/:id/cancel-scheduled', authorize('admin', 'department_principal', 'teacher'), cancelScheduledSession);
 router.post('/sessions/:id/abandon', abandonSession);

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormControlLabel, IconButton, InputLabel, Menu, MenuItem, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineEllipsisVertical } from 'react-icons/hi2';
+import { HiOutlineArrowPath, HiOutlineEllipsisVertical } from 'react-icons/hi2';
 import { isSkippedSpellingAttempt } from './spellingTeacherConstants';
 
 const SpellingStudentRosterTable = ({
     selectedClass,
     classStudents,
     overviewLoading,
+    onRefreshActiveSessions,
     rowLevels,
     activeSessionMap,
     studentHistoryMap,
@@ -69,7 +70,19 @@ const SpellingStudentRosterTable = ({
         <>
         <Card sx={{ mb: 3 }}>
             <CardContent>
-                <Typography variant="h6" gutterBottom>{selectedClass?.name || t('allStudentsOverview')}</Typography>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 1 }}>
+                    <Typography variant="h6">{selectedClass?.name || t('allStudentsOverview')}</Typography>
+                    <Button
+                        type="button"
+                        variant="outlined"
+                        size="small"
+                        startIcon={<HiOutlineArrowPath />}
+                        onClick={onRefreshActiveSessions}
+                        disabled={overviewLoading}
+                    >
+                        {overviewLoading ? t('refreshingSessions') : t('refreshSessions')}
+                    </Button>
+                </Stack>
                 {overviewLoading && <Typography color="text.secondary">{t('loadingWords')}</Typography>}
                 {!classStudents.length ? <Typography color="text.secondary">{t('noWords')}</Typography> : <TableContainer><Table size="small">
                     <TableHead><TableRow>

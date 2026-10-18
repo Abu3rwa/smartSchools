@@ -297,7 +297,7 @@ export const importMapPracticeFiles = asyncHandler(async (req, res) => {
   });
 
   const assignmentOptions = options.assignFirstSet || {};
-  if (assignmentOptions.enabled && !result.replayed) {
+  if (assignmentOptions.enabled) {
     for (const file of preparedFiles) {
       const importedFile = result.batch?.files?.find((item) => item.name === file.fileName);
       if (!importedFile?.studentMongoId || !importedFile.planId) continue;
@@ -316,6 +316,36 @@ export const importMapPracticeFiles = asyncHandler(async (req, res) => {
     errorsReportUrl: file.skipped > 0 ? `/api/map-test-prep/practice/import/errors/${encodeURIComponent(token)}/${encodeURIComponent(file.fileHash)}` : null
   }));
   res.json({ success: true, data: { imported, mode, summary: result.summary, token, replayed: Boolean(result.replayed), files: imported } });
+});
+
+export const getMapPracticeImportStatus = asyncHandler(async (req, res) => {
+  const batch = await MapPracticeImportBatch.findOne({ school: req.schoolId, commitToken: req.params.token }).lean();
+  if (!batch) return res.json({ success: true, data: { committed: false } });
+
+  if (req.user.role === 'teacher') {
+    for (const file of batch.files || []) {
+      if (file.studentMongoId && !(await ensureTeacherCanAccessStudent({ req, studentId: file.studentMongoId }))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view this import.' });
+      }
+    }
+  }
+
+  const imported = (batch.files || []).map((file) => ({
+    ...file,
+    errorsReportUrl: null
+  }));
+  res.json({
+    success: true,
+    data: {
+      committed: true,
+      imported,
+      mode: batch.mode,
+      summary: batch.summary,
+      token: batch.commitToken,
+      replayed: true,
+      files: imported
+    }
+  });
 });
 
 export const downloadMapPracticeImportErrors = asyncHandler(async (req, res) => {
