@@ -931,7 +931,14 @@ const MapTestPrepPage = () => {
                         </div>
                       </div>
                     )}
-                    <details className="map-import-details" open={Boolean(expandedFiles[file.fileHash])} onToggle={(event) => setExpandedFiles((current) => ({ ...current, [file.fileHash]: event.currentTarget.open }))}>
+                    <details
+                      className="map-import-details"
+                      open={Boolean(expandedFiles[file.fileHash])}
+                      onToggle={(event) => {
+                        const isOpen = event.currentTarget.open;
+                        setExpandedFiles((current) => ({ ...current, [file.fileHash]: isOpen }));
+                      }}
+                    >
                       <summary>{t('mapTestPrep:import.showDetails')}</summary>
                       <div className="map-import-detail-grid">
                         <section><h3>{t('mapTestPrep:import.sets')}</h3><table><thead><tr><th>{t('mapTestPrep:import.titleColumn')}</th><th>{t('mapTestPrep:import.questionCount')}</th></tr></thead><tbody>{(file.sets || []).map((set) => <tr key={set.setId}><td>{set.title}</td><td>{set.questionCount}</td></tr>)}</tbody></table></section>
