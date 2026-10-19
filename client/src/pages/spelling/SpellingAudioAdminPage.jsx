@@ -27,6 +27,14 @@ const REPORT_ROWS = [
     ['wordsUnchanged', 'Words unchanged']
 ];
 
+const PRONUNCIATION_FIELDS = [
+    ['longmanUS', 'Longman US pronunciation'],
+    ['longmanUK', 'Longman UK pronunciation'],
+    ['oxfordUS', 'Oxford US pronunciation'],
+    ['oxfordUK', 'Oxford UK pronunciation'],
+    ['websterUS', 'Merriam-Webster US pronunciation']
+];
+
 const isPreviewableAudioUrl = (value) => {
     try {
         const url = new URL(value);
@@ -53,6 +61,7 @@ const SpellingAudioAdminPage = () => {
     const [removingAudio, setRemovingAudio] = useState('');
     const [replacementDrafts, setReplacementDrafts] = useState({});
     const [replacingAudio, setReplacingAudio] = useState('');
+    const [pronunciationDrafts, setPronunciationDrafts] = useState({});
 
     const loadCoverage = useCallback(async () => {
         try {
@@ -75,12 +84,13 @@ const SpellingAudioAdminPage = () => {
         setSearchingAudio(true);
         setMessage(null);
         try {
-            const response = await api.get('/spelling/word-audio/examples', { params: { q: query } });
+            const response = await api.get('/spelling/word-audio/search', { params: { q: query } });
             setAudioResults(response.data.data);
             setReplacementDrafts({});
-            if (response.data.data.length === 0) setMessage({ severity: 'info', text: 'No example audio was found for those spelling words.' });
+            setPronunciationDrafts({});
+            if (response.data.data.length === 0) setMessage({ severity: 'info', text: 'No spelling words were found.' });
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to search example audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to search spelling audio.' });
         } finally {
             setSearchingAudio(false);
         }
@@ -99,13 +109,50 @@ const SpellingAudioAdminPage = () => {
                 data: { word: entry.word, dictionary: example.dictionary, url: example.url }
             });
             setAudioResults((current) => current
-                .map((item) => item.word === entry.word ? { ...item, examples: response.data.data.examples } : item)
-                .filter((item) => item.examples.length > 0));
+                .map((item) => item.word === entry.word ? { ...item, examples: response.data.data.examples } : item));
             setMessage({ severity: 'success', text: `Removed the ${example.dictionary} example for "${entry.word}" from shared spelling audio.` });
         } catch (error) {
             setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to remove the example audio.' });
         } finally {
             setRemovingAudio('');
+        }
+    };
+
+    const replacePronunciation = async (entry, field, label, key) => {
+        const currentUrl = entry.pronunciations[field] || '';
+        const replacementUrl = String(pronunciationDrafts[key] ?? currentUrl).trim();
+        if (replacementUrl && !isPreviewableAudioUrl(replacementUrl)) {
+            setMessage({ severity: 'warning', text: 'Enter an HTTPS audio link from Longman, Oxford Learner’s Dictionaries, or Merriam-Webster.' });
+            return;
+        }
+        if (replacementUrl === currentUrl) return;
+        const action = replacementUrl ? 'Replace' : 'Remove';
+        const confirmed = window.confirm(
+            `${action} the ${label} for "${entry.word}"? This changes shared spelling audio for every school.`
+        );
+        if (!confirmed) return;
+        setReplacingAudio(key);
+        setMessage(null);
+        try {
+            const response = await api.patch('/spelling/word-audio/pronunciation', {
+                word: entry.word,
+                field,
+                currentUrl,
+                replacementUrl
+            });
+            setAudioResults((current) => current.map((item) => (
+                item.word === entry.word ? { ...item, pronunciations: response.data.data.pronunciations } : item
+            )));
+            setPronunciationDrafts((current) => {
+                const next = { ...current };
+                delete next[key];
+                return next;
+            });
+            setMessage({ severity: 'success', text: `Updated the ${label} for "${entry.word}" in shared spelling audio.` });
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || `Unable to update the ${label}.` });
+        } finally {
+            setReplacingAudio('');
         }
     };
 
@@ -184,9 +231,9 @@ const SpellingAudioAdminPage = () => {
             <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
-                        <Typography variant="h6" component="h2">Review example recordings</Typography>
+                        <Typography variant="h6" component="h2">Review and edit spelling audio</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Search for a spelling word, listen to its example recordings, then replace an unsuitable link or remove that example. Changes apply to shared spelling audio for all schools; pronunciation recordings are unchanged.
+                            Search for a spelling word to listen to and edit its Longman, Oxford, and Merriam-Webster pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
                         </Typography>
                         <Box component="form" onSubmit={searchExamples}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -205,6 +252,40 @@ const SpellingAudioAdminPage = () => {
                         {audioResults.map((entry) => (
                             <Box key={`${entry.word}-${entry.grade}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
                                 <Typography variant="subtitle1">{entry.word} · {entry.grade}</Typography>
+                                <Stack spacing={1} sx={{ mt: 1 }}>
+                                    {PRONUNCIATION_FIELDS.map(([field, label]) => {
+                                        const key = `${entry.word}:pronunciation:${field}`;
+                                        const currentUrl = entry.pronunciations[field] || '';
+                                        const draft = String(pronunciationDrafts[key] ?? currentUrl).trim();
+                                        const hasChanges = draft !== currentUrl;
+                                        return (
+                                            <Stack key={field} direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+                                                <Typography variant="body2" sx={{ minWidth: 210 }}>{label}</Typography>
+                                                {currentUrl && <audio controls preload="none" src={currentUrl} aria-label={`${entry.word} ${label}`} />}
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    label={`${label} audio URL`}
+                                                    value={pronunciationDrafts[key] ?? currentUrl}
+                                                    onChange={(event) => setPronunciationDrafts((current) => ({ ...current, [key]: event.target.value }))}
+                                                    inputProps={{ maxLength: 500 }}
+                                                    error={Boolean(draft) && !isPreviewableAudioUrl(draft)}
+                                                    helperText="Use an HTTPS audio link from Longman, Oxford, or Merriam-Webster. Leave empty to remove."
+                                                />
+                                                {hasChanges && isPreviewableAudioUrl(draft) && (
+                                                    <audio controls preload="none" src={draft} aria-label={`Preview ${label} for ${entry.word}`} />
+                                                )}
+                                                <Button
+                                                    variant="contained"
+                                                    disabled={!hasChanges || (Boolean(draft) && !isPreviewableAudioUrl(draft)) || Boolean(replacingAudio || removingAudio)}
+                                                    onClick={() => replacePronunciation(entry, field, label, key)}
+                                                >
+                                                    {replacingAudio === key ? 'Saving…' : draft ? 'Save URL' : 'Remove URL'}
+                                                </Button>
+                                            </Stack>
+                                        );
+                                    })}
+                                </Stack>
                                 <Stack spacing={1} sx={{ mt: 1 }}>
                                     {entry.examples.map((example, index) => {
                                         const key = `${entry.word}:${example.dictionary}:${example.url}`;

@@ -86,6 +86,7 @@ const SpellingTeacherPage = () => {
     const [sessionsStudent, setSessionsStudent] = useState(null);
     const [wordFilters, setWordFilters] = useState({ grade: '', week: '', category: '' });
     const [deletingWordId, setDeletingWordId] = useState(null);
+    const [savingWordId, setSavingWordId] = useState(null);
     const [correctingAttemptId, setCorrectingAttemptId] = useState(null);
     const [rowLevels, setRowLevels] = useState({});
     const [savingRowId, setSavingRowId] = useState(null);
@@ -724,6 +725,22 @@ const SpellingTeacherPage = () => {
         }
     };
 
+    const updateCurriculumWord = async (word, updatedText) => {
+        if (!word?._id || !updatedText || savingWordId || deletingWordId) return false;
+        setSavingWordId(String(word._id));
+        try {
+            await api.patch(`/spelling/word-lists/${word._id}`, { word: updatedText });
+            await dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
+            notify('Curriculum word updated.', 'success');
+            return true;
+        } catch (error) {
+            notify(error.response?.data?.message || 'Unable to update the curriculum word.', 'error');
+            return false;
+        } finally {
+            setSavingWordId(null);
+        }
+    };
+
     const exportWordLibrary = async () => {
         setExportingWordLibrary(true);
         try {
@@ -888,6 +905,8 @@ const SpellingTeacherPage = () => {
                 onCommitWordList={commitWordList}
                 onExportWordLibrary={exportWordLibrary}
                 onExportWordAudioLibrary={exportWordAudioLibrary}
+                onUpdateWord={updateCurriculumWord}
+                savingWordId={savingWordId}
                 onDeleteWord={deleteCurriculumWord}
                 deletingWordId={deletingWordId}
             />}

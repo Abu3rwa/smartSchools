@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
+import { resolvePortalUrl } from '../helpers/portalUrl.js';
 import {
     buildFormalTestWordList,
     buildFormalSpellingTestWordListEmail,
@@ -53,6 +54,21 @@ test('spelling completion recipients safely return no addresses without the mode
     assert.deepEqual(resolveSpellingCompletionRecipients({}, 'student-and-parents'), []);
 });
 
+test('portal links in emails never point at a local development server', () => {
+    assert.equal(
+        resolvePortalUrl('http://localhost:5173/portal'),
+        'https://smile3-8c8c5.web.app/portal'
+    );
+    assert.equal(
+        resolvePortalUrl('https://school.example'),
+        'https://school.example/portal'
+    );
+    assert.equal(
+        resolvePortalUrl('http://localhost:5173/portal'),
+        'https://smile3-8c8c5.web.app/portal'
+    );
+});
+
 test('formal spelling email coverage includes every distinct grade, week, and category', () => {
     const coverage = getSpellingAssessmentCoverage([
         { grade: 'G4', week: 3, category: 'Animals' },
@@ -76,35 +92,91 @@ test('formal spelling email coverage falls back to the selected quiz grade and w
     });
 });
 
-test('formal test word lists put missed words first and exclude them from the curriculum list', () => {
+test('formal test word lists contain only distinct missed words not resolved formally', () => {
     const missedWordId = 'word-1';
     assert.deepEqual(buildFormalTestWordList({
-        pendingRetests: [
-            { sourceWord: missedWordId, wordSnapshot: 'Previously Missed' },
-            { sourceWord: 'word-2', wordSnapshot: 'Old Snapshot' }
+        retestItems: [
+            { _id: 'retest-1', sourceWord: missedWordId, wordSnapshot: 'Previously Missed', grade: 'G2', week: 1, category: 'Animals', status: 'pending' },
+            { _id: 'retest-2', sourceWord: 'word-2', wordSnapshot: 'Old Snapshot', grade: 'G2', week: 1, category: 'Animals' }
         ],
         curriculumWords: [
-            { _id: missedWordId, word: 'Previously Missed' },
-            { _id: 'word-2', word: 'Updated Word' },
-            { _id: 'word-3', word: 'New Word' }
+            { _id: missedWordId, word: 'Previously Missed', grade: 'G2', week: 1, category: 'Animals', order: 1 },
+            { _id: 'word-3', word: 'New Word', grade: 'G2', week: 1, category: 'Animals', order: 3 }
         ]
     }), {
         lowConfidenceWords: ['Previously Missed', 'Old Snapshot'],
-        curriculumWords: ['New Word']
+        curriculumWords: [],
+        plannedWords: [
+            {
+                wordId: missedWordId,
+                wordSnapshot: 'Previously Missed',
+                grade: 'G2',
+                week: 1,
+                category: 'Animals',
+                order: null,
+                retestItemId: 'retest-1',
+                isRetest: true
+            },
+            {
+                wordId: 'word-2',
+                wordSnapshot: 'Old Snapshot',
+                grade: 'G2',
+                week: 1,
+                category: 'Animals',
+                order: null,
+                retestItemId: 'retest-2',
+                isRetest: true
+            }
+        ]
     });
 });
 
-test('formal test preparation emails list low-confidence words before the planned curriculum words', () => {
+test('formal test word lists include practice-mastered words and prefer active retests when deduplicating', () => {
+    const result = buildFormalTestWordList({
+        retestItems: [
+            { _id: 'retest-1', sourceWord: 'word-1', wordSnapshot: 'Previously Missed', grade: 'G2', week: 1, category: 'Animals', status: 'practice-mastered' },
+            { _id: 'retest-2', sourceWord: 'word-1', wordSnapshot: 'Previously Missed', grade: 'G2', week: 1, category: 'Animals', status: 'pending' }
+        ],
+        curriculumWords: [
+            { _id: 'word-1', word: 'Previously Missed', grade: 'G2', week: 1, category: 'Animals', order: 1 },
+            { _id: 'word-3', word: 'New Word', grade: 'G2', week: 1, category: 'Animals', order: 3 }
+        ]
+    });
+
+    assert.deepEqual(result.lowConfidenceWords, ['Previously Missed']);
+    assert.deepEqual(result.curriculumWords, []);
+    assert.deepEqual(result.plannedWords, [
+        {
+            wordId: 'word-1',
+            wordSnapshot: 'Previously Missed',
+            grade: 'G2',
+            week: 1,
+            category: 'Animals',
+            order: null,
+            retestItemId: 'retest-2',
+            isRetest: true
+        }
+    ]);
+});
+
+test('formal test preparation emails list only unresolved words in a readable, safe layout', () => {
     const email = buildFormalSpellingTestWordListEmail({
         session: { scheduledAt: new Date('2026-10-18T16:58:00.000Z') },
         lowConfidenceWords: ['missed word', '<script>alert("x")</script>'],
-        curriculumWords: ['curriculum word'],
         timeZone: 'Africa/Cairo'
     });
 
     assert.match(email.subject, /Words to prepare for your spelling test/);
-    assert.ok(email.text.indexOf('Previously missed words') < email.text.indexOf('Other words in the planned test'));
-    assert.ok(email.text.indexOf('missed word') < email.text.indexOf('curriculum word'));
-    assert.match(email.html, /&lt;script&gt;/);
+    assert.match(email.text, /Unresolved missed words to review/);
+    assert.doesNotMatch(email.text, /Other words in this test|curriculum word/);
+    assert.match(email.text, /test list has 2 words/);
+    assert.match(email.html, /background:#4338ca/);
+    assert.match(email.html, /Words still to recover/);
+    assert.doesNotMatch(email.html, /Other words in this test|curriculum word/);
+    assert.match(email.html, /2 words in your test/);
     assert.doesNotMatch(email.html, /<script>/);
+    assert.match(email.html, /&lt;script&gt;/);
+    assert.match(email.html, /&lt;script&gt;.*?<\/span>&nbsp;/);
+    assert.match(email.html, /covers only these unresolved words/);
+    assert.match(email.text, /finish when you complete it/);
 });

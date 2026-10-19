@@ -8,6 +8,15 @@ const PRODUCTION_BASE = 'https://smile3-8c8c5.web.app';
 
 const _cache = { client: null, portal: null };
 
+export function resolvePortalUrl(raw) {
+    let portalUrl = String(raw || `${PRODUCTION_BASE}/portal`).replace(/\/+$/, '');
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(portalUrl)) {
+        portalUrl = `${PRODUCTION_BASE}/portal`;
+    }
+    if (!portalUrl.endsWith('/portal')) portalUrl += '/portal';
+    return portalUrl;
+}
+
 /**
  * Base frontend URL (no trailing slash).
  * e.g. https://smile3-8c8c5.web.app
@@ -32,11 +41,7 @@ export function getPortalUrl() {
         || process.env.FRONTEND_URL
         || process.env.CLIENT_URL
         || `${PRODUCTION_BASE}/portal`;
-    _cache.portal = raw.replace(/\/+$/, '');
-    // Ensure it ends with /portal
-    if (!_cache.portal.endsWith('/portal')) {
-        _cache.portal += '/portal';
-    }
+    _cache.portal = resolvePortalUrl(raw);
     return _cache.portal;
 }
 

@@ -73,8 +73,17 @@ const spellingRetestItemSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'resolved', 'expired'],
+        enum: ['pending', 'practice-mastered', 'resolved', 'expired'],
         default: 'pending'
+    },
+    practiceMasteredAt: {
+        type: Date,
+        default: null
+    },
+    practiceMasteredBySession: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SpellingSession',
+        default: null
     },
     resolvedAt: {
         type: Date,

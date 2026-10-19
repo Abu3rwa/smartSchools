@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import Student from '../models/Student.js';
+import Grade from '../models/Grade.js';
+import GradebookConfig from '../models/GradebookConfig.js';
 import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import SpellingPassage from '../models/SpellingPassage.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
@@ -11,6 +13,7 @@ import {
     getCurrentSpellingItem,
     cancelScheduledSpellingSession,
     recordSpellingAttempt,
+    migratePracticeResolvedRetests,
     startSpellingSession
 } from '../services/spellingSessionService.js';
 import { listSpellingSessions } from '../services/spellingReadService.js';
@@ -45,6 +48,56 @@ test('active roster prioritizes a practice session over a future scheduled test'
     });
 
     assert.deepEqual(sessions.map((session) => session._id), ['practice-session', 'scheduled-session']);
+});
+
+test('migrates practice-resolved retests but preserves formal-test resolutions', async (t) => {
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const practiceSessionId = new mongoose.Types.ObjectId();
+    const formalSessionId = new mongoose.Types.ObjectId();
+    const missingSessionId = new mongoose.Types.ObjectId();
+    const practiceItemId = new mongoose.Types.ObjectId();
+    const formalItemId = new mongoose.Types.ObjectId();
+    const legacyItemId = new mongoose.Types.ObjectId();
+    const resolvedItems = [
+        { _id: practiceItemId, resolvedAt: new Date('2026-01-01'), resolvedBySession: practiceSessionId },
+        { _id: formalItemId, resolvedAt: new Date('2026-01-02'), resolvedBySession: formalSessionId },
+        { _id: legacyItemId, resolvedAt: new Date('2026-01-03'), resolvedBySession: missingSessionId }
+    ];
+    const migrated = [];
+    const query = (result) => ({
+        select() { return this; },
+        lean: async () => result
+    });
+
+    t.mock.method(SpellingRetestItem, 'find', () => query(resolvedItems));
+    t.mock.method(SpellingSession, 'find', (filter) => {
+        assert.equal(String(filter.school), String(schoolId));
+        return query([
+            { _id: practiceSessionId, assessmentType: 'spelling-assessment' },
+            { _id: formalSessionId, assessmentType: 'formal-spelling-test' }
+        ]);
+    });
+    t.mock.method(SpellingRetestItem, 'updateOne', async (filter, update) => {
+        migrated.push({ filter, update });
+        return { modifiedCount: 1 };
+    });
+
+    const migratedCount = await migratePracticeResolvedRetests({ schoolId, studentId });
+
+    assert.equal(migratedCount, 2);
+    assert.deepEqual(
+        migrated.map(({ filter }) => String(filter._id)).sort(),
+        [String(practiceItemId), String(legacyItemId)].sort()
+    );
+    assert.ok(migrated.every(({ filter }) => filter.school === schoolId
+        && filter.student === studentId && filter.status === 'resolved'));
+    assert.deepEqual(migrated[0].update.$set, {
+        status: 'practice-mastered',
+        practiceMasteredAt: new Date('2026-01-01'),
+        practiceMasteredBySession: practiceSessionId
+    });
+    assert.deepEqual(migrated[0].update.$unset, { resolvedAt: 1, resolvedBySession: 1 });
 });
 
 test('cancelling a scheduled spelling session also cancels its pending preparation email', async (t) => {
@@ -140,6 +193,156 @@ test('regular and formal sessions select pending missed words before curriculum 
         assert.deepEqual(retestQuery._id.$nin, []);
         assert.deepEqual(retestSort, { flaggedAt: 1, _id: 1 });
     }
+});
+
+test('sessions with a frozen formal-test list use only its words and complete after the list', async (t) => {
+    const schoolId = new mongoose.Types.ObjectId();
+    const firstWordId = new mongoose.Types.ObjectId();
+    const secondWordId = new mongoose.Types.ObjectId();
+    const session = {
+        _id: new mongoose.Types.ObjectId(),
+        school: schoolId,
+        student: new mongoose.Types.ObjectId(),
+        status: 'in-progress',
+        assessmentType: 'spelling-assessment',
+        emailNotification: 'none',
+        formalTestWordList: [
+            { wordId: firstWordId, wordSnapshot: 'missed word', grade: 'G2', week: 1, category: 'Review', order: null, retestItemId: new mongoose.Types.ObjectId(), isRetest: true },
+            { wordId: secondWordId, wordSnapshot: 'planned word', grade: 'G2', week: 1, category: 'Curriculum', order: 2, retestItemId: null, isRetest: false }
+        ],
+        attempts: [],
+        currentItem: { wordId: null, retestItemId: null, plannedWordIndex: null, sequence: null },
+        nextSequence: 1,
+        save: async () => {}
+    };
+    const query = (value) => ({
+        session() { return this; },
+        select() { return this; },
+        lean: async () => value,
+        then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    });
+
+    t.mock.method(mongoose, 'startSession', async () => ({
+        withTransaction: async (callback) => callback(),
+        endSession: async () => {}
+    }));
+    t.mock.method(SpellingSession, 'findOne', () => query(session));
+    t.mock.method(SpellingSession, 'updateOne', async () => ({ matchedCount: 1 }));
+    t.mock.method(SpellingWord, 'findOne', (filter) => query({
+        _id: filter._id,
+        definition: 'Definition'
+    }));
+    t.mock.method(SpellingRetestItem, 'findOne', () => {
+        throw new Error('Frozen formal-test sessions must not dynamically fetch missed words');
+    });
+    t.mock.method(SpellingWord, 'find', () => {
+        throw new Error('Frozen formal-test sessions must not dynamically fetch curriculum words');
+    });
+
+    const first = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+    assert.equal(first.item.word, 'missed word');
+    assert.equal(first.item.plannedWordIndex, 0);
+    assert.equal(first.item.isRetest, true);
+
+    session.attempts.push({ sequence: 1, wordId: firstWordId, retestItemId: session.formalTestWordList[0].retestItemId, plannedWordIndex: 0 });
+    session.currentItem = { wordId: null, retestItemId: null, plannedWordIndex: null, sequence: null };
+    session.nextSequence = 2;
+    const second = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+    assert.equal(second.item.word, 'planned word');
+    assert.equal(second.item.plannedWordIndex, 1);
+    assert.equal(second.item.isRetest, false);
+
+    session.attempts.push({ sequence: 2, wordId: secondWordId, retestItemId: null, plannedWordIndex: 1 });
+    session.currentItem = { wordId: null, retestItemId: null, plannedWordIndex: null, sequence: null };
+    const completed = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+    assert.equal(completed.item, null);
+    assert.equal(session.status, 'completed');
+    assert.equal(session.completionReason, 'word-list-complete');
+});
+
+test('formal test completion scores exactly the words from its frozen emailed list', async (t) => {
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const wordId = new mongoose.Types.ObjectId();
+    const retestItemId = new mongoose.Types.ObjectId();
+    const session = {
+        _id: new mongoose.Types.ObjectId(),
+        school: schoolId,
+        student: studentId,
+        status: 'in-progress',
+        assessmentType: 'formal-spelling-test',
+        mode: 'self-serve',
+        emailNotification: 'none',
+        formalTestWordList: [
+            { wordId, wordSnapshot: 'missed word', grade: 'G2', week: 1, category: 'Review', order: null, retestItemId, isRetest: true }
+        ],
+        attempts: [],
+        currentItem: { wordId, retestItemId, plannedWordIndex: 0, sequence: 1 },
+        nextSequence: 1,
+        correctCount: 0,
+        mistakeCount: 0,
+        maxMistakesAllowed: 3,
+        curriculumGrade: 'G2',
+        curriculumWeek: 1,
+        gradebookSubject: new mongoose.Types.ObjectId(),
+        gradebookClass: new mongoose.Types.ObjectId(),
+        gradebookAcademicYear: '2026-2027',
+        createdBy: new mongoose.Types.ObjectId(),
+        save: async () => {}
+    };
+    const pendingRetest = {
+        status: 'pending',
+        sourceWord: wordId,
+        correctRetestStreak: 0,
+        save: async () => {}
+    };
+    const query = (value) => ({
+        session() { return this; },
+        select() { return this; },
+        sort() { return this; },
+        lean: async () => value,
+        then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
+    });
+    let gradebookUpdate;
+
+    t.mock.method(mongoose, 'startSession', async () => ({
+        withTransaction: async (callback) => callback(),
+        endSession: async () => {}
+    }));
+    t.mock.method(SpellingSession, 'findOne', () => query(session));
+    t.mock.method(SpellingSession, 'updateOne', async () => ({ matchedCount: 1 }));
+    t.mock.method(SpellingWord, 'findOne', () => query({ definition: 'Definition' }));
+    t.mock.method(SpellingRetestItem, 'findOne', () => query(pendingRetest));
+    t.mock.method(SpellingRetestItem, 'updateMany', async (filter, update) => {
+        assert.equal(String(filter.sourceWord), String(wordId));
+        assert.deepEqual(filter.status, { $in: ['pending', 'practice-mastered'] });
+        Object.assign(pendingRetest, update.$set);
+        return { modifiedCount: 1 };
+    });
+    t.mock.method(GradebookConfig, 'findOne', () => query(null));
+    t.mock.method(Grade, 'findOneAndUpdate', async (_filter, update) => {
+        gradebookUpdate = update;
+        return {};
+    });
+
+    const result = await recordSpellingAttempt({
+        schoolId,
+        sessionId: session._id,
+        userId: new mongoose.Types.ObjectId(),
+        sequence: 1,
+        studentInput: 'missed word',
+        correct: false,
+        idempotencyKey: 'formal-test-word-1'
+    });
+
+    assert.equal(result.attempt.correct, true);
+    assert.equal(result.attempt.plannedWordIndex, 0);
+    assert.equal(result.session.status, 'completed');
+    assert.equal(result.session.completionReason, 'word-list-complete');
+    assert.equal(pendingRetest.status, 'resolved');
+    assert.equal(String(pendingRetest.resolvedBySession), String(session._id));
+    assert.equal(gradebookUpdate.$set.marks, 1);
+    assert.equal(gradebookUpdate.$set.maxMarks, 1);
 });
 
 test('validateSpellingIntegrityEvent accepts a page-hidden event and normalizes optional fields', () => {

@@ -61,12 +61,16 @@ const SpellingCurriculumTab = ({
     onCommitWordList,
     onExportWordLibrary,
     onExportWordAudioLibrary,
+    onUpdateWord,
+    savingWordId,
     onDeleteWord,
     deletingWordId
 }) => {
     const { t } = useTranslation('spelling');
     const [replaceExisting, setReplaceExisting] = useState(false);
     const [wordToDelete, setWordToDelete] = useState(null);
+    const [wordToEdit, setWordToEdit] = useState(null);
+    const [wordDraft, setWordDraft] = useState('');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -276,19 +280,31 @@ const SpellingCurriculumTab = ({
                                                         },
                                                         gap: 0.75
                                                     }}>
-                                                        {words.map((word) => <Chip
-                                                            key={word._id}
-                                                            label={word.word}
-                                                            variant="outlined"
-                                                            deleteIcon={<HiOutlineTrash />}
-                                                            aria-label={t('removeWordAria', { word: word.word })}
-                                                            disabled={String(deletingWordId) === String(word._id)}
-                                                            onDelete={() => {
-                                                                setWordToDelete(word);
-                                                                setDeleteDialogOpen(true);
-                                                            }}
-                                                            sx={{ justifyContent: 'space-between', minWidth: 0, '& .MuiChip-label': { overflowWrap: 'anywhere' } }}
-                                                        />)}
+                                                        {words.map((word) => <Stack key={word._id} direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+                                                            <Chip
+                                                                label={word.word}
+                                                                variant="outlined"
+                                                                deleteIcon={<HiOutlineTrash />}
+                                                                aria-label={t('removeWordAria', { word: word.word })}
+                                                                disabled={String(deletingWordId) === String(word._id) || String(savingWordId) === String(word._id)}
+                                                                onDelete={() => {
+                                                                    setWordToDelete(word);
+                                                                    setDeleteDialogOpen(true);
+                                                                }}
+                                                                sx={{ justifyContent: 'space-between', minWidth: 0, flex: 1, '& .MuiChip-label': { overflowWrap: 'anywhere' } }}
+                                                            />
+                                                            <Button
+                                                                size="small"
+                                                                aria-label={t('editWordAria', { word: word.word })}
+                                                                disabled={Boolean(deletingWordId || savingWordId)}
+                                                                onClick={() => {
+                                                                    setWordToEdit(word);
+                                                                    setWordDraft(word.word);
+                                                                }}
+                                                            >
+                                                                {t('editWord')}
+                                                            </Button>
+                                                        </Stack>)}
                                                     </Box>
                                                 </Box>
                                             ))}
@@ -481,6 +497,44 @@ const SpellingCurriculumTab = ({
                         }}
                     >
                         {deletingWordId ? t('removingWord') : t('removeWord')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={Boolean(wordToEdit)} onClose={() => !savingWordId && setWordToEdit(null)} maxWidth="xs" fullWidth>
+                <DialogTitle>{t('editCurriculumWordTitle')}</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={1} sx={{ pt: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                            {wordToEdit && t('editCurriculumWordDescription', {
+                                grade: wordToEdit.grade,
+                                week: wordToEdit.week,
+                                category: wordToEdit.category
+                            })}
+                        </Typography>
+                        <TextField
+                            autoFocus
+                            fullWidth
+                            label={t('word')}
+                            value={wordDraft}
+                            onChange={(event) => setWordDraft(event.target.value)}
+                            inputProps={{ maxLength: 200 }}
+                            error={!wordDraft.trim()}
+                            helperText={!wordDraft.trim() ? t('wordRequired') : ' '}
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setWordToEdit(null)} disabled={Boolean(savingWordId)}>{t('cancel')}</Button>
+                    <Button
+                        variant="contained"
+                        disabled={!wordToEdit || !wordDraft.trim() || wordDraft.trim() === wordToEdit.word || Boolean(savingWordId)}
+                        onClick={async () => {
+                            const succeeded = await onUpdateWord(wordToEdit, wordDraft.trim());
+                            if (succeeded) setWordToEdit(null);
+                        }}
+                    >
+                        {savingWordId ? t('savingWord') : t('saveWord')}
                     </Button>
                 </DialogActions>
             </Dialog>

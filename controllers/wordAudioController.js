@@ -4,8 +4,9 @@ import {
     getAudioSettings,
     importWordAudio,
     removeSchoolWordAudioExample,
+    replaceSchoolWordPronunciation,
     replaceSchoolWordAudioExample,
-    searchSchoolWordAudioExamples,
+    searchSchoolWordAudio,
     setAudioSetting
 } from '../services/wordAudioService.js';
 
@@ -36,8 +37,19 @@ export const updateWordAudioSetting = asyncHandler(async (req, res) => {
     return res.json({ success: true, data });
 });
 
-export const searchWordAudioExamples = asyncHandler(async (req, res) => {
-    const data = await searchSchoolWordAudioExamples({ schoolId: req.schoolId, query: req.query.q });
+export const searchWordAudio = asyncHandler(async (req, res) => {
+    const data = await searchSchoolWordAudio({ schoolId: req.schoolId, query: req.query.q });
+    return res.json({ success: true, data });
+});
+
+export const replaceWordPronunciation = asyncHandler(async (req, res) => {
+    const data = await replaceSchoolWordPronunciation({
+        schoolId: req.schoolId,
+        word: req.body?.word,
+        field: String(req.body?.field || ''),
+        currentUrl: req.body?.currentUrl,
+        replacementUrl: req.body?.replacementUrl
+    });
     return res.json({ success: true, data });
 });
 

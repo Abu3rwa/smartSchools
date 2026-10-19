@@ -37,7 +37,8 @@ import {
     deleteSpellingWord,
     exportSpellingWordAudioLibrary,
     exportSpellingWordLibrary,
-    listSpellingWords
+    listSpellingWords,
+    updateSpellingWord
 } from '../controllers/spellingWordController.js';
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
@@ -46,8 +47,9 @@ import {
     importWordAudioCsv,
     deleteWordAudioExample,
     listWordAudioSettings,
+    replaceWordPronunciation,
     replaceWordAudioExample,
-    searchWordAudioExamples,
+    searchWordAudio,
     updateWordAudioSetting,
     wordAudioCoverage
 } from '../controllers/wordAudioController.js';
@@ -74,6 +76,7 @@ router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'))
 router.get('/word-lists', listSpellingWords);
 router.get('/word-lists/export', exportSpellingWordLibrary);
 router.get('/word-audio/export', exportSpellingWordAudioLibrary);
+router.patch('/word-lists/:wordId', express.json(), authorize('admin', 'department_principal', 'teacher'), updateSpellingWord);
 router.delete('/word-lists/:wordId', authorize('admin', 'department_principal', 'teacher'), deleteSpellingWord);
 router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
@@ -84,9 +87,10 @@ router.patch('/students/:studentId/placement', authorize('admin', 'department_pr
 router.post('/word-lists/import/preview', authorize('admin'), uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', authorize('admin'), express.json(), commitSpellingWords);
 router.post('/word-audio/import', authorize('admin'), wordAudioImportUpload.single('file'), importWordAudioCsv);
-router.get('/word-audio/examples', authorize('admin'), searchWordAudioExamples);
+router.get('/word-audio/search', authorize('admin'), searchWordAudio);
 router.delete('/word-audio/examples', express.json(), authorize('admin'), deleteWordAudioExample);
 router.patch('/word-audio/examples', express.json(), authorize('admin'), replaceWordAudioExample);
+router.patch('/word-audio/pronunciation', express.json(), authorize('admin'), replaceWordPronunciation);
 router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
 router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
 router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);

@@ -4,6 +4,7 @@ import SpellingSession from '../models/SpellingSession.js';
 import WordAudio from '../models/WordAudio.js';
 import { buildSpellingWordAudioCsv, buildSpellingWordImportCsv } from '../utils/spellingWordExport.js';
 import { normalizeWordKey } from '../utils/wordAudio.js';
+import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 export const listSpellingWords = asyncHandler(async (req, res) => {
     const query = {};
@@ -89,4 +90,27 @@ export const deleteSpellingWord = asyncHandler(async (req, res) => {
     const result = await SpellingWord.deleteOne({ _id: word._id, school: req.schoolId });
     if (result.deletedCount !== 1) return res.status(404).json({ success: false, message: 'Spelling word not found' });
     return res.json({ success: true, data: { id: word._id } });
+});
+
+export const updateSpellingWord = asyncHandler(async (req, res) => {
+    const value = String(req.body?.word ?? '').trim();
+    if (!value || value.length > 200) {
+        return res.status(400).json({ success: false, message: 'Word is required and must be at most 200 characters' });
+    }
+    const word = await SpellingWord.findOne({ _id: req.params.wordId, school: req.schoolId }).select('_id');
+    if (!word) return res.status(404).json({ success: false, message: 'Spelling word not found' });
+
+    const activeSession = await SpellingSession.findOne({
+        school: req.schoolId,
+        status: 'in-progress',
+        'currentItem.wordId': word._id
+    }).select('_id').lean();
+    if (activeSession) {
+        return res.status(409).json({ success: false, message: 'This word is currently being used in an active spelling session' });
+    }
+
+    word.word = value;
+    word.normalizedWord = normalizeForGrading(value);
+    await word.save();
+    return res.json({ success: true, data: { id: word._id, word: word.word } });
 });

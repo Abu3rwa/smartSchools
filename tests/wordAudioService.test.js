@@ -8,8 +8,9 @@ import {
     buildAudioPayload,
     decorateItemWithAudio,
     removeSchoolWordAudioExample,
+    replaceSchoolWordPronunciation,
     replaceSchoolWordAudioExample,
-    searchSchoolWordAudioExamples
+    searchSchoolWordAudio
 } from '../services/wordAudioService.js';
 
 const item = { wordId: 'w1', sequence: 1, word: 'Cat', definition: 'a pet', grade: 'G1', week: 1, category: 'CVC', order: 1, isRetest: false };
@@ -66,10 +67,13 @@ test('attachAudioToCurrentItem adds audio when the flag is ON and never breaks o
     assert.equal((await attachAudioToCurrentItem({ session: {}, item: null }, 'school1')).item, null);
 });
 
-test('example search returns only audio for spelling words in the requesting school', async (t) => {
+test('audio search returns pronunciation and example audio for spelling words in the requesting school', async (t) => {
     let spellingFilter;
     let audioFilter;
-    const words = [{ word: 'Cat', normalizedWord: 'cat', grade: 'G1' }];
+    const words = [
+        { word: 'Cat', normalizedWord: 'cat', grade: 'G1' },
+        { word: 'Dog', normalizedWord: 'dog', grade: 'G1' }
+    ];
     t.mock.method(SpellingWord, 'find', (filter) => {
         spellingFilter = filter;
         return {
@@ -82,17 +86,89 @@ test('example search returns only audio for spelling words in the requesting sch
     });
     t.mock.method(WordAudio, 'find', (filter) => {
         audioFilter = filter;
-        return stubQuery([{ word: 'cat', examples: { longman: ['https://www.ldoceonline.com/ex1.mp3'] } }]);
+        return stubQuery([{
+            word: 'cat',
+            longmanUS: 'https://www.ldoceonline.com/us.mp3',
+            oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
+            examples: { longman: ['https://www.ldoceonline.com/ex1.mp3'] }
+        }]);
     });
 
-    const results = await searchSchoolWordAudioExamples({ schoolId: 'school1', query: 'ca' });
+    const results = await searchSchoolWordAudio({ schoolId: 'school1', query: 'ca' });
     assert.deepEqual(spellingFilter, { school: 'school1', normalizedWord: { $regex: 'ca' } });
-    assert.deepEqual(audioFilter, { word: { $in: ['cat'] } });
+    assert.deepEqual(audioFilter, { word: { $in: ['cat', 'dog'] } });
     assert.deepEqual(results, [{
         word: 'Cat',
         grade: 'G1',
+        pronunciations: {
+            longmanUS: 'https://www.ldoceonline.com/us.mp3',
+            longmanUK: '',
+            oxfordUS: '',
+            oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
+            websterUS: ''
+        },
         examples: [{ dictionary: 'longman', url: 'https://www.ldoceonline.com/ex1.mp3' }]
+    }, {
+        word: 'Dog',
+        grade: 'G1',
+        pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', websterUS: '' },
+        examples: []
     }]);
+});
+
+test('pronunciation replacement validates and atomically updates the selected field', async (t) => {
+    let audioFilter;
+    let update;
+    t.mock.method(SpellingWord, 'exists', async () => true);
+    t.mock.method(WordAudio, 'updateOne', async () => ({ acknowledged: true }));
+    t.mock.method(WordAudio, 'findOneAndUpdate', (filter, updateDoc) => {
+        audioFilter = filter;
+        update = updateDoc;
+        return {
+            select: () => ({
+                lean: async () => ({
+                    word: 'cat',
+                    longmanUS: 'https://www.ldoceonline.com/new-us.mp3',
+                    oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3'
+                })
+            })
+        };
+    });
+
+    const result = await replaceSchoolWordPronunciation({
+        schoolId: 'school1',
+        word: 'Cat',
+        field: 'longmanUS',
+        currentUrl: 'https://www.ldoceonline.com/old-us.mp3',
+        replacementUrl: 'https://www.ldoceonline.com/new-us.mp3'
+    });
+    assert.deepEqual(audioFilter, { word: 'cat', longmanUS: 'https://www.ldoceonline.com/old-us.mp3' });
+    assert.equal(update.$set.longmanUS, 'https://www.ldoceonline.com/new-us.mp3');
+    assert.deepEqual(result.pronunciations, {
+        longmanUS: 'https://www.ldoceonline.com/new-us.mp3',
+        longmanUK: '',
+        oxfordUS: '',
+        oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
+        websterUS: ''
+    });
+});
+
+test('pronunciation replacement can clear a selected URL', async (t) => {
+    let update;
+    t.mock.method(SpellingWord, 'exists', async () => true);
+    t.mock.method(WordAudio, 'updateOne', async () => ({ acknowledged: true }));
+    t.mock.method(WordAudio, 'findOneAndUpdate', (_filter, updateDoc) => {
+        update = updateDoc;
+        return { select: () => ({ lean: async () => ({ word: 'cat' }) }) };
+    });
+    await replaceSchoolWordPronunciation({
+        schoolId: 'school1',
+        word: 'Cat',
+        field: 'oxfordUS',
+        currentUrl: 'https://www.oxfordlearnersdictionaries.com/us.mp3',
+        replacementUrl: ''
+    });
+    assert.equal(update.$unset.oxfordUS, 1);
 });
 
 test('example audio deletion is limited to a school word and exact dictionary URL', async (t) => {

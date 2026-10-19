@@ -147,7 +147,7 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     await assert.rejects(() => recordSpellingIntegrityEvent(integrityEvent), /Active spelling session not found/);
 }, { timeout: 30000 });
 
-integrationTest('retest words remain queued until three consecutive correct retests', async () => {
+integrationTest('retest practice mastery stays distinct from formal resolution', async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     const schoolId = new mongoose.Types.ObjectId();
     const studentId = new mongoose.Types.ObjectId();
@@ -192,6 +192,11 @@ integrationTest('retest words remain queued until three consecutive correct rete
     const answers = ['otter', 'otterx', 'otter', 'otter', 'otter'];
     const expectedStreaks = [1, 0, 1, 2, 3];
     for (let retestNumber = 1; retestNumber <= answers.length; retestNumber += 1) {
+        if (retestNumber > 3) {
+            const mastered = await SpellingRetestItem.findById(retestItem._id).lean();
+            assert.equal(mastered.status, 'practice-mastered');
+            break;
+        }
         const [session] = await SpellingSession.create([{
             school: schoolId,
             student: studentId,
@@ -217,7 +222,7 @@ integrationTest('retest words remain queued until three consecutive correct rete
         const progress = await SpellingRetestItem.findById(retestItem._id).lean();
         assert.equal(progress.correctRetestStreak, expectedStreaks[retestNumber - 1]);
         assert.equal(progress.incorrectRetestCount, retestNumber > 1 ? 1 : 0);
-        assert.equal(progress.status, retestNumber === answers.length ? 'resolved' : 'pending');
+        assert.equal(progress.status, retestNumber === 3 ? 'practice-mastered' : 'pending');
     }
 }, { timeout: 30000 });
 
@@ -603,7 +608,7 @@ integrationTest('starting a new grade ignores another grade legacy progress and 
     assert.equal(repairedStudent.spelling.lastWordIndex, 0);
 }, { timeout: 30000 });
 
-integrationTest('teachers can correct a wrong answer after completion and resolve its retest', async () => {
+integrationTest('correcting a practice answer marks its retest practice-mastered, not formally resolved', async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     const schoolId = new mongoose.Types.ObjectId();
     const studentId = new mongoose.Types.ObjectId();
@@ -667,7 +672,8 @@ integrationTest('teachers can correct a wrong answer after completion and resolv
     assert.equal(corrected.attempt.correct, true);
     assert.ok(corrected.attempt.correctedAt);
     assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'pending' }), 0);
-    assert.equal(await SpellingRetestItem.countDocuments({ _id: retest._id, sourceWord: word._id, status: 'resolved' }), 1);
+    assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'practice-mastered' }), 1);
+    assert.equal(await SpellingRetestItem.countDocuments({ _id: retest._id, sourceWord: word._id, status: 'resolved' }), 0);
 
     const repeatedCorrection = await markSpellingAttemptCorrect({
         schoolId,

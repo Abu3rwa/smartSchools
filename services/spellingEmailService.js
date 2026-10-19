@@ -3,10 +3,10 @@ import Student from '../models/Student.js';
 import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingPassage from '../models/SpellingPassage.js';
+import { getPortalUrl } from '../helpers/portalUrl.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
 import logger from '../utils/logger.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
-import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 const MAX_ATTEMPTS = 3;
 const escapeHtml = (value) => String(value ?? '')
@@ -55,15 +55,39 @@ export const resolveSpellingCompletionRecipients = (student, audience) => {
         .filter(Boolean))];
 };
 
-export const buildFormalTestWordList = ({ pendingRetests, curriculumWords }) => {
-    const lowConfidenceWordIds = new Set(pendingRetests.map((item) => String(item.sourceWord)));
-    const lowConfidenceWordValues = new Set(pendingRetests.map((item) => normalizeForGrading(item.wordSnapshot)));
+export const buildFormalTestWordList = ({ retestItems }) => {
+    const uniqueMissedWords = new Map();
+    for (const item of retestItems) {
+        const key = String(item.sourceWord);
+        if (!key) continue;
+        const existing = uniqueMissedWords.get(key);
+        if (existing && (existing.status !== 'practice-mastered' || item.status === 'practice-mastered')) continue;
+        uniqueMissedWords.set(key, {
+            wordId: item.sourceWord,
+            wordSnapshot: item.wordSnapshot,
+            grade: item.grade,
+            week: item.week,
+            category: item.category,
+            order: null,
+            retestItemId: item._id,
+            isRetest: true,
+            status: item.status
+        });
+    }
+    const plannedWords = [...uniqueMissedWords.values()].map((item) => ({
+        wordId: item.wordId,
+        wordSnapshot: item.wordSnapshot,
+        grade: item.grade,
+        week: item.week,
+        category: item.category,
+        order: item.order,
+        retestItemId: item.retestItemId,
+        isRetest: item.isRetest
+    }));
     return {
-        lowConfidenceWords: pendingRetests.map((item) => item.wordSnapshot),
-        curriculumWords: curriculumWords
-            .filter((word) => !lowConfidenceWordIds.has(String(word._id))
-                && !lowConfidenceWordValues.has(normalizeForGrading(word.word)))
-            .map((word) => word.word)
+        lowConfidenceWords: plannedWords.map((item) => item.wordSnapshot),
+        curriculumWords: [],
+        plannedWords
     };
 };
 
@@ -132,7 +156,7 @@ export async function queueSpellingCompletionEmail({ session, dbSession }) {
         const subject = isFormalAssessment
             ? `Formal spelling quiz result - ${completedDate}`
             : `Spelling level check summary - ${completedDate}`;
-    const portalUrl = process.env.PORTAL_URL || process.env.CLIENT_URL || '';
+    const portalUrl = getPortalUrl();
         const text = isFormalAssessment
         ? `Formal spelling quiz result\nThis was a graded spelling quiz and its score has been recorded in the Gradebook.${coverageText ? `\n${coverageText}` : ''}\nScore: ${score} out of ${attempts.length} words\nWords to practice: ${targetWords.length ? targetWords.join(', ') : 'None'}${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`
         : `Spelling level check summary\nThis is not a graded assignment. It is a KG-Grade 5 spelling assessment used to understand the student's spelling level.\nGrade: ${coverage.grades.join(', ') || 'Not specified'}\nWeek: ${coverage.weeks.join(', ') || 'Not specified'}\nCategory: ${coverage.categories.join(', ') || 'Not specified'}\nTarget words to practice: ${targetWords.length ? targetWords.join(', ') : 'None'}\nCorrect: ${session.correctCount}\nIncorrect: ${session.mistakeCount}\nRetest deadline: ${retestDate}${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`;
@@ -252,7 +276,7 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
     }
 
     const wordList = words.map((word) => `<li style="padding:4px 0;">${escapeHtml(word)}</li>`).join('');
-    const portalUrl = process.env.PORTAL_URL || process.env.CLIENT_URL || '';
+    const portalUrl = getPortalUrl();
     const quizDate = new Date(session.startedAt).toLocaleDateString();
     const subject = 'Your spelling graded quiz is ready to practice';
     const text = `Your spelling retest quiz is now available. Practice these words before you begin:\n${words.map((word) => `- ${word}`).join('\n')}\n${portalUrl ? `Open the spelling portal: ${portalUrl}` : ''}`;
@@ -284,41 +308,72 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
     }], { session: dbSession }).then(([delivery]) => delivery);
 }
 
-export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWords, curriculumWords, timeZone = 'UTC' }) => {
+export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWords, timeZone = 'UTC' }) => {
     const scheduledDate = new Date(session.scheduledAt).toLocaleString(undefined, { timeZone });
-    const wordList = (words) => words.map((word) => `<li style="padding:4px 0;">${escapeHtml(word)}</li>`).join('');
-    const lowConfidenceList = wordList(lowConfidenceWords);
-    const curriculumList = wordList(curriculumWords);
-    const portalUrl = process.env.PORTAL_URL || process.env.CLIENT_URL || '';
+    const wordBadges = (words, background, border, color) => words
+        .map((word) => `<span style="display:inline-block;background:${background};border:1px solid ${border};color:${color};font-size:13px;font-weight:600;padding:6px 10px;border-radius:16px;margin:3px 4px 3px 0;">${escapeHtml(word)}</span>&nbsp;`)
+        .join('');
+    const lowConfidenceList = wordBadges(lowConfidenceWords, '#fff8e6', '#f0dca0', '#7a5b00');
+    const totalWords = lowConfidenceWords.length;
+    const portalUrl = getPortalUrl();
     const subject = `Words to prepare for your spelling test on ${scheduledDate}`;
     const text = [
-        `Your formal spelling test is scheduled for ${scheduledDate}.`,
+        'Prepare for your spelling test',
+        `Scheduled: ${scheduledDate}`,
+        `The test list has ${totalWords} ${totalWords === 1 ? 'word' : 'words'}.`,
         '',
-        'Previously missed words to review:',
+        'Unresolved missed words to review:',
         ...(lowConfidenceWords.length ? lowConfidenceWords.map((word) => `- ${word}`) : ['- None']),
         '',
-        'Other words in the planned test:',
-        ...(curriculumWords.length ? curriculumWords.map((word) => `- ${word}`) : ['- None']),
         '',
-        'The test may end early if the mistake limit is reached.',
+        'Your test will use only this unresolved-word list and finish when you complete it, unless it ends earlier because the mistake limit is reached.',
         portalUrl ? `Open the spelling portal: ${portalUrl}` : ''
     ].filter((line) => line !== '').join('\n');
     const html = xss(`
-        <div style="font-family:Segoe UI,Arial,sans-serif;color:#1a2436;max-width:600px;margin:0 auto;padding:24px;">
-            <h2 style="color:#2c5aa0;">Prepare for your spelling test</h2>
-            <p>Your formal spelling test is scheduled for <strong>${escapeHtml(scheduledDate)}</strong>.</p>
-            <p>Previously missed words to review:</p>
-            ${lowConfidenceList ? `<ul>${lowConfidenceList}</ul>` : '<p>None</p>'}
-            <p>Other words in the planned test:</p>
-            ${curriculumList ? `<ul>${curriculumList}</ul>` : '<p>None</p>'}
-            <p>The test may end early if the mistake limit is reached.</p>
-            ${portalUrl ? `<p><a href="${escapeHtml(portalUrl)}">Open the spelling portal</a></p>` : ''}
-        </div>
-    `);
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5;padding:24px 0;">
+<tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;color:#1a2436;">
+  <tr><td style="background:#4338ca;padding:28px 32px;">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;">Prepare for your spelling test</div>
+    <div style="color:#e0e0fb;font-size:14px;padding-top:7px;">A quick review today can help you feel ready.</div>
+  </td></tr>
+  <tr><td style="padding:24px 32px 12px;font-size:15px;line-height:1.6;color:#4a5568;">
+    Your formal spelling test is scheduled for <strong style="color:#1a2436;">${escapeHtml(scheduledDate)}</strong>.
+  </td></tr>
+  <tr><td style="padding:4px 32px 18px;">
+    <div style="background:#f3f5f8;border:1px solid #e2e6ec;border-radius:8px;padding:12px 16px;font-size:14px;color:#4a5568;">
+      <strong style="color:#1a2436;">${totalWords} ${totalWords === 1 ? 'word' : 'words'} in your test</strong>
+      <span> · This is the word list you will be tested on.</span>
+    </div>
+  </td></tr>
+  <tr><td style="padding:4px 32px 16px;">
+    <div style="font-size:15px;font-weight:700;color:#1a2436;margin-bottom:4px;">Words still to recover</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Give these words extra practice.</div>
+    <div style="font-size:13px;line-height:1.9;">${lowConfidenceList || '<span style="color:#6b7280;">No previously missed words.</span>'}</div>
+  </td></tr>
+  <tr><td style="padding:0 32px 20px;">
+    <div style="background:#fff8e6;border:1px solid #f0dca0;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.5;color:#7a5b00;">
+      Your formal test covers only these unresolved words and ends when you finish the list, unless the mistake limit is reached first.
+    </div>
+  </td></tr>
+  ${portalUrl ? `<tr><td style="padding:4px 32px 24px;" align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#4338ca;border-radius:6px;"><a href="${escapeHtml(portalUrl)}" style="display:inline-block;padding:12px 26px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">Open Spelling Portal</a></td></tr></table></td></tr>` : ''}
+  <tr><td style="padding:16px 32px 20px;border-top:1px solid #eef0f4;font-size:11px;color:#9aa4b2;">You’ve got this. Take your time and do your best.</td></tr>
+</table>
+</td></tr></table>`, {
+        whiteList: {
+            table: ['role', 'width', 'cellpadding', 'cellspacing', 'style', 'align'],
+            tr: [],
+            td: ['style', 'align'],
+            div: ['style'],
+            span: ['style'],
+            strong: ['style'],
+            a: ['href', 'style']
+        }
+    });
     return { subject, text, html };
 };
 
-export async function queueFormalSpellingTestWordListEmail({ session, lowConfidenceWords, curriculumWords, audience, timeZone, dbSession }) {
+export async function queueFormalSpellingTestWordListEmail({ session, lowConfidenceWords, audience, timeZone, dbSession }) {
     const student = await Student.findOne({ _id: session.student, school: session.school })
         .populate('user', 'email')
         .session(dbSession);
@@ -328,7 +383,7 @@ export async function queueFormalSpellingTestWordListEmail({ session, lowConfide
         throw Object.assign(new Error('No email address is configured for the selected formal test email audience'), { statusCode: 400 });
     }
 
-    const email = buildFormalSpellingTestWordListEmail({ session, lowConfidenceWords, curriculumWords, timeZone });
+    const email = buildFormalSpellingTestWordListEmail({ session, lowConfidenceWords, timeZone });
     const [delivery] = await SpellingEmailDelivery.create([{
         school: session.school,
         session: session._id,

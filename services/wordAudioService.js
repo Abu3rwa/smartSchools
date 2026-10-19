@@ -1,6 +1,7 @@
 import WordAudio from '../models/WordAudio.js';
 import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingWord from '../models/SpellingWord.js';
+import { normalizeForGrading } from '../utils/spellingGrading.js';
 import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport, validateAudioUrl } from '../utils/wordAudio.js';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
@@ -8,38 +9,96 @@ const badRequest = (message) => Object.assign(new Error(message), { statusCode: 
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export async function searchSchoolWordAudioExamples({ schoolId, query }) {
-    const search = normalizeWordKey(query);
+export async function searchSchoolWordAudio({ schoolId, query }) {
+    const search = normalizeForGrading(query);
     if (search.length < 2) throw badRequest('Enter at least 2 letters to search');
     const words = await SpellingWord.find({
         school: schoolId,
         normalizedWord: { $regex: escapeRegex(search) }
     }).select('word normalizedWord grade').sort({ normalizedWord: 1 }).limit(100).lean();
-    const uniqueKeys = [...new Set(words.map((entry) => normalizeWordKey(entry.normalizedWord || entry.word)).filter(Boolean))];
+    const uniqueKeys = [...new Set(words.map((entry) => normalizeWordKey(entry.word)).filter(Boolean))];
     const audioDocs = uniqueKeys.length
-        ? await WordAudio.find({ word: { $in: uniqueKeys } }).select('word examples.longman examples.oxford examples.webster').lean()
+        ? await WordAudio.find({ word: { $in: uniqueKeys } })
+            .select('word longmanUS longmanUK oxfordUS oxfordUK websterUS examples.longman examples.oxford examples.webster')
+            .lean()
         : [];
     const audioByWord = new Map(audioDocs.map((entry) => [entry.word, entry]));
     const result = [];
     const seen = new Set();
     for (const entry of words) {
-        const key = normalizeWordKey(entry.normalizedWord || entry.word);
+        const key = normalizeWordKey(entry.word);
         if (seen.has(key)) continue;
         seen.add(key);
         const audio = audioByWord.get(key);
         const examples = DICTIONARIES.flatMap((dictionary) => (audio?.examples?.[dictionary] || [])
             .map((url) => ({ dictionary, url })));
-        if (examples.length) result.push({ word: entry.word, grade: entry.grade, examples });
+        result.push({
+            word: entry.word,
+            grade: entry.grade,
+            pronunciations: {
+                longmanUS: audio?.longmanUS || '',
+                longmanUK: audio?.longmanUK || '',
+                oxfordUS: audio?.oxfordUS || '',
+                oxfordUK: audio?.oxfordUK || '',
+                websterUS: audio?.websterUS || ''
+            },
+            examples
+        });
     }
     return result;
+}
+
+export async function replaceSchoolWordPronunciation({ schoolId, word, field, currentUrl, replacementUrl }) {
+    const key = normalizeWordKey(word);
+    const spellingWordKey = normalizeForGrading(word);
+    if (!key || key.length > 200) throw badRequest('A valid spelling word is required');
+    if (!['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'websterUS'].includes(field)) {
+        throw badRequest('Unknown pronunciation audio field');
+    }
+    const current = String(currentUrl || '').trim();
+    if (current.length > 500) throw badRequest('The current audio URL is invalid');
+    const validatedReplacement = validateAudioUrl(replacementUrl);
+    if (!validatedReplacement.ok) throw badRequest(validatedReplacement.reason || 'A valid HTTPS audio URL is required');
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: spellingWordKey }))) {
+        throw notFound('Spelling word not found in this school');
+    }
+
+    await WordAudio.updateOne(
+        { word: key },
+        { $setOnInsert: { word: key } },
+        { upsert: true }
+    );
+    const currentValueFilter = current
+        ? { [field]: current }
+        : { $or: [{ [field]: { $exists: false } }, { [field]: '' }] };
+    const update = validatedReplacement.empty
+        ? { $unset: { [field]: 1 }, $set: { updatedAt: new Date() } }
+        : { $set: { [field]: validatedReplacement.url, updatedAt: new Date() } };
+    const updated = await WordAudio.findOneAndUpdate(
+        { word: key, ...currentValueFilter },
+        update,
+        { new: true }
+    ).select('word longmanUS longmanUK oxfordUS oxfordUK websterUS').lean();
+    if (!updated) throw notFound('The pronunciation audio changed; refresh the search and try again');
+    return {
+        word: updated.word,
+        pronunciations: {
+            longmanUS: updated.longmanUS || '',
+            longmanUK: updated.longmanUK || '',
+            oxfordUS: updated.oxfordUS || '',
+            oxfordUK: updated.oxfordUK || '',
+            websterUS: updated.websterUS || ''
+        }
+    };
 }
 
 export async function removeSchoolWordAudioExample({ schoolId, word, dictionary, url }) {
     if (!DICTIONARIES.includes(dictionary)) throw badRequest('Unknown audio dictionary');
     const key = normalizeWordKey(word);
+    const spellingWordKey = normalizeForGrading(word);
     const exactUrl = String(url || '').trim();
     if (!key || !exactUrl || exactUrl.length > 500) throw badRequest('A word and example audio URL are required');
-    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: key }))) {
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: spellingWordKey }))) {
         throw notFound('Spelling word not found in this school');
     }
     const updated = await WordAudio.findOneAndUpdate(
@@ -57,13 +116,14 @@ export async function removeSchoolWordAudioExample({ schoolId, word, dictionary,
 export async function replaceSchoolWordAudioExample({ schoolId, word, dictionary, url, replacementUrl }) {
     if (!DICTIONARIES.includes(dictionary)) throw badRequest('Unknown audio dictionary');
     const key = normalizeWordKey(word);
+    const spellingWordKey = normalizeForGrading(word);
     const currentUrl = String(url || '').trim();
     const validatedReplacement = validateAudioUrl(replacementUrl);
     if (!key || !currentUrl || currentUrl.length > 500) throw badRequest('A word and current example audio URL are required');
     if (!validatedReplacement.ok || validatedReplacement.empty) {
         throw badRequest(validatedReplacement.reason || 'A replacement HTTPS audio URL is required');
     }
-    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: key }))) {
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: spellingWordKey }))) {
         throw notFound('Spelling word not found in this school');
     }
     const updated = await WordAudio.findOneAndUpdate(

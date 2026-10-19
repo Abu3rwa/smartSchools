@@ -27,28 +27,98 @@ const notFound = (message) => Object.assign(new Error(message), { statusCode: 40
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
 
-const recordRetestOutcome = async ({ schoolId, studentId, retestItemId, correct, skipped, sessionId, at, dbSession }) => {
+const recordRetestOutcome = async ({ schoolId, studentId, retestItemId, correct, skipped, sessionId, formalTest = false, at, dbSession }) => {
     if (!retestItemId || skipped) return;
     const retestItem = await SpellingRetestItem.findOne({
         _id: retestItemId,
         school: schoolId,
         student: studentId,
-        status: 'pending'
+        status: { $in: ['pending', 'practice-mastered'] }
     }).session(dbSession);
     if (!retestItem) return;
+
+    if (formalTest && correct) {
+        await SpellingRetestItem.updateMany(
+            {
+                school: schoolId,
+                student: studentId,
+                sourceWord: retestItem.sourceWord,
+                status: { $in: ['pending', 'practice-mastered'] }
+            },
+            {
+                $set: { status: 'resolved', resolvedAt: at, resolvedBySession: sessionId },
+                $unset: { practiceMasteredAt: 1, practiceMasteredBySession: 1 }
+            },
+            { session: dbSession }
+        );
+        return;
+    }
+
+    if (formalTest) {
+        retestItem.status = 'pending';
+        retestItem.practiceMasteredAt = null;
+        retestItem.practiceMasteredBySession = null;
+        retestItem.correctRetestStreak = 0;
+        retestItem.incorrectRetestCount = (Number(retestItem.incorrectRetestCount) || 0) + 1;
+        await retestItem.save({ session: dbSession });
+        return;
+    }
 
     if (correct) {
         retestItem.correctRetestStreak = (Number(retestItem.correctRetestStreak) || 0) + 1;
         if (retestItem.correctRetestStreak >= 3) {
-            retestItem.status = 'resolved';
-            retestItem.resolvedAt = at;
-            retestItem.resolvedBySession = sessionId;
+            retestItem.status = 'practice-mastered';
+            retestItem.practiceMasteredAt = at;
+            retestItem.practiceMasteredBySession = sessionId;
         }
     } else {
         retestItem.correctRetestStreak = 0;
         retestItem.incorrectRetestCount = (Number(retestItem.incorrectRetestCount) || 0) + 1;
     }
     await retestItem.save({ session: dbSession });
+};
+
+export const migratePracticeResolvedRetests = async ({ schoolId, studentId }) => {
+    const resolvedItems = await SpellingRetestItem.find({
+        school: schoolId,
+        student: studentId,
+        status: 'resolved'
+    }).select('_id resolvedAt resolvedBySession').lean();
+    if (!resolvedItems.length) return 0;
+
+    const resolvedSessionIds = [...new Set(resolvedItems
+        .map((item) => item.resolvedBySession && String(item.resolvedBySession))
+        .filter(Boolean))];
+    const resolvingSessions = resolvedSessionIds.length
+        ? await SpellingSession.find({
+            _id: { $in: resolvedSessionIds },
+            school: schoolId
+        }).select('_id assessmentType').lean()
+        : [];
+    const formalSessionIds = new Set(resolvingSessions
+        .filter((session) => session.assessmentType === 'formal-spelling-test')
+        .map((session) => String(session._id)));
+    const itemsToRestore = resolvedItems.filter((item) => (
+        !item.resolvedBySession || !formalSessionIds.has(String(item.resolvedBySession))
+    ));
+    if (!itemsToRestore.length) return 0;
+
+    let migratedCount = 0;
+    for (const item of itemsToRestore) {
+        const result = await SpellingRetestItem.updateOne(
+            { _id: item._id, school: schoolId, student: studentId, status: 'resolved' },
+            {
+                $set: {
+                    status: 'practice-mastered',
+                    practiceMasteredAt: item.resolvedAt || new Date(),
+                    practiceMasteredBySession: item.resolvedBySession || null
+                },
+                $unset: { resolvedAt: 1, resolvedBySession: 1 }
+            }
+        );
+        migratedCount += result.modifiedCount;
+    }
+    return migratedCount;
 };
 
 const saveFormalSpellingGradebookEntry = async ({ schoolId, session, dbSession }) => {
@@ -143,14 +213,37 @@ const getCurrentItemData = async (session, dbSession) => {
     const currentSequence = session.currentItem?.sequence;
     const currentWordId = session.currentItem?.wordId ? String(session.currentItem.wordId) : null;
     const currentRetestId = session.currentItem?.retestItemId ? String(session.currentItem.retestItemId) : null;
+    const plannedWordIndex = session.currentItem?.plannedWordIndex;
 
     if (
         !currentSequence ||
         attemptedSequences.has(currentSequence) ||
+        (Number.isInteger(plannedWordIndex) && session.attempts.some((attempt) => attempt.plannedWordIndex === plannedWordIndex)) ||
         (currentWordId && attemptedWordIds.has(currentWordId)) ||
         (currentRetestId && attemptedRetestIds.has(currentRetestId))
     ) {
         return null;
+    }
+
+    if (Number.isInteger(plannedWordIndex) && session.formalTestWordList?.[plannedWordIndex]) {
+        const plannedWord = session.formalTestWordList[plannedWordIndex];
+        const sourceWord = await SpellingWord.findOne({
+            _id: plannedWord.wordId,
+            school: session.school
+        }).session(dbSession).select('definition').lean();
+        return {
+            wordId: plannedWord.wordId,
+            retestItemId: plannedWord.retestItemId,
+            plannedWordIndex,
+            sequence: currentSequence,
+            word: plannedWord.wordSnapshot,
+            definition: sourceWord?.definition || '',
+            grade: plannedWord.grade,
+            week: plannedWord.week,
+            category: plannedWord.category,
+            order: plannedWord.order,
+            isRetest: plannedWord.isRetest
+        };
     }
 
     if (session.currentItem?.retestItemId) {
@@ -457,23 +550,19 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
 
     let scheduledWordList = null;
     if (formalTestWordListEmail) {
-        const pendingRetests = await SpellingRetestItem.find({
+        await migratePracticeResolvedRetests({ schoolId, studentId });
+        const unresolvedRetests = await SpellingRetestItem.find({
             school: schoolId,
             student: studentId,
-            status: 'pending'
+            status: { $in: ['pending', 'practice-mastered'] }
         }).sort({ flaggedAt: 1, _id: 1 }).lean();
-        const curriculumFilter = { school: schoolId, grade: selectedGrade };
-        if (gradeProgress.week === selectedWeek) {
-            curriculumFilter.$or = [
-                { week: selectedWeek, order: { $gt: gradeProgress.lastWordIndex } },
-                { week: { $gt: selectedWeek } }
-            ];
-        } else {
-            curriculumFilter.week = { $gte: selectedWeek };
+        scheduledWordList = buildFormalTestWordList({ retestItems: unresolvedRetests });
+        if (scheduledWordList.plannedWords.length === 0) {
+            throw badRequest('No unresolved missed words are available for this preparation test');
         }
-        const curriculumWords = await SpellingWord.find(curriculumFilter).sort({ week: 1, order: 1 }).lean();
-        scheduledWordList = buildFormalTestWordList({ pendingRetests, curriculumWords });
     }
+
+    if (scheduledWordList) sessionData.formalTestWordList = scheduledWordList.plannedWords;
 
     const scheduledResult = scheduledWordList
         ? await withTransaction(async (dbSession) => {
@@ -563,6 +652,51 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
 
         const existing = await getCurrentItemData(session, dbSession);
         if (existing) return { session, item: existing };
+
+        if (session.formalTestWordList?.length) {
+            const attemptedPlannedWordIndexes = new Set(session.attempts
+                .map((attempt) => attempt.plannedWordIndex)
+                .filter(Number.isInteger));
+            const plannedWordIndex = session.formalTestWordList.findIndex((word, index) => (
+                !attemptedPlannedWordIndexes.has(index)
+            ));
+            if (plannedWordIndex === -1) {
+                session.status = 'completed';
+                session.completedAt = new Date();
+                session.completionReason = 'word-list-complete';
+                await session.save({ session: dbSession });
+                await queueSpellingCompletionEmail({ session, dbSession });
+                await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
+                return { session, item: null };
+            }
+
+            const plannedWord = session.formalTestWordList[plannedWordIndex];
+            const sourceWord = await SpellingWord.findOne({
+                _id: plannedWord.wordId,
+                school: session.school
+            }).session(dbSession).select('definition').lean();
+            const item = {
+                wordId: plannedWord.wordId,
+                retestItemId: plannedWord.retestItemId,
+                plannedWordIndex,
+                sequence: session.nextSequence,
+                word: plannedWord.wordSnapshot,
+                definition: sourceWord?.definition || '',
+                grade: plannedWord.grade,
+                week: plannedWord.week,
+                category: plannedWord.category,
+                order: plannedWord.order,
+                isRetest: plannedWord.isRetest
+            };
+            session.currentItem = {
+                wordId: item.wordId,
+                retestItemId: item.retestItemId,
+                plannedWordIndex,
+                sequence: item.sequence
+            };
+            await session.save({ session: dbSession });
+            return { session, item };
+        }
 
         const student = await Student.findOne({ _id: session.student, school: schoolId }).session(dbSession).lean();
         if (!student) throw notFound('Student not found');
@@ -715,6 +849,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
         const attempt = {
             sequence,
             wordId: item.wordId,
+            plannedWordIndex: item.plannedWordIndex ?? null,
             wordSnapshot: item.word,
             grade: item.grade,
             week: item.week,
@@ -735,7 +870,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
         const attemptDocument = session.attempts[session.attempts.length - 1];
         session.correctCount += evaluatedCorrect ? 1 : 0;
         session.mistakeCount += outcome.countsAsMistake ? 1 : 0;
-        session.currentItem = { wordId: null, retestItemId: null, sequence: null };
+        session.currentItem = { wordId: null, retestItemId: null, plannedWordIndex: null, sequence: null };
         session.nextSequence += 1;
 
         if (item.isRetest) {
@@ -746,6 +881,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
                 correct: evaluatedCorrect,
                 skipped: isSkipped,
                 sessionId: session._id,
+                formalTest: session.assessmentType === 'formal-spelling-test',
                 at: now,
                 dbSession
             });
@@ -784,6 +920,13 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
             session.status = 'completed';
             session.completedAt = now;
             session.completionReason = 'mistake-limit';
+        } else if (
+            session.formalTestWordList?.length
+            && session.attempts.filter((entry) => Number.isInteger(entry.plannedWordIndex)).length >= session.formalTestWordList.length
+        ) {
+            session.status = 'completed';
+            session.completedAt = now;
+            session.completionReason = 'word-list-complete';
         }
         await session.save({ session: dbSession });
         if (session.status === 'completed' && session.assessmentType !== 'retest-quiz') {
@@ -831,10 +974,29 @@ export async function markSpellingAttemptCorrect({ schoolId, sessionId, attemptI
                 retestItemId: attempt.retestItemId,
                 correct: true,
                 skipped: false,
+                formalTest: session.assessmentType === 'formal-spelling-test',
                 sessionId: session._id,
                 at: correctedAt,
                 dbSession
             });
+        } else if (session.assessmentType === 'formal-spelling-test') {
+            await SpellingRetestItem.updateMany(
+                {
+                    school: schoolId,
+                    student: session.student,
+                    sourceWord: attempt.wordId,
+                    status: { $in: ['pending', 'practice-mastered'] }
+                },
+                {
+                    $set: {
+                        status: 'resolved',
+                        resolvedAt: correctedAt,
+                        resolvedBySession: session._id
+                    },
+                    $unset: { practiceMasteredAt: 1, practiceMasteredBySession: 1 }
+                },
+                { session: dbSession }
+            );
         } else {
             await SpellingRetestItem.updateMany(
                 {
@@ -845,9 +1007,9 @@ export async function markSpellingAttemptCorrect({ schoolId, sessionId, attemptI
                 },
                 {
                     $set: {
-                        status: 'resolved',
-                        resolvedAt: correctedAt,
-                        resolvedBySession: session._id
+                        status: 'practice-mastered',
+                        practiceMasteredAt: correctedAt,
+                        practiceMasteredBySession: session._id
                     }
                 },
                 { session: dbSession }

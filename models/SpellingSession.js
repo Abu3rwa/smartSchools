@@ -11,6 +11,7 @@ const spellingAttemptSchema = new mongoose.Schema({
     category: { type: String, required: true, trim: true, maxlength: 120 },
     order: { type: Number, min: 1, default: null },
     retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
+    plannedWordIndex: { type: Number, min: 0, default: null },
     isRetest: { type: Boolean, default: false },
     correct: { type: Boolean, required: true },
     skipped: { type: Boolean, default: false },
@@ -71,6 +72,16 @@ const spellingSessionSchema = new mongoose.Schema({
     retestQuizItems: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'SpellingRetestItem'
+    }],
+    formalTestWordList: [{
+        wordId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingWord', required: true },
+        wordSnapshot: { type: String, required: true, trim: true, maxlength: 200 },
+        grade: { type: String, enum: ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'], required: true, uppercase: true },
+        week: { type: Number, required: true, min: 1 },
+        category: { type: String, required: true, trim: true, maxlength: 120 },
+        order: { type: Number, min: 1, default: null },
+        retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
+        isRetest: { type: Boolean, default: false }
     }],
     retestQuizKey: {
         type: String,
@@ -141,7 +152,7 @@ const spellingSessionSchema = new mongoose.Schema({
     },
     completionReason: {
         type: String,
-        enum: ['mistake-limit', 'curriculum-exhausted', 'teacher-ended', 'manual-complete', 'retest-quiz-complete'],
+        enum: ['mistake-limit', 'curriculum-exhausted', 'word-list-complete', 'teacher-ended', 'manual-complete', 'retest-quiz-complete'],
         default: null
     },
     nextSequence: {
@@ -152,6 +163,7 @@ const spellingSessionSchema = new mongoose.Schema({
     currentItem: {
         wordId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingWord', default: null },
         retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
+        plannedWordIndex: { type: Number, min: 0, default: null },
         sequence: { type: Number, default: null, min: 1 }
     },
     handRaise: {
