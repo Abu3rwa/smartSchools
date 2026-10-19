@@ -9,6 +9,7 @@ import {
   bulkDeleteLiveLessons,
   deleteFinishedLiveSessions,
   endLiveSession,
+  exportLiveLessonCsv,
   exportLiveLessonPerformanceReportPdf,
   exportLiveSessionReportPdf,
   deleteLiveSession,
@@ -70,6 +71,7 @@ router.post("/lessons/preview", authorize("teacher", "admin", "department_princi
 router.post("/lessons/import", authorize("teacher", "admin", "department_principal"), importLiveLessonCsv);
 router.post("/lessons", authorize("teacher", "admin", "department_principal"), createLiveLesson);
 router.get("/lessons", authorize("teacher", "admin", "department_principal"), listLiveLessons);
+router.get("/lessons/:id/export.csv", authorize("teacher", "admin", "department_principal"), exportLiveLessonCsv);
 router.get("/lessons/folders", authorize("teacher", "admin", "department_principal"), listLiveLessonFolders);
 router.post("/lessons/folders", authorize("teacher", "admin", "department_principal"), createLiveLessonFolder);
 router.patch("/lessons/folders/order", authorize("teacher", "admin", "department_principal"), reorderLiveLessonFolders);

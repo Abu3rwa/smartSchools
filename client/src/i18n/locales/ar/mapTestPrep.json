@@ -6,6 +6,16 @@
     "import": "استيراد",
     "settings": "الإعدادات"
   },
+  "reports": {
+    "exportStudent": "تصدير تقرير الطالب PDF",
+    "exportClass": "تصدير تقرير الصف PDF",
+    "exporting": "جارٍ إعداد PDF…",
+    "exportFailed": "تعذر تصدير تقرير تدريب MAP.",
+    "startDate": "من",
+    "endDate": "إلى",
+    "defaultPeriod": "اترك التاريخين فارغين لإعداد تقرير عن العام الدراسي الحالي.",
+    "bothDatesRequired": "اختر تاريخ البداية والنهاية، أو اتركهما فارغين."
+  },
   "overview": {
     "title": "نظرة عامة على الصف",
     "classes": "الفصول",

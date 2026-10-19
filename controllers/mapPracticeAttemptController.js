@@ -1,11 +1,15 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import MapPracticeAttempt from '../models/MapPracticeAttempt.js';
 import MapPracticeAssignment from '../models/MapPracticeAssignment.js';
-import MapPracticeSet from '../models/MapPracticeSet.js';
 import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
 import { gradeMapPracticeAttempt } from '../services/mapPracticeGradingService.js';
+import {
+  applyMapPracticeReviewMarks,
+  hideMapPracticeAttemptAnswerKeys,
+  hideMapPracticeQuestionAnswers
+} from '../services/mapPracticeReviewService.js';
 import { normalizeShortText, normalizeAnswerList } from '../validators/mapPracticeValidators.js';
 
 const getAttemptAccess = async ({ req, attemptId, allowTeacher = true }) => {
@@ -53,7 +57,13 @@ export const startMapPracticeAttempt = asyncHandler(async (req, res) => {
   }
 
   const questions = await MapPracticeQuestion.find({ school: req.schoolId, set: assignment.set, active: true }).sort({ order: 1 }).lean();
-  res.json({ success: true, data: { attempt, questions } });
+  const responseAttempt = req.user.role === 'student'
+    ? hideMapPracticeAttemptAnswerKeys(attempt.toObject ? attempt.toObject() : attempt)
+    : attempt;
+  const responseQuestions = req.user.role === 'student'
+    ? questions.map(hideMapPracticeQuestionAnswers)
+    : questions;
+  res.json({ success: true, data: { attempt: responseAttempt, questions: responseQuestions } });
 });
 
 export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
@@ -61,13 +71,21 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
   if (!attempt) {
     return res.status(403).json({ success: false, message: 'Not authorized to access this attempt.' });
   }
+  if (attempt.status !== 'in_progress') {
+    return res.status(400).json({ success: false, message: 'Submitted practice answers can no longer be changed.' });
+  }
 
   const { questionId, response, flagged = false } = req.body || {};
   if (!questionId) {
     return res.status(400).json({ success: false, message: 'questionId is required.' });
   }
 
-  const question = await MapPracticeQuestion.findOne({ _id: questionId, school: req.schoolId }).lean();
+  const question = await MapPracticeQuestion.findOne({
+    _id: questionId,
+    school: req.schoolId,
+    set: attempt.set,
+    active: true
+  }).lean();
   if (!question) {
     return res.status(404).json({ success: false, message: 'Question not found.' });
   }
@@ -100,13 +118,19 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
     { new: true }
   );
 
-  res.json({ success: true, data: { attempt: record } });
+  const responseAttempt = req.user.role === 'student'
+    ? hideMapPracticeAttemptAnswerKeys(record.toObject())
+    : record;
+  res.json({ success: true, data: { attempt: responseAttempt } });
 });
 
 export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
   const attempt = await getAttemptAccess({ req, attemptId: req.params.attemptId });
   if (!attempt) {
     return res.status(403).json({ success: false, message: 'Not authorized to access this attempt.' });
+  }
+  if (attempt.status !== 'in_progress') {
+    return res.status(400).json({ success: false, message: 'This practice set has already been submitted.' });
   }
 
   const questions = await MapPracticeQuestion.find({ school: req.schoolId, set: attempt.set, active: true }).sort({ order: 1 }).lean();
@@ -141,7 +165,9 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
     attempt._id,
     {
       $set: {
-        answers: graded.map(({ questionType, correctAnswer, options, ...answer }) => answer),
+        answers: graded.map((answer) => Object.fromEntries(
+          Object.entries(answer).filter(([key]) => !['questionType', 'correctAnswer', 'options'].includes(key))
+        )),
         score,
         maxScore,
         status: 'submitted',
@@ -153,7 +179,10 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
     { new: true }
   );
 
-  res.json({ success: true, data: { attempt: updated, score, maxScore, needsTeacherReview } });
+  const responseAttempt = req.user.role === 'student'
+    ? hideMapPracticeAttemptAnswerKeys(updated.toObject())
+    : updated;
+  res.json({ success: true, data: { attempt: responseAttempt, score, maxScore, needsTeacherReview } });
 });
 
 export const getMapPracticeReviewQueue = asyncHandler(async (req, res) => {
@@ -187,28 +216,34 @@ export const reviewMapPracticeAttempt = asyncHandler(async (req, res) => {
   if (!attempt) {
     return res.status(403).json({ success: false, message: 'Not authorized.' });
   }
+  if (!['submitted', 'reviewed'].includes(attempt.status)) {
+    return res.status(400).json({ success: false, message: 'Only submitted practice can be reviewed.' });
+  }
+  if (!Array.isArray(req.body?.answers) || req.body.answers.some((item) =>
+    !item || typeof item.answerId !== 'string' ||
+    !(typeof item.isCorrect === 'boolean' || item.isCorrect === null) ||
+    (item.teacherComment !== undefined && (typeof item.teacherComment !== 'string' || item.teacherComment.length > 2000)))) {
+    return res.status(400).json({ success: false, message: 'Provide answer IDs with a correct, incorrect, or pending mark.' });
+  }
+  const answerIds = req.body.answers.map((item) => item.answerId);
+  if (new Set(answerIds).size !== answerIds.length) {
+    return res.status(400).json({ success: false, message: 'Each answer can only be marked once per review.' });
+  }
 
-  const answers = Array.isArray(attempt.answers) ? attempt.answers.map((answer, index) => {
-    const overrideValue = req.body.answers?.[index];
-    if (overrideValue === undefined) return answer;
-    return {
-      ...answer,
-      isCorrect: overrideValue.isCorrect !== undefined ? Boolean(overrideValue.isCorrect) : answer.isCorrect,
-      teacherOverride: true,
-      teacherComment: overrideValue.teacherComment || answer.teacherComment || '',
-      explanation: overrideValue.explanation || answer.explanation || ''
-    };
-  }) : [];
+  const review = applyMapPracticeReviewMarks(attempt.answers || [], req.body.answers);
+  if (review.error) return res.status(400).json({ success: false, message: review.error });
 
   const note = String(req.body.teacherComment || '').trim();
   const next = await MapPracticeAttempt.findOneAndUpdate(
     { _id: attempt._id, school: req.schoolId },
     {
       $set: {
-        answers,
-        reviewStatus: 'reviewed',
+        answers: review.answers,
+        score: review.score,
+        maxScore: review.maxScore,
+        reviewStatus: review.reviewStatus,
         teacherComment: note,
-        status: 'reviewed',
+        status: review.status,
         submittedAt: req.body.submittedAt || attempt.submittedAt || new Date(),
         updatedAt: new Date()
       }
@@ -224,9 +259,29 @@ export const getMapPracticeAttemptById = asyncHandler(async (req, res) => {
   if (!attempt) {
     return res.status(403).json({ success: false, message: 'Not authorized to access this attempt.' });
   }
+  if (attempt.status === 'in_progress') {
+    return res.status(400).json({ success: false, message: 'This practice set has not been submitted yet.' });
+  }
 
-  const populated = await MapPracticeAttempt.findById(attempt._id).populate('set').populate('student', 'firstName lastName studentId').lean();
-  res.json({ success: true, data: { attempt: populated } });
+  const populated = await MapPracticeAttempt.findById(attempt._id)
+    .populate('set')
+    .populate('student', 'firstName lastName studentId')
+    .lean();
+  const questionIds = (populated.answers || []).map((answer) => answer.question).filter(Boolean);
+  const questions = await MapPracticeQuestion.find({ _id: { $in: questionIds }, school: req.schoolId }).lean();
+  const questionById = new Map(questions.map((question) => [String(question._id), question]));
+  const answers = (populated.answers || []).map((answer) => {
+    const question = questionById.get(String(answer.question));
+    const questionDetails = question || answer.questionSnapshot || {};
+    const safeDetails = req.user.role === 'student'
+      ? hideMapPracticeQuestionAnswers(questionDetails)
+      : questionDetails;
+    const answerWithDetails = { ...answer, questionDetails: safeDetails };
+    return req.user.role === 'student'
+      ? hideMapPracticeAttemptAnswerKeys({ answers: [answerWithDetails] }).answers[0]
+      : answerWithDetails;
+  });
+  res.json({ success: true, data: { attempt: { ...populated, answers } } });
 });
 
 export const getMapPracticeReviewOptions = asyncHandler(async (req, res) => {
@@ -238,9 +293,13 @@ export const getMapPracticeReviewOptions = asyncHandler(async (req, res) => {
   const available = [];
   for (const item of items) {
     if (req.user.role === 'student') {
-      if (String(item.student?._id) !== String(req.user._id)) continue;
+      const owns = await ensureStudentOwnsPracticeData({ req, studentId: item.student?._id });
+      if (!owns) continue;
+    } else if (['admin', 'teacher'].includes(req.user.role)) {
+      const allowed = await ensureTeacherCanAccessStudent({ req, studentId: item.student?._id });
+      if (!allowed) continue;
     }
-    available.push(item);
+    available.push(req.user.role === 'student' ? hideMapPracticeAttemptAnswerKeys(item) : item);
   }
 
   res.json({ success: true, data: { items: available } });

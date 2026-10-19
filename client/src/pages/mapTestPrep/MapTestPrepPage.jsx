@@ -56,6 +56,36 @@ const downloadTextFile = (fileName, contents) => {
   URL.revokeObjectURL(url);
 };
 
+const downloadMapPracticeReport = async ({ url, params, fallbackName }) => {
+  const response = await api.get(url, { params, responseType: 'blob' });
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+  const bytes = new Uint8Array(await response.data.slice(0, 5).arrayBuffer());
+  const isPdf = bytes.length === 5 && bytes[0] === 0x25 && bytes[1] === 0x50
+    && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;
+  if (!contentType.includes('application/pdf') || !isPdf) {
+    const responseText = await response.data.text();
+    let message = 'The report export did not return a valid PDF.';
+    try {
+      message = JSON.parse(responseText).message || message;
+    } catch {
+      if (responseText) message = responseText;
+    }
+    throw new Error(message);
+  }
+
+  const disposition = String(response.headers?.['content-disposition'] || '');
+  const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = filenameMatch?.[1] || fallbackName;
+  const blobUrl = URL.createObjectURL(response.data);
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+};
+
 const MapTestPrepPage = () => {
   const { t } = useTranslation(['mapTestPrep']);
   const tabs = useMemo(() => [
@@ -82,9 +112,17 @@ const MapTestPrepPage = () => {
   const [rosterStudentDetails, setRosterStudentDetails] = useState(null);
   const [rosterStudentDetailsLoading, setRosterStudentDetailsLoading] = useState(false);
   const [rosterStudentDetailsError, setRosterStudentDetailsError] = useState('');
+  const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(null);
+  const [teacherReviewMarks, setTeacherReviewMarks] = useState({});
+  const [reviewAttemptLoadingId, setReviewAttemptLoadingId] = useState('');
+  const [reviewAttemptSaving, setReviewAttemptSaving] = useState(false);
   const [rosterAssigningSetId, setRosterAssigningSetId] = useState(null);
   const [rosterDeletingSetId, setRosterDeletingSetId] = useState(null);
   const [rosterAssignmentDueDates, setRosterAssignmentDueDates] = useState({});
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [reportExportState, setReportExportState] = useState('');
+  const [reportExportError, setReportExportError] = useState('');
   const fileInputRef = useRef(null);
   const [settings, setSettings] = useState({
     feedbackMode: 'after_submit',
@@ -129,6 +167,8 @@ const MapTestPrepPage = () => {
 
   const openRosterStudent = async (student) => {
     setSelectedRosterStudent(student);
+    setSelectedReviewAttempt(null);
+    setTeacherReviewMarks({});
     setRosterStudentDetails(null);
     setRosterStudentDetailsError('');
     setRosterStudentDetailsLoading(true);
@@ -139,6 +179,54 @@ const MapTestPrepPage = () => {
       setRosterStudentDetailsError(requestError.response?.data?.message || t('mapTestPrep:overview.details.loadFailed'));
     } finally {
       setRosterStudentDetailsLoading(false);
+    }
+  };
+
+  const openRosterAttempt = async (attemptId) => {
+    setReviewAttemptLoadingId(String(attemptId));
+    setRosterStudentDetailsError('');
+    try {
+      const response = await api.get(`/map-test-prep/practice/attempts/${attemptId}`);
+      const attempt = response.data?.data?.attempt;
+      setSelectedReviewAttempt(attempt);
+      setTeacherReviewMarks(Object.fromEntries(
+        (attempt?.answers || []).map((answer) => [String(answer._id), answer.isCorrect ?? null])
+      ));
+    } catch (requestError) {
+      setRosterStudentDetailsError(requestError.response?.data?.message || 'Unable to open this practice set.');
+    } finally {
+      setReviewAttemptLoadingId('');
+    }
+  };
+
+  const saveRosterAttemptReview = async () => {
+    if (!selectedReviewAttempt) return;
+    setReviewAttemptSaving(true);
+    setRosterStudentDetailsError('');
+    try {
+      const answers = (selectedReviewAttempt.answers || []).map((answer) => ({
+        answerId: String(answer._id),
+        isCorrect: teacherReviewMarks[String(answer._id)] ?? null
+      }));
+      await api.post(`/map-test-prep/practice/attempts/${selectedReviewAttempt._id}/review`, { answers });
+      const response = await api.get(`/map-test-prep/practice/attempts/${selectedReviewAttempt._id}`);
+      const updatedAttempt = response.data?.data?.attempt;
+      setSelectedReviewAttempt(updatedAttempt);
+      setTeacherReviewMarks(Object.fromEntries(
+        (updatedAttempt?.answers || []).map((answer) => [String(answer._id), answer.isCorrect ?? null])
+      ));
+      setRosterStudentDetails((current) => current ? ({
+        ...current,
+        attempts: (current.attempts || []).map((attempt) =>
+          String(attempt._id) === String(updatedAttempt._id)
+            ? { ...attempt, score: updatedAttempt.score, maxScore: updatedAttempt.maxScore, status: updatedAttempt.status, reviewStatus: updatedAttempt.reviewStatus }
+            : attempt
+        )
+      }) : current);
+    } catch (requestError) {
+      setRosterStudentDetailsError(requestError.response?.data?.message || 'Unable to save the question marks.');
+    } finally {
+      setReviewAttemptSaving(false);
     }
   };
 
@@ -389,6 +477,41 @@ const MapTestPrepPage = () => {
       .sort((first, second) => first.accuracy - second.accuracy);
   }, [rosterStudentDetails]);
 
+  const exportPracticeReport = async ({ type, id }) => {
+    if (Boolean(reportStartDate) !== Boolean(reportEndDate)) {
+      setReportExportError(t('mapTestPrep:reports.bothDatesRequired'));
+      return;
+    }
+    setReportExportState(type);
+    setReportExportError('');
+    const params = reportStartDate && reportEndDate ? { startDate: reportStartDate, endDate: reportEndDate } : {};
+    try {
+      const isStudentReport = type === 'student';
+      await downloadMapPracticeReport({
+        url: isStudentReport
+          ? `/map-test-prep/practice/reports/students/${id}/pdf`
+          : `/map-test-prep/practice/reports/classes/${id}/pdf`,
+        params,
+        fallbackName: isStudentReport ? 'map-practice-student-report.pdf' : 'map-practice-class-report.pdf'
+      });
+    } catch (requestError) {
+      let message = requestError.message || t('mapTestPrep:reports.exportFailed');
+      if (requestError.response?.data instanceof Blob) {
+        try {
+          const payload = JSON.parse(await requestError.response.data.text());
+          message = payload.message || message;
+        } catch {
+          message = t('mapTestPrep:reports.exportFailed');
+        }
+      } else if (requestError.response?.data?.message) {
+        message = requestError.response.data.message;
+      }
+      setReportExportError(message);
+    } finally {
+      setReportExportState('');
+    }
+  };
+
   if (loading) {
     return <div className="map-prep-page"><div className="map-prep-state">Loading MAP Practice...</div></div>;
   }
@@ -426,7 +549,29 @@ const MapTestPrepPage = () => {
               <p className="map-section-kicker">{t('mapTestPrep:tabs.students')}</p>
               <h2>{selectedClass ? selectedClass.name : t('mapTestPrep:tabs.students')}</h2>
             </div>
+            {selectedClass && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void exportPracticeReport({ type: 'class', id: selectedClass._id })}
+                disabled={reportExportState !== ''}
+              >
+                {reportExportState === 'class' ? t('mapTestPrep:reports.exporting') : t('mapTestPrep:reports.exportClass')}
+              </button>
+            )}
           </div>
+          <div className="map-report-controls">
+            <label>
+              <span>{t('mapTestPrep:reports.startDate')}</span>
+              <input type="date" value={reportStartDate} onChange={(event) => setReportStartDate(event.target.value)} />
+            </label>
+            <label>
+              <span>{t('mapTestPrep:reports.endDate')}</span>
+              <input type="date" value={reportEndDate} onChange={(event) => setReportEndDate(event.target.value)} />
+            </label>
+            <small>{t('mapTestPrep:reports.defaultPeriod')}</small>
+          </div>
+          {reportExportError && <div className="map-prep-error" role="alert">{reportExportError}</div>}
           <div className="map-roster-filters">
             <label>
               <span>{t('mapTestPrep:overview.classFilter')}</span>
@@ -507,7 +652,15 @@ const MapTestPrepPage = () => {
                       <h3>{selectedRosterStudent.firstName} {selectedRosterStudent.lastName}</h3>
                       <span>{selectedRosterStudent.studentId} · {selectedRosterStudent.currentClass?.name || selectedClass?.name || ''}</span>
                     </div>
-                    <button type="button" className="btn btn-secondary" onClick={() => { setSelectedRosterStudent(null); setSelectedRosterStudentId(''); setRosterStudentDetails(null); }}>{t('mapTestPrep:overview.close')}</button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => void exportPracticeReport({ type: 'student', id: selectedRosterStudent._id })}
+                      disabled={reportExportState !== ''}
+                    >
+                      {reportExportState === 'student' ? t('mapTestPrep:reports.exporting') : t('mapTestPrep:reports.exportStudent')}
+                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setSelectedRosterStudent(null); setSelectedRosterStudentId(''); setRosterStudentDetails(null); setSelectedReviewAttempt(null); }}>{t('mapTestPrep:overview.close')}</button>
                   </div>
                   {rosterStudentDetailsLoading && <p role="status">{t('mapTestPrep:overview.details.loading')}</p>}
                   {rosterStudentDetailsError && <p className="map-prep-error" role="alert">{rosterStudentDetailsError}</p>}
@@ -615,7 +768,21 @@ const MapTestPrepPage = () => {
                                   <div className="map-roster-assignment-control">
                                     {assignment ? <span>{t('mapTestPrep:overview.details.assigned')}{assignment.dueDate ? ` · ${new Date(assignment.dueDate).toLocaleDateString()}` : ''}</span> : <><span>{t('mapTestPrep:overview.details.notAssigned')}</span><label><span>{t('mapTestPrep:overview.details.dueDate')}</span><input type="date" value={rosterAssignmentDueDates[setId] || ''} onChange={(event) => setRosterAssignmentDueDates((current) => ({ ...current, [setId]: event.target.value }))} /></label><button type="button" className="btn btn-primary" disabled={rosterAssigningSetId === setId} onClick={() => void assignRosterSet(plan, set)}>{rosterAssigningSetId === setId ? t('mapTestPrep:overview.details.assigning') : t('mapTestPrep:overview.details.assign')}</button></>}
                                     <button type="button" className="btn btn-secondary map-set-delete-button" disabled={rosterDeletingSetId === setId} onClick={() => void deleteRosterSet(set)}>{rosterDeletingSetId === setId ? t('mapTestPrep:overview.details.deletingSet') : t('mapTestPrep:overview.details.deleteSet')}</button>
-                                    {attempt && <small>{t('mapTestPrep:overview.details.attemptStatus', { status: t(`mapTestPrep:overview.details.attempt.${attempt.status}`), score: attempt.maxScore ? `${attempt.score}/${attempt.maxScore}` : '—' })}</small>}
+                                    {attempt && (
+                                      <>
+                                        <small>{t('mapTestPrep:overview.details.attemptStatus', { status: t(`mapTestPrep:overview.details.attempt.${attempt.status}`), score: attempt.maxScore ? `${attempt.score}/${attempt.maxScore}` : '—' })}</small>
+                                        {['submitted', 'reviewed'].includes(attempt.status) && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            disabled={reviewAttemptLoadingId === String(attempt._id)}
+                                            onClick={() => void openRosterAttempt(attempt._id)}
+                                          >
+                                            {reviewAttemptLoadingId === String(attempt._id) ? 'Opening…' : 'Open set'}
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
                                   </div>
                                 </article>
                               );
@@ -632,6 +799,60 @@ const MapTestPrepPage = () => {
                         </section>
                       );
                       }) : <p>{t('mapTestPrep:overview.details.noPlans')}</p>}
+                      {selectedReviewAttempt && (
+                        <section className="map-roster-answer-review">
+                          <div className="map-roster-plan-heading">
+                            <div>
+                              <h4>Review: {selectedReviewAttempt.set?.title || 'Practice set'}</h4>
+                              <span>{selectedRosterStudent.firstName} {selectedRosterStudent.lastName} · {selectedReviewAttempt.score ?? 0}/{selectedReviewAttempt.maxScore ?? 0}</span>
+                            </div>
+                            <button type="button" className="btn btn-ghost" onClick={() => setSelectedReviewAttempt(null)}>Close</button>
+                          </div>
+                          <p>Mark each submitted answer correct or incorrect. Unmarked answers stay in the review queue.</p>
+                          {(selectedReviewAttempt.answers || []).map((answer, index) => {
+                            const question = answer.questionDetails || answer.questionSnapshot || {};
+                            const options = Array.isArray(question.options) ? question.options : [];
+                            const responses = Array.isArray(answer.response) ? answer.response : [answer.response];
+                            const studentAnswer = responses.filter((value) => value !== null && value !== undefined && String(value).trim())
+                              .map((value) => options.find((option) => String(option.key) === String(value))?.text || String(value))
+                              .join(', ') || 'No answer saved';
+                            return (
+                              <article className="map-roster-answer-item" key={String(answer._id)}>
+                                <h5>Question {index + 1}: {question.stem || 'Question text unavailable.'}</h5>
+                                {question.passageText && <p>{question.passageText}</p>}
+                                {options.length > 0 && (
+                                  <ul>{options.map((option) => <li key={option.key}><strong>{option.key}.</strong> {option.text}</li>)}</ul>
+                                )}
+                                <p><strong>Student answer:</strong> {studentAnswer}</p>
+                                {(question.correctAnswer || answer.correctAnswerSnapshot) && (
+                                  <p><strong>Answer key:</strong> {question.correctAnswer || answer.correctAnswerSnapshot}</p>
+                                )}
+                                <div className="map-roster-answer-mark-controls">
+                                  <button
+                                    type="button"
+                                    className={teacherReviewMarks[String(answer._id)] === true ? 'active correct' : ''}
+                                    aria-pressed={teacherReviewMarks[String(answer._id)] === true}
+                                    onClick={() => setTeacherReviewMarks((current) => ({ ...current, [String(answer._id)]: true }))}
+                                  >
+                                    Correct
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={teacherReviewMarks[String(answer._id)] === false ? 'active incorrect' : ''}
+                                    aria-pressed={teacherReviewMarks[String(answer._id)] === false}
+                                    onClick={() => setTeacherReviewMarks((current) => ({ ...current, [String(answer._id)]: false }))}
+                                  >
+                                    Incorrect
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                          <button type="button" className="btn btn-primary" disabled={reviewAttemptSaving} onClick={() => void saveRosterAttemptReview()}>
+                            {reviewAttemptSaving ? 'Saving marks…' : 'Save marks'}
+                          </button>
+                        </section>
+                      )}
                     </>
                   )}
                 </aside>

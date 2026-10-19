@@ -6,6 +6,16 @@
     "import": "Import",
     "settings": "Settings"
   },
+  "reports": {
+    "exportStudent": "Export student PDF",
+    "exportClass": "Export class PDF",
+    "exporting": "Preparing PDF…",
+    "exportFailed": "Unable to export this MAP Practice report.",
+    "startDate": "From",
+    "endDate": "To",
+    "defaultPeriod": "Leave both dates blank to report on the current academic year.",
+    "bothDatesRequired": "Choose both a start date and an end date, or leave both blank."
+  },
   "overview": {
     "title": "Class overview",
     "classes": "Classes",

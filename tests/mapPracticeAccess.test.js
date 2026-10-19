@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
+import {
+  ensureStudentOwnsPracticeData,
+  ensureTeacherCanAccessClass,
+  ensureTeacherCanAccessStudent
+} from '../services/mapPracticeAccessService.js';
 
 const classIdA = '507f1f77bcf86cd799439011';
 const classIdB = '507f1f77bcf86cd799439012';
@@ -70,6 +74,22 @@ test('ensureTeacherCanAccessStudent only permits teachers for their own classes'
 
   assert.equal(allowed, true);
   assert.equal(denied, false);
+});
+
+test('ensureTeacherCanAccessClass only permits teachers for assigned classes', async () => {
+  const teacherScope = {
+    resolveTeacherProfile: async () => ({ _id: 'teacher-1' }),
+    getTeacherClassIds: async () => [classIdA]
+  };
+  const req = { user: { role: 'teacher', _id: 'teacher-user' }, schoolId: 'school-1' };
+
+  assert.equal(await ensureTeacherCanAccessClass({ req, classId: classIdA, teacherScope }), true);
+  assert.equal(await ensureTeacherCanAccessClass({ req, classId: classIdB, teacherScope }), false);
+  assert.equal(await ensureTeacherCanAccessClass({
+    req: { user: { role: 'student' }, schoolId: 'school-1' },
+    classId: classIdA,
+    teacherScope
+  }), false);
 });
 
 test('review queue policy respects teacher scope and keeps class data private', async () => {

@@ -413,7 +413,7 @@ app.use("/api/sbr", sbrRoutes);
 app.use("/api/presentations", presentationRoutes);
 const liveLessonsEnabled = parseBooleanEnv(process.env.LIVE_LESSONS_ENABLED);
 if (liveLessonsEnabled) {
-  app.use("/api/live", express.text({ type: ["text/csv", "text/plain"], limit: "2mb" }));
+  app.use("/api/live", express.text({ type: ["text/csv", "text/plain"], limit: "22mb" }));
   app.use("/api/live", liveLessonRoutes);
 }
 app.use("/api/worksheets", worksheetRoutes);

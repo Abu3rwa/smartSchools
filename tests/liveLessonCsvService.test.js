@@ -4,6 +4,7 @@ import { LIVE_LESSON_CSV_TEMPLATE as CLIENT_LIVE_LESSON_CSV_TEMPLATE } from "../
 import {
   LIVE_LESSON_CSV_TEMPLATE,
   parseLiveLessonCsv,
+  serializeLiveLessonCsv,
 } from "../services/liveLessonCsvService.js";
 import {
   getSessionStudents,
@@ -79,6 +80,120 @@ test("HTML slide CSV maps true/false answer letters to existing question option 
   assert.equal(result.ok, true);
   assert.equal(result.lesson.slides[0].question.correctOptionId, "true");
   assert.deepEqual(result.lesson.slides[0].question.options.map((option) => option.id), ["true", "false"]);
+});
+
+test("portable export round-trips lesson metadata and every supported slide field", () => {
+  const sourceLesson = {
+    _id: "lesson-original",
+    title: 'Commas, "quotes", and clauses',
+    description: "First line\nSecond line",
+    subject: "English",
+    grade: "Grade 5",
+    language: "en",
+    isDone: true,
+    classId: { name: "Grade 5-R" },
+    subjectId: { name: "English Language Arts" },
+    slides: [
+      {
+        type: "opening",
+        title: "Welcome",
+        body: "A body with commas, quotes, and\nline breaks.",
+        html: "",
+        examples: ["First example, with comma", 'Second "quoted" example'],
+        imageUrl: "https://example.test/image.png",
+        speakerNotes: "Teacher notes",
+      },
+      {
+        type: "html",
+        title: "Animated slide",
+        body: "",
+        html: "<style>h1{color:red}</style>\n<h1>Hello</h1>",
+        examples: [],
+        imageUrl: "",
+        speakerNotes: "",
+      },
+      {
+        type: "question",
+        title: "Choose the best answer",
+        body: "",
+        html: "",
+        examples: [],
+        imageUrl: "",
+        question: {
+          kind: "mcq",
+          prompt: "Which choice is correct?",
+          options: [
+            { id: "a", text: "First" },
+            { id: "b", text: "Second, with detail" },
+            { id: "c", text: 'Third "quoted"' },
+          ],
+          correctOptionId: "b",
+          explanation: "The second option is correct.",
+        },
+        speakerNotes: "Ask the class to explain.",
+      },
+      {
+        type: "exit-ticket",
+        title: "Finish",
+        body: "One final reflection.",
+        html: "",
+        examples: [],
+        imageUrl: "",
+        speakerNotes: "",
+      },
+    ],
+  };
+  const csv = serializeLiveLessonCsv(sourceLesson);
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.lesson.title, sourceLesson.title);
+  assert.equal(result.lesson.description, sourceLesson.description);
+  assert.equal(result.lesson.subject, sourceLesson.subject);
+  assert.equal(result.lesson.grade, sourceLesson.grade);
+  assert.equal(result.lesson.language, sourceLesson.language);
+  assert.equal(result.lesson.isDone, true);
+  assert.deepEqual(result.lesson.importHints, {
+    assignedClass: "Grade 5-R",
+    assignedSubject: "English Language Arts",
+  });
+  assert.equal(result.lesson.slides.length, sourceLesson.slides.length);
+  assert.deepEqual(result.lesson.slides[0].examples, sourceLesson.slides[0].examples);
+  assert.equal(result.lesson.slides[0].body, sourceLesson.slides[0].body);
+  assert.equal(result.lesson.slides[1].html, sourceLesson.slides[1].html);
+  assert.deepEqual(result.lesson.slides[2].question, sourceLesson.slides[2].question);
+  assert.equal(result.lesson.slides[3].type, "exit-ticket");
+});
+
+test("portable CSV rejects inconsistent metadata, slide ordering, and answer keys", () => {
+  const source = {
+    _id: "lesson-1",
+    title: "Portable",
+    slides: [
+      { type: "content", title: "First", body: "First body" },
+      {
+        type: "question",
+        title: "Question",
+        question: {
+          kind: "mcq",
+          prompt: "Pick one",
+          options: [{ id: "a", text: "A" }, { id: "b", text: "B" }],
+          correctOptionId: "a",
+        },
+      },
+    ],
+  };
+  const csv = serializeLiveLessonCsv(source);
+  const rows = csv.split("\r\n");
+  const changedMetadata = rows.map((row, index) => index === 2 ? row.replace("Portable", "Changed") : row).join("\r\n");
+  assert.ok(parseLiveLessonCsv(changedMetadata).errors.some((error) => error.field === "lesson_title"));
+
+  const wrongAnswer = rows.map((row, index) => index === 2
+    ? row.replace(",a,,", ",z,,")
+    : row).join("\r\n");
+  const parsedWrongAnswer = parseLiveLessonCsv(wrongAnswer);
+  assert.equal(parsedWrongAnswer.ok, false);
+  assert.ok(parsedWrongAnswer.errors.some((error) => error.field === "correct_answer"));
 });
 
 test("CSV parser accepts title aliases and quoted multiline content", () => {

@@ -1,7 +1,13 @@
-const MAX_CSV_LENGTH = 2 * 1024 * 1024;
+const MAX_CSV_LENGTH = 22 * 1024 * 1024;
 const MAX_SLIDES = 200;
 const MAX_CELL_LENGTH = 5000;
 const MAX_HTML_LENGTH = 100000;
+const PORTABLE_LIVE_LESSON_CSV_HEADERS = [
+  "format_version", "lesson_id", "lesson_title", "lesson_description", "subject", "grade", "language",
+  "assigned_class", "assigned_subject", "is_done", "slide_order", "slide_type", "title", "body", "html",
+  "examples_json", "image_url", "question_kind", "question_prompt", "question_options_json",
+  "correct_answer", "explanation", "speaker_notes",
+];
 const HTML_CSV_HEADERS = [
   "lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html",
   "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d",
@@ -73,6 +79,167 @@ const parseCsvRows = (csv) => {
   row.push(cell);
   if (row.some((value) => value.trim())) rows.push(row);
   return rows;
+};
+
+const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
+  const errors = [];
+  const normalizedHeaders = rawHeaders.map(normalizeHeader);
+  if (rawHeaders.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length ||
+      rawHeaders.some((header, index) => normalizedHeaders[index] !== normalizeHeader(PORTABLE_LIVE_LESSON_CSV_HEADERS[index]))) {
+    return {
+      ok: false,
+      errors: [{ row: 1, field: "headers", message: `Portable lesson CSV must use these columns in order: ${PORTABLE_LIVE_LESSON_CSV_HEADERS.join(", ")}.` }],
+    };
+  }
+  if (dataRows.length < 1 || dataRows.length > MAX_SLIDES) {
+    return {
+      ok: false,
+      errors: [{ row: 1, field: "slides", message: `Include between 1 and ${MAX_SLIDES} slide rows.` }],
+    };
+  }
+
+  const headerIndex = Object.fromEntries(normalizedHeaders.map((header, index) => [header.replace(/\s+/g, "_"), index]));
+  const valueAt = (row, field) => String(row[headerIndex[field]] ?? "");
+  const firstRow = dataRows[0];
+  if (firstRow.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length) {
+    errors.push({ row: 2, field: "columns", message: `Expected ${PORTABLE_LIVE_LESSON_CSV_HEADERS.length} columns, found ${firstRow.length}.` });
+  }
+
+  const metadataColumns = [
+    ["format_version", "version"],
+    ["lesson_id", "lessonId"],
+    ["lesson_title", "title"],
+    ["lesson_description", "description"],
+    ["subject", "subject"],
+    ["grade", "grade"],
+    ["language", "language"],
+    ["assigned_class", "assignedClass"],
+    ["assigned_subject", "assignedSubject"],
+    ["is_done", "isDone"],
+  ];
+  const lessonMetadata = Object.fromEntries(metadataColumns.map(([column, field]) => [field, valueAt(firstRow, column)]));
+  if (lessonMetadata.version !== "1") errors.push({ row: 2, field: "format_version", message: "Unsupported portable lesson CSV format version." });
+  if (!lessonMetadata.lessonId || lessonMetadata.lessonId.length > 100) errors.push({ row: 2, field: "lesson_id", message: "Lesson ID is required and must be 100 characters or fewer." });
+  if (!lessonMetadata.title || lessonMetadata.title.length > 200) errors.push({ row: 2, field: "lesson_title", message: "Lesson title is required and must be 200 characters or fewer." });
+  if (lessonMetadata.description.length > 1000) errors.push({ row: 2, field: "lesson_description", message: "Lesson description must be 1,000 characters or fewer." });
+  if (lessonMetadata.subject.length > 120) errors.push({ row: 2, field: "subject", message: "Subject must be 120 characters or fewer." });
+  if (lessonMetadata.grade.length > 80) errors.push({ row: 2, field: "grade", message: "Grade must be 80 characters or fewer." });
+  if (lessonMetadata.language.length > 20) errors.push({ row: 2, field: "language", message: "Language must be 20 characters or fewer." });
+  if (!["true", "false"].includes(lessonMetadata.isDone)) errors.push({ row: 2, field: "is_done", message: "is_done must be true or false." });
+  const slideTypes = new Set(["opening", "goals", "content", "examples", "html", "question", "activity", "exit-ticket"]);
+  const slides = [];
+
+  dataRows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    if (row.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length) {
+      errors.push({ row: rowNumber, field: "columns", message: `Expected ${PORTABLE_LIVE_LESSON_CSV_HEADERS.length} columns, found ${row.length}.` });
+      return;
+    }
+    for (const [column, field] of metadataColumns) {
+      if (valueAt(row, column) !== lessonMetadata[field]) {
+        errors.push({ row: rowNumber, field: column, message: "Lesson metadata must match on every row." });
+      }
+    }
+    const orderValue = valueAt(row, "slide_order");
+    const order = Number(orderValue);
+    if (!Number.isInteger(order) || order !== index + 1 || order > MAX_SLIDES) {
+      errors.push({ row: rowNumber, field: "slide_order", message: `Slide order must be ${index + 1} with no gaps.` });
+    }
+    const type = valueAt(row, "slide_type");
+    if (!slideTypes.has(type)) errors.push({ row: rowNumber, field: "slide_type", message: "Unsupported slide type." });
+
+    const title = valueAt(row, "title");
+    const body = valueAt(row, "body");
+    const html = valueAt(row, "html");
+    const speakerNotes = valueAt(row, "speaker_notes");
+    const imageUrl = valueAt(row, "image_url");
+    if (title.length > 200) errors.push({ row: rowNumber, field: "title", message: "Slide titles must be 200 characters or fewer." });
+    if (body.length > MAX_CELL_LENGTH) errors.push({ row: rowNumber, field: "body", message: "Slide content must be 5,000 characters or fewer." });
+    if (html.length > MAX_HTML_LENGTH) errors.push({ row: rowNumber, field: "html", message: `HTML must be ${MAX_HTML_LENGTH} characters or fewer.` });
+    if (speakerNotes.length > 2000) errors.push({ row: rowNumber, field: "speaker_notes", message: "Speaker notes must be 2,000 characters or fewer." });
+    if (imageUrl.length > 2048 || (imageUrl && !/^https?:\/\/\S+$/i.test(imageUrl))) {
+      errors.push({ row: rowNumber, field: "image_url", message: "Image URL must be a valid http:// or https:// URL no longer than 2,048 characters." });
+    }
+
+    let examples = [];
+    try {
+      examples = JSON.parse(valueAt(row, "examples_json") || "[]");
+      if (!Array.isArray(examples) || examples.some((example) => typeof example !== "string" || example.length > 5000)) {
+        throw new Error("Examples must be a JSON array of strings up to 5,000 characters each.");
+      }
+    } catch (error) {
+      errors.push({ row: rowNumber, field: "examples_json", message: error.message || "Examples must contain valid JSON." });
+      examples = [];
+    }
+
+    const questionKind = valueAt(row, "question_kind");
+    const prompt = valueAt(row, "question_prompt");
+    const answer = valueAt(row, "correct_answer");
+    const explanation = valueAt(row, "explanation");
+    let question;
+    if (type === "question") {
+      let options = [];
+      try {
+        options = JSON.parse(valueAt(row, "question_options_json") || "[]");
+        if (!Array.isArray(options)) throw new Error("Question options must be a JSON array.");
+      } catch (error) {
+        errors.push({ row: rowNumber, field: "question_options_json", message: error.message || "Question options must contain valid JSON." });
+        options = [];
+      }
+      if (!["mcq", "tf"].includes(questionKind)) errors.push({ row: rowNumber, field: "question_kind", message: "Question kind must be mcq or tf." });
+      if (!prompt || prompt.length > 500) errors.push({ row: rowNumber, field: "question_prompt", message: "Question prompt is required and must be 500 characters or fewer." });
+      if (explanation.length > 2000) errors.push({ row: rowNumber, field: "explanation", message: "Explanation must be 2,000 characters or fewer." });
+      if ((questionKind === "mcq" && (options.length < 2 || options.length > 6)) ||
+          (questionKind === "tf" && (options.length !== 2 || !options.some((option) => option?.id === "true") || !options.some((option) => option?.id === "false")))) {
+        errors.push({ row: rowNumber, field: "question_options_json", message: "Question options do not match the question kind." });
+      }
+      const optionIds = options.map((option) => String(option?.id || ""));
+      if (new Set(optionIds).size !== optionIds.length || options.some((option) =>
+        !option || typeof option.id !== "string" || !option.id || option.id.length > 20 ||
+        typeof option.text !== "string" || !option.text.trim() || option.text.length > 300)) {
+        errors.push({ row: rowNumber, field: "question_options_json", message: "Question options need unique IDs and non-empty text (maximum 300 characters)." });
+      }
+      if (!optionIds.includes(answer)) errors.push({ row: rowNumber, field: "correct_answer", message: "Correct answer must match a question option ID." });
+      question = { kind: questionKind, prompt, options, correctOptionId: answer, explanation };
+    } else if (questionKind || prompt || valueAt(row, "question_options_json") || answer || explanation) {
+      errors.push({ row: rowNumber, field: "question", message: "Question columns must be empty for non-question slides." });
+    }
+
+    if (type === "html" && !html.trim()) errors.push({ row: rowNumber, field: "html", message: "HTML slides need slide content." });
+    if (type !== "html" && html) errors.push({ row: rowNumber, field: "html", message: "Only HTML slides can include HTML content." });
+    if (type === "question" && !title && !body && !prompt) errors.push({ row: rowNumber, field: "title", message: "Question slides need a title or prompt." });
+    if (type !== "question" && type !== "html" && !title && !body && !examples.length && !imageUrl) {
+      errors.push({ row: rowNumber, field: "slide", message: "Each slide needs a title, body, examples, or image." });
+    }
+
+    slides.push({
+      order: Number.isInteger(order) ? order - 1 : index,
+      type,
+      title,
+      body,
+      html,
+      examples,
+      imageUrl,
+      speakerNotes,
+      ...(question ? { question } : {}),
+    });
+  });
+
+  if (errors.length) return { ok: false, errors };
+  return {
+    ok: true,
+    lesson: {
+      title: lessonMetadata.title,
+      description: lessonMetadata.description,
+      subject: lessonMetadata.subject,
+      grade: lessonMetadata.grade,
+      language: lessonMetadata.language,
+      isDone: lessonMetadata.isDone === "true",
+      importHints: { assignedClass: lessonMetadata.assignedClass, assignedSubject: lessonMetadata.assignedSubject },
+      slides,
+    },
+    matchedColumns: Object.fromEntries(PORTABLE_LIVE_LESSON_CSV_HEADERS.map((header) => [header, header])),
+  };
 };
 
 const parseHtmlSlideCsv = (rawHeaders, dataRows) => {
@@ -328,8 +495,8 @@ export const parseLiveLessonCsv = (csv) => {
   if (typeof csv !== "string" || csv.trim().length === 0) {
     return { ok: false, errors: [{ row: 1, field: "file", message: "Choose a non-empty CSV file." }] };
   }
-  if (csv.length > MAX_CSV_LENGTH) {
-    return { ok: false, errors: [{ row: 1, field: "file", message: "CSV files must be 2 MB or smaller." }] };
+  if (Buffer.byteLength(csv, "utf8") > MAX_CSV_LENGTH) {
+    return { ok: false, errors: [{ row: 1, field: "file", message: "CSV files must be 22 MB or smaller." }] };
   }
 
   let rows;
@@ -343,6 +510,9 @@ export const parseLiveLessonCsv = (csv) => {
   }
 
   const [rawHeaders, ...dataRows] = rows;
+  if (normalizeHeader(rawHeaders[0]) === "format version") {
+    return parsePortableLiveLessonCsv(rawHeaders, dataRows);
+  }
   if (normalizeHeader(rawHeaders[2]) === "slide type" && normalizeHeader(rawHeaders[7]) === "html") {
     return parseHtmlSlideCsv(rawHeaders, dataRows);
   }
@@ -457,3 +627,44 @@ export const LIVE_LESSON_CSV_TEMPLATE = [
   '"Figurative Language","ELA lesson",6,activity,"Your turn","Write one simile, one metaphor, and one example of personification.",,,,,,,,,,,',
   '"Figurative Language","ELA lesson",7,exit-ticket,"Exit ticket","Name the technique in ""The stars winked at us"" and explain how a metaphor differs from a simile.",,,,,,,,,,',
 ].join("\r\n");
+
+const csvCell = (value) => {
+  const cell = String(value ?? "");
+  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+};
+
+export const serializeLiveLessonCsv = (lesson) => {
+  const metadata = [
+    "1",
+    lesson._id || "",
+    lesson.title || "",
+    lesson.description || "",
+    lesson.subject || "",
+    lesson.grade || "",
+    lesson.language || "en",
+    lesson.classId?.name || "",
+    lesson.subjectId?.name || "",
+    lesson.isDone === true ? "true" : "false",
+  ];
+  const rows = [PORTABLE_LIVE_LESSON_CSV_HEADERS];
+  (lesson.slides || []).forEach((slide, index) => {
+    const question = slide.question || {};
+    rows.push([
+      ...metadata,
+      index + 1,
+      slide.type || "",
+      slide.title || "",
+      slide.body || "",
+      slide.html || "",
+      JSON.stringify(Array.isArray(slide.examples) ? slide.examples : []),
+      slide.imageUrl || "",
+      question.kind || "",
+      question.prompt || "",
+      question.options ? JSON.stringify(question.options.map((option) => ({ id: option.id, text: option.text }))) : "",
+      question.correctOptionId || "",
+      question.explanation || "",
+      slide.speakerNotes || "",
+    ]);
+  });
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+};

@@ -10,6 +10,7 @@ import MapPracticeImportBatch from '../models/MapPracticeImportBatch.js';
 import MapTestRecord from '../models/MapTestRecord.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
+import { hideMapPracticeAttemptAnswerKeys, hideMapPracticeQuestionAnswers } from '../services/mapPracticeReviewService.js';
 import { withTransaction } from '../utils/withTransaction.js';
 
 export const getMapPracticeSettings = asyncHandler(async (req, res) => {
@@ -68,7 +69,7 @@ export const getStudentMapPracticePlans = asyncHandler(async (req, res) => {
     MapPracticePlanSkill.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).populate('skill', 'code name').lean(),
     MapPracticeAssignment.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } }).populate('set', 'title questionCount').sort({ dueDate: 1, createdAt: -1 }).lean(),
     MapPracticeAttempt.find({ school: req.schoolId, student: student._id, plan: { $in: planIds } })
-      .select('plan set status submittedAt score maxScore reviewStatus savedAt answers.question answers.isCorrect')
+      .select('plan set status submittedAt score maxScore reviewStatus savedAt answers.question answers.response answers.isCorrect')
       .populate({ path: 'answers.question', select: 'skill', populate: { path: 'skill', select: 'code name' } })
       .sort({ submittedAt: -1, savedAt: -1 })
       .limit(20)
@@ -79,7 +80,10 @@ export const getStudentMapPracticePlans = asyncHandler(async (req, res) => {
       .limit(30)
       .lean()
   ]);
-  res.json({ success: true, data: { student, plans, sets, skills, assignments, attempts, mapRecords } });
+  const responseAttempts = req.user.role === 'student'
+    ? attempts.map(hideMapPracticeAttemptAnswerKeys)
+    : attempts;
+  res.json({ success: true, data: { student, plans, sets, skills, assignments, attempts: responseAttempts, mapRecords } });
 });
 
 export const getMyMapPracticeHome = asyncHandler(async (req, res) => {
@@ -91,9 +95,22 @@ export const getMyMapPracticeHome = asyncHandler(async (req, res) => {
   const settings = await MapPracticeSettings.findOne({ school: req.schoolId }).lean();
   const plans = await MapPracticePlan.find({ school: req.schoolId, student: student._id }).sort({ updatedAt: -1 }).lean();
   const assignedSets = await MapPracticeAssignment.find({ school: req.schoolId, student: student._id, status: { $in: ['assigned', 'active'] } }).populate('set').lean();
-  const attempts = await MapPracticeAttempt.find({ school: req.schoolId, student: student._id }).lean();
+  const attempts = await MapPracticeAttempt.find({ school: req.schoolId, student: student._id })
+    .select('plan set status submittedAt score maxScore reviewStatus savedAt answers.question answers.response answers.isCorrect')
+    .populate('set', 'title')
+    .sort({ submittedAt: -1, savedAt: -1 })
+    .lean();
 
-  res.json({ success: true, data: { student, settings, plans, assignedSets, attempts } });
+  res.json({
+    success: true,
+    data: {
+      student,
+      settings,
+      plans,
+      assignedSets,
+      attempts: attempts.map(hideMapPracticeAttemptAnswerKeys)
+    }
+  });
 });
 
 export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
@@ -222,5 +239,8 @@ export const getMapPracticeAssignmentQuestions = asyncHandler(async (req, res) =
   }
 
   const questions = await MapPracticeQuestion.find({ school: req.schoolId, set: assignment.set, active: true }).sort({ order: 1 }).lean();
-  res.json({ success: true, data: { assignment, questions } });
+  const responseQuestions = req.user.role === 'student'
+    ? questions.map(hideMapPracticeQuestionAnswers)
+    : questions;
+  res.json({ success: true, data: { assignment, questions: responseQuestions } });
 });

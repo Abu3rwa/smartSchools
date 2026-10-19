@@ -121,6 +121,31 @@
   margin: 8px 0 0;
   color: var(--text-muted);
 }
+.map-report-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.map-report-controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.map-report-controls input {
+  min-height: 38px;
+}
+.map-report-controls small {
+  padding-bottom: 9px;
+  color: var(--text-muted);
+}
 .map-prep-progress {
   display: flex;
   align-items: center;
@@ -1028,6 +1053,54 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.84rem;
+}
+.map-roster-answer-review {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+}
+.map-roster-answer-review > p,
+.map-roster-answer-item p {
+  margin: 0;
+}
+.map-roster-answer-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-card);
+}
+.map-roster-answer-item h5 {
+  margin: 0;
+  color: var(--text-primary);
+}
+.map-roster-answer-mark-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.map-roster-answer-mark-controls button {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.map-roster-answer-mark-controls button.active.correct {
+  color: #166534;
+  border-color: #16a34a;
+  background: #dcfce7;
+}
+.map-roster-answer-mark-controls button.active.incorrect {
+  color: #991b1b;
+  border-color: #dc2626;
+  background: #fee2e2;
 }
 [dir="rtl"] .map-roster-detail-row,
 [dir="rtl"] .map-roster-attempt-list li {

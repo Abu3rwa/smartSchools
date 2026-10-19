@@ -14,6 +14,8 @@ const StudentMapTestPrepPage = () => {
   const [localAnswers, setLocalAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [resultSummary, setResultSummary] = useState(null);
+  const [reviewAttempt, setReviewAttempt] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const loadHome = async () => {
     try {
@@ -59,7 +61,7 @@ const StudentMapTestPrepPage = () => {
 
   const finishedSets = useMemo(() => {
     if (!Array.isArray(home?.attempts)) return [];
-    return home.attempts.slice(-5).reverse();
+    return home.attempts.slice(0, 5);
   }, [home]);
 
   const startAssignment = async (selectedAssignment) => {
@@ -82,6 +84,19 @@ const StudentMapTestPrepPage = () => {
       }
     } catch (error) {
       setMessage(error.response?.data?.message || 'Unable to open this set.');
+    }
+  };
+
+  const openAttemptReview = async (attemptId) => {
+    setMessage('');
+    setReviewLoading(true);
+    try {
+      const response = await api.get(`/map-test-prep/practice/attempts/${attemptId}`);
+      setReviewAttempt(response.data?.data?.attempt || null);
+    } catch (error) {
+      setMessage(error.response?.data?.message || 'Unable to load your submitted answers.');
+    } finally {
+      setReviewLoading(false);
     }
   };
 
@@ -140,6 +155,7 @@ const StudentMapTestPrepPage = () => {
         score: submitted.score ?? 0,
         maxScore: submitted.maxScore ?? 0,
         needsTeacherReview: submitted.needsTeacherReview,
+        attemptId: submitted.attempt?._id || attempt._id,
         setTitle: assignment?.set?.title || 'Practice set'
       });
       await loadHome();
@@ -152,6 +168,66 @@ const StudentMapTestPrepPage = () => {
   };
 
   const currentAnswer = activeQuestion ? localAnswers[activeQuestion._id] ?? '' : '';
+
+  if (reviewAttempt) {
+    return (
+      <div className="student-map-prep-page">
+        <header>
+          <p className="student-map-prep-eyebrow">Submitted practice</p>
+          <h1>{reviewAttempt.set?.title || 'Practice set'}</h1>
+        </header>
+        <section className="student-map-prep-list student-map-prep-answer-review">
+          <div className="student-map-prep-result-banner">
+            <strong>{reviewAttempt.score ?? 0} of {reviewAttempt.maxScore ?? 0}</strong>
+            <span>{reviewAttempt.reviewStatus === 'pending'
+              ? 'Your teacher is still reviewing some answers.'
+              : 'Your answers have been reviewed.'}</span>
+          </div>
+          {(reviewAttempt.answers || []).map((answer, index) => {
+            const question = answer.questionDetails || answer.questionSnapshot || {};
+            const options = Array.isArray(question.options) ? question.options : [];
+            const responses = Array.isArray(answer.response) ? answer.response : [answer.response];
+            const displayAnswer = responses.filter((value) => value !== null && value !== undefined && String(value).trim())
+              .map((value) => options.find((option) => String(option.key) === String(value))?.text || String(value))
+              .join(', ') || 'No answer saved';
+            return (
+              <article className="student-map-prep-reviewed-answer" key={String(answer._id || answer.questionId || index)}>
+                <div className="student-map-prep-reviewed-answer-heading">
+                  <h2>Question {index + 1}</h2>
+                  <span className={`student-map-prep-mark ${answer.isCorrect === true ? 'correct' : answer.isCorrect === false ? 'incorrect' : 'pending'}`}>
+                    {answer.isCorrect === true ? 'Correct' : answer.isCorrect === false ? 'Incorrect' : 'Awaiting review'}
+                  </span>
+                </div>
+                {question.passageTitle && <h3>{question.passageTitle}</h3>}
+                {question.passageText && <p className="student-map-prep-passage">{question.passageText}</p>}
+                <p className="student-map-prep-reviewed-stem">{question.stem || 'Question text unavailable.'}</p>
+                {options.length > 0 && (
+                  <ul className="student-map-prep-reviewed-options">
+                    {options.map((option) => (
+                      <li key={option.key}>
+                        <strong>{option.key}.</strong> {option.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p><strong>Your answer:</strong> {displayAnswer}</p>
+                {answer.teacherComment && <p><strong>Teacher feedback:</strong> {answer.teacherComment}</p>}
+              </article>
+            );
+          })}
+          <div className="student-map-prep-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setReviewAttempt(null)}>
+              Back to my practice
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (reviewLoading) {
+    return <div className="student-map-prep-page"><p role="status">Loading your answers…</p></div>;
+  }
 
   if (assignment && activeQuestion) {
     return (
@@ -262,6 +338,14 @@ const StudentMapTestPrepPage = () => {
             <span>{resultSummary.needsTeacherReview ? 'Some answers are waiting for teacher review.' : 'Submitted and ready.'}</span>
           </div>
           <div className="student-map-prep-actions">
+            {resultSummary.attemptId && (
+              <button type="button" className="btn btn-secondary" onClick={() => {
+                setResultSummary(null);
+                void openAttemptReview(resultSummary.attemptId);
+              }}>
+                Review answers
+              </button>
+            )}
             <button type="button" className="btn btn-primary" onClick={() => setResultSummary(null)}>
               Back to my practice
             </button>
@@ -301,8 +385,8 @@ const StudentMapTestPrepPage = () => {
                   <div key={assignmentItem._id} className="student-map-prep-card">
                     {(() => {
                       const progress = getMapPracticeSetProgress(home?.attempts || [], assignmentItem.set?._id, assignmentItem.set?.questionCount || 0);
-                      const setAttempt = home?.attempts?.find((item) => String(item.set?._id || item.set) === String(assignmentItem.set?._id));
-                      const action = getMapPracticeSetAction(setAttempt, progress);
+                      const existingAttempt = home?.attempts?.find((item) => String(item.set?._id || item.set) === String(assignmentItem.set?._id));
+                      const action = getMapPracticeSetAction(existingAttempt, progress);
                       return (
                         <>
                     <div className="student-map-prep-card-header">
@@ -314,7 +398,14 @@ const StudentMapTestPrepPage = () => {
                       <span>{progress.answered} of {progress.total} answered</span>
                       <div className="student-map-prep-progress-mini-bar"><i style={{ width: `${progress.percentage}%` }} /></div>
                     </div>
-                    <button type="button" className="btn btn-primary" disabled={action.disabled} onClick={() => startAssignment(assignmentItem)}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={action.disabled}
+                      onClick={() => existingAttempt?.status === 'submitted' || existingAttempt?.status === 'reviewed'
+                        ? void openAttemptReview(existingAttempt._id)
+                        : void startAssignment(assignmentItem)}
+                    >
                       {action.label}
                     </button>
                         </>
@@ -379,6 +470,9 @@ const StudentMapTestPrepPage = () => {
                     <strong>{attemptItem.set?.title || 'Finished set'}</strong>
                     <span>{attemptItem.score ?? 0} of {attemptItem.maxScore ?? 0}</span>
                     <small>{attemptItem.status === 'reviewed' ? 'Reviewed' : 'Submitted'}</small>
+                    <button type="button" className="btn btn-secondary" onClick={() => void openAttemptReview(attemptItem._id)}>
+                      Review answers
+                    </button>
                   </div>
                 ))}
               </div>

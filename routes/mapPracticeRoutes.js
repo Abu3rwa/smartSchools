@@ -21,6 +21,10 @@ import {
   getMapPracticeAttemptById,
   getMapPracticeReviewOptions
 } from '../controllers/mapPracticeAttemptController.js';
+import {
+  exportMapPracticeClassReport,
+  exportMapPracticeStudentReport
+} from '../controllers/mapPracticeReportController.js';
 
 const router = express.Router();
 const requireMapPracticeAccess = asyncHandler(async (req, res, next) => {
@@ -34,6 +38,8 @@ router.use(protect, requireSchoolContext, requireMapPracticeAccess);
 router.get('/settings', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeSettings);
 router.put('/settings', authorizeWithPermission(['admin', 'teacher'], []), saveMapPracticeSettings);
 router.get('/overview', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeOverview);
+router.get('/reports/students/:studentId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeStudentReport);
+router.get('/reports/classes/:classId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeClassReport);
 router.get('/import/students', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeImportStudents);
 router.post('/preview-files', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);
 router.post('/import/preview', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);

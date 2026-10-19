@@ -26,7 +26,7 @@ export const getMapPracticeSetProgress = (attempts = [], setId, totalQuestions =
 
 export const getMapPracticeSetAction = (attempt, progress) => {
   if (attempt?.status === 'submitted' || attempt?.status === 'reviewed') {
-    return { label: 'Submitted', disabled: true };
+    return { label: 'Review answers', disabled: false };
   }
 
   if (progress.total > 0 && progress.answered >= progress.total) {

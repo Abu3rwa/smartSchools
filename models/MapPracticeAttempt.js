@@ -6,6 +6,7 @@ const answerSchema = new mongoose.Schema({
     questionId: { type: String, default: '', trim: true, maxlength: 180 },
     response: { type: mongoose.Schema.Types.Mixed, default: null },
     isCorrect: { type: Boolean, default: null },
+    score: { type: Number, default: 0, min: 0 },
     autoGraded: { type: Boolean, default: false },
     teacherOverride: { type: Boolean, default: false },
     teacherComment: { type: String, default: '', trim: true, maxlength: 2000 },

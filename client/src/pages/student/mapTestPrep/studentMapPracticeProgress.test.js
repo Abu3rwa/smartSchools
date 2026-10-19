@@ -10,11 +10,12 @@ test('shows review and submit when every answer is saved but the attempt is unsu
   );
 });
 
-test('does not offer continuation for a submitted attempt', () => {
+test('offers answer review instead of continuation for a submitted attempt', () => {
   assert.deepEqual(
     getMapPracticeSetAction({ status: 'submitted' }, { answered: 15, total: 15 }),
-    { label: 'Submitted', disabled: true }
+    { label: 'Review answers', disabled: false }
   );
+  assert.equal(getMapPracticeSetAction({ status: 'reviewed' }, { answered: 15, total: 15 }).label, 'Review answers');
 });
 
 test('uses Start and Continue for untouched and partially answered attempts', () => {

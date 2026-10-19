@@ -13,7 +13,7 @@ import Student from "../models/Student.js";
 import Subject from "../models/Subject.js";
 import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
-import { parseLiveLessonCsv } from "../services/liveLessonCsvService.js";
+import { parseLiveLessonCsv, serializeLiveLessonCsv } from "../services/liveLessonCsvService.js";
 import { assertLiveLessonHtmlSafe } from "../services/liveLessonHtmlSafety.js";
 import {
   appendLiveEvent,
@@ -374,9 +374,32 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
     subject: assignment.subject || String(req.body.subject || "").trim(),
     grade: String(req.body.grade || "").trim(),
     language: String(req.body.language || "en").trim(),
+    isDone: req.body.isDone === true,
     slides: normalizeSlides(slides),
   });
   return res.status(201).json({ success: true, data: { lesson } });
+});
+
+export const exportLiveLessonCsv = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
+  const lesson = await LiveLesson.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  })
+    .populate("classId", "name")
+    .populate("subjectId", "name")
+    .lean();
+  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
+
+  const csv = serializeLiveLessonCsv(lesson);
+  const safeTitle = String(lesson.title || "lesson").normalize("NFKD").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "lesson";
+  res.set({
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="live-lesson-${safeTitle}.csv"`,
+    "Cache-Control": "private, no-store, max-age=0",
+  });
+  return res.send(`\uFEFF${csv}`);
 });
 
 export const listLiveLessons = asyncHandler(async (req, res) => {

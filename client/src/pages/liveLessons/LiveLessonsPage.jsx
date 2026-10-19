@@ -6,6 +6,7 @@ import {
   HiOutlineArrowUpTray,
   HiOutlineCheck,
   HiOutlineClipboardDocument,
+  HiOutlineEllipsisVertical,
   HiOutlineEye,
   HiOutlinePencilSquare,
   HiOutlinePlay,
@@ -101,6 +102,28 @@ const downloadTemplate = () => {
   URL.revokeObjectURL(url);
 };
 
+const downloadLessonCsv = async (lesson) => {
+  const response = await api.get(`/live/lessons/${lesson._id}/export.csv`, {
+    responseType: "blob",
+  });
+  const blob = response.data;
+  const header = await blob.slice(0, 64).text();
+  if (!String(response.headers?.["content-type"] || "").toLowerCase().includes("text/csv") ||
+      !header.replace(/^\uFEFF/, "").startsWith("format_version,")) {
+    throw new Error("The export response was not a valid Live Lesson CSV.");
+  }
+  const disposition = String(response.headers?.["content-disposition"] || "");
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "live-lesson.csv";
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const formatSessionDuration = (session) => {
   if (!session.startedAt) return "—";
   const end = session.endedAt
@@ -149,10 +172,10 @@ const LiveLessonsPage = () => {
   const [promptCopied, setPromptCopied] = useState(false);
   const [fileName, setFileName] = useState("");
   const [errors, setErrors] = useState([]);
-  const [matchedColumns, setMatchedColumns] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
   const [selectedFile, setSelectedFile] = useState("");
+  const [exportingLessonId, setExportingLessonId] = useState("");
   const [lessonClasses, setLessonClasses] = useState({});
   const [teachers, setTeachers] = useState([]);
   const [incomingShares, setIncomingShares] = useState([]);
@@ -193,6 +216,35 @@ const LiveLessonsPage = () => {
   const [subjectsLoaded, setSubjectsLoaded] = useState(false);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const preferencesKey = `liveLessonLists:${user?.school?._id || user?.schoolId || "school"}:${user?._id || user?.id || "user"}`;
+
+  const exportLesson = async (lesson) => {
+    setExportingLessonId(String(lesson._id));
+    setError("");
+    setNotice("");
+    try {
+      await downloadLessonCsv(lesson);
+      setNotice(`Exported “${lesson.title}” as a portable Live Lesson CSV.`);
+    } catch (requestError) {
+      let message = requestError.message || "Could not export this lesson.";
+      if (requestError.response?.data instanceof Blob) {
+        try {
+          const payload = JSON.parse(await requestError.response.data.text());
+          message = payload.message || message;
+        } catch {
+          message = "Could not export this lesson.";
+        }
+      } else if (requestError.response?.data?.message) {
+        message = requestError.response.data.message;
+      }
+      setError(message);
+    } finally {
+      setExportingLessonId("");
+    }
+  };
+
+  const closeLessonActions = (event) => {
+    event.currentTarget.closest("details")?.removeAttribute("open");
+  };
 
   const copyAiPrompt = async () => {
     try {
@@ -454,7 +506,6 @@ const LiveLessonsPage = () => {
     setErrors([]);
     setForm(emptyForm);
     setSelectedSlideIndex(0);
-    setMatchedColumns(null);
     setSelectedFile("");
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -466,9 +517,27 @@ const LiveLessonsPage = () => {
       const response = await api.post("/live/lessons/preview", csv, {
         headers: { "Content-Type": "text/csv" },
       });
-      setForm({ ...response.data.data.lesson, classId: "", subjectId: "" });
+      const importedLesson = response.data.data.lesson;
+      const classNameHint = String(importedLesson.importHints?.assignedClass || "").trim().toLocaleLowerCase();
+      const subjectNameHint = String(importedLesson.importHints?.assignedSubject || "").trim().toLocaleLowerCase();
+      const suggestedClass = classNameHint
+        ? classes.find((classItem) => String(classItem.name || "").trim().toLocaleLowerCase() === classNameHint)
+        : null;
+      const assignedSubjectIds = (suggestedClass?.subjects || [])
+        .map((entry) => String(entry.subject?._id || entry.subject || ""))
+        .filter(Boolean);
+      const suggestedSubject = suggestedClass && subjectNameHint
+        ? subjects.find((subject) =>
+          String(subject.name || "").trim().toLocaleLowerCase() === subjectNameHint &&
+          (!assignedSubjectIds.length || assignedSubjectIds.includes(String(subject._id))))
+        : null;
+      setForm({
+        ...importedLesson,
+        classId: suggestedClass?._id || "",
+        subjectId: suggestedSubject?._id || "",
+        subject: suggestedSubject?.name || importedLesson.subject || "",
+      });
       setSelectedSlideIndex(0);
-      setMatchedColumns(response.data.data.matchedColumns || {});
       setFileName(file.name);
       setSelectedFile(csv);
     } catch (requestError) {
@@ -519,7 +588,6 @@ const LiveLessonsPage = () => {
       setSelectedSlideIndex(0);
       setFileName("");
       setSelectedFile("");
-      setMatchedColumns(null);
     } catch (requestError) {
       closeEditor(true);
       setError(
@@ -676,7 +744,6 @@ const LiveLessonsPage = () => {
     setSelectedSlideIndex(0);
     setSelectedFile("");
     setFileName("");
-    setMatchedColumns(null);
     setErrors([]);
   };
 
@@ -687,7 +754,6 @@ const LiveLessonsPage = () => {
     setSelectedSlideIndex(0);
     setSelectedFile("");
     setFileName("");
-    setMatchedColumns(null);
     setErrors([]);
     setImportOpen(true);
   };
@@ -705,6 +771,7 @@ const LiveLessonsPage = () => {
         subjectId: form.subjectId || null,
         grade: form.grade || "",
         language: form.language || "en",
+        ...(editorMode === "create" ? { isDone: form.isDone === true } : {}),
         slides: form.slides,
       };
       if (editorMode === "edit") {
@@ -2035,36 +2102,65 @@ const LiveLessonsPage = () => {
                           >
                             Schedule
                           </button>
-                          <button
-                            className="live-secondary-button"
-                            onClick={() => openLessonEditor(lesson._id)}
-                          >
-                            <HiOutlinePencilSquare /> Edit
-                          </button>
-                          {["teacher", "admin"].includes(user?.role) && (
-                            <button
-                              className="live-secondary-button"
-                              onClick={() => {
-                                setShareLessons([lesson]);
-                                setShareRecipient("");
-                              }}
-                            >
-                              <HiOutlineShare /> Share
-                            </button>
-                          )}
-                          <button
-                            className="live-secondary-button"
-                            onClick={() => setLessonDone(lesson)}
-                          >
-                            <HiOutlineCheck />{" "}
-                            {lesson.isDone ? "Mark not done" : "Mark done"}
-                          </button>
-                          <button
-                            className="live-delete-session"
-                            onClick={() => deleteLesson(lesson._id)}
-                          >
-                            <HiOutlineTrash /> Delete
-                          </button>
+                          <details className="live-lesson-actions-menu">
+                            <summary aria-label={`More actions for ${lesson.title}`}>
+                              <HiOutlineEllipsisVertical />
+                              <span>More</span>
+                            </summary>
+                            <div className="live-lesson-actions-menu-items">
+                              <button
+                                className="live-secondary-button"
+                                onClick={(event) => {
+                                  closeLessonActions(event);
+                                  openLessonEditor(lesson._id);
+                                }}
+                              >
+                                <HiOutlinePencilSquare /> Edit
+                              </button>
+                              <button
+                                className="live-secondary-button"
+                                onClick={(event) => {
+                                  closeLessonActions(event);
+                                  void exportLesson(lesson);
+                                }}
+                                disabled={Boolean(exportingLessonId)}
+                              >
+                                <HiOutlineArrowDownTray />
+                                {exportingLessonId === String(lesson._id) ? "Exporting…" : "Export CSV"}
+                              </button>
+                              {["teacher", "admin"].includes(user?.role) && (
+                                <button
+                                  className="live-secondary-button"
+                                  onClick={(event) => {
+                                    closeLessonActions(event);
+                                    setShareLessons([lesson]);
+                                    setShareRecipient("");
+                                  }}
+                                >
+                                  <HiOutlineShare /> Share
+                                </button>
+                              )}
+                              <button
+                                className="live-secondary-button"
+                                onClick={(event) => {
+                                  closeLessonActions(event);
+                                  setLessonDone(lesson);
+                                }}
+                              >
+                                <HiOutlineCheck />{" "}
+                                {lesson.isDone ? "Mark not done" : "Mark done"}
+                              </button>
+                              <button
+                                className="live-delete-session"
+                                onClick={(event) => {
+                                  closeLessonActions(event);
+                                  deleteLesson(lesson._id);
+                                }}
+                              >
+                                <HiOutlineTrash /> Delete
+                              </button>
+                            </div>
+                          </details>
                           {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
                             <summary>Organize</summary>
                             <div className="live-lesson-organize-content">
@@ -2993,8 +3089,9 @@ const LiveLessonsPage = () => {
                 <HiOutlineArrowUpTray size={27} />
                 <strong>{fileName || "Choose a CSV file to preview"}</strong>
                 <span>
-                  We’ll match familiar column names, including aliases like
-                  “heading” for “title”.
+                  Import standard lesson CSVs or a portable CSV exported from a
+                  Live Lesson. Portable files preserve slides and metadata;
+                  class/subject assignments are matched to this school.
                 </span>
                 <input
                   type="file"
@@ -3006,18 +3103,6 @@ const LiveLessonsPage = () => {
             {editorMode === "edit" && saving && (
               <div className="live-loading">Loading lesson…</div>
             )}
-            {/* {matchedColumns && (
-              <div className="live-column-matches">
-                <strong>Matched columns</strong>
-                <div>
-                  {Object.entries(matchedColumns).map(([field, column]) => (
-                    <span key={field}>
-                      {field}: <b>{column}</b>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )} */}
             {errors.length > 0 && (
               <div className="live-import-errors" role="alert">
                 <strong>
@@ -3091,6 +3176,12 @@ const LiveLessonsPage = () => {
                   />
                 </label>
                 <div className="live-lesson-metadata-fields">
+                  {form.importHints && (
+                    <p className="live-import-assignment-hint">
+                      Exported assignment: {form.importHints.assignedClass || "No class"} · {form.importHints.assignedSubject || "No subject"}.
+                      Choose the destination class and subject below; matching assignments were selected when available.
+                    </p>
+                  )}
                   <label className="live-edit-field">
                     Assigned class
                     <select
