@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, Stack, TextField, Typography } from '@mui/material';
 import { HiOutlineArrowLeft, HiOutlineSpeakerWave } from 'react-icons/hi2';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,47 @@ const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true ||
     && !String(attempt?.studentInput ?? '').trim()
 );
 
+const pollWhenVisible = (callback, intervalMs) => {
+    let timerId;
+    let requestInFlight = false;
+    let stopped = false;
+
+    const schedule = () => {
+        window.clearTimeout(timerId);
+        if (!stopped && document.visibilityState === 'visible') {
+            timerId = window.setTimeout(run, intervalMs);
+        }
+    };
+
+    const run = async () => {
+        if (stopped || requestInFlight) return;
+        if (document.visibilityState !== 'visible') {
+            schedule();
+            return;
+        }
+        requestInFlight = true;
+        try {
+            await callback();
+        } finally {
+            requestInFlight = false;
+            schedule();
+        }
+    };
+
+    const handleVisibilityChange = () => {
+        window.clearTimeout(timerId);
+        if (document.visibilityState === 'visible') void run();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    schedule();
+    return () => {
+        stopped = true;
+        window.clearTimeout(timerId);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+};
+
 const SpellingStudentPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
@@ -30,6 +71,8 @@ const SpellingStudentPage = () => {
     const { history, retests, session, currentItem, loading, error } = useSelector(selectSpelling);
     const [input, setInput] = useState('');
     const [localError, setLocalError] = useState('');
+    const [checkingForSession, setCheckingForSession] = useState(false);
+    const [sessionCheckMessage, setSessionCheckMessage] = useState('');
     const [selectedHistorySession, setSelectedHistorySession] = useState(null);
     const [practicePassage, setPracticePassage] = useState(null);
     const [passageLoading, setPassageLoading] = useState(false);
@@ -45,7 +88,27 @@ const SpellingStudentPage = () => {
     const wasPageHiddenRef = useRef(false);
     const pendingIntegrityEventRef = useRef(null);
     const currentSequenceRef = useRef(null);
+    const currentItemRequestsRef = useRef(new Map());
     currentSequenceRef.current = currentItem?.sequence || null;
+
+    const loadCurrentItem = useCallback(async (sessionId, forceRefresh = false) => {
+        const requests = currentItemRequestsRef.current;
+        const existingRequest = requests.get(sessionId);
+        if (existingRequest) {
+            const result = await existingRequest;
+            if (!forceRefresh) return result;
+            const requestAfterWait = requests.get(sessionId);
+            if (requestAfterWait) return requestAfterWait;
+        }
+
+        const request = dispatch(fetchSpellingCurrentItem(sessionId));
+        requests.set(sessionId, request);
+        try {
+            return await request;
+        } finally {
+            if (requests.get(sessionId) === request) requests.delete(sessionId);
+        }
+    }, [dispatch]);
 
     // Open the full-screen session view automatically whenever a session
     // (new or resumed) becomes available. Closing it later is just a UI
@@ -65,38 +128,19 @@ const SpellingStudentPage = () => {
         const joinActiveSession = async () => {
             const result = await dispatch(fetchActiveSpellingSession());
             if (fetchActiveSpellingSession.fulfilled.match(result) && result.payload) {
-                dispatch(fetchSpellingCurrentItem(result.payload._id));
+                await loadCurrentItem(result.payload._id);
             }
         };
         joinActiveSession();
-    }, [dispatch]);
+    }, [dispatch, loadCurrentItem]);
 
     useEffect(() => {
         if (!session?._id) return undefined;
-        // Keep completed results current too, in case a teacher corrects an answer after the test.
-        const pollInterval = session.status !== 'in-progress'
-            ? 10000
-            : session.mode === 'self-serve' ? 8000 : 4000;
-        const refreshSession = () => {
-            if (session.status !== 'in-progress') {
-                dispatch(fetchSpellingHistory());
-                dispatch(fetchSpellingRetests());
-                dispatch(fetchActiveSpellingSession({ preserveExisting: true })).then((result) => {
-                    if (fetchActiveSpellingSession.fulfilled.match(result)
-                        && result.payload
-                        && String(result.payload._id) !== String(session._id)) {
-                        dispatch(fetchSpellingCurrentItem(result.payload._id));
-                    } else {
-                        dispatch(fetchSpellingCurrentItem(session._id));
-                    }
-                });
-            } else {
-                dispatch(fetchSpellingCurrentItem(session._id));
-            }
-        };
-        const intervalId = window.setInterval(refreshSession, pollInterval);
-        return () => window.clearInterval(intervalId);
-    }, [dispatch, session?._id, session?.status, session?.mode]);
+        if (session.status === 'in-progress') {
+            return pollWhenVisible(() => loadCurrentItem(session._id), 60000);
+        }
+        return undefined;
+    }, [loadCurrentItem, session?._id, session?.status]);
 
     useEffect(() => {
         if (!selectedHistorySession?._id) return;
@@ -105,12 +149,6 @@ const SpellingStudentPage = () => {
             setSelectedHistorySession(latestSession);
         }
     }, [history, selectedHistorySession]);
-
-    useEffect(() => {
-        if (!selectedHistorySession?._id) return undefined;
-        const intervalId = window.setInterval(() => dispatch(fetchSpellingHistory()), 10000);
-        return () => window.clearInterval(intervalId);
-    }, [dispatch, selectedHistorySession?._id]);
 
     useEffect(() => {
         if (!currentItem?.word || currentItem.audio) return;
@@ -253,24 +291,50 @@ const SpellingStudentPage = () => {
         speakWord(currentItem.word, currentItem.audio);
     }, [currentItem, dictionaryEntry, session?.dictationMode]);
 
-    // Students cannot start a session; wait for the teacher to start one.
-    useEffect(() => {
-        if (session?._id) return undefined;
-        const intervalId = window.setInterval(async () => {
-            const result = await dispatch(fetchActiveSpellingSession());
+    const checkForSessions = async ({ refreshCompleted = false } = {}) => {
+        if (checkingForSession) return;
+        setCheckingForSession(true);
+        setSessionCheckMessage('');
+        setLocalError('');
+        try {
+            const result = await dispatch(fetchActiveSpellingSession({
+                preserveExisting: refreshCompleted && session?.status !== 'in-progress'
+            }));
             if (fetchActiveSpellingSession.fulfilled.match(result) && result.payload) {
-                dispatch(fetchSpellingCurrentItem(result.payload._id));
+                const isDifferentSession = String(result.payload._id) !== String(session?._id);
+                if (!refreshCompleted || isDifferentSession) {
+                    await loadCurrentItem(result.payload._id);
+                } else {
+                    await Promise.all([
+                        loadCurrentItem(session._id, true),
+                        dispatch(fetchSpellingHistory()),
+                        dispatch(fetchSpellingRetests())
+                    ]);
+                    setSessionCheckMessage(t('sessionDetailsRefreshed'));
+                }
+            } else if (fetchActiveSpellingSession.rejected.match(result)) {
+                setLocalError(result.payload || 'Unable to check for a spelling session. Please try again.');
+            } else if (refreshCompleted && session?._id) {
+                await Promise.all([
+                    loadCurrentItem(session._id, true),
+                    dispatch(fetchSpellingHistory()),
+                    dispatch(fetchSpellingRetests())
+                ]);
+                setSessionCheckMessage(t('sessionDetailsRefreshed'));
+            } else {
+                setSessionCheckMessage(t('noSessionAvailable'));
             }
-        }, 5000);
-        return () => window.clearInterval(intervalId);
-    }, [dispatch, session?._id]);
+        } finally {
+            setCheckingForSession(false);
+        }
+    };
 
     const raiseHand = async () => {
         if (!session?._id || !currentItem?.sequence) return;
         setLocalError('');
         try {
             await api.post(`/spelling/sessions/${session._id}/raise-hand`, { sequence: currentItem.sequence });
-            dispatch(fetchSpellingCurrentItem(session._id));
+            await loadCurrentItem(session._id, true);
         } catch (error) {
             setLocalError(error.response?.data?.message || 'Unable to raise your hand. Please try again.');
         }
@@ -298,7 +362,7 @@ const SpellingStudentPage = () => {
             });
             setInput('');
             if (result.payload.session.status === 'in-progress') {
-                dispatch(fetchSpellingCurrentItem(session._id));
+                await loadCurrentItem(session._id, true);
             } else {
                 dispatch(fetchSpellingHistory());
                 dispatch(fetchSpellingRetests());
@@ -313,6 +377,7 @@ const SpellingStudentPage = () => {
 
     const openHistorySession = async (entry) => {
         setSelectedHistorySession(entry);
+        dispatch(fetchSpellingHistory());
         setPracticePassage(null);
         setPassageLoading(true);
         try {
@@ -358,12 +423,20 @@ const SpellingStudentPage = () => {
             </Stack>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {localError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setLocalError('')}>{localError}</Alert>}
+            {sessionCheckMessage && <Alert severity="info" sx={{ mb: 2 }}>{sessionCheckMessage}</Alert>}
             {!session && <>
                 <Alert severity="info" sx={{ mb: 2 }}>
                     During a spelling session, when this page becomes hidden, the event is recorded for your teacher. This can happen when switching tabs or minimizing the browser.
                 </Alert>
-                <Alert severity="info">
-                    Your teacher will start your spelling session. This page will open it automatically.
+                <Alert
+                    severity="info"
+                    action={(
+                        <Button color="inherit" size="small" onClick={checkForSessions} disabled={checkingForSession}>
+                            {checkingForSession ? t('checkingForSessions') : t('checkForSessions')}
+                        </Button>
+                    )}
+                >
+                    {t('waitingForTeacherSession')}
                 </Alert>
             </>}
 
@@ -439,6 +512,9 @@ const SpellingStudentPage = () => {
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
                                 {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
+                                <Button onClick={() => checkForSessions({ refreshCompleted: true })} disabled={checkingForSession}>
+                                    {checkingForSession ? t('checkingForSessions') : t('checkForUpdates')}
+                                </Button>
                             </Stack>
                         ) : session.mode === 'teacher-led' ? (
                             <Stack spacing={2}>

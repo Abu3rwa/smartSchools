@@ -12,10 +12,18 @@ const socketUrl = () => {
 export default function useLiveLessonSocket(sessionId, role) {
   const socketRef = useRef(null);
   const pendingRef = useRef(new Map());
+  const lastCursorMoveAtRef = useRef(0);
   const [connection, setConnection] = useState("connecting");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
   const [roster, setRoster] = useState([]);
+  const [sessionJoined, setSessionJoined] = useState(false);
+  const [cursorSpotlight, setCursorSpotlight] = useState({
+    enabled: false,
+    visible: false,
+    x: null,
+    y: null,
+  });
 
   useEffect(() => {
     if (!sessionId) return undefined;
@@ -27,6 +35,7 @@ export default function useLiveLessonSocket(sessionId, role) {
 
     const connect = () => {
       if (disposed) return;
+      setSessionJoined(false);
       const token = localStorage.getItem("token");
       const currentSocket = new WebSocket(socketUrl());
       setConnection("connecting");
@@ -66,6 +75,11 @@ export default function useLiveLessonSocket(sessionId, role) {
               }));
             }
           }, 5000);
+        } else if (message.type === "joined") {
+          currentSocket.__joinedSession = true;
+          setSessionJoined(true);
+        } else if (message.type === "cursor:spotlight") {
+          setCursorSpotlight(message.data);
         } else if (message.type === "ack") {
           const pending = pendingRef.current.get(message.requestId);
           if (pending) {
@@ -102,6 +116,14 @@ export default function useLiveLessonSocket(sessionId, role) {
       });
       currentSocket.addEventListener("close", (event) => {
         window.clearInterval(heartbeatTimer);
+        currentSocket.__joinedSession = false;
+        setSessionJoined(false);
+        setCursorSpotlight({
+          enabled: false,
+          visible: false,
+          x: null,
+          y: null,
+        });
         if (
           event.code === 1008 &&
           ["Unauthorized", "Authentication timeout"].includes(event.reason)
@@ -179,6 +201,13 @@ export default function useLiveLessonSocket(sessionId, role) {
       disposed = true;
       window.clearTimeout(reconnectTimer);
       window.clearInterval(heartbeatTimer);
+      setSessionJoined(false);
+      setCursorSpotlight({
+        enabled: false,
+        visible: false,
+        x: null,
+        y: null,
+      });
       document.removeEventListener("visibilitychange", onVisibility);
       socket?.close();
       for (const pending of pendingRequests.values()) {
@@ -205,5 +234,32 @@ export default function useLiveLessonSocket(sessionId, role) {
     });
   }, []);
 
-  return { state, roster, connection, error, sendAction };
+  const sendCursor = useCallback((action, data = {}) => {
+    const socket = socketRef.current;
+    if (
+      role !== "teacher" ||
+      !socket?.__joinedSession ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
+      return false;
+    }
+    if (action === "move") {
+      const now = Date.now();
+      if (now - lastCursorMoveAtRef.current < 33) return false;
+      lastCursorMoveAtRef.current = now;
+    }
+    socket.send(JSON.stringify({ type: "cursor", action, data }));
+    return true;
+  }, [role]);
+
+  return {
+    state,
+    roster,
+    connection,
+    error,
+    sendAction,
+    sendCursor,
+    cursorSpotlight,
+    sessionJoined,
+  };
 }

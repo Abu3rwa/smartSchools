@@ -79,6 +79,10 @@
 .live-join-error { margin: .5rem 0 .8rem; padding: .75rem .85rem; border: 1px solid #edcaca; border-radius: 10px; color: #8a3434; background: #fff3f2; font-size: .84rem; }
 .live-join-refresh { display: inline-flex; align-items: center; gap: .4rem; margin-top: 1rem; padding: .4rem .1rem; border: 0; color: #177a76; background: transparent; font: inherit; font-size: .82rem; font-weight: 750; cursor: pointer; }
 .live-join-refresh:disabled { cursor: wait; opacity: .55; }
+.live-join-refresh-prominent { justify-content: center; min-height: 48px; gap: .65rem; padding: .75rem 1.25rem; border: 1px solid #126e6b; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #167b78, #176c71); box-shadow: 0 5px 14px rgba(22,123,120,.2); font-size: 1rem; transition: transform .16s ease, box-shadow .16s ease; }
+.live-join-refresh-prominent:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(22,123,120,.28); }
+.live-join-refresh-prominent:disabled { color: #fff; }
+.live-join-empty .live-join-refresh-prominent { margin-top: .25rem; }
 @keyframes live-join-spin { to { transform: rotate(360deg); } }
 
 @media(max-width:600px) {

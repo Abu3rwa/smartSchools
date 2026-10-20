@@ -651,15 +651,15 @@ const SpellingTeacherPage = () => {
         activeSessionIdRef.current = sessionId;
         setIntegrityEvents({ count: 0, events: [], error: '' });
         loadIntegrityEvents(sessionId);
-        if (activeSession.status !== 'in-progress') return undefined;
-        const refreshLiveSession = () => {
-            if (activeSessionIdRef.current !== sessionId) return;
-            loadIntegrityEvents(sessionId);
-            if (activeSession.mode === 'self-serve') loadCurrentItem(sessionId);
-        };
-        const intervalId = window.setInterval(refreshLiveSession, 3000);
-        return () => window.clearInterval(intervalId);
-    }, [activeSession?._id, activeSession?.mode, activeSession?.status, loadCurrentItem, loadIntegrityEvents]);
+    }, [activeSession?._id, activeSession?.status, loadIntegrityEvents]);
+
+    const refreshTeacherSession = useCallback(() => {
+        if (!activeSession?._id) return;
+        loadIntegrityEvents(activeSession._id);
+        if (activeSession.status === 'in-progress' && activeSession.mode === 'self-serve') {
+            loadCurrentItem(activeSession._id);
+        }
+    }, [activeSession, loadCurrentItem, loadIntegrityEvents]);
 
     const missedWords = activeSession?.attempts?.filter((attempt) => !attempt.correct) || [];
     const skippedWords = activeSession?.mode === 'self-serve'
@@ -848,6 +848,7 @@ const SpellingTeacherPage = () => {
                 selectedStudent={selectedStudent}
                 t={t}
                 integrityEvents={integrityEvents}
+                onRefreshSession={refreshTeacherSession}
                 missedWords={missedWords}
                 skippedWords={skippedWords}
                 passage={passage}

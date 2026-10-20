@@ -29,6 +29,7 @@ const connections = new Set();
 const sessionSockets = new Map();
 const studentPresence = new Map();
 const studentStatuses = new Map();
+const cursorSpotlights = new Map();
 
 const socketKey = (sessionId, studentId) => `${sessionId}:${studentId}`;
 const sessionKey = (sessionId) => String(sessionId);
@@ -44,6 +45,92 @@ const broadcast = (sessionId, payload, teacherOnly = false) => {
   }
 };
 
+const broadcastCursorSpotlight = (sessionId, spotlight) => {
+  for (const socket of sessionSockets.get(sessionKey(sessionId)) || []) {
+    send(socket, { type: "cursor:spotlight", data: spotlight });
+  }
+};
+
+const resetCursorSpotlight = (sessionId) => {
+  const sockets = sessionSockets.get(sessionKey(sessionId));
+  if (!sockets?.size) {
+    cursorSpotlights.delete(sessionKey(sessionId));
+    return;
+  }
+  const spotlight = { enabled: false, visible: false, x: null, y: null };
+  cursorSpotlights.set(sessionKey(sessionId), spotlight);
+  broadcastCursorSpotlight(sessionId, spotlight);
+};
+
+const hideCursorSpotlight = (sessionId) => {
+  const current = cursorSpotlights.get(sessionKey(sessionId));
+  if (!current?.enabled || !current.visible) return;
+  const spotlight = { ...current, visible: false, x: null, y: null };
+  cursorSpotlights.set(sessionKey(sessionId), spotlight);
+  broadcastCursorSpotlight(sessionId, spotlight);
+};
+
+const handleCursorMessage = (socket, message) => {
+  if (
+    socket.__liveRole !== "teacher" ||
+    !socket.__liveIsOwner ||
+    !socket.__liveSessionId ||
+    socket.__liveSessionEnded
+  ) {
+    return;
+  }
+
+  const sessionId = socket.__liveSessionId;
+  const action = message.action;
+  const data = message.data && typeof message.data === "object" ? message.data : {};
+  const current = cursorSpotlights.get(sessionKey(sessionId)) || {
+    enabled: false,
+    visible: false,
+    x: null,
+    y: null,
+  };
+
+  if (action === "toggle") {
+    if (typeof data.enabled !== "boolean") return;
+    const now = Date.now();
+    if (now - (socket.__lastCursorControlAt || 0) < 100) return;
+    socket.__lastCursorControlAt = now;
+    const spotlight = data.enabled
+      ? { enabled: true, visible: false, x: null, y: null }
+      : { enabled: false, visible: false, x: null, y: null };
+    cursorSpotlights.set(sessionKey(sessionId), spotlight);
+    broadcastCursorSpotlight(sessionId, spotlight);
+    return;
+  }
+
+  if (!current.enabled) return;
+  if (action === "hide") {
+    const now = Date.now();
+    if (now - (socket.__lastCursorHideAt || 0) < 33) return;
+    socket.__lastCursorHideAt = now;
+    hideCursorSpotlight(sessionId);
+    return;
+  }
+  if (
+    action !== "move" ||
+    !Number.isFinite(data.x) ||
+    !Number.isFinite(data.y) ||
+    data.x < 0 ||
+    data.x > 1 ||
+    data.y < 0 ||
+    data.y > 1
+  ) {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - (socket.__lastCursorUpdateAt || 0) < 33) return;
+  socket.__lastCursorUpdateAt = now;
+  const spotlight = { enabled: true, visible: true, x: data.x, y: data.y };
+  cursorSpotlights.set(sessionKey(sessionId), spotlight);
+  broadcastCursorSpotlight(sessionId, spotlight);
+};
+
 const connectPresence = (socket) => {
   if (socket.__liveRole !== "student") return;
   const key = socketKey(socket.__liveSessionId, socket.__liveUserId);
@@ -57,7 +144,10 @@ const detachSocket = (socket) => {
   const current = sessionSockets.get(sessionKey(socket.__liveSessionId));
   if (current) {
     current.delete(socket);
-    if (current.size === 0) sessionSockets.delete(sessionKey(socket.__liveSessionId));
+    if (current.size === 0) {
+      sessionSockets.delete(sessionKey(socket.__liveSessionId));
+      cursorSpotlights.delete(sessionKey(socket.__liveSessionId));
+    }
   }
   if (socket.__liveRole === "student") {
     const key = socketKey(socket.__liveSessionId, socket.__liveUserId);
@@ -345,6 +435,7 @@ const handleAction = async (socket, message) => {
     );
     await session.save();
     await appendLiveEvent(session, "slide:changed", { role: "teacher", userId: socket.__liveUserId }, { index, slideId: String(slide._id) });
+    hideCursorSpotlight(session._id);
     if (session.questionOpen) {
       await appendLiveEvent(
         session,
@@ -361,6 +452,7 @@ const handleAction = async (socket, message) => {
     await session.save();
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     await appendLiveEvent(session, "slide:hidden", { role: "teacher", userId: socket.__liveUserId }, { hidden: data.hidden, slideId: String(slide._id) });
+    if (data.hidden) hideCursorSpotlight(session._id);
   } else if (action === "students:fullscreen") {
     if (session.status !== "live" || typeof data.enabled !== "boolean") {
       return fail(socket, requestId, "VALIDATION", "A live session and a boolean fullscreen value are required.");
@@ -398,6 +490,10 @@ const handleAction = async (socket, message) => {
     session.questionOpen = false;
     session.studentsFullscreen = false;
     await session.save();
+    for (const client of sessionSockets.get(sessionKey(session._id)) || []) {
+      client.__liveSessionEnded = true;
+    }
+    resetCursorSpotlight(session._id);
     await appendLiveEvent(session, "session:ended", { role: "teacher", userId: socket.__liveUserId });
   } else {
     return fail(socket, requestId, "VALIDATION", "Unknown lesson action.");
@@ -537,6 +633,8 @@ export const initLiveLessonsGateway = (httpServer) => {
             return fail(socket, message.requestId, "FORBIDDEN", "You are not authorized to view this class session.");
           }
           socket.__liveSessionId = String(session._id);
+          socket.__liveIsOwner = String(session.teacherId) === socket.__liveUserId;
+          socket.__liveSessionEnded = false;
           const sockets = sessionSockets.get(sessionKey(session._id)) || new Set();
           sockets.add(socket);
           sessionSockets.set(sessionKey(session._id), sockets);
@@ -557,6 +655,19 @@ export const initLiveLessonsGateway = (httpServer) => {
           send(socket, { type: "joined", data: { sessionId: String(session._id) } });
           await broadcastState(session);
           await emitRoster(session);
+          send(socket, {
+            type: "cursor:spotlight",
+            data: cursorSpotlights.get(sessionKey(session._id)) || {
+              enabled: false,
+              visible: false,
+              x: null,
+              y: null,
+            },
+          });
+          return;
+        }
+        if (message.type === "cursor") {
+          handleCursorMessage(socket, message);
           return;
         }
         if (message.type === "action") {
@@ -590,6 +701,11 @@ export const initLiveLessonsGateway = (httpServer) => {
       const userId = socket.__liveUserId;
       const wasStudent = socket.__liveRole === "student";
       detachSocket(socket);
+      if (socket.__liveIsOwner && sessionId) {
+        const remainingOwner = [...(sessionSockets.get(sessionKey(sessionId)) || [])]
+          .some((candidate) => candidate.__liveIsOwner);
+        if (!remainingOwner) resetCursorSpotlight(sessionId);
+      }
       if (sessionId && wasStudent && !studentPresence.has(socketKey(sessionId, userId))) {
         const statuses = studentStatuses.get(sessionKey(sessionId)) || new Map();
         const previousStatus = statuses.get(String(userId));
@@ -667,6 +783,7 @@ export const initLiveLessonsGateway = (httpServer) => {
 
 export const closeLiveSessionConnections = (sessionId) => {
   const key = sessionKey(sessionId);
+  resetCursorSpotlight(sessionId);
   const sockets = sessionSockets.get(key);
   if (sockets) {
     for (const socket of [...sockets]) {
@@ -679,6 +796,12 @@ export const closeLiveSessionConnections = (sessionId) => {
 };
 
 export const broadcastLiveSessionState = async (session) => {
+  if (session.status === "ended") {
+    for (const socket of sessionSockets.get(sessionKey(session._id)) || []) {
+      socket.__liveSessionEnded = true;
+    }
+    resetCursorSpotlight(session._id);
+  }
   broadcast(session._id, { type: "session:ended" });
   await broadcastState(session);
 };

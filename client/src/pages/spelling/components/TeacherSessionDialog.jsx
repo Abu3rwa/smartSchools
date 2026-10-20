@@ -63,6 +63,7 @@ const TeacherSessionDialog = ({
     selectedStudent,
     t,
     integrityEvents,
+    onRefreshSession,
     missedWords,
     skippedWords,
     passage,
@@ -136,6 +137,11 @@ const TeacherSessionDialog = ({
                 <Alert severity="info">
                     Page left view: {integrityEvents.count} {integrityEvents.count === 1 ? 'time' : 'times'}
                 </Alert>
+                {activeSession?.status === 'in-progress' && (
+                    <Button size="small" sx={{ mt: 1 }} onClick={onRefreshSession}>
+                        Refresh session
+                    </Button>
+                )}
                 {integrityEvents.error && <Alert severity="warning" sx={{ mt: 1 }}>{integrityEvents.error}</Alert>}
                 {integrityEvents.events.length > 0 && (
                     <Stack spacing={0.5} sx={{ mt: 1, maxHeight: 120, overflowY: 'auto' }} aria-label="Page visibility event details">
@@ -275,7 +281,7 @@ const TeacherSessionDialog = ({
                             </Card>
                         </Fade>
                         {activeSession?.mode === 'self-serve' ? (
-                            <Alert severity="info" sx={{ width: '100%', maxWidth: 700 }}>Student answers are graded automatically. This view refreshes as answers are submitted.</Alert>
+                            <Alert severity="info" sx={{ width: '100%', maxWidth: 700 }}>Student answers are graded automatically. Select Refresh session to check for new answers and visibility events.</Alert>
                         ) : (
                             <>
                                 <Alert severity="info" sx={{ width: '100%', maxWidth: 700 }}>

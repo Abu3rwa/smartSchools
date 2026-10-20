@@ -109,6 +109,7 @@ const MapTestPrepPage = () => {
   const [overviewData, setOverviewData] = useState(null);
   const [selectedRosterStudent, setSelectedRosterStudent] = useState(null);
   const [selectedRosterStudentId, setSelectedRosterStudentId] = useState('');
+  const [rosterDetailTab, setRosterDetailTab] = useState('overview');
   const [rosterStudentDetails, setRosterStudentDetails] = useState(null);
   const [rosterStudentDetailsLoading, setRosterStudentDetailsLoading] = useState(false);
   const [rosterStudentDetailsError, setRosterStudentDetailsError] = useState('');
@@ -167,6 +168,7 @@ const MapTestPrepPage = () => {
 
   const openRosterStudent = async (student) => {
     setSelectedRosterStudent(student);
+    setRosterDetailTab('overview');
     setSelectedReviewAttempt(null);
     setTeacherReviewMarks({});
     setRosterStudentDetails(null);
@@ -189,6 +191,7 @@ const MapTestPrepPage = () => {
       const response = await api.get(`/map-test-prep/practice/attempts/${attemptId}`);
       const attempt = response.data?.data?.attempt;
       setSelectedReviewAttempt(attempt);
+      setRosterDetailTab('review');
       setTeacherReviewMarks(Object.fromEntries(
         (attempt?.answers || []).map((answer) => [String(answer._id), answer.isCorrect ?? null])
       ));
@@ -459,23 +462,32 @@ const MapTestPrepPage = () => {
     }))
     .reverse(), [rosterStudentDetails]);
 
-  const practiceSkillPerformance = useMemo(() => {
-    const bySkill = new Map();
+  const practiceSetPerformance = useMemo(() => {
+    const setsById = new Map(
+      (rosterStudentDetails?.sets || []).map((set) => [String(set._id), set])
+    );
+    const bySet = new Map();
     (rosterStudentDetails?.attempts || []).forEach((attempt) => {
+      if (!attempt.submittedAt || !attempt.set) return;
+      const key = String(attempt.set._id || attempt.set);
       (attempt.answers || []).forEach((answer) => {
-        const skill = answer.question?.skill;
-        if (answer.isCorrect === null || answer.isCorrect === undefined || !skill) return;
-        const key = String(skill._id || skill.code);
-        const stat = bySkill.get(key) || { key, name: skill.name || skill.code, total: 0, correct: 0 };
+        if (answer.isCorrect === null || answer.isCorrect === undefined) return;
+        const set = setsById.get(key);
+        const stat = bySet.get(key) || {
+          key,
+          name: set?.title || attempt.set?.title || t('mapTestPrep:overview.details.practiceSet'),
+          total: 0,
+          correct: 0
+        };
         stat.total += 1;
         if (answer.isCorrect) stat.correct += 1;
-        bySkill.set(key, stat);
+        bySet.set(key, stat);
       });
     });
-    return [...bySkill.values()]
-      .map((skill) => ({ ...skill, accuracy: Math.round((skill.correct / skill.total) * 100) }))
+    return [...bySet.values()]
+      .map((set) => ({ ...set, accuracy: Math.round((set.correct / set.total) * 100) }))
       .sort((first, second) => first.accuracy - second.accuracy);
-  }, [rosterStudentDetails]);
+  }, [rosterStudentDetails, t]);
 
   const exportPracticeReport = async ({ type, id }) => {
     if (Boolean(reportStartDate) !== Boolean(reportEndDate)) {
@@ -652,21 +664,50 @@ const MapTestPrepPage = () => {
                       <h3>{selectedRosterStudent.firstName} {selectedRosterStudent.lastName}</h3>
                       <span>{selectedRosterStudent.studentId} · {selectedRosterStudent.currentClass?.name || selectedClass?.name || ''}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void exportPracticeReport({ type: 'student', id: selectedRosterStudent._id })}
-                      disabled={reportExportState !== ''}
-                    >
-                      {reportExportState === 'student' ? t('mapTestPrep:reports.exporting') : t('mapTestPrep:reports.exportStudent')}
-                    </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => { setSelectedRosterStudent(null); setSelectedRosterStudentId(''); setRosterStudentDetails(null); setSelectedReviewAttempt(null); }}>{t('mapTestPrep:overview.close')}</button>
+                    <div className="map-roster-detail-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void exportPracticeReport({ type: 'student', id: selectedRosterStudent._id })}
+                        disabled={reportExportState !== ''}
+                      >
+                        {reportExportState === 'student' ? t('mapTestPrep:reports.exporting') : t('mapTestPrep:reports.exportStudent')}
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setSelectedRosterStudent(null); setSelectedRosterStudentId(''); setRosterStudentDetails(null); setSelectedReviewAttempt(null); }}>{t('mapTestPrep:overview.close')}</button>
+                    </div>
                   </div>
                   {rosterStudentDetailsLoading && <p role="status">{t('mapTestPrep:overview.details.loading')}</p>}
                   {rosterStudentDetailsError && <p className="map-prep-error" role="alert">{rosterStudentDetailsError}</p>}
                   {!rosterStudentDetailsLoading && rosterStudentDetails && (
                     <>
-                      <div className="map-roster-chart-grid">
+                      <div className="map-roster-detail-tabs" role="group" aria-label={t('mapTestPrep:overview.details.studentSections')}>
+                        {['overview', 'sets', 'map', 'review'].map((tab) => (
+                          <button
+                            type="button"
+                            aria-pressed={rosterDetailTab === tab}
+                            className={rosterDetailTab === tab ? 'active' : ''}
+                            key={tab}
+                            onClick={() => setRosterDetailTab(tab)}
+                          >
+                            {t(`mapTestPrep:overview.details.sections.${tab}`)}
+                            {tab === 'review' && selectedReviewAttempt && <span className="map-roster-tab-indicator" aria-label={t('mapTestPrep:overview.details.reviewOpen')}>1</span>}
+                          </button>
+                        ))}
+                      </div>
+                      <div
+                        className="map-roster-detail-panel"
+                        id="map-roster-detail-panel"
+                        role="region"
+                        aria-label={t(`mapTestPrep:overview.details.sections.${rosterDetailTab}`)}
+                      >
+                      {rosterDetailTab === 'overview' && (
+                        <>
+                          <div className="map-roster-summary-grid">
+                            <article><span>{t('mapTestPrep:overview.details.summaryPlans')}</span><strong>{rosterStudentDetails.plans?.length || 0}</strong></article>
+                            <article><span>{t('mapTestPrep:overview.details.summarySets')}</span><strong>{rosterStudentDetails.sets?.length || 0}</strong></article>
+                            <article><span>{t('mapTestPrep:overview.details.summaryAttempts')}</span><strong>{(rosterStudentDetails.attempts || []).filter((attempt) => attempt.submittedAt).length}</strong></article>
+                          </div>
+                          <div className="map-roster-chart-grid">
                         <section className="map-roster-chart-card">
                           <h4>{t('mapTestPrep:overview.details.practiceTrend')}</h4>
                           {practiceScoreHistory.length ? (
@@ -683,21 +724,21 @@ const MapTestPrepPage = () => {
                         </section>
                       </div>
                       <section className="map-roster-chart-card map-roster-skill-chart">
-                        <h4>{t('mapTestPrep:overview.details.skillAccuracy')}</h4>
-                                        <div className="map-skill-accuracy-legend" aria-label={t('mapTestPrep:overview.details.accuracyLevels')}>
-                                          <span><i className="low" />{t('mapTestPrep:overview.details.needsSupport')}</span>
+                        <h4>{t('mapTestPrep:overview.details.setAccuracy')}</h4>
+                        <div className="map-skill-accuracy-legend" aria-label={t('mapTestPrep:overview.details.setAccuracyLevels')}>
+                          <span><i className="low" />{t('mapTestPrep:overview.details.needsSupport')}</span>
                           <span><i className="medium" />{t('mapTestPrep:overview.details.developingAccuracy')}</span>
                           <span><i className="high" />{t('mapTestPrep:overview.details.strongAccuracy')}</span>
                         </div>
-                        {practiceSkillPerformance.length ? (
-                          <div className={`map-skill-bar-list${practiceSkillPerformance.length > 12 ? ' map-skill-bar-list-scroll' : ''}`}>
-                            {practiceSkillPerformance.map((skill) => {
-                              const accuracy = Math.max(0, Math.min(100, skill.accuracy));
+                        {practiceSetPerformance.length ? (
+                          <div className={`map-skill-bar-list${practiceSetPerformance.length > 12 ? ' map-skill-bar-list-scroll' : ''}`}>
+                            {practiceSetPerformance.map((set) => {
+                              const accuracy = Math.max(0, Math.min(100, set.accuracy));
                               const color = accuracy < 60 ? '#dc2626' : accuracy < 80 ? '#f59e0b' : '#16a34a';
-                              const description = `${skill.name}: ${accuracy}% (${skill.correct} of ${skill.total})`;
+                              const description = `${set.name}: ${accuracy}% (${set.correct} of ${set.total})`;
                               return (
-                                <div className="map-skill-bar-row" key={skill.key}>
-                                  <span className="map-skill-bar-label">{skill.name}</span>
+                                <div className="map-skill-bar-row" key={set.key}>
+                                  <span className="map-skill-bar-label">{set.name}</span>
                                   <div className="map-skill-bar-track" role="img" aria-label={description} title={description}>
                                     <span
                                       className="map-skill-bar-fill"
@@ -706,15 +747,17 @@ const MapTestPrepPage = () => {
                                   </div>
                                   <span className="map-skill-bar-value">
                                     {accuracy}%
-                                    <small>({skill.correct}/{skill.total})</small>
+                                    <small>({set.correct}/{set.total})</small>
                                   </span>
                                 </div>
                               );
                             })}
                           </div>
-                        ) : <p>{t('mapTestPrep:overview.details.noSkillResults')}</p>}
-                      </section>
-                      {(rosterStudentDetails.mapRecords || []).length > 0 && (
+                        ) : <p>{t('mapTestPrep:overview.details.noSetResults')}</p>}
+                          </section>
+                        </>
+                      )}
+                      {rosterDetailTab === 'map' && (rosterStudentDetails.mapRecords || []).length > 0 && (
                         <section className="map-roster-map-records">
                           <h4>{t('mapTestPrep:overview.details.mapDetails')}</h4>
                           {rosterStudentDetails.mapRecords.map((record) => {
@@ -749,7 +792,10 @@ const MapTestPrepPage = () => {
                           })}
                         </section>
                       )}
-                      {rosterStudentDetails.plans?.length ? rosterStudentDetails.plans.map((plan) => {
+                      {rosterDetailTab === 'map' && !(rosterStudentDetails.mapRecords || []).length && (
+                        <p className="map-roster-empty-section">{t('mapTestPrep:overview.details.noMapHistory')}</p>
+                      )}
+                      {rosterDetailTab === 'sets' && (rosterStudentDetails.plans?.length ? rosterStudentDetails.plans.map((plan) => {
                       const planId = String(plan._id);
                       const planSets = (rosterStudentDetails.sets || []).filter((set) => String(set.plan) === planId);
                       const planSkills = (rosterStudentDetails.skills || []).filter((item) => String(item.plan) === planId);
@@ -804,8 +850,8 @@ const MapTestPrepPage = () => {
                           </section>
                         </section>
                       );
-                      }) : <p>{t('mapTestPrep:overview.details.noPlans')}</p>}
-                      {selectedReviewAttempt && (
+                      }) : <p>{t('mapTestPrep:overview.details.noPlans')}</p>)}
+                      {rosterDetailTab === 'review' && (selectedReviewAttempt ? (
                         <section className="map-roster-answer-review">
                           <div className="map-roster-plan-heading">
                             <div>
@@ -858,7 +904,8 @@ const MapTestPrepPage = () => {
                             {reviewAttemptSaving ? 'Saving marks…' : 'Save marks'}
                           </button>
                         </section>
-                      )}
+                      ) : <p className="map-roster-empty-section">{t('mapTestPrep:overview.details.selectAttemptToReview')}</p>)}
+                      </div>
                     </>
                   )}
                 </aside>

@@ -27,8 +27,13 @@ const LivePresentationToolbar = ({
   isFullscreen,
   timerText,
   timerExpired,
+  isTeacher,
+  sessionStatus,
+  sessionJoined,
+  cursorSpotlightEnabled,
   onBack,
   onToggleFullscreen,
+  onToggleCursorSpotlight,
 }) => (
   <header className="live-presentation-toolbar">
     <button
@@ -64,6 +69,20 @@ const LivePresentationToolbar = ({
         {timerExpired ? "Time is up" : timerText}
       </span>
     )}
+    {isTeacher && sessionStatus === "live" && (
+      <button
+        className={`live-cursor-toggle${cursorSpotlightEnabled ? " active" : ""}`}
+        type="button"
+        onClick={onToggleCursorSpotlight}
+        disabled={connection !== "connected" || !sessionJoined}
+        aria-pressed={cursorSpotlightEnabled}
+        aria-label={`Toggle teacher cursor spotlight, currently ${cursorSpotlightEnabled ? "on" : "off"}`}
+        title={`Toggle cursor spotlight (Q)`}
+      >
+        <span className="live-cursor-toggle-dot" aria-hidden="true" />
+        {cursorSpotlightEnabled ? "Spotlight on" : "Spotlight off"}
+      </button>
+    )}
     <button
       className="live-fullscreen-toggle"
       type="button"
@@ -96,6 +115,9 @@ const LiveLessonSessionPage = () => {
     connection,
     error: socketError,
     sendAction,
+    sendCursor,
+    cursorSpotlight,
+    sessionJoined,
   } = useLiveLessonSocket(sessionId, role);
   const [session, setSession] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -108,6 +130,7 @@ const LiveLessonSessionPage = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [timerNow, setTimerNow] = useState(Date.now());
   const presentationRef = useRef(null);
+  const slideStageRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -171,6 +194,95 @@ const LiveLessonSessionPage = () => {
         timeZone: session.timeZone || undefined,
       }).format(new Date(sessionDate))
     : "";
+
+  const toggleCursorSpotlight = useCallback(() => {
+    if (!isTeacher || sessionStatus !== "live" || connection !== "connected" || !sessionJoined) return;
+    sendCursor("toggle", { enabled: !cursorSpotlight.enabled });
+  }, [connection, cursorSpotlight.enabled, isTeacher, sendCursor, sessionJoined, sessionStatus]);
+
+  const sendCursorPosition = useCallback((x, y) => {
+    if (
+      !isTeacher ||
+      !cursorSpotlight.enabled ||
+      sessionStatus !== "live" ||
+      state?.slideHidden
+    ) {
+      return;
+    }
+    sendCursor("move", {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+    });
+  }, [cursorSpotlight.enabled, isTeacher, sendCursor, sessionStatus, state?.slideHidden]);
+
+  const handleSlidePointerMove = useCallback((event) => {
+    if (!isTeacher || event.target instanceof HTMLIFrameElement) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    sendCursorPosition(
+      (event.clientX - bounds.left) / bounds.width,
+      (event.clientY - bounds.top) / bounds.height,
+    );
+  }, [isTeacher, sendCursorPosition]);
+
+  const handleSlidePointerLeave = useCallback(() => {
+    if (isTeacher && cursorSpotlight.enabled) sendCursor("hide");
+  }, [cursorSpotlight.enabled, isTeacher, sendCursor]);
+
+  useEffect(() => {
+    if (!isTeacher || !cursorSpotlight.enabled) return undefined;
+    const handleIframePointer = (event) => {
+      const stage = slideStageRef.current;
+      const iframe = stage?.querySelector("iframe");
+      if (!stage || !iframe?.contentWindow || event.source !== iframe.contentWindow) return;
+      if (event.data?.type === "live-lesson-slide-pointer-leave") {
+        handleSlidePointerLeave();
+        return;
+      }
+      if (
+        event.data?.type !== "live-lesson-slide-pointer" ||
+        !Number.isFinite(event.data.x) ||
+        !Number.isFinite(event.data.y) ||
+        event.data.x < 0 ||
+        event.data.x > 1 ||
+        event.data.y < 0 ||
+        event.data.y > 1
+      ) {
+        return;
+      }
+      const stageBounds = stage.getBoundingClientRect();
+      const iframeBounds = iframe.getBoundingClientRect();
+      if (!stageBounds.width || !stageBounds.height) return;
+      sendCursorPosition(
+        (iframeBounds.left - stageBounds.left + event.data.x * iframeBounds.width) / stageBounds.width,
+        (iframeBounds.top - stageBounds.top + event.data.y * iframeBounds.height) / stageBounds.height,
+      );
+    };
+    window.addEventListener("message", handleIframePointer);
+    return () => window.removeEventListener("message", handleIframePointer);
+  }, [cursorSpotlight.enabled, handleSlidePointerLeave, isTeacher, sendCursorPosition]);
+
+  useEffect(() => {
+    if (!isTeacher || sessionStatus !== "live") return undefined;
+    const onKeyDown = (event) => {
+      if (
+        event.key.toLowerCase() !== "q" ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.target?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      toggleCursorSpotlight();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isTeacher, sessionStatus, toggleCursorSpotlight]);
 
   useEffect(() => {
     setLocalAnswer("");
@@ -430,20 +542,27 @@ const LiveLessonSessionPage = () => {
                   date={formattedSessionDate}
                   connection={connection}
                   observer={isObserver}
+                  isTeacher={isTeacher}
+                  sessionStatus={sessionStatus}
+                  sessionJoined={sessionJoined}
+                  cursorSpotlightEnabled={cursorSpotlight.enabled}
                   isFullscreen={isFullscreen}
                   timerText={sessionStatus === "live" ? timerText : ""}
                   timerExpired={timerExpired && isTeacher}
                   onBack={() => navigate("/portal/live-lessons")}
                   onToggleFullscreen={toggleFullscreen}
+                  onToggleCursorSpotlight={toggleCursorSpotlight}
                 />
-                <LiveLessonSlide
-                  slide={slide || session.state?.slide}
-                  index={currentIndex}
-                  total={totalSlides}
-                  language={session.lessonLanguage}
-                  allowScripts
-                  hideHtmlHeader={(slide || session.state?.slide)?.type === "html"}
-                />
+                <div className="live-slide-stage">
+                  <LiveLessonSlide
+                    slide={slide || session.state?.slide}
+                    index={currentIndex}
+                    total={totalSlides}
+                    language={session.lessonLanguage}
+                    allowScripts
+                    hideHtmlHeader={(slide || session.state?.slide)?.type === "html"}
+                  />
+                </div>
               </div>
               <button
                 className="live-session-primary"
@@ -462,22 +581,33 @@ const LiveLessonSessionPage = () => {
                 date={formattedSessionDate}
                 connection={connection}
                 observer={isObserver}
+                isTeacher={isTeacher}
+                sessionStatus={sessionStatus}
+                sessionJoined={sessionJoined}
+                cursorSpotlightEnabled={cursorSpotlight.enabled}
                 isFullscreen={isFullscreen}
                 timerText={sessionStatus === "live" ? timerText : ""}
                 timerExpired={timerExpired && isTeacher}
                 onBack={() => navigate("/portal/live-lessons")}
                 onToggleFullscreen={toggleFullscreen}
+                onToggleCursorSpotlight={toggleCursorSpotlight}
               />
-              <LiveLessonSlide
-                slide={slide}
-                index={currentIndex}
-                total={totalSlides}
-                language={session.lessonLanguage}
-                allowScripts
-                hideHtmlHeader={slide?.type === "html"}
-                hidden={!isTeacher && state?.slideHidden}
+              <div
+                className="live-slide-stage"
+                ref={slideStageRef}
+                onPointerMove={handleSlidePointerMove}
+                onPointerLeave={handleSlidePointerLeave}
               >
-                {slide?.question && (
+                <LiveLessonSlide
+                  slide={slide}
+                  index={currentIndex}
+                  total={totalSlides}
+                  language={session.lessonLanguage}
+                  allowScripts
+                  hideHtmlHeader={slide?.type === "html"}
+                  hidden={!isTeacher && state?.slideHidden}
+                >
+                  {slide?.question && (
                   <section className="live-question-card">
                     <div className="live-question-topline">
                       <span>
@@ -541,8 +671,19 @@ const LiveLessonSessionPage = () => {
                         </div>
                       )}
                   </section>
+                  )}
+                </LiveLessonSlide>
+                {!isTeacher && role === "student" && cursorSpotlight.enabled && cursorSpotlight.visible && !state?.slideHidden && (
+                  <span
+                    className="live-cursor-spotlight"
+                    aria-hidden="true"
+                    style={{
+                      left: `${cursorSpotlight.x * 100}%`,
+                      top: `${cursorSpotlight.y * 100}%`,
+                    }}
+                  />
                 )}
-              </LiveLessonSlide>
+              </div>
               {!isTeacher && isPaused && (
                 <div className="live-paused-banner" role="status">
                   <strong>Lesson paused</strong>

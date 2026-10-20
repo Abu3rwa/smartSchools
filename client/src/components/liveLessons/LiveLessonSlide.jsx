@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import "./LiveLessonSlide.css";
 
 const splitItems = (text) =>
@@ -8,10 +8,15 @@ const splitItems = (text) =>
     .filter(Boolean);
 
 const makeSlideDocument = (html, language, allowScripts) => {
-  const scriptPolicy = allowScripts ? "'unsafe-inline'" : "'none'";
+  const nonce = Array.from(
+    crypto.getRandomValues(new Uint8Array(16)),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const scriptPolicy = allowScripts ? "'unsafe-inline'" : `'nonce-${nonce}'`;
   const slideCsp = `default-src 'none'; script-src ${scriptPolicy}; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; navigate-to 'none'`;
 
   const csp = `<meta http-equiv="Content-Security-Policy" content="${slideCsp}"><meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body{margin:0!important}</style>`;
+  const cursorListener = `<script${allowScripts ? "" : ` nonce="${nonce}"`}>window.addEventListener("pointermove",function(event){window.parent.postMessage({type:"live-lesson-slide-pointer",x:event.clientX/window.innerWidth,y:event.clientY/window.innerHeight},"*")});window.addEventListener("pointerleave",function(){window.parent.postMessage({type:"live-lesson-slide-pointer-leave"},"*")});</script>`;
   const content = String(html || "");
   const safeLanguage = String(language || "en").replace(/[^a-zA-Z0-9-]/g, "");
   const direction = /^(ar|fa|he|ur)(?:-|$)/i.test(safeLanguage) ? "rtl" : "ltr";
@@ -26,13 +31,13 @@ const makeSlideDocument = (html, language, allowScripts) => {
       return `<html${withDirection}>`;
     });
     return /<head\b[^>]*>/i.test(localized)
-      ? localized.replace(/<head\b[^>]*>/i, (head) => `${head}${csp}`)
+      ? localized.replace(/<head\b[^>]*>/i, (head) => `${head}${csp}${cursorListener}`)
       : localized.replace(
           /<html\b[^>]*>/i,
-          (htmlTag) => `${htmlTag}<head>${csp}</head>`,
+          (htmlTag) => `${htmlTag}<head>${csp}${cursorListener}</head>`,
         );
   }
-  return `<!doctype html><html lang="${safeLanguage}" dir="${direction}"><head>${csp}</head><body>${content}</body></html>`;
+  return `<!doctype html><html lang="${safeLanguage}" dir="${direction}"><head>${csp}${cursorListener}</head><body>${content}</body></html>`;
 };
 
 export default function LiveLessonSlide({
@@ -45,6 +50,11 @@ export default function LiveLessonSlide({
   allowScripts = false,
   hideHtmlHeader = false,
 }) {
+  const htmlDocument = useMemo(
+    () => slide?.type === "html" ? makeSlideDocument(slide.html, language, allowScripts) : "",
+    [allowScripts, language, slide],
+  );
+
   if (!slide)
     return (
       <div className="live-slide live-slide-empty">
@@ -88,7 +98,7 @@ export default function LiveLessonSlide({
             title={slide.title || "Live lesson slide"}
             sandbox="allow-scripts"
             referrerPolicy="no-referrer"
-            srcDoc={makeSlideDocument(slide.html, language, allowScripts)}
+            srcDoc={htmlDocument}
           />
         </div>
         {children}

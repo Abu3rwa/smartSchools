@@ -13,8 +13,6 @@ import { selectUser } from "../../store/slices/authSlice";
 import api from "../../config/api";
 import "./StudentLiveLessonPopup.css";
 
-const REFRESH_INTERVAL_MS = 10000;
-
 const StudentLiveLessonPopup = () => {
   const user = useSelector(selectUser);
   const location = useLocation();
@@ -48,17 +46,7 @@ const StudentLiveLessonPopup = () => {
     }
 
     loadSessions();
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadSessions();
-    }, REFRESH_INTERVAL_MS);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") loadSessions();
-    };
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
+    return undefined;
   }, [isStudent, loadSessions]);
 
   const activeSession = sessions.find(

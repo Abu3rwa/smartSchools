@@ -4,8 +4,6 @@ import { HiOutlineArrowPath, HiOutlineArrowRight, HiOutlineSignal } from "react-
 import api from "../../config/api";
 import "./LiveLessonJoinPage.css";
 
-const REFRESH_INTERVAL_MS = 10000;
-
 const LiveLessonJoinPage = () => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
@@ -30,8 +28,6 @@ const LiveLessonJoinPage = () => {
 
   useEffect(() => {
     loadSessions(true);
-    const interval = window.setInterval(() => loadSessions(), REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(interval);
   }, [loadSessions]);
 
   const join = async (sessionId) => {
@@ -54,7 +50,10 @@ const LiveLessonJoinPage = () => {
         <div className="live-join-icon"><HiOutlineSignal size={29} /></div>
         <span className="live-eyebrow">YOUR CLASSES</span>
         <h1>Live lessons</h1>
-        <p>When a teacher starts a lesson for one of your classes, it will appear here automatically. Select Join to follow along.</p>
+        <p>Load live lessons to check whether a teacher has started a lesson for one of your classes. Select Join to follow along.</p>
+        <button className="live-join-refresh live-join-refresh-prominent" onClick={() => loadSessions(true)} disabled={loading || Boolean(joiningSessionId)}>
+          <HiOutlineArrowPath /> Load live lessons
+        </button>
 
         {error && <div className="live-join-error" role="alert">{error}</div>}
         {loading ? (
@@ -93,7 +92,10 @@ const LiveLessonJoinPage = () => {
                 <div className="live-join-empty compact" aria-live="polite">
                   <span className="live-join-pulse" />
                   <strong>No live lessons right now</strong>
-                  <span>We’ll show a Join button here when a teacher starts a lesson for your class.</span>
+                  <span>Check again when your teacher starts a lesson.</span>
+                  <button className="live-join-refresh live-join-refresh-prominent" onClick={() => loadSessions(true)} disabled={loading || Boolean(joiningSessionId)}>
+                    <HiOutlineArrowPath /> Load live lessons
+                  </button>
                 </div>
               )}
             </section>
@@ -134,9 +136,6 @@ const LiveLessonJoinPage = () => {
           </>
         )}
 
-        <button className="live-join-refresh" onClick={() => loadSessions(true)} disabled={loading || Boolean(joiningSessionId)}>
-          <HiOutlineArrowPath /> Refresh
-        </button>
       </section>
     </main>
   );
