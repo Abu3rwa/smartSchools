@@ -1,10 +1,11 @@
 export const ALLOWED_AUDIO_HOSTS = Object.freeze([
     'www.ldoceonline.com',
     'www.oxfordlearnersdictionaries.com',
-    'media.merriam-webster.com'
+    'media.merriam-webster.com',
+    'ssl.gstatic.com'
 ]);
 
-export const DICTIONARIES = Object.freeze(['longman', 'oxford', 'webster']);
+export const DICTIONARIES = Object.freeze(['longman', 'oxford', 'webster', 'google']);
 
 // CSV header (lowercase) -> pronunciation field on the wordAudio document
 export const PRONUNCIATION_COLUMNS = Object.freeze({
@@ -12,7 +13,9 @@ export const PRONUNCIATION_COLUMNS = Object.freeze({
     'longman uk': 'longmanUK',
     'oxford us': 'oxfordUS',
     'oxford uk': 'oxfordUK',
-    'webster us': 'websterUS'
+    'webster us': 'websterUS',
+    'google us': 'googleUS',
+    'google uk': 'googleUK'
 });
 
 export const PRONUNCIATION_FIELDS = Object.freeze(Object.values(PRONUNCIATION_COLUMNS));
@@ -66,10 +69,10 @@ const parseCsvLine = (line, rowNumber) => {
     return values;
 };
 
-const EXAMPLE_HEADER = /^(longman|oxford|webster) examples?(?: \d+)?$/;
+const EXAMPLE_HEADER = /^(longman|oxford|webster|google) examples?(?: \d+)?$/;
 
 /**
- * Columns (case-insensitive, any order): word, Longman US, Longman UK, Oxford US, Oxford UK, Webster US,
+ * Columns (case-insensitive, any order): word, Longman US/UK, Oxford US/UK, Webster US, Google US/UK,
  * status, first week, definition (optional), "<Dictionary> example 1..n" (optional; a cell may hold several
  * URLs separated by "|"). Unknown columns are ignored.
  */
@@ -99,7 +102,7 @@ export const parseWordAudioCsv = (content) => {
             status: cell(statusIndex),
             definition: cell(definitionIndex),
             pronunciations: {},
-            examples: { longman: [], oxford: [], webster: [] }
+            examples: { longman: [], oxford: [], webster: [], google: [] }
         };
         for (const [field, position] of pronunciationIndexes) row.pronunciations[field] = cell(position);
         for (const [dictionary, position] of exampleIndexes) {
@@ -130,7 +133,7 @@ export const planWordAudioImport = (rows, existingByWord = new Map()) => {
             report.skipped.push({ row: row.rowNumber, reason: 'Missing or invalid word' });
             continue;
         }
-        const patch = { pronunciations: {}, examples: { longman: [], oxford: [], webster: [] } };
+        const patch = { pronunciations: {}, examples: { longman: [], oxford: [], webster: [], google: [] } };
         let hasUrl = false;
         const accept = (rawUrl, label, assign) => {
             const result = validateAudioUrl(rawUrl);
@@ -152,7 +155,7 @@ export const planWordAudioImport = (rows, existingByWord = new Map()) => {
         }
         if (hasUrl) report.rowsWithAudio += 1;
 
-        const target = merged.get(key) || { word: key, pronunciations: {}, examples: { longman: [], oxford: [], webster: [] }, definition: '' };
+        const target = merged.get(key) || { word: key, pronunciations: {}, examples: { longman: [], oxford: [], webster: [], google: [] }, definition: '' };
         Object.assign(target.pronunciations, patch.pronunciations);
         for (const dictionary of DICTIONARIES) target.examples[dictionary] = mergeUnique(target.examples[dictionary], patch.examples[dictionary]);
         if (row.definition) target.definition = row.definition.slice(0, 2000);

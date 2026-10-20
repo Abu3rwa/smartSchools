@@ -37,6 +37,10 @@ test('buildAudioPayload only exposes dictionaries that have data', () => {
     assert.deepEqual(audio.dictionaries.oxford, { uk: doc.oxfordUK });
     assert.deepEqual(audio.dictionaries.longman.examples, doc.examples.longman);
     assert.equal(audio.definition, 'a small furry pet');
+    const googleUrl = 'https://ssl.gstatic.com/dictionary/static/pronunciation/2024-04-19/audio/do/dogs_en_gb_1.mp3';
+    assert.deepEqual(buildAudioPayload({ word: 'dogs', googleUK: googleUrl }), {
+        dictionaries: { google: { uk: googleUrl } }
+    });
 });
 
 test('decorateItemWithAudio adds only an audio field and keeps every existing field', () => {
@@ -105,13 +109,15 @@ test('audio search returns pronunciation and example audio for spelling words in
             longmanUK: '',
             oxfordUS: '',
             oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
-            websterUS: ''
+            websterUS: '',
+            googleUS: '',
+            googleUK: ''
         },
         examples: [{ dictionary: 'longman', url: 'https://www.ldoceonline.com/ex1.mp3' }]
     }, {
         word: 'Dog',
         grade: 'G1',
-        pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', websterUS: '' },
+        pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', websterUS: '', googleUS: '', googleUK: '' },
         examples: []
     }]);
 });
@@ -149,7 +155,9 @@ test('pronunciation replacement validates and atomically updates the selected fi
         longmanUK: '',
         oxfordUS: '',
         oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
-        websterUS: ''
+        websterUS: '',
+        googleUS: '',
+        googleUK: ''
     });
 });
 
@@ -161,6 +169,7 @@ test('pronunciation replacement can clear a selected URL', async (t) => {
         update = updateDoc;
         return { select: () => ({ lean: async () => ({ word: 'cat' }) }) };
     });
+
     await replaceSchoolWordPronunciation({
         schoolId: 'school1',
         word: 'Cat',
@@ -169,6 +178,40 @@ test('pronunciation replacement can clear a selected URL', async (t) => {
         replacementUrl: ''
     });
     assert.equal(update.$unset.oxfordUS, 1);
+});
+
+test('Google pronunciation URLs can be imported and played as a distinct source', async (t) => {
+    const url = 'https://ssl.gstatic.com/dictionary/static/pronunciation/2024-04-19/audio/do/dogs_en_gb_1.mp3';
+    let update;
+    t.mock.method(SpellingWord, 'exists', async () => true);
+    t.mock.method(WordAudio, 'updateOne', async () => ({ acknowledged: true }));
+    t.mock.method(WordAudio, 'findOneAndUpdate', (_filter, updateDoc) => {
+        update = updateDoc;
+        return {
+            select: () => ({
+                lean: async () => ({ word: 'dogs', googleUK: url })
+            })
+        };
+    });
+
+    const result = await replaceSchoolWordPronunciation({
+        schoolId: 'school1',
+        word: 'dogs',
+        field: 'googleUK',
+        currentUrl: '',
+        replacementUrl: url
+    });
+
+    assert.equal(update.$set.googleUK, url);
+    assert.deepEqual(result.pronunciations, {
+        longmanUS: '',
+        longmanUK: '',
+        oxfordUS: '',
+        oxfordUK: '',
+        websterUS: '',
+        googleUS: '',
+        googleUK: url
+    });
 });
 
 test('example audio deletion is limited to a school word and exact dictionary URL', async (t) => {

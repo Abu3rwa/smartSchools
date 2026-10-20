@@ -11,6 +11,8 @@ const COVERAGE_COLUMNS = [
     ['oxfordUS', 'Oxford US'],
     ['oxfordUK', 'Oxford UK'],
     ['websterUS', 'Webster US'],
+    ['googleUS', 'Google US'],
+    ['googleUK', 'Google UK'],
     ['withExamples', 'Examples'],
     ['withDefinition', 'Definition']
 ];
@@ -32,7 +34,9 @@ const PRONUNCIATION_FIELDS = [
     ['longmanUK', 'Longman UK pronunciation'],
     ['oxfordUS', 'Oxford US pronunciation'],
     ['oxfordUK', 'Oxford UK pronunciation'],
-    ['websterUS', 'Merriam-Webster US pronunciation']
+    ['websterUS', 'Merriam-Webster US pronunciation'],
+    ['googleUS', 'Google US pronunciation'],
+    ['googleUK', 'Google UK pronunciation']
 ];
 
 const isPreviewableAudioUrl = (value) => {
@@ -41,7 +45,8 @@ const isPreviewableAudioUrl = (value) => {
         return url.protocol === 'https:' && [
             'www.ldoceonline.com',
             'www.oxfordlearnersdictionaries.com',
-            'media.merriam-webster.com'
+            'media.merriam-webster.com',
+            'ssl.gstatic.com'
         ].includes(url.hostname.toLowerCase());
     } catch {
         return false;
@@ -233,7 +238,7 @@ const SpellingAudioAdminPage = () => {
                     <Stack spacing={2}>
                         <Typography variant="h6" component="h2">Review and edit spelling audio</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Search for a spelling word to listen to and edit its Longman, Oxford, and Merriam-Webster pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
+                            Search for a spelling word to listen to and edit its Longman, Oxford, Merriam-Webster, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
                         </Typography>
                         <Box component="form" onSubmit={searchExamples}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -270,7 +275,7 @@ const SpellingAudioAdminPage = () => {
                                                     onChange={(event) => setPronunciationDrafts((current) => ({ ...current, [key]: event.target.value }))}
                                                     inputProps={{ maxLength: 500 }}
                                                     error={Boolean(draft) && !isPreviewableAudioUrl(draft)}
-                                                    helperText="Use an HTTPS audio link from Longman, Oxford, or Merriam-Webster. Leave empty to remove."
+                                                    helperText="Use an HTTPS audio link from Longman, Oxford, Merriam-Webster, or Google. Leave empty to remove."
                                                 />
                                                 {hasChanges && isPreviewableAudioUrl(draft) && (
                                                     <audio controls preload="none" src={draft} aria-label={`Preview ${label} for ${entry.word}`} />

@@ -19,7 +19,7 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
     const uniqueKeys = [...new Set(words.map((entry) => normalizeWordKey(entry.word)).filter(Boolean))];
     const audioDocs = uniqueKeys.length
         ? await WordAudio.find({ word: { $in: uniqueKeys } })
-            .select('word longmanUS longmanUK oxfordUS oxfordUK websterUS examples.longman examples.oxford examples.webster')
+            .select('word longmanUS longmanUK oxfordUS oxfordUK websterUS googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
             .lean()
         : [];
     const audioByWord = new Map(audioDocs.map((entry) => [entry.word, entry]));
@@ -40,7 +40,9 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
                 longmanUK: audio?.longmanUK || '',
                 oxfordUS: audio?.oxfordUS || '',
                 oxfordUK: audio?.oxfordUK || '',
-                websterUS: audio?.websterUS || ''
+                websterUS: audio?.websterUS || '',
+                googleUS: audio?.googleUS || '',
+                googleUK: audio?.googleUK || ''
             },
             examples
         });
@@ -52,7 +54,7 @@ export async function replaceSchoolWordPronunciation({ schoolId, word, field, cu
     const key = normalizeWordKey(word);
     const spellingWordKey = normalizeForGrading(word);
     if (!key || key.length > 200) throw badRequest('A valid spelling word is required');
-    if (!['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'websterUS'].includes(field)) {
+    if (!['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'websterUS', 'googleUS', 'googleUK'].includes(field)) {
         throw badRequest('Unknown pronunciation audio field');
     }
     const current = String(currentUrl || '').trim();
@@ -78,7 +80,7 @@ export async function replaceSchoolWordPronunciation({ schoolId, word, field, cu
         { word: key, ...currentValueFilter },
         update,
         { new: true }
-    ).select('word longmanUS longmanUK oxfordUS oxfordUK websterUS').lean();
+    ).select('word longmanUS longmanUK oxfordUS oxfordUK websterUS googleUS googleUK').lean();
     if (!updated) throw notFound('The pronunciation audio changed; refresh the search and try again');
     return {
         word: updated.word,
@@ -87,7 +89,9 @@ export async function replaceSchoolWordPronunciation({ schoolId, word, field, cu
             longmanUK: updated.longmanUK || '',
             oxfordUS: updated.oxfordUS || '',
             oxfordUK: updated.oxfordUK || '',
-            websterUS: updated.websterUS || ''
+            websterUS: updated.websterUS || '',
+            googleUS: updated.googleUS || '',
+            googleUK: updated.googleUK || ''
         }
     };
 }
@@ -150,7 +154,8 @@ export const buildAudioPayload = (doc) => {
     const sections = {
         longman: { us: doc.longmanUS, uk: doc.longmanUK, examples: doc.examples?.longman },
         oxford: { us: doc.oxfordUS, uk: doc.oxfordUK, examples: doc.examples?.oxford },
-        webster: { us: doc.websterUS, examples: doc.examples?.webster }
+        webster: { us: doc.websterUS, examples: doc.examples?.webster },
+        google: { us: doc.googleUS, uk: doc.googleUK, examples: doc.examples?.google }
     };
     const dictionaries = {};
     for (const name of DICTIONARIES) {
@@ -246,11 +251,11 @@ export async function getAudioCoverage({ schoolId }) {
 
     return GRADES.map((grade) => {
         const gradeWords = [...new Set(words.filter((item) => item.grade === grade).map((item) => normalizeWordKey(item.word)))];
-        const counts = { longmanUS: 0, longmanUK: 0, oxfordUS: 0, oxfordUK: 0, websterUS: 0, withExamples: 0, withDefinition: 0 };
+        const counts = { longmanUS: 0, longmanUK: 0, oxfordUS: 0, oxfordUK: 0, websterUS: 0, googleUS: 0, googleUK: 0, withExamples: 0, withDefinition: 0 };
         const missing = [];
         for (const key of gradeWords) {
             const doc = audioByWord.get(key);
-            for (const field of ['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'websterUS']) if (doc?.[field]) counts[field] += 1;
+            for (const field of ['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'websterUS', 'googleUS', 'googleUK']) if (doc?.[field]) counts[field] += 1;
             if (DICTIONARIES.some((name) => doc?.examples?.[name]?.length)) counts.withExamples += 1;
             if (doc?.definition) counts.withDefinition += 1;
             if (!buildAudioPayload(doc)?.dictionaries) missing.push(key);

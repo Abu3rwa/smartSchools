@@ -1188,7 +1188,7 @@
   gap: 8px 14px;
   margin: -3px 0 10px;
   color: var(--text-muted);
-  font-size: .75rem;
+  font-size: 0.75rem;
 }
 .map-skill-accuracy-legend span {
   display: inline-flex;
@@ -1200,11 +1200,74 @@
   height: 9px;
   border-radius: 50%;
 }
-.map-skill-accuracy-legend i.low { background: #dc2626; }
-.map-skill-accuracy-legend i.medium { background: #f59e0b; }
-.map-skill-accuracy-legend i.high { background: #16a34a; }
+.map-skill-accuracy-legend i.low {
+  background: #dc2626;
+}
+.map-skill-accuracy-legend i.medium {
+  background: #f59e0b;
+}
+.map-skill-accuracy-legend i.high {
+  background: #16a34a;
+}
 .map-roster-skill-chart {
   margin-top: 14px;
+}
+.map-skill-bar-list {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.map-skill-bar-list-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-inline: 2px;
+}
+.map-skill-bar-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(80px, 2fr) minmax(
+      74px,
+      auto
+    );
+  align-items: center;
+  gap: 10px 14px;
+  min-height: 44px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+.map-skill-bar-row:last-child {
+  border-bottom: 0;
+}
+.map-skill-bar-label {
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.map-skill-bar-track {
+  display: flex;
+  min-width: 0;
+  height: 31px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--bg-secondary);
+}
+.map-skill-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+.map-skill-bar-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.map-skill-bar-value small {
+  color: var(--text-muted);
+  font-size: 0.78em;
 }
 .map-roster-map-records {
   display: grid;
@@ -1262,6 +1325,21 @@
   direction: rtl;
 }
 @media (max-width: 700px) {
+  .map-skill-bar-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+  }
+  .map-skill-bar-label {
+    grid-column: 1 / -1;
+  }
+  .map-skill-bar-track {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .map-skill-bar-value {
+    grid-column: 2;
+    grid-row: 2;
+  }
   .map-prep-page {
     padding: 16px;
   }

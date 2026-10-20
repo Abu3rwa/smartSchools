@@ -2,7 +2,7 @@ export const VOICE_STORAGE_KEY = 'spelling.voice';
 export const DEFAULT_VOICE_ID = 'default';
 export const PLAYBACK_TIMEOUT_MS = 6000;
 
-export const DICTIONARY_LABELS = Object.freeze({ longman: 'Longman', oxford: 'Oxford', webster: 'Merriam-Webster' });
+export const DICTIONARY_LABELS = Object.freeze({ longman: 'Longman', oxford: 'Oxford', webster: 'Merriam-Webster', google: 'Google' });
 const ACCENT_LABELS = Object.freeze({ us: 'US', uk: 'UK' });
 
 // Flat list of the voices that actually exist for a word, e.g. [{ id: 'longman-us', url, label: 'Longman US' }].

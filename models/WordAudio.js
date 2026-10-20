@@ -11,12 +11,15 @@ const wordAudioSchema = new mongoose.Schema({
     oxfordUS: urlField,
     oxfordUK: urlField,
     websterUS: urlField,
+    googleUS: urlField,
+    googleUK: urlField,
     definition: { type: String, trim: true, maxlength: 2000 },
     examples: {
         _id: false,
         longman: urlList,
         oxford: urlList,
-        webster: urlList
+        webster: urlList,
+        google: urlList
     },
     updatedAt: { type: Date, default: Date.now }
 }, { collection: 'wordAudio', versionKey: false });

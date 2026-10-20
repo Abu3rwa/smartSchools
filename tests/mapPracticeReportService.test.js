@@ -175,3 +175,38 @@ test('report HTML escapes user-controlled content and excludes student answers',
   assert.doesNotMatch(html, /<script>/);
   assert.doesNotMatch(html, /private response/);
 });
+
+test('skill chart grows for any number of skills and wraps long labels without clipping', () => {
+  const skills = Array.from({ length: 24 }, (_, index) => ({
+    name: `Uses a complex punctuation and sentence construction skill number ${index + 1}`,
+    accuracy: 100,
+    correct: 3,
+    graded: 3,
+    evidence: 'sufficient'
+  }));
+  const html = buildMapPracticeReportHtml({
+    type: 'student',
+    student,
+    metrics: {
+      submittedSets: 0,
+      answered: 0,
+      graded: 0,
+      correct: 0,
+      accuracy: null,
+      pendingReviews: 0,
+      lastPractice: null
+    },
+    attempts: [],
+    recentAttempts: [],
+    skills,
+    interpretations: [],
+    academicYear: '2026-2027',
+    period,
+    generatedAt: new Date('2026-10-19T00:00:00.000Z')
+  });
+
+  assert.match(html, /viewBox="0 0 760 1240"/);
+  assert.equal((html.match(/<rect x="230"/g) || []).length, skills.length * 2);
+  assert.equal((html.match(/<tspan x="220"/g) || []).length, skills.length * 3);
+  assert.doesNotMatch(html, /max-height:520px/);
+});

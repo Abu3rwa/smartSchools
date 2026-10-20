@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import api from '../../config/api';
 import { getMapPracticeImportAction } from './mapPracticeImportState';
 import './MapTestPrepPage.css';
@@ -690,22 +690,28 @@ const MapTestPrepPage = () => {
                           <span><i className="high" />{t('mapTestPrep:overview.details.strongAccuracy')}</span>
                         </div>
                         {practiceSkillPerformance.length ? (
-                          <ResponsiveContainer width="100%" height={Math.max(260, practiceSkillPerformance.length * 38)}>
-                            <BarChart data={practiceSkillPerformance} layout="vertical" margin={{ left: 12, right: 24 }}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis type="number" domain={[0, 100]} unit="%" />
-                              <YAxis type="category" dataKey="name" width={150} />
-                              <Tooltip formatter={(value, _name, item) => [`${value}% (${item.payload.correct}/${item.payload.total})`, t('mapTestPrep:overview.details.skillAccuracy')]} />
-                              <Bar dataKey="accuracy" name={t('mapTestPrep:overview.details.skillAccuracy')} radius={[0, 5, 5, 0]}>
-                                {practiceSkillPerformance.map((skill) => (
-                                  <Cell
-                                    key={skill.key}
-                                    fill={skill.accuracy < 60 ? '#dc2626' : skill.accuracy < 80 ? '#f59e0b' : '#16a34a'}
-                                  />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
+                          <div className={`map-skill-bar-list${practiceSkillPerformance.length > 12 ? ' map-skill-bar-list-scroll' : ''}`}>
+                            {practiceSkillPerformance.map((skill) => {
+                              const accuracy = Math.max(0, Math.min(100, skill.accuracy));
+                              const color = accuracy < 60 ? '#dc2626' : accuracy < 80 ? '#f59e0b' : '#16a34a';
+                              const description = `${skill.name}: ${accuracy}% (${skill.correct} of ${skill.total})`;
+                              return (
+                                <div className="map-skill-bar-row" key={skill.key}>
+                                  <span className="map-skill-bar-label">{skill.name}</span>
+                                  <div className="map-skill-bar-track" role="img" aria-label={description} title={description}>
+                                    <span
+                                      className="map-skill-bar-fill"
+                                      style={{ width: `${accuracy}%`, minWidth: accuracy === 0 ? 2 : undefined, backgroundColor: color }}
+                                    />
+                                  </div>
+                                  <span className="map-skill-bar-value">
+                                    {accuracy}%
+                                    <small>({skill.correct}/{skill.total})</small>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : <p>{t('mapTestPrep:overview.details.noSkillResults')}</p>}
                       </section>
                       {(rosterStudentDetails.mapRecords || []).length > 0 && (

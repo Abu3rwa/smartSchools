@@ -17,6 +17,22 @@ const percent = (value) => value === null || value === undefined ? '—' : `${va
 const metric = (label, value) => `<div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 const emptyRow = (colspan, text) => `<tr><td colspan="${colspan}" class="empty">${escapeHtml(text)}</td></tr>`;
 
+const wrapSkillName = (value, maxCharacters = 32) => {
+  const words = String(value ?? '').trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if (line && `${line} ${word}`.length > maxCharacters) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+};
+
 const renderTrendChart = (attempts) => {
   const scored = attempts.filter((attempt) => attempt.accuracy !== null);
   if (!scored.length) return '<p class="empty">No graded practice results are available for this period.</p>';
@@ -52,18 +68,25 @@ const renderTrendChart = (attempts) => {
 const renderSkillChart = (skills) => {
   if (!skills.length) return '<p class="empty">No skill results are available yet.</p>';
   const width = 760;
-  const rowHeight = 36;
   const left = 230;
-  const chartHeight = Math.max(72, skills.length * rowHeight + 20);
-  const rows = skills.map((skill, index) => {
-    const y = index * rowHeight + 8;
+  let y = 8;
+  const rows = skills.map((skill) => {
+    const lines = wrapSkillName(skill.name);
+    const rowHeight = Math.max(36, lines.length * 13 + 12);
+    const barY = y + (rowHeight - 22) / 2;
     const barWidth = Math.max(0, Math.min(100, skill.accuracy)) * 3.2;
     const color = skill.evidence === 'limited' ? '#94a3b8' : skill.accuracy < 60 ? '#dc2626' : skill.accuracy < 80 ? '#f59e0b' : '#16a34a';
-    return `<text x="${left - 10}" y="${y + 17}" text-anchor="end" class="skill-label">${escapeHtml(skill.name)}</text>
-      <rect x="${left}" y="${y}" width="320" height="22" rx="5" fill="#eef2f7"/>
-      <rect x="${left}" y="${y}" width="${barWidth}" height="22" rx="5" fill="${color}"/>
-      <text x="${left + 330}" y="${y + 16}" class="axis">${skill.accuracy}% · ${skill.correct}/${skill.graded}${skill.evidence === 'limited' ? ' · limited evidence' : ''}</text>`;
+    const label = `<text x="${left - 10}" y="${y + (rowHeight - (lines.length - 1) * 13) / 2 + 4}" text-anchor="end" class="skill-label">${lines
+      .map((line, index) => `<tspan x="${left - 10}"${index ? ' dy="13"' : ''}>${escapeHtml(line)}</tspan>`)
+      .join('')}</text>`;
+    const row = `${label}
+      <rect x="${left}" y="${barY}" width="320" height="22" rx="5" fill="#eef2f7"/>
+      <rect x="${left}" y="${barY}" width="${barWidth}" height="22" rx="5" fill="${color}"/>
+      <text x="${left + 330}" y="${y + rowHeight / 2 + 4}" class="axis">${skill.accuracy}% · ${skill.correct}/${skill.graded}${skill.evidence === 'limited' ? ' · limited evidence' : ''}</text>`;
+    y += rowHeight;
+    return row;
   }).join('');
+  const chartHeight = Math.max(72, y + 8);
   return `<svg viewBox="0 0 ${width} ${chartHeight}" role="img" aria-label="Practice accuracy by skill">${rows}</svg>
     <p class="chart-note">At least 3 graded responses are required to interpret a skill band. Counts show correct/graded responses.</p>`;
 };
@@ -132,7 +155,7 @@ export const buildMapPracticeReportHtml = (report) => {
     .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin:10px 0 18px}
     .metric{border:1px solid #dce8e5;border-radius:7px;padding:9px;break-inside:avoid}
     .metric span{display:block;font-size:8pt;color:#63757d;margin-bottom:5px}.metric strong{font-size:12pt;color:#176c68}
-    section{margin:15px 0;break-inside:avoid}svg{display:block;width:100%;height:auto;max-height:520px}
+    section{margin:15px 0;break-inside:avoid}svg{display:block;width:100%;height:auto}
     .axis{font:10px Arial,sans-serif;fill:#52636d}.skill-label{font:11px Arial,sans-serif;fill:#203746}
     .chart-note{font-size:8.5pt;color:#61727a;margin:6px 0 12px}
     table{width:100%;border-collapse:collapse;margin:8px 0 14px;table-layout:fixed}

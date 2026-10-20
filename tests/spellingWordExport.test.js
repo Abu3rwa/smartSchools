@@ -90,6 +90,7 @@ test('spelling audio export matches the import CSV contract', () => {
             longmanUS: 'https://www.ldoceonline.com/audio/bear.mp3',
             longmanUK: 'https://www.ldoceonline.com/audio/bear-uk.mp3',
             oxfordUS: 'https://www.oxfordlearnersdictionaries.com/audio/bear-us.mp3',
+            googleUK: 'https://ssl.gstatic.com/dictionary/audio/bear_en_gb_1.mp3',
             examples: {
                 longman: ['https://www.ldoceonline.com/example/bear.mp3'],
                 oxford: ['https://www.oxfordlearnersdictionaries.com/example/bear.mp3']
@@ -98,12 +99,13 @@ test('spelling audio export matches the import CSV contract', () => {
         }]
     });
 
-    assert.match(csv, /^\uFEFF"word","Longman US","Longman UK","Oxford US","Oxford UK","Webster US","status","first week","definition"/);
+    assert.match(csv, /^\uFEFF"word","Longman US","Longman UK","Oxford US","Oxford UK","Webster US","Google US","Google UK","status","first week","definition"/);
     assert.match(csv, /"Bear"/);
     assert.match(csv, /https:\/\/www\.ldoceonline\.com\/audio\/bear\.mp3/);
     const imported = parseWordAudioCsv(csv.slice(1));
     assert.equal(imported[0].word, 'Bear');
     assert.equal(imported[0].pronunciations.longmanUS, 'https://www.ldoceonline.com/audio/bear.mp3');
+    assert.equal(imported[0].pronunciations.googleUK, 'https://ssl.gstatic.com/dictionary/audio/bear_en_gb_1.mp3');
     assert.deepEqual(imported[0].examples.longman, ['https://www.ldoceonline.com/example/bear.mp3']);
     assert.equal(imported[0].definition, 'A large animal');
 });
