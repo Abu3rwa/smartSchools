@@ -12,6 +12,7 @@ const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submittingGrades, setSubmittingGrades] = useState(false);
+    const [excuseBusyStudentId, setExcuseBusyStudentId] = useState(null);
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('all');
@@ -53,6 +54,8 @@ const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
         setSubmitting,
         submittingGrades,
         setSubmittingGrades,
+        excuseBusyStudentId,
+        setExcuseBusyStudentId,
         selectedClass,
         setSelectedClass,
         selectedSubject,

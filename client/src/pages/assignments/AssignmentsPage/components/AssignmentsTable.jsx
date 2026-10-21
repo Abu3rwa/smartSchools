@@ -1,199 +1,304 @@
-import { HiOutlineClipboardList } from 'react-icons/hi';
+import { useEffect, useRef } from 'react';
+import { HiOutlineClipboardList, HiOutlinePlus } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
-import { formatAssignmentDueDate } from '../utils/assignmentPresentation';
+import AssignmentRowActions from './AssignmentRowActions';
+import {
+    getAssignmentDuePresentation,
+    getAssignmentProgressPresentation
+} from '../utils/assignmentListPresentation';
+
+const SkeletonRows = ({ canSelect }) => {
+    const columns = canSelect ? 6 : 5;
+    return (
+        <>
+            {[0, 1, 2, 3, 4].map((row) => (
+                <tr className="assignments-skeleton-row" key={row} aria-hidden="true">
+                    {Array.from({ length: columns }, (_, column) => (
+                        <td key={column}>
+                            <span className={`assignments-skeleton assignments-skeleton--w${(column % 3) + 1}`} />
+                        </td>
+                    ))}
+                </tr>
+            ))}
+        </>
+    );
+};
+
+const SkeletonCards = () => (
+    <div className="assignments-skeleton-cards" aria-hidden="true">
+        {[0, 1, 2, 3].map((card) => (
+            <div className="assignments-skeleton-card" key={card}>
+                <span className="assignments-skeleton assignments-skeleton--w1" />
+                <span className="assignments-skeleton assignments-skeleton--w2" />
+                <span className="assignments-skeleton assignments-skeleton--w3" />
+            </div>
+        ))}
+    </div>
+);
 
 const AssignmentsTable = ({
     loading,
-    assignments,
+    rows,
     canCreateAssignments,
-    onPublishAssignment,
-    onOpenGradePanel,
-    onEditAssignment,
-    onDeleteAssignment,
-    onSendReminder,
-    sendingReminder,
-    publishingAssignment,
-    classroom,
-    onOpenGoogleFormResults
+    selectedIds,
+    onToggleSelected,
+    onToggleSelectAll,
+    allVisibleSelected,
+    someVisibleSelected,
+    onStartCreate,
+    actions
 }) => {
-    const { t } = useTranslation(['assignments']);
-    const classroomLinks = classroom?.enabled ? classroom.links || {} : {};
-    const canPostToClassroom = Boolean(classroom?.canUse && classroom?.connection?.connected);
+    const { t, i18n } = useTranslation(['assignments']);
+    const selectAllRef = useRef(null);
 
-    return (
-        <div className="card assignments-list">
-            <div className="card-header">
-                <h3 className="card-title">
-                    <HiOutlineClipboardList />
-                    {t('assignments:table.title')}
-                </h3>
-            </div>
+    useEffect(() => {
+        if (selectAllRef.current) {
+            selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+        }
+    }, [allVisibleSelected, someVisibleSelected]);
 
-            {loading ? (
-                <div className="loading-state">{t('assignments:table.loading')}</div>
-            ) : assignments.length === 0 ? (
-                <div className="empty-state">{t('assignments:table.empty')}</div>
-            ) : (
-                <div className="table-container">
-                    <table className="assignment-table">
+    if (loading) {
+        return (
+            <div className="assignments-table-block" aria-busy="true" aria-label={t('assignments:table.loading')}>
+                <div className="assignments-table-wrap">
+                    <table className="assignments-table">
                         <thead>
                             <tr>
-                                <th>{t('assignments:table.columns.title')}</th>
-                                <th>{t('assignments:table.columns.type')}</th>
+                                {canCreateAssignments && <th className="assignments-check-cell" />}
+                                <th>{t('assignments:table.columns.assignment')}</th>
                                 <th>{t('assignments:table.columns.status')}</th>
                                 <th>{t('assignments:table.columns.due')}</th>
-                                <th>{t('assignments:table.columns.max')}</th>
-                                <th>{t('assignments:table.columns.actions')}</th>
+                                <th>{t('assignments:table.columns.progress')}</th>
+                                <th aria-label={t('assignments:table.columns.actions')} />
                             </tr>
                         </thead>
                         <tbody>
-                            {assignments.map((assignment) => (
-                                <tr key={assignment.id}>
-                                    <td>{assignment.title}</td>
-                                    <td>{assignment.assignmentType?.name || assignment.assignmentType?.key || t('assignments:common.empty')}</td>
-                                    <td>
-                                        <span className={`status-badge ${assignment.status}`}>
-                                            {t(`assignments:status.${assignment.status}`, { defaultValue: assignment.status })}
-                                        </span>
-                                        {classroomLinks[assignment.id] && (
-                                            <div className="classroom-status">
-                                                <span
-                                                    className={`classroom-badge classroom-badge--${classroomLinks[assignment.id].syncState}`}
-                                                    title={classroomLinks[assignment.id].lastError || undefined}
-                                                >
-                                                    {t('assignments:classroom.badge', {
-                                                        state: t(`assignments:classroom.states.${classroomLinks[assignment.id].syncState}`, {
-                                                            defaultValue: classroomLinks[assignment.id].syncState
-                                                        })
-                                                    })}
-                                                </span>
-                                                {classroomLinks[assignment.id].lastError && (
-                                                    <small className="classroom-status__error">{classroomLinks[assignment.id].lastError}</small>
-                                                )}
-                                                {classroomLinks[assignment.id].alternateLink && (
-                                                    <a href={classroomLinks[assignment.id].alternateLink} target="_blank" rel="noopener noreferrer">
-                                                        {t('assignments:classroom.open')}
-                                                    </a>
-                                                )}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td>{formatAssignmentDueDate(assignment.dueDate)}</td>
-                                    <td>{assignment.maxMarks}</td>
-                                    <td className="action-cell">
-                                        <div className="action-cell-inner">
-                                        {assignment.status === 'draft' && canCreateAssignments && (
-                                            <div className="reminder-dropdown" style={{ display: 'inline-block', position: 'relative' }}>
-                                                <select
-                                                    className="btn btn-outline btn-sm"
-                                                    disabled={publishingAssignment === assignment.id}
-                                                    value=""
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            onPublishAssignment(assignment.id, e.target.value);
-                                                            e.target.value = '';
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value="" disabled>
-                                                        {publishingAssignment === assignment.id
-                                                            ? t('assignments:actions.publishing')
-                                                            : t('assignments:actions.publish')}
-                                                    </option>
-                                                    <option value="both">{t('assignments:actions.publishBoth')}</option>
-                                                    <option value="students">{t('assignments:actions.publishStudents')}</option>
-                                                    <option value="parents">{t('assignments:actions.publishParents')}</option>
-                                                </select>
-                                            </div>
-                                        )}
-                                        {(assignment.status === 'published' || assignment.status === 'closed') && canCreateAssignments && (
-                                            <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenGradePanel(assignment)}>
-                                                {t('assignments:actions.grade')}
-                                            </button>
-                                        )}
-                                        {assignment.googleForm?.responderUri
-                                            && assignment.status !== 'draft'
-                                            && canCreateAssignments
-                                            && onOpenGoogleFormResults && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline btn-sm"
-                                                onClick={() => onOpenGoogleFormResults(assignment)}
-                                            >
-                                                {t('assignments:googleForms.responses')}
-                                            </button>
-                                        )}
-                                        {assignment.status === 'published' && canCreateAssignments && onSendReminder && (
-                                            <div className="reminder-dropdown" style={{ display: 'inline-block', position: 'relative' }}>
-                                                <select
-                                                    className="btn btn-outline btn-sm"
-                                                    disabled={sendingReminder === assignment.id}
-                                                    value=""
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            onSendReminder(assignment.id, e.target.value);
-                                                            e.target.value = '';
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value="" disabled>
-                                                        {sendingReminder === assignment.id ? t('assignments:actions.sending', { defaultValue: 'Sending…' }) : t('assignments:actions.remind', { defaultValue: 'Send Reminder' })}
-                                                    </option>
-                                                    <option value="both">{t('assignments:actions.remindBoth', { defaultValue: 'Students & Parents' })}</option>
-                                                    <option value="students">{t('assignments:actions.remindStudents', { defaultValue: 'Students Only' })}</option>
-                                                    <option value="parents">{t('assignments:actions.remindParents', { defaultValue: 'Parents Only' })}</option>
-                                                </select>
-                                            </div>
-                                        )}
-                                        {canPostToClassroom && canCreateAssignments
-                                            && classroomLinks[assignment.id]?.syncState === 'draft'
-                                            && !classroomLinks[assignment.id]?.lastErrorCode && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                disabled={classroom.busy}
-                                                onClick={() => {
-                                                    if (window.confirm(t('assignments:classroom.confirmPublishDraft'))) {
-                                                        classroom.publishAssignment(assignment);
-                                                    }
-                                                }}
-                                            >
-                                                {t('assignments:classroom.actions.publish')}
-                                            </button>
-                                        )}
-                                        {canPostToClassroom && canCreateAssignments
-                                            && (assignment.status === 'draft' || assignment.status === 'published')
-                                            && (!classroomLinks[assignment.id]
-                                                || classroomLinks[assignment.id].lastErrorCode) && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline btn-sm"
-                                                disabled={classroom.busy}
-                                                onClick={() => classroom.postAssignment(assignment, { retry: Boolean(classroomLinks[assignment.id]) })}
-                                            >
-                                                {classroomLinks[assignment.id]
-                                                    ? t('assignments:classroom.actions.retry')
-                                                    : t('assignments:classroom.actions.post')}
-                                            </button>
-                                        )}
-                                        {canCreateAssignments && (
-                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => onEditAssignment(assignment)}>
-                                                {t('assignments:actions.edit')}
-                                            </button>
-                                        )}
-                                        {canCreateAssignments && (
-                                            <button type="button" className="btn btn-danger btn-sm" onClick={() => onDeleteAssignment(assignment)}>
-                                                {t('assignments:actions.delete')}
-                                            </button>
-                                        )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            <SkeletonRows canSelect={canCreateAssignments} />
                         </tbody>
                     </table>
                 </div>
-            )}
+                <SkeletonCards />
+            </div>
+        );
+    }
+
+    if (rows.length === 0) {
+        return (
+            <div className="assignments-empty">
+                <span className="assignments-empty__icon" aria-hidden="true">
+                    <HiOutlineClipboardList />
+                </span>
+                <h3>{t('assignments:table.emptyTitle')}</h3>
+                <p>{t('assignments:table.emptyDescription')}</p>
+                {canCreateAssignments && (
+                    <button type="button" className="btn btn-primary" onClick={onStartCreate}>
+                        <HiOutlinePlus />
+                        {t('assignments:actions.createAssignment')}
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    const getStatusLabel = (status) => t(`assignments:status.${status}`, { defaultValue: status });
+    const getClassroomState = (link) => t(`assignments:classroom.states.${link.syncState}`, {
+        defaultValue: link.syncState
+    });
+
+    return (
+        <div className="assignments-table-block">
+            <div className="assignments-table-wrap">
+                <table className="assignments-table">
+                    <thead>
+                        <tr>
+                            {canCreateAssignments && (
+                                <th className="assignments-check-cell">
+                                    <input
+                                        ref={selectAllRef}
+                                        type="checkbox"
+                                        className="assignments-row-check"
+                                        checked={allVisibleSelected}
+                                        onChange={(event) => onToggleSelectAll(event.target.checked)}
+                                        aria-label={t('assignments:toolbar.selectAll')}
+                                    />
+                                </th>
+                            )}
+                            <th>{t('assignments:table.columns.assignment')}</th>
+                            <th>{t('assignments:table.columns.status')}</th>
+                            <th>{t('assignments:table.columns.due')}</th>
+                            <th className="assignments-progress-cell">
+                                {t('assignments:table.columns.progress')}
+                            </th>
+                            <th aria-label={t('assignments:table.columns.actions')} />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((assignment) => {
+                            const due = getAssignmentDuePresentation(assignment, { language: i18n.language, t });
+                            const progress = getAssignmentProgressPresentation(assignment, { language: i18n.language, t });
+                            const classroomLink = actions.classroom?.enabled
+                                ? actions.classroom.links?.[assignment.id]
+                                : null;
+
+                            return (
+                                <tr key={assignment.id}>
+                                    {canCreateAssignments && (
+                                        <td className="assignments-check-cell">
+                                            <input
+                                                type="checkbox"
+                                                className="assignments-row-check"
+                                                checked={selectedIds.has(assignment.id)}
+                                                onChange={(event) => onToggleSelected(assignment.id, event.target.checked)}
+                                                aria-label={t('assignments:toolbar.selectAssignment', {
+                                                    title: assignment.title
+                                                })}
+                                            />
+                                        </td>
+                                    )}
+                                    <td>
+                                        <div className="assignments-row-title">{assignment.title}</div>
+                                        <div className="assignments-row-meta">
+                                            {(assignment.assignmentType?.name || assignment.assignmentType?.key) && (
+                                                <span className="assignments-type-chip">
+                                                    {assignment.assignmentType?.name || assignment.assignmentType?.key}
+                                                </span>
+                                            )}
+                                            {assignment.class?.name && (
+                                                <>
+                                                    <span className="assignments-meta-dot" aria-hidden="true" />
+                                                    <span>{assignment.class.name}</span>
+                                                </>
+                                            )}
+                                            {assignment.subject?.name && (
+                                                <>
+                                                    <span className="assignments-meta-dot" aria-hidden="true" />
+                                                    <span>{assignment.subject.name}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className={`assignments-status assignments-status--${assignment.status}`}>
+                                            <span className="assignments-status__dot" aria-hidden="true" />
+                                            {getStatusLabel(assignment.status)}
+                                        </span>
+                                        {classroomLink && (
+                                            <span
+                                                className={`assignments-classroom-badge assignments-classroom-badge--${classroomLink.syncState}`}
+                                                title={classroomLink.lastError || undefined}
+                                            >
+                                                {t('assignments:classroom.badge', {
+                                                    state: getClassroomState(classroomLink)
+                                                })}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <div className={`assignments-due${due.tone ? ` assignments-due--${due.tone}` : ''}`}>
+                                            <span className="assignments-due__main">{due.main}</span>
+                                            {due.sub && <span className="assignments-due__sub">{due.sub}</span>}
+                                        </div>
+                                    </td>
+                                    <td className="assignments-progress-cell">
+                                        <div className={`assignments-progress assignments-progress--${progress.tone}`}>
+                                            <div className="assignments-progress__meta">
+                                                <span>{progress.label}</span>
+                                                {progress.percentLabel && (
+                                                    <span className="assignments-progress__percent">
+                                                        {progress.percentLabel}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="assignments-progress__bar" aria-hidden="true">
+                                                <span style={{ width: `${progress.percent}%` }} />
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="assignments-actions-cell">
+                                        <AssignmentRowActions
+                                            assignment={assignment}
+                                            {...actions}
+                                            classroom={actions.classroom}
+                                        />
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="assignments-mobile-list">
+                {rows.map((assignment) => {
+                    const due = getAssignmentDuePresentation(assignment, { language: i18n.language, t });
+                    const progress = getAssignmentProgressPresentation(assignment, { language: i18n.language, t });
+                    return (
+                        <article className="assignments-mobile-card" key={assignment.id}>
+                            <div className="assignments-mobile-card__top">
+                                <div className="assignments-mobile-card__heading">
+                                    {canCreateAssignments && (
+                                        <input
+                                            type="checkbox"
+                                            className="assignments-row-check"
+                                            checked={selectedIds.has(assignment.id)}
+                                            onChange={(event) => onToggleSelected(assignment.id, event.target.checked)}
+                                            aria-label={t('assignments:toolbar.selectAssignment', {
+                                                title: assignment.title
+                                            })}
+                                        />
+                                    )}
+                                    <div>
+                                        <div className="assignments-row-title">{assignment.title}</div>
+                                        <div className="assignments-row-meta">
+                                            {(assignment.assignmentType?.name || assignment.assignmentType?.key) && (
+                                                <span className="assignments-type-chip">
+                                                    {assignment.assignmentType?.name || assignment.assignmentType?.key}
+                                                </span>
+                                            )}
+                                            {assignment.class?.name && (
+                                                <>
+                                                    <span className="assignments-meta-dot" aria-hidden="true" />
+                                                    <span>{assignment.class.name}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className={`assignments-status assignments-status--${assignment.status}`}>
+                                    <span className="assignments-status__dot" aria-hidden="true" />
+                                    {getStatusLabel(assignment.status)}
+                                </span>
+                            </div>
+
+                            <div className="assignments-mobile-card__meta">
+                                <div className={`assignments-due${due.tone ? ` assignments-due--${due.tone}` : ''}`}>
+                                    <span className="assignments-due__main">{due.main}</span>
+                                    {due.sub && <span className="assignments-due__sub">{due.sub}</span>}
+                                </div>
+                                <div className={`assignments-progress assignments-progress--${progress.tone}`}>
+                                    <div className="assignments-progress__meta">
+                                        <span>{progress.label}</span>
+                                        {progress.percentLabel && (
+                                            <span className="assignments-progress__percent">
+                                                {progress.percentLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="assignments-progress__bar" aria-hidden="true">
+                                        <span style={{ width: `${progress.percent}%` }} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <AssignmentRowActions
+                                assignment={assignment}
+                                {...actions}
+                                classroom={actions.classroom}
+                            />
+                        </article>
+                    );
+                })}
+            </div>
         </div>
     );
 };

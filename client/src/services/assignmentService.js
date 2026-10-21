@@ -88,6 +88,11 @@ const assignmentService = {
         return response.data;
     },
 
+    setStudentExcuse: async (id, studentId, excused) => {
+        const response = await api.patch(`/assignments/${id}/excused`, { studentId, excused });
+        return response.data;
+    },
+
     getAttachmentUrl: async (assignmentId, attachmentId) => {
         const response = await api.get(`/assignments/${assignmentId}/attachments/${attachmentId}/url`);
         return response.data;

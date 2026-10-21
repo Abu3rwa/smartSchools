@@ -1,7 +1,7 @@
-import { HiOutlinePlus } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 
-const AssignmentsHeader = ({ canCreateAssignments, onCreateAssignment }) => {
+const AssignmentsHeader = ({ canCreateAssignments, onCreateAssignment, onImport }) => {
     const { t } = useTranslation(['assignments']);
 
     return (
@@ -11,10 +11,16 @@ const AssignmentsHeader = ({ canCreateAssignments, onCreateAssignment }) => {
                 <p className="text-muted">{t('assignments:header.subtitle')}</p>
             </div>
             {canCreateAssignments && (
-                <button type="button" className="btn btn-primary" onClick={onCreateAssignment}>
-                    <HiOutlinePlus />
-                    {t('assignments:actions.createAssignment')}
-                </button>
+                <div className="assignments-page__header-actions">
+                    <button type="button" className="btn btn-secondary" onClick={onImport}>
+                        <HiOutlineUpload />
+                        {t('assignments:header.import')}
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={onCreateAssignment}>
+                        <HiOutlinePlus />
+                        {t('assignments:actions.createAssignment')}
+                    </button>
+                </div>
             )}
         </div>
     );

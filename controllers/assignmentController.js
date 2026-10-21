@@ -30,6 +30,9 @@ import {
 import { isGoogleFormsEnabledForSchool } from '../config/googleFormsConfig.js';
 
 const toId = (value) => (value == null ? '' : String(value));
+const refId = (value) => (value && typeof value === 'object'
+    ? toId(value._id || value.id)
+    : toId(value));
 const hasGoogleForm = (assignment) =>
     assignment?.assignmentTypeKey === 'google_form' || Boolean(assignment?.metadata?.googleForm);
 
@@ -165,6 +168,9 @@ const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission
         studentIds: Array.isArray(assignment.studentIds)
             ? assignment.studentIds.map((studentId) => toId(studentId))
             : [],
+        excusedStudentIds: Array.isArray(assignment.excusedStudentIds)
+            ? assignment.excusedStudentIds.map((studentId) => toId(studentId))
+            : [],
         lessonPlanIds: linkedLessonPlans.map((lesson) => lesson.id),
         lessonPlans: linkedLessonPlans,
         links: Array.isArray(assignment.links)
@@ -212,6 +218,7 @@ const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission
             }
             : null,
         publishedAt: assignment.publishedAt || null,
+        createdAt: assignment.createdAt || null,
         academicYear: assignment.academicYear || '',
         class: assignment.class
             ? {
@@ -249,6 +256,7 @@ const mapGrammarTestSummary = (grammarTest) => ({
     studentIds: Array.isArray(grammarTest.students)
         ? grammarTest.students.map((studentId) => toId(studentId))
         : [],
+    excusedStudentIds: [],
     lessonPlanIds: [],
     lessonPlans: [],
     links: [],
@@ -292,6 +300,89 @@ const resolveTargetStudentsForAssignment = async (assignment) => {
     return Student.find(query)
         .select('_id firstName lastName studentId parentInfo email')
         .lean({ virtuals: true });
+};
+
+/**
+ * Per-assignment grading progress for the list view. Target students are the
+ * active roster of the assignment's class (narrowed to selected students when
+ * the assignment was scoped that way), so counts stay accurate as students
+ * leave the class.
+ */
+export const buildAssignmentProgressMap = async ({ schoolId, assignments = [] }) => {
+    const progressById = new Map();
+    if (!Array.isArray(assignments) || assignments.length === 0) return progressById;
+
+    const classIds = [...new Set(
+        assignments.map((assignment) => refId(assignment.class)).filter(Boolean)
+    )];
+    const assignmentIds = assignments.map((assignment) => assignment._id);
+
+    const [studentRows, gradeRows] = await Promise.all([
+        Student.find({
+            school: schoolId,
+            currentClass: { $in: classIds },
+            status: 'active'
+        }).select('_id currentClass').lean(),
+        Grade.find({
+            school: schoolId,
+            assignment: { $in: assignmentIds }
+        }).select('assignment student').lean()
+    ]);
+
+    const activeByClass = new Map();
+    for (const student of studentRows) {
+        const classId = refId(student.currentClass);
+        if (!activeByClass.has(classId)) activeByClass.set(classId, new Set());
+        activeByClass.get(classId).add(refId(student._id));
+    }
+
+    const gradedByAssignment = new Map();
+    for (const grade of gradeRows) {
+        const assignmentId = refId(grade.assignment);
+        if (!gradedByAssignment.has(assignmentId)) gradedByAssignment.set(assignmentId, new Set());
+        gradedByAssignment.get(assignmentId).add(refId(grade.student));
+    }
+
+    for (const assignment of assignments) {
+        const assignmentId = refId(assignment._id);
+        const activeStudentIds = activeByClass.get(refId(assignment.class)) || new Set();
+
+        let targetStudentIds = activeStudentIds;
+        if (assignment.scope === 'selected_students') {
+            const selectedIds = new Set(
+                (Array.isArray(assignment.studentIds) ? assignment.studentIds : []).map(refId)
+            );
+            targetStudentIds = new Set(
+                [...activeStudentIds].filter((studentId) => selectedIds.has(studentId))
+            );
+        }
+
+        const gradedIds = gradedByAssignment.get(assignmentId) || new Set();
+        // Excuses only remove a student from the denominator while they have no grade:
+        // a grade created elsewhere (e.g. Google Form sync) keeps them counted.
+        const excusedIds = new Set(
+            (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : [])
+                .map(refId)
+                .filter((studentId) => studentId && !gradedIds.has(studentId))
+        );
+        if (excusedIds.size > 0) {
+            targetStudentIds = new Set(
+                [...targetStudentIds].filter((studentId) => !excusedIds.has(studentId))
+            );
+        }
+
+        const gradedCount = [...targetStudentIds]
+            .filter((studentId) => gradedIds.has(studentId)).length;
+        const studentCount = targetStudentIds.size;
+
+        progressById.set(assignmentId, {
+            studentCount,
+            gradedCount,
+            percent: studentCount > 0 ? Math.round((gradedCount / studentCount) * 100) : 0
+        });
+    }
+
+    return progressById;
 };
 
 const verifyTeacherCanAccessAssignment = async (req, assignment) => {
@@ -516,10 +607,25 @@ export const getAssignments = asyncHandler(async (req, res) => {
         Assignment.countDocuments(query)
     ]);
 
+    const progressById = await buildAssignmentProgressMap({
+        schoolId: req.schoolId,
+        assignments: rows
+    });
+
     res.json({
         success: true,
         data: {
-            items: rows.map((row) => mapAssignmentSummary(row, { includeAnswerKey: true })),
+            items: rows.map((row) => {
+                const summary = mapAssignmentSummary(row, { includeAnswerKey: true });
+                return {
+                    ...summary,
+                    progress: progressById.get(toId(row._id)) || {
+                        studentCount: 0,
+                        gradedCount: 0,
+                        percent: 0
+                    }
+                };
+            }),
             pagination: {
                 page,
                 limit,
@@ -977,6 +1083,9 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'No students found for this assignment' });
     }
 
+    const excusedStudentIds = new Set(
+        (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : []).map(toId)
+    );
     const gradedStudentIds = new Set(
         (await Grade.find({
             school: req.schoolId,
@@ -987,11 +1096,16 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
             .lean())
             .map((grade) => toId(grade.student))
     );
-    const ungradedStudents = students.filter((student) => !gradedStudentIds.has(toId(student._id)));
+    const gradedStudentCount = students
+        .filter((student) => gradedStudentIds.has(toId(student._id))).length;
+    const ungradedStudents = students.filter((student) => {
+        const studentId = toId(student._id);
+        return !gradedStudentIds.has(studentId) && !excusedStudentIds.has(studentId);
+    });
     if (ungradedStudents.length === 0) {
         return res.status(409).json({
             success: false,
-            message: 'All students have already been graded for this assignment. No reminders were sent.'
+            message: 'All students have already been graded or excused for this assignment. No reminders were sent.'
         });
     }
 
@@ -1052,7 +1166,8 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
         success: true,
         data: {
             studentCount: ungradedStudents.length,
-            gradedStudentCount: students.length - ungradedStudents.length,
+            gradedStudentCount,
+            excusedStudentCount: excusedStudentIds.size,
             remindersSent: sent,
             audience
         }
@@ -1081,22 +1196,85 @@ export const getAssignmentGradebook = asyncHandler(async (req, res) => {
         .lean();
 
     const gradeMap = new Map(grades.map((grade) => [toId(grade.student), grade]));
+    const excusedStudentIds = new Set(
+        (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : []).map(toId)
+    );
     res.json({
         success: true,
         data: {
             assignment: mapAssignmentSummary(assignment),
-            rows: students.map((student) => ({
-                student: {
-                    id: toId(student._id),
-                    studentId: student.studentId || '',
-                    firstName: student.firstName || '',
-                    lastName: student.lastName || '',
-                    fullName: `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                },
-                grade: gradeMap.get(toId(student._id)) || null
-            }))
+            rows: students.map((student) => {
+                const studentId = toId(student._id);
+                return {
+                    student: {
+                        id: studentId,
+                        studentId: student.studentId || '',
+                        firstName: student.firstName || '',
+                        lastName: student.lastName || '',
+                        fullName: `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                    },
+                    grade: gradeMap.get(studentId) || null,
+                    excused: excusedStudentIds.has(studentId) && !gradeMap.has(studentId)
+                };
+            })
         }
     });
+});
+
+/**
+ * Toggle a per-student excuse for an assignment. Excused students without a
+ * grade drop out of ungraded counts and reminders; grades are left untouched.
+ */
+export const setAssignmentStudentExcuse = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to excuse students for this assignment' });
+
+    if (!['published', 'closed'].includes(String(assignment.status || ''))) {
+        return res.status(400).json({
+            success: false,
+            message: 'Assignment must be published or closed before excusing students'
+        });
+    }
+
+    const studentId = toId(req.body?.studentId).trim();
+    if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
+    if (typeof req.body?.excused !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'excused must be a boolean' });
+    }
+    const excused = req.body.excused;
+
+    const students = await resolveTargetStudentsForAssignment(assignment);
+    if (!students.some((student) => toId(student._id) === studentId)) {
+        return res.status(400).json({ success: false, message: 'Student is not part of this assignment' });
+    }
+
+    if (excused) {
+        const existingGrade = await Grade.exists({
+            school: req.schoolId,
+            assignment: assignment._id,
+            student: studentId
+        });
+        if (existingGrade) {
+            return res.status(409).json({
+                success: false,
+                message: 'This student already has a grade. Remove the grade before excusing them.'
+            });
+        }
+        await Assignment.updateOne(
+            { _id: assignment._id, school: req.schoolId },
+            { $addToSet: { excusedStudentIds: studentId } }
+        );
+    } else {
+        await Assignment.updateOne(
+            { _id: assignment._id, school: req.schoolId },
+            { $pull: { excusedStudentIds: studentId } }
+        );
+    }
+
+    res.json({ success: true, data: { studentId, excused } });
 });
 
 export const gradeAssignment = asyncHandler(async (req, res) => {

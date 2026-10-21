@@ -86,6 +86,12 @@ const assignmentSchema = new mongoose.Schema(
                 ref: 'Student'
             }
         ],
+        excusedStudentIds: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Student'
+            }
+        ],
         lessonPlanIds: [
             {
                 type: mongoose.Schema.Types.ObjectId,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,9 +11,9 @@ import { fetchMyClasses, selectMyClasses } from '../../../store/slices/teacherSl
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectUser } from '../../../store/slices/authSlice';
 import AssignmentsHeader from './components/AssignmentsHeader';
-import AssignmentsFilters from './components/AssignmentsFilters';
+import AssignmentsOverview from './components/AssignmentsOverview';
+import AssignmentsPanel from './components/AssignmentsPanel';
 import CreateAssignmentForm from './components/CreateAssignmentForm';
-import AssignmentsTable from './components/AssignmentsTable';
 import AssignmentGradePanel from './components/AssignmentGradePanel';
 import ClassroomPanel from './components/ClassroomPanel';
 import GoogleFormsPanel from './components/GoogleFormsPanel';
@@ -24,13 +24,19 @@ import useGoogleClassroom from './hooks/useGoogleClassroom';
 import googleFormsService from '../../../services/googleFormsService';
 import { isClassworkAssignment } from '../../../components/grades/classworkBehaviorUtils';
 import {
+    filterAndSortAssignments,
+    getAssignmentMetrics
+} from './utils/assignmentListPresentation';
+import {
     normalizeGradeStudentsFromClassStudents,
     sortGradeStudentsByName
 } from './utils/assignmentPresentation';
 import './AssignmentsPage.css';
 
+const PAGE_SIZE = 10;
+
 const AssignmentsPage = () => {
-    const { t } = useTranslation(['assignments']);
+    const { t, i18n } = useTranslation(['assignments']);
     const [searchParams] = useSearchParams();
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
@@ -44,6 +50,12 @@ const AssignmentsPage = () => {
     const [loadingGoogleFormResults, setLoadingGoogleFormResults] = useState(false);
     const [createFormOpen, setCreateFormOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('assignments');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortKey, setSortKey] = useState('dueDate');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const [bulkBusy, setBulkBusy] = useState('');
+    const [startWithImport, setStartWithImport] = useState(false);
 
     useEffect(() => {
         if (searchParams.has('google_forms_connected') || searchParams.has('google_forms_error')) {
@@ -62,6 +74,8 @@ const AssignmentsPage = () => {
         setSubmitting,
         submittingGrades,
         setSubmittingGrades,
+        excuseBusyStudentId,
+        setExcuseBusyStudentId,
         selectedClass,
         setSelectedClass,
         selectedSubject,
@@ -91,7 +105,31 @@ const AssignmentsPage = () => {
         academicYear,
         assignments
     });
-    const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
+
+    const classLabel = useMemo(
+        () => availableClasses.find((item) => String(item._id) === String(selectedClass))?.name || '',
+        [availableClasses, selectedClass]
+    );
+
+    const metrics = useMemo(() => getAssignmentMetrics(assignments), [assignments]);
+
+    const filteredAssignments = useMemo(() => filterAndSortAssignments({
+        assignments,
+        status: selectedStatus,
+        search: searchTerm,
+        sortKey,
+        language: i18n.language
+    }), [assignments, i18n.language, searchTerm, selectedStatus, sortKey]);
+
+    const pageCount = Math.max(1, Math.ceil(filteredAssignments.length / PAGE_SIZE));
+    const safePage = Math.min(currentPage, pageCount);
+    const pagedAssignments = useMemo(() => (
+        filteredAssignments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+    ), [filteredAssignments, safePage]);
+
+    const allVisibleSelected = pagedAssignments.length > 0
+        && pagedAssignments.every((assignment) => selectedIds.has(assignment.id));
+    const someVisibleSelected = pagedAssignments.some((assignment) => selectedIds.has(assignment.id));
 
     useEffect(() => {
         if (form.createGoogleForm && selectedClass) {
@@ -124,10 +162,11 @@ const AssignmentsPage = () => {
             const response = await assignmentService.getAssignments({
                 classId: selectedClass,
                 subjectId: selectedSubject || undefined,
-                status: selectedStatus === 'all' ? undefined : selectedStatus,
-                academicYear
+                academicYear,
+                limit: 100
             });
             setAssignments(response?.data?.items || []);
+            setSelectedIds(new Set());
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:toasts.loadAssignmentsFailed'));
             setAssignments([]);
@@ -158,7 +197,43 @@ const AssignmentsPage = () => {
     useEffect(() => {
         fetchAssignments();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedClass, selectedSubject, selectedStatus, academicYear]);
+    }, [selectedClass, selectedSubject, academicYear]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedIds(new Set());
+    }, [selectedStatus, searchTerm, selectedClass, selectedSubject]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [sortKey]);
+
+    useEffect(() => {
+        if (currentPage > pageCount) setCurrentPage(pageCount);
+    }, [currentPage, pageCount]);
+
+    const handleClassChange = (classId) => {
+        if (classId !== selectedClass) {
+            setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
+            setSearchTerm('');
+        }
+        setSelectedClass(classId);
+    };
+
+    const handleSubjectChange = (subjectId) => {
+        setSearchTerm('');
+        setSelectedSubject(subjectId);
+    };
+
+    const openCreateDrawer = ({ importMode = false } = {}) => {
+        setActiveTab('assignments');
+        setEditingAssignment(null);
+        resetForm();
+        setStartWithImport(importMode);
+        setCreateFormOpen(true);
+    };
+
+    const onStartCreateAssignment = () => openCreateDrawer();
 
     const onCreateAssignment = async (event) => {
         event.preventDefault();
@@ -176,6 +251,11 @@ const AssignmentsPage = () => {
             toast.error(t('assignments:googleForms.selectStudents'));
             return;
         }
+
+        const submitAction = event.nativeEvent?.submitter?.value || '';
+        const publishNow = editingAssignment
+            ? form.publishNow
+            : submitAction === 'publish';
 
         const existingClassroomLink = editingAssignment?.id ? classroom.links[editingAssignment.id] : null;
         const postToClassroom = classroom.ready && Boolean(form.classroomPublish) && !existingClassroomLink;
@@ -203,7 +283,7 @@ const AssignmentsPage = () => {
                     : undefined,
                 dueDate: form.dueDate || undefined,
                 maxMarks: Number(form.maxMarks || 10),
-                publishNow: form.publishNow,
+                publishNow,
                 classroomPublish: postToClassroom || undefined,
                 notifyOnAssign: form.notifyOnAssign,
                 notifyAudience: form.notifyAudience || 'both',
@@ -243,6 +323,7 @@ const AssignmentsPage = () => {
 
             setEditingAssignment(null);
             resetForm();
+            setStartWithImport(false);
             setCreateFormOpen(false);
             await fetchAssignments();
         } catch (error) {
@@ -257,6 +338,7 @@ const AssignmentsPage = () => {
 
     const onEditAssignment = (assignment) => {
         setActiveTab('assignments');
+        setStartWithImport(false);
         setCreateFormOpen(true);
         setEditingAssignment(assignment);
         setForm((prev) => ({
@@ -292,14 +374,8 @@ const AssignmentsPage = () => {
     const onCancelEdit = () => {
         setEditingAssignment(null);
         resetForm();
+        setStartWithImport(false);
         setCreateFormOpen(false);
-    };
-
-    const onStartCreateAssignment = () => {
-        setActiveTab('assignments');
-        setEditingAssignment(null);
-        resetForm();
-        setCreateFormOpen(true);
     };
 
     const onDeleteAssignment = async (assignment) => {
@@ -348,15 +424,144 @@ const AssignmentsPage = () => {
     const onSendReminder = async (assignmentId, audience = 'both') => {
         setSendingReminder(assignmentId);
         try {
-            const res = await assignmentService.sendReminder(assignmentId, { tone: 'friendly', audience });
-            const count = res.data?.remindersSent ?? 0;
-            const label = audience === 'students' ? 'student(s)' : audience === 'parents' ? 'parent(s)' : 'recipient(s)';
-            toast.success(`Reminder sent for ${count} student(s) to ${label}`);
+            const res = await assignmentService.sendReminder(assignmentId, {
+                tone: 'friendly',
+                audience
+            });
+            const studentCount = res.data?.studentCount ?? 0;
+            const gradedStudentCount = res.data?.gradedStudentCount ?? 0;
+            if (studentCount > 0) {
+                toast.success(t('assignments:toasts.reminderSent', {
+                    count: studentCount,
+                    audience: t(`assignments:audience.${audience}`)
+                }));
+            } else {
+                toast.error(t('assignments:toasts.reminderFailed'));
+            }
+            if (gradedStudentCount > 0) {
+                toast(t('assignments:toasts.reminderSkippedGraded', {
+                    count: gradedStudentCount
+                }), { icon: 'ℹ️' });
+            }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to send reminder');
+            toast.error(
+                error.response?.status === 409
+                    ? t('assignments:toasts.allGraded')
+                    : error.response?.data?.message || t('assignments:toasts.reminderFailed')
+            );
         } finally {
             setSendingReminder(null);
         }
+    };
+
+    const onBulkPublish = async (selectedAssignments) => {
+        const drafts = selectedAssignments.filter((assignment) => assignment.status === 'draft');
+        if (drafts.length === 0 || bulkBusy) return;
+        if (!window.confirm(t('assignments:bulk.confirmPublish', { count: drafts.length }))) return;
+
+        setBulkBusy('publish');
+        let publishedCount = 0;
+        let failedCount = 0;
+        for (const assignment of drafts) {
+            try {
+                const result = await assignmentService.publishAssignment(assignment.id, {
+                    notifyOnAssign: true,
+                    notifyAudience: assignment.notifyAudience || 'both'
+                });
+                classroom.reportOutcome(result?.data?.classroom);
+                publishedCount += 1;
+            } catch {
+                failedCount += 1;
+            }
+        }
+        setBulkBusy('');
+        setSelectedIds(new Set());
+        await fetchAssignments();
+        if (publishedCount > 0) {
+            toast.success(t('assignments:bulk.published', { count: publishedCount }));
+        }
+        if (failedCount > 0) {
+            toast.error(t('assignments:bulk.publishFailed', { count: failedCount }));
+        }
+    };
+
+    const onBulkRemind = async (selectedAssignments, audience) => {
+        const publishedAssignments = selectedAssignments
+            .filter((assignment) => assignment.status === 'published');
+        if (publishedAssignments.length === 0 || bulkBusy) return;
+        if (!window.confirm(t('assignments:bulk.confirmRemind', {
+            count: publishedAssignments.length
+        }))) return;
+
+        setBulkBusy('remind');
+        let recipientCount = 0;
+        let skippedStudentCount = 0;
+        let skippedAssignmentCount = 0;
+        let failedCount = 0;
+        for (const assignment of publishedAssignments) {
+            try {
+                const result = await assignmentService.sendReminder(assignment.id, {
+                    tone: 'friendly',
+                    audience
+                });
+                recipientCount += result.data?.studentCount || 0;
+                skippedStudentCount += result.data?.gradedStudentCount || 0;
+            } catch (error) {
+                if (error.response?.status === 409) skippedAssignmentCount += 1;
+                else failedCount += 1;
+            }
+        }
+        setBulkBusy('');
+        setSelectedIds(new Set());
+        await fetchAssignments();
+        if (recipientCount > 0) {
+            toast.success(t('assignments:toasts.remindersSent', { count: recipientCount }));
+        }
+        if (skippedStudentCount > 0) {
+            toast(t('assignments:toasts.reminderSkippedGraded', {
+                count: skippedStudentCount
+            }), { icon: 'ℹ️' });
+        }
+        if (skippedAssignmentCount > 0) {
+            toast(t('assignments:bulk.remindSkippedAssignments', {
+                count: skippedAssignmentCount
+            }), { icon: 'ℹ️' });
+        }
+        if (failedCount > 0) {
+            toast.error(t('assignments:bulk.remindFailed', { count: failedCount }));
+        }
+    };
+
+    const onToggleSelected = (assignmentId, checked) => {
+        setSelectedIds((previous) => {
+            const next = new Set(previous);
+            if (checked) next.add(assignmentId);
+            else next.delete(assignmentId);
+            return next;
+        });
+    };
+
+    const onToggleSelectAll = (checked) => {
+        setSelectedIds((previous) => {
+            const next = new Set(previous);
+            for (const assignment of pagedAssignments) {
+                if (checked) next.add(assignment.id);
+                else next.delete(assignment.id);
+            }
+            return next;
+        });
+    };
+
+    const onReviewAttention = () => {
+        if (metrics.draftCount > 0) {
+            setSelectedStatus('draft');
+        } else if (metrics.awaitingGrading > 0) {
+            setSelectedStatus('published');
+            setSortKey('needsGrading');
+        } else if (metrics.overdue > 0) {
+            setSelectedStatus('published');
+        }
+        setCurrentPage(1);
     };
 
     const openGoogleFormResults = async (assignment) => {
@@ -397,7 +602,8 @@ const AssignmentsPage = () => {
                 nextRows[row.student.id] = {
                     marks: row.grade?.marks ?? '',
                     remarks: row.grade?.remarks || '',
-                    maxMarks: row.grade?.maxMarks ?? assignment.maxMarks
+                    maxMarks: row.grade?.maxMarks ?? assignment.maxMarks,
+                    excused: row.excused === true
                 };
             });
 
@@ -418,11 +624,41 @@ const AssignmentsPage = () => {
         }));
     };
 
+    const onToggleExcuse = async (student) => {
+        if (!gradingAssignment || excuseBusyStudentId) return;
+        const row = gradeRows[student.id] || {};
+        const nextExcused = row.excused !== true;
+        const hasTypedMarks = row.marks !== '' && row.marks !== null && row.marks !== undefined;
+        if (nextExcused && hasTypedMarks && !window.confirm(t('assignments:gradePanel.confirmExcuse'))) return;
+
+        setExcuseBusyStudentId(student.id);
+        try {
+            await assignmentService.setStudentExcuse(gradingAssignment.id, student.id, nextExcused);
+            setGradeRows((prev) => ({
+                ...prev,
+                [student.id]: nextExcused
+                    ? { ...prev[student.id], excused: true, marks: '', remarks: '' }
+                    : { ...prev[student.id], excused: false }
+            }));
+            toast.success(t(nextExcused
+                ? 'assignments:toasts.studentExcused'
+                : 'assignments:toasts.excuseRemoved'));
+            await fetchAssignments();
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('assignments:toasts.excuseFailed'));
+        } finally {
+            setExcuseBusyStudentId(null);
+        }
+    };
+
     const onSubmitGrades = async () => {
         if (!gradingAssignment || submittingGrades) return;
 
         const rows = Object.entries(gradeRows)
-            .filter(([, row]) => row.marks !== '' && row.marks !== null && row.marks !== undefined)
+            .filter(([, row]) => row.excused !== true
+                && row.marks !== ''
+                && row.marks !== null
+                && row.marks !== undefined)
             .map(([studentId, row]) => ({
                 studentId,
                 marks: Number(row.marks),
@@ -484,11 +720,25 @@ const AssignmentsPage = () => {
         document.getElementById(`${nextTab}-tab`)?.focus();
     };
 
+    const rowActions = {
+        canCreateAssignments,
+        onPublishAssignment,
+        onOpenGradePanel: openGradePanel,
+        onEditAssignment,
+        onDeleteAssignment,
+        onSendReminder,
+        onOpenGoogleFormResults: openGoogleFormResults,
+        sendingReminder,
+        publishingAssignment,
+        classroom
+    };
+
     return (
         <div className="assignments-page">
             <AssignmentsHeader
                 canCreateAssignments={canCreateAssignments}
                 onCreateAssignment={onStartCreateAssignment}
+                onImport={() => openCreateDrawer({ importMode: true })}
             />
 
             <div className="assignments-page__tabs" role="tablist" aria-label={t('assignments:tabs.label')}>
@@ -529,20 +779,47 @@ const AssignmentsPage = () => {
                 hidden={activeTab !== 'assignments'}
                 className="assignments-page__tab-panel"
             >
-                <AssignmentsFilters
-                    selectedClass={selectedClass}
-                    onClassChange={(classId) => {
-                        if (classId !== selectedClass) {
-                            setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
-                        }
-                        setSelectedClass(classId);
-                    }}
-                    selectedSubject={selectedSubject}
-                    onSubjectChange={setSelectedSubject}
+                <AssignmentsOverview
+                    metrics={metrics}
+                    classLabel={classLabel}
+                    onReviewAttention={onReviewAttention}
+                />
+
+                <AssignmentsPanel
+                    assignments={assignments}
+                    rows={pagedAssignments}
+                    loading={loading}
+                    statusCounts={metrics.statusCounts}
                     selectedStatus={selectedStatus}
                     onStatusChange={setSelectedStatus}
+                    sortKey={sortKey}
+                    onSortChange={setSortKey}
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    selectedClass={selectedClass}
+                    onClassChange={handleClassChange}
                     availableClasses={availableClasses}
+                    selectedSubject={selectedSubject}
+                    onSubjectChange={handleSubjectChange}
                     availableSubjects={availableSubjects}
+                    filteredCount={filteredAssignments.length}
+                    totalCount={assignments.length}
+                    page={safePage}
+                    pageCount={pageCount}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setCurrentPage}
+                    selectedIds={selectedIds}
+                    onToggleSelected={onToggleSelected}
+                    onToggleSelectAll={onToggleSelectAll}
+                    allVisibleSelected={allVisibleSelected}
+                    someVisibleSelected={someVisibleSelected}
+                    onClearSelection={() => setSelectedIds(new Set())}
+                    onBulkPublish={onBulkPublish}
+                    onBulkRemind={onBulkRemind}
+                    bulkBusy={bulkBusy}
+                    canCreateAssignments={canCreateAssignments}
+                    onStartCreate={onStartCreateAssignment}
+                    actions={rowActions}
                 />
 
                 <CreateAssignmentForm
@@ -554,6 +831,10 @@ const AssignmentsPage = () => {
                     classStudents={classStudents}
                     selectedClass={selectedClass}
                     selectedSubject={selectedSubject}
+                    availableClasses={availableClasses}
+                    availableSubjects={availableSubjects}
+                    onClassChange={handleClassChange}
+                    onSubjectChange={handleSubjectChange}
                     isEditing={Boolean(editingAssignment)}
                     onCancelEdit={onCancelEdit}
                     onClose={onCancelEdit}
@@ -561,21 +842,7 @@ const AssignmentsPage = () => {
                     classroom={classroom}
                     existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
                     googleFormPublished={Boolean(editingAssignment?.googleForm?.responderUri)}
-                />
-
-                <AssignmentsTable
-                    loading={loading}
-                    assignments={assignments}
-                    canCreateAssignments={canCreateAssignments}
-                    onPublishAssignment={onPublishAssignment}
-                    onOpenGradePanel={openGradePanel}
-                    onEditAssignment={onEditAssignment}
-                    onDeleteAssignment={onDeleteAssignment}
-                    onSendReminder={onSendReminder}
-                    sendingReminder={sendingReminder}
-                    publishingAssignment={publishingAssignment}
-                    classroom={classroom}
-                    onOpenGoogleFormResults={openGoogleFormResults}
+                    startWithImport={startWithImport}
                 />
 
                 <GoogleFormResultsPanel

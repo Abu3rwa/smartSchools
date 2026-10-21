@@ -9,6 +9,7 @@ import {
     gradeAssignment,
     publishAssignment,
     sendAssignmentReminder,
+    setAssignmentStudentExcuse,
     updateAssignment
 } from '../controllers/assignmentController.js';
 import { authorize, protect, requirePermission } from '../middleware/auth.js';
@@ -49,6 +50,15 @@ router.post(
     validationRules.mongoId,
     validate,
     sendAssignmentReminder
+);
+
+router.patch(
+    '/:id/excused',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.GRADE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    setAssignmentStudentExcuse
 );
 
 router.put(

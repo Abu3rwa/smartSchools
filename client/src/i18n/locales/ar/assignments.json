@@ -1,7 +1,29 @@
 {
   "header": {
     "title": "الواجبات",
-    "subtitle": "أنشئ واجبات الصف وانشرها وتابعها من مكان واحد."
+    "subtitle": "أنشئ واجبات الصف وانشرها وتابعها من مكان واحد.",
+    "import": "استيراد"
+  },
+  "overview": {
+    "label": "ملخص الواجبات",
+    "published": "منشور",
+    "drafts": "مسودات",
+    "dueThisWeek": "مستحق هذا الأسبوع",
+    "awaitingGrading": "بانتظار التصحيح",
+    "inClass": "في {{name}}",
+    "acrossClasses": "في {{count}} من الصفوف",
+    "draftsSub": "لم تُنشر بعد",
+    "dueToday": "مستحق اليوم: {{count}}",
+    "nextSevenDays": "خلال الأيام السبعة القادمة",
+    "acrossAssignments": "في {{count}} من الواجبات",
+    "allGraded": "تم تصحيح الكل",
+    "attention": {
+      "label": "يحتاج إلى انتباه:",
+      "drafts": "مسودات بانتظار النشر: {{count}}",
+      "ungraded": "تسليمات بانتظار التصحيح: {{count}}",
+      "overdue": "واجبات متأخرة: {{count}}",
+      "review": "راجعها"
+    }
   },
   "tabs": {
     "label": "أقسام صفحة الواجبات",
@@ -22,18 +44,68 @@
     "closed": "مغلق",
     "archived": "مؤرشف"
   },
+  "toolbar": {
+    "searchPlaceholder": "ابحث في الواجبات",
+    "showing": "عرض {{visible}} من {{total}}",
+    "filterByStatus": "تصفية الواجبات حسب الحالة",
+    "sortBy": "ترتيب حسب",
+    "sortDueDate": "تاريخ الاستحقاق",
+    "sortCreated": "الأحدث إنشاءً",
+    "sortTitle": "العنوان أ–ي",
+    "sortNeedsGrading": "الأكثر حاجة للتصحيح",
+    "selected": "تم تحديد {{count}}",
+    "publishSelected": "نشر المحدد",
+    "remindSelected": "إرسال تذكير",
+    "clearSelection": "إلغاء التحديد",
+    "selectAll": "تحديد جميع الواجبات",
+    "selectAssignment": "تحديد {{title}}"
+  },
   "table": {
     "title": "الواجبات",
     "loading": "جارٍ تحميل الواجبات...",
     "empty": "لا توجد واجبات مطابقة للفلاتر الحالية.",
+    "emptyTitle": "لا توجد واجبات بعد",
+    "emptyDescription": "أنشئ واجبًا أو عدّل الفلاتر لعرض النتائج.",
     "columns": {
       "title": "العنوان",
       "type": "النوع",
+      "assignment": "الواجب",
       "status": "الحالة",
       "due": "موعد التسليم",
+      "progress": "التقدم",
       "max": "الحد الأقصى",
       "actions": "الإجراءات"
     }
+  },
+  "due": {
+    "noDueDate": "لا يوجد تاريخ استحقاق",
+    "savedOn": "حُفظ في {{date}}",
+    "closed": "مغلق",
+    "overdueByDays": "متأخر عن الموعد: {{count}} يوم",
+    "wasDue": "كان مستحقًا في {{date}}",
+    "today": "مستحق اليوم",
+    "tomorrow": "مستحق غدًا",
+    "inDays": "خلال {{count}} يوم"
+  },
+  "progress": {
+    "notPublished": "غير منشور",
+    "noStudents": "لا يوجد طلاب",
+    "graded": "تم تصحيح {{graded}} من {{total}}"
+  },
+  "pagination": {
+    "showing": "عرض {{from}}–{{to}} من أصل {{total}}",
+    "label": "صفحات الواجبات",
+    "previous": "الصفحة السابقة",
+    "next": "الصفحة التالية"
+  },
+  "rowActions": {
+    "menuLabel": "إجراءات الواجب",
+    "more": "المزيد من إجراءات الواجب",
+    "edit": "تعديل الواجب",
+    "delete": "حذف الواجب",
+    "viewResults": "عرض النتائج",
+    "publishAndNotify": "النشر والإشعار",
+    "sendReminder": "إرسال تذكير"
   },
   "actions": {
     "publish": "نشر",
@@ -44,6 +116,12 @@
     "grade": "تصحيح",
     "edit": "تعديل",
     "delete": "حذف",
+    "sending": "جارٍ الإرسال...",
+    "remindBoth": "تذكير الطلاب وأولياء الأمور",
+    "remindStudents": "تذكير الطلاب",
+    "remindParents": "تذكير أولياء الأمور",
+    "add": "إضافة",
+    "cancel": "إلغاء",
     "cancelEdit": "إلغاء التعديل",
     "cancelCreate": "إغلاق",
     "saveChanges": "حفظ التغييرات",
@@ -59,6 +137,15 @@
     "maxMarks": "الدرجة القصوى",
     "instructions": "التعليمات",
     "instructionsPlaceholder": "تعليمات الواجب",
+    "attachments": "المرفقات",
+    "addAttachment": "إضافة ملف",
+    "links": "الروابط",
+    "linkTitle": "العنوان (اختياري)",
+    "addLink": "إضافة رابط",
+    "selectStandard": "اختر معيارًا...",
+    "selectAssessment": "اختر تقييمًا...",
+    "searchPlaceholder": "بحث...",
+    "noResults": "لا توجد نتائج",
     "publishNow": "نشر الآن",
     "notifyOnAssign": "إشعار عند الإسناد",
     "notifyAudience": "جهة الإشعار",
@@ -82,6 +169,36 @@
     "title": "التكاملات الاختيارية",
     "help": "إعدادات واتصالات Google Classroom وGoogle Forms."
   },
+  "drawer": {
+    "editEyebrow": "تعديل الواجب",
+    "newEyebrow": "واجب جديد",
+    "close": "إغلاق",
+    "class": "الصف",
+    "subject": "المادة",
+    "classSubjectRequired": "اختر الصف والمادة لتفعيل الاستيراد والنشر.",
+    "sections": "أقسام النموذج",
+    "detailsSection": "التفاصيل",
+    "googleFormSection": "اختبار نماذج Google",
+    "publishingOptions": "خيارات النشر",
+    "resourcesSection": "خطط الدروس والمرفقات",
+    "resourcesNav": "المصادر",
+    "notifyFamilies": "إشعار الطلاب وأولياء الأمور",
+    "notifyFamiliesHelp": "أرسل بريدًا إلكترونيًا عند نشر الواجب. لا يستلم أولياء الأمور الرسالة إلا إذا كانت إشعارات البريد مفعّلة لديهم.",
+    "notifyOnGrade": "إشعار عند التصحيح",
+    "notifyOnGradeHelp": "أرسل بريدًا إلكترونيًا عند إدخال درجة للطالب.",
+    "editHint": "تُطبّق التغييرات فورًا. استخدم قائمة الصف للنشر أو إرسال التذكيرات.",
+    "publishHint": "سيُرسل البريد إلى العائلات حسب الخيارات أعلاه. احفظ كمسودة للنشر لاحقًا.",
+    "saveDraft": "حفظ كمسودة",
+    "publishAssignment": "نشر الواجب"
+  },
+  "bulk": {
+    "confirmPublish": "هل تريد نشر {{count}} من المسودات المحددة؟ سيُرسل البريد إلى العائلات حسب إعدادات الإشعارات لكل واجب.",
+    "published": "تم نشر {{count}} من الواجبات",
+    "publishFailed": "تعذر نشر {{count}} من الواجبات",
+    "confirmRemind": "هل تريد إرسال تذكيرات عن {{count}} من الواجبات المنشورة المحددة؟",
+    "remindSkippedAssignments": "تم تخطي {{count}} من الواجبات لأن جميع طلابها مصححون بالفعل",
+    "remindFailed": "تعذر إرسال {{count}} من التذكيرات"
+  },
   "audience": {
     "both": "الطلاب وأولياء الأمور",
     "students": "الطلاب فقط",
@@ -96,6 +213,8 @@
       "status": "الحالة"
     },
     "optional": "اختياري",
+    "linkedLessons": "خطط الدروس المرتبطة:",
+    "saving": "جارٍ الحفظ…",
     "save": "حفظ درجات الواجب"
   },
   "classroom": {
@@ -174,6 +293,7 @@
     "connectedAs": "متصل بالحساب {{email}}",
     "notConnected": "اربط خدمات Google لإنشاء اختبارات نماذج Google وقراءة نتائجها.",
     "connect": "ربط خدمات Google",
+    "reconnect": "إعادة ربط خدمات Google",
     "disconnect": "فصل خدمات Google",
     "sharedAccessNotice": "يطلب هذا الاتصال الموحد صلاحيات Google Classroom ونماذج Google وإرسال Gmail وتنظيف الرسائل المرسلة في Gmail. قد ينقل التنظيف الرسائل المطابقة إلى المهملات. يؤدي فصل الاتصال إلى إلغاء الوصول إلى جميع هذه الخدمات.",
     "verifiedEmailNotice": "تجمع الاختبارات البريد الإلكتروني الموثق لحساب Google لكل مستجيب. يجب أن يستخدم الطالب الحساب المسجل في ملفه.",
@@ -250,6 +370,7 @@
   "common": {
     "empty": "-",
     "close": "إغلاق",
+    "loading": "جارٍ التحميل...",
     "saving": "جارٍ الحفظ..."
   },
   "toasts": {
@@ -267,6 +388,11 @@
     "deleteFailed": "فشل حذف الواجب",
     "published": "تم نشر الواجب",
     "publishFailed": "فشل نشر الواجب",
+    "reminderSent": "تم إرسال التذكير · {{audience}} · العدد: {{count}}",
+    "reminderSkippedGraded": "تم تخطي الطلاب المصححين: {{count}}",
+    "remindersSent": "تم إرسال التذكيرات: {{count}}",
+    "allGraded": "تم تصحيح جميع الطلاب بالفعل.",
+    "reminderFailed": "تعذر إرسال التذكير.",
     "loadGradesFailed": "فشل تحميل درجات الواجب",
     "enterGrade": "أدخل درجة واحدة على الأقل",
     "gradesSaved": "تم حفظ الدرجات",
