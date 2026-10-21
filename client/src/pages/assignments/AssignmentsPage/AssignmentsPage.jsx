@@ -564,8 +564,20 @@ const AssignmentsPage = () => {
         setCurrentPage(1);
     };
 
-    const openGoogleFormResults = async (assignment) => {
+    const loadGoogleFormResults = async (assignment) => {
         setGoogleFormResults({ assignment, items: [] });
+        setLoadingGoogleFormResults(true);
+        try {
+            const response = await googleFormsService.getResponses(assignment.id);
+            setGoogleFormResults({ assignment, items: response?.data?.items || [] });
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('assignments:googleForms.errors.load'));
+        } finally {
+            setLoadingGoogleFormResults(false);
+        }
+    };
+
+    const syncGoogleFormResults = async (assignment) => {
         setLoadingGoogleFormResults(true);
         try {
             const sync = await googleFormsService.syncResponses(assignment.id);
@@ -727,7 +739,7 @@ const AssignmentsPage = () => {
         onEditAssignment,
         onDeleteAssignment,
         onSendReminder,
-        onOpenGoogleFormResults: openGoogleFormResults,
+        onOpenGoogleFormResults: loadGoogleFormResults,
         sendingReminder,
         publishingAssignment,
         classroom
@@ -846,10 +858,11 @@ const AssignmentsPage = () => {
                 />
 
                 <GoogleFormResultsPanel
+                    key={googleFormResults?.assignment?.id || 'google-form-results'}
                     results={googleFormResults}
                     loading={loadingGoogleFormResults}
                     onClose={() => setGoogleFormResults(null)}
-                    onSync={openGoogleFormResults}
+                    onSync={syncGoogleFormResults}
                 />
 
                 <AssignmentGradePanel

@@ -1,12 +1,30 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { HiOutlineDownload, HiOutlinePlus, HiOutlineTrash, HiOutlineUpload } from 'react-icons/hi';
+import {
+    HiOutlineCheckCircle,
+    HiOutlineClipboardList,
+    HiOutlineDownload,
+    HiOutlineInformationCircle,
+    HiOutlinePlus,
+    HiOutlineTrash,
+    HiOutlineUpload,
+    HiOutlineX
+} from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import {
     buildGoogleFormQuestionCsvTemplate,
     MAX_IMPORT_FILE_BYTES,
     parseGoogleFormQuestionCsv
 } from '../utils/googleFormQuestionCsv';
+
+const MAX_QUESTIONS = 100;
+const MAX_OPTIONS = 20;
+const MIN_OPTIONS = 2;
+const TYPE_LABEL_KEYS = {
+    multiple_choice: 'multipleChoice',
+    true_false: 'trueFalse',
+    short_answer: 'shortAnswer'
+};
 
 const createQuestion = () => ({
     type: 'multiple_choice',
@@ -16,10 +34,25 @@ const createQuestion = () => ({
     points: 1
 });
 
+const getOptions = (question) => (Array.isArray(question.options) ? question.options : []);
+
+const getValidPoints = (question) => {
+    const points = Number(question.points);
+    return Number.isFinite(points) && points >= 1 ? points : 1;
+};
+
 const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }) => {
     const { t } = useTranslation(['assignments']);
     const fileInputRef = useRef(null);
     const [importingCsv, setImportingCsv] = useState(false);
+
+    const summary = useMemo(() => {
+        const totalPoints = questions.reduce((total, question) => (
+            question.type === 'short_answer' ? total : total + (Number(question.points) || 0)
+        ), 0);
+        const manualCount = questions.filter((question) => question.type === 'short_answer').length;
+        return { totalPoints, manualCount };
+    }, [questions]);
 
     const downloadTemplate = () => {
         const blob = new Blob([buildGoogleFormQuestionCsvTemplate()], { type: 'text/csv;charset=utf-8' });
@@ -63,18 +96,91 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
         )));
     };
 
+    const addQuestion = () => {
+        if (questions.length >= MAX_QUESTIONS) return;
+        onChange([...questions, createQuestion()]);
+    };
+
+    const removeQuestion = (index) => {
+        if (questions.length <= 1) return;
+        const question = questions[index];
+        const hasContent = Boolean(String(question.title || '').trim())
+            || getOptions(question).some((option) => String(option || '').trim());
+        if (hasContent && !window.confirm(t('assignments:googleForms.removeConfirm', { number: index + 1 }))) {
+            return;
+        }
+        onChange(questions.filter((_, currentIndex) => currentIndex !== index));
+    };
+
+    const changeType = (index, type) => {
+        const question = questions[index];
+        const points = getValidPoints(question);
+        if (type === 'true_false') {
+            updateQuestion(index, {
+                type,
+                options: ['True', 'False'],
+                correctAnswer: 'True',
+                points
+            });
+            return;
+        }
+        if (type === 'short_answer') {
+            updateQuestion(index, { type, options: [], correctAnswer: '', points: 0 });
+            return;
+        }
+        updateQuestion(index, {
+            type: 'multiple_choice',
+            options: ['', ''],
+            correctAnswer: '',
+            points
+        });
+    };
+
+    const changeOption = (index, optionIndex, value) => {
+        const question = questions[index];
+        const options = [...getOptions(question)];
+        const previous = options[optionIndex];
+        options[optionIndex] = value;
+        let correctAnswer = question.correctAnswer || '';
+        if (correctAnswer === previous) correctAnswer = value;
+        if (!options.includes(correctAnswer)) correctAnswer = '';
+        updateQuestion(index, { options, correctAnswer });
+    };
+
+    const addOption = (index) => {
+        const options = getOptions(questions[index]);
+        if (options.length >= MAX_OPTIONS) return;
+        updateQuestion(index, { options: [...options, ''] });
+    };
+
+    const removeOption = (index, optionIndex) => {
+        const question = questions[index];
+        const options = getOptions(question);
+        if (options.length <= MIN_OPTIONS) return;
+        const removed = options[optionIndex];
+        const nextOptions = options.filter((_, currentIndex) => currentIndex !== optionIndex);
+        const correctAnswer = question.correctAnswer === removed || !nextOptions.includes(question.correctAnswer)
+            ? ''
+            : question.correctAnswer;
+        updateQuestion(index, { options: nextOptions, correctAnswer });
+    };
+
     return (
-        <section className="google-form-question-editor">
-            <header>
-                <div>
-                    <h4>{t('assignments:googleForms.questionsTitle')}</h4>
-                    <p className="text-muted">{t('assignments:googleForms.questionsHelp')}</p>
-                    <p className="text-muted">{t('assignments:googleForms.csv.help')}</p>
+        <section className="quiz-builder" aria-labelledby="quiz-builder-title">
+            <header className="quiz-builder__head">
+                <div className="quiz-builder__intro">
+                    <span className="quiz-builder__icon" aria-hidden="true">
+                        <HiOutlineClipboardList />
+                    </span>
+                    <div>
+                        <h4 id="quiz-builder-title">{t('assignments:googleForms.questionsTitle')}</h4>
+                        <p>{t('assignments:googleForms.questionsHelp')}</p>
+                    </div>
                 </div>
-                <div className="assignment-csv-import__actions">
+                <div className="quiz-builder__actions">
                     <button
                         type="button"
-                        className="btn btn-outline"
+                        className="btn btn-outline btn-sm"
                         disabled={disabled || importingCsv}
                         onClick={downloadTemplate}
                     >
@@ -83,7 +189,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                     </button>
                     <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn btn-outline btn-sm"
                         disabled={disabled || importingCsv}
                         onClick={() => fileInputRef.current?.click()}
                     >
@@ -102,9 +208,9 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                     />
                     <button
                         type="button"
-                        className="btn btn-outline"
-                        disabled={disabled || questions.length >= 100}
-                        onClick={() => onChange([...questions, createQuestion()])}
+                        className="btn btn-primary btn-sm"
+                        disabled={disabled || questions.length >= MAX_QUESTIONS}
+                        onClick={addQuestion}
                     >
                         <HiOutlinePlus />
                         {t('assignments:googleForms.addQuestion')}
@@ -112,102 +218,248 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                 </div>
             </header>
 
-            {questions.map((question, index) => (
-                <fieldset className="google-form-question" key={question.questionId || `question-${index}`} disabled={disabled}>
-                    <legend>{t('assignments:googleForms.questionNumber', { number: index + 1 })}</legend>
-                    <label>
-                        {t('assignments:googleForms.prompt')}
-                        <textarea
-                            required
-                            maxLength={1000}
-                            value={question.title || ''}
-                            onChange={(event) => updateQuestion(index, { title: event.target.value })}
-                        />
-                    </label>
-                    <div className="google-form-question__settings">
-                        <label>
-                            {t('assignments:googleForms.questionType')}
-                            <select
-                                value={question.type}
-                                onChange={(event) => {
-                                    const type = event.target.value;
-                                    updateQuestion(index, {
-                                        type,
-                                        ...(type === 'true_false'
-                                            ? { options: ['True', 'False'], correctAnswer: 'True' }
-                                            : type === 'short_answer'
-                                                ? { options: [], correctAnswer: '', points: 0 }
-                                                : { options: ['', ''], correctAnswer: '', points: 1 })
-                                    });
-                                }}
-                            >
-                                <option value="multiple_choice">{t('assignments:googleForms.multipleChoice')}</option>
-                                <option value="true_false">{t('assignments:googleForms.trueFalse')}</option>
-                                <option value="short_answer">{t('assignments:googleForms.shortAnswer')}</option>
-                            </select>
-                        </label>
-                        {question.type !== 'short_answer' && (
-                            <>
-                                <label>
-                                    {t('assignments:googleForms.points')}
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        max={1000}
-                                        step={1}
-                                        value={question.points || 1}
-                                        onChange={(event) => updateQuestion(index, { points: Number(event.target.value) })}
-                                    />
-                                </label>
-                                <label>
-                                    {t('assignments:googleForms.correctAnswer')}
-                                    <select
-                                        required
-                                        value={question.correctAnswer || ''}
-                                        onChange={(event) => updateQuestion(index, { correctAnswer: event.target.value })}
-                                    >
-                                        <option value="">{t('assignments:googleForms.selectCorrectAnswer')}</option>
-                                        {(question.options || []).filter(Boolean).map((option, optionIndex) => (
-                                            <option key={`${option}-${optionIndex}`} value={option}>{option}</option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </>
-                        )}
-                    </div>
-                    {question.type === 'multiple_choice' && (
-                        <label>
-                            {t('assignments:googleForms.options')}
-                            <textarea
-                                required
-                                value={(question.options || []).join('\n')}
-                                onChange={(event) => {
-                                    const options = event.target.value.split('\n');
-                                    updateQuestion(index, {
-                                        options,
-                                        correctAnswer: options.includes(question.correctAnswer)
-                                            ? question.correctAnswer
-                                            : ''
-                                    });
-                                }}
-                                placeholder={t('assignments:googleForms.optionsHelp')}
-                            />
-                        </label>
-                    )}
-                    {question.type === 'short_answer' && (
-                        <p className="text-muted">{t('assignments:googleForms.shortAnswerHelp')}</p>
-                    )}
+            <div className="quiz-builder__toolbar">
+                <div className="quiz-builder__stats">
+                    <span className="quiz-builder__stat">
+                        <strong>{questions.length}</strong>
+                        {t('assignments:googleForms.statQuestions')}
+                    </span>
+                    <span className="quiz-builder__stat">
+                        <strong>{summary.totalPoints}</strong>
+                        {t('assignments:googleForms.totalPoints')}
+                    </span>
+                    <span className="quiz-builder__stat">
+                        <strong>{summary.manualCount}</strong>
+                        {t('assignments:googleForms.manualReview')}
+                    </span>
+                </div>
+                <details className="quiz-builder__csv">
+                    <summary>
+                        <HiOutlineInformationCircle aria-hidden="true" />
+                        {t('assignments:googleForms.csvFormat')}
+                    </summary>
+                    <p>{t('assignments:googleForms.csv.help')}</p>
+                </details>
+            </div>
+
+            {questions.length === 0 ? (
+                <div className="quiz-builder__empty">
+                    <span className="quiz-builder__empty-icon" aria-hidden="true">
+                        <HiOutlineClipboardList />
+                    </span>
+                    <strong>{t('assignments:googleForms.questionsEmptyTitle')}</strong>
+                    <p>{t('assignments:googleForms.questionsEmptyHelp')}</p>
                     <button
                         type="button"
-                        className="btn btn-danger btn-sm"
-                        disabled={questions.length <= 1}
-                        onClick={() => onChange(questions.filter((_, currentIndex) => currentIndex !== index))}
+                        className="btn btn-primary btn-sm"
+                        disabled={disabled}
+                        onClick={addQuestion}
                     >
-                        <HiOutlineTrash />
-                        {t('assignments:googleForms.removeQuestion')}
+                        <HiOutlinePlus />
+                        {t('assignments:googleForms.addFirstQuestion')}
                     </button>
-                </fieldset>
-            ))}
+                </div>
+            ) : (
+                <>
+                    <div className="quiz-builder__list">
+                        {questions.map((question, index) => {
+                            const options = getOptions(question);
+                            const type = question.type || 'multiple_choice';
+                            const points = type === 'short_answer' ? 0 : getValidPoints(question);
+                            return (
+                                <fieldset
+                                    className="quiz-question"
+                                    key={question.questionId || `question-${index}`}
+                                    disabled={disabled}
+                                >
+                                    <legend className="quiz-question__legend">
+                                        {t('assignments:googleForms.questionNumber', { number: index + 1 })}
+                                    </legend>
+                                    <header className="quiz-question__head">
+                                        <span className="quiz-question__number" aria-hidden="true">{index + 1}</span>
+                                        <div className="quiz-question__meta">
+                                            <span className="quiz-question__type">
+                                                {t(`assignments:googleForms.${TYPE_LABEL_KEYS[type] || 'multipleChoice'}`)}
+                                            </span>
+                                            {type === 'short_answer' ? (
+                                                <span className="quiz-question__points quiz-question__points--muted">
+                                                    {t('assignments:googleForms.manualReview')}
+                                                </span>
+                                            ) : (
+                                                <span className="quiz-question__points">
+                                                    {t('assignments:googleForms.pointsBadge', { count: points })}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="quiz-question__remove"
+                                            disabled={disabled || questions.length <= 1}
+                                            onClick={() => removeQuestion(index)}
+                                            aria-label={t('assignments:googleForms.removeQuestion')}
+                                            title={t('assignments:googleForms.removeQuestion')}
+                                        >
+                                            <HiOutlineTrash aria-hidden="true" />
+                                        </button>
+                                    </header>
+
+                                    <div className="quiz-question__body">
+                                        <label className="quiz-field">
+                                            <span>{t('assignments:googleForms.prompt')}</span>
+                                            <textarea
+                                                required
+                                                rows={2}
+                                                maxLength={1000}
+                                                value={question.title || ''}
+                                                onChange={(event) => updateQuestion(index, { title: event.target.value })}
+                                            />
+                                        </label>
+
+                                        <div className="quiz-question__settings">
+                                            <label className="quiz-field">
+                                                <span>{t('assignments:googleForms.questionType')}</span>
+                                                <select
+                                                    value={type}
+                                                    onChange={(event) => changeType(index, event.target.value)}
+                                                >
+                                                    <option value="multiple_choice">{t('assignments:googleForms.multipleChoice')}</option>
+                                                    <option value="true_false">{t('assignments:googleForms.trueFalse')}</option>
+                                                    <option value="short_answer">{t('assignments:googleForms.shortAnswer')}</option>
+                                                </select>
+                                            </label>
+                                            {type !== 'short_answer' && (
+                                                <label className="quiz-field quiz-field--points">
+                                                    <span>{t('assignments:googleForms.points')}</span>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        max={1000}
+                                                        step={1}
+                                                        required
+                                                        value={question.points ?? 1}
+                                                        onChange={(event) => updateQuestion(index, {
+                                                            points: event.target.value === ''
+                                                                ? ''
+                                                                : Number(event.target.value)
+                                                        })}
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+
+                                        {type === 'multiple_choice' && (
+                                            <div
+                                                className="quiz-options"
+                                                role="group"
+                                                aria-label={t('assignments:googleForms.options')}
+                                            >
+                                                <div className="quiz-options__head">
+                                                    <span className="quiz-options__title">
+                                                        {t('assignments:googleForms.options')}
+                                                    </span>
+                                                    <span className="quiz-options__hint">
+                                                        {t('assignments:googleForms.optionsHelp')}
+                                                    </span>
+                                                </div>
+                                                <div className="quiz-options__list">
+                                                    {options.map((option, optionIndex) => (
+                                                        <div className="quiz-option" key={`option-${optionIndex}`}>
+                                                            <input
+                                                                type="radio"
+                                                                name={`quiz-correct-${index}`}
+                                                                required
+                                                                checked={Boolean(option) && question.correctAnswer === option}
+                                                                disabled={disabled || !String(option || '').trim()}
+                                                                onChange={() => updateQuestion(index, { correctAnswer: option })}
+                                                                aria-label={t('assignments:googleForms.markCorrect')}
+                                                                title={t('assignments:googleForms.markCorrect')}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="quiz-option__input"
+                                                                maxLength={500}
+                                                                required={optionIndex < MIN_OPTIONS}
+                                                                value={option}
+                                                                placeholder={t('assignments:googleForms.optionPlaceholder', {
+                                                                    number: optionIndex + 1
+                                                                })}
+                                                                onChange={(event) => changeOption(index, optionIndex, event.target.value)}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                className="quiz-option__remove"
+                                                                disabled={disabled || options.length <= MIN_OPTIONS}
+                                                                onClick={() => removeOption(index, optionIndex)}
+                                                                aria-label={t('assignments:googleForms.removeOption')}
+                                                                title={t('assignments:googleForms.removeOption')}
+                                                            >
+                                                                <HiOutlineX aria-hidden="true" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline btn-sm quiz-options__add"
+                                                    disabled={disabled || options.length >= MAX_OPTIONS}
+                                                    onClick={() => addOption(index)}
+                                                >
+                                                    <HiOutlinePlus />
+                                                    {t('assignments:googleForms.addOption')}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {type === 'true_false' && (
+                                            <div className="quiz-truefalse">
+                                                <span className="quiz-field__label">
+                                                    {t('assignments:googleForms.correctAnswer')}
+                                                </span>
+                                                <div className="quiz-truefalse__choices" role="group" aria-label={t('assignments:googleForms.correctAnswer')}>
+                                                    {['True', 'False'].map((choice) => {
+                                                        const isActive = question.correctAnswer === choice;
+                                                        return (
+                                                            <button
+                                                                key={choice}
+                                                                type="button"
+                                                                className={`quiz-truefalse__choice${isActive ? ' is-active' : ''}`}
+                                                                aria-pressed={isActive}
+                                                                disabled={disabled}
+                                                                onClick={() => updateQuestion(index, { correctAnswer: choice })}
+                                                            >
+                                                                {isActive && <HiOutlineCheckCircle aria-hidden="true" />}
+                                                                {choice === 'True'
+                                                                    ? t('assignments:googleForms.trueLabel')
+                                                                    : t('assignments:googleForms.falseLabel')}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {type === 'short_answer' && (
+                                            <div className="quiz-callout">
+                                                <HiOutlineInformationCircle aria-hidden="true" />
+                                                <p>{t('assignments:googleForms.shortAnswerHelp')}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </fieldset>
+                            );
+                        })}
+                    </div>
+                    <button
+                        type="button"
+                        className="quiz-builder__add-more"
+                        disabled={disabled || questions.length >= MAX_QUESTIONS}
+                        onClick={addQuestion}
+                    >
+                        <HiOutlinePlus aria-hidden="true" />
+                        {t('assignments:googleForms.addQuestion')}
+                    </button>
+                </>
+            )}
         </section>
     );
 };
