@@ -18,7 +18,7 @@ import {
     HiOutlineSun,
     HiOutlineLogout,
      HiOutlineBell,
-    HiOutlineMenu,
+     HiOutlineMenu,
     HiOutlineCog,
     HiOutlineStar,
     HiOutlinePlus,
@@ -67,6 +67,11 @@ const Header = () => {
     });
 
     useEffect(() => {
+        if (isStudent) {
+            setNotificationCount(0);
+            return undefined;
+        }
+
         let cancelled = false;
         notificationService.getNotificationHistory({ status: 'pending', limit: 1 })
             .then((res) => {
@@ -77,7 +82,7 @@ const Header = () => {
             })
             .catch(() => {});
         return () => { cancelled = true; };
-    }, []);
+    }, [isStudent]);
 
     const handleLogout = () => {
         setUserMenuAnchor(null);
@@ -199,18 +204,20 @@ const Header = () => {
                     <span style={{ fontSize: 12, fontWeight: 700 }}>{language.toUpperCase()}</span>
                 </button>
 
-                <button
-                    className="header-btn notification-btn"
-                    onClick={handleNotificationClick}
-                    aria-label={notificationsAriaLabel}
-                >
-                    <HiOutlineBell size={20} />
-                    {notificationCount > 0 && (
-                        <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
-                    )}
-                </button>
+                {!isStudent && (
+                    <button
+                        className="header-btn notification-btn"
+                        onClick={handleNotificationClick}
+                        aria-label={notificationsAriaLabel}
+                    >
+                        <HiOutlineBell size={20} />
+                        {notificationCount > 0 && (
+                            <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
+                        )}
+                    </button>
+                )}
 
-                <div className="header-divider" />
+                {!isStudent && <div className="header-divider" />}
 
                 <div className="user-menu">
                     <button

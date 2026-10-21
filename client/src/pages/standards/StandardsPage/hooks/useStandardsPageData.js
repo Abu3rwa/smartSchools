@@ -4,8 +4,9 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import {
     createStandard,
+    bulkDeleteStandards,
     deleteStandard,
-    fetchStandards,
+    fetchAllStandards,
     importStandards,
     selectImportResult,
     selectStandards,
@@ -22,6 +23,7 @@ import {
     getSubjectsForStandardsFilter,
     parseStandardsImportText
 } from '../utils/standardsPagePresentation';
+import { buildStandardsCsvAiPrompt } from '../utils/standardsCsvAiPrompt';
 import importTemplateService from '../../../../services/importTemplateService';
 import { selectClasses } from '../../../../store/slices/classSlice';
 
@@ -48,11 +50,14 @@ const useStandardsPageData = () => {
     const [importText, setImportText] = useState('');
     const [importSubjectId, setImportSubjectId] = useState('');
     const [importFileName, setImportFileName] = useState('');
+    const [importDuplicatePolicy, setImportDuplicatePolicy] = useState('skip');
     const [formData, setFormData] = useState(createInitialStandardFormData());
     const [templateMeta, setTemplateMeta] = useState(null);
+    const [selectedStandardIds, setSelectedStandardIds] = useState([]);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     useEffect(() => {
-        dispatch(fetchStandards());
+        dispatch(fetchAllStandards());
     }, [dispatch]);
 
     useEffect(() => {
@@ -136,8 +141,27 @@ const useStandardsPageData = () => {
         const result = await dispatch(deleteStandard(id));
         if (deleteStandard.fulfilled.match(result)) {
             toast.success(t('standards:toasts.deleted'));
+            setSelectedStandardIds((current) => current.filter((selectedId) => String(selectedId) !== String(id)));
         } else {
             toast.error(result.payload || t('standards:toasts.deleteFailed'));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedStandardIds.length === 0 || bulkDeleting) return;
+        if (!window.confirm(t('standards:toasts.confirmBulkDelete', { count: selectedStandardIds.length }))) return;
+
+        setBulkDeleting(true);
+        try {
+            const result = await dispatch(bulkDeleteStandards(selectedStandardIds));
+            if (bulkDeleteStandards.fulfilled.match(result)) {
+                toast.success(t('standards:toasts.bulkDeleted', { count: result.payload.deletedCount }));
+                setSelectedStandardIds([]);
+            } else {
+                toast.error(result.payload || t('standards:toasts.deleteFailed'));
+            }
+        } finally {
+            setBulkDeleting(false);
         }
     };
 
@@ -155,7 +179,7 @@ const useStandardsPageData = () => {
             if (createStandard.fulfilled.match(result) || updateStandard.fulfilled.match(result)) {
                 toast.success(t(editingId ? 'standards:toasts.updated' : 'standards:toasts.created'));
                 handleCloseModal();
-                dispatch(fetchStandards());
+                dispatch(fetchAllStandards());
             } else {
                 toast.error(result.payload || t('standards:toasts.saveFailed'));
             }
@@ -182,17 +206,48 @@ const useStandardsPageData = () => {
                 return;
             }
 
-            const result = await dispatch(importStandards(parsed));
+            const result = await dispatch(importStandards({
+                standards: parsed,
+                duplicatePolicy: importDuplicatePolicy
+            }));
             if (importStandards.fulfilled.match(result)) {
-                toast.success(result.payload.message);
-                dispatch(fetchStandards());
-                setImportText('');
-                setImportFileName('');
+                const summary = result.payload.summary;
+                if (summary?.importedRows > 0) {
+                    toast.success(result.payload.message);
+                    dispatch(fetchAllStandards());
+                    setImportText('');
+                    setImportFileName('');
+                } else if (summary?.skippedRows > 0) {
+                    toast.error(t('standards:import.allSkipped', {
+                        count: summary.skippedRows,
+                        defaultValue: 'No standards were added. {{count}} rows were skipped; review the reasons below or choose Update matching codes.'
+                    }));
+                } else {
+                    toast.error(result.payload.message || t('standards:toasts.importFailed'));
+                }
             } else {
                 toast.error(result.payload || t('standards:toasts.importFailed'));
             }
         } catch {
             toast.error(t('standards:toasts.parseFailed'));
+        }
+    };
+
+    const handleCopyAiPrompt = async () => {
+        const selectedSubject = scopedSubjects.find(
+            (subject) => String(subject?._id) === String(importSubjectId)
+        );
+        const prompt = buildStandardsCsvAiPrompt({
+            subjectName: selectedSubject?.name || '',
+            subjectCode: selectedSubject?.code || ''
+        });
+
+        try {
+            await navigator.clipboard.writeText(prompt);
+            toast.success(t('standards:import.aiPromptCopied'));
+        } catch (error) {
+            console.error('Failed to copy standards CSV prompt:', error);
+            toast.error(t('standards:import.aiPromptCopyFailed'));
         }
     };
 
@@ -235,6 +290,8 @@ const useStandardsPageData = () => {
         setImportText,
         importSubjectId,
         setImportSubjectId,
+        importDuplicatePolicy,
+        setImportDuplicatePolicy,
         importFileName,
         formData,
         setFormData,
@@ -245,12 +302,17 @@ const useStandardsPageData = () => {
         classes: classOptions,
         isAdmin,
         filteredStandards,
+        selectedStandardIds,
+        setSelectedStandardIds,
+        bulkDeleting,
         handleOpenCreateModal,
         handleCloseModal,
         handleEdit,
         handleDelete,
+        handleBulkDelete,
         handleSubmit,
         handleImport,
+        handleCopyAiPrompt,
         handleImportFile,
         handleDownloadTemplate
     };

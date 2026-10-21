@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
     getClassCategoryAverage,
     getClassOverallAverage,
+    formatPercentageAsAverageOutOfTen,
     getScaleBandForPercentage,
     getStudentCategoryAverage,
     getStudentOverallAverage
@@ -36,6 +37,7 @@ const GradebookTable = ({
         }
 
         const band = getScaleBandForPercentage(numericAverage, gradingScale);
+        const averageOutOfTen = formatPercentageAsAverageOutOfTen(numericAverage);
         return (
             <span
                 className="gradebook-average-chip"
@@ -43,9 +45,9 @@ const GradebookTable = ({
                     backgroundColor: `${band?.color || '#64748b'}22`,
                     color: band?.color || 'var(--text-primary)'
                 }}
-                title={band?.grade ? `${band.grade} (${numericAverage.toFixed(1)}%)` : `${numericAverage.toFixed(1)}%`}
+                title={band?.grade ? `${band.grade} (${averageOutOfTen}/10)` : `${averageOutOfTen}/10`}
             >
-                {numericAverage.toFixed(1)}%
+                {averageOutOfTen}/10
                 {band?.grade ? ` (${band.grade})` : ''}
             </span>
         );

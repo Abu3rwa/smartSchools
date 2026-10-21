@@ -25,6 +25,7 @@ import { resolveSemesterForDate } from '../services/gradebookConfigService.js';
 import logger from '../utils/logger.js';
 import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
 import { buildStudentGradebookDocx } from '../services/studentGradebookDocxService.js';
+import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
 const MAX_GRADE_PAGE_LIMIT = 100;
@@ -268,7 +269,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         gradeType: 'daily',
         date: date || new Date(),
         marks,
-        maxMarks: maxMarks || subjectData?.dailyMaxMarks || 10,
+        maxMarks: maxMarks ?? subjectData?.dailyMaxMarks ?? 10,
         title,
         description,
         remarks,
@@ -386,7 +387,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         month,
         semester,
         marks: g.marks,
-        maxMarks: maxMarks || subjectData?.dailyMaxMarks || 10,
+        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory(effectiveCategory),
         title: title || '',
         notes: g.notes || '',
         remarks: g.remarks || '',
@@ -975,6 +976,7 @@ export const addExamGrade = asyncHandler(async (req, res) => {
     }
 
     const academicYear = resolveRequestedAcademicYear(req.body?.academicYear, req.school);
+    const effectiveGradeType = gradeType || 'monthly_test';
     const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
         lessonPlanIds,
         schoolId: req.schoolId,
@@ -990,10 +992,11 @@ export const addExamGrade = asyncHandler(async (req, res) => {
         class: classId,
         teacher: req.user._id,
         academicYear,
-        gradeType: gradeType || 'monthly_test',
+        gradeType: effectiveGradeType,
+        category: 'exam',
         date: date || new Date(),
         marks,
-        maxMarks: maxMarks || 100,
+        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory('exam'),
         examName,
         remarks,
         assessmentGroupId: assessmentGroupId || generateAssessmentGroupId('asg'),
@@ -2402,6 +2405,20 @@ export const autoFillColumn = asyncHandler(async (req, res) => {
 
     let skipped = 0;
     let filled = 0;
+    const column = columnId
+        ? await GradebookColumn.findOne({
+            _id: columnId,
+            school: req.schoolId,
+            class: classId,
+            subject: resolvedSubjectId,
+            academicYear: year
+        }).select('category maxMarks').lean()
+        : null;
+    if (columnId && !column) {
+        return res.status(404).json({ success: false, message: 'Gradebook column not found' });
+    }
+    const effectiveCategory = column?.category || category || 'classwork';
+    const effectiveMaxMarks = maxMarks ?? column?.maxMarks ?? getDefaultMaxMarksForCategory(effectiveCategory);
 
     if (onlyEmpty && columnId) {
         // Find students who already have a grade in this column
@@ -2421,11 +2438,11 @@ export const autoFillColumn = asyncHandler(async (req, res) => {
                 class: classId,
                 teacher: req.user._id,
                 academicYear: year,
-                gradeType: category || 'classwork',
-                category: category || 'classwork',
+                gradeType: effectiveCategory,
+                category: effectiveCategory,
                 date: date || new Date(),
                 marks: value,
-                maxMarks: maxMarks || 100,
+                maxMarks: effectiveMaxMarks,
                 columnId
             }));
 
@@ -2442,13 +2459,13 @@ export const autoFillColumn = asyncHandler(async (req, res) => {
                 {
                     $set: {
                         marks: value,
-                        maxMarks: maxMarks || 100,
+                        maxMarks: effectiveMaxMarks,
                         subject: resolvedSubjectId,
                         class: classId,
                         teacher: req.user._id,
                         academicYear: year,
-                        gradeType: category || 'classwork',
-                        category: category || 'classwork',
+                        gradeType: effectiveCategory,
+                        category: effectiveCategory,
                         date: date || new Date()
                     }
                 },
@@ -2465,11 +2482,11 @@ export const autoFillColumn = asyncHandler(async (req, res) => {
             class: classId,
             teacher: req.user._id,
             academicYear: year,
-            gradeType: category || 'classwork',
-            category: category || 'classwork',
+            gradeType: effectiveCategory,
+            category: effectiveCategory,
             date: date || new Date(),
             marks: value,
-            maxMarks: maxMarks || 100,
+            maxMarks: effectiveMaxMarks,
             title: req.body.title || 'Auto-filled'
         }));
         await Grade.insertMany(toCreate, { ordered: false });

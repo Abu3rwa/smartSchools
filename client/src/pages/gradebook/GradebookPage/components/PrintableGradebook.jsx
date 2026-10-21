@@ -12,6 +12,7 @@ import {
     selectMissingReport,
     fetchMissingReport
 } from '../../../store/slices/spreadsheetSlice';
+import { formatPercentageAsAverageOutOfTen } from '../utils/gradebookPresentation';
 
 const PRINT_STYLES = `
 @media print {
@@ -48,19 +49,20 @@ const PrintableGradebook = ({ classId, subjectId, semester, academicYear }) => {
 
     const getGrade = (studentId, columnId) => {
         const key = `${studentId}_${columnId}`;
-        return grades?.[key]?.marks ?? '';
+        return grades?.[studentId]?.[columnId]?.marks ?? grades?.[key]?.marks ?? '';
     };
 
     const getStudentAvg = (studentId) => {
         let sum = 0, count = 0;
         (columns || []).forEach(col => {
             const val = getGrade(studentId, col._id);
-            if (val !== '' && !isNaN(val) && col.totalMarks > 0) {
-                sum += (Number(val) / col.totalMarks) * 100;
+            const maxMarks = col.maxMarks ?? col.totalMarks;
+            if (val !== '' && !isNaN(val) && maxMarks > 0) {
+                sum += (Number(val) / maxMarks) * 100;
                 count++;
             }
         });
-        return count > 0 ? (sum / count).toFixed(1) + '%' : '—';
+        return count > 0 ? `${formatPercentageAsAverageOutOfTen(sum / count)}/10` : '—';
     };
 
     return (

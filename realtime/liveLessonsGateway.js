@@ -72,7 +72,6 @@ const hideCursorSpotlight = (sessionId) => {
 
 const handleCursorMessage = (socket, message) => {
   if (
-    socket.__liveRole !== "teacher" ||
     !socket.__liveIsOwner ||
     !socket.__liveSessionId ||
     socket.__liveSessionEnded

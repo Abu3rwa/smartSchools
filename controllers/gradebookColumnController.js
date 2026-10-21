@@ -1,5 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import * as columnService from '../services/gradebookColumnService.js';
+import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults.js';
 
 /**
  * GET /api/gradebook-columns
@@ -70,7 +71,7 @@ export const createColumn = asyncHandler(async (req, res) => {
         name: name.trim(),
         category: category.toLowerCase().trim(),
         date: date || new Date(),
-        maxMarks: maxMarks || 100,
+        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory(category),
         examPeriod: examPeriod || null,
         lessonPlanIds: lessonPlanIds || [],
         sortOrder: existingColumns.length + 1,

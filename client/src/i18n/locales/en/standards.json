@@ -6,7 +6,8 @@
   },
   "tabs": {
     "list": "Standards List",
-    "import": "Import"
+    "import": "Import",
+    "settings": "Settings"
   },
   "filters": {
     "searchPlaceholder": "Search standards...",
@@ -16,6 +17,9 @@
     "grade": "Grade {{grade}}"
   },
   "list": {
+    "selectAll": "Select all visible standards",
+    "selectStandard": "Select standard {{code}}",
+    "selectedCount": "{{count}} standards selected",
     "empty": "No standards found",
     "emptyAdminHint": "Click \"Add Standard\" or use Import to get started.",
     "columns": {
@@ -53,15 +57,27 @@
   "import": {
     "subjectForImport": "Subject for Import *",
     "uploadFile": "Upload CSV File (optional)",
+    "copyAiPrompt": "Copy AI instructions",
     "loadedFile": "Loaded: {{fileName}} (you can still edit the text below)",
     "pasteData": "Paste Standards Data (CSV or Tab-separated)",
     "help": "Supports CSV/TSV with or without a header row. Minimum columns: Code, Name, Description. Optional: Grade, Category, MasteryThreshold, MasteryMinQuestions.",
+    "duplicatePolicy": "If a standard code already exists",
+    "skipExisting": "Skip existing codes (default)",
+    "updateExisting": "Update matching codes",
+    "errorOnExisting": "Report existing codes as errors",
+    "duplicatePolicyHelp": "The uploaded file has unique codes. If all rows were skipped, those codes may already exist in this school's standards list. Choose Update matching codes to refresh them.",
+    "allSkipped": "No standards were added. {{count}} rows were skipped; review the reasons below or choose Update matching codes.",
+    "resultSummary": "Imported: {{imported}} (new: {{created}}, updated: {{updated}}) · Skipped: {{skipped}} · Failed: {{failed}}",
+    "moreWarnings": "{{count}} more skip warnings not shown.",
+    "aiPromptCopied": "AI CSV instructions copied",
+    "aiPromptCopyFailed": "Could not copy the AI instructions. Check clipboard permissions and try again.",
     "importing": "Importing...",
     "importButton": "Import Standards"
   },
   "actions": {
     "edit": "Edit",
     "delete": "Delete",
+    "deleteSelected": "Delete selected",
     "update": "Update Standard",
     "add": "Add Standard"
   },
@@ -73,6 +89,9 @@
   "toasts": {
     "confirmDelete": "Are you sure you want to delete this standard?",
     "deleted": "Standard deleted successfully",
+    "confirmBulkDelete": "Permanently delete these {{count}} selected standards? This cannot be undone.",
+    "bulkDeleted": "{{count}} standards permanently deleted",
+    "deletingBulk": "Deleting selected standards...",
     "deleteFailed": "Failed to delete",
     "updated": "Standard updated successfully!",
     "created": "Standard created successfully!",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../../config/api';
 import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress } from './studentMapPracticeProgress';
 import './StudentMapTestPrepPage.css';
@@ -16,6 +16,8 @@ const StudentMapTestPrepPage = () => {
   const [resultSummary, setResultSummary] = useState(null);
   const [reviewAttempt, setReviewAttempt] = useState(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [answerFeedback, setAnswerFeedback] = useState({});
+  const answerSaveSequence = useRef({});
 
   const loadHome = async () => {
     try {
@@ -78,6 +80,7 @@ const StudentMapTestPrepPage = () => {
       setAttempt(attemptData.attempt || null);
       setCurrentIndex(attemptState.currentIndex);
       setLocalAnswers(attemptState.answers);
+      setAnswerFeedback({});
       setResultSummary(null);
       if (!attemptData.attempt?._id) {
         setMessage('The set is ready. Start answering when you are ready.');
@@ -102,16 +105,35 @@ const StudentMapTestPrepPage = () => {
 
   const persistAnswer = async (questionId, response) => {
     if (!attempt?._id) return;
+    const requestSequence = (answerSaveSequence.current[questionId] || 0) + 1;
+    answerSaveSequence.current[questionId] = requestSequence;
+    setAnswerFeedback((current) => {
+      const next = { ...current };
+      delete next[questionId];
+      return next;
+    });
     setSaving(true);
     try {
-      await api.post(`/map-test-prep/practice/attempts/${attempt._id}/answer`, { questionId, response });
+      const answerResponse = await api.post(`/map-test-prep/practice/attempts/${attempt._id}/answer`, { questionId, response });
+      const result = answerResponse.data?.data || {};
+      if (answerSaveSequence.current[questionId] === requestSequence && result.feedback) {
+        setAnswerFeedback((current) => ({ ...current, [questionId]: result.feedback }));
+      }
       setHome((current) => {
         if (!current) return current;
         const existingAttempt = (current.attempts || []).find((item) => String(item._id) === String(attempt._id));
         if (!existingAttempt) return current;
         const answers = [...(existingAttempt.answers || [])];
         const answerIndex = answers.findIndex((answer) => String(answer.question?._id || answer.question) === String(questionId));
-        const nextAnswer = { ...(answerIndex >= 0 ? answers[answerIndex] : {}), question: questionId, response };
+        const savedAnswer = result.attempt?.answers?.find(
+          (answer) => String(answer.question?._id || answer.question) === String(questionId)
+        );
+        const nextAnswer = {
+          ...(answerIndex >= 0 ? answers[answerIndex] : {}),
+          ...(savedAnswer || {}),
+          question: questionId,
+          response
+        };
         if (answerIndex >= 0) answers[answerIndex] = nextAnswer;
         else answers.push(nextAnswer);
         return {
@@ -151,6 +173,7 @@ const StudentMapTestPrepPage = () => {
       setAttempt(null);
       setCurrentIndex(0);
       setLocalAnswers({});
+      setAnswerFeedback({});
       setResultSummary({
         score: submitted.score ?? 0,
         maxScore: submitted.maxScore ?? 0,
@@ -168,6 +191,17 @@ const StudentMapTestPrepPage = () => {
   };
 
   const currentAnswer = activeQuestion ? localAnswers[activeQuestion._id] ?? '' : '';
+  const currentFeedback = activeQuestion ? answerFeedback[activeQuestion._id] : null;
+  const feedbackCorrectAnswer = currentFeedback?.correctAnswer;
+  const correctAnswerText = Array.isArray(currentFeedback?.options)
+    ? String(feedbackCorrectAnswer || '')
+      .split('|')
+      .map((key) => {
+        const option = currentFeedback.options.find((item) => String(item.key) === key);
+        return option ? `${option.key}. ${option.text}` : key;
+      })
+      .join(', ')
+    : feedbackCorrectAnswer;
 
   if (reviewAttempt) {
     return (
@@ -303,6 +337,33 @@ const StudentMapTestPrepPage = () => {
                 onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
                 placeholder="Type your answer here"
               />
+            )}
+            {currentFeedback && (
+              <div
+                className={`student-map-prep-feedback ${
+                  currentFeedback.requiresTeacherReview
+                    ? 'pending'
+                    : currentFeedback.isCorrect
+                      ? 'correct'
+                      : 'incorrect'
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                <strong>
+                  {currentFeedback.requiresTeacherReview
+                    ? 'Your teacher will review this answer.'
+                    : currentFeedback.isCorrect
+                      ? 'Correct!'
+                      : currentFeedback.score > 0
+                        ? 'Partially correct.'
+                        : 'Not quite.'}
+                </strong>
+                {correctAnswerText && currentFeedback.isCorrect === false && (
+                  <span><strong>Correct answer:</strong> {correctAnswerText}</span>
+                )}
+                {currentFeedback.explanation && <span>{currentFeedback.explanation}</span>}
+              </div>
             )}
           </div>
 

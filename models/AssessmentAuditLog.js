@@ -11,14 +11,6 @@ const assessmentAuditLogSchema = new mongoose.Schema(
     action: {
       type: String,
       enum: [
-        'progress_table_sent',
-        'narrative_generated',
-        'narrative_approved',
-        'narrative_sent',
-        'narrative_expired',
-        'assessment_edited',
-        'revision_created',
-        'revision_published',
         'pool_draft_created',
         'settings_updated',
         'permission_changed',
@@ -27,7 +19,7 @@ const assessmentAuditLogSchema = new mongoose.Schema(
     },
     messageType: {
       type: String,
-      enum: ['table', 'narrative', 'table+narrative', 'revision', 'pool', 'settings', null],
+      enum: ['pool', 'settings', null],
       default: null,
     },
     performedBy: {
@@ -53,16 +45,6 @@ const assessmentAuditLogSchema = new mongoose.Schema(
     assignment: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'StandardAssignment',
-      default: null,
-    },
-    narrativeReport: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'AssessmentNarrative',
-      default: null,
-    },
-    revision: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'AssessmentRevision',
       default: null,
     },
     recipientTypes: {

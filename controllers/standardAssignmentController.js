@@ -10,7 +10,6 @@ import StandardsGradebookEntry from '../models/StandardsGradebookEntry.js';
 import ReviewTask from '../models/ReviewTask.js';
 import InterventionCase from '../models/InterventionCase.js';
 import AssessmentAuditLog from '../models/AssessmentAuditLog.js';
-import AssessmentRevision from '../models/AssessmentRevision.js';
 import GrammarTest from '../models/GrammarTest.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -1485,7 +1484,6 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
         ReviewTask.deleteMany(assignmentFilter),
         InterventionCase.deleteMany(assignmentFilter),
         AssessmentAuditLog.deleteMany(assignmentFilter),
-        AssessmentRevision.deleteMany(assignmentFilter),
         GrammarTest.deleteMany({ school: req.schoolId, linkedAssignment: assignment._id }),
         StandardAssignment.deleteOne({ _id: assignment._id, school: req.schoolId })
     ]);

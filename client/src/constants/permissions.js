@@ -130,20 +130,8 @@ export const PERMISSIONS = {
     // Standards Assessment
     VIEW_ASSESSMENT_POOL: 'view_assessment_pool',
     CREATE_ASSESSMENT_FROM_POOL: 'create_assessment_from_pool',
-    SEND_ASSESSMENT_PROGRESS: 'send_assessment_progress',
-    GENERATE_ASSESSMENT_NARRATIVE: 'generate_assessment_narrative',
-    APPROVE_ASSESSMENT_NARRATIVE: 'approve_assessment_narrative',
-    SEND_ASSESSMENT_NARRATIVE: 'send_assessment_narrative',
-    OVERRIDE_ASSESSMENT_NARRATIVE: 'override_assessment_narrative',
-    EDIT_LIVE_ASSESSMENT: 'edit_live_assessment',
-    PUBLISH_ASSESSMENT_REVISION: 'publish_assessment_revision',
     MANAGE_ASSESSMENT_POOL_SETTINGS: 'manage_assessment_pool_settings',
-    MANAGE_ASSESSMENT_SEND_SETTINGS: 'manage_assessment_send_settings',
-    MANAGE_ASSESSMENT_NARRATIVE_SETTINGS: 'manage_assessment_narrative_settings',
-    MANAGE_ASSESSMENT_EDIT_SETTINGS: 'manage_assessment_edit_settings',
     MANAGE_ASSESSMENT_COMMS_SETTINGS: 'manage_assessment_comms_settings',
-    VIEW_ASSESSMENT_AUDIT_LOGS: 'view_assessment_audit_logs',
-    EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs',
 
     // MAP Test Prep
     VIEW_MAP_TEST_PREP: 'view_map_test_prep',
@@ -616,59 +604,9 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Select pool questions and create a new assessment draft',
         category: 'standards_assessment'
     },
-    [PERMISSIONS.SEND_ASSESSMENT_PROGRESS]: {
-        label: 'Send Assessment Progress',
-        description: 'Send finished/unfinished progress tables to students and/or parents',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.GENERATE_ASSESSMENT_NARRATIVE]: {
-        label: 'Generate Assessment Narrative',
-        description: 'Generate AI narrative reports from student evidence and mastery data',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.APPROVE_ASSESSMENT_NARRATIVE]: {
-        label: 'Approve Assessment Narrative',
-        description: 'Review, edit, and approve AI-generated narratives before sending',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.SEND_ASSESSMENT_NARRATIVE]: {
-        label: 'Send Assessment Narrative',
-        description: 'Send approved narrative reports to students and/or parents',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.OVERRIDE_ASSESSMENT_NARRATIVE]: {
-        label: 'Override Assessment Narrative',
-        description: 'Edit/approve a narrative draft created by another teacher (HOD override)',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.EDIT_LIVE_ASSESSMENT]: {
-        label: 'Edit Live Assessment',
-        description: 'Edit assessment content (questions, options, answers) after students have started',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.PUBLISH_ASSESSMENT_REVISION]: {
-        label: 'Publish Assessment Revision',
-        description: 'Publish a new content revision on a live assessment',
-        category: 'standards_assessment'
-    },
     [PERMISSIONS.MANAGE_ASSESSMENT_POOL_SETTINGS]: {
         label: 'Manage Assessment Pool Settings',
         description: 'Configure pool library restrictions (visibility scope, browsing rules, limits)',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.MANAGE_ASSESSMENT_SEND_SETTINGS]: {
-        label: 'Manage Assessment Send Settings',
-        description: 'Configure progress table send restrictions (frequency caps, channels, privacy)',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.MANAGE_ASSESSMENT_NARRATIVE_SETTINGS]: {
-        label: 'Manage Assessment Narrative Settings',
-        description: 'Configure narrative generation restrictions (tone, length, filters, banned phrases)',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.MANAGE_ASSESSMENT_EDIT_SETTINGS]: {
-        label: 'Manage Assessment Edit Settings',
-        description: 'Configure live edit restrictions (revision policies, lock windows, notifications)',
         category: 'standards_assessment'
     },
     [PERMISSIONS.MANAGE_ASSESSMENT_COMMS_SETTINGS]: {
@@ -676,16 +614,6 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Configure communication preferences (email branding, quiet hours, channels)',
         category: 'standards_assessment'
     },
-    [PERMISSIONS.VIEW_ASSESSMENT_AUDIT_LOGS]: {
-        label: 'View Assessment Audit Logs',
-        description: 'View send/edit audit logs for standards assessments',
-        category: 'standards_assessment'
-    },
-    [PERMISSIONS.EXPORT_ASSESSMENT_AUDIT_LOGS]: {
-        label: 'Export Assessment Audit Logs',
-        description: 'Export assessment audit logs as CSV/PDF for compliance reporting',
-        category: 'standards_assessment'
-    }
 };
 
 export const PERMISSION_CATEGORIES = {
@@ -720,4 +648,3 @@ export default {
     PERMISSION_CATEGORIES,
     getPermissionsByCategory
 };
-

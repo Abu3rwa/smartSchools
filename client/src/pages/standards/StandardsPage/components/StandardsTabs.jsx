@@ -6,10 +6,7 @@ import {
     HiOutlineLink,
     HiOutlineChartBar,
     HiOutlineRectangleStack,
-    HiOutlineTableCells,
-    HiOutlineDocumentText,
-    HiOutlinePencilSquare,
-    HiOutlineShieldCheck,
+    HiOutlineCog6Tooth,
 } from 'react-icons/hi2';
 import { useTranslation } from 'react-i18next';
 import { STANDARDS_PAGE_TABS } from '../constants';
@@ -20,10 +17,7 @@ const TAB_DEFS = [
     { key: STANDARDS_PAGE_TABS.assign, icon: HiOutlineLink, labelKey: 'tabs.assign', fallbackLabel: 'Assign' },
     { key: STANDARDS_PAGE_TABS.gradebook, icon: HiOutlineChartBar, labelKey: 'tabs.gradebook', fallbackLabel: 'Gradebook' },
     { key: STANDARDS_PAGE_TABS.pool, icon: HiOutlineRectangleStack, labelKey: 'tabs.pool', fallbackLabel: 'Pool' },
-    { key: STANDARDS_PAGE_TABS.progress, icon: HiOutlineTableCells, labelKey: 'tabs.progress', fallbackLabel: 'Progress' },
-    { key: STANDARDS_PAGE_TABS.narrative, icon: HiOutlineDocumentText, labelKey: 'tabs.narrative', fallbackLabel: 'Narrative' },
-    { key: STANDARDS_PAGE_TABS.liveEdit, icon: HiOutlinePencilSquare, labelKey: 'tabs.liveEdit', fallbackLabel: 'Live Edit' },
-    { key: STANDARDS_PAGE_TABS.audit, icon: HiOutlineShieldCheck, labelKey: 'tabs.audit', fallbackLabel: 'Audit', adminOnly: true },
+    { key: STANDARDS_PAGE_TABS.settings, icon: HiOutlineCog6Tooth, labelKey: 'tabs.settings', fallbackLabel: 'Settings', adminOnly: true },
 ];
 
 const StandardsTabs = ({ activeTab, onTabChange, isAdmin }) => {

@@ -54,9 +54,12 @@ const AutoFillModal = ({ columns, classId, subjectId, academicYear, semester, on
         }
         setSubmitting(true);
         try {
+            const selectedColumn = columns.find(column => column._id === form.columnId);
             await dispatch(autoFillColumn({
                 columnId: form.columnId,
                 value: Number(form.value),
+                maxMarks: selectedColumn?.maxMarks,
+                category: selectedColumn?.category,
                 onlyEmpty: form.onlyEmpty,
                 classId,
                 subjectId,
@@ -70,7 +73,7 @@ const AutoFillModal = ({ columns, classId, subjectId, academicYear, semester, on
         } finally {
             setSubmitting(false);
         }
-    }, [dispatch, form, classId, subjectId, academicYear, semester, onFilled]);
+    }, [dispatch, form, columns, classId, subjectId, academicYear, semester, onFilled]);
 
     const unlockedColumns = columns.filter(c => !c.isLocked);
 

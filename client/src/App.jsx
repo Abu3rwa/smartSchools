@@ -96,10 +96,6 @@ const StandardAssignPage = lazy(() => import("./pages/standards/StandardAssignPa
 const GrammarAssessmentPage = lazy(() => import("./pages/grammar"));
 const StandardsGradebookPage = lazy(() => import("./pages/standards/StandardsGradebookPage"));
 const AssessmentPoolPage = lazy(() => import("./pages/standards/AssessmentPoolPage/AssessmentPoolPage"));
-const AssessmentProgressPage = lazy(() => import("./pages/standards/AssessmentProgressPage/AssessmentProgressPage"));
-const AssessmentNarrativePage = lazy(() => import("./pages/standards/AssessmentNarrativePage/AssessmentNarrativePage"));
-const AssessmentLiveEditPage = lazy(() => import("./pages/standards/AssessmentLiveEditPage/AssessmentLiveEditPage"));
-const AssessmentAuditPage = lazy(() => import("./pages/standards/AssessmentAuditPage/AssessmentAuditPage"));
 const MapTestPrepPage = lazy(() => import("./pages/mapTestPrep/MapTestPrepPage"));
 const StudentMapTestPrepPage = lazy(() => import("./pages/student/mapTestPrep/StudentMapTestPrepPage"));
 const CurriculumPage = lazy(() => import("./pages/curriculum/CurriculumPage"));
@@ -1074,46 +1070,6 @@ function App() {
                 <RoleRoute roles={["admin", "teacher"]}>
                   <FeatureGate feature="standardsPractice" showUpgradePrompt>
                     <AssessmentPoolPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="standards/progress"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
-                    <AssessmentProgressPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="standards/narrative"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
-                    <AssessmentNarrativePage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="standards/live-edit"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
-                    <AssessmentLiveEditPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="standards/audit"
-              element={
-                <RoleRoute roles={["admin"]}>
-                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
-                    <AssessmentAuditPage />
                   </FeatureGate>
                 </RoleRoute>
               }

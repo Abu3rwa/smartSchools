@@ -13,7 +13,6 @@ export const PRONUNCIATION_COLUMNS = Object.freeze({
     'longman uk': 'longmanUK',
     'oxford us': 'oxfordUS',
     'oxford uk': 'oxfordUK',
-    'webster us': 'websterUS',
     'google us': 'googleUS',
     'google uk': 'googleUK'
 });
@@ -72,7 +71,7 @@ const parseCsvLine = (line, rowNumber) => {
 const EXAMPLE_HEADER = /^(longman|oxford|webster|google) examples?(?: \d+)?$/;
 
 /**
- * Columns (case-insensitive, any order): word, Longman US/UK, Oxford US/UK, Webster US, Google US/UK,
+ * Columns (case-insensitive, any order): word, Longman US/UK, Oxford US/UK, Google US/UK,
  * status, first week, definition (optional), "<Dictionary> example 1..n" (optional; a cell may hold several
  * URLs separated by "|"). Unknown columns are ignored.
  */

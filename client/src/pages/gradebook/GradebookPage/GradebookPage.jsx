@@ -23,6 +23,7 @@ import {
     getEmailLanguagePreference,
     saveEmailLanguagePreference
 } from '../../../utils/emailLanguagePreference';
+import { buildGradebookCsv, downloadGradebookCsv } from './utils/gradebookCsvExport';
 // import ReteachTasksPanel from './components/ReteachTasksPanel';
 import StudentLearningTraceModal from './components/StudentLearningTraceModal';
 import useGradebookPageState from './hooks/useGradebookPageState';
@@ -244,6 +245,20 @@ const GradebookPage = ({
         return false;
     };
 
+    const handleExportGradebook = () => {
+        const csv = buildGradebookCsv({
+            students,
+            categories: dynamicCategories,
+            processedData,
+            className: currentClass?.name,
+            academicYear,
+            subjectName: availableSubjects.find(subject => subject._id === selectedSubject)?.name || '',
+            monthName: MONTHS.find(month => month.value === selectedMonth)?.label || ''
+        });
+        downloadGradebookCsv(csv, currentClass?.name);
+        toast.success('Gradebook exported');
+    };
+
     return (
         <div className={isEmbedded ? 'gradebook-page-embedded' : 'gradebook-page'}>
             <GradebookHeader
@@ -281,6 +296,8 @@ const GradebookPage = ({
                 selectedSubjectFilter={selectedSubjectFilter}
                 onSubjectFilterChange={onSubjectFilterChange}
                 onClassChange={onClassChange}
+                onExportGradebook={handleExportGradebook}
+                hasGrades={grades.length > 0}
             />
 
             {viewMode === 'spreadsheet' && hasSpreadsheet ? (
@@ -370,6 +387,7 @@ const GradebookPage = ({
                 onClose={() => setShowDailyClassworkModal(false)}
                 onSend={handleSendDailyClasswork}
             />
+
         </div>
     );
 };

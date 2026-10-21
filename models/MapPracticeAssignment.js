@@ -9,7 +9,7 @@ const mapPracticeAssignmentSchema = new mongoose.Schema({
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     dueDate: { type: Date, default: null },
     status: { type: String, enum: ['draft', 'assigned', 'active', 'closed'], default: 'draft' },
-    feedbackMode: { type: String, enum: ['instant', 'after_submit', 'after_review'], default: 'after_submit' },
+    feedbackMode: { type: String, enum: ['instant', 'after_submit', 'after_review'], default: 'instant' },
     selfPractice: { type: Boolean, default: true },
     showTimer: { type: Boolean, default: false },
     timeLimitSeconds: { type: Number, default: null }

@@ -55,7 +55,8 @@ const getAnswerSkill = (answer) => {
   return {
     id: String(skill._id || skill.id || skill.code || skill.name),
     code: String(skill.code || ''),
-    name: String(skill.name || skill.code || 'Unnamed skill')
+    name: String(skill.name || skill.code || 'Unnamed skill'),
+    skillSet: String(skill.strand || populatedQuestion.strand || '').trim()
   };
 };
 
@@ -76,6 +77,23 @@ const toSkillSummary = (skillsById) => [...skillsById.values()]
     evidence: skill.graded < MIN_SKILL_RESPONSES ? 'limited' : 'sufficient'
   }))
   .sort((first, second) => first.accuracy - second.accuracy || first.name.localeCompare(second.name));
+
+const summarizeSkillSets = (skills) => {
+  const skillSetsByName = new Map();
+  skills.forEach((skill) => {
+    const name = skill.skillSet || 'Unspecified skill set';
+    const current = skillSetsByName.get(name) || {
+      id: name,
+      name,
+      correct: 0,
+      graded: 0
+    };
+    current.correct += skill.correct;
+    current.graded += skill.graded;
+    skillSetsByName.set(name, current);
+  });
+  return toSkillSummary(skillSetsByName);
+};
 
 const getSetTitle = (attempt, setById) => {
   const populatedSet = attempt.set && typeof attempt.set === 'object' ? attempt.set : null;
@@ -172,6 +190,7 @@ export const buildMapPracticeStudentReport = ({
     attempts: summary.attempts,
     recentAttempts,
     skills: summary.skills,
+    skillSets: summarizeSkillSets(summary.skills),
     metrics: summary.metrics,
     interpretations: interpretations.slice(0, 6)
   };
@@ -244,7 +263,14 @@ export const buildMapPracticeClassReport = ({
       studentsWithAccuracy += 1;
     }
     row.skills.forEach((skill) => {
-      const current = skillMap.get(skill.id) || { id: skill.id, code: skill.code, name: skill.name, correct: 0, graded: 0 };
+      const current = skillMap.get(skill.id) || {
+        id: skill.id,
+        code: skill.code,
+        name: skill.name,
+        skillSet: skill.skillSet,
+        correct: 0,
+        graded: 0
+      };
       current.correct += skill.correct;
       current.graded += skill.graded;
       skillMap.set(skill.id, current);
@@ -252,6 +278,7 @@ export const buildMapPracticeClassReport = ({
   });
 
   const skills = toSkillSummary(skillMap).filter((skill) => skill.graded >= MIN_SKILL_RESPONSES);
+  const skillSets = summarizeSkillSets([...skillMap.values()]);
   const classStudentIds = new Set(students.map((student) => String(student._id)));
   const assignmentsCount = new Set(classAssignments.map((assignment) => String(assignment.student))).size;
 
@@ -266,6 +293,7 @@ export const buildMapPracticeClassReport = ({
     period,
     generatedAt,
     skills,
+    skillSets,
     students: studentRows,
     metrics: {
       roster: classStudentIds.size,

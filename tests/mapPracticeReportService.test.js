@@ -12,7 +12,7 @@ const period = {
   startDate: new Date('2026-08-01T00:00:00.000Z'),
   endDate: new Date('2027-07-31T23:59:59.999Z')
 };
-const skill = { _id: 'skill-1', code: 'VOC-CONTEXT', name: 'Context clues' };
+const skill = { _id: 'skill-1', code: 'VOC-CONTEXT', name: 'Context clues', strand: 'Vocabulary' };
 const student = { _id: 'student-1', firstName: 'Alex', lastName: 'Student', studentId: 'S-0001' };
 
 test('report period defaults to academic year and validates explicit inclusive dates', () => {
@@ -70,6 +70,9 @@ test('student report counts graded answers only and omits answer content', () =>
   assert.equal(report.metrics.pendingReviews, 1);
   assert.equal(report.skills[0].graded, 2);
   assert.equal(report.skills[0].evidence, 'limited');
+  assert.deepEqual(report.skillSets.map(({ name, correct, graded, accuracy }) => ({ name, correct, graded, accuracy })), [
+    { name: 'Vocabulary', correct: 1, graded: 2, accuracy: 50 }
+  ]);
   assert.equal(JSON.stringify(report).includes('sensitive student answer'), false);
 });
 
@@ -155,6 +158,9 @@ test('class report averages per-student accuracy instead of pooling responses', 
   assert.equal(report.metrics.withAssignments, 1);
   assert.deepEqual(report.students.map((item) => item.name), ['Alex Student', 'Sam Student']);
   assert.equal(report.skills[0].graded, 5);
+  assert.deepEqual(report.skillSets.map(({ name, graded }) => ({ name, graded })), [
+    { name: 'Vocabulary', graded: 5 }
+  ]);
 });
 
 test('report HTML escapes user-controlled content and excludes student answers', () => {
@@ -199,6 +205,13 @@ test('skill chart grows for any number of skills and wraps long labels without c
     attempts: [],
     recentAttempts: [],
     skills,
+    skillSets: [{
+      name: 'Vocabulary',
+      accuracy: 100,
+      correct: 3,
+      graded: 3,
+      evidence: 'sufficient'
+    }],
     interpretations: [],
     academicYear: '2026-2027',
     period,
@@ -206,7 +219,9 @@ test('skill chart grows for any number of skills and wraps long labels without c
   });
 
   assert.match(html, /viewBox="0 0 760 1240"/);
-  assert.equal((html.match(/<rect x="230"/g) || []).length, skills.length * 2);
-  assert.equal((html.match(/<tspan x="220"/g) || []).length, skills.length * 3);
+  assert.match(html, /Practice accuracy by skill set \(strand\)/);
+  assert.match(html, /Skill-set accuracy combines graded responses across all skills in each set/);
+  assert.equal((html.match(/<rect x="230"/g) || []).length, skills.length * 2 + 2);
+  assert.equal((html.match(/<tspan x="220"/g) || []).length, skills.length * 3 + 1);
   assert.doesNotMatch(html, /max-height:520px/);
 });

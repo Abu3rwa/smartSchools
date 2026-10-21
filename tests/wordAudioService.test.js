@@ -109,7 +109,6 @@ test('audio search returns pronunciation and example audio for spelling words in
             longmanUK: '',
             oxfordUS: '',
             oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
-            websterUS: '',
             googleUS: '',
             googleUK: ''
         },
@@ -117,7 +116,7 @@ test('audio search returns pronunciation and example audio for spelling words in
     }, {
         word: 'Dog',
         grade: 'G1',
-        pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', websterUS: '', googleUS: '', googleUK: '' },
+        pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', googleUS: '', googleUK: '' },
         examples: []
     }]);
 });
@@ -155,7 +154,6 @@ test('pronunciation replacement validates and atomically updates the selected fi
         longmanUK: '',
         oxfordUS: '',
         oxfordUK: 'https://www.oxfordlearnersdictionaries.com/uk.mp3',
-        websterUS: '',
         googleUS: '',
         googleUK: ''
     });
@@ -208,7 +206,6 @@ test('Google pronunciation URLs can be imported and played as a distinct source'
         longmanUK: '',
         oxfordUS: '',
         oxfordUK: '',
-        websterUS: '',
         googleUS: '',
         googleUK: url
     });

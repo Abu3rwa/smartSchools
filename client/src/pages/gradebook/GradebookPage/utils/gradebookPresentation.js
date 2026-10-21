@@ -94,6 +94,12 @@ export const getScaleBandForPercentage = (value, gradingScale = null) => {
     return bands.find((band) => percentage >= band.min && percentage <= band.max) || null;
 };
 
+export const formatPercentageAsAverageOutOfTen = (value) => {
+    const average = Number(value);
+    if (!Number.isFinite(average)) return '-';
+    return String(Number((average / 10).toFixed(2)));
+};
+
 const normalizeCategory = (value) => {
     const rawCategory = value || 'Other';
     return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();

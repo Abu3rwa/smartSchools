@@ -282,6 +282,37 @@ export const deleteStandard = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Permanently delete standards in bulk
+ * @route   POST /api/standards/bulk-delete
+ * @access  Private (Admin)
+ */
+export const bulkDeleteStandards = asyncHandler(async (req, res) => {
+    const { standardIds } = req.body;
+    const isObjectId = (id) => /^[a-f\d]{24}$/i.test(String(id));
+
+    if (!Array.isArray(standardIds) || standardIds.length === 0 || standardIds.some((id) => !isObjectId(id))) {
+        return res.status(400).json({
+            success: false,
+            message: 'A non-empty list of valid standard IDs is required'
+        });
+    }
+
+    const uniqueIds = [...new Set(standardIds.map(String))];
+    const result = await Standard.deleteMany(
+        {
+            _id: { $in: uniqueIds },
+            school: req.schoolId
+        }
+    );
+
+    res.json({
+        success: true,
+        message: 'Standards deleted successfully',
+        data: { deletedCount: result.modifiedCount }
+    });
+});
+
+/**
  * @desc    Bulk import standards
  * @route   POST /api/standards/import
  * @access  Private (Admin)

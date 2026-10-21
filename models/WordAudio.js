@@ -10,7 +10,6 @@ const wordAudioSchema = new mongoose.Schema({
     longmanUK: urlField,
     oxfordUS: urlField,
     oxfordUK: urlField,
-    websterUS: urlField,
     googleUS: urlField,
     googleUK: urlField,
     definition: { type: String, trim: true, maxlength: 2000 },

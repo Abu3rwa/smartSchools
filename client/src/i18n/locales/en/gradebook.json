@@ -15,6 +15,7 @@
     "noClasses": "No classes match"
   },
   "header": {
+    "export": "Export",
     "backToClass": "Back to Class",
     "title": "Gradebook",
     "advancedReports": "Advanced Reports",
@@ -44,8 +45,8 @@
   "table": {
     "columns": {
       "student": "Student",
-      "categoryAvg": "{{category}} (Avg %)",
-      "overallAvg": "Overall (Avg %)"
+      "categoryAvg": "{{category}} (Avg /10)",
+      "overallAvg": "Overall (Avg /10)"
     },
     "generateProgressReport": "Generate Progress Report",
     "noStudents": "No students in this class",

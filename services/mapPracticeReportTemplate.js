@@ -65,8 +65,15 @@ const renderTrendChart = (attempts) => {
   </svg><p class="chart-note">${scored.length} graded submission${scored.length === 1 ? '' : 's'}. Percentages compare practice sets and are not a standardized MAP Growth or RIT scale.</p>`;
 };
 
-const renderSkillChart = (skills) => {
-  if (!skills.length) return '<p class="empty">No skill results are available yet.</p>';
+const renderSkillChart = (
+  skills,
+  {
+    ariaLabel = 'Practice accuracy by skill',
+    emptyText = 'No skill results are available yet.',
+    note = 'At least 3 graded responses are required to interpret a skill band. Counts show correct/graded responses.'
+  } = {}
+) => {
+  if (!skills.length) return `<p class="empty">${escapeHtml(emptyText)}</p>`;
   const width = 760;
   const left = 230;
   let y = 8;
@@ -87,13 +94,22 @@ const renderSkillChart = (skills) => {
     return row;
   }).join('');
   const chartHeight = Math.max(72, y + 8);
-  return `<svg viewBox="0 0 ${width} ${chartHeight}" role="img" aria-label="Practice accuracy by skill">${rows}</svg>
-    <p class="chart-note">At least 3 graded responses are required to interpret a skill band. Counts show correct/graded responses.</p>`;
+  return `<svg viewBox="0 0 ${width} ${chartHeight}" role="img" aria-label="${escapeHtml(ariaLabel)}">${rows}</svg>
+    <p class="chart-note">${escapeHtml(note)}</p>`;
+};
+
+const renderSkillSetChart = (skillSets) => {
+  return renderSkillChart(skillSets, {
+    ariaLabel: 'Practice accuracy by skill set',
+    emptyText: 'No skill-set results are available yet.',
+    note: 'Skill-set accuracy combines graded responses across all skills in each set. Counts show correct/graded responses.'
+  });
 };
 
 const renderStudentReport = (report) => {
   const { student, metrics, attempts, recentAttempts, skills, interpretations } = report;
   const trend = renderTrendChart(attempts);
+  const skillSetChart = renderSkillSetChart(report.skillSets || []);
   const skillChart = renderSkillChart(skills);
   const rows = recentAttempts.map((attempt) => `<tr>
     <td>${escapeHtml(attempt.setTitle)}</td><td>${escapeHtml(formatDate(attempt.submittedAt))}</td>
@@ -114,6 +130,7 @@ const renderStudentReport = (report) => {
       ${metric('Most recent practice', formatDate(metrics.lastPractice))}
     </div></section>
     <section><h2>Practice accuracy over time</h2>${trend}</section>
+    <section><h2>Practice accuracy by skill set (strand)</h2>${skillSetChart}</section>
     <section><h2>Practice accuracy by skill</h2>${skillChart}</section>
     <section><h2>Recent practice</h2><table><thead><tr><th>Set</th><th>Submitted</th><th>Correct / graded</th><th>Accuracy</th><th>Review status</th></tr></thead><tbody>${rows}</tbody></table></section>
     <section class="interpretation"><h2>Teacher follow-up notes</h2>${notes}</section>
@@ -122,6 +139,7 @@ const renderStudentReport = (report) => {
 
 const renderClassReport = (report) => {
   const { class: classInfo, metrics, students, skills } = report;
+  const skillSetChart = renderSkillSetChart(report.skillSets || []);
   const skillChart = renderSkillChart(skills);
   const studentRows = students.map((student) => `<tr>
     <td>${escapeHtml(student.name)}<small>${escapeHtml(student.studentId)}</small></td>
@@ -140,6 +158,7 @@ const renderClassReport = (report) => {
       ${metric('Average student accuracy', metrics.averageAccuracy === null ? '—' : `${metrics.averageAccuracy}% · ${metrics.studentsWithAccuracy} students`)}
       ${metric('Responses awaiting review', metrics.pendingReviews)}
     </div><p class="chart-note">Average accuracy is the mean of individual student accuracy percentages; students without graded answers are excluded.</p></section>
+    <section><h2>Class skill-set summary (strands)</h2>${skillSetChart}</section>
     <section><h2>Class skill summary</h2>${skillChart}<p class="chart-note">Only skills with at least 3 graded responses across the class are shown. This is a combined descriptive summary, not a ranking.</p></section>
     <section><h2>Student follow-up</h2><table><thead><tr><th>Student</th><th>Sets submitted</th><th>Accuracy / evidence</th><th>Last practice</th><th>Pending review</th><th>Status</th></tr></thead><tbody>${studentRows}</tbody></table></section>
     <footer>Practice accuracy describes performance on these practice questions only. It is not a MAP Growth assessment result, RIT score, or measure of academic growth. Ungraded responses are excluded from accuracy. Students are listed alphabetically, not ranked.</footer>`;

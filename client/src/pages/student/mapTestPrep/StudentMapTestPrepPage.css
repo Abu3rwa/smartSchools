@@ -51,6 +51,10 @@
 .student-map-prep-passage { padding: 12px; border-left: 3px solid var(--primary); background: var(--bg-card); white-space: pre-wrap; }
 .student-map-prep-reviewed-stem { font-weight: 600; white-space: pre-wrap; }
 .student-map-prep-reviewed-options { display: grid; gap: 5px; margin: 0; padding-left: 22px; }
+.student-map-prep-feedback { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; }
+.student-map-prep-feedback.correct { color: #166534; background: #f0fdf4; border-color: #86efac; }
+.student-map-prep-feedback.incorrect { color: #991b1b; background: #fef2f2; border-color: #fca5a5; }
+.student-map-prep-feedback.pending { color: #854d0e; background: #fffbeb; border-color: #fcd34d; }
 
 @media (max-width: 700px) {
   .student-map-prep-page { padding: 16px; }

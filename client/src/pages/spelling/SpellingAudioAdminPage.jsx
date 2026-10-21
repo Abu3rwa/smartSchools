@@ -10,7 +10,6 @@ const COVERAGE_COLUMNS = [
     ['longmanUK', 'Longman UK'],
     ['oxfordUS', 'Oxford US'],
     ['oxfordUK', 'Oxford UK'],
-    ['websterUS', 'Webster US'],
     ['googleUS', 'Google US'],
     ['googleUK', 'Google UK'],
     ['withExamples', 'Examples'],
@@ -34,7 +33,6 @@ const PRONUNCIATION_FIELDS = [
     ['longmanUK', 'Longman UK pronunciation'],
     ['oxfordUS', 'Oxford US pronunciation'],
     ['oxfordUK', 'Oxford UK pronunciation'],
-    ['websterUS', 'Merriam-Webster US pronunciation'],
     ['googleUS', 'Google US pronunciation'],
     ['googleUK', 'Google UK pronunciation']
 ];
@@ -127,7 +125,7 @@ const SpellingAudioAdminPage = () => {
         const currentUrl = entry.pronunciations[field] || '';
         const replacementUrl = String(pronunciationDrafts[key] ?? currentUrl).trim();
         if (replacementUrl && !isPreviewableAudioUrl(replacementUrl)) {
-            setMessage({ severity: 'warning', text: 'Enter an HTTPS audio link from Longman, Oxford Learner’s Dictionaries, or Merriam-Webster.' });
+            setMessage({ severity: 'warning', text: 'Enter an HTTPS audio link from Longman, Oxford Learner’s Dictionaries, or Google.' });
             return;
         }
         if (replacementUrl === currentUrl) return;
@@ -238,7 +236,7 @@ const SpellingAudioAdminPage = () => {
                     <Stack spacing={2}>
                         <Typography variant="h6" component="h2">Review and edit spelling audio</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Search for a spelling word to listen to and edit its Longman, Oxford, Merriam-Webster, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
+                            Search for a spelling word to listen to and edit its Longman, Oxford, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
                         </Typography>
                         <Box component="form" onSubmit={searchExamples}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -275,7 +273,7 @@ const SpellingAudioAdminPage = () => {
                                                     onChange={(event) => setPronunciationDrafts((current) => ({ ...current, [key]: event.target.value }))}
                                                     inputProps={{ maxLength: 500 }}
                                                     error={Boolean(draft) && !isPreviewableAudioUrl(draft)}
-                                                    helperText="Use an HTTPS audio link from Longman, Oxford, Merriam-Webster, or Google. Leave empty to remove."
+                                                    helperText="Use an HTTPS audio link from Longman, Oxford, or Google. Leave empty to remove."
                                                 />
                                                 {hasChanges && isPreviewableAudioUrl(draft) && (
                                                     <audio controls preload="none" src={draft} aria-label={`Preview ${label} for ${entry.word}`} />
@@ -346,8 +344,8 @@ const SpellingAudioAdminPage = () => {
                     <Stack spacing={2}>
                         <Typography variant="h6" component="h2">Import audio CSV</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Columns: word, Longman US, Longman UK, Oxford US, Oxford UK, Webster US, status, first week.
-                            Optional: definition, and Longman/Oxford/Webster example 1, example 2, … (audio URLs; several URLs in one cell can be separated by |).
+                            Columns: word, Longman US, Longman UK, Oxford US, Oxford UK, Google US, Google UK, status, first week.
+                            Optional: definition, and Longman/Oxford/Webster/Google example 1, example 2, … (audio URLs; several URLs in one cell can be separated by |).
                             Empty cells never erase existing data. Preview first; nothing is saved until you press Import.
                             {' '}<a href="/spelling_word_audio_sample.csv" download>Download sample CSV</a>
                         </Typography>

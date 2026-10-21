@@ -182,7 +182,6 @@ class GradeService {
         };
         if (options.schoolId) query.school = options.schoolId;
         if (query.month === undefined) delete query.month;
-
         // Handle both new and legacy grade types
         if (gradeType === 'classwork') {
             query.gradeType = { $in: ['classwork', 'daily'] };

@@ -586,7 +586,7 @@ export async function getSimplifiedForStudent(
           .select("word source audioUsUrl audioUkUrl exampleAudioUrl").lean()
         : [],
       WordAudio.find({ word: { $in: audioTerms } })
-        .select("word longmanUS longmanUK oxfordUS oxfordUK websterUS googleUS googleUK examples.longman examples.oxford examples.webster examples.google").lean(),
+        .select("word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google").lean(),
     ]);
 
     const byVocabularyId = new Map(vocabularyWords.map((word) => [String(word._id), word.normalizedWord]));
@@ -609,7 +609,6 @@ export async function getSimplifiedForStudent(
       const fields = {
         longman: { us: doc.longmanUS, uk: doc.longmanUK, examples: doc.examples?.longman },
         oxford: { us: doc.oxfordUS, uk: doc.oxfordUK, examples: doc.examples?.oxford },
-        webster: { us: doc.websterUS, examples: doc.examples?.webster },
         google: { us: doc.googleUS, uk: doc.googleUK, examples: doc.examples?.google },
       };
       for (const [dictionary, audio] of Object.entries(fields)) {

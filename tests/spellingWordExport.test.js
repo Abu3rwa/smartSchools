@@ -99,7 +99,8 @@ test('spelling audio export matches the import CSV contract', () => {
         }]
     });
 
-    assert.match(csv, /^\uFEFF"word","Longman US","Longman UK","Oxford US","Oxford UK","Webster US","Google US","Google UK","status","first week","definition"/);
+    assert.match(csv, /^\uFEFF"word","Longman US","Longman UK","Oxford US","Oxford UK","Google US","Google UK","status","first week","definition"/);
+    assert.doesNotMatch(csv, /Webster US/);
     assert.match(csv, /"Bear"/);
     assert.match(csv, /https:\/\/www\.ldoceonline\.com\/audio\/bear\.mp3/);
     const imported = parseWordAudioCsv(csv.slice(1));

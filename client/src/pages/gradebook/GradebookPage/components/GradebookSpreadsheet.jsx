@@ -42,7 +42,10 @@ import {
     selectColumnsLoading
 } from '../../../../store/slices/gradebookColumnsSlice';
 import { migrateColumns } from '../../../../store/slices/gradebookColumnsSlice';
-import { getScaleBandForPercentage } from '../utils/gradebookPresentation';
+import {
+    formatPercentageAsAverageOutOfTen,
+    getScaleBandForPercentage
+} from '../utils/gradebookPresentation';
 
 import AddColumnModal from './AddColumnModal';
 import AutoFillModal from './AutoFillModal';
@@ -353,7 +356,7 @@ const GradebookSpreadsheet = ({ selectedSubject, selectedSemester }) => {
                                         </th>
                                     ))}
                                     <th style={{ background: '#f1f5f9', padding: 6, borderBottom: '1px solid #e5e7eb', fontWeight: 600, textAlign: 'center', fontSize: 12 }}>
-                                        Average
+                                        Average (/10)
                                     </th>
                                 </tr>
                             </thead>
@@ -408,7 +411,7 @@ const GradebookSpreadsheet = ({ selectedSubject, selectedSemester }) => {
                                             <td style={{ textAlign: 'center', background: '#f8fafc', padding: 4, fontWeight: 600, fontSize: 12 }}>
                                                 {avg !== '-' && (
                                                     <span style={{ color: avgBand?.color || '#374151' }}>
-                                                        {avg}%{avgBand ? ` ${avgBand.grade}` : ''}
+                                                        {formatPercentageAsAverageOutOfTen(avgNum)}/10{avgBand ? ` ${avgBand.grade}` : ''}
                                                     </span>
                                                 )}
                                                 {avg === '-' && <span style={{ color: '#9ca3af' }}>-</span>}

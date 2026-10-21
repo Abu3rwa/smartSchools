@@ -1,14 +1,5 @@
 import StandardsAssessmentSettings from '../models/StandardsAssessmentSettings.js';
 import { writeAuditLog } from './assessmentAuditService.js';
-import logger from '../utils/logger.js';
-
-const DEFAULT_SETTINGS_SHAPE = {
-  enablePoolLibrary: true,
-  enableProgressTableSend: true,
-  enableNarrativeReports: true,
-  enableLiveAssessmentEditing: true,
-  maintenanceMode: false,
-};
 
 /**
  * Get or create the settings document for a school.
@@ -29,11 +20,7 @@ export async function getSettings(schoolId) {
 export async function updateSettings(schoolId, updates, userId, ipAddress) {
   const before = await getSettings(schoolId);
 
-  const allowed = [
-    'enablePoolLibrary', 'enableProgressTableSend', 'enableNarrativeReports',
-    'enableLiveAssessmentEditing', 'maintenanceMode',
-    'pool', 'progressSend', 'narrative', 'liveEdit', 'comms', 'audit',
-  ];
+  const allowed = ['maintenanceMode', 'pool', 'comms'];
 
   const patch = {};
   for (const key of allowed) {
@@ -68,13 +55,4 @@ export async function updateSettings(schoolId, updates, userId, ipAddress) {
   return updated;
 }
 
-/**
- * Check whether a specific feature toggle is enabled.
- */
-export async function isFeatureEnabled(schoolId, featureKey) {
-  const settings = await getSettings(schoolId);
-  if (settings.maintenanceMode && featureKey !== 'maintenanceMode') return false;
-  return settings[featureKey] ?? DEFAULT_SETTINGS_SHAPE[featureKey] ?? true;
-}
-
-export default { getSettings, updateSettings, isFeatureEnabled };
+export default { getSettings, updateSettings };

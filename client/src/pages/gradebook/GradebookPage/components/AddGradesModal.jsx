@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { HiOutlineX } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
+import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const AddGradesModal = ({
@@ -48,7 +49,11 @@ const AddGradesModal = ({
                                 <label>{t('gradebook:addModal.category')}</label>
                                 <select
                                     value={formData.category}
-                                    onChange={(event) => setFormData({ ...formData, category: event.target.value })}
+                                    onChange={(event) => setFormData({
+                                        ...formData,
+                                        category: event.target.value,
+                                        maxMarks: getDefaultMaxMarksForCategory(event.target.value)
+                                    })}
                                     required
                                 >
                                     {CATEGORY_FILTER_OPTIONS.map((category) => (

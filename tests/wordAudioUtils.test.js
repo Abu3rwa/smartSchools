@@ -35,27 +35,33 @@ test('validateAudioUrl accepts allowed https hosts and rejects everything else',
 
 test('parseWordAudioCsv reads sheet columns, definition and per-dictionary examples', () => {
     const rows = parseWordAudioCsv([
-        'word,Longman US,Longman UK,Oxford US,Oxford UK,Webster US,Google US,Google UK,status,first week,definition,Longman example 1,Longman example 2,Oxford example 1',
-        `Cat,${LONGMAN_US},,,${OXFORD_UK},${WEBSTER},,${GOOGLE_UK},ok,1,"a small pet, furry",${LONGMAN_US}|${OXFORD_UK},,${OXFORD_UK}`,
-        'Ice  Cream,,,,,,,,Longman no audio; Webster page 404,3,,,,'
+        'word,Longman US,Longman UK,Oxford US,Oxford UK,Google US,Google UK,status,first week,definition,Longman example 1,Longman example 2,Oxford example 1',
+        `Cat,${LONGMAN_US},,,${OXFORD_UK},,${GOOGLE_UK},ok,1,"a small pet, furry",${LONGMAN_US}|${OXFORD_UK},,${OXFORD_UK}`,
+        'Ice  Cream,,,,,,,Longman no audio; Webster page 404,3,,,,'
     ].join('\r\n'));
     assert.equal(rows.length, 2);
     assert.equal(rows[0].definition, 'a small pet, furry');
     assert.equal(rows[0].pronunciations.longmanUS, LONGMAN_US);
     assert.equal(rows[0].pronunciations.longmanUK, '');
     assert.equal(rows[0].pronunciations.googleUK, GOOGLE_UK);
+    assert.equal(rows[0].pronunciations.websterUS, undefined);
     assert.equal(rows[0].examples.longman.length, 2);
     assert.deepEqual(rows[0].examples.oxford, [OXFORD_UK]);
     assert.equal(rows[1].status, 'Longman no audio; Webster page 404');
     assert.throws(() => parseWordAudioCsv('foo,bar\n1,2'), /"word" column/);
 });
 
+test('parseWordAudioCsv ignores the retired Webster US pronunciation column', () => {
+    const rows = parseWordAudioCsv(`word,Webster US\nCat,${WEBSTER}`);
+    assert.equal(rows[0].pronunciations.websterUS, undefined);
+});
+
 const sampleRows = () => parseWordAudioCsv([
-    'word,Longman US,Longman UK,Oxford US,Oxford UK,Webster US,Google UK,status,first week,Longman example 1',
-    `Cat,${LONGMAN_US},,,${OXFORD_UK},,${GOOGLE_UK},ok,1,${LONGMAN_US}`,
-    'dog,https://evil.example.com/dog.mp3,,,,,,ok,1,',
-    ',,,,,,,,1,',
-    'Cat,,,,,,,ok,2,'
+    'word,Longman US,Longman UK,Oxford US,Oxford UK,Google UK,status,first week,Longman example 1',
+    `Cat,${LONGMAN_US},,,${OXFORD_UK},${GOOGLE_UK},ok,1,${LONGMAN_US}`,
+    'dog,https://evil.example.com/dog.mp3,,,,,ok,1,',
+    ',,,,,,,1,',
+    'Cat,,,,,,ok,2,'
 ].join('\n'));
 
 test('planWordAudioImport reports rejected URLs and skipped rows, merging duplicate words', () => {

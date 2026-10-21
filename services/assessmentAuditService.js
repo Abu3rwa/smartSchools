@@ -13,8 +13,6 @@ export async function writeAuditLog({
   class: classId = null,
   subject = null,
   assignment = null,
-  narrativeReport = null,
-  revision = null,
   recipientTypes = [],
   recipientIds = [],
   selectedStandardRowIds = [],
@@ -45,8 +43,6 @@ export async function writeAuditLog({
       class: classId,
       subject,
       assignment,
-      narrativeReport,
-      revision,
       recipientTypes,
       recipientIds,
       selectedStandardRowIds,
@@ -65,52 +61,4 @@ export async function writeAuditLog({
   }
 }
 
-/**
- * Query audit logs with filters and pagination.
- */
-export async function queryAuditLogs({
-  schoolId,
-  action,
-  performedBy,
-  studentId,
-  assignmentId,
-  dateFrom,
-  dateTo,
-  page = 1,
-  limit = 50,
-}) {
-  const query = {};
-  if (schoolId) query.school = schoolId;
-  if (action) query.action = action;
-  if (performedBy) query.performedBy = performedBy;
-  if (studentId) query.student = studentId;
-  if (assignmentId) query.assignment = assignmentId;
-  if (dateFrom || dateTo) {
-    query.createdAt = {};
-    if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
-    if (dateTo) query.createdAt.$lte = new Date(dateTo);
-  }
-
-  const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
-  const total = await AssessmentAuditLog.countDocuments(query);
-  const logs = await AssessmentAuditLog.find(query)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .populate('performedBy', 'firstName lastName email role')
-    .populate('student', 'firstName lastName')
-    .populate('assignment', 'title')
-    .lean();
-
-  return {
-    logs,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / parseInt(limit)),
-    },
-  };
-}
-
-export default { writeAuditLog, queryAuditLogs };
+export default { writeAuditLog };

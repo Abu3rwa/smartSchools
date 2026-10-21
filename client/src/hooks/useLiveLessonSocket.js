@@ -249,6 +249,26 @@ export default function useLiveLessonSocket(sessionId, role) {
       lastCursorMoveAtRef.current = now;
     }
     socket.send(JSON.stringify({ type: "cursor", action, data }));
+    if (action === "toggle" && typeof data.enabled === "boolean") {
+      setCursorSpotlight({
+        enabled: data.enabled,
+        visible: false,
+        x: null,
+        y: null,
+      });
+    } else if (action === "move") {
+      setCursorSpotlight((current) =>
+        current.enabled
+          ? { ...current, visible: true, x: data.x, y: data.y }
+          : current,
+      );
+    } else if (action === "hide") {
+      setCursorSpotlight((current) =>
+        current.enabled
+          ? { ...current, visible: false, x: null, y: null }
+          : current,
+      );
+    }
     return true;
   }, [role]);
 

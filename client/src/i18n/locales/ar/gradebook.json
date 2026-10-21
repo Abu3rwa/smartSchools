@@ -15,6 +15,7 @@
     "noClasses": "لا توجد فصول مطابقة"
   },
   "header": {
+    "export": "تصدير",
     "backToClass": "العودة إلى الصف",
     "title": "دفتر الدرجات",
     "advancedReports": "تقارير متقدمة",
@@ -44,8 +45,8 @@
   "table": {
     "columns": {
       "student": "الطالب",
-      "categoryAvg": "{{category}} (متوسط %)",
-      "overallAvg": "الإجمالي (متوسط %)"
+      "categoryAvg": "{{category}} (متوسط /10)",
+      "overallAvg": "الإجمالي (متوسط /10)"
     },
     "generateProgressReport": "إنشاء تقرير التقدم",
     "noStudents": "لا يوجد طلاب في هذا الصف",

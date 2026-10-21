@@ -31,7 +31,7 @@ export const saveMapPracticeSettings = asyncHandler(async (req, res) => {
     { school: req.schoolId },
     {
       $set: {
-        feedbackMode: req.body.feedbackMode || 'after_submit',
+        feedbackMode: req.body.feedbackMode || 'instant',
         selfPracticeEnabled: Boolean(req.body.selfPracticeEnabled),
         showTimer: Boolean(req.body.showTimer),
         lowAccuracyThreshold: Number(req.body.lowAccuracyThreshold ?? 60),
@@ -140,6 +140,10 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Practice plan not found for this set and student.' });
   }
 
+  const practiceSettings = await MapPracticeSettings.findOne({ school: req.schoolId })
+    .select('feedbackMode')
+    .lean();
+
   const assignment = await MapPracticeAssignment.findOneAndUpdate(
     { school: req.schoolId, student: student._id, set: set._id },
     {
@@ -151,7 +155,7 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
         assignedBy: req.user._id,
         dueDate: dueDate ? new Date(dueDate) : null,
         status: 'assigned',
-        feedbackMode: feedbackMode || 'after_submit',
+        feedbackMode: feedbackMode || practiceSettings?.feedbackMode || 'instant',
         selfPractice: true,
         showTimer: false,
         timeLimitSeconds: null
@@ -221,6 +225,61 @@ export const deleteMapPracticeSet = asyncHandler(async (req, res) => {
     success: true,
     data: { setId: set._id, deletedAttempts, removedSkillIds },
   });
+});
+
+export const deleteEmptyMapPracticePlan = asyncHandler(async (req, res) => {
+  if (!['admin', 'teacher'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Teacher access required.' });
+  }
+
+  const plan = await MapPracticePlan.findOne({
+    _id: req.params.planId,
+    school: req.schoolId
+  }).select('_id student').lean();
+  if (!plan) {
+    return res.status(404).json({ success: false, message: 'Practice plan not found.' });
+  }
+  if (req.user.role === 'teacher' && !(await ensureTeacherCanAccessStudent({ req, studentId: plan.student }))) {
+    return res.status(403).json({ success: false, message: 'Not authorized to delete this practice plan.' });
+  }
+
+  let hasPracticeData = false;
+  await withTransaction(async (session) => {
+    for (const model of [
+      MapPracticeSet,
+      MapPracticeQuestion,
+      MapPracticePlanSkill,
+      MapPracticeAssignment,
+      MapPracticeAttempt
+    ]) {
+      if (await model.exists({
+        school: req.schoolId,
+        plan: plan._id
+      }).session(session)) {
+        hasPracticeData = true;
+        return;
+      }
+    }
+    await MapPracticePlan.deleteOne({
+      _id: plan._id,
+      school: req.schoolId,
+      student: plan.student
+    }, { session });
+    await MapPracticeImportBatch.updateMany(
+      { school: req.schoolId, 'files.planId': plan._id },
+      { $set: { 'files.$[file].planId': null } },
+      { session, arrayFilters: [{ 'file.planId': plan._id }] }
+    );
+  });
+
+  if (hasPracticeData) {
+    return res.status(409).json({
+      success: false,
+      message: 'Only empty practice plans can be deleted.'
+    });
+  }
+
+  res.json({ success: true, data: { planId: plan._id } });
 });
 
 export const getMapPracticeAssignmentQuestions = asyncHandler(async (req, res) => {

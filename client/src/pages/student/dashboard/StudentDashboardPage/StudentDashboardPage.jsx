@@ -1,22 +1,11 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import StudentDashboardHeader from "./components/StudentDashboardHeader";
-import StudentDashboardLoading from "./components/StudentDashboardLoading";
-import RecentGradesCard from "./components/RecentGradesCard";
-import PracticeProgressCard from "./components/PracticeProgressCard";
-import UpcomingDueDatesCard from "./components/UpcomingDueDatesCard";
-import RecentAssignmentsCard from "./components/RecentAssignmentsCard";
-import MyTasksCard from "./components/MyTasksCard";
 import { selectSchoolFeatures } from "../../../../store/slices/schoolFeaturesSlice";
-import useStudentDashboardData from "./hooks/useStudentDashboardData";
+import { selectUser } from "../../../../store/slices/authSlice";
 import { studentNavLinks } from "./utils/studentNavLinks";
-import {
-  getTodayStart,
-  getUpcomingAssignments,
-} from "./utils/studentDashboardPresentation";
-import { HiOutlineDocumentReport } from "react-icons/hi";
 import "./StudentDashboardPage.css";
 
 const StudentDashboardPage = () => {
@@ -24,18 +13,7 @@ const StudentDashboardPage = () => {
   const location = useLocation();
   const { t } = useTranslation(["layout.sidebar"]);
   const schoolFeatures = useSelector(selectSchoolFeatures);
-  const {
-    assignments,
-    assignmentsLoading,
-    user,
-    grades,
-    classAssignments,
-    academicTasks,
-    tasksLoading,
-    dataLoading,
-  } = useStudentDashboardData();
-
-  const loading = assignmentsLoading || dataLoading;
+  const user = useSelector(selectUser);
   const firstName = user?.firstName ?? "Student";
 
   const availableNavLinks = useMemo(
@@ -51,23 +29,6 @@ const StudentDashboardPage = () => {
         return schoolFeatures?.[item.feature] !== false;
       }),
     [schoolFeatures],
-  );
-
-  const todayStart = useMemo(() => getTodayStart(), []);
-  const upcomingAssignments = useMemo(() => {
-    return getUpcomingAssignments(assignments, classAssignments, todayStart);
-  }, [assignments, classAssignments, todayStart]);
-
-  const practiceAssignments = useMemo(
-    () =>
-      assignments.filter((a) => a.practiceConfig?.sessionType !== "assessment"),
-    [assignments],
-  );
-
-  const assessmentAssignments = useMemo(
-    () =>
-      assignments.filter((a) => a.practiceConfig?.sessionType === "assessment"),
-    [assignments],
   );
 
   return (
@@ -97,43 +58,9 @@ const StudentDashboardPage = () => {
         })}
       </section>
 
-      {loading ? (
-        <StudentDashboardLoading />
-      ) : (
-        <div className="student-dashboard-grid">
-          <div className="col1">
-            {" "}
-            <RecentAssignmentsCard
-              practiceAssignments={assignments}
-              classAssignments={classAssignments}
-            />{" "}
-            <PracticeProgressCard
-              assignments={practiceAssignments}
-              title="Practice Progress"
-              emptyText="No practice standards assigned yet."
-            />{" "}
-            {assessmentAssignments.length > 0 && (
-              <PracticeProgressCard
-                assignments={assessmentAssignments}
-                title="Graded Assessments"
-                emptyText="No graded assessments available."
-                icon={HiOutlineDocumentReport}
-              />
-            )}
-          </div>
-          <div className="col2">
-            <RecentGradesCard grades={grades} />
-
-            <UpcomingDueDatesCard
-              upcomingAssignments={upcomingAssignments}
-              todayStart={todayStart}
-            />
-            {schoolFeatures?.academicIntelligence !== false ? (
-              <MyTasksCard tasks={academicTasks} loading={tasksLoading} />
-            ) : null}
-          </div>
-        </div>
-      )}
+      <div className="student-dashboard-empty-state">
+        Select a section to open it.
+      </div>
     </div>
   );
 };

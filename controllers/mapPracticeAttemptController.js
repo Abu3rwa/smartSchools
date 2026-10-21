@@ -2,9 +2,10 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import MapPracticeAttempt from '../models/MapPracticeAttempt.js';
 import MapPracticeAssignment from '../models/MapPracticeAssignment.js';
 import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
+import MapPracticeSettings from '../models/MapPracticeSettings.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
-import { gradeMapPracticeAttempt } from '../services/mapPracticeGradingService.js';
+import { gradeMapPracticeAttempt, gradeMapPracticeQuestion } from '../services/mapPracticeGradingService.js';
 import {
   applyMapPracticeReviewMarks,
   hideMapPracticeAttemptAnswerKeys,
@@ -92,13 +93,29 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
 
   const currentAnswers = Array.isArray(attempt.answers) ? attempt.answers : [];
   const index = currentAnswers.findIndex((answer) => String(answer.question) === String(question._id));
+  const assignment = attempt.assignment
+    ? await MapPracticeAssignment.findOne({ _id: attempt.assignment, school: req.schoolId }).lean()
+    : null;
+  const settings = await MapPracticeSettings.findOne({ school: req.schoolId }).lean();
+  const feedbackMode = assignment?.feedbackMode || settings?.feedbackMode || 'instant';
+  const instantFeedback = feedbackMode === 'instant';
+  const grading = instantFeedback
+    ? gradeMapPracticeQuestion({
+      questionType: question.questionType,
+      studentAnswer: response,
+      correctAnswer: question.correctAnswer,
+      options: question.options || [],
+      partialCreditMultiSelect: Boolean(settings?.partialCreditMultiSelect)
+    })
+    : null;
   const answerRecord = {
     question: question._id,
     questionId: question.questionId,
     response,
     flagged,
-    isCorrect: null,
-    autoGraded: false,
+    isCorrect: grading?.isCorrect ?? null,
+    score: grading?.score ?? 0,
+    autoGraded: Boolean(grading && !grading.requiresTeacherReview),
     teacherOverride: false,
     teacherComment: '',
     questionSnapshot: { questionId: question.questionId, stem: question.stem, options: question.options },
@@ -121,7 +138,17 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
   const responseAttempt = req.user.role === 'student'
     ? hideMapPracticeAttemptAnswerKeys(record.toObject())
     : record;
-  res.json({ success: true, data: { attempt: responseAttempt } });
+  const feedback = req.user.role === 'student' && instantFeedback
+    ? {
+      isCorrect: grading.isCorrect,
+      score: grading.score,
+      requiresTeacherReview: grading.requiresTeacherReview,
+      explanation: question.explanation || grading.explanation,
+      correctAnswer: grading.requiresTeacherReview ? undefined : question.correctAnswer,
+      options: grading.requiresTeacherReview ? undefined : question.options
+    }
+    : undefined;
+  res.json({ success: true, data: { attempt: responseAttempt, feedback } });
 });
 
 export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {

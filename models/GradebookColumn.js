@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults.js';
 
 const gradebookColumnSchema = new mongoose.Schema(
     {
@@ -53,7 +54,9 @@ const gradebookColumnSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 1,
-            default: 100
+            default: function () {
+                return getDefaultMaxMarksForCategory(this.category);
+            }
         },
 
         // ── Exam linking ──

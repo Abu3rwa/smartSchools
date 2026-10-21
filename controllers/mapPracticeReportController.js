@@ -49,16 +49,16 @@ const loadReportData = async ({ schoolId, studentIds, academicYear, period }) =>
   const questionIds = [...new Set(filteredAttempts.flatMap((attempt) => (attempt.answers || [])
     .map((answer) => String(answer.question)).filter(Boolean)))];
   const questions = questionIds.length
-    ? await MapPracticeQuestion.find({ school: schoolId, _id: { $in: questionIds } }).select('_id skill').lean()
+    ? await MapPracticeQuestion.find({ school: schoolId, _id: { $in: questionIds } }).select('_id skill strand').lean()
     : [];
   const skillIds = [...new Set(questions.map((question) => String(question.skill)).filter(Boolean))];
   const skills = skillIds.length
-    ? await MapPracticeSkill.find({ school: schoolId, _id: { $in: skillIds } }).select('_id code name').lean()
+    ? await MapPracticeSkill.find({ school: schoolId, _id: { $in: skillIds } }).select('_id code name strand').lean()
     : [];
   const skillById = new Map(skills.map((skill) => [String(skill._id), skill]));
   const questionById = new Map(questions.map((question) => [
     String(question._id),
-    { skill: skillById.get(String(question.skill)) || null }
+    { skill: skillById.get(String(question.skill)) || null, strand: question.strand }
   ]));
   const setById = new Map(reportSets.map((set) => [String(set._id), set]));
   const reportAttempts = filteredAttempts.map((attempt) => ({

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { createColumn } from '../../../../store/slices/gradebookColumnsSlice';
+import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults';
 
 const CATEGORIES = [
     { key: 'classwork', label: 'Classwork' },
@@ -60,7 +61,7 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
         name: '',
         category: 'classwork',
         date: new Date().toISOString().split('T')[0],
-        maxMarks: 100,
+        maxMarks: 10,
         examPeriod: ''
     });
     const [submitting, setSubmitting] = useState(false);
@@ -81,7 +82,7 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
                 name: form.name.trim(),
                 category: form.category,
                 date: form.date,
-                maxMarks: Number(form.maxMarks) || 100,
+                maxMarks: Number(form.maxMarks) || getDefaultMaxMarksForCategory(form.category),
                 examPeriod: form.examPeriod || null
             })).unwrap();
             toast.success('Column added');
@@ -108,7 +109,11 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
                     </div>
                     <div className="form-group">
                         <label>Category</label>
-                        <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+                        <select value={form.category} onChange={e => setForm(p => ({
+                            ...p,
+                            category: e.target.value,
+                            maxMarks: getDefaultMaxMarksForCategory(e.target.value)
+                        }))}>
                             {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                         </select>
                     </div>

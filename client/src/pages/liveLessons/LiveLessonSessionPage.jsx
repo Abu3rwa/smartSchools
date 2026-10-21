@@ -64,7 +64,11 @@ const LivePresentationToolbar = ({
       <span
         className={`live-timer-pill${timerExpired ? " expired" : ""}`}
         role={timerExpired ? "status" : undefined}
-        aria-label={timerExpired ? "Class timer is finished" : `Class timer ${timerText} remaining`}
+        aria-label={
+          timerExpired
+            ? "Class timer is finished"
+            : `Class timer ${timerText} remaining`
+        }
       >
         {timerExpired ? "Time is up" : timerText}
       </span>
@@ -104,11 +108,14 @@ const LiveLessonSessionPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useSelector(selectUser);
-  const role = user?.role === "student"
-    ? "student"
-    : user?.role === "teacher"
-      ? "teacher"
-      : "observer";
+  const role =
+    user?.role === "student"
+      ? "student"
+      : user?.role === "teacher"
+        ? "teacher"
+        : "observer";
+  const [session, setSession] = useState(null);
+  const socketRole = session?.isOwner ? "teacher" : role;
   const {
     state: socketState,
     roster,
@@ -118,11 +125,11 @@ const LiveLessonSessionPage = () => {
     sendCursor,
     cursorSpotlight,
     sessionJoined,
-  } = useLiveLessonSocket(sessionId, role);
-  const [session, setSession] = useState(null);
+  } = useLiveLessonSocket(sessionId, socketRole);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [replayAvailabilitySaving, setReplayAvailabilitySaving] = useState(false);
+  const [replayAvailabilitySaving, setReplayAvailabilitySaving] =
+    useState(false);
   const [replayAvailabilityError, setReplayAvailabilityError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [localAnswer, setLocalAnswer] = useState("");
@@ -165,24 +172,36 @@ const LiveLessonSessionPage = () => {
     ? roster
     : state?.roster || session?.roster || [];
   const revealed = Boolean(state?.revealed);
-  const timerDurationMinutes = Number(state?.timerDurationMinutes ?? session?.timerDurationMinutes ?? 0);
+  const timerDurationMinutes = Number(
+    state?.timerDurationMinutes ?? session?.timerDurationMinutes ?? 0,
+  );
   const timerStartedAt = state?.startedAt || session?.startedAt;
   const timerPausedAt = state?.pausedAt || session?.pausedAt;
-  const totalPausedMs = Number(state?.totalPausedMs ?? session?.totalPausedMs ?? 0);
-  const timerElapsedAt = isPaused && timerPausedAt
-    ? new Date(timerPausedAt).getTime()
-    : timerNow;
+  const totalPausedMs = Number(
+    state?.totalPausedMs ?? session?.totalPausedMs ?? 0,
+  );
+  const timerElapsedAt =
+    isPaused && timerPausedAt ? new Date(timerPausedAt).getTime() : timerNow;
   const timerElapsedMs = timerStartedAt
-    ? Math.max(0, timerElapsedAt - new Date(timerStartedAt).getTime() - totalPausedMs)
+    ? Math.max(
+        0,
+        timerElapsedAt - new Date(timerStartedAt).getTime() - totalPausedMs,
+      )
     : 0;
-  const timerSecondsRemaining = timerStartedAt && timerDurationMinutes > 0
-    ? Math.max(0, Math.ceil((timerDurationMinutes * 60_000 - timerElapsedMs) / 1000))
-    : null;
+  const timerSecondsRemaining =
+    timerStartedAt && timerDurationMinutes > 0
+      ? Math.max(
+          0,
+          Math.ceil((timerDurationMinutes * 60_000 - timerElapsedMs) / 1000),
+        )
+      : null;
   const timerExpired = timerSecondsRemaining === 0;
-  const timerText = timerSecondsRemaining === null
-    ? ""
-    : `${String(Math.floor(timerSecondsRemaining / 60)).padStart(2, "0")}:${String(timerSecondsRemaining % 60).padStart(2, "0")}`;
-  const sessionDate = session?.startedAt || session?.scheduledAt || session?.createdAt;
+  const timerText =
+    timerSecondsRemaining === null
+      ? ""
+      : `${String(Math.floor(timerSecondsRemaining / 60)).padStart(2, "0")}:${String(timerSecondsRemaining % 60).padStart(2, "0")}`;
+  const sessionDate =
+    session?.startedAt || session?.scheduledAt || session?.createdAt;
   const formattedSessionDate = sessionDate
     ? new Intl.DateTimeFormat(undefined, {
         month: "short",
@@ -196,34 +215,61 @@ const LiveLessonSessionPage = () => {
     : "";
 
   const toggleCursorSpotlight = useCallback(() => {
-    if (!isTeacher || sessionStatus !== "live" || connection !== "connected" || !sessionJoined) return;
-    sendCursor("toggle", { enabled: !cursorSpotlight.enabled });
-  }, [connection, cursorSpotlight.enabled, isTeacher, sendCursor, sessionJoined, sessionStatus]);
-
-  const sendCursorPosition = useCallback((x, y) => {
-    if (
+    const enabled = !cursorSpotlight.enabled;
+    const canToggle =
       !isTeacher ||
-      !cursorSpotlight.enabled ||
       sessionStatus !== "live" ||
-      state?.slideHidden
-    ) {
-      return;
-    }
-    sendCursor("move", {
-      x: Math.max(0, Math.min(1, x)),
-      y: Math.max(0, Math.min(1, y)),
-    });
-  }, [cursorSpotlight.enabled, isTeacher, sendCursor, sessionStatus, state?.slideHidden]);
+      connection !== "connected" ||
+      !sessionJoined;
+    if (canToggle) return;
+    sendCursor("toggle", { enabled });
+  }, [
+    connection,
+    cursorSpotlight.enabled,
+    isTeacher,
+    sendCursor,
+    sessionJoined,
+    sessionStatus,
+  ]);
 
-  const handleSlidePointerMove = useCallback((event) => {
-    if (!isTeacher || event.target instanceof HTMLIFrameElement) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    sendCursorPosition(
-      (event.clientX - bounds.left) / bounds.width,
-      (event.clientY - bounds.top) / bounds.height,
-    );
-  }, [isTeacher, sendCursorPosition]);
+  const sendCursorPosition = useCallback(
+    (x, y) => {
+      if (
+        !isTeacher ||
+        !cursorSpotlight.enabled ||
+        sessionStatus !== "live" ||
+        state?.slideHidden
+      ) {
+        return;
+      }
+      sendCursor("move", {
+        x: Math.max(0, Math.min(1, x)),
+        y: Math.max(0, Math.min(1, y)),
+      });
+    },
+    [
+      cursorSpotlight.enabled,
+      isTeacher,
+      sendCursor,
+      sessionStatus,
+      state?.slideHidden,
+    ],
+  );
+
+  const handleSlidePointerMove = useCallback(
+    (event) => {
+      if (!isTeacher || event.target instanceof HTMLIFrameElement) return;
+      const slideElement = event.currentTarget.querySelector(".live-slide");
+      if (!slideElement) return;
+      const bounds = slideElement.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      sendCursorPosition(
+        (event.clientX - bounds.left) / bounds.width,
+        (event.clientY - bounds.top) / bounds.height,
+      );
+    },
+    [isTeacher, sendCursorPosition],
+  );
 
   const handleSlidePointerLeave = useCallback(() => {
     if (isTeacher && cursorSpotlight.enabled) sendCursor("hide");
@@ -233,8 +279,15 @@ const LiveLessonSessionPage = () => {
     if (!isTeacher || !cursorSpotlight.enabled) return undefined;
     const handleIframePointer = (event) => {
       const stage = slideStageRef.current;
+      const slideElement = stage?.querySelector(".live-slide");
       const iframe = stage?.querySelector("iframe");
-      if (!stage || !iframe?.contentWindow || event.source !== iframe.contentWindow) return;
+      if (
+        !stage ||
+        !slideElement ||
+        !iframe?.contentWindow ||
+        event.source !== iframe.contentWindow
+      )
+        return;
       if (event.data?.type === "live-lesson-slide-pointer-leave") {
         handleSlidePointerLeave();
         return;
@@ -250,17 +303,28 @@ const LiveLessonSessionPage = () => {
       ) {
         return;
       }
-      const stageBounds = stage.getBoundingClientRect();
+      const slideBounds = slideElement.getBoundingClientRect();
       const iframeBounds = iframe.getBoundingClientRect();
-      if (!stageBounds.width || !stageBounds.height) return;
+      if (!slideBounds.width || !slideBounds.height) return;
       sendCursorPosition(
-        (iframeBounds.left - stageBounds.left + event.data.x * iframeBounds.width) / stageBounds.width,
-        (iframeBounds.top - stageBounds.top + event.data.y * iframeBounds.height) / stageBounds.height,
+        (iframeBounds.left -
+          slideBounds.left +
+          event.data.x * iframeBounds.width) /
+          slideBounds.width,
+        (iframeBounds.top -
+          slideBounds.top +
+          event.data.y * iframeBounds.height) /
+          slideBounds.height,
       );
     };
     window.addEventListener("message", handleIframePointer);
     return () => window.removeEventListener("message", handleIframePointer);
-  }, [cursorSpotlight.enabled, handleSlidePointerLeave, isTeacher, sendCursorPosition]);
+  }, [
+    cursorSpotlight.enabled,
+    handleSlidePointerLeave,
+    isTeacher,
+    sendCursorPosition,
+  ]);
 
   useEffect(() => {
     if (!isTeacher || sessionStatus !== "live") return undefined;
@@ -289,8 +353,17 @@ const LiveLessonSessionPage = () => {
   }, [slide?._id]);
 
   useEffect(() => {
-    if (sessionStatus !== "live" || isPaused || !timerStartedAt || timerDurationMinutes <= 0) return undefined;
-    const timerEndAt = new Date(timerStartedAt).getTime() + timerDurationMinutes * 60_000 + totalPausedMs;
+    if (
+      sessionStatus !== "live" ||
+      isPaused ||
+      !timerStartedAt ||
+      timerDurationMinutes <= 0
+    )
+      return undefined;
+    const timerEndAt =
+      new Date(timerStartedAt).getTime() +
+      timerDurationMinutes * 60_000 +
+      totalPausedMs;
     setTimerNow(Date.now());
     const timer = window.setInterval(() => {
       const now = Date.now();
@@ -298,7 +371,13 @@ const LiveLessonSessionPage = () => {
       if (now >= timerEndAt) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [isPaused, sessionStatus, timerStartedAt, timerDurationMinutes, totalPausedMs]);
+  }, [
+    isPaused,
+    sessionStatus,
+    timerStartedAt,
+    timerDurationMinutes,
+    totalPausedMs,
+  ]);
 
   useEffect(() => {
     const syncFullscreen = () => {
@@ -343,13 +422,18 @@ const LiveLessonSessionPage = () => {
         `/live/sessions/${sessionId}/replay-availability`,
         { available },
       );
-      setSession((current) => current ? {
-        ...current,
-        replayAvailable: response.data?.data?.replayAvailable === true,
-      } : current);
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              replayAvailable: response.data?.data?.replayAvailable === true,
+            }
+          : current,
+      );
     } catch (requestError) {
       setReplayAvailabilityError(
-        requestError.response?.data?.message || "Could not update replay availability.",
+        requestError.response?.data?.message ||
+          "Could not update replay availability.",
       );
     } finally {
       setReplayAvailabilitySaving(false);
@@ -357,7 +441,8 @@ const LiveLessonSessionPage = () => {
   };
 
   useEffect(() => {
-    if ((!isTeacher && role !== "teacher") || sessionStatus !== "live") return undefined;
+    if ((!isTeacher && role !== "teacher") || sessionStatus !== "live")
+      return undefined;
 
     const onKeyDown = (event) => {
       if (
@@ -479,9 +564,15 @@ const LiveLessonSessionPage = () => {
               {isTeacher ? "TEACHER CONSOLE" : "LIVE CLASSROOM"}
             </span>
             <h1>{session.lessonTitle}</h1>
-            {(session.lessonSubject || session.lessonGrade || formattedSessionDate) && (
+            {(session.lessonSubject ||
+              session.lessonGrade ||
+              formattedSessionDate) && (
               <span className="live-session-meta">
-                {[session.lessonSubject, session.lessonGrade, formattedSessionDate]
+                {[
+                  session.lessonSubject,
+                  session.lessonGrade,
+                  formattedSessionDate,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </span>
@@ -505,22 +596,26 @@ const LiveLessonSessionPage = () => {
         </div>
       )}
       <div className="live-session-layout">
-        {role === "student" && session.meetingUrl && sessionStatus !== "ended" && (
-          <aside className="live-meeting-banner">
-            <div>
-              <strong>Your class has an online meeting</strong>
-              <span>Keep the Live Lesson open while you join the meeting.</span>
-            </div>
-            <a
-              className="live-session-primary"
-              href={session.meetingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Join meeting
-            </a>
-          </aside>
-        )}
+        {role === "student" &&
+          session.meetingUrl &&
+          sessionStatus !== "ended" && (
+            <aside className="live-meeting-banner">
+              <div>
+                <strong>Your class has an online meeting</strong>
+                <span>
+                  Keep the Live Lesson open while you join the meeting.
+                </span>
+              </div>
+              <a
+                className="live-session-primary"
+                href={session.meetingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join meeting
+              </a>
+            </aside>
+          )}
         <section className="live-session-main">
           {isTeacher && sessionStatus === "waiting" && (
             <div className="live-waiting-banner">
@@ -560,7 +655,9 @@ const LiveLessonSessionPage = () => {
                     total={totalSlides}
                     language={session.lessonLanguage}
                     allowScripts
-                    hideHtmlHeader={(slide || session.state?.slide)?.type === "html"}
+                    hideHtmlHeader={
+                      (slide || session.state?.slide)?.type === "html"
+                    }
                   />
                 </div>
               </div>
@@ -608,81 +705,84 @@ const LiveLessonSessionPage = () => {
                   hidden={!isTeacher && state?.slideHidden}
                 >
                   {slide?.question && (
-                  <section className="live-question-card">
-                    <div className="live-question-topline">
-                      <span>
-                        {isTeacher
-                          ? "LIVE QUESTION"
-                          : isObserver
-                            ? "LIVE QUESTION · OBSERVING"
-                          : slide.question.kind === "tf"
-                            ? "TRUE OR FALSE"
-                            : "YOUR ANSWER"}
-                      </span>
-                      <span>
-                        {state?.questionOpen
-                          ? "Answers open"
-                          : revealed
-                            ? "Results revealed"
-                            : "Waiting for teacher"}
-                      </span>
-                    </div>
-                    <h2>{slide.question.prompt}</h2>
-                    <div className="live-answer-options">
-                      {slide.question.options.map((option) => {
-                        const selected = selectedAnswer === option.id;
-                        return (
-                          <button
-                            key={option.id}
-                            className={`live-answer-option ${selected ? "selected" : ""}`}
-                            disabled={
-                              isTeacher ||
-                              role !== "student" ||
-                              isPaused ||
-                              !state?.questionOpen ||
-                              Boolean(selectedAnswer) ||
-                              submitting
-                            }
-                            onClick={() => submitAnswer(option.id)}
-                          >
-                            <span>{option.id.toUpperCase()}</span>
-                            {option.text}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {selectedAnswer && !revealed && role === "student" && (
-                      <div className="live-answer-locked">
-                        Answer submitted — it is locked until your teacher
-                        reveals the results.
+                    <section className="live-question-card">
+                      <div className="live-question-topline">
+                        <span>
+                          {isTeacher
+                            ? "LIVE QUESTION"
+                            : isObserver
+                              ? "LIVE QUESTION · OBSERVING"
+                              : slide.question.kind === "tf"
+                                ? "TRUE OR FALSE"
+                                : "YOUR ANSWER"}
+                        </span>
+                        <span>
+                          {state?.questionOpen
+                            ? "Answers open"
+                            : revealed
+                              ? "Results revealed"
+                              : "Waiting for teacher"}
+                        </span>
                       </div>
-                    )}
-                    {revealed &&
-                      role === "student" &&
-                      state?.myAnswer &&
-                      state?.myIsCorrect !== null &&
-                      state?.myIsCorrect !== undefined && (
-                        <div
-                          className={`live-student-result ${state.myIsCorrect ? "correct" : "incorrect"}`}
-                        >
-                          {state.myIsCorrect
-                            ? "Your answer was correct."
-                            : "Your answer was not correct."}
+                      <h2>{slide.question.prompt}</h2>
+                      <div className="live-answer-options">
+                        {slide.question.options.map((option) => {
+                          const selected = selectedAnswer === option.id;
+                          return (
+                            <button
+                              key={option.id}
+                              className={`live-answer-option ${selected ? "selected" : ""}`}
+                              disabled={
+                                isTeacher ||
+                                role !== "student" ||
+                                isPaused ||
+                                !state?.questionOpen ||
+                                Boolean(selectedAnswer) ||
+                                submitting
+                              }
+                              onClick={() => submitAnswer(option.id)}
+                            >
+                              <span>{option.id.toUpperCase()}</span>
+                              {option.text}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedAnswer && !revealed && role === "student" && (
+                        <div className="live-answer-locked">
+                          Answer submitted — it is locked until your teacher
+                          reveals the results.
                         </div>
                       )}
-                  </section>
+                      {revealed &&
+                        role === "student" &&
+                        state?.myAnswer &&
+                        state?.myIsCorrect !== null &&
+                        state?.myIsCorrect !== undefined && (
+                          <div
+                            className={`live-student-result ${state.myIsCorrect ? "correct" : "incorrect"}`}
+                          >
+                            {state.myIsCorrect
+                              ? "Your answer was correct."
+                              : "Your answer was not correct."}
+                          </div>
+                        )}
+                    </section>
                   )}
+                  {(isTeacher || role === "student") &&
+                    cursorSpotlight.enabled &&
+                    cursorSpotlight.visible &&
+                    !state?.slideHidden && (
+                      <span
+                        className="live-cursor-spotlight"
+                        aria-hidden="true"
+                        style={{
+                          left: `${cursorSpotlight.x * 100}%`,
+                          top: `${cursorSpotlight.y * 100}%`,
+                        }}
+                      />
+                    )}
                 </LiveLessonSlide>
-                {!isTeacher && role === "student" && cursorSpotlight.enabled && cursorSpotlight.visible && !state?.slideHidden && (
-                  <span
-                    className="live-cursor-spotlight"
-                    aria-hidden="true"
-                    style={{
-                      left: `${cursorSpotlight.x * 100}%`,
-                      top: `${cursorSpotlight.y * 100}%`,
-                    }}
-                  />
-                )}
               </div>
               {!isTeacher && isPaused && (
                 <div className="live-paused-banner" role="status">
@@ -748,8 +848,7 @@ const LiveLessonSessionPage = () => {
                     className="live-keyboard-hint"
                     aria-label="Keyboard shortcuts"
                   >
-                    ← → slides · R release · H hide · F
-                    fullscreen
+                    ← → slides · R release · H hide · F fullscreen
                   </span>
                 </div>
                 {slide?.question && (
@@ -910,55 +1009,60 @@ const LiveLessonSessionPage = () => {
               </div>
             )}
             {sessionStatus === "ended" &&
-              (isTeacher || ["admin", "department_principal"].includes(user?.role)) && (
-              <div className="live-control-card live-review-actions">
-                <h2>Session complete</h2>
-                <button
-                  className="live-session-primary full-width"
-                  onClick={() =>
-                    navigate(
-                      `/portal/live-lessons/sessions/${sessionId}/report`,
-                    )
-                  }
-                >
-                  View session report
-                </button>
-                <button
-                  className="live-session-secondary full-width"
-                  onClick={() =>
-                    navigate(
-                      `/portal/live-lessons/sessions/${sessionId}/replay`,
-                    )
-                  }
-                >
-                  Replay lesson
-                </button>
-                {isTeacher && (
-                  <div className="live-session-replay-sharing">
-                    <div>
-                      <strong>Student replay access</strong>
-                      <span>Share this lesson replay with students in this class.</span>
+              (isTeacher ||
+                ["admin", "department_principal"].includes(user?.role)) && (
+                <div className="live-control-card live-review-actions">
+                  <h2>Session complete</h2>
+                  <button
+                    className="live-session-primary full-width"
+                    onClick={() =>
+                      navigate(
+                        `/portal/live-lessons/sessions/${sessionId}/report`,
+                      )
+                    }
+                  >
+                    View session report
+                  </button>
+                  <button
+                    className="live-session-secondary full-width"
+                    onClick={() =>
+                      navigate(
+                        `/portal/live-lessons/sessions/${sessionId}/replay`,
+                      )
+                    }
+                  >
+                    Replay lesson
+                  </button>
+                  {isTeacher && (
+                    <div className="live-session-replay-sharing">
+                      <div>
+                        <strong>Student replay access</strong>
+                        <span>
+                          Share this lesson replay with students in this class.
+                        </span>
+                      </div>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={session.replayAvailable === true}
+                          disabled={replayAvailabilitySaving}
+                          onChange={(event) =>
+                            updateReplayAvailability(event.target.checked)
+                          }
+                        />
+                        {replayAvailabilitySaving
+                          ? "Saving…"
+                          : session.replayAvailable
+                            ? "Available to students"
+                            : "Not shared"}
+                      </label>
+                      {replayAvailabilityError && (
+                        <p role="alert">{replayAvailabilityError}</p>
+                      )}
                     </div>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={session.replayAvailable === true}
-                        disabled={replayAvailabilitySaving}
-                        onChange={(event) => updateReplayAvailability(event.target.checked)}
-                      />
-                      {replayAvailabilitySaving
-                        ? "Saving…"
-                        : session.replayAvailable
-                          ? "Available to students"
-                          : "Not shared"}
-                    </label>
-                    {replayAvailabilityError && (
-                      <p role="alert">{replayAvailabilityError}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
           </aside>
         ) : (
           sessionStatus === "waiting" && (

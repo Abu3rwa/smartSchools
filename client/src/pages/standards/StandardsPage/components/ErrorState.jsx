@@ -9,7 +9,11 @@ const ErrorState = ({ message, validationErrors = [], className = 'import-result
             {validationErrors.length > 0 && (
                 <ul style={{ fontSize: '0.82rem', marginTop: 8 }}>
                     {validationErrors.map((error, index) => (
-                        <li key={index}>{error}</li>
+                        <li key={index}>
+                            {typeof error === 'string'
+                                ? error
+                                : `${error.row ? `Row ${error.row}: ` : ''}${error.data?.code ? `${error.data.code}: ` : ''}${error.field ? `${error.field} — ` : ''}${error.message || JSON.stringify(error)}`}
+                        </li>
                     ))}
                 </ul>
             )}

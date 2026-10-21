@@ -18,6 +18,8 @@ export const useHeaderShortcuts = ({ user, schoolFeatures, locationPathname }) =
     }, [user]);
 
     const isShortcutAccessible = useCallback((item) => {
+        if (item.liveLessons && import.meta.env.VITE_LIVE_LESSONS_ENABLED !== 'true') return false;
+
         let hasRoleAccess = true;
         if (item.roles) hasRoleAccess = item.roles.includes(user?.role);
 

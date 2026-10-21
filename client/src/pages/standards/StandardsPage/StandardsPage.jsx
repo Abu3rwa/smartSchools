@@ -12,10 +12,7 @@ import './StandardsPage.css';
 const StandardAssignPage = lazy(() => import('../StandardAssignPage/StandardAssignPage'));
 const StandardsGradebookPage = lazy(() => import('../StandardsGradebookPage/StandardsGradebookPage'));
 const AssessmentPoolPage = lazy(() => import('../AssessmentPoolPage/AssessmentPoolPage'));
-const AssessmentProgressPage = lazy(() => import('../AssessmentProgressPage/AssessmentProgressPage'));
-const AssessmentNarrativePage = lazy(() => import('../AssessmentNarrativePage/AssessmentNarrativePage'));
-const AssessmentLiveEditPage = lazy(() => import('../AssessmentLiveEditPage/AssessmentLiveEditPage'));
-const AssessmentAuditPage = lazy(() => import('../AssessmentAuditPage/AssessmentAuditPage'));
+const AssessmentSettingsPage = lazy(() => import('../AssessmentSettingsPage/AssessmentSettingsPage'));
 
 const TabFallback = () => <div className="tab-loading">Loading...</div>;
 
@@ -38,6 +35,8 @@ const StandardsPage = () => {
         setImportText,
         importSubjectId,
         setImportSubjectId,
+        importDuplicatePolicy,
+        setImportDuplicatePolicy,
         importFileName,
         formData,
         setFormData,
@@ -48,12 +47,17 @@ const StandardsPage = () => {
         classes,
         isAdmin,
         filteredStandards,
+        selectedStandardIds,
+        setSelectedStandardIds,
+        bulkDeleting,
         handleOpenCreateModal,
         handleCloseModal,
         handleEdit,
         handleDelete,
+        handleBulkDelete,
         handleSubmit,
         handleImport,
+        handleCopyAiPrompt,
         handleImportFile,
         handleDownloadTemplate
     } = useStandardsPageData();
@@ -87,6 +91,10 @@ const StandardsPage = () => {
                         isAdmin={isAdmin}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
+                        selectedStandardIds={selectedStandardIds}
+                        onSelectedStandardIdsChange={setSelectedStandardIds}
+                        onBulkDelete={handleBulkDelete}
+                        bulkDeleting={bulkDeleting}
                     />
                 </>
             )}
@@ -96,11 +104,14 @@ const StandardsPage = () => {
                     subjects={subjects}
                     importSubjectId={importSubjectId}
                     onImportSubjectChange={setImportSubjectId}
+                    importDuplicatePolicy={importDuplicatePolicy}
+                    onImportDuplicatePolicyChange={setImportDuplicatePolicy}
                     importFileName={importFileName}
                     importText={importText}
                     onImportTextChange={setImportText}
                     loading={loading}
                     onImport={handleImport}
+                    onCopyAiPrompt={handleCopyAiPrompt}
                     onImportFile={handleImportFile}
                     importResult={importResult}
                     templateMeta={templateMeta}
@@ -120,20 +131,8 @@ const StandardsPage = () => {
                 <Suspense fallback={<TabFallback />}><AssessmentPoolPage embedded /></Suspense>
             )}
 
-            {activeTab === STANDARDS_PAGE_TABS.progress && (
-                <Suspense fallback={<TabFallback />}><AssessmentProgressPage embedded /></Suspense>
-            )}
-
-            {activeTab === STANDARDS_PAGE_TABS.narrative && (
-                <Suspense fallback={<TabFallback />}><AssessmentNarrativePage embedded /></Suspense>
-            )}
-
-            {activeTab === STANDARDS_PAGE_TABS.liveEdit && (
-                <Suspense fallback={<TabFallback />}><AssessmentLiveEditPage embedded /></Suspense>
-            )}
-
-            {activeTab === STANDARDS_PAGE_TABS.audit && isAdmin && (
-                <Suspense fallback={<TabFallback />}><AssessmentAuditPage embedded /></Suspense>
+            {activeTab === STANDARDS_PAGE_TABS.settings && isAdmin && (
+                <Suspense fallback={<TabFallback />}><AssessmentSettingsPage embedded /></Suspense>
             )}
 
             <StandardModal

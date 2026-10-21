@@ -1072,51 +1072,125 @@
 }
 .map-roster-detail-header span,
 .map-roster-plan-heading span,
-.map-roster-plan-heading small,
-.map-roster-detail-row span,
-.map-roster-detail-row small {
+.map-roster-plan-heading small {
   display: block;
   margin-top: 4px;
   color: var(--text-muted);
   font-size: 0.82rem;
 }
 .map-roster-plan-detail {
-  display: grid;
-  gap: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-color);
-}
-.map-roster-plan-detail > section {
-  display: grid;
-  gap: 8px;
-}
-.map-roster-detail-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 14px;
   background: var(--bg-card);
+  overflow: hidden;
 }
-.map-roster-assignment-control {
+.map-roster-plan-detail[open] {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+.map-roster-plan-summary {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 78px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.map-roster-plan-summary::-webkit-details-marker {
+  display: none;
+}
+.map-roster-plan-summary::after {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  content: "";
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 160ms ease;
+}
+.map-roster-plan-detail[open] > .map-roster-plan-summary::after {
+  transform: rotate(225deg) translate(-2px, -1px);
+}
+.map-roster-plan-summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -3px;
+}
+.map-roster-plan-summary-title {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.map-roster-plan-summary-title > strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.map-roster-plan-summary-title > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.map-roster-plan-summary-counts {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.map-roster-plan-summary-counts > span {
+  padding: 5px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.map-roster-plan-content {
+  display: grid;
+  gap: 18px;
+  padding: 0 18px 18px;
+}
+.map-roster-plan-content > section {
+  display: grid;
+  gap: 10px;
+}
+.map-roster-plan-content > section > h5 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+.map-roster-set-list {
+  display: grid;
+  gap: 12px;
+}
+.map-roster-set-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.map-roster-set-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border-color));
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.05);
+}
+.map-roster-plan-actions {
+  display: flex;
+  align-items: flex-end;
   flex-wrap: wrap;
   justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
 }
-.map-roster-assignment-control label {
-  display: grid;
-  gap: 3px;
-  color: var(--text-muted);
-  font-size: 0.72rem;
+.map-roster-plan-actions > small {
+  align-self: center;
 }
-.map-roster-assignment-control input,
-.map-roster-assignment-control .btn {
-  min-height: 40px;
-}
-.map-roster-assignment-control .map-set-delete-button {
+.map-roster-plan-actions .map-set-delete-button,
+.map-roster-set-actions .map-set-delete-button {
   border-color: color-mix(
     in srgb,
     var(--danger, #b91c1c) 45%,
@@ -1124,8 +1198,116 @@
   );
   color: var(--danger, #b91c1c);
 }
-.map-roster-assignment-control .map-set-delete-button:hover:not(:disabled) {
+.map-roster-plan-actions .map-set-delete-button:hover:not(:disabled),
+.map-roster-set-actions .map-set-delete-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--bg-card));
+}
+.map-roster-set-info {
+  min-width: 0;
+}
+.map-roster-set-info strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+.map-roster-set-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+.map-roster-set-badges > span,
+.set-assignment-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.map-roster-set-badges .set-question-count {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.map-roster-set-badges .set-status {
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg-card));
+  color: var(--primary);
+}
+.map-roster-set-badges .set-status.status-assigned {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.map-roster-set-badges .set-status.status-available {
+  background: #f0fdf4;
+  color: #166534;
+}
+.map-roster-set-badges .set-status.status-archived {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.map-roster-set-meta {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+.map-roster-set-assignment {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.set-assignment-status {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.set-assignment-status.assigned {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.set-assignment-status small {
+  margin: 0 0 0 5px;
+  color: inherit;
+  font-size: inherit;
+}
+.map-roster-set-assignment label {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.map-roster-set-assignment input,
+.map-roster-set-assignment .btn {
+  min-height: 38px;
+}
+.map-roster-set-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.map-roster-set-attempt {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+.map-roster-set-attempt strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.map-roster-set-attempt.status-reviewed {
+  background: #f0fdf4;
+  color: #166534;
 }
 .map-roster-generation-note {
   margin: 0;
@@ -1133,69 +1315,250 @@
   font-size: 0.84rem;
 }
 .map-roster-skill-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px 8px 2px 2px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
-.map-roster-skill-list span {
-  padding: 6px 9px;
+.map-roster-skill-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 9px;
   background: var(--bg-card);
+}
+.map-roster-skill-item > span:first-child {
+  min-width: 0;
+  color: var(--text-primary);
   font-size: 0.84rem;
+  line-height: 1.45;
+}
+.map-roster-skill-status {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 .map-roster-attempt-list {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .map-roster-attempt-list li {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr auto;
   gap: 10px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
   font-size: 0.84rem;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+}
+.map-roster-attempt-list .attempt-set {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.map-roster-attempt-list .attempt-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.map-roster-attempt-list .attempt-plan {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.map-roster-attempt-list .attempt-meta {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.map-roster-attempt-list .attempt-date,
+.map-roster-attempt-list .attempt-status {
+  display: grid;
+  gap: 3px;
+  min-width: 105px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.map-roster-attempt-list .attempt-date small,
+.map-roster-attempt-list .attempt-status small,
+.map-roster-attempt-list .attempt-score small {
+  color: var(--text-muted);
+  font-size: 0.69rem;
+  font-weight: 600;
+}
+.map-roster-attempt-list .attempt-date strong,
+.map-roster-attempt-list .attempt-status strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.map-roster-attempt-list .attempt-status.status-submitted {
+  background: #eff6ff;
+}
+.map-roster-attempt-list .attempt-status.status-in_progress {
+  background: #fffbeb;
+}
+.map-roster-attempt-list .attempt-status.status-reviewed {
+  background: #f0fdf4;
+}
+.map-roster-attempt-list .attempt-score {
+  display: grid;
+  gap: 3px;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border-color));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--bg-card));
+}
+.map-roster-attempt-list .attempt-score strong {
+  color: var(--primary);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 .map-roster-answer-review {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   margin-top: 18px;
-  padding: 16px;
+  padding: clamp(16px, 2.5vw, 24px);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--bg-secondary);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
 }
 .map-roster-answer-review > p,
 .map-roster-answer-item p {
   margin: 0;
 }
+.map-roster-answer-review > p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
 .map-roster-answer-item {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 14px;
+  padding: clamp(16px, 2vw, 22px);
   border: 1px solid var(--border-color);
-  border-radius: 9px;
+  border-radius: 14px;
   background: var(--bg-card);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.map-roster-answer-item.marked-correct {
+  border-color: rgba(22, 163, 74, 0.45);
+}
+.map-roster-answer-item.marked-incorrect {
+  border-color: rgba(220, 38, 38, 0.45);
 }
 .map-roster-answer-item h5 {
   margin: 0;
   color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.map-roster-answer-item > p {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.map-roster-answer-item ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.map-roster-answer-item li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+.map-roster-answer-item li > span {
+  flex: 1 1 260px;
+}
+.map-roster-answer-item li strong {
+  margin-right: 5px;
+  color: var(--primary-600, var(--primary));
+}
+.map-roster-answer-item li.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg-card));
+}
+.map-roster-answer-item li.selected-correct {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  color: #166534;
+}
+.map-roster-answer-item li.selected-correct strong {
+  color: #15803d;
+}
+.map-roster-answer-item li.selected-incorrect {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #991b1b;
+}
+.map-roster-answer-item li.selected-incorrect strong {
+  color: #b91c1c;
+}
+.map-roster-answer-key {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 .map-roster-answer-mark-controls {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 .map-roster-answer-mark-controls button {
-  padding: 6px 12px;
+  min-height: 34px;
+  padding: 6px 11px;
   border: 1px solid var(--border-color);
-  border-radius: 7px;
+  border-radius: 9px;
   color: var(--text-primary);
   background: var(--bg-card);
+  font: inherit;
+  font-weight: 650;
   cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, transform 160ms ease;
+}
+.map-roster-answer-mark-controls button:hover {
+  transform: translateY(-1px);
 }
 .map-roster-answer-mark-controls button.active.correct {
   color: #166534;
@@ -1207,14 +1570,21 @@
   border-color: #dc2626;
   background: #fee2e2;
 }
-[dir="rtl"] .map-roster-detail-row,
+@media (prefers-reduced-motion: reduce) {
+  .map-roster-answer-item,
+  .map-roster-answer-mark-controls button {
+    transition: none;
+  }
+  .map-roster-answer-mark-controls button:hover {
+    transform: none;
+  }
+}
 [dir="rtl"] .map-roster-attempt-list li {
   text-align: right;
 }
 @media (max-width: 700px) {
   .map-roster-detail-header,
-  .map-roster-plan-heading,
-  .map-roster-detail-row {
+  .map-roster-plan-heading {
     flex-direction: column;
   }
   .map-roster-detail-actions {
@@ -1224,16 +1594,42 @@
     flex: 1 1 auto;
     width: 100%;
   }
-  .map-roster-assignment-control {
+  .map-roster-plan-detail {
+    border-radius: 12px;
+  }
+  .map-roster-plan-summary {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .map-roster-plan-summary-counts {
+    flex: 1 1 auto;
+    order: 1;
+  }
+  .map-roster-plan-summary::after {
+    order: 2;
+  }
+  .map-roster-plan-content {
+    padding: 0 14px 14px;
+  }
+  .map-roster-set-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 13px;
+  }
+  .map-roster-set-meta {
+    justify-items: stretch;
+    padding-top: 11px;
+    border-top: 1px solid var(--border-color);
+  }
+  .map-roster-plan-actions {
+    width: 100%;
     justify-content: flex-start;
   }
-  .map-roster-assignment-control label,
-  .map-roster-assignment-control input,
-  .map-roster-assignment-control .btn {
-    width: 100%;
+  .map-roster-set-assignment {
+    justify-content: flex-start;
   }
-  .map-roster-attempt-list li {
-    grid-template-columns: 1fr 1fr;
+  .map-roster-set-actions {
+    justify-content: flex-start;
   }
   .map-roster-summary-grid {
     grid-template-columns: 1fr;

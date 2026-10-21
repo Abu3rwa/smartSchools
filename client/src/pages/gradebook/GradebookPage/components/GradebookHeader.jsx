@@ -9,7 +9,8 @@ import {
     HiOutlinePlus,
     HiOutlineSparkles,
     HiOutlineViewGrid,
-    HiOutlineTable
+    HiOutlineTable,
+    HiOutlineDownload
 } from 'react-icons/hi';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
 
@@ -46,7 +47,9 @@ const GradebookHeader = ({
     onGradeChange,
     selectedSubjectFilter,
     onSubjectFilterChange,
-    onClassChange
+    onClassChange,
+    onExportGradebook,
+    hasGrades = false
 }) => {
     const { t } = useTranslation(['gradebook']);
     const categoryOptions = useMemo(() => {
@@ -121,6 +124,13 @@ const GradebookHeader = ({
                     </div>
 
                     <div className="header-actions">
+                        {viewMode === 'table' && onExportGradebook && (
+                            <button className="btn btn-outline" onClick={onExportGradebook} disabled={!hasStudents}>
+                                <HiOutlineDownload size={20} />
+                                {t('gradebook:header.export', { defaultValue: 'Export' })}
+                            </button>
+                        )}
+
                         {hasSpreadsheet && onViewModeChange && (
                             <div className="view-toggle" style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-color, #e2e8f0)' }}>
                                 <button

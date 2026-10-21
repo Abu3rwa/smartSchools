@@ -1,4 +1,4 @@
-import { INITIAL_STANDARD_FORM_DATA } from '../constants';
+import { INITIAL_STANDARD_FORM_DATA } from '../constants.js';
 
 export const createInitialStandardFormData = () => {
     return { ...INITIAL_STANDARD_FORM_DATA };

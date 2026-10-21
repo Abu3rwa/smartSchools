@@ -196,7 +196,11 @@ const StandardAssignStepCoreSetup = ({
                                                 aria-selected={isSelected}
                                                 className={`standard-picker-option ${isSelected ? 'is-selected' : ''}`}
                                                 onClick={() => {
-                                                    setFormData({ ...formData, standardId: standard._id });
+                                                    setFormData({
+                                                        ...formData,
+                                                        standardId: standard._id,
+                                                        title: getStandardOptionLabel(standard)
+                                                    });
                                                     setIsStandardMenuOpen(false);
                                                 }}
                                             >

@@ -5,6 +5,7 @@ import {
     createStandard,
     updateStandard,
     deleteStandard,
+    bulkDeleteStandards,
     importStandards,
     getStandardsBySubject
 } from '../controllers/standardController.js';
@@ -27,6 +28,7 @@ router.route('/')
 
 // Bulk import
 router.post('/import', authorize('admin'), importStandards);
+router.post('/bulk-delete', authorize('admin'), bulkDeleteStandards);
 
 // Grouped by subject
 router.get('/by-subject', getStandardsBySubject);

@@ -1,0 +1,90 @@
+.assessment-settings-page {
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+}
+
+.assessment-settings-page--embedded {
+    padding: 0;
+    max-width: none;
+    margin: 0;
+}
+
+.assessment-settings-page h2 {
+    margin: 0 0 20px;
+    font-size: 1.25rem;
+}
+
+.assessment-settings-sections,
+.assessment-settings-actions {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.assessment-settings-sections button,
+.assessment-settings-actions button {
+    padding: 8px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.assessment-settings-sections button.active,
+.assessment-settings-actions button {
+    background: #4f46e5;
+    color: #fff;
+    border-color: #4f46e5;
+}
+
+.assessment-settings-actions button.assessment-settings-discard {
+    color: inherit;
+    background: #fff;
+    border-color: #cbd5e1;
+}
+
+.assessment-settings-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.assessment-settings-fields {
+    display: grid;
+    gap: 12px;
+}
+
+.assessment-settings-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.assessment-settings-field input:not([type='checkbox']),
+.assessment-settings-field select {
+    width: min(360px, 55%);
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+}
+
+.assessment-settings-message {
+    padding: 10px 12px;
+    margin: 10px 0;
+    border-radius: 6px;
+}
+
+.assessment-settings-message--error {
+    color: #991b1b;
+    background: #fef2f2;
+}
+
+.assessment-settings-message--success {
+    color: #166534;
+    background: #f0fdf4;
+}

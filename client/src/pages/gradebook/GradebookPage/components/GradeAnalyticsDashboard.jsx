@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import {
     HiOutlineChartBar,
@@ -11,6 +11,7 @@ import {
     selectSpreadsheetColumns,
     selectSpreadsheetGrades
 } from '../../../../store/slices/spreadsheetSlice';
+import { formatPercentageAsAverageOutOfTen } from '../utils/gradebookPresentation';
 
 const GRADE_BANDS = [
     { label: 'A (90-100)', min: 90, color: '#10b981' },
@@ -23,14 +24,14 @@ const GRADE_BANDS = [
 const getBand = (pct) => GRADE_BANDS.find(b => pct >= b.min) || GRADE_BANDS[GRADE_BANDS.length - 1];
 
 const GradeAnalyticsDashboard = () => {
-    const students = useSelector(selectSpreadsheetStudents) || [];
-    const columns = useSelector(selectSpreadsheetColumns) || [];
-    const grades = useSelector(selectSpreadsheetGrades) || {};
+    const students = useSelector(selectSpreadsheetStudents);
+    const columns = useSelector(selectSpreadsheetColumns);
+    const grades = useSelector(selectSpreadsheetGrades);
 
-    const getGrade = (studentId, columnId) => {
+    const getGrade = useCallback((studentId, columnId) => {
         const key = `${studentId}_${columnId}`;
-        return grades[key]?.marks;
-    };
+        return grades[studentId]?.[columnId]?.marks ?? grades[key]?.marks;
+    }, [grades]);
 
     // Compute analytics
     const analytics = useMemo(() => {
@@ -41,8 +42,9 @@ const GradeAnalyticsDashboard = () => {
             let sum = 0, count = 0;
             columns.forEach(col => {
                 const val = getGrade(s._id, col._id);
-                if (val !== undefined && val !== '' && !isNaN(val) && col.totalMarks > 0) {
-                    sum += (Number(val) / col.totalMarks) * 100;
+                const maxMarks = col.maxMarks ?? col.totalMarks;
+                if (val !== undefined && val !== '' && !isNaN(val) && maxMarks > 0) {
+                    sum += (Number(val) / maxMarks) * 100;
                     count++;
                 }
             });
@@ -54,8 +56,9 @@ const GradeAnalyticsDashboard = () => {
             let sum = 0, count = 0;
             students.forEach(s => {
                 const val = getGrade(s._id, col._id);
-                if (val !== undefined && val !== '' && !isNaN(val) && col.totalMarks > 0) {
-                    sum += (Number(val) / col.totalMarks) * 100;
+                const maxMarks = col.maxMarks ?? col.totalMarks;
+                if (val !== undefined && val !== '' && !isNaN(val) && maxMarks > 0) {
+                    sum += (Number(val) / maxMarks) * 100;
                     count++;
                 }
             });
@@ -104,7 +107,7 @@ const GradeAnalyticsDashboard = () => {
             totalStudents: students.length,
             totalAssessments: columns.length
         };
-    }, [students, columns, grades]);
+    }, [students, columns, getGrade]);
 
     if (!analytics) {
         return (
@@ -126,7 +129,7 @@ const GradeAnalyticsDashboard = () => {
 
             {/* Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
-                <SummaryCard label="Class Average" value={`${analytics.classAvg.toFixed(1)}%`}
+                <SummaryCard label="Class Average" value={`${formatPercentageAsAverageOutOfTen(analytics.classAvg)}/10`}
                     color={getBand(analytics.classAvg).color} icon={<HiOutlineAcademicCap size={20} />} />
                 <SummaryCard label="Students" value={analytics.totalStudents} color="#3b82f6"
                     icon={<HiOutlineTrendingUp size={20} />} />
@@ -173,7 +176,7 @@ const GradeAnalyticsDashboard = () => {
                                     fontWeight: 600, fontSize: 13,
                                     color: col.avg !== null ? getBand(col.avg).color : '#9ca3af'
                                 }}>
-                                    {col.avg !== null ? `${col.avg.toFixed(1)}%` : '—'}
+                                    {col.avg !== null ? `${formatPercentageAsAverageOutOfTen(col.avg)}/10` : '—'}
                                 </span>
                             </div>
                         ))}
@@ -199,7 +202,7 @@ const GradeAnalyticsDashboard = () => {
                                     {s.name}
                                 </span>
                                 <span style={{ fontWeight: 600, fontSize: 13, color: '#10b981' }}>
-                                    {s.avg.toFixed(1)}%
+                                    {formatPercentageAsAverageOutOfTen(s.avg)}/10
                                 </span>
                             </div>
                         ))}
@@ -222,7 +225,7 @@ const GradeAnalyticsDashboard = () => {
                             }}>
                                 <span style={{ fontSize: 13 }}>{s.name}</span>
                                 <span style={{ fontWeight: 600, fontSize: 13, color: '#ef4444' }}>
-                                    {s.avg.toFixed(1)}%
+                                    {formatPercentageAsAverageOutOfTen(s.avg)}/10
                                 </span>
                             </div>
                         ))}

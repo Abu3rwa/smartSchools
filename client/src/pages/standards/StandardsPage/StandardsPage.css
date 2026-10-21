@@ -51,6 +51,28 @@
     font-size: 0.875rem;
 }
 
+.standards-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.standards-bulk-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.standards-table input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+}
+
 .standards-table {
     width: 100%;
     background: var(--bg-card);
@@ -178,6 +200,11 @@
     border-color: var(--success-200);
 }
 
+.import-result.warning {
+    background: var(--warning-50);
+    border-color: var(--warning-200);
+}
+
 .import-result.error {
     background: var(--error-50);
     border-color: var(--error-200);
@@ -288,11 +315,8 @@
 }
 
 /* Embedded sub-page overrides — strip page shell when rendered as tab */
-.narrative-page--embedded,
-.progress-table-page--embedded,
 .assessment-pool-page--embedded,
-.live-edit-page--embedded,
-.audit-settings-page--embedded,
+.assessment-settings-page--embedded,
 .standards-gradebook-page--embedded,
 .assign-page--embedded {
     padding: 0;
