@@ -21,10 +21,10 @@ test("posted assignment content addresses parents by name and speaks directly to
     });
 
     assert.match(parentContent.message, /posted for Test Student A/);
-    assert.match(parentContent.htmlContent, /Student:<\/span> Test Student A/);
+    assert.match(parentContent.htmlContent, />Student<\/td>\s*<td[^>]*>Test Student A</);
     assert.match(studentContent.message, /A new quiz is ready for you/);
     assert.match(studentContent.htmlContent, /A new <strong>quiz<\/strong> is ready for you/);
-    assert.doesNotMatch(studentContent.htmlContent, /Student:<\/span>/);
+    assert.doesNotMatch(studentContent.htmlContent, />Student<\/td>/);
 });
 
 test("graded assignment content addresses parents by name and speaks directly to students", () => {
@@ -42,9 +42,26 @@ test("graded assignment content addresses parents by name and speaks directly to
     });
 
     assert.match(parentContent.message, /Test Student A's quiz has been graded/);
-    assert.match(parentContent.htmlContent, /Student:<\/span> Test Student A/);
+    assert.match(parentContent.htmlContent, />Student<\/td>\s*<td[^>]*>Test Student A</);
     assert.match(studentContent.message, /Your quiz has been graded/);
     assert.match(studentContent.htmlContent, /Your <strong>quiz<\/strong> has been graded/);
     assert.match(studentContent.htmlContent, /class="gbr-remark-chip gbr-remark-positive"/);
-    assert.doesNotMatch(studentContent.htmlContent, /Student:<\/span>/);
+    assert.doesNotMatch(studentContent.htmlContent, />Student<\/td>/);
+});
+
+test("posted assignment email only makes http(s) links clickable", async () => {
+    const content = await notificationService._buildAssignmentPostedContent({
+        student,
+        assignment: {
+            ...quiz,
+            links: [
+                { title: "Unsafe", url: "javascript:alert(1)" },
+                { title: "Study guide", url: "https://example.com/guide" },
+            ],
+        },
+    });
+
+    assert.doesNotMatch(content.htmlContent, /javascript:/);
+    assert.match(content.htmlContent, /href="https:\/\/example\.com\/guide"/);
+    assert.match(content.htmlContent, />Unsafe</);
 });

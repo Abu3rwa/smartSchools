@@ -2,6 +2,7 @@ import SpellingPassage from '../models/SpellingPassage.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import Student from '../models/Student.js';
+import { getPortalUrl } from '../helpers/portalUrl.js';
 import { resolveSpellingCompletionRecipients } from './spellingEmailService.js';
 import { buildSpellingPassageEmail } from './spellingPassageEmailService.js';
 import aiService from './aiservice.js';
@@ -166,7 +167,8 @@ export async function sendSpellingPassage({ schoolId, sessionId, userId }) {
     const passageEmail = buildSpellingPassageEmail({
         passage,
         session,
-        portalUrl: process.env.PORTAL_URL || process.env.CLIENT_URL || ''
+        studentName: student.fullName,
+        portalUrl: getPortalUrl()
     });
     const existingDelivery = await SpellingEmailDelivery.findOne({ school: schoolId, passage: passage._id, kind: 'passage' }).lean();
     if (['pending', 'processing', 'sent'].includes(existingDelivery?.status)) {

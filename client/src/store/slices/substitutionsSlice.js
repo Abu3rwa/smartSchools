@@ -74,6 +74,10 @@ export const fetchSubPendingCountThunk = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.message || 'Failed to fetch count');
     }
+  },
+  {
+    condition: (_, { getState }) =>
+      !getState().substitutions.pendingCount.loading,
   }
 );
 

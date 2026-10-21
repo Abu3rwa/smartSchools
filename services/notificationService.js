@@ -210,43 +210,221 @@ const addSchoolNameToMailContent = (mailOptions, schoolName) => {
   return nextMailOptions;
 };
 
+const EMAIL_FONT = "'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+const EMAIL_THEMES = {
+  default: { accent: "#0d9488", accentDark: "#0f766e", eyebrow: "#5eead4", soft: "#f0fdfa", softBorder: "#ccfbf1" },
+  reminder: { accent: "#d97706", accentDark: "#b45309", eyebrow: "#fcd34d", soft: "#fffbeb", softBorder: "#fde68a" },
+};
+
+// Keeps the gbr-* classes (shared with report emails) but inlines styles for clients that strip <style>.
+const REMARK_INLINE_STYLES = {
+  "gbr-remarks": "margin:4px 0 20px;",
+  "gbr-remarks-title": "margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b;",
+  "gbr-remark-group": "margin:0 0 10px;",
+  "gbr-remark-group-title": "margin:0 0 6px;font-size:12px;font-weight:600;color:#475569;",
+  "gbr-remark-list": "font-size:0;line-height:1.5;",
+  "gbr-remark-chip": "display:inline-block;max-width:100%;margin:0 6px 6px 0;padding:6px 11px;border-radius:999px;font-size:13px;line-height:1.35;",
+  "gbr-remark-positive": "background:#16834a;color:#ffffff;",
+  "gbr-remark-negative": "background:#bd2c35;color:#ffffff;",
+  "gbr-remark-neutral": "background:#e2e8f0;color:#334155;",
+  "gbr-remark-points": "margin-left:6px;color:#ffffff;font-size:12px;font-weight:800;white-space:nowrap;",
+};
+
+const inlineRemarkStyles = (html) =>
+  html.replace(/<([a-z][\w-]*)\s+class="([^"]*)"([^>]*)>/gi, (match, tag, classes, rest) => {
+    const style = classes.split(/\s+/).map((name) => REMARK_INLINE_STYLES[name] || "").join("");
+    return style ? `<${tag} class="${classes}" style="${style}"${rest}>` : match;
+  });
+
+const isHttpUrl = (value) => {
+  try {
+    return ["http:", "https:"].includes(new URL(String(value)).protocol);
+  } catch {
+    return false;
+  }
+};
+
+const getDueBadge = (value, now = new Date()) => {
+  if (!value) return null;
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime()) || due.getTime() === 0) return null;
+  const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOfDay(due) - startOfDay(now)) / 86400000);
+  if (days < 0) return { text: "Overdue", color: "#dc2626" };
+  if (days === 0) return { text: "Due today", color: "#d97706" };
+  if (days === 1) return { text: "Due tomorrow", color: "#d97706" };
+  if (days <= 14) return { text: `Due in ${days} days`, color: "#0d9488" };
+  return null;
+};
+
+const emailParagraph = (html) =>
+  `<p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#334155">${html}</p>`;
+
+const emailTextParagraphs = (text) =>
+  String(text || "")
+    .trim()
+    .split(/\n\s*\n/)
+    .filter(Boolean)
+    .map((block) => emailParagraph(escapeHtml(block.trim()).replace(/\n/g, "<br/>")))
+    .join("");
+
+const emailSectionTitle = (text) =>
+  `<p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b">${escapeHtml(text)}</p>`;
+
+const emailPanel = (rowsHtml, { background = "#ffffff" } = {}) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${background}" style="background:${background};border:1px solid #e2e8f0;border-radius:12px;border-collapse:separate;margin:0 0 22px">${rowsHtml}</table>`;
+
+const rowDivider = (index) => (index ? "border-top:1px solid #e2e8f0;" : "");
+
+const emailDetails = (rows) => {
+  const items = rows.filter((row) => row?.value);
+  if (!items.length) return "";
+  const rowsHtml = items.map((row, index) => `<tr>
+<td width="120" valign="top" style="padding:12px 16px;${rowDivider(index)}font-size:13px;color:#64748b">${escapeHtml(row.label)}</td>
+<td valign="top" style="padding:12px 16px;${rowDivider(index)}font-size:14px;font-weight:600;color:${row.color || "#0f172a"}">${escapeHtml(row.value)}</td>
+</tr>`).join("");
+  return emailPanel(rowsHtml, { background: "#f8fafc" });
+};
+
+const emailNoteBlock = (title, text, theme) =>
+  `${emailSectionTitle(title)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px"><tr><td bgcolor="#f8fafc" style="background:#f8fafc;border-left:3px solid ${theme.accent};border-radius:6px;padding:14px 16px;font-size:14px;line-height:1.6;color:#334155">${escapeHtml(text).replace(/\n/g, "<br/>")}</td></tr></table>`;
+
+const emailLinkList = (title, items, theme) => {
+  if (!items.length) return "";
+  const rowsHtml = items.map((item, index) => {
+    const label = escapeHtml(item.label);
+    const content = isHttpUrl(item.url)
+      ? `<a href="${escapeHtml(item.url)}" style="color:${theme.accentDark};font-weight:600;text-decoration:none">${label} &rarr;</a>`
+      : `<span style="color:#334155">${label}</span>`;
+    return `<tr><td style="padding:12px 16px;${rowDivider(index)}font-size:14px;line-height:1.4">${content}</td></tr>`;
+  }).join("");
+  return `${emailSectionTitle(title)}${emailPanel(rowsHtml)}`;
+};
+
+const emailProgressBar = (pct, color) => {
+  const cell = "height:8px;font-size:0;line-height:0";
+  const filled = pct > 0 ? `<td width="${pct}%" bgcolor="${color}" style="background:${color};${cell}">&nbsp;</td>` : "";
+  const empty = pct < 100 ? `<td bgcolor="#e2e8f0" style="background:#e2e8f0;${cell}">&nbsp;</td>` : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-radius:999px;overflow:hidden"><tr>${filled}${empty}</tr></table>`;
+};
+
+const emailScoreCard = ({ marks, maxMarks }, theme) => {
+  const pct = Math.round((marks / maxMarks) * 100);
+  const barPct = Math.max(0, Math.min(100, pct));
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${theme.soft}" style="background:${theme.soft};border:1px solid ${theme.softBorder};border-radius:12px;border-collapse:separate;margin:0 0 22px"><tr><td style="padding:20px 22px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td valign="bottom"><div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b">Score</div><div style="margin-top:4px;font-size:32px;line-height:1.1;font-weight:700;color:#0f172a">${marks}<span style="font-size:18px;font-weight:600;color:#94a3b8"> / ${maxMarks}</span></div></td>
+<td align="right" valign="bottom" style="font-size:22px;font-weight:700;color:${theme.accentDark}">${pct}%</td>
+</tr></table>
+<div style="margin-top:14px">${emailProgressBar(barPct, theme.accent)}</div>
+</td></tr></table>`;
+};
+
+const emailButton = (url, label, theme) => {
+  if (!url) return emailParagraph("Open the app to review the details.");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 0"><tr><td bgcolor="${theme.accent}" style="background:${theme.accent};border-radius:8px"><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 24px;font-family:${EMAIL_FONT};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px">${escapeHtml(label)} &rarr;</a></td></tr></table>`;
+};
+
 /**
- * Wrap email body content in a professional styled HTML email template.
+ * Wrap email body content in the shared notification layout.
  * Uses {{SCHOOL_NAME}} placeholder which addSchoolNameToMailContent replaces.
  */
-const wrapEmailHtml = ({ preheader = "", bodyHtml, accentColor = "#0d9488" }) => {
-  return [
-    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-    "<style>",
-    "body{margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%}",
-    ".wrapper{width:100%;background:#f1f5f9;padding:32px 0}",
-    ".card{max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)}",
-    `.header{background:${accentColor};padding:20px 28px}`,
-    ".header h1{margin:0;font-size:18px;font-weight:600;color:#ffffff;letter-spacing:0.3px}",
-    ".body-content{padding:24px 28px}",
-    ".body-content p{margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155}",
-    ".body-content .label{font-weight:600;color:#1e293b}",
-    ".detail-row{margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155}",
-    ".gbr-remarks{margin-top:10px;padding:12px 14px;border-top:1px solid #e2e8f0}",
-    ".gbr-remarks-title{margin:0 0 10px;color:#52675f;font-family:Arial,sans-serif;font-size:11px;font-weight:700}",
-    ".gbr-remark-group{margin:0 0 10px}",
-    ".gbr-remark-group-title{margin:0 0 6px;color:#52675f;font-family:Arial,sans-serif;font-size:10px;font-weight:700}",
-    ".gbr-remark-list{font-size:0;line-height:1.5}",
-    ".gbr-remark-chip{display:inline-block;max-width:100%;margin:0 6px 6px 0;padding:6px 9px;border-radius:4px;font-family:Arial,sans-serif;font-size:12px;line-height:1.35}",
-    ".gbr-remark-positive{background:#16834a;color:#ffffff}",
-    ".gbr-remark-negative{background:#bd2c35;color:#ffffff}",
-    ".gbr-remark-neutral{background:#e2e8f0;color:#334155}",
-    ".gbr-remark-points{margin-left:6px;color:#ffffff;font-size:11px;font-weight:800;white-space:nowrap}",
-    `.btn{display:inline-block;margin:16px 0 4px;padding:10px 24px;background:${accentColor};color:#ffffff !important;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px}`,
-    ".footer{padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center}",
-    ".footer p{margin:0;font-size:12px;color:#94a3b8}",
-    "</style></head><body>",
-    preheader ? `<div style="display:none;max-height:0;overflow:hidden">${escapeHtml(preheader)}</div>` : "",
-    '<div class="wrapper"><div class="card">',
-    '<div class="header"><h1>{{SCHOOL_NAME}}</h1></div>',
-    `<div class="body-content">${bodyHtml}</div>`,
-     "</div></div></body></html>",
+const wrapEmailHtml = ({ preheader = "", eyebrow, title, subtitle = "", badge = null, bodyHtml, theme = EMAIL_THEMES.default }) => {
+  const badgeHtml = badge
+    ? `<p style="margin:14px 0 0"><span style="display:inline-block;padding:5px 12px;border-radius:999px;background:${badge.color};font-size:12px;font-weight:700;color:#ffffff">${escapeHtml(badge.text)}</span></p>`
+    : "";
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;-webkit-text-size-adjust:100%">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background:#f1f5f9">
+<tr><td align="center" style="padding:32px 12px">
+${preheader ? `<div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#f1f5f9">${escapeHtml(preheader)}</div>` : ""}
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:${EMAIL_FONT};color:#0f172a">
+<tr><td bgcolor="#0f172a" style="background:#0f172a;padding:28px 32px;border-radius:16px 16px 0 0">
+<p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${theme.eyebrow}">{{SCHOOL_NAME}} &middot; ${escapeHtml(eyebrow)}</p>
+<h1 style="margin:0;font-size:24px;line-height:1.3;font-weight:700;color:#ffffff">${escapeHtml(title)}</h1>
+${subtitle ? `<p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#cbd5e1">${escapeHtml(subtitle)}</p>` : ""}
+${badgeHtml}
+</td></tr>
+<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:28px 32px 32px;border-radius:0 0 16px 16px">
+${bodyHtml}
+</td></tr>
+<tr><td align="center" style="padding:20px 24px 0;font-size:12px;line-height:1.5;color:#94a3b8">This is an automated message from {{SCHOOL_NAME}}.<br/>Sign in to the portal to view full details.</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+};
+
+const joinSubtitle = (...parts) => parts.filter(Boolean).join(" · ");
+
+const renderPostedEmailHtml = ({ intro, studentName, typeName, title, dueDate, instructions, linkItems = [], attachmentItems = [], url, buttonLabel, preheader }) => {
+  const theme = EMAIL_THEMES.default;
+  const bodyHtml = [
+    emailParagraph(intro),
+    emailDetails([
+      { label: "Student", value: studentName },
+      { label: "Type", value: typeName },
+      { label: "Due date", value: dueDate, color: theme.accentDark },
+    ]),
+    instructions ? emailNoteBlock("Instructions", instructions, theme) : "",
+    emailLinkList("Links", linkItems, theme),
+    emailLinkList("Attachments", attachmentItems, theme),
+    emailButton(url, buttonLabel, theme),
   ].join("");
+  return wrapEmailHtml({
+    preheader,
+    eyebrow: `New ${typeName.toLowerCase()}`,
+    title,
+    subtitle: joinSubtitle(studentName && `For ${studentName}`, dueDate && `Due ${dueDate}`),
+    bodyHtml,
+    theme,
+  });
+};
+
+const renderGradedEmailHtml = ({ intro, studentName, typeName, title, hasScore, marks, maxMarks, remarks, url, preheader }) => {
+  const theme = EMAIL_THEMES.default;
+  const bodyHtml = [
+    emailParagraph(intro),
+    hasScore ? emailScoreCard({ marks, maxMarks }, theme) : "",
+    emailDetails([
+      { label: "Student", value: studentName },
+      { label: "Type", value: typeName },
+    ]),
+    inlineRemarkStyles(buildGradebookRemarksHtml({ remarks })),
+    emailButton(url, "View grade", theme),
+  ].join("");
+  return wrapEmailHtml({
+    preheader,
+    eyebrow: `${typeName} graded`,
+    title,
+    subtitle: studentName ? `For ${studentName}` : "",
+    bodyHtml,
+    theme,
+  });
+};
+
+const renderReminderEmailHtml = ({ reminderText, studentName, typeName, title, dueValue, dueDate, links = [], url, preheader }) => {
+  const theme = EMAIL_THEMES.reminder;
+  const bodyHtml = [
+    emailTextParagraphs(reminderText),
+    emailDetails([
+      { label: "Student", value: studentName },
+      { label: "Type", value: typeName },
+      { label: "Due date", value: dueDate, color: theme.accentDark },
+    ]),
+    emailLinkList("Assignment links", links.map((link) => ({ label: link.title, url: link.url })), theme),
+    emailButton(url, `View ${typeName}`, theme),
+  ].join("");
+  return wrapEmailHtml({
+    preheader,
+    eyebrow: "Reminder",
+    title,
+    subtitle: joinSubtitle(studentName && `For ${studentName}`, dueDate && `Due ${dueDate}`),
+    badge: getDueBadge(dueValue),
+    bodyHtml,
+    theme,
+  });
 };
 
 class NotificationService {
@@ -647,70 +825,47 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
-    const detailRows = [
-      isStudent ? "" : `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
-      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
-      trimmedInstructions
-        ? `<p class="detail-row"><span class="label">Instructions:</span><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
-        : "",
-    ].filter(Boolean).join("");
+    const linkItems = (assignment?.links || []).map((link) => ({
+      label: link.title || link.type || "Link",
+      url: link.url || "",
+    }));
 
-    // Build links section (external URLs, assessments, practice objectives)
-    let linksHtml = "";
-    const assignmentLinks = assignment?.links || [];
-    if (assignmentLinks.length > 0) {
-      const linkItems = assignmentLinks.map((link) => {
-        const linkTitle = escapeHtml(link.title || link.type || "Link");
-        const linkUrl = link.url || "";
-        if (linkUrl) {
-          return `<li><a href="${escapeHtml(linkUrl)}" style="color:#0d9488;text-decoration:underline;">${linkTitle}</a></li>`;
+    const attachmentItems = [];
+    for (const att of assignment?.attachments || []) {
+      let downloadUrl = "";
+      try {
+        if (att.storageKey) {
+          downloadUrl = await getSignedUrl(att.storageKey);
+        } else if (att.url) {
+          downloadUrl = att.url;
         }
-        return `<li>${linkTitle}</li>`;
-      }).join("");
-      linksHtml = `<p class="detail-row"><span class="label">Links:</span></p><ul style="margin:4px 0 12px 20px;padding:0;">${linkItems}</ul>`;
-    }
-
-    // Build attachments section with signed Firebase URLs
-    let attachmentsHtml = "";
-    const assignmentAttachments = assignment?.attachments || [];
-    if (assignmentAttachments.length > 0) {
-      const attachmentItems = [];
-      for (const att of assignmentAttachments) {
-        const fileName = escapeHtml(att.fileName || "File");
-        let downloadUrl = "";
-        try {
-          if (att.storageKey) {
-            downloadUrl = await getSignedUrl(att.storageKey);
-          } else if (att.url) {
-            downloadUrl = att.url;
-          }
-        } catch {
-          // If signed URL fails, skip the link
-        }
-        if (downloadUrl) {
-          attachmentItems.push(`<li><a href="${escapeHtml(downloadUrl)}" style="color:#0d9488;text-decoration:underline;">${fileName}</a></li>`);
-        } else {
-          attachmentItems.push(`<li>${fileName}</li>`);
-        }
+      } catch {
+        // If signed URL fails, list the file without a link
       }
-      attachmentsHtml = `<p class="detail-row"><span class="label">Attachments:</span></p><ul style="margin:4px 0 12px 20px;padding:0;">${attachmentItems.join("")}</ul>`;
+      attachmentItems.push({ label: att.fileName || "File", url: downloadUrl });
     }
 
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const introHtml = isStudent
-      ? `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> is ready for you.</p>`
-      : `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>`;
-    const bodyHtml = `${introHtml}${detailRows}${linksHtml}${attachmentsHtml}${ctaHtml}`;
+    const typeLabel = `<strong>${escapeHtml(typeName.toLowerCase())}</strong>`;
+    const intro = isStudent
+      ? `A new ${typeLabel} is ready for you.`
+      : `A new ${typeLabel} has been posted for <strong>${escapeHtml(studentName)}</strong>.`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: wrapEmailHtml({ preheader: `New ${typeName}: ${title}`, bodyHtml }),
+      htmlContent: renderPostedEmailHtml({
+        intro,
+        studentName: isStudent ? "" : studentName,
+        typeName,
+        title,
+        dueDate,
+        instructions: trimmedInstructions,
+        linkItems,
+        attachmentItems,
+        url: assignmentUrl,
+        buttonLabel: `View ${typeName}`,
+        preheader: `New ${typeName}: ${title}`,
+      }),
     };
   }
 
@@ -728,7 +883,6 @@ class NotificationService {
 
     const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `${typeName} graded: ${title}`;
-    const remarksHtml = buildGradebookRemarksHtml({ remarks });
     const messageLines = [
       isStudent
         ? `Your ${typeName.toLowerCase()} has been graded.`
@@ -739,26 +893,26 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
-    const detailRows = [
-      isStudent ? "" : `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
-      hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
-    ].filter(Boolean).join("");
-
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const introHtml = isStudent
-      ? `<p>Your <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>`
-      : `<p><strong>${escapeHtml(studentName)}</strong>'s <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>`;
-    const bodyHtml = `${introHtml}${detailRows}${remarksHtml}${ctaHtml}`;
+    const typeLabel = `<strong>${escapeHtml(typeName.toLowerCase())}</strong>`;
+    const intro = isStudent
+      ? `Your ${typeLabel} has been graded.`
+      : `<strong>${escapeHtml(studentName)}</strong>'s ${typeLabel} has been graded.`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: wrapEmailHtml({ preheader: `${typeName} graded: ${title}`, bodyHtml }),
+      htmlContent: renderGradedEmailHtml({
+        intro,
+        studentName: isStudent ? "" : studentName,
+        typeName,
+        title,
+        hasScore,
+        marks,
+        maxMarks,
+        remarks,
+        url: assignmentUrl,
+        preheader: `${typeName} graded: ${title}`,
+      }),
     };
   }
 
@@ -782,25 +936,20 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
-    const detailRows = [
-      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
-      trimmedInstructions
-        ? `<p class="detail-row"><span class="label">Instructions:</span><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
-        : "",
-    ].filter(Boolean).join("");
-
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Homework</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const bodyHtml = `<p>A new homework has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${ctaHtml}`;
-
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: wrapEmailHtml({ preheader: `New Homework: ${title}`, bodyHtml }),
+      htmlContent: renderPostedEmailHtml({
+        intro: `A new <strong>homework</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.`,
+        studentName,
+        typeName: "Homework",
+        title,
+        dueDate,
+        instructions: trimmedInstructions,
+        url: assignmentUrl,
+        buttonLabel: "View homework",
+        preheader: `New Homework: ${title}`,
+      }),
     };
   }
 
@@ -816,7 +965,6 @@ class NotificationService {
 
     const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `Homework graded: ${title}`;
-    const remarksHtml = buildGradebookRemarksHtml({ remarks });
     const messageLines = [
       `${studentName}'s homework has been graded.`,
       `Title: ${title}`,
@@ -825,22 +973,21 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
-    const detailRows = [
-      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
-    ].filter(Boolean).join("");
-
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>${detailRows}${remarksHtml}${ctaHtml}`;
-
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: wrapEmailHtml({ preheader: `Homework graded: ${title}`, bodyHtml }),
+      htmlContent: renderGradedEmailHtml({
+        intro: `<strong>${escapeHtml(studentName)}</strong>'s <strong>homework</strong> has been graded.`,
+        studentName,
+        typeName: "Homework",
+        title,
+        hasScore,
+        marks,
+        maxMarks,
+        remarks,
+        url: assignmentUrl,
+        preheader: `Homework graded: ${title}`,
+      }),
     };
   }
 
@@ -1207,21 +1354,19 @@ class NotificationService {
     const title = String(assignment.title || "Assignment").trim();
     const dueDate = formatDateForNotice(assignment.dueDate);
     const assignmentUrl = assignment._id ? buildPortalLink(`/assignments/${assignment._id}`) : "";
-    const { notificationText, linksHtml } = buildAssignmentReminderContent({ reminderText, assignment });
+    const { notificationText, links } = buildAssignmentReminderContent({ reminderText, assignment });
 
-    const detailRows = [
-      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(student.fullName || "Student")}</p>`,
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
-      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
-    ].filter(Boolean).join("");
-
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${linksHtml}${ctaHtml}`;
-    const htmlContent = wrapEmailHtml({ preheader: subject, bodyHtml, accentColor: "#d97706" });
+    const htmlContent = renderReminderEmailHtml({
+      reminderText,
+      studentName: student.fullName || "Student",
+      typeName,
+      title,
+      dueValue: assignment.dueDate,
+      dueDate,
+      links,
+      url: assignmentUrl,
+      preheader: subject,
+    });
 
     const metadata = {
       assignmentId: String(assignment._id),
@@ -1320,20 +1465,18 @@ class NotificationService {
     const title = String(assignment.title || "Assignment").trim();
     const dueDate = formatDateForNotice(assignment.dueDate);
     const assignmentUrl = assignment._id ? buildPortalLink(`/assignments/${assignment._id}`) : "";
-    const { notificationText, linksHtml } = buildAssignmentReminderContent({ reminderText, assignment });
+    const { notificationText, links } = buildAssignmentReminderContent({ reminderText, assignment });
 
-    const detailRows = [
-      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
-      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
-      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
-    ].filter(Boolean).join("");
-
-    const ctaHtml = assignmentUrl
-      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
-      : "<p>Open the app to review details.</p>";
-
-    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${linksHtml}${ctaHtml}`;
-    const htmlContent = wrapEmailHtml({ preheader: subject, bodyHtml, accentColor: "#d97706" });
+    const htmlContent = renderReminderEmailHtml({
+      reminderText,
+      typeName,
+      title,
+      dueValue: assignment.dueDate,
+      dueDate,
+      links,
+      url: assignmentUrl,
+      preheader: subject,
+    });
 
     const metadata = {
       assignmentId: String(assignment._id),

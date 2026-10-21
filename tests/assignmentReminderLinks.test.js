@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildAssignmentReminderContent } from '../helpers/assignmentReminderLinks.js';
 
-test('assignment reminder includes external links as plain text and clickable email links', () => {
+test('assignment reminder includes external links as plain text and structured links', () => {
     const result = buildAssignmentReminderContent({
         reminderText: 'Please complete the assignment.',
         assignment: {
@@ -18,15 +18,10 @@ test('assignment reminder includes external links as plain text and clickable em
         result.notificationText,
         'Please complete the assignment.\n\nAssignment links:\nStudy guide: https://example.com/guide?a=1&b=2\nexample.org: https://example.org/resource'
     );
-    assert.match(
-        result.linksHtml,
-        /<a href="https:\/\/example\.com\/guide\?a=1&amp;b=2">Study guide<\/a>/
-    );
-    assert.match(
-        result.linksHtml,
-        /<a href="https:\/\/example\.org\/resource">example\.org<\/a>/
-    );
-    assert.doesNotMatch(result.linksHtml, /Internal quiz/);
+    assert.deepEqual(result.links, [
+        { title: 'Study guide', url: 'https://example.com/guide?a=1&b=2' },
+        { title: 'example.org', url: 'https://example.org/resource' }
+    ]);
 });
 
 test('assignment reminder omits unsupported and credentialed URLs', () => {
@@ -40,5 +35,5 @@ test('assignment reminder omits unsupported and credentialed URLs', () => {
         }
     });
 
-    assert.deepEqual(result, { notificationText: 'Reminder.', linksHtml: '' });
+    assert.deepEqual(result, { notificationText: 'Reminder.', links: [] });
 });

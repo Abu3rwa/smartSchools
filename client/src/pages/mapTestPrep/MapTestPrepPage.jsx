@@ -209,6 +209,8 @@ const MapTestPrepPage = () => {
   const [reportEndDate, setReportEndDate] = useState("");
   const [reportExportState, setReportExportState] = useState("");
   const [reportExportError, setReportExportError] = useState("");
+  const [progressEmailSending, setProgressEmailSending] = useState(false);
+  const [progressEmailStatus, setProgressEmailStatus] = useState(null);
   const fileInputRef = useRef(null);
   const [settings, setSettings] = useState({
     feedbackMode: "instant",
@@ -270,6 +272,7 @@ const MapTestPrepPage = () => {
 
   const openRosterStudent = async (student) => {
     setSelectedRosterStudent(student);
+    setProgressEmailStatus(null);
     setRosterDetailTab("overview");
     setSelectedReviewAttempt(null);
     setTeacherReviewMarks({});
@@ -288,6 +291,33 @@ const MapTestPrepPage = () => {
       );
     } finally {
       setRosterStudentDetailsLoading(false);
+    }
+  };
+
+  const sendRosterProgressEmail = async () => {
+    if (!selectedRosterStudent?._id) return;
+    setProgressEmailSending(true);
+    setProgressEmailStatus(null);
+    try {
+      const response = await api.post(
+        `/map-test-prep/practice/students/${selectedRosterStudent._id}/progress-email`,
+      );
+      const result = response.data?.data || {};
+      setProgressEmailStatus({
+        type: result.failed ? "warning" : "success",
+        message: result.failed
+          ? `Sent to ${result.sent} contact(s); ${result.failed} email(s) could not be sent.`
+          : `Progress emailed to ${result.sent} student/parent contact(s).`,
+      });
+    } catch (requestError) {
+      setProgressEmailStatus({
+        type: "error",
+        message:
+          requestError.response?.data?.message ||
+          "Unable to send the MAP Prep progress email.",
+      });
+    } finally {
+      setProgressEmailSending(false);
     }
   };
 
@@ -1113,6 +1143,16 @@ const MapTestPrepPage = () => {
                       </button>
                       <button
                         type="button"
+                        className="btn btn-primary"
+                        onClick={() => void sendRosterProgressEmail()}
+                        disabled={progressEmailSending || rosterStudentDetailsLoading}
+                      >
+                        {progressEmailSending
+                          ? "Sending…"
+                          : "Email progress to student & parents"}
+                      </button>
+                      <button
+                        type="button"
                         className="btn btn-secondary"
                         onClick={() => {
                           setSelectedRosterStudent(null);
@@ -1137,6 +1177,14 @@ const MapTestPrepPage = () => {
                   )}
                   {!rosterStudentDetailsLoading && rosterStudentDetails && (
                     <>
+                      {progressEmailStatus && (
+                        <p
+                          className={`map-progress-email-status ${progressEmailStatus.type}`}
+                          role={progressEmailStatus.type === "error" ? "alert" : "status"}
+                        >
+                          {progressEmailStatus.message}
+                        </p>
+                      )}
                       <div
                         className="map-roster-detail-tabs"
                         role="group"

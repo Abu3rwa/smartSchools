@@ -5,10 +5,13 @@ import { resolvePortalUrl } from '../helpers/portalUrl.js';
 import {
     buildFormalTestWordList,
     buildFormalSpellingTestWordListEmail,
+    buildSpellingCompletionEmail,
+    buildSpellingRetestPracticeEmail,
     getSpellingAssessmentCoverage,
     processSpellingEmailDelivery,
     resolveSpellingCompletionRecipients
 } from '../services/spellingEmailService.js';
+import { buildSpellingPassageEmail } from '../services/spellingPassageEmailService.js';
 
 test('formal test preparation emails are processed by their own delivery ID', async (t) => {
     const deliveryId = 'delivery-123';
@@ -170,13 +173,84 @@ test('formal test preparation emails list only unresolved words in a readable, s
     assert.match(email.text, /Unresolved missed words to review/);
     assert.doesNotMatch(email.text, /Other words in this test|curriculum word/);
     assert.match(email.text, /test list has 2 words/);
-    assert.match(email.html, /background:#4338ca/);
+    assert.match(email.html, /background:#0f172a/);
+    assert.match(email.html, /line-height:1\.6/);
     assert.match(email.html, /Words still to recover/);
     assert.doesNotMatch(email.html, /Other words in this test|curriculum word/);
-    assert.match(email.html, /2 words in your test/);
+    assert.match(email.html, /Test length<\/td><td[^>]*>2 words</);
     assert.doesNotMatch(email.html, /<script>/);
     assert.match(email.html, /&lt;script&gt;/);
     assert.match(email.html, /&lt;script&gt;.*?<\/span>&nbsp;/);
     assert.match(email.html, /covers only these unresolved words/);
     assert.match(email.text, /finish when you complete it/);
+});
+
+const attempts = [
+    { wordSnapshot: 'because', correct: true, grade: 'G2', week: 3, category: 'Sight words' },
+    { wordSnapshot: '<b>friend</b>', correct: false, grade: 'G2', week: 4, category: 'Sight words' }
+];
+
+test('formal spelling quiz result email shows the score, coverage, and escaped missed words', () => {
+    const email = buildSpellingCompletionEmail({
+        session: { assessmentType: 'formal-spelling-test', attempts, correctCount: 1, mistakeCount: 1, completedAt: '2026-10-20T10:00:00Z' },
+        studentName: 'Ava Martinez',
+        portalUrl: 'https://school.example/portal'
+    });
+
+    assert.equal(email.subject, 'Spelling quiz result for Ava Martinez: 1 of 2 correct');
+    assert.match(email.text, /Score: 1 out of 2 words/);
+    assert.match(email.text, /Weeks: 3, 4/);
+    assert.match(email.html, /Formal spelling quiz/);
+    assert.match(email.html, /For Ava Martinez · Completed Oct 20, 2026/);
+    assert.match(email.html, />50%</);
+    assert.match(email.html, /&lt;b&gt;friend&lt;\/b&gt;/);
+    assert.doesNotMatch(email.html, /<b>friend/);
+    assert.match(email.html, /href="https:\/\/school\.example\/portal"/);
+    assert.doesNotMatch(email.html, /Retest deadline/);
+});
+
+test('spelling level check email shows tallies and skips an unknown retest deadline', () => {
+    const session = { attempts, correctCount: 1, mistakeCount: 1, completedAt: '2026-10-20T10:00:00Z' };
+    const withoutDeadline = buildSpellingCompletionEmail({ session, portalUrl: '' });
+    const withDeadline = buildSpellingCompletionEmail({ session: { ...session, retestDeadline: '2026-10-27T10:00:00Z' }, portalUrl: '' });
+
+    assert.match(withoutDeadline.subject, /^Spelling level check summary \(Oct 20, 2026\)$/);
+    assert.match(withoutDeadline.html, /not a graded assignment/);
+    assert.match(withoutDeadline.html, /Words checked/);
+    assert.doesNotMatch(withoutDeadline.html, /Invalid Date|Retest deadline/);
+    assert.doesNotMatch(withoutDeadline.html, /<a /);
+    assert.match(withDeadline.html, /Retest deadline<\/td><td[^>]*>Oct 27, 2026</);
+    assert.match(withDeadline.text, /Retest deadline: Oct 27, 2026/);
+});
+
+test('spelling passage email highlights practice words without trusting passage content', () => {
+    const email = buildSpellingPassageEmail({
+        passage: { missedWords: ['friend'], content: 'My friend <script>x</script> came over.', style: 'paragraph' },
+        session: { completedAt: '2026-10-20T10:00:00Z' },
+        studentName: 'Ava Martinez',
+        portalUrl: 'https://school.example/portal'
+    });
+
+    assert.equal(email.subject, 'Practice passage for Ava Martinez (Oct 20, 2026)');
+    assert.match(email.html, /<mark style="[^"]*">friend<\/mark>/);
+    assert.match(email.html, /&lt;script&gt;/);
+    assert.doesNotMatch(email.html, /<script>/);
+    assert.match(email.html, /Your practice passage/);
+});
+
+test('spelling retest practice email lists each word once, escaped, with a start link', () => {
+    const email = buildSpellingRetestPracticeEmail({
+        session: { startedAt: '2026-10-21T08:00:00Z' },
+        words: ['friend', 'Friend', '<i>enough</i>', ''],
+        studentName: 'Ava Martinez',
+        portalUrl: 'https://school.example/portal'
+    });
+
+    assert.equal(email.subject, 'Spelling retest quiz ready for Ava Martinez: 2 words to practice');
+    assert.equal(email.text, 'Your spelling retest quiz is ready\nStudent: Ava Martinez\nAvailable since: Oct 21, 2026\n\nYour graded spelling retest quiz is now available. Practice these words before you begin:\n- friend\n- <i>enough</i>\n\nOpen the spelling portal: https://school.example/portal');
+    assert.equal(email.html.match(/>friend<\/span>/gi).length, 1);
+    assert.match(email.html, /&lt;i&gt;enough&lt;\/i&gt;/);
+    assert.doesNotMatch(email.html, /<i>/);
+    assert.match(email.html, /<strong[^>]*>Ava<\/strong>, it's time/);
+    assert.match(email.html, /href="https:\/\/school\.example\/portal"[^>]*>Start retest quiz/);
 });

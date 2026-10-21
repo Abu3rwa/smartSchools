@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../../config/api';
 import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress } from './studentMapPracticeProgress';
 import './StudentMapTestPrepPage.css';
 
 const StudentMapTestPrepPage = () => {
+  const [searchParams] = useSearchParams();
+  const handledDeepLink = useRef(false);
   const [message, setMessage] = useState('');
   const [home, setHome] = useState(null);
   const [assignment, setAssignment] = useState(null);
@@ -66,7 +69,7 @@ const StudentMapTestPrepPage = () => {
     return home.attempts.slice(0, 5);
   }, [home]);
 
-  const startAssignment = async (selectedAssignment) => {
+  const startAssignment = useCallback(async (selectedAssignment) => {
     try {
       setMessage('');
       const assignmentResponse = await api.get(`/map-test-prep/practice/assignments/${selectedAssignment._id}/questions`);
@@ -88,9 +91,9 @@ const StudentMapTestPrepPage = () => {
     } catch (error) {
       setMessage(error.response?.data?.message || 'Unable to open this set.');
     }
-  };
+  }, []);
 
-  const openAttemptReview = async (attemptId) => {
+  const openAttemptReview = useCallback(async (attemptId) => {
     setMessage('');
     setReviewLoading(true);
     try {
@@ -101,7 +104,37 @@ const StudentMapTestPrepPage = () => {
     } finally {
       setReviewLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!home || handledDeepLink.current) return;
+    const attemptId = searchParams.get('attemptId');
+    const assignmentId = searchParams.get('assignmentId');
+    if (!attemptId && !assignmentId) return;
+
+    handledDeepLink.current = true;
+    if (attemptId) {
+      if (!/^[a-f\d]{24}$/i.test(attemptId)) {
+        setMessage('The MAP Prep review link is invalid.');
+        return;
+      }
+      void openAttemptReview(attemptId);
+      return;
+    }
+
+    if (!/^[a-f\d]{24}$/i.test(assignmentId)) {
+      setMessage('The MAP Prep skill-set link is invalid.');
+      return;
+    }
+    const assignmentToOpen = assignedSets.find(
+      (item) => String(item._id) === String(assignmentId),
+    );
+    if (assignmentToOpen) {
+      void startAssignment(assignmentToOpen);
+    } else {
+      setMessage('This MAP Prep skill set is no longer assigned to your account.');
+    }
+  }, [home, searchParams, assignedSets, openAttemptReview, startAssignment]);
 
   const persistAnswer = async (questionId, response) => {
     if (!attempt?._id) return;

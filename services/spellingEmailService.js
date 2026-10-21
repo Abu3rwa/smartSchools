@@ -1,4 +1,3 @@
-import xss from 'xss';
 import Student from '../models/Student.js';
 import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import SpellingSession from '../models/SpellingSession.js';
@@ -7,14 +6,26 @@ import { getPortalUrl } from '../helpers/portalUrl.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
 import logger from '../utils/logger.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
+import {
+    TONES,
+    block,
+    button,
+    dataTable,
+    detailsPanel,
+    escapeHtml,
+    formatEmailDate,
+    noteBlock,
+    paragraph,
+    resultPill,
+    sanitizeSpellingEmailHtml,
+    scoreCard,
+    sectionTitle,
+    statTiles,
+    wordChips,
+    wrapSpellingEmail
+} from '../helpers/spellingEmailLayout.js';
 
 const MAX_ATTEMPTS = 3;
-const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 export const getSpellingAssessmentCoverage = (attempts = [], { fallbackGrade = '', fallbackWeek = null } = {}) => {
     const unique = (values) => [...new Set(values.map((value) => String(value ?? '').trim()).filter(Boolean))];
@@ -91,6 +102,95 @@ export const buildFormalTestWordList = ({ retestItems }) => {
     };
 };
 
+const pluralLabel = (values, singular, plural) => (values.length === 1 ? singular : plural);
+
+export const buildSpellingCompletionEmail = ({ session, studentName = '', portalUrl = getPortalUrl() }) => {
+    const attempts = session.attempts || [];
+    const isFormalAssessment = session.assessmentType === 'formal-spelling-test';
+    const coverage = getSpellingAssessmentCoverage(attempts, {
+        fallbackGrade: session.curriculumGrade,
+        fallbackWeek: session.curriculumWeek
+    });
+    const targetWords = [...new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => String(attempt.wordSnapshot || '').trim()).filter(Boolean))];
+    const name = String(studentName || '').trim();
+    const completedDate = formatEmailDate(session.completedAt || session.startedAt);
+    const retestDate = isFormalAssessment ? '' : formatEmailDate(session.retestDeadline);
+    const total = attempts.length;
+    const score = Math.min(session.correctCount || 0, total);
+    const correctCount = session.correctCount || 0;
+    const mistakeCount = session.mistakeCount || 0;
+    const coverageRows = [
+        { label: pluralLabel(coverage.grades, 'Grade', 'Grades'), value: coverage.grades.join(', ') },
+        { label: pluralLabel(coverage.weeks, 'Week', 'Weeks'), value: coverage.weeks.join(', ') },
+        { label: pluralLabel(coverage.categories, 'Category', 'Categories'), value: coverage.categories.join(', ') }
+    ];
+
+    const subject = isFormalAssessment
+        ? `Spelling quiz result${name ? ` for ${name}` : ''}: ${score} of ${total} correct`
+        : `Spelling level check summary${name ? ` for ${name}` : ''} (${completedDate})`;
+
+    const coverageText = coverageRows.filter((row) => row.value).map((row) => `${row.label}: ${row.value}`).join('\n');
+    const text = [
+        isFormalAssessment ? 'Formal spelling quiz result' : 'Spelling level check summary',
+        name ? `Student: ${name}` : '',
+        `Completed: ${completedDate}`,
+        isFormalAssessment
+            ? 'This was a graded spelling quiz and its score has been recorded in the Gradebook.'
+            : "This is not a graded assignment. It is a KG-Grade 5 spelling assessment used to understand the student's spelling level.",
+        coverageText,
+        isFormalAssessment ? `Score: ${score} out of ${total} words` : `Correct: ${correctCount}\nIncorrect: ${mistakeCount}`,
+        `${isFormalAssessment ? 'Words to practice' : 'Target words to practice'}: ${targetWords.length ? targetWords.join(', ') : 'None'}`,
+        retestDate ? `Retest deadline: ${retestDate}` : '',
+        portalUrl ? `Open portal: ${portalUrl}` : ''
+    ].filter(Boolean).join('\n');
+
+    const resultRows = attempts.map((attempt) => [
+        escapeHtml(attempt.wordSnapshot),
+        ...(isFormalAssessment ? [escapeHtml(attempt.week), escapeHtml(attempt.category)] : []),
+        resultPill(attempt.correct)
+    ]);
+    const resultHeaders = [
+        { label: 'Word' },
+        ...(isFormalAssessment ? [{ label: 'Week' }, { label: 'Category' }] : []),
+        { label: 'Result', align: 'right' }
+    ];
+
+    const bodyHtml = [
+        paragraph(isFormalAssessment
+            ? `This graded quiz${name ? ` for <strong>${escapeHtml(name)}</strong>` : ''} has been recorded in the Gradebook.`
+            : `This spelling check${name ? ` for <strong>${escapeHtml(name)}</strong>` : ''} is <strong>not a graded assignment</strong>. It is a KG&ndash;Grade 5 assessment that helps us understand the current spelling level.`),
+        isFormalAssessment
+            ? scoreCard({ score, total, label: 'Quiz score' })
+            : statTiles([
+                { label: 'Words checked', value: total },
+                { label: 'Correct', value: correctCount, tone: TONES.success },
+                { label: 'Incorrect', value: mistakeCount, tone: TONES.danger }
+            ]),
+        sectionTitle(isFormalAssessment ? 'Quiz coverage' : 'Level checked'),
+        detailsPanel([
+            ...coverageRows,
+            { label: 'Retest deadline', value: retestDate, color: TONES.warning.strong }
+        ]),
+        sectionTitle(isFormalAssessment ? 'Words to practice' : 'Target words to practice', targetWords.length ? 'Spend a few minutes on these before the next session.' : ''),
+        block(wordChips(targetWords, TONES.warning, 'No missed words. Great work!'), 16),
+        total ? sectionTitle('Word by word') : '',
+        total ? dataTable(resultHeaders, resultRows) : '',
+        button(portalUrl, 'Open spelling portal')
+    ].join('');
+
+    const html = sanitizeSpellingEmailHtml(wrapSpellingEmail({
+        preheader: isFormalAssessment
+            ? `${name || 'Your'} spelling quiz score: ${score} of ${total}.`
+            : `${correctCount} correct, ${mistakeCount} to practice.`,
+        eyebrow: isFormalAssessment ? 'Spelling quiz result' : 'Spelling level check',
+        title: isFormalAssessment ? 'Formal spelling quiz' : 'Spelling level check',
+        subtitle: [name ? `For ${name}` : '', completedDate ? `Completed ${completedDate}` : ''].filter(Boolean).join(' · '),
+        bodyHtml
+    }));
+
+    return { subject, text, html };
+};
+
 export async function queueSpellingCompletionEmail({ session, dbSession }) {
     const audience = isSpellingEmailAudience(session.emailNotification)
         ? session.emailNotification
@@ -118,118 +218,7 @@ export async function queueSpellingCompletionEmail({ session, dbSession }) {
         return null;
     }
 
-    const attempts = session.attempts || [];
-    const isFormalAssessment = session.assessmentType === 'formal-spelling-test';
-    const coverage = getSpellingAssessmentCoverage(attempts, {
-        fallbackGrade: session.curriculumGrade,
-        fallbackWeek: session.curriculumWeek
-    });
-    const targetWords = [...new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => String(attempt.wordSnapshot || '').trim()).filter(Boolean))];
-    const targetWordList = targetWords.map((word) => `<span style="display:inline-block;background:#fff8e6;border:1px solid #f0dca0;color:#7a5b00;font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;margin:2px 4px 2px 0;">${escapeHtml(word)}</span>`).join('');
-        const rows = attempts.map((attempt, index) => {
-                const resultLabel = attempt.correct ? 'Correct' : 'Incorrect';
-                const badge = attempt.correct
-                        ? '<span style="background:#e8f8ee;color:#1e8e4f;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;">Correct</span>'
-                        : '<span style="background:#fdecea;color:#c0392b;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;">Incorrect</span>';
-                const rowBackground = index % 2 === 1 ? 'background:#fafbfc;' : '';
-                const coverageCells = isFormalAssessment
-                    ? `<td style="padding:9px 10px;border-bottom:1px solid #eef0f4;${rowBackground}color:#4a5568;">${escapeHtml(attempt.week)}</td><td style="padding:9px 10px;border-bottom:1px solid #eef0f4;${rowBackground}color:#4a5568;">${escapeHtml(attempt.category)}</td>`
-                    : '';
-                return `<tr><td style="padding:9px 10px;border-bottom:1px solid #eef0f4;${rowBackground}color:#1a2436;">${escapeHtml(attempt.wordSnapshot)}</td>${coverageCells}<td style="padding:9px 10px;border-bottom:1px solid #eef0f4;${rowBackground}" align="right" aria-label="${resultLabel}">${badge}</td></tr>`;
-        }).join('');
-        const gradeLabel = coverage.grades.length === 1 ? 'Grade' : 'Grades';
-        const weekLabel = coverage.weeks.length === 1 ? 'Week' : 'Weeks';
-        const categoryLabel = coverage.categories.length === 1 ? 'Category' : 'Categories';
-        const coverageText = [
-            coverage.grades.length ? `${gradeLabel}: ${coverage.grades.join(', ')}` : '',
-            coverage.weeks.length ? `${weekLabel}: ${coverage.weeks.join(', ')}` : '',
-            coverage.categories.length ? `${categoryLabel}: ${coverage.categories.join(', ')}` : ''
-        ].filter(Boolean).join('\n');
-        const coverageHtml = [
-            coverage.grades.length ? `<div style="padding-bottom:4px;"><strong style="color:#1a2436;">${gradeLabel}:</strong> ${escapeHtml(coverage.grades.join(', '))}</div>` : '',
-            coverage.weeks.length ? `<div style="padding-bottom:4px;"><strong style="color:#1a2436;">${weekLabel}:</strong> ${escapeHtml(coverage.weeks.join(', '))}</div>` : '',
-            coverage.categories.length ? `<div><strong style="color:#1a2436;">${categoryLabel}:</strong> ${escapeHtml(coverage.categories.join(', '))}</div>` : ''
-        ].join('');
-        const completedDate = new Date(session.completedAt || session.startedAt).toLocaleDateString();
-        const retestDate = new Date(session.retestDeadline).toLocaleDateString();
-        const score = Math.min(session.correctCount, attempts.length);
-        const subject = isFormalAssessment
-            ? `Formal spelling quiz result - ${completedDate}`
-            : `Spelling level check summary - ${completedDate}`;
-    const portalUrl = getPortalUrl();
-        const text = isFormalAssessment
-        ? `Formal spelling quiz result\nThis was a graded spelling quiz and its score has been recorded in the Gradebook.${coverageText ? `\n${coverageText}` : ''}\nScore: ${score} out of ${attempts.length} words\nWords to practice: ${targetWords.length ? targetWords.join(', ') : 'None'}${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`
-        : `Spelling level check summary\nThis is not a graded assignment. It is a KG-Grade 5 spelling assessment used to understand the student's spelling level.\nGrade: ${coverage.grades.join(', ') || 'Not specified'}\nWeek: ${coverage.weeks.join(', ') || 'Not specified'}\nCategory: ${coverage.categories.join(', ') || 'Not specified'}\nTarget words to practice: ${targetWords.length ? targetWords.join(', ') : 'None'}\nCorrect: ${session.correctCount}\nIncorrect: ${session.mistakeCount}\nRetest deadline: ${retestDate}${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`;
-        const html = xss(`
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5;padding:24px 0;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;">
-    <tr><td style="background:#2c5aa0;padding:28px 32px;">
-        <div style="color:#ffffff;font-size:20px;font-weight:600;">${isFormalAssessment ? 'Formal Spelling Quiz Result' : 'Spelling Level Check'}</div>
-        <div style="color:#cfe0f5;font-size:13px;padding-top:4px;">Completed ${escapeHtml(completedDate)}</div>
-    </td></tr>
-    <tr><td style="padding:20px 32px 0;font-size:13px;color:#4a5568;">
-        <div style="padding-bottom:8px;color:#1a2436;font-weight:600;">${isFormalAssessment ? 'This is a graded quiz. The result has been recorded in the Gradebook.' : 'This is not a graded assignment.'}</div>
-        <div style="padding-bottom:4px;">${isFormalAssessment ? 'Formal spelling assessment result.' : 'This is a KG-G5 spelling assessment used to understand the student’s current spelling level.'}</div>
-        ${isFormalAssessment
-            ? `<div style="padding:10px 12px;margin-top:8px;border-radius:6px;background:#f3f5f8;"><strong style="display:block;padding-bottom:5px;color:#1a2436;">Quiz coverage</strong>${coverageHtml}</div>`
-            : `${coverage.grades.length ? `<div style="padding-bottom:4px;"><strong style="color:#1a2436;">Grade:</strong> ${escapeHtml(coverage.grades.join(', '))}</div>` : ''}${coverage.weeks.length ? `<div style="padding-bottom:4px;"><strong style="color:#1a2436;">Week:</strong> ${escapeHtml(coverage.weeks.join(', '))}</div>` : ''}${coverage.categories.length ? `<div><strong style="color:#1a2436;">Category:</strong> ${escapeHtml(coverage.categories.join(', '))}</div>` : ''}`}
-    </td></tr>
-    <tr><td style="padding:16px 32px 4px;">
-        <div style="font-size:13px;font-weight:700;color:#1a2436;margin-bottom:8px;">${isFormalAssessment ? 'Words to practice' : 'Target words to practice'}</div>
-        <div style="font-size:13px;line-height:1.8;">${targetWordList || '<span style="color:#6b7280;">No missed words</span>'}</div>
-    </td></tr>
-    <tr><td style="padding:20px 32px 8px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            ${isFormalAssessment
-                ? `<td width="100%" style="background:#e8f8ee;border:1px solid #bfe8cc;border-radius:8px;padding:16px;text-align:center;">
-                    <div style="font-size:26px;font-weight:700;color:#1e8e4f;">${score} / ${attempts.length}</div>
-                    <div style="font-size:12px;color:#2f6b45;margin-top:6px;text-transform:uppercase;">Graded quiz score</div>
-                </td>`
-                : `<td width="48%" style="background:#e8f8ee;border:1px solid #bfe8cc;border-radius:8px;padding:16px;text-align:center;">
-                <div style="font-size:26px;font-weight:700;color:#1e8e4f;">${session.correctCount}</div>
-                <div style="font-size:12px;color:#2f6b45;margin-top:6px;text-transform:uppercase;">Correct</div>
-            </td>
-            <td width="4%"></td>
-            <td width="48%" style="background:#fdecea;border:1px solid #f5c6c2;border-radius:8px;padding:16px;text-align:center;">
-                <div style="font-size:26px;font-weight:700;color:#c0392b;">${session.mistakeCount}</div>
-                <div style="font-size:12px;color:#a13b30;margin-top:6px;text-transform:uppercase;">Incorrect</div>
-            </td>`}
-        </tr></table>
-    </td></tr>
-    <tr><td style="padding:16px 32px 8px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;">
-            <tr>
-                <td style="padding:8px 10px;background:#f3f5f8;color:#5a6472;font-weight:600;border-bottom:2px solid #e2e6ec;">Word</td>
-        ${isFormalAssessment ? '<td style="padding:8px 10px;background:#f3f5f8;color:#5a6472;font-weight:600;border-bottom:2px solid #e2e6ec;">Week</td><td style="padding:8px 10px;background:#f3f5f8;color:#5a6472;font-weight:600;border-bottom:2px solid #e2e6ec;">Category</td>' : ''}
-        <td style="padding:8px 10px;background:#f3f5f8;color:#5a6472;font-weight:600;border-bottom:2px solid #e2e6ec;" align="right">Result</td>
-            </tr>
-            ${rows}
-        </table>
-    </td></tr>
-    ${isFormalAssessment ? '' : `<tr><td style="padding:16px 32px 4px;">
-        <div style="background:#fff8e6;border:1px solid #f0dca0;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5b00;">
-            Retest deadline: <strong>${escapeHtml(retestDate)}</strong>
-        </div>
-    </td></tr>`}
-    ${portalUrl ? `<tr><td style="padding:20px 32px 28px;" align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#2c5aa0;border-radius:6px;">
-            <a href="${escapeHtml(portalUrl)}" style="display:inline-block;padding:11px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">Open Spelling Portal</a>
-        </td></tr></table>
-    </td></tr>` : ''}
-    
-</table>
-</td></tr></table>`, {
-                whiteList: {
-                        table: ['role', 'width', 'cellpadding', 'cellspacing', 'style', 'align'],
-                        tr: [],
-                        td: ['style', 'width', 'align', 'aria-label'],
-                        div: ['style'],
-                        span: ['style'],
-                        a: ['href', 'style'],
-                        strong: ['style']
-                }
-    });
+    const { subject, text, html } = buildSpellingCompletionEmail({ session, studentName: student.fullName });
 
     await SpellingSession.updateOne(
         { _id: session._id, school: session.school },
@@ -247,6 +236,48 @@ export async function queueSpellingCompletionEmail({ session, dbSession }) {
         text
     }], { session: dbSession }).then(([delivery]) => delivery);
 }
+
+export const buildSpellingRetestPracticeEmail = ({ session, words = [], studentName = '', portalUrl = getPortalUrl() }) => {
+    const seen = new Set();
+    const practiceWords = words
+        .map((word) => String(word || '').trim())
+        .filter((word) => word && !seen.has(word.toLowerCase()) && seen.add(word.toLowerCase()));
+    const name = String(studentName || '').trim();
+    const firstName = name.split(/\s+/)[0];
+    const availableDate = formatEmailDate(session.startedAt);
+    const wordCountLabel = `${practiceWords.length} ${practiceWords.length === 1 ? 'word' : 'words'}`;
+
+    const subject = `Spelling retest quiz ready${name ? ` for ${name}` : ''}: ${wordCountLabel} to practice`;
+    const text = [
+        ['Your spelling retest quiz is ready', name ? `Student: ${name}` : '', availableDate ? `Available since: ${availableDate}` : ''].filter(Boolean).join('\n'),
+        ['Your graded spelling retest quiz is now available. Practice these words before you begin:', ...practiceWords.map((word) => `- ${word}`)].join('\n'),
+        portalUrl ? `Open the spelling portal: ${portalUrl}` : ''
+    ].filter(Boolean).join('\n\n');
+
+    const bodyHtml = [
+        paragraph(`${firstName ? `<strong>${escapeHtml(firstName)}</strong>, it's` : "It's"} time to revisit the words you missed earlier. Your <strong>graded retest quiz</strong> is open now in the spelling portal.`),
+        detailsPanel([
+            { label: 'Quiz', value: 'Graded spelling retest' },
+            { label: 'Words', value: wordCountLabel },
+            { label: 'Available since', value: availableDate, color: TONES.accent.strong }
+        ]),
+        sectionTitle('Words to practice', 'Review these before you begin. The quiz uses exactly this list.'),
+        block(wordChips(practiceWords, TONES.warning, 'No words to practice.'), 16),
+        noteBlock('<strong>Quick warm-up:</strong> read each word aloud, spell it letter by letter, then cover it and write it from memory. When you feel ready, start the quiz.', TONES.accent),
+        button(portalUrl, 'Start retest quiz')
+    ].join('');
+
+    const html = sanitizeSpellingEmailHtml(wrapSpellingEmail({
+        preheader: `${wordCountLabel} to practice before your spelling retest quiz.`,
+        eyebrow: 'Spelling retest',
+        title: 'Your retest quiz is ready',
+        subtitle: [name ? `For ${name}` : '', availableDate ? `Available since ${availableDate}` : ''].filter(Boolean).join(' · '),
+        bodyHtml,
+        footer: 'Practice makes progress. Take your time and do your best.'
+    }));
+
+    return { subject, text, html };
+};
 
 export async function queueSpellingRetestPracticeEmail({ session, words, dbSession }) {
     const audience = isSpellingEmailAudience(session.emailNotification)
@@ -275,20 +306,7 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
         return null;
     }
 
-    const wordList = words.map((word) => `<li style="padding:4px 0;">${escapeHtml(word)}</li>`).join('');
-    const portalUrl = getPortalUrl();
-    const quizDate = new Date(session.startedAt).toLocaleDateString();
-    const subject = 'Your spelling graded quiz is ready to practice';
-    const text = `Your spelling retest quiz is now available. Practice these words before you begin:\n${words.map((word) => `- ${word}`).join('\n')}\n${portalUrl ? `Open the spelling portal: ${portalUrl}` : ''}`;
-    const html = xss(`
-        <div style="font-family:Segoe UI,Arial,sans-serif;color:#1a2436;max-width:600px;margin:0 auto;padding:24px;">
-            <h2 style="color:#2c5aa0;">Spelling quiz practice</h2>
-            <p>Your graded spelling quiz is available now. Practice these words before you begin:</p>
-            <ul>${wordList}</ul>
-            <p style="color:#5a6472;">Quiz available since ${escapeHtml(quizDate)}.</p>
-            ${portalUrl ? `<p><a href="${escapeHtml(portalUrl)}">Open the spelling portal</a></p>` : ''}
-        </div>
-    `);
+    const { subject, text, html } = buildSpellingRetestPracticeEmail({ session, words, studentName: student.fullName });
 
     await SpellingSession.updateOne(
         { _id: session._id, school: session.school },
@@ -308,19 +326,25 @@ export async function queueSpellingRetestPracticeEmail({ session, words, dbSessi
     }], { session: dbSession }).then(([delivery]) => delivery);
 }
 
-export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWords, timeZone = 'UTC' }) => {
-    const scheduledDate = new Date(session.scheduledAt).toLocaleString(undefined, { timeZone });
-    const wordBadges = (words, background, border, color) => words
-        .map((word) => `<span style="display:inline-block;background:${background};border:1px solid ${border};color:${color};font-size:13px;font-weight:600;padding:6px 10px;border-radius:16px;margin:3px 4px 3px 0;">${escapeHtml(word)}</span>&nbsp;`)
-        .join('');
-    const lowConfidenceList = wordBadges(lowConfidenceWords, '#fff8e6', '#f0dca0', '#7a5b00');
+export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWords, timeZone = 'UTC', studentName = '', portalUrl = getPortalUrl() }) => {
+    const scheduledDate = new Date(session.scheduledAt).toLocaleString('en-US', {
+        timeZone,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+    const name = String(studentName || '').trim();
     const totalWords = lowConfidenceWords.length;
-    const portalUrl = getPortalUrl();
+    const wordCountLabel = `${totalWords} ${totalWords === 1 ? 'word' : 'words'}`;
     const subject = `Words to prepare for your spelling test on ${scheduledDate}`;
     const text = [
         'Prepare for your spelling test',
+        name ? `Student: ${name}` : '',
         `Scheduled: ${scheduledDate}`,
-        `The test list has ${totalWords} ${totalWords === 1 ? 'word' : 'words'}.`,
+        `The test list has ${wordCountLabel}.`,
         '',
         'Unresolved missed words to review:',
         ...(lowConfidenceWords.length ? lowConfidenceWords.map((word) => `- ${word}`) : ['- None']),
@@ -329,47 +353,28 @@ export const buildFormalSpellingTestWordListEmail = ({ session, lowConfidenceWor
         'Your test will use only this unresolved-word list and finish when you complete it, unless it ends earlier because the mistake limit is reached.',
         portalUrl ? `Open the spelling portal: ${portalUrl}` : ''
     ].filter((line) => line !== '').join('\n');
-    const html = xss(`
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5;padding:24px 0;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;color:#1a2436;">
-  <tr><td style="background:#4338ca;padding:28px 32px;">
-    <div style="color:#ffffff;font-size:22px;font-weight:700;">Prepare for your spelling test</div>
-    <div style="color:#e0e0fb;font-size:14px;padding-top:7px;">A quick review today can help you feel ready.</div>
-  </td></tr>
-  <tr><td style="padding:24px 32px 12px;font-size:15px;line-height:1.6;color:#4a5568;">
-    Your formal spelling test is scheduled for <strong style="color:#1a2436;">${escapeHtml(scheduledDate)}</strong>.
-  </td></tr>
-  <tr><td style="padding:4px 32px 18px;">
-    <div style="background:#f3f5f8;border:1px solid #e2e6ec;border-radius:8px;padding:12px 16px;font-size:14px;color:#4a5568;">
-      <strong style="color:#1a2436;">${totalWords} ${totalWords === 1 ? 'word' : 'words'} in your test</strong>
-      <span> · This is the word list you will be tested on.</span>
-    </div>
-  </td></tr>
-  <tr><td style="padding:4px 32px 16px;">
-    <div style="font-size:15px;font-weight:700;color:#1a2436;margin-bottom:4px;">Words still to recover</div>
-    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Give these words extra practice.</div>
-    <div style="font-size:13px;line-height:1.9;">${lowConfidenceList || '<span style="color:#6b7280;">No previously missed words.</span>'}</div>
-  </td></tr>
-  <tr><td style="padding:0 32px 20px;">
-    <div style="background:#fff8e6;border:1px solid #f0dca0;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.5;color:#7a5b00;">
-      Your formal test covers only these unresolved words and ends when you finish the list, unless the mistake limit is reached first.
-    </div>
-  </td></tr>
-  ${portalUrl ? `<tr><td style="padding:4px 32px 24px;" align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#4338ca;border-radius:6px;"><a href="${escapeHtml(portalUrl)}" style="display:inline-block;padding:12px 26px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">Open Spelling Portal</a></td></tr></table></td></tr>` : ''}
-  <tr><td style="padding:16px 32px 20px;border-top:1px solid #eef0f4;font-size:11px;color:#9aa4b2;">You’ve got this. Take your time and do your best.</td></tr>
-</table>
-</td></tr></table>`, {
-        whiteList: {
-            table: ['role', 'width', 'cellpadding', 'cellspacing', 'style', 'align'],
-            tr: [],
-            td: ['style', 'align'],
-            div: ['style'],
-            span: ['style'],
-            strong: ['style'],
-            a: ['href', 'style']
-        }
-    });
+
+    const bodyHtml = [
+        paragraph(`${name ? `<strong>${escapeHtml(name.split(/\s+/)[0])}</strong>, your` : 'Your'} formal spelling test is coming up. A quick review today can help you feel ready.`),
+        detailsPanel([
+            { label: 'Test date', value: scheduledDate, color: TONES.accent.strong },
+            { label: 'Test length', value: wordCountLabel }
+        ]),
+        sectionTitle('Words still to recover', 'Give these words extra practice. This is the list you will be tested on.'),
+        block(wordChips(lowConfidenceWords, TONES.warning, 'No previously missed words.'), 16),
+        noteBlock('<strong>How the test works:</strong> your formal test covers only these unresolved words and ends when you finish the list, unless the mistake limit is reached first.'),
+        noteBlock('<strong>Practice tip:</strong> say each word out loud, write it three times, then cover it and write it again from memory.', TONES.accent),
+        button(portalUrl, 'Open spelling portal')
+    ].join('');
+
+    const html = sanitizeSpellingEmailHtml(wrapSpellingEmail({
+        preheader: `${wordCountLabel} to review before your spelling test on ${scheduledDate}.`,
+        eyebrow: 'Spelling test prep',
+        title: 'Get ready for your spelling test',
+        subtitle: [name ? `For ${name}` : '', scheduledDate].filter(Boolean).join(' · '),
+        bodyHtml,
+        footer: "You've got this. Take your time and do your best."
+    }));
     return { subject, text, html };
 };
 
@@ -383,7 +388,7 @@ export async function queueFormalSpellingTestWordListEmail({ session, lowConfide
         throw Object.assign(new Error('No email address is configured for the selected formal test email audience'), { statusCode: 400 });
     }
 
-    const email = buildFormalSpellingTestWordListEmail({ session, lowConfidenceWords, timeZone });
+    const email = buildFormalSpellingTestWordListEmail({ session, lowConfidenceWords, timeZone, studentName: student.fullName });
     const [delivery] = await SpellingEmailDelivery.create([{
         school: session.school,
         session: session._id,

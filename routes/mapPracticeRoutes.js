@@ -26,6 +26,7 @@ import {
   exportMapPracticeClassReport,
   exportMapPracticeStudentReport
 } from '../controllers/mapPracticeReportController.js';
+import { sendMapPracticeProgressEmail } from '../controllers/mapPracticeProgressEmailController.js';
 
 const router = express.Router();
 const requireMapPracticeAccess = asyncHandler(async (req, res, next) => {
@@ -40,6 +41,7 @@ router.get('/settings', authorizeWithPermission(['admin', 'teacher'], []), getMa
 router.put('/settings', authorizeWithPermission(['admin', 'teacher'], []), saveMapPracticeSettings);
 router.get('/overview', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeOverview);
 router.get('/reports/students/:studentId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeStudentReport);
+router.post('/students/:studentId/progress-email', authorizeWithPermission(['admin', 'teacher'], []), sendMapPracticeProgressEmail);
 router.get('/reports/classes/:classId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeClassReport);
 router.get('/import/students', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeImportStudents);
 router.post('/preview-files', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);

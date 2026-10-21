@@ -1,11 +1,18 @@
-import xss from 'xss';
+import {
+    TONES,
+    block,
+    button,
+    escapeHtml,
+    formatEmailDate,
+    noteBlock,
+    paragraph,
+    sanitizeSpellingEmailHtml,
+    sectionTitle,
+    wordChips,
+    wrapSpellingEmail
+} from '../helpers/spellingEmailLayout.js';
 
-const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const MARK_STYLE = `background:${TONES.warning.border};color:${TONES.warning.text};padding:1px 4px;border-radius:4px;font-weight:700;`;
 
 // Escape first, then highlight exact target-word matches in the safe text.
 const highlightMissedWords = (text, words) => {
@@ -19,57 +26,43 @@ const highlightMissedWords = (text, words) => {
         const escapedWord = escapeHtml(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         if (!escapedWord) return;
         const pattern = new RegExp(`\\b(${escapedWord})\\b`, 'gi');
-        escaped = escaped.replace(pattern, '<mark style="background:#fff3b0;color:#5a4300;padding:1px 4px;border-radius:4px;font-weight:700;">$1</mark>');
+        escaped = escaped.replace(pattern, `<mark style="${MARK_STYLE}">$1</mark>`);
     });
 
     return escaped;
 };
 
-export function buildSpellingPassageEmail({ passage, session, portalUrl = '' }) {
+export function buildSpellingPassageEmail({ passage, session, studentName = '', portalUrl = '' }) {
     const missedWords = passage.missedWords || [];
-    const wordBadges = missedWords.map((word) => `<span style="display:inline-block;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;margin:2px 4px 2px 0;">${escapeHtml(word)}</span>`).join('');
+    const name = String(studentName || '').trim();
     const isSentenceList = passage.style === 'sentence-list';
+    const lines = String(passage.content || '').split('\n').filter(Boolean);
     const highlightedContent = isSentenceList
-        ? String(passage.content || '').split('\n').filter(Boolean).map((line, index) => `<div style="padding:8px 0;border-bottom:1px solid #f0f1f4;font-size:14px;line-height:1.6;color:#1a2436;"><span style="color:#9aa4b2;font-weight:600;margin-right:8px;">${index + 1}.</span>${highlightMissedWords(line, missedWords)}</div>`).join('')
-        : `<div style="font-size:14px;line-height:1.9;color:#1a2436;">${highlightMissedWords(passage.content, missedWords)}</div>`;
-    const completedDate = new Date(session.completedAt || session.startedAt).toLocaleDateString();
-    const subject = `Practice passage - ${completedDate}`;
-    const text = `Practice Passage\nFrom the spelling check on ${completedDate}\n\nWords to practice: ${missedWords.join(', ') || 'None'}\n\n${passage.content || ''}\n\nCopy this into your spelling notebook and practice it a few times before the next session.${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`;
-    const html = xss(`
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5;padding:24px 0;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;">
-  <tr><td style="background:#4338ca;padding:28px 32px;">
-    <div style="color:#ffffff;font-size:20px;font-weight:600;">Practice Passage</div>
-    <div style="color:#e0e0fb;font-size:13px;padding-top:4px;">From the spelling check on ${escapeHtml(completedDate)}</div>
-  </td></tr>
-  <tr><td style="padding:20px 32px 4px;font-size:13px;color:#4a5568;">
-    Use this ${isSentenceList ? 'set of practice sentences' : 'short passage'} to copy into your spelling notebook and practice the words below.
-  </td></tr>
-  <tr><td style="padding:16px 32px 4px;">
-    <div style="font-size:13px;font-weight:700;color:#1a2436;margin-bottom:8px;">Words to practice</div>
-    <div style="font-size:13px;line-height:1.8;">${wordBadges || '<span style="color:#6b7280;">None</span>'}</div>
-  </td></tr>
-  <tr><td style="padding:16px 32px 8px;">
-    <div style="background:#f8f9fc;border:1px solid #e4e7f0;border-radius:8px;padding:18px 20px;">${highlightedContent}</div>
-  </td></tr>
-  <tr><td style="padding:4px 32px 4px;">
-    <div style="background:#fff8e6;border:1px solid #f0dca0;border-radius:8px;padding:12px 14px;font-size:13px;color:#7a5b00;">Copy this into your spelling notebook and practice it a few times before the next session.</div>
-  </td></tr>
-  ${portalUrl ? `<tr><td style="padding:20px 32px 28px;" align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#4338ca;border-radius:6px;"><a href="${escapeHtml(portalUrl)}" style="display:inline-block;padding:11px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">Open Spelling Portal</a></td></tr></table></td></tr>` : ''}
-  <tr><td style="padding:16px 32px 24px;border-top:1px solid #eef0f4;"><div style="font-size:11px;color:#9aa4b2;">This passage was generated automatically to support spelling practice. It is not a graded assignment.</div></td></tr>
-</table>
-</td></tr></table>`, {
-        whiteList: {
-            table: ['role', 'width', 'cellpadding', 'cellspacing', 'style', 'align'],
-            tr: [],
-            td: ['style', 'width', 'align'],
-            div: ['style'],
-            span: ['style'],
-            a: ['href', 'style'],
-            mark: ['style']
-        }
-    });
+        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${lines.map((line, index) => `<tr><td width="28" style="${index < lines.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}padding:10px 0;font-size:16px;line-height:1.7;font-weight:700;color:#94a3b8;vertical-align:top">${index + 1}.</td><td style="${index < lines.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}padding:10px 0;font-size:16px;line-height:1.7;color:#0f172a;vertical-align:top">${highlightMissedWords(line, missedWords)}</td></tr>`).join('')}</table>`
+        : lines.map((line) => `<p style="margin:0 0 12px;font-size:16px;line-height:1.85;color:#0f172a">${highlightMissedWords(line, missedWords)}</p>`).join('');
+    const completedDate = formatEmailDate(session.completedAt || session.startedAt);
+    const kindLabel = isSentenceList ? 'practice sentences' : 'practice passage';
+    const subject = `${isSentenceList ? 'Practice sentences' : 'Practice passage'}${name ? ` for ${name}` : ''} (${completedDate})`;
+    const text = `${isSentenceList ? 'Practice Sentences' : 'Practice Passage'}\n${name ? `For ${name}\n` : ''}From the spelling check on ${completedDate}\n\nWords to practice: ${missedWords.join(', ') || 'None'}\n\n${passage.content || ''}\n\nCopy this into your spelling notebook and practice it a few times before the next session.${portalUrl ? `\nOpen portal: ${portalUrl}` : ''}`;
+
+    const bodyHtml = [
+        paragraph(`Here ${isSentenceList ? 'are some' : 'is a short'} ${kindLabel} built around the words ${name ? `<strong>${escapeHtml(name.split(/\s+/)[0])}</strong>` : 'you'} missed in the last spelling check. The practice words are highlighted.`),
+        sectionTitle('Words to practice'),
+        block(wordChips(missedWords, TONES.warning, 'None'), 16),
+        sectionTitle(isSentenceList ? 'Practice sentences' : 'Practice passage'),
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px"><tr><td bgcolor="#f8fafc" style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid ${TONES.accent.strong};border-radius:10px;padding:18px 22px 8px">${highlightedContent}</td></tr></table>`,
+        noteBlock('<strong>How to practice:</strong> read it aloud once, copy it into your spelling notebook, then cover the highlighted words and write them again from memory. Repeat a few times before the next session.', TONES.accent),
+        button(portalUrl, 'Open spelling portal')
+    ].join('');
+
+    const html = sanitizeSpellingEmailHtml(wrapSpellingEmail({
+        preheader: `${missedWords.length} ${missedWords.length === 1 ? 'word' : 'words'} to practice from the spelling check on ${completedDate}.`,
+        eyebrow: 'Spelling practice',
+        title: isSentenceList ? 'Your practice sentences' : 'Your practice passage',
+        subtitle: [name ? `For ${name}` : '', completedDate ? `From the spelling check on ${completedDate}` : ''].filter(Boolean).join(' · '),
+        bodyHtml,
+        footer: 'This passage was generated automatically to support spelling practice. It is not a graded assignment.'
+    }));
 
     return { subject, html, text };
 }

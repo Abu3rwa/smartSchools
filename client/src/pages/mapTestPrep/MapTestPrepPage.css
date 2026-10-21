@@ -1927,3 +1927,7 @@
     flex-direction: column;
   }
 }
+.map-progress-email-status { margin: 12px 0; padding: 10px 12px; border-radius: 8px; }
+.map-progress-email-status.success { color: #166534; background: #f0fdf4; }
+.map-progress-email-status.warning { color: #854d0e; background: #fffbeb; }
+.map-progress-email-status.error { color: #991b1b; background: #fef2f2; }

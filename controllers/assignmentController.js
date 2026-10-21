@@ -977,12 +977,30 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'No students found for this assignment' });
     }
 
+    const gradedStudentIds = new Set(
+        (await Grade.find({
+            school: req.schoolId,
+            assignment: assignment._id,
+            student: { $in: students.map((student) => student._id) }
+        })
+            .select('student')
+            .lean())
+            .map((grade) => toId(grade.student))
+    );
+    const ungradedStudents = students.filter((student) => !gradedStudentIds.has(toId(student._id)));
+    if (ungradedStudents.length === 0) {
+        return res.status(409).json({
+            success: false,
+            message: 'All students have already been graded for this assignment. No reminders were sent.'
+        });
+    }
+
     const sendToParents = audience === 'parents' || audience === 'both';
     const sendToStudents = audience === 'students' || audience === 'both';
 
     // Generate one reminder per student (personalized with name) and send to selected audience
     const results = await Promise.allSettled(
-        students.map(async (student) => {
+        ungradedStudents.map(async (student) => {
             try {
                 const { subject, body, studentBody } = generateAssignmentReminder({
                     assignment,
@@ -1024,13 +1042,21 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     if (failed.length > 0) {
         logger.error('assignment_reminders_summary', {
             assignmentId: String(assignment._id),
-            total: students.length,
+            total: ungradedStudents.length,
             sent,
             failed: failed.length,
             reasons: failed.map((r) => r.reason?.message || String(r.reason)).slice(0, 5),
         });
     }
-    res.json({ success: true, data: { studentCount: students.length, remindersSent: sent, audience } });
+    res.json({
+        success: true,
+        data: {
+            studentCount: ungradedStudents.length,
+            gradedStudentCount: students.length - ungradedStudents.length,
+            remindersSent: sent,
+            audience
+        }
+    });
 });
 
 export const getAssignmentGradebook = asyncHandler(async (req, res) => {

@@ -11,6 +11,9 @@ const useDashboardData = ({ academicYear }) => {
 
     useEffect(() => {
         const role = user?.role;
+        const hasDedicatedDashboard = ['admin', 'department_principal', 'teacher'].includes(role);
+        if (hasDedicatedDashboard) return;
+
         const canAccessSchoolLists = ['admin', 'department_principal', 'teacher'].includes(role);
         const canAccessSummaryStats = ['admin', 'department_principal', 'teacher'].includes(role);
 
