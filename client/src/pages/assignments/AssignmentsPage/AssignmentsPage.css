@@ -1764,6 +1764,56 @@
   color: var(--status-success);
 }
 
+.assignments-page .grade-panel .assignment-table input:disabled {
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  cursor: not-allowed;
+}
+
+.assignments-page .grade-panel .grade-excused {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.assignments-page .grade-panel .grade-excused__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.assignments-page .grade-panel .grade-excused__undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assignments-page .grade-panel .grade-excused__undo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assignments-page .grade-panel .assignment-grade-hint {
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 /* Link Editor */
 .link-editor,
 .attachment-editor {

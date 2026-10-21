@@ -6,6 +6,8 @@ const AssignmentGradePanel = ({
     gradeStudents,
     gradeRows,
     onGradeChange,
+    onToggleExcuse,
+    excuseBusyStudentId,
     onClose,
     onSubmitGrades,
     submitting = false,
@@ -45,43 +47,82 @@ const AssignmentGradePanel = ({
                         </tr>
                     </thead>
                     <tbody>
-                        {gradeStudents.map((student) => (
-                            <tr key={student.id}>
-                                <td>{student.fullName || `${student.firstName} ${student.lastName}`}</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={gradingAssignment.maxMarks}
-                                        value={gradeRows[student.id]?.marks ?? ''}
-                                        onChange={(event) => onGradeChange(student.id, 'marks', event.target.value)}
-                                    />
-                                </td>
-                                {showBehaviorAction && (
+                        {gradeStudents.map((student) => {
+                            const row = gradeRows[student.id] || {};
+                            const isExcused = row.excused === true;
+                            const isBusy = excuseBusyStudentId === student.id;
+                            const hasMarks = row.marks !== '' && row.marks !== null && row.marks !== undefined;
+
+                            return (
+                                <tr key={student.id} className={isExcused ? 'grade-row--excused' : undefined}>
+                                    <td>{student.fullName || `${student.firstName} ${student.lastName}`}</td>
                                     <td>
-                                        <button type="button" className="btn btn-outline btn-sm" onClick={() => onOpenBehavior(student)}>
-                                            Score behavior
-                                        </button>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={gradingAssignment.maxMarks}
+                                            value={row.marks ?? ''}
+                                            onChange={(event) => onGradeChange(student.id, 'marks', event.target.value)}
+                                            disabled={isExcused}
+                                        />
                                     </td>
-                                )}
-                                <td>
-                                    <input
-                                        type="text"
-                                        value={gradeRows[student.id]?.remarks ?? ''}
-                                        onChange={(event) => onGradeChange(student.id, 'remarks', event.target.value)}
-                                        placeholder={t('assignments:gradePanel.optional')}
-                                    />
-                                </td>
-                                <td>
-                                    {gradeRows[student.id]?.marks !== '' && gradeRows[student.id]?.marks !== undefined && (
-                                        <HiOutlineCheckCircle className="status-icon success" />
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={row.remarks ?? ''}
+                                            onChange={(event) => onGradeChange(student.id, 'remarks', event.target.value)}
+                                            placeholder={t('assignments:gradePanel.optional')}
+                                            disabled={isExcused}
+                                        />
+                                    </td>
+                                    {showBehaviorAction && (
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                onClick={() => onOpenBehavior(student)}
+                                                disabled={isExcused}
+                                            >
+                                                Score behavior
+                                            </button>
+                                        </td>
                                     )}
-                                </td>
-                            </tr>
-                        ))}
+                                    <td>
+                                        {isExcused ? (
+                                            <div className="grade-excused">
+                                                <span className="grade-excused__badge">{t('assignments:gradePanel.excused')}</span>
+                                                {onToggleExcuse && (
+                                                    <button
+                                                        type="button"
+                                                        className="grade-excused__undo"
+                                                        onClick={() => onToggleExcuse(student)}
+                                                        disabled={isBusy}
+                                                    >
+                                                        {isBusy ? t('assignments:gradePanel.saving') : t('assignments:gradePanel.undoExcuse')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : hasMarks ? (
+                                            <HiOutlineCheckCircle className="status-icon success" />
+                                        ) : onToggleExcuse ? (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                onClick={() => onToggleExcuse(student)}
+                                                disabled={isBusy}
+                                            >
+                                                {isBusy ? t('assignments:gradePanel.saving') : t('assignments:gradePanel.excuse')}
+                                            </button>
+                                        ) : null}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
+
+            <p className="assignment-grade-hint">{t('assignments:gradePanel.excuseHint')}</p>
 
             <div className="card-footer">
                 <button type="button" className="btn btn-primary" onClick={onSubmitGrades} disabled={submitting}>

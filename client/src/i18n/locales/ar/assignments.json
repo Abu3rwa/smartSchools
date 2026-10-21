@@ -215,7 +215,12 @@
     "optional": "اختياري",
     "linkedLessons": "خطط الدروس المرتبطة:",
     "saving": "جارٍ الحفظ…",
-    "save": "حفظ درجات الواجب"
+    "save": "حفظ درجات الواجب",
+    "excuse": "إعفاء",
+    "excused": "معفى",
+    "undoExcuse": "تراجع",
+    "excuseHint": "يُستثنى الطلاب المعفون من عدد غير المصححين والمتأخرين.",
+    "confirmExcuse": "هل تريد إعفاء هذا الطالب؟ ستُمسح أي درجات مكتوبة له."
   },
   "classroom": {
     "badge": "Google Classroom: {{state}}",
@@ -396,6 +401,9 @@
     "loadGradesFailed": "فشل تحميل درجات الواجب",
     "enterGrade": "أدخل درجة واحدة على الأقل",
     "gradesSaved": "تم حفظ الدرجات",
-    "saveGradesFailed": "فشل حفظ الدرجات"
+    "saveGradesFailed": "فشل حفظ الدرجات",
+    "studentExcused": "تم إعفاء الطالب",
+    "excuseRemoved": "تم إلغاء الإعفاء",
+    "excuseFailed": "تعذر تحديث الإعفاء"
   }
 }

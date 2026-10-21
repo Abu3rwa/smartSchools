@@ -215,7 +215,12 @@
     "optional": "Optional",
     "linkedLessons": "Linked lesson plans:",
     "saving": "Saving…",
-    "save": "Save Assignment Grades"
+    "save": "Save Assignment Grades",
+    "excuse": "Excuse",
+    "excused": "Excused",
+    "undoExcuse": "Undo",
+    "excuseHint": "Excused students are excluded from ungraded and overdue counts.",
+    "confirmExcuse": "Excuse this student? Any marks typed for them will be cleared."
   },
   "classroom": {
     "badge": "Google Classroom: {{state}}",
@@ -396,6 +401,9 @@
     "loadGradesFailed": "Failed to load assignment grades",
     "enterGrade": "Enter at least one grade",
     "gradesSaved": "Grades saved",
-    "saveGradesFailed": "Failed to save grades"
+    "saveGradesFailed": "Failed to save grades",
+    "studentExcused": "Student marked as excused",
+    "excuseRemoved": "Excuse removed",
+    "excuseFailed": "Could not update the excuse"
   }
 }

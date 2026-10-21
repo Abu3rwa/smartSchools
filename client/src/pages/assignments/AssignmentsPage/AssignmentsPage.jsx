@@ -857,6 +857,8 @@ const AssignmentsPage = () => {
                     gradeStudents={gradeStudents}
                     gradeRows={gradeRows}
                     onGradeChange={onGradeChange}
+                    onToggleExcuse={onToggleExcuse}
+                    excuseBusyStudentId={excuseBusyStudentId}
                     onClose={() => setGradingAssignment(null)}
                     onSubmitGrades={onSubmitGrades}
                     submitting={submittingGrades}

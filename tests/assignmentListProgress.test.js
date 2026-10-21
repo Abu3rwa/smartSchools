@@ -12,7 +12,19 @@ const assignments = [
         scope: 'selected_students',
         studentIds: ['student-1', 'student-3', 'student-inactive']
     },
-    { _id: 'assignment-3', class: 'class-2', scope: 'class' }
+    { _id: 'assignment-3', class: 'class-2', scope: 'class' },
+    {
+        _id: 'assignment-4',
+        class: { _id: 'class-1', name: 'Class 1' },
+        scope: 'class',
+        excusedStudentIds: ['student-2']
+    },
+    {
+        _id: 'assignment-5',
+        class: { _id: 'class-1', name: 'Class 1' },
+        scope: 'class',
+        excusedStudentIds: ['student-2']
+    }
 ];
 
 const students = [
@@ -27,7 +39,8 @@ const grades = [
     { assignment: 'assignment-1', student: 'student-inactive' },
     { assignment: 'assignment-2', student: 'student-1' },
     { assignment: 'assignment-2', student: 'student-3' },
-    { assignment: 'assignment-3', student: 'student-3' }
+    { assignment: 'assignment-3', student: 'student-3' },
+    { assignment: 'assignment-5', student: 'student-2' }
 ];
 
 const mockProgressSources = (t) => {
@@ -67,6 +80,16 @@ test('assignment list progress counts only active target students', async (t) =>
         studentCount: 1,
         gradedCount: 1,
         percent: 100
+    });
+    assert.deepEqual(progress.get('assignment-4'), {
+        studentCount: 1,
+        gradedCount: 0,
+        percent: 0
+    });
+    assert.deepEqual(progress.get('assignment-5'), {
+        studentCount: 2,
+        gradedCount: 1,
+        percent: 50
     });
 });
 

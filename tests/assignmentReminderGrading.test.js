@@ -22,8 +22,8 @@ const students = [
     { _id: 'student-pending', firstName: 'Pia', lastName: 'Pending' }
 ];
 
-const invokeReminder = async ({ grades, audience = 'both' } = {}, t) => {
-    t.mock.method(Assignment, 'findOne', async () => assignment);
+const invokeReminder = async ({ grades, audience = 'both', assignmentOverride = null } = {}, t) => {
+    t.mock.method(Assignment, 'findOne', async () => assignmentOverride || assignment);
     t.mock.method(Student, 'find', () => ({
         select: () => ({ lean: async () => students })
     }));
@@ -105,4 +105,33 @@ test('assignment reminders still reach every ungraded student when none are grad
     assert.equal(response.body.data.gradedStudentCount, 0);
     assert.equal(parentCalls.length, 2);
     assert.equal(studentCalls.length, 2);
+});
+
+test('assignment reminders skip excused students without a grade', async (t) => {
+    const { response, parentCalls, studentCalls } = await invokeReminder({
+        grades: [],
+        assignmentOverride: { ...assignment, excusedStudentIds: ['student-pending'] }
+    }, t);
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body.data, {
+        studentCount: 1,
+        gradedStudentCount: 0,
+        remindersSent: 1,
+        audience: 'both'
+    });
+    assert.deepEqual(parentCalls.map((call) => call.studentId), ['student-graded']);
+    assert.deepEqual(studentCalls.map((call) => call.studentId), ['student-graded']);
+});
+
+test('assignment reminders are not sent when every student is graded or excused', async (t) => {
+    const { response, parentCalls, studentCalls } = await invokeReminder({
+        grades: [{ student: 'student-graded' }],
+        assignmentOverride: { ...assignment, excusedStudentIds: ['student-pending'] }
+    }, t);
+
+    assert.equal(response.statusCode, 409);
+    assert.match(response.body.message, /graded or excused/i);
+    assert.equal(parentCalls.length, 0);
+    assert.equal(studentCalls.length, 0);
 });

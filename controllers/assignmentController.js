@@ -1167,7 +1167,6 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
         data: {
             studentCount: ungradedStudents.length,
             gradedStudentCount,
-            excusedStudentCount: excusedStudentIds.size,
             remindersSent: sent,
             audience
         }
