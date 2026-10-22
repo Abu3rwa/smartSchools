@@ -96,7 +96,7 @@ const AssignmentsPage = () => {
         canCreateAssignments,
         availableClasses,
         availableSubjects
-    } = useAssignmentsPageState({ user, classes, subjects, myClasses });
+    } = useAssignmentsPageState({ user, classes, subjects, myClasses, academicYear });
 
     const classroom = useGoogleClassroom({
         user,
@@ -214,13 +214,20 @@ const AssignmentsPage = () => {
 
     const handleClassChange = (classId) => {
         if (classId !== selectedClass) {
-            setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
+            // A lesson plan belongs to one class and subject, so the previous
+            // scope's picks would be rejected by the server's link validator.
+            setForm((prev) => ({ ...prev, scope: 'class', studentIds: [], lessonPlanIds: [] }));
             setSearchTerm('');
         }
         setSelectedClass(classId);
     };
 
     const handleSubjectChange = (subjectId) => {
+        if (subjectId !== selectedSubject) {
+            setForm((prev) => (prev.lessonPlanIds?.length
+                ? { ...prev, lessonPlanIds: [] }
+                : prev));
+        }
         setSearchTerm('');
         setSelectedSubject(subjectId);
     };
@@ -339,6 +346,10 @@ const AssignmentsPage = () => {
     const onEditAssignment = (assignment) => {
         setActiveTab('assignments');
         setStartWithImport(false);
+        // The drawer builds its payload from the page selectors, so they must
+        // point at the assignment's own class and subject before it opens.
+        if (assignment.class?.id) setSelectedClass(assignment.class.id);
+        if (assignment.subject?.id) setSelectedSubject(assignment.subject.id);
         setCreateFormOpen(true);
         setEditingAssignment(assignment);
         setForm((prev) => ({

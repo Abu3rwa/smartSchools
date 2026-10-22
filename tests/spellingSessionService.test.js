@@ -12,6 +12,7 @@ import SpellingWord from '../models/SpellingWord.js';
 import {
     getCurrentSpellingItem,
     cancelScheduledSpellingSession,
+    getFormalTestPrepReadiness,
     recordSpellingAttempt,
     migratePracticeResolvedRetests,
     startSpellingSession
@@ -502,5 +503,41 @@ test('recordSpellingAttempt rejects malformed sequence and idempotency input', a
             sequence: 1
         }),
         (error) => error.statusCode === 400 && /idempotencyKey is required/.test(error.message)
+    );
+});
+
+test('prep test readiness counts the words the preparation email would send', async (t) => {
+    const studentId = new mongoose.Types.ObjectId();
+    const chain = (result) => ({
+        select() { return this; },
+        sort() { return this; },
+        lean: async () => result
+    });
+    t.mock.method(SpellingRetestItem, 'find', (filter) => chain(
+        filter.status === 'resolved'
+            ? []
+            : [
+                { _id: new mongoose.Types.ObjectId(), sourceWord: new mongoose.Types.ObjectId(), status: 'pending' },
+                { _id: new mongoose.Types.ObjectId(), sourceWord: new mongoose.Types.ObjectId(), status: 'practice-mastered' }
+            ]
+    ));
+
+    assert.deepEqual(
+        await getFormalTestPrepReadiness({ schoolId: 'school-1', studentId }),
+        { wordCount: 2 }
+    );
+});
+
+test('prep test readiness reports no words when every miss is already resolved', async (t) => {
+    const chain = (result) => ({
+        select() { return this; },
+        sort() { return this; },
+        lean: async () => result
+    });
+    t.mock.method(SpellingRetestItem, 'find', () => chain([]));
+
+    assert.deepEqual(
+        await getFormalTestPrepReadiness({ schoolId: 'school-1', studentId: new mongoose.Types.ObjectId() }),
+        { wordCount: 0 }
     );
 });

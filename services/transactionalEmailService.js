@@ -33,6 +33,7 @@ const createSmtpTransport = async () => {
 
 export const sendTransactionalEmail = async ({
     to,
+    cc = null,
     subject,
     text,
     html,
@@ -42,6 +43,7 @@ export const sendTransactionalEmail = async ({
     allowSmtp = true
 }) => {
     const recipientEmail = normalizeRecipientList(to);
+    const ccEmail = normalizeRecipientList(cc);
 
     if (!recipientEmail) {
         throw new Error('Cannot send email without a recipient');
@@ -53,6 +55,8 @@ export const sendTransactionalEmail = async ({
         text,
         html
     };
+    // Omitted rather than blanked, so a sender never receives an empty Cc header.
+    if (ccEmail) mailOptions.cc = ccEmail;
 
     // An explicit sender is authoritative: never send their mail through an admin or SMTP account.
     if (preferredUserId) {

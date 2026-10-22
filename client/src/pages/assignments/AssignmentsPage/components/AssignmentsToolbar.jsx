@@ -44,7 +44,7 @@ const AssignmentsToolbar = ({
             >
                 <option value="">{t('assignments:filters.selectClass')}</option>
                 {classes.map((item) => (
-                    <option key={item._id} value={item._id}>{item.name}</option>
+                    <option key={item._id} value={item._id}>{item.optionLabel || item.name}</option>
                 ))}
             </select>
 

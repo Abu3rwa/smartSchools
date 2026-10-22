@@ -6,14 +6,47 @@ export const canCreateAssignmentsForUser = (user) => {
     return Array.isArray(user.permissions) && user.permissions.includes('create_assignments');
 };
 
-export const getAvailableClasses = ({ userRole, myClasses, classes }) => {
+const toClassDoc = (item) => (item && item.class ? item.class : item);
+
+const dedupeById = (items) => {
+    const seen = new Set();
+    return items.filter((item) => {
+        const id = item?._id ? String(item._id) : '';
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
+};
+
+// A class is stored once per academic year under the same generated name
+// ("Grade 5-T"), so shared selects must stay inside the year the page shows.
+// Rows whose year is unknown are kept, and a year that matches nothing falls
+// back to the unscoped list so the select never empties.
+const scopeToAcademicYear = (items, academicYear) => {
+    if (!academicYear) return items;
+    const scoped = items.filter((item) => !item?.academicYear
+        || String(item.academicYear) === String(academicYear));
+    return scoped.length > 0 ? scoped : items;
+};
+
+// Two years can still collide when no year is selected, so a repeated name is
+// labelled with its year instead of being shown twice as the same option.
+const labelRepeatedNames = (items) => {
+    const counts = new Map();
+    items.forEach((item) => counts.set(item.name, (counts.get(item.name) || 0) + 1));
+    return items.map((item) => (counts.get(item.name) > 1
+        ? { ...item, optionLabel: `${item.name} (${item.academicYear || '-'})` }
+        : item));
+};
+
+export const getAvailableClasses = ({ userRole, myClasses, classes, academicYear }) => {
     if (userRole === 'teacher' && Array.isArray(myClasses) && myClasses.length > 0) {
-        const seen = new Set();
-        return myClasses
-            .map((item) => item.class)
-            .filter((classItem) => classItem && !seen.has(classItem._id) && (seen.add(classItem._id), true));
+        return labelRepeatedNames(scopeToAcademicYear(
+            dedupeById(myClasses.map(toClassDoc).filter(Boolean)),
+            academicYear
+        ));
     }
-    return classes;
+    return labelRepeatedNames(scopeToAcademicYear(dedupeById(classes || []), academicYear));
 };
 
 export const getAvailableSubjects = ({ userRole, selectedClass, myClasses, classes, subjects }) => {

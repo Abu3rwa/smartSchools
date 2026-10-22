@@ -1,75 +1,71 @@
-import React from 'react';
-import useBehaviorManagementData from './hooks/useBehaviorManagementData';
-import BehaviorPageHeader from './components/BehaviorPageHeader';
-import BehaviorFiltersBar from './components/BehaviorFiltersBar';
-import BehaviorIncidentsList from './components/BehaviorIncidentsList';
-import BehaviorIncidentModal from './components/BehaviorIncidentModal';
-import BehaviorEmptyState from './components/BehaviorEmptyState';
-import LoadingState from './components/LoadingState';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
+import api from '../../../config/api';
+import { selectUser } from '../../../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
+import { fetchBehaviorSettings } from '../../../api/behaviorApi';
+import ConsequencesWorkspace from './consequences/ConsequencesWorkspace';
+import BehaviorSetupGate from './consequences/BehaviorSetupGate';
 import './BehaviorManagementPage.css';
 
+const ADMIN_ROLES = ['super_admin', 'admin', 'department_principal', 'behavior_manager'];
+
 const BehaviorManagementPage = () => {
-    const {
-        user,
-        incidents,
-        loading,
-        showModal,
-        setShowModal,
-        selectedIncident,
-        viewMode,
-        filters,
-        setFilters,
-        students,
-        classes,
-        formData,
-        setFormData,
-        selectedStudentProfile,
-        handleStudentChange,
-        handleCreateIncident,
-        handleViewIncident,
-        handleEditIncident,
-        handleSubmit,
-        handleResolve,
-        handleDelete
-    } = useBehaviorManagementData();
+    const { t } = useTranslation(['behaviorConsequences']);
+    const user = useSelector(selectUser);
+    const academicYear = useSelector(selectCurrentAcademicYear);
+    const [settings, setSettings] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [students, setStudents] = useState([]);
+
+    const readSettings = useCallback(async () => {
+        const payload = await fetchBehaviorSettings();
+        setSettings(payload?.settings || null);
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchBehaviorSettings()
+            .then((payload) => { if (!cancelled) setSettings(payload?.settings || null); })
+            .catch(() => { if (!cancelled) setSettings(null); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const enabled = settings?.enabled === true;
+
+    // The roster is only needed to log an incident, so a switched-off module must
+    // not pay for a 500-student query on every visit.
+    useEffect(() => {
+        if (!enabled) return undefined;
+        let cancelled = false;
+        api.get('/students', { params: { status: 'active', limit: 500, academicYear } })
+            .then((response) => {
+                if (!cancelled) setStudents(response?.data?.data?.students || []);
+            })
+            .catch(() => { if (!cancelled) setStudents([]); });
+        return () => { cancelled = true; };
+    }, [academicYear, enabled]);
 
     return (
         <div className="behavior-management-page">
-            <BehaviorPageHeader onCreateIncident={handleCreateIncident} />
-
-            <BehaviorFiltersBar 
-                filters={filters} 
-                onFilterChange={setFilters} 
-            />
-
             {loading ? (
-                <LoadingState />
-            ) : incidents.length === 0 ? (
-                <BehaviorEmptyState />
+                <div className="bc-loading">{t('common.loading')}</div>
             ) : (
-                <BehaviorIncidentsList 
-                    incidents={incidents}
-                    userRole={user?.role}
-                    onViewIncident={handleViewIncident}
-                    onEditIncident={handleEditIncident}
-                    onResolveIncident={handleResolve}
-                    onDeleteIncident={handleDelete}
-                />
+                enabled ? (
+                    <ConsequencesWorkspace
+                        students={students}
+                        user={user}
+                        initialSettings={settings}
+                    />
+                ) : (
+                    <BehaviorSetupGate
+                        isAdmin={ADMIN_ROLES.includes(user?.role)}
+                        onEnabled={readSettings}
+                    />
+                )
             )}
-
-            <BehaviorIncidentModal 
-                show={showModal}
-                onClose={() => setShowModal(false)}
-                viewMode={viewMode}
-                selectedIncident={selectedIncident}
-                formData={formData}
-                onFormDataChange={setFormData}
-                onStudentChange={handleStudentChange}
-                onSubmit={handleSubmit}
-                students={students}
-                classes={classes}
-                selectedStudentProfile={selectedStudentProfile}
-            />
         </div>
     );
 };

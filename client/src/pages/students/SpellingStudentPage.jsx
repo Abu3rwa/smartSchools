@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, Stack, TextField, Typography } from '@mui/material';
-import { HiOutlineArrowLeft, HiOutlineSpeakerWave } from 'react-icons/hi2';
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, Pagination, Stack, TextField, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { HiOutlineArrowLeft, HiOutlineCheck, HiOutlineHandRaised, HiOutlineMinus, HiOutlineSpeakerWave, HiOutlineXMark } from 'react-icons/hi2';
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +17,8 @@ import {
 } from '../../store/slices/spellingSlice';
 import SpellingVoicePanel from './SpellingVoicePanel';
 import { getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolveVoice, storeVoice } from '../../utils/voicePlayback';
+
+const HISTORY_PAGE_SIZE = 8;
 
 const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
     mode === 'self-serve'
@@ -74,6 +77,7 @@ const SpellingStudentPage = () => {
     const [checkingForSession, setCheckingForSession] = useState(false);
     const [sessionCheckMessage, setSessionCheckMessage] = useState('');
     const [selectedHistorySession, setSelectedHistorySession] = useState(null);
+    const [historyPage, setHistoryPage] = useState(1);
     const [practicePassage, setPracticePassage] = useState(null);
     const [passageLoading, setPassageLoading] = useState(false);
     const [dictionaryEntry, setDictionaryEntry] = useState(null);
@@ -407,92 +411,177 @@ const SpellingStudentPage = () => {
         if (mode === 'self-serve' && typed && attempt.correctedAt) return `${typed} ✓ ${word}`;
         if (attempt.correct) return `${word} ✓`;
         return mode === 'self-serve' && typed ? `${typed} × ${word}` : word;
-    };    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
+    };
+
+    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
+    const answeredWords = session?.attempts?.length || 0;
+    const mistakesRemaining = Math.max(mistakesAllowed - (session?.mistakeCount || 0), 0);
+    // An open-ended assessment has no fixed word list on the client, so the mistake
+    // budget is the only honest signal of how close the session is to ending.
     const retestWordTotal = session?.assessmentType === 'retest-quiz' ? session.retestQuizItems?.length || 0 : 0;
     const retestWordsCompleted = Math.min(session?.attempts?.length || 0, retestWordTotal);
     const retestCurrentWordNumber = session?.status === 'in-progress'
         ? Math.min(retestWordsCompleted + 1, retestWordTotal)
         : retestWordsCompleted;
 
+    // The sessions endpoint hands back the most recent 50, so paging happens here
+    // instead of pretending the list is unbounded. Clamping the page keeps a
+    // refreshed, shorter list from landing on an empty page.
+    const historyPageCount = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+    const safeHistoryPage = Math.min(historyPage, historyPageCount);
+    const historyStart = (safeHistoryPage - 1) * HISTORY_PAGE_SIZE;
+    const pagedHistory = history.slice(historyStart, historyStart + HISTORY_PAGE_SIZE);
+
     return (
-        <Box sx={{ maxWidth: 760, mx: 'auto', p: 3 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
-                <Typography variant="h4">{t('mySpelling')}</Typography>
-                <Button variant="outlined" onClick={() => navigate('/portal/dashboard')}>{t('backToMain')}</Button>
+        <Box sx={{ maxWidth: 820, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+            <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                spacing={1.5}
+                sx={{ mb: 3 }}
+            >
+                <Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>{t('mySpelling')}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{t('listenCarefully')}</Typography>
+                </Box>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<HiOutlineArrowLeft />}
+                    onClick={() => navigate('/portal/dashboard')}
+                >
+                    {t('backToMain')}
+                </Button>
             </Stack>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {localError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setLocalError('')}>{localError}</Alert>}
-            {sessionCheckMessage && <Alert severity="info" sx={{ mb: 2 }}>{sessionCheckMessage}</Alert>}
-            {!session && <>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                    During a spelling session, when this page becomes hidden, the event is recorded for your teacher. This can happen when switching tabs or minimizing the browser.
-                </Alert>
-                <Alert
-                    severity="info"
-                    action={(
-                        <Button color="inherit" size="small" onClick={checkForSessions} disabled={checkingForSession}>
-                            {checkingForSession ? t('checkingForSessions') : t('checkForSessions')}
-                        </Button>
-                    )}
-                >
-                    {t('waitingForTeacherSession')}
-                </Alert>
-            </>}
+            {sessionCheckMessage && <Alert severity="info" sx={{ mb: 2 }} onClose={() => setSessionCheckMessage('')}>{sessionCheckMessage}</Alert>}
+            {!session && (
+                <Card variant="outlined" sx={{ mb: 3 }}>
+                    <CardContent sx={{ textAlign: 'center', py: { xs: 4, sm: 6 }, px: 3 }}>
+                        <Stack spacing={2} alignItems="center">
+                            <Typography variant="h6">{t('waitingForTeacherSession')}</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 460 }}>
+                                {t('hiddenPageNotice')}
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                size="large"
+                                onClick={checkForSessions}
+                                disabled={checkingForSession}
+                                startIcon={checkingForSession ? <CircularProgress size={16} color="inherit" /> : null}
+                            >
+                                {checkingForSession ? t('checkingForSessions') : t('checkForSessions')}
+                            </Button>
+                        </Stack>
+                    </CardContent>
+                </Card>
+            )}
 
-            {session && !sessionViewOpen && <Card sx={{ mb: 3 }}><CardContent>
-                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2}>
-                    <Box>
-                        <Typography variant="subtitle1">{session.status === 'in-progress' ? 'Spelling test in progress' : t('sessionCompleted')}</Typography>
-                        <Typography variant="body2" color="text.secondary">{t('correctCount', { count: session.correctCount })} | {t('mistakeCount', { count: session.mistakeCount })}</Typography>
-                    </Box>
-                    <Button variant="contained" onClick={() => setSessionViewOpen(true)}>
-                        {session.status === 'in-progress' ? 'Continue' : t('viewDetails')}
-                    </Button>
-                </Stack>
-            </CardContent></Card>}
+            {session && !sessionViewOpen && (
+                <Card variant="outlined" sx={{ mb: 3 }}>
+                    <CardContent>
+                        <Stack
+                            direction={{ xs: 'column', sm: 'row' }}
+                            justifyContent="space-between"
+                            alignItems={{ xs: 'flex-start', sm: 'center' }}
+                            spacing={2}
+                        >
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {session.status === 'in-progress' ? t('testInProgress') : t('sessionCompleted')}
+                                </Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                                    <Chip size="small" variant="outlined" color="success" label={t('correctCount', { count: session.correctCount })} />
+                                    <Chip size="small" variant="outlined" color="error" label={t('mistakeCount', { count: session.mistakeCount })} />
+                                </Stack>
+                            </Box>
+                            <Button variant="contained" onClick={() => setSessionViewOpen(true)}>
+                                {session.status === 'in-progress' ? t('continueTest') : t('viewDetails')}
+                            </Button>
+                        </Stack>
+                    </CardContent>
+                </Card>
+            )}
 
-            <Dialog fullScreen open={Boolean(session) && sessionViewOpen} onClose={closeSessionView}>
+            <Dialog fullScreen open={Boolean(session) && sessionViewOpen} onClose={closeSessionView} aria-labelledby="spelling-session-title">
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', bgcolor: 'background.default', p: { xs: 2, md: 5 } }}>
                     {integrityNotice && <Alert severity="info" role="status" onClose={() => setIntegrityNotice(false)} sx={{ mb: 2 }}>
-                        Leaving this spelling session page was recorded.
+                        {t('leavingRecordedNotice')}
                     </Alert>}
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                        <Stack direction="row" spacing={2} alignItems="center">
-                            <IconButton aria-label="Close" onClick={closeSessionView}><HiOutlineArrowLeft /></IconButton>
-                            <Box>
-                                <Typography variant="h5">{t('mySpelling')}</Typography>
-                                <Stack direction="row" spacing={1} alignItems="baseline">
-                                    <Typography variant="body2" color="text.secondary">
-                                        {t('correctCount', { count: session?.correctCount || 0 })} | {t('mistakeCount', { count: session?.mistakeCount || 0 })}
-                                    </Typography>
-                                    {session?.status === 'in-progress' && (
-                                        <Typography variant="caption" color="text.secondary">
-                                            ({session.mistakeCount} / {mistakesAllowed} mistakes used)
-                                        </Typography>
-                                    )}
-                                </Stack>
-                                {retestWordTotal > 0 && (
-                                    <Box sx={{ mt: 1, minWidth: 180 }}>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {t('retestProgress', {
-                                                current: retestCurrentWordNumber,
-                                                total: retestWordTotal,
-                                                completed: retestWordsCompleted
-                                            })}
-                                        </Typography>
-                                        <LinearProgress
-                                            aria-label={t('retestProgressAria', {
-                                                completed: retestWordsCompleted,
-                                                total: retestWordTotal
-                                            })}
-                                            variant="determinate"
-                                            value={(retestWordsCompleted / retestWordTotal) * 100}
-                                        />
-                                    </Box>
+                    <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ mb: 3 }}>
+                        <IconButton
+                            aria-label={t('close')}
+                            onClick={closeSessionView}
+                            size="small"
+                            sx={{ mt: 0.5, border: 1, borderColor: 'divider' }}
+                        >
+                            <HiOutlineArrowLeft />
+                        </IconButton>
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography id="spelling-session-title" variant="h5" sx={{ fontWeight: 700 }}>{t('mySpelling')}</Typography>
+                            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                                <Chip size="small" color="success" variant="outlined" label={t('correctCount', { count: session?.correctCount || 0 })} />
+                                {session?.status !== 'in-progress' && (
+                                    <Chip size="small" color="error" variant="outlined" label={t('mistakeCount', { count: session?.mistakeCount || 0 })} />
                                 )}
-                            </Box>
-                        </Stack>
+                                <Chip size="small" variant="outlined" label={`${t('wordsAnswered')}: ${answeredWords}`} />
+                            </Stack>
+                            {session?.status === 'in-progress' && retestWordTotal === 0 && (
+                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.5 }}>
+                                    {/* The budget is the only honest progress signal here: the
+                                        session ends when it runs out, not at a fixed word count. */}
+                                    {mistakesAllowed <= 5 ? (
+                                        <Box role="img" aria-label={t('mistakesRemaining', { value: mistakesRemaining, max: mistakesAllowed })} sx={{ display: 'flex', gap: 0.5 }}>
+                                            {Array.from({ length: mistakesAllowed }, (_, index) => (
+                                                <Box
+                                                    key={index}
+                                                    sx={{
+                                                        width: 12,
+                                                        height: 12,
+                                                        borderRadius: '50%',
+                                                        bgcolor: index < (session?.mistakeCount || 0) ? 'error.main' : 'action.disabledBackground'
+                                                    }}
+                                                />
+                                            ))}
+                                        </Box>
+                                    ) : (
+                                        <LinearProgress
+                                            variant="determinate"
+                                            color={mistakesRemaining <= 1 ? 'error' : 'primary'}
+                                            value={(mistakesRemaining / mistakesAllowed) * 100}
+                                            aria-hidden="true"
+                                            sx={{ width: 120, height: 8, borderRadius: 4 }}
+                                        />
+                                    )}
+                                    <Typography variant="caption" color="text.secondary">
+                                        {t('mistakesRemaining', { value: mistakesRemaining, max: mistakesAllowed })}
+                                    </Typography>
+                                </Stack>
+                            )}
+                            {retestWordTotal > 0 && (
+                                <Box sx={{ mt: 1.5, minWidth: 180 }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {t('retestProgress', {
+                                            current: retestCurrentWordNumber,
+                                            total: retestWordTotal,
+                                            completed: retestWordsCompleted
+                                        })}
+                                    </Typography>
+                                    <LinearProgress
+                                        aria-label={t('retestProgressAria', {
+                                            completed: retestWordsCompleted,
+                                            total: retestWordTotal
+                                        })}
+                                        variant="determinate"
+                                        value={(retestWordsCompleted / retestWordTotal) * 100}
+                                        sx={{ mt: 0.75, height: 8, borderRadius: 4 }}
+                                    />
+                                </Box>
+                            )}
+                        </Box>
                     </Stack>
 
                     <Box sx={{
@@ -512,7 +601,12 @@ const SpellingStudentPage = () => {
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
                                 {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
-                                <Button onClick={() => checkForSessions({ refreshCompleted: true })} disabled={checkingForSession}>
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => checkForSessions({ refreshCompleted: true })}
+                                    disabled={checkingForSession}
+                                    startIcon={checkingForSession ? <CircularProgress size={16} color="inherit" /> : null}
+                                >
                                     {checkingForSession ? t('checkingForSessions') : t('checkForUpdates')}
                                 </Button>
                             </Stack>
@@ -522,32 +616,43 @@ const SpellingStudentPage = () => {
                                 {currentItem?.sequence && (
                                     <Alert
                                         severity={currentItem.handRaised ? 'success' : 'info'}
+                                        icon={<HiOutlineHandRaised />}
                                         action={currentItem.handRaised ? null : (
-                                            <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
+                                            <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>{t('raiseYourHand')}</Button>
                                         )}
                                     >
-                                        {currentItem.handRaised
-                                            ? 'Your hand is raised. Your teacher will help you soon.'
-                                            : "Can't hear properly or need help? Raise your hand."}
+                                        {currentItem.handRaised ? t('handIsRaised') : t('needHelpHint')}
                                     </Alert>
                                 )}
                             </Stack>
                         ) : currentItem ? (
                             <Box aria-live="polite" aria-atomic="true" sx={{ width: '100%' }}>
                                 <Stack spacing={2} sx={{ width: '100%' }}>
+                                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1, justifyContent: 'center' }}>
+                                        {currentItem.category && (
+                                            <Chip size="small" color="primary" variant="outlined" label={`${t('category')}: ${currentItem.category}`} />
+                                        )}
+                                        {currentItem.grade && (
+                                            <Chip size="small" variant="outlined" label={`${t('grade')}: ${currentItem.grade}`} />
+                                        )}
+                                        {currentItem.week && (
+                                            <Chip size="small" variant="outlined" label={`${t('week')}: ${currentItem.week}`} />
+                                        )}
+                                    </Stack>
                                     {currentItem.definition && (
                                         <Box sx={{
                                             textAlign: 'left',
                                             px: 2.5,
                                             py: 2,
                                             border: 1,
-                                            borderColor: 'primary.light',
+                                            borderColor: 'divider',
                                             borderLeft: 5,
+                                            borderLeftColor: 'primary.main',
                                             borderRadius: 2,
-                                            bgcolor: 'primary.50',
-                                            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.07)'
+                                            bgcolor: 'background.paper',
+                                            boxShadow: (theme) => theme.shadows[2]
                                         }}>
-                                            <Typography variant="overline" sx={{ color: 'primary.dark', fontWeight: 800, letterSpacing: '.08em' }}>Definition</Typography>
+                                            <Typography variant="overline" sx={{ color: 'primary.light', fontWeight: 800, letterSpacing: '.08em' }}>{t('definitionLabel')}</Typography>
                                             <Typography variant="body1" sx={{ color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.6 }}>{currentItem.definition}</Typography>
                                         </Box>
                                     )}
@@ -556,12 +661,12 @@ const SpellingStudentPage = () => {
                                     <Button
                                         variant="contained"
                                         size="large"
-                                        startIcon={<HiOutlineSpeakerWave />}
+                                        startIcon={audioPlaying ? <CircularProgress size={18} color="inherit" /> : <HiOutlineSpeakerWave />}
                                         onClick={() => speakWord(currentItem.word, currentItem.audio)}
                                         disabled={audioPlaying}
-                                        sx={{ minHeight: 56, fontSize: '1.05rem', alignSelf: 'center', px: 4, fontWeight: 700, boxShadow: '0 4px 12px rgba(25, 118, 210, 0.24)' }}
+                                        sx={{ minHeight: 56, fontSize: '1.05rem', alignSelf: 'center', px: 4, fontWeight: 700 }}
                                     >
-                                        {audioPlaying ? 'Playing…' : t('hearWord')}
+                                        {t('hearWord')}
                                     </Button>
                                     )}
                                     {currentItem.audio && (
@@ -576,40 +681,69 @@ const SpellingStudentPage = () => {
                                     <Alert
                                         severity={currentItem.handRaised ? 'success' : 'info'}
                                         role="note"
+                                        icon={<HiOutlineHandRaised />}
                                         action={currentItem.handRaised ? null : (
-                                        <Button color="inherit" size="small" variant="contained" onClick={raiseHand} sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } }}>Raise your hand</Button>
+                                        <Button color="inherit" size="small" variant="contained" onClick={raiseHand}>{t('raiseYourHand')}</Button>
                                         )}
                                     >
                                         {currentItem.handRaised
-                                            ? 'Your hand is raised. Your teacher will help you soon.'
+                                            ? t('handIsRaised')
                                             : isPluralWithoutOxfordAudio(currentItem)
-                                                ? 'This word is plural and has no Oxford pronunciation. Raise your hand so your teacher can say it to you.'
-                                                : "Can't hear properly or need help? Raise your hand."}
+                                                ? t('pluralNoOxfordAudio')
+                                                : t('needHelpHint')}
                                     </Alert>
                                     {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     {revealedAttempt && (
-                                        <Card variant="outlined">
+                                        <Card
+                                            variant="outlined"
+                                            sx={(theme) => {
+                                                const tone = revealedAttempt.skipped
+                                                    ? theme.palette.warning.main
+                                                    : revealedAttempt.correct
+                                                        ? theme.palette.success.main
+                                                        : theme.palette.error.main;
+                                                return {
+                                                    borderColor: alpha(tone, 0.5),
+                                                    bgcolor: alpha(tone, theme.palette.mode === 'light' ? 0.06 : 0.12)
+                                                };
+                                            }}
+                                        >
                                             <CardContent>
-                                                <Stack spacing={1}>
-                                                    <Typography color={revealedAttempt.skipped ? 'warning.main' : revealedAttempt.correct ? 'success.main' : 'error.main'} variant="h5">
+                                                <Stack spacing={1.5}>
+                                                    <Typography
+                                                        color={revealedAttempt.skipped ? 'warning.main' : revealedAttempt.correct ? 'success.main' : 'error.main'}
+                                                        variant="h5"
+                                                        sx={{ fontWeight: 800, textAlign: 'center' }}
+                                                    >
                                                         {revealedAttempt.skipped ? t('skipped') : revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
                                                     </Typography>
                                                     {!revealedAttempt.correct && (
-                                                        <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                                                            <Typography variant="body2">
-                                                                Your answer: <strong>{String(revealedAttempt.input || '').trim() || 'Skipped'}</strong>
-                                                            </Typography>
+                                                        <Box sx={{
+                                                            display: 'grid',
+                                                            gap: 1,
+                                                            textAlign: 'center',
+                                                            gridTemplateColumns: { xs: '1fr', sm: revealedAttempt.skipped ? '1fr' : '1fr auto 1fr' }
+                                                        }}>
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary">{t('yourAnswerLabel')}</Typography>
+                                                                <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+                                                                    {String(revealedAttempt.input || '').trim() || t('skippedAnswer')}
+                                                                </Typography>
+                                                            </Box>
                                                             {!revealedAttempt.skipped && (
                                                                 <>
-                                                                    <Typography component="span" color="error.main" aria-label="Incorrect">×</Typography>
-                                                                    <Typography variant="body2">Correct spelling: <strong>{revealedAttempt.word}</strong></Typography>
+                                                                    <Typography color="error.main" aria-hidden="true">×</Typography>
+                                                                    <Box>
+                                                                        <Typography variant="caption" color="text.secondary">{t('correctSpellingLabel')}</Typography>
+                                                                        <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>{revealedAttempt.word}</Typography>
+                                                                    </Box>
                                                                 </>
                                                             )}
-                                                        </Stack>
+                                                        </Box>
                                                     )}
                                                     {revealedAttempt.audio?.definition && (
                                                         <Box>
-                                                            <Typography variant="caption" color="text.secondary">Definition</Typography>
+                                                            <Typography variant="caption" color="text.secondary">{t('definitionLabel')}</Typography>
                                                             <Typography variant="body2">{revealedAttempt.audio.definition}</Typography>
                                                         </Box>
                                                     )}
@@ -621,11 +755,11 @@ const SpellingStudentPage = () => {
                                                     ))}
                                                     <Button
                                                         size="small"
-                                                        startIcon={<HiOutlineSpeakerWave />}
+                                                        startIcon={audioPlaying ? <CircularProgress size={14} color="inherit" /> : <HiOutlineSpeakerWave />}
                                                         onClick={() => speakWord(revealedAttempt.word, revealedAttempt.audio)}
                                                         disabled={audioPlaying}
                                                     >
-                                                        {audioPlaying ? 'Playing…' : t('playSound')}
+                                                        {t('playSound')}
                                                     </Button>
                                                 </Stack>
                                             </CardContent>
@@ -635,29 +769,37 @@ const SpellingStudentPage = () => {
                                         <Stack spacing={2}>
                                             <TextField
                                                 autoFocus
-                                                label="Your answer"
+                                                fullWidth
+                                                label={t('spellWord')}
                                                 value={input}
                                                 name="spelling-answer"
                                                 autoComplete="off"
                                                 spellCheck={false}
-                                                helperText="Type only what you hear — pasting and right-click are turned off for this test."
+                                                helperText={t('pasteBlockedHint')}
+                                                InputProps={{ sx: { fontSize: '1.15rem' } }}
                                                 onChange={(event) => setInput(event.target.value)}
                                                 onPaste={(event) => event.preventDefault()}
                                                 onDrop={(event) => event.preventDefault()}
                                                 onContextMenu={(event) => event.preventDefault()}
                                             />
-                                            <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1}>
-                                                <Button type="submit" variant="contained" size="large" disabled={loading || !input.trim()} sx={{ flex: 1, minHeight: 50, fontWeight: 700, boxShadow: '0 4px 12px rgba(25, 118, 210, 0.22)' }}>
-                                                    {t('submitAnswer')}
-                                                </Button>
-                                            </Stack>
+                                            <Button
+                                                type="submit"
+                                                variant="contained"
+                                                size="large"
+                                                fullWidth
+                                                disabled={loading || !input.trim()}
+                                                sx={{ minHeight: 50, fontWeight: 700 }}
+                                            >
+                                                {t('submitAnswer')}
+                                            </Button>
                                         </Stack>
                                     </form>
                                 </Stack>
                             </Box>
                         ) : (
-                            <Stack spacing={2} alignItems="center">
-                                <Typography variant="body1" color="text.secondary">Loading next word...</Typography>
+                            <Stack spacing={2} alignItems="center" justifyContent="center" sx={{ py: 4 }}>
+                                <CircularProgress />
+                                <Typography variant="body1" color="text.secondary">{t('loadingNextWord')}</Typography>
                             </Stack>
                         )}
                         </Box>
@@ -674,22 +816,35 @@ const SpellingStudentPage = () => {
                             }}
                         >
                             <CardContent sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, '&:last-child': { pb: 2 } }}>
-                                <Typography id="spelling-previous-words-title" variant="h6" sx={{ mb: 1 }}>
-                                    Previous words
+                                <Typography id="spelling-previous-words-title" variant="h6">
+                                    {t('previousWords')} · {answeredWords}
                                 </Typography>
-                                <Stack spacing={1} sx={{ flex: 1, overflowY: 'auto', minHeight: 0, pr: 0.5 }}>
-                                    {session?.attempts?.length ? session.attempts.map((attempt) => (
-                                        <Chip
-                                            key={attempt._id || attempt.sequence}
-                                            label={previousWordLabel(attempt, session.mode)}
-                                            color={isSkippedSpellingAttempt(attempt, session.mode) ? 'warning' : attempt.correct ? 'success' : 'error'}
-                                            variant="outlined"
-                                            title={isSkippedSpellingAttempt(attempt, session.mode) ? t('skipped') : attempt.correct ? 'Correct' : 'Incorrect'}
-                                            sx={{ maxWidth: '100%', justifyContent: 'flex-start' }}
-                                        />
-                                    )) : (
+                                {session?.attempts?.length > 0 && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>
+                                        {t('previousWordsLegend')}
+                                    </Typography>
+                                )}
+                                <Stack spacing={1} sx={{ flex: 1, overflowY: 'auto', minHeight: 0, pr: 0.5, mt: 1 }}>
+                                    {session?.attempts?.length ? session.attempts.map((attempt) => {
+                                        const skippedAttempt = isSkippedSpellingAttempt(attempt, session.mode);
+                                        return (
+                                            <Chip
+                                                key={attempt._id || attempt.sequence}
+                                                label={previousWordLabel(attempt, session.mode)}
+                                                color={skippedAttempt ? 'warning' : attempt.correct ? 'success' : 'error'}
+                                                variant="outlined"
+                                                icon={skippedAttempt
+                                                    ? <HiOutlineMinus fontSize="small" />
+                                                    : attempt.correct
+                                                        ? <HiOutlineCheck fontSize="small" />
+                                                        : <HiOutlineXMark fontSize="small" />}
+                                                title={skippedAttempt ? t('skipped') : attempt.correct ? t('correct') : t('incorrect')}
+                                                sx={{ maxWidth: '100%', justifyContent: 'flex-start' }}
+                                            />
+                                        );
+                                    }) : (
                                         <Typography variant="body2" color="text.secondary">
-                                            No previous words yet.
+                                            {t('noPreviousWords')}
                                         </Typography>
                                     )}
                                 </Stack>
@@ -698,50 +853,175 @@ const SpellingStudentPage = () => {
                     </Box>
                 </DialogContent>
             </Dialog>
-            {session?.status !== 'in-progress' && retests.length > 0 && <>
-                <Typography variant="h6">{t('pendingRetests')}</Typography>
-                <Stack spacing={1} sx={{ my: 1 }}>
-                    {retests.map((retest) => <Chip key={retest._id} label={`${retest.wordSnapshot} - due ${new Date(retest.dueAt).toLocaleDateString()}`} color={new Date(retest.dueAt) < new Date() ? 'error' : 'warning'} />)}
-                </Stack>
-            </>}
+            {session?.status !== 'in-progress' && retests.length > 0 && (
+                <Card variant="outlined" sx={{ mb: 2 }}>
+                    <CardContent>
+                        <Typography variant="h6" sx={{ mb: 1.5 }}>{t('pendingRetests')}</Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {retests.map((retest) => {
+                                const overdue = new Date(retest.dueAt) < new Date();
+                                return (
+                                    <Chip
+                                        key={retest._id}
+                                        label={`${retest.wordSnapshot} · ${t('dueOn', { value: new Date(retest.dueAt).toLocaleDateString() })}`}
+                                        color={overdue ? 'error' : 'warning'}
+                                        variant={overdue ? 'filled' : 'outlined'}
+                                        icon={overdue ? <HiOutlineXMark fontSize="small" /> : <HiOutlineMinus fontSize="small" />}
+                                    />
+                                );
+                            })}
+                        </Stack>
+                    </CardContent>
+                </Card>
+            )}
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6">{t('sessionHistory')}</Typography>
-            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => {
-                const gradedQuiz = entry.assessmentType === 'retest-quiz';
-                const quizTotal = entry.attempts?.length || 0;
-                const quizScore = quizTotal ? Math.round((entry.attempts.filter((attempt) => attempt.correct).length / quizTotal) * 100) : 0;
-                return <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{gradedQuiz ? `${t('gradedRetestQuiz')} · ` : ''}{entry.curriculumGrade ? `${entry.curriculumGrade} - ` : ''}{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect{gradedQuiz ? ` · ${t('score')}: ${quizScore}%` : ''}</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>;
-            })}</Stack>
-            <Dialog open={Boolean(selectedHistorySession)} onClose={() => setSelectedHistorySession(null)} fullWidth maxWidth="sm">
-                <DialogTitle>{t('sessionDetails')}</DialogTitle>
+            {history.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>{t('noSessionsYet')}</Typography>
+            ) : (
+                <>
+                    <Stack spacing={1} sx={{ mt: 1 }}>{pagedHistory.map((entry) => {
+                    const gradedQuiz = entry.assessmentType === 'retest-quiz';
+                    const quizTotal = entry.attempts?.length || 0;
+                    const quizScore = quizTotal ? Math.round((entry.attempts.filter((attempt) => attempt.correct).length / quizTotal) * 100) : 0;
+                    return (
+                        <Card key={entry._id} variant="outlined">
+                            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                <Stack
+                                    direction={{ xs: 'column', sm: 'row' }}
+                                    justifyContent="space-between"
+                                    alignItems={{ xs: 'flex-start', sm: 'center' }}
+                                    spacing={1.5}
+                                >
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Typography sx={{ fontWeight: 700 }}>
+                                                {new Date(entry.startedAt).toLocaleDateString()}
+                                            </Typography>
+                                            {gradedQuiz && <Chip size="small" color="primary" variant="outlined" label={t('gradedRetestQuiz')} />}
+                                            {entry.curriculumGrade && <Chip size="small" variant="outlined" label={entry.curriculumGrade} />}
+                                            {gradedQuiz && <Chip size="small" variant="outlined" label={`${t('score')}: ${quizScore}%`} />}
+                                        </Stack>
+                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                            <Typography variant="body2" color="success.main">{t('correctCount', { count: entry.correctCount })}</Typography>
+                                            <Typography variant="body2" color="error.main">{t('mistakeCount', { count: entry.mistakeCount })}</Typography>
+                                            {entry.practicePassage && (
+                                                <Chip size="small" color="success" variant="outlined" label={t('practicePassageAvailable')} />
+                                            )}
+                                        </Stack>
+                                    </Box>
+                                    <Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button>
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    );
+                })}</Stack>
+                    {history.length > HISTORY_PAGE_SIZE && (
+                        <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                            spacing={2}
+                            flexWrap="wrap"
+                            useFlexGap
+                            sx={{ mt: 1.5 }}
+                        >
+                            <Typography variant="body2" color="text.secondary">
+                                {t('showingRange', {
+                                    from: historyStart + 1,
+                                    to: Math.min(historyStart + HISTORY_PAGE_SIZE, history.length),
+                                    total: history.length
+                                })}
+                            </Typography>
+                            <Pagination
+                                count={historyPageCount}
+                                page={safeHistoryPage}
+                                onChange={(event, page) => setHistoryPage(page)}
+                                size="small"
+                                shape="rounded"
+                                color="primary"
+                                aria-label={t('historyPagination')}
+                            />
+                        </Stack>
+                    )}
+                </>
+            )}
+            <Dialog open={Boolean(selectedHistorySession)} onClose={() => setSelectedHistorySession(null)} fullWidth maxWidth="sm" aria-labelledby="session-details-title">
+                <DialogTitle id="session-details-title">
+                    {t('sessionDetails')}
+                    <Typography variant="body2" color="text.secondary">
+                        {selectedHistorySession && new Date(selectedHistorySession.startedAt).toLocaleDateString()}
+                    </Typography>
+                </DialogTitle>
                 <DialogContent dividers>
-                    <Stack spacing={2}>
-                        <Typography color="text.secondary">{selectedHistorySession && new Date(selectedHistorySession.startedAt).toLocaleDateString()}</Typography>
-                        <Box><Typography variant="subtitle1">{t('correctWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{correctWords.length ? correctWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="success" icon={<span aria-hidden="true">✓</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
-                        <Box><Typography variant="subtitle1">{t('incorrectWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{incorrectWords.length ? incorrectWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="error" icon={<span aria-hidden="true">×</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
+                    <Stack spacing={2.5}>
+                        <Box>
+                            <Typography variant="subtitle1">{t('correctWords')}</Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                {correctWords.length
+                                    ? correctWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="success" icon={<span aria-hidden="true">✓</span>} />)
+                                    : <Typography color="text.secondary">{t('none')}</Typography>}
+                            </Stack>
+                        </Box>
+                        <Box>
+                            <Typography variant="subtitle1">{t('incorrectWords')}</Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                {incorrectWords.length
+                                    ? incorrectWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="error" icon={<span aria-hidden="true">×</span>} />)
+                                    : <Typography color="text.secondary">{t('none')}</Typography>}
+                            </Stack>
+                        </Box>
                         {answerReviewAttempts(selectedAttempts, selectedHistorySession?.mode).length > 0 && (
                             <Box>
-                                <Typography variant="subtitle1">Answer comparison</Typography>
+                                <Typography variant="subtitle1">{t('answerComparison')}</Typography>
                                 <Stack spacing={1} sx={{ mt: 1 }}>
                                     {answerReviewAttempts(selectedAttempts, selectedHistorySession?.mode).map((attempt) => (
-                                        <Stack key={attempt._id || attempt.sequence} direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                            <Typography sx={{ flex: 1 }}>Your answer: <strong>{previousWordLabel(attempt, selectedHistorySession?.mode)}</strong></Typography>
-                                            {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
-                                        </Stack>
+                                        <Card key={attempt._id || attempt.sequence} variant="outlined" sx={{ bgcolor: 'background.default' }}>
+                                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                                                    <Typography sx={{ flex: 1, minWidth: 0 }}>
+                                                        {t('yourAnswerLabel')} <strong>{previousWordLabel(attempt, selectedHistorySession?.mode)}</strong>
+                                                    </Typography>
+                                                    {attempt.correctedAt && <Chip size="small" color="success" label={t('acceptedByTeacher')} />}
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
                                     ))}
                                 </Stack>
                             </Box>
                         )}
-                        {skippedHistoryWords.length > 0 && <Box><Typography variant="subtitle1">{t('skippedWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{skippedHistoryWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="warning" variant="outlined" />)}</Stack></Box>}
-                        {passageLoading && <Typography color="text.secondary">Loading practice passage…</Typography>}
+                        {skippedHistoryWords.length > 0 && (
+                            <Box>
+                                <Typography variant="subtitle1">{t('skippedWords')}</Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                    {skippedHistoryWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="warning" variant="outlined" />)}
+                                </Stack>
+                            </Box>
+                        )}
+                        {passageLoading && (
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                                <CircularProgress size={18} />
+                                <Typography color="text.secondary">{t('practicePassageLoading')}</Typography>
+                            </Stack>
+                        )}
                         {!passageLoading && practicePassage && (
                             <Box>
-                                <Typography variant="subtitle1">Practice passage</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>These are the target words to practice. This is practice material, not a grade.</Typography>
-                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                                <Typography variant="subtitle1">{t('practicePassage')}</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('practicePassageHint')}</Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
                                     {(practicePassage.missedWords || []).map((word) => <Chip key={word} label={word} color="warning" variant="outlined" />)}
                                 </Stack>
-                                <Typography sx={{ whiteSpace: 'pre-wrap' }}>{practicePassage.content}</Typography>
+                                <Box sx={{
+                                    p: 2,
+                                    borderRadius: 2,
+                                    border: 1,
+                                    borderColor: 'divider',
+                                    bgcolor: 'background.default',
+                                    whiteSpace: 'pre-wrap',
+                                    lineHeight: 1.7
+                                }}>
+                                    <Typography component="span">{practicePassage.content}</Typography>
+                                </Box>
                             </Box>
                         )}
                     </Stack>

@@ -6,7 +6,7 @@ import {
     getAvailableSubjects
 } from '../utils/assignmentPresentation';
 
-const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
+const useAssignmentsPageState = ({ user, classes, subjects, myClasses, academicYear }) => {
     const [assignmentTypes, setAssignmentTypes] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -28,8 +28,8 @@ const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
     );
 
     const availableClasses = useMemo(() => {
-        return getAvailableClasses({ userRole: user?.role, myClasses, classes });
-    }, [classes, myClasses, user?.role]);
+        return getAvailableClasses({ userRole: user?.role, myClasses, classes, academicYear });
+    }, [academicYear, classes, myClasses, user?.role]);
 
     const availableSubjects = useMemo(() => {
         return getAvailableSubjects({

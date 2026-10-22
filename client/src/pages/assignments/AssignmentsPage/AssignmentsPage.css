@@ -18,7 +18,11 @@
   gap: 10px;
   flex: none;
 }
-
+.assignments-kpi__bottom {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
 /* ── Page-level tabs (History / Integrations) ───────────────── */
 .assignments-page__tabs {
   display: inline-flex;
@@ -2965,6 +2969,97 @@
 .assignments-page .empty-state {
   padding: 16px;
   color: var(--text-secondary);
+}
+
+/* ── Grade entry dialog ────────────────────────────────────── */
+/* Stays under 1100 so the classwork behavior dialog can stack on
+   top of this one. */
+.grade-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(2px);
+  animation: assignmentsFadeIn 0.18s ease;
+}
+
+.assignments-page .grade-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(88vh, 840px);
+  padding: 16px;
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -50%);
+  animation: gradePanelIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+
+.assignments-page .grade-panel.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+@keyframes gradePanelIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.assignments-page .grade-panel .card-header {
+  flex: none;
+  margin-bottom: 12px;
+}
+
+.assignments-page .grade-panel .card-body {
+  flex: none;
+}
+
+.assignments-page .grade-panel .table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.assignments-page .grade-panel .assignment-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.assignments-page .grade-panel .assignment-grade-progress,
+.assignments-page .grade-panel .assignment-grade-hint {
+  flex: none;
+}
+
+.assignments-page .grade-panel .card-footer {
+  flex: none;
+  margin-top: 12px;
+}
+
+@media (max-width: 780px) {
+  .assignments-page .grade-panel {
+    width: calc(100vw - 20px);
+    max-height: 92vh;
+    padding: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grade-panel-overlay,
+  .assignments-page .grade-panel {
+    animation: none;
+  }
 }
 
 .assignments-page .grade-panel .status-icon.success {

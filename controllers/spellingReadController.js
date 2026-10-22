@@ -6,6 +6,7 @@ import {
     listSpellingSessions,
     resolveSpellingStudentId
 } from '../services/spellingReadService.js';
+import { getFormalTestPrepReadiness } from '../services/spellingSessionService.js';
 
 const studentIdForRequest = (req) => resolveSpellingStudentId({
     schoolId: req.schoolId,
@@ -66,4 +67,11 @@ export const listRetests = asyncHandler(async (req, res) => {
         limit: req.query.limit
     });
     return res.json({ success: true, data: items });
+});
+
+export const getPrepTestReadiness = asyncHandler(async (req, res) => {
+    const studentId = await studentIdForRequest(req);
+    if (!studentId) return res.status(400).json({ success: false, message: 'Student context required' });
+    const readiness = await getFormalTestPrepReadiness({ schoolId: req.schoolId, studentId });
+    return res.json({ success: true, data: readiness });
 });

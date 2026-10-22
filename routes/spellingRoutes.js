@@ -25,6 +25,7 @@ import {
 import {
     getSession,
     getActiveSession,
+    getPrepTestReadiness,
     listRetests,
     listSessions
 } from '../controllers/spellingReadController.js';
@@ -118,6 +119,7 @@ router.post('/sessions/:id/passage/send', sendPassage);
 router.post('/sessions/:id/passage/cancel-send', cancelPassageSend);
 router.post('/sessions/:id/passage/discard', discardPassage);
 router.get('/retest-queue', listRetests);
+router.get('/prep-test-readiness', authorize('admin', 'department_principal', 'teacher'), getPrepTestReadiness);
 router.use('/reports', authorize('admin', 'department_principal', 'teacher'));
 router.get('/reports/student/:studentId/docx', studentSpellingDocx);
 router.get('/reports/class/:classId/docx', classSpellingDocx);

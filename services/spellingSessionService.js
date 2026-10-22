@@ -121,6 +121,23 @@ export const migratePracticeResolvedRetests = async ({ schoolId, studentId }) =>
     return migratedCount;
 };
 
+const resolveFormalTestWordList = async ({ schoolId, studentId }) => {
+    // Misses that were only cleared by practice rejoin the pool, so any count of
+    // this word list must run the same normalization the scheduling guard runs.
+    await migratePracticeResolvedRetests({ schoolId, studentId });
+    const unresolvedRetests = await SpellingRetestItem.find({
+        school: schoolId,
+        student: studentId,
+        status: { $in: ['pending', 'practice-mastered'] }
+    }).sort({ flaggedAt: 1, _id: 1 }).lean();
+    return buildFormalTestWordList({ retestItems: unresolvedRetests });
+};
+
+export const getFormalTestPrepReadiness = async ({ schoolId, studentId }) => {
+    const wordList = await resolveFormalTestWordList({ schoolId, studentId });
+    return { wordCount: wordList.plannedWords.length };
+};
+
 const saveFormalSpellingGradebookEntry = async ({ schoolId, session, dbSession }) => {
     if (session.assessmentType !== 'formal-spelling-test' || !session.attempts.length) return;
     if (!session.gradebookSubject || !session.gradebookClass || !session.gradebookAcademicYear
@@ -550,13 +567,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
 
     let scheduledWordList = null;
     if (formalTestWordListEmail) {
-        await migratePracticeResolvedRetests({ schoolId, studentId });
-        const unresolvedRetests = await SpellingRetestItem.find({
-            school: schoolId,
-            student: studentId,
-            status: { $in: ['pending', 'practice-mastered'] }
-        }).sort({ flaggedAt: 1, _id: 1 }).lean();
-        scheduledWordList = buildFormalTestWordList({ retestItems: unresolvedRetests });
+        scheduledWordList = await resolveFormalTestWordList({ schoolId, studentId });
         if (scheduledWordList.plannedWords.length === 0) {
             throw badRequest('No unresolved missed words are available for this preparation test');
         }

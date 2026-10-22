@@ -45,6 +45,7 @@
   "scheduledDateTime": "تاريخ ووقت الإتاحة",
   "scheduledDateMustBeFuture": "اختر تاريخاً ووقتاً في المستقبل.",
   "emailFormalTestWordList": "إرسال كلمات الاختبار المخطط لها بالبريد الإلكتروني للاستعداد",
+  "noPrepWordsToEmail": "لا توجد كلمات أخطأ بها هذا الطالب دون حلّها بعد، لذلك لا توجد قائمة كلمات للاستعداد يمكن إرسالها بالبريد الإلكتروني.",
   "formalTestEmailAudience": "إرسال قائمة الكلمات إلى",
   "studentOnly": "الطالب فقط",
   "parentsOnly": "أولياء الأمور فقط",
@@ -216,4 +217,33 @@
   ,"invalidImportDefinition": "يجب ألا يتجاوز طول التعريف 2000 حرف."
   ,"invalidImportOrder": "يجب أن يكون الترتيب عددًا صحيحًا موجبًا."
   ,"duplicateImportPosition": "تكررت مجموعة الصف والأسبوع والترتيب في الملف."
+  ,"testInProgress": "اختبار الإملاء جارٍ"
+  ,"continueTest": "متابعة"
+  ,"wordsAnswered": "الكلمات المُجابة"
+  ,"mistakesRemaining": "بقي {{value}} من أصل {{max}} أخطاء"
+  ,"previousWords": "الكلمات السابقة"
+  ,"noPreviousWords": "لم تُجب عن أي كلمة بعد."
+  ,"previousWordsLegend": "✓ صحيحة   × خاطئة   • متخطاة"
+  ,"waitingForNextWord": "بانتظار الكلمة التالية من معلّمك…"
+  ,"definitionLabel": "المعنى"
+  ,"raiseYourHand": "ارفع يدك"
+  ,"handIsRaised": "يدك مرفوعة. سيساعدك معلّمك قريبًا."
+  ,"needHelpHint": "لا تسمع بوضوح أو تحتاج مساعدة؟ ارفع يدك."
+  ,"pluralNoOxfordAudio": "هذه الكلمة جمع وليس لها نطق في قاموس أكسفورد. ارفع يدك ليُملِيها عليك معلّمك."
+  ,"pasteBlockedHint": "اكتب ما تسمعه فقط. اللصق والنقر بزر الفأرة الأيمن معطّلان في هذا الاختبار."
+  ,"yourAnswerLabel": "إجابتك:"
+  ,"correctSpellingLabel": "الإملاء الصحيح:"
+  ,"skippedAnswer": "متخطاة"
+  ,"answerComparison": "مقارنة الإجابات"
+  ,"acceptedByTeacher": "قبلها المعلّم"
+  ,"practicePassage": "فقرة للتدريب"
+  ,"practicePassageHint": "هذه هي الكلمات المستهدفة للتدريب. مادة تدريبية وليست درجة."
+  ,"practicePassageLoading": "جارٍ تحميل فقرة التدريب…"
+  ,"practicePassageAvailable": "فقرة تدريب متاحة"
+  ,"noSessionsYet": "لا توجد جلسات إملاء بعد."
+  ,"dueOn": "تستحق {{value}}"
+  ,"hiddenPageNotice": "أثناء جلسة الإملاء، يُسجَّل إخفاء هذه الصفحة ليتمكّن معلّمك من رؤيته. التنقّل إلى تبويب آخر أو تصغير المتصفح يُحتسب إخفاءً."
+  ,"leavingRecordedNotice": "تم تسجيل مغادرتك صفحة جلسة الإملاء."
+  ,"showingRange": "عرض {{from}}–{{to}} من {{total}}"
+  ,"historyPagination": "صفحات سجل الاختبارات"
 }

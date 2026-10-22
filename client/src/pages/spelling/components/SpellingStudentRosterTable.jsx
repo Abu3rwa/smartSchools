@@ -3,6 +3,7 @@ import { Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, 
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineArrowPath, HiOutlineEllipsisVertical } from 'react-icons/hi2';
+import api from '../../../config/api';
 import { isSkippedSpellingAttempt } from './spellingTeacherConstants';
 
 const SpellingStudentRosterTable = ({
@@ -34,6 +35,7 @@ const SpellingStudentRosterTable = ({
     const [emailFormalTestWordList, setEmailFormalTestWordList] = useState(false);
     const [formalTestEmailAudience, setFormalTestEmailAudience] = useState('student-and-parents');
     const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+    const [prepCheck, setPrepCheck] = useState(null);
     const minScheduleDate = new Date(Date.now() + 60 * 1000);
     minScheduleDate.setMinutes(minScheduleDate.getMinutes() - minScheduleDate.getTimezoneOffset());
     const minScheduleDateValue = minScheduleDate.toISOString().slice(0, 16);
@@ -44,10 +46,24 @@ const SpellingStudentRosterTable = ({
         setScheduleDate(defaultDate.toISOString().slice(0, 16));
         setEmailFormalTestWordList(false);
         setFormalTestEmailAudience('student-and-parents');
+        setPrepCheck({ studentId: student._id, count: null });
         setScheduleStudent(student);
         setActionsAnchor(null);
         setActionsStudent(null);
+        api.get('/spelling/prep-test-readiness', { params: { studentId: student._id } })
+            .then((response) => {
+                const count = Number(response.data?.data?.wordCount);
+                if (!Number.isFinite(count)) return;
+                setPrepCheck((current) => (
+                    current?.studentId === student._id ? { studentId: student._id, count } : current
+                ));
+            })
+            .catch(() => setPrepCheck(null));
     };
+
+    const noPrepWordsForSchedule = Boolean(scheduleStudent)
+        && prepCheck?.studentId === scheduleStudent._id
+        && prepCheck.count === 0;
 
     const submitScheduledTest = async () => {
         if (scheduleSubmitting || !scheduleStudent || !scheduleDate || new Date(scheduleDate).getTime() <= Date.now()) return;
@@ -232,26 +248,26 @@ const SpellingStudentRosterTable = ({
                                                 open={Boolean(actionsAnchor) && actionsStudent?._id === student._id}
                                                 onClose={() => { setActionsAnchor(null); setActionsStudent(null); }}
                                             >
-                                                {!rowActiveSession && (
-                                                    <>
-                                                        <MenuItem
-                                                            onClick={() => {
-                                                                setActionsAnchor(null);
-                                                                setActionsStudent(null);
-                                                                onStartFormalTest(student);
-                                                            }}
-                                                            disabled={rowBusy || !level.grade}
-                                                        >
-                                                            {t('launchFormalTestNow')}
-                                                        </MenuItem>
-                                                        <MenuItem
-                                                            onClick={() => openScheduleDialog(student)}
-                                                            disabled={rowBusy || !level.grade}
-                                                        >
-                                                            {t('scheduleFormalTest')}
-                                                        </MenuItem>
-                                                    </>
-                                                )}
+                                                {!rowActiveSession && [
+                                                    <MenuItem
+                                                        key="launch-formal-test"
+                                                        onClick={() => {
+                                                            setActionsAnchor(null);
+                                                            setActionsStudent(null);
+                                                            onStartFormalTest(student);
+                                                        }}
+                                                        disabled={rowBusy || !level.grade}
+                                                    >
+                                                        {t('launchFormalTestNow')}
+                                                    </MenuItem>,
+                                                    <MenuItem
+                                                        key="schedule-formal-test"
+                                                        onClick={() => openScheduleDialog(student)}
+                                                        disabled={rowBusy || !level.grade}
+                                                    >
+                                                        {t('scheduleFormalTest')}
+                                                    </MenuItem>
+                                                ]}
                                                 {skippedSession && skippedCount > 0 && (
                                                     <MenuItem onClick={() => { onOpenSessionReview(student, skippedSession); setActionsAnchor(null); setActionsStudent(null); }}>
                                                         {t('reviewSkippedWords', { count: skippedCount })}
@@ -301,10 +317,16 @@ const SpellingStudentRosterTable = ({
                             <Checkbox
                                 checked={emailFormalTestWordList}
                                 onChange={(event) => setEmailFormalTestWordList(event.target.checked)}
+                                disabled={noPrepWordsForSchedule}
                             />
                         )}
                         label={t('emailFormalTestWordList')}
                     />
+                    {noPrepWordsForSchedule && (
+                        <Typography color="warning.main" variant="body2">
+                            {t('noPrepWordsToEmail')}
+                        </Typography>
+                    )}
                     {emailFormalTestWordList && (
                         <FormControl fullWidth>
                             <InputLabel id="formal-test-email-audience-label">{t('formalTestEmailAudience')}</InputLabel>

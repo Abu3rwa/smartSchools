@@ -122,13 +122,15 @@ export const isTeacherAuthorizedForClassSubject = async (teacherId, classId, sub
     const classDoc = await Class.findById(classId);
     if (!classDoc) return false;
 
-    // Check if teacher is assigned to this subject in this class
+    // Callers pass either raw Mongoose documents (ObjectId instances) or plain
+    // strings, so compare on both sides as strings.
+    const normalizedTeacherId = String(teacherId);
     const isSubjectTeacher = classDoc.subjects.some(s =>
-        s.subject.toString() === subjectId && s.teacher.toString() === teacherId.toString()
+        String(s.subject) === String(subjectId) && String(s.teacher) === normalizedTeacherId
     );
 
     // Also allow if teacher is the class teacher
-    const isClassTeacher = classDoc.classTeacher?.toString() === teacherId.toString();
+    const isClassTeacher = String(classDoc.classTeacher) === normalizedTeacherId;
 
     return isSubjectTeacher || isClassTeacher;
 };

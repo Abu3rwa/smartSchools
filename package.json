@@ -11,6 +11,7 @@
     "build": "node -e \"console.log('Backend API build step: no-op')\"",
     "seed": "node seeds/seedData.js",
     "seed:import-templates": "node seeds/seedImportTemplates.js",
+    "seed:behavior": "node seeds/seedBehaviorSystem.js",
     "migrate": "node scripts/migrate.js up",
     "migrate:status": "node scripts/migrate.js status",
     "migrate:down": "node scripts/migrate.js down",

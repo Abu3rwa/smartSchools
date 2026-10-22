@@ -42,6 +42,7 @@ import landingRoutes from "./routes/landingRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import studentBehaviorRoutes from "./routes/studentBehaviorRoutes.js";
+import behaviorRoutes from "./routes/behaviorRoutes.js";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
 import scheduleRoutesEnhanced from "./routes/scheduleRoutesEnhanced.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
@@ -112,6 +113,7 @@ import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterSched
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
+import { runBehaviorStatusJob } from "./jobs/behaviorStatusJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processDueSpellingEmails } from "./services/spellingEmailService.js";
 import { scheduleDueSpellingRetestQuizzes } from "./services/spellingRetestQuizSchedulerService.js";
@@ -355,6 +357,7 @@ app.use("/api/reports", advancedReportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/student-behavior", studentBehaviorRoutes);
+app.use("/api/behavior", behaviorRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/schedules-enhanced", scheduleRoutesEnhanced);
 app.use("/api/attendance", attendanceRoutes);
@@ -543,6 +546,26 @@ const server = httpServer.listen(PORT, () => {
 
     setTimeout(runLifecycle, 60 * 1000);
     activeIntervals.push(setInterval(runLifecycle, SUBSCRIPTION_LIFECYCLE_INTERVAL_MS));
+  }
+
+  // Behavior & Consequence: flag overdue consequence work and age pending
+  // approvals. Schools with the module switched off are never touched, and the
+  // job only moves statuses - it cannot release or send anything.
+  if (process.env.RUN_BEHAVIOR_STATUS_JOB !== "false") {
+    const BEHAVIOR_STATUS_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    const runBehaviorSweep = async () => {
+      try {
+        const summary = await runBehaviorStatusJob();
+        if ((summary?.overdueMarked || 0) > 0 || (summary?.escalated || 0) > 0 || (summary?.errors?.length || 0) > 0) {
+          logger.info("behavior_status_job_run", summary);
+        }
+      } catch (err) {
+        logger.error("Behavior status job error:", err?.message || err);
+      }
+    };
+
+    setTimeout(runBehaviorSweep, 60 * 1000);
+    activeIntervals.push(setInterval(runBehaviorSweep, BEHAVIOR_STATUS_INTERVAL_MS));
   }
 
   if (process.env.RUN_COMMUNICATION_EMAIL_SCHEDULER !== "false") {
