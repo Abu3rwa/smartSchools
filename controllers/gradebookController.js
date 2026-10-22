@@ -840,16 +840,24 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
             }
         );
 
+        const gradeFilter = {
+            school: req.schoolId,
+            student: row.studentId,
+            subject: assignment.subject,
+            class: assignment.class,
+            academicYear: assignment.academicYear,
+            gradeType: 'homework',
+            homeworkAssignment: assignment._id
+        };
+        const existingGrade = await Grade.findOne(gradeFilter)
+            .select('marks maxMarks')
+            .lean();
+        const gradeValueChanged = !existingGrade
+            || Number(existingGrade.marks) !== row.marks
+            || Number(existingGrade.maxMarks) !== row.maxMarks;
+
         const grade = await Grade.findOneAndUpdate(
-            {
-                school: req.schoolId,
-                student: row.studentId,
-                subject: assignment.subject,
-                class: assignment.class,
-                academicYear: assignment.academicYear,
-                gradeType: 'homework',
-                homeworkAssignment: assignment._id
-            },
+            gradeFilter,
             {
                 $set: {
                     marks: row.marks,
@@ -901,7 +909,7 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
             }
         ).lean();
 
-        if (shouldNotifyParents) {
+        if (shouldNotifyParents && gradeValueChanged) {
             await notificationService.sendHomeworkGradedNotification({
                 studentId: row.studentId,
                 assignment,

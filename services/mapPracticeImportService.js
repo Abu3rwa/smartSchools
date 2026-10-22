@@ -6,7 +6,7 @@ import MapPracticeSet from '../models/MapPracticeSet.js';
 import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import MapPracticeImportBatch from '../models/MapPracticeImportBatch.js';
 import Student from '../models/Student.js';
-import { normalizeSkillCode, isValidSkillCode, mapPracticeQuestionTypeSchema } from '../validators/mapPracticeValidators.js';
+import { normalizeSkillCode, isValidSkillCode, mapPracticeQuestionTypeSchema, mapPracticeQuestionTypes, emptyMapPracticeQuestionTypeCounts, parseMatchingPairs, MAP_MATCHING_MIN_PAIRS, MAP_MATCHING_TERM_SEPARATOR, MAP_MATCHING_PAIR_SEPARATOR } from '../validators/mapPracticeValidators.js';
 import { parseMapPracticeCsv, extractMapPracticeStudentIdFromFilename } from './mapPracticeCsvService.js';
 
 const previewTokenStore = new Map();
@@ -30,6 +30,20 @@ const safeNumber = (value, fallback = 1) => {
 };
 
 const normalizeStudentId = (value) => String(value || '').trim();
+
+const readMatchingPairs = (rawValue) => {
+  const { pairs, invalid } = parseMatchingPairs(rawValue);
+  if (invalid.length) {
+    return {
+      pairs: [],
+      error: `Matching pairs must each use the 'term${MAP_MATCHING_TERM_SEPARATOR}definition' format, separated by '${MAP_MATCHING_PAIR_SEPARATOR}'.`
+    };
+  }
+  if (pairs.length < MAP_MATCHING_MIN_PAIRS) {
+    return { pairs: [], error: `A matching question needs at least ${MAP_MATCHING_MIN_PAIRS} term/definition pairs.` };
+  }
+  return { pairs };
+};
 
 const studentSummary = (studentDoc) => {
   if (!studentDoc) return null;
@@ -206,7 +220,7 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
       planTitle: getNormalizedPlanTitle((rows[0]?.values?.plan_title || rows[0]?.original?.plan_title || ''), fileName),
       sets: [],
       skills: [],
-      questionTypes: { mcq: 0, multi_select: 0, short_text: 0 },
+      questionTypes: emptyMapPracticeQuestionTypeCounts(),
       passages: 0,
       willCreate: rows.length,
       willUpdate: 0,
@@ -223,7 +237,7 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
 
   const setMap = new Map();
   const skillMap = new Map();
-  const questionTypeCounts = { mcq: 0, multi_select: 0, short_text: 0 };
+  const questionTypeCounts = emptyMapPracticeQuestionTypeCounts();
   const passages = new Set();
   const errors = [];
   const warnings = [];
@@ -250,8 +264,15 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
       errors.push({ row: rowNumber, column: 'skill_code', problem: `Skill code is invalid: ${values.skill_code || ''}`, fix: 'Use a valid skill code like READ-2 or VOC-1.' });
     }
 
-    if (!['mcq', 'multi_select', 'short_text'].includes(questionType)) {
-      errors.push({ row: rowNumber, column: 'question_type', problem: `Unsupported question type: ${values.question_type || ''}`, fix: 'Set question_type to mcq, multi_select, or short_text.' });
+    if (!mapPracticeQuestionTypes.includes(questionType)) {
+      errors.push({ row: rowNumber, column: 'question_type', problem: `Unsupported question type: ${values.question_type || ''}`, fix: `Set question_type to one of: ${mapPracticeQuestionTypes.join(', ')}.` });
+    }
+
+    if (questionType === 'matching') {
+      const matching = readMatchingPairs(values.matching_pairs);
+      if (matching.error) {
+        errors.push({ row: rowNumber, column: 'matching_pairs', problem: matching.error, fix: `Add at least ${MAP_MATCHING_MIN_PAIRS} pairs as term${MAP_MATCHING_TERM_SEPARATOR}definition, separated by '${MAP_MATCHING_PAIR_SEPARATOR}'.` });
+      }
     }
 
     if (values.passage_id || values.passage_title) {
@@ -444,7 +465,9 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
     const rowsToProcess = rows.filter((row) => {
       const values = row?.values || row?.original || {};
       const questionType = String(values.question_type || '').trim().toLowerCase();
-      const valid = Boolean(values.question_id) && Boolean(values.skill_code) && Boolean(values.stem) && ['mcq', 'multi_select', 'short_text'].includes(questionType);
+      const valid = Boolean(values.question_id) && Boolean(values.skill_code) && Boolean(values.stem)
+        && mapPracticeQuestionTypes.includes(questionType)
+        && (questionType !== 'matching' || !readMatchingPairs(values.matching_pairs).error);
       if (!valid) {
         summary.errors += 1;
         summary.skipped += 1;
@@ -554,6 +577,7 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
       } catch {
         existingQuestion = null;
       }
+      const matching = validType.data === 'matching' ? readMatchingPairs(values.matching_pairs) : { pairs: [] };
       const questionPayload = {
         school: schoolId,
         plan: plan._id,
@@ -575,6 +599,7 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
           { key: 'C', text: String(values.option_c || '').trim() },
           { key: 'D', text: String(values.option_d || '').trim() }
         ].filter((option) => option.text),
+        matchingPairs: matching.pairs,
         correctAnswer: String(values.correct_answer || '').trim(),
         explanation: String(values.explanation || '').trim(),
         distractorNote: String(values.distractor_note || '').trim(),

@@ -1,9 +1,15 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { mapPracticeQuestionTypes } from '../validators/mapPracticeValidators.js';
 
 const optionSchema = new mongoose.Schema({
     key: { type: String, required: true, trim: true, maxlength: 4 },
     text: { type: String, default: '', trim: true, maxlength: 1200 }
+}, { _id: false });
+
+const matchingPairSchema = new mongoose.Schema({
+    left: { type: String, required: true, trim: true, maxlength: 600 },
+    right: { type: String, required: true, trim: true, maxlength: 1200 }
 }, { _id: false });
 
 const mapPracticeQuestionSchema = new mongoose.Schema({
@@ -19,9 +25,10 @@ const mapPracticeQuestionSchema = new mongoose.Schema({
     passageId: { type: String, default: '', trim: true, maxlength: 160 },
     passageTitle: { type: String, default: '', trim: true, maxlength: 220 },
     passageText: { type: String, default: '', trim: true, maxlength: 6000 },
-    questionType: { type: String, enum: ['mcq', 'multi_select', 'short_text'], required: true },
+    questionType: { type: String, enum: mapPracticeQuestionTypes, required: true },
     stem: { type: String, required: true, trim: true, maxlength: 4000 },
     options: [optionSchema],
+    matchingPairs: [matchingPairSchema],
     correctAnswer: { type: String, default: '', trim: true, maxlength: 200 },
     explanation: { type: String, default: '', trim: true, maxlength: 4000 },
     distractorNote: { type: String, default: '', trim: true, maxlength: 2000 },

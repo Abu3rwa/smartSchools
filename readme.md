@@ -92,14 +92,15 @@ The existing MAP Test Prep feature has been upgraded in place to support a CSV-b
 - Header row is required.
 - Standard RFC 4180 quoting is expected for commas, quotes, and embedded line breaks.
 - Student IDs must match the enrolled student ID in the school.
-- `question_type` values are `mcq`, `multi_select`, and `short_text`.
+- `question_type` values are `mcq`, `multi_select`, `short_text`, and `matching`.
 - `correct_answer` for `mcq` is a single letter such as `B`.
 - `correct_answer` for `multi_select` is a pipe-separated list such as `A|C`.
 - `correct_answer` for `short_text` is a pipe-separated list of accepted answers.
+- `matching_pairs` (optional column) carries the pairs for a `matching` row as `term::definition` entries separated by `|`, for example `Solar system::A group of planets orbiting a star|Orbit::The path a planet takes`. A matching row needs at least two pairs, and its `correct_answer` stays empty.
 
 ### Column reference
 
-`student_id, plan_title, set_id, set_title, set_order, question_id, order, subject, strand, skill_code, skill_name, rit_band, passage_id, passage_title, passage_text, question_type, stem, option_a, option_b, option_c, option_d, correct_answer, explanation, distractor_note, points`
+`student_id, plan_title, set_id, set_title, set_order, question_id, order, subject, strand, skill_code, skill_name, rit_band, passage_id, passage_title, passage_text, question_type, stem, option_a, option_b, option_c, option_d, correct_answer, explanation, distractor_note, points` plus the optional `matching_pairs`.
 
 ### Import flow
 
@@ -108,6 +109,7 @@ The existing MAP Test Prep feature has been upgraded in place to support a CSV-b
 3. Confirm the import.
 4. The app creates or updates plan, set, skill, and question records for the matched student.
 5. Short-text answers remain in the teacher review queue unless accepted.
+6. Matching sets are graded per pair: each correct pair earns part of the question's point, and a fully correct set earns the whole point. Students see the terms in order and the definitions shuffled.
 
 ### Template files
 

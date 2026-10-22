@@ -1528,6 +1528,41 @@
 .map-roster-answer-item li.selected-incorrect strong {
   color: #b91c1c;
 }
+.map-roster-answer-matching li > span {
+  flex: 0 1 auto;
+  font-weight: 700;
+}
+.map-roster-answer-matching li.correct {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+.map-roster-answer-matching li.incorrect {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+.map-roster-answer-matching li.incorrect strong {
+  color: #b91c1c;
+}
+.map-roster-answer-matching li.unmatched {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.map-roster-answer-matching li.unmatched strong {
+  color: var(--text-muted);
+}
+.map-roster-answer-matching li small {
+  flex: 1 1 100%;
+  color: #166534;
+  font-size: 0.8rem;
+}
+.map-roster-answer-response {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  line-height: 1.45;
+}
 .map-roster-answer-key {
   padding: 10px 12px;
   border-radius: 8px;

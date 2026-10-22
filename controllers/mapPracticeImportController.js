@@ -14,6 +14,7 @@ import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import { buildMapPracticePreview, createMapPracticeImportToken, validateMapPracticeImportToken, resolveMapPracticeStudentMatch, importMapPracticeFiles as runImportMapPracticeFiles } from '../services/mapPracticeImportService.js';
 import { parseMapPracticeCsv } from '../services/mapPracticeCsvService.js';
+import { emptyMapPracticeQuestionTypeCounts } from '../validators/mapPracticeValidators.js';
 
 const previewCache = new Map();
 const clearExpiredPreviews = () => {
@@ -130,8 +131,10 @@ export const getMapPracticeOverview = asyncHandler(async (req, res) => {
     return { ...classItem, studentCount: classStudents.length, withPlanCount: withPlan, needsFollowUpCount: noRecentPractice, studentIds: [...classStudentIds] };
   });
   const pendingAttempts = attempts.filter((attempt) => attempt.status === 'submitted' && attempt.reviewStatus === 'pending');
-  const shortTextQuestionIds = new Set(attemptQuestions.filter((question) => question.questionType === 'short_text').map((question) => String(question._id)));
-  const pendingReviewItems = pendingAttempts.reduce((count, attempt) => count + attempt.answers.filter((answer) => answer.isCorrect === null && shortTextQuestionIds.has(String(answer.question))).length, 0);
+  const reviewableQuestionIds = new Set(attemptQuestions
+    .filter((question) => ['short_text', 'matching'].includes(question.questionType))
+    .map((question) => String(question._id)));
+  const pendingReviewItems = pendingAttempts.reduce((count, attempt) => count + attempt.answers.filter((answer) => answer.isCorrect === null && reviewableQuestionIds.has(String(answer.question))).length, 0);
 
   res.json({
     success: true,
@@ -195,7 +198,7 @@ export const previewMapPracticeFiles = asyncHandler(async (req, res) => {
         planTitle: file.originalname,
         sets: [],
         skills: [],
-        questionTypes: { mcq: 0, multi_select: 0, short_text: 0 },
+        questionTypes: emptyMapPracticeQuestionTypeCounts(),
         passages: 0,
         willCreate: 0,
         willUpdate: 0,

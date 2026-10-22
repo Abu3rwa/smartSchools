@@ -164,7 +164,7 @@
     "sets": "Sets",
     "skills": "Skills",
     "questionTypes": "Question types",
-    "questionTypesSummary": "{{mcq}} multiple choice · {{multi}} multi-select · {{short}} short answer",
+    "questionTypesSummary": "{{mcq}} multiple choice · {{multi}} multi-select · {{short}} short answer · {{matching}} matching",
     "passages": "Passages",
     "changeSummary": "Changes",
     "changeCounts": "Will create {{create}} · update {{update}}",

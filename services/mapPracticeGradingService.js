@@ -1,10 +1,23 @@
 import { normalizeShortText, normalizeAnswerList } from '../validators/mapPracticeValidators.js';
 
+const toMatchingSelections = (studentAnswer) => {
+  const entries = Array.isArray(studentAnswer)
+    ? studentAnswer.filter((entry) => entry && typeof entry === 'object' && entry.left)
+      .map((entry) => [entry.left, entry.right])
+    : studentAnswer && typeof studentAnswer === 'object'
+      ? Object.entries(studentAnswer)
+      : [];
+
+  // Responses are stored as [{ left, right }] so term text never becomes a Mongo document key.
+  return new Map(entries.map(([left, right]) => [normalizeShortText(left), String(right ?? '').trim()]));
+};
+
 export const gradeMapPracticeQuestion = ({
   questionType,
   studentAnswer,
   correctAnswer,
   options = [],
+  matchingPairs = [],
   partialCreditMultiSelect = false
 }) => {
   const optionList = Array.isArray(options) ? options : [];
@@ -74,6 +87,34 @@ export const gradeMapPracticeQuestion = ({
     return { isCorrect: null, requiresTeacherReview: true, score: 0, explanation: 'This answer is waiting for teacher review.' };
   }
 
+  if (questionType === 'matching') {
+    const pairs = (Array.isArray(matchingPairs) ? matchingPairs : [])
+      .map((pair) => ({ left: String(pair?.left ?? '').trim(), right: String(pair?.right ?? '').trim() }))
+      .filter((pair) => pair.left && pair.right);
+    if (!pairs.length) {
+      return { isCorrect: null, requiresTeacherReview: true, score: 0, explanation: 'This question needs teacher review.' };
+    }
+
+    const selections = toMatchingSelections(studentAnswer);
+    const picked = (pair) => selections.get(normalizeShortText(pair.left)) || '';
+    const answered = pairs.filter((pair) => picked(pair)).length;
+    if (answered === 0) {
+      return { isCorrect: null, requiresTeacherReview: true, score: 0, explanation: 'This answer needs teacher review.' };
+    }
+
+    const matched = pairs.filter((pair) => normalizeShortText(picked(pair)) === normalizeShortText(pair.right)).length;
+    const ratio = matched / pairs.length;
+
+    return {
+      isCorrect: ratio >= 1,
+      requiresTeacherReview: false,
+      score: Number(ratio.toFixed(2)),
+      explanation: ratio >= 1
+        ? 'Correct.'
+        : `Matched ${matched} of ${pairs.length} pairs. Review the explanation and try again.`
+    };
+  }
+
   return { isCorrect: null, requiresTeacherReview: true, score: 0, explanation: 'This question needs teacher review.' };
 };
 
@@ -86,6 +127,7 @@ export const gradeMapPracticeAttempt = ({ answers = [], partialCreditMultiSelect
       studentAnswer: answer.response,
       correctAnswer: answer.correctAnswer,
       options: answer.options || [],
+      matchingPairs: answer.matchingPairs || [],
       partialCreditMultiSelect
     });
     maxScore += 1;

@@ -139,8 +139,9 @@ Rules:
 - skill_code: an uppercase slug such as VOC-CONTEXT or MECH-COMMA-APPOSITIVE. skill_name: the readable name ("Context clues"). Skills are created on import if they don't exist yet (see section 5). The same code always means the same skill for every student, so results can be compared later if I want.
 - rit_band: text such as "201-210", used for display and filtering.
 - passage_id, passage_title, passage_text: optional, and repeated on every row that uses the passage. The importer de-duplicates by passage_id within the file and shows an error if two rows have the same passage_id with different text.
-- question_type: mcq | multi_select | short_text.
-- correct_answer: a letter for mcq ("B"); pipe-separated letters for multi_select ("A|C"); pipe-separated accepted answers for short_text ("well-known|well known").
+- question_type: mcq | multi_select | short_text | matching.
+- correct_answer: a letter for mcq ("B"); pipe-separated letters for multi_select ("A|C"); pipe-separated accepted answers for short_text ("well-known|well known"); empty for matching (the key lives in matching_pairs).
+- matching_pairs: optional column, only for matching questions. Pairs are `term::definition` separated by `|`, at least 2 pairs. The right-hand options are shuffled per student and the student matches each term to a definition. Grading gives partial credit for each correct pair.
 - Blank option cells mean "no such option" (support 2 to 4 options).
 - Limited, sanitized inline markup in stem, options, explanation, and passage_text: *italic*, __underline__, **bold**, and line breaks. This is needed for titles of works. No raw HTML. Sanitize on render.
 - points: default 1.
@@ -194,7 +195,7 @@ Accessibility for all student pages: keyboard navigation, visible focus, screen-
 6.2 Practice player
 - Layout on wide screens: the passage on the left (sticky, scrollable) and the question on the right. On phones/tablets in portrait, the passage sits above the question in a collapsible panel ("Show passage / Hide passage"). No passage → single centered column.
 - Header: set title, "Question 4 of 10", a segmented progress bar (one segment per question; states: answered, flagged, current, empty; clicking a segment jumps to that question), and a "Save and exit" link.
-- Question card: stem, a small hint line ("Choose one answer" / "Choose all that apply" / "Type your answer"), large answer buttons for mcq/multi_select (radio/checkbox semantics, letter badge + text), a text input for short_text.
+- Question card: stem, a small hint line ("Choose one answer" / "Choose all that apply" / "Type your answer" / "Match each term with its correct definition"), large answer buttons for mcq/multi_select (radio/checkbox semantics, letter badge + text), a text input for short_text, and one dropdown per term for matching (no drag-and-drop).
 - Underlined or italic words in the stem (from the markup) must render clearly.
 - Actions: "Flag for later" (toggle), "Back", and "Next". On the last question "Next" becomes "Review answers".
 - Autosave on every change (debounced); a subtle "Saved" indicator; offline/failed save shows "Not saved yet. Trying again" and retries. Resume exactly where the student left off.
@@ -218,6 +219,7 @@ Accessibility for all student pages: keyboard navigation, visible focus, screen-
 =====================================================
 - mcq and multi_select: auto-grade at submit (multi_select needs an exact match; partial credit is a teacher setting, default off).
 - short_text: normalize (trim, lowercase, collapse spaces, normalize curly/straight quotes and dash types, strip trailing punctuation) and compare with accepted answers. No match → isCorrect = null and the item goes to the teacher review queue (never auto-marked wrong).
+- matching: compare each chosen pair against the key with the same normalization. Score = correct pairs / total pairs (partial credit), isCorrect only when every pair matches. Nothing chosen → isCorrect = null and the item goes to the teacher review queue.
 - Teachers can override any item, add a comment, and mark an attempt as reviewed. Overrides never change the answer key.
 
 =====================================================
@@ -248,12 +250,12 @@ Navigation: MAP Practice → tabs: "Class overview", "Review queue (count)", "St
 
 8.3 Attempt review page
 - Top: student, set, score, time spent, status.
-- One card per question in order: passage (collapsible), stem, student's response, correct answer, explanation, auto-graded result. Controls per item: "Mark correct" / "Mark not yet correct" (override), and a comment box. Pending short_text items are highlighted at the top.
+- One card per question in order: passage (collapsible), stem, student's response, correct answer, explanation, auto-graded result. Controls per item: "Mark correct" / "Mark not yet correct" (override), and a comment box. Pending short_text and matching items are highlighted at the top.
 - A "Next pending" button jumps to the next item needing review.
 - Footer: overall comment box, "Save draft", and "Mark as reviewed" (which notifies the student in-app if the app has notifications).
 
 8.4 Review queue
-- Table of all short_text answers waiting for review across students: student, set, skill, question, student's answer, accepted answers, and quick buttons "Correct" / "Not yet" / "Open". Keyboard shortcuts: C, N, and arrow keys to move. Bulk actions on selected rows.
+- Table of all short_text and matching answers waiting for review across students: student, set, skill, question, student's answer, accepted answers, and quick buttons "Correct" / "Not yet" / "Open". Keyboard shortcuts: C, N, and arrow keys to move. Bulk actions on selected rows.
 
 8.5 Import page (UI details)
 - A large drop zone: "Drop student files here or choose files". Below it, file cards appear, each with: file name, detected student (with an avatar and ID) or a student picker, rows found, and a status chip (Ready, Needs attention, Has errors).
@@ -289,7 +291,7 @@ Only if that feature exists in the code (check in Step 0). From a student's skil
 1. A short plan listing new and edited files (from Step 0), and confirmation of how the student ID matching works in this codebase.
 2. Backend: models, routes, controllers, services (CSV parsing and validation, matching, skill creation, grading, per-skill statistics) and tests.
 3. Frontend: student pages (6.1 to 6.4), teacher pages (8.1 to 8.6), and shared components, in the existing app's style.
-4. Two sample CSV files for two different sample students with DIFFERENT skills (for example one with vocabulary word-part and context-clue skills and one with comma and hyphen skills). Each file: about 15 rows, all three question types, at least one passage-linked question, one question using italic/quotation-mark title markup, and one short_text question. They must import cleanly.
+4. Two sample CSV files for two different sample students with DIFFERENT skills (for example one with vocabulary word-part and context-clue skills and one with comma and hyphen skills). Each file: about 15 rows, all four question types, at least one passage-linked question, one question using italic/quotation-mark title markup, and one short_text question. They must import cleanly.
 5. Tests: CSV validator, student matching (column, file name, manual pick), skill creation and similar-skill warning, grading (including short_text normalization), and authorization (a student cannot read another student's data).
 6. A README section: CSV column reference, file naming, how to import, how to add or merge skills, and how each feedback mode behaves.
 

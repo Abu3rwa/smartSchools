@@ -8,6 +8,7 @@ import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '..
 import { gradeMapPracticeAttempt, gradeMapPracticeQuestion } from '../services/mapPracticeGradingService.js';
 import {
   applyMapPracticeReviewMarks,
+  buildMapPracticeMatchingColumns,
   hideMapPracticeAttemptAnswerKeys,
   hideMapPracticeQuestionAnswers
 } from '../services/mapPracticeReviewService.js';
@@ -105,6 +106,7 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
       studentAnswer: response,
       correctAnswer: question.correctAnswer,
       options: question.options || [],
+      matchingPairs: question.matchingPairs || [],
       partialCreditMultiSelect: Boolean(settings?.partialCreditMultiSelect)
     })
     : null;
@@ -118,7 +120,14 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
     autoGraded: Boolean(grading && !grading.requiresTeacherReview),
     teacherOverride: false,
     teacherComment: '',
-    questionSnapshot: { questionId: question.questionId, stem: question.stem, options: question.options },
+    questionSnapshot: {
+      questionId: question.questionId,
+      stem: question.stem,
+      options: question.options,
+      ...(question.questionType === 'matching'
+        ? { matchingColumns: buildMapPracticeMatchingColumns(question) ?? { terms: [], choices: [] } }
+        : {})
+    },
     correctAnswerSnapshot: question.correctAnswer,
     explanationSnapshot: question.explanation
   };
@@ -145,7 +154,8 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
       requiresTeacherReview: grading.requiresTeacherReview,
       explanation: question.explanation || grading.explanation,
       correctAnswer: grading.requiresTeacherReview ? undefined : question.correctAnswer,
-      options: grading.requiresTeacherReview ? undefined : question.options
+      options: grading.requiresTeacherReview ? undefined : question.options,
+      matchingPairs: grading.requiresTeacherReview ? undefined : question.matchingPairs
     }
     : undefined;
   res.json({ success: true, data: { attempt: responseAttempt, feedback } });
@@ -180,6 +190,7 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
       questionType: question.questionType,
       correctAnswer: question.correctAnswer,
       options: question.options || [],
+      matchingPairs: question.matchingPairs || [],
       score: answer.score ?? 0,
       explanation: answer.explanation || question.explanation || ''
     };
@@ -193,7 +204,7 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
     {
       $set: {
         answers: graded.map((answer) => Object.fromEntries(
-          Object.entries(answer).filter(([key]) => !['questionType', 'correctAnswer', 'options'].includes(key))
+          Object.entries(answer).filter(([key]) => !['questionType', 'correctAnswer', 'options', 'matchingPairs'].includes(key))
         )),
         score,
         maxScore,

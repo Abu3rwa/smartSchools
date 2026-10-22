@@ -7,7 +7,12 @@ export const mapPracticeCsvHeader = [
   'correct_answer', 'explanation', 'distractor_note', 'points'
 ];
 
-export const mapPracticeQuestionTypeSchema = z.enum(['mcq', 'multi_select', 'short_text']);
+export const mapPracticeQuestionTypes = ['mcq', 'multi_select', 'short_text', 'matching'];
+
+export const mapPracticeQuestionTypeSchema = z.enum(mapPracticeQuestionTypes);
+
+export const emptyMapPracticeQuestionTypeCounts = () =>
+  Object.fromEntries(mapPracticeQuestionTypes.map((type) => [type, 0]));
 
 export const mapPracticePreviewFileSchema = z.object({
   fileName: z.string().min(1),
@@ -46,3 +51,34 @@ export const normalizeAnswerList = (value) => String(value ?? '')
   .split('|')
   .map((part) => normalizeShortText(part))
   .filter(Boolean);
+
+export const MAP_MATCHING_PAIR_SEPARATOR = '|';
+export const MAP_MATCHING_TERM_SEPARATOR = '::';
+export const MAP_MATCHING_MIN_PAIRS = 2;
+
+export const parseMatchingPairs = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return { pairs: [], invalid: [] };
+
+  const pairs = [];
+  const invalid = [];
+  const seenLefts = new Set();
+
+  raw.split(MAP_MATCHING_PAIR_SEPARATOR).forEach((chunk) => {
+    const part = String(chunk ?? '').trim();
+    if (!part) return;
+    const splitIndex = part.indexOf(MAP_MATCHING_TERM_SEPARATOR);
+    const left = splitIndex === -1 ? '' : part.slice(0, splitIndex).trim();
+    const right = splitIndex === -1 ? '' : part.slice(splitIndex + MAP_MATCHING_TERM_SEPARATOR.length).trim();
+    if (!left || !right) {
+      invalid.push(part);
+      return;
+    }
+    const key = normalizeShortText(left);
+    if (seenLefts.has(key)) return;
+    seenLefts.add(key);
+    pairs.push({ left, right });
+  });
+
+  return { pairs, invalid };
+};

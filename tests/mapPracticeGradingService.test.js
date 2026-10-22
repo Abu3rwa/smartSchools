@@ -67,3 +67,56 @@ test('gradeMapPracticeAttempt totals exact scores and marks pending review for u
   assert.equal(evaluation.score, 1);
   assert.equal(evaluation.graded[1].requiresTeacherReview, true);
 });
+
+test('gradeMapPracticeQuestion scores matching answers with credit for every correct pair', () => {
+  const pairs = [
+    { left: 'Solar system', right: 'A group of planets orbiting a star' },
+    { left: 'Orbit', right: 'The path a planet takes' },
+    { left: 'Asteroid', right: 'A rocky body that orbits the sun' }
+  ];
+
+  const partial = gradeMapPracticeQuestion({
+    questionType: 'matching',
+    studentAnswer: [
+      { left: 'Solar system', right: 'A group of planets orbiting a star' },
+      { left: 'Orbit', right: 'A rocky body that orbits the sun' }
+    ],
+    matchingPairs: pairs
+  });
+
+  assert.equal(partial.isCorrect, false);
+  assert.equal(partial.requiresTeacherReview, false);
+  assert.equal(partial.score, 0.33);
+
+  const complete = gradeMapPracticeQuestion({
+    questionType: 'matching',
+    studentAnswer: pairs.map((pair) => ({ left: pair.left, right: pair.right })),
+    matchingPairs: pairs
+  });
+
+  assert.equal(complete.isCorrect, true);
+  assert.equal(complete.score, 1);
+
+  const untouched = gradeMapPracticeQuestion({ questionType: 'matching', studentAnswer: [], matchingPairs: pairs });
+
+  assert.equal(untouched.isCorrect, null);
+  assert.equal(untouched.requiresTeacherReview, true);
+});
+
+test('gradeMapPracticeAttempt matches pairing text case-insensitively and totals partial credit', () => {
+  const evaluation = gradeMapPracticeAttempt({
+    answers: [{
+      questionType: 'matching',
+      response: [{ left: 'Nile', right: 'the longest river in Africa.' }],
+      matchingPairs: [
+        { left: 'Nile', right: 'The longest river in Africa' },
+        { left: 'Sahara', right: 'The largest hot desert' }
+      ]
+    }]
+  });
+
+  assert.equal(evaluation.maxScore, 1);
+  assert.equal(evaluation.score, 0.5);
+  assert.equal(evaluation.graded[0].isCorrect, false);
+  assert.equal(evaluation.graded[0].requiresTeacherReview, false);
+});

@@ -164,7 +164,7 @@
     "sets": "المجموعات",
     "skills": "المهارات",
     "questionTypes": "أنواع الأسئلة",
-    "questionTypesSummary": "{{mcq}} اختيار من متعدد · {{multi}} متعدد التحديد · {{short}} إجابة قصيرة",
+    "questionTypesSummary": "{{mcq}} اختيار من متعدد · {{multi}} متعدد التحديد · {{short}} إجابة قصيرة · {{matching}} أزواج مطابقة",
     "passages": "النصوص",
     "changeSummary": "التغييرات",
     "changeCounts": "سيُنشأ {{create}} · سيُحدّث {{update}}",

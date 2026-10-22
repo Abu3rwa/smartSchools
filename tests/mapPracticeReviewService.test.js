@@ -76,3 +76,38 @@ test('student payload helpers remove answer keys without hiding their own respon
   assert.equal('correctAnswerSnapshot' in attempt.answers[0], false);
   assert.equal('explanationSnapshot' in attempt.answers[0], false);
 });
+
+test('matching questions reach students as shuffled columns without the pairing key', () => {
+  const pairs = [
+    { left: 'Solar system', right: 'A group of planets orbiting a star' },
+    { left: 'Orbit', right: 'The path a planet takes' },
+    { left: 'Asteroid', right: 'A rocky body that orbits the sun' },
+    { left: 'Comet', right: 'An icy body with a glowing tail' },
+    { left: 'Galaxy', right: 'A vast system of stars and gas' },
+    { left: 'Eclipse', right: 'One body casting a shadow on another' },
+    { left: 'Crater', right: 'A bowl-shaped mark left by an impact' },
+    { left: 'Satellite', right: 'An object that orbits a larger body' }
+  ];
+  const question = { _id: 'question-1', questionType: 'matching', stem: 'Match each term.', matchingPairs: pairs };
+  const firstStudent = hideMapPracticeQuestionAnswers({ ...question, student: 'student-1' });
+  const sameStudentAgain = hideMapPracticeQuestionAnswers({ ...question, student: 'student-1' });
+  const secondStudent = hideMapPracticeQuestionAnswers({ ...question, student: 'student-2' });
+
+  assert.equal('matchingPairs' in firstStudent, false);
+  assert.deepEqual(firstStudent.matchingColumns.terms, pairs.map((pair) => pair.left));
+  assert.deepEqual([...firstStudent.matchingColumns.choices].sort(), pairs.map((pair) => pair.right).sort());
+  assert.deepEqual(firstStudent.matchingColumns, sameStudentAgain.matchingColumns);
+  assert.notEqual(firstStudent.matchingColumns.choices.join('|'), secondStudent.matchingColumns.choices.join('|'));
+
+  const snapshot = hideMapPracticeAttemptAnswerKeys({
+    student: 'student-1',
+    answers: [{
+      response: [{ left: 'Orbit', right: 'The path a planet takes' }],
+      questionSnapshot: { questionId: 'Q-1', matchingColumns: { terms: ['Orbit'], choices: ['The path a planet takes'] } },
+      matchingPairsSnapshot: pairs
+    }]
+  });
+
+  assert.equal('matchingPairsSnapshot' in snapshot.answers[0], false);
+  assert.deepEqual(snapshot.answers[0].response, [{ left: 'Orbit', right: 'The path a planet takes' }]);
+});

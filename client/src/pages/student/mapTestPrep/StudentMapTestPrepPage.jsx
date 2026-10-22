@@ -2,7 +2,42 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../../config/api';
 import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress } from './studentMapPracticeProgress';
+import { buildMatchingResponse, getMatchingAnswerRows, getMatchingColumns, readMatchingSelections } from '../../../utils/mapPracticeMatching';
 import './StudentMapTestPrepPage.css';
+
+const MatchingAnswerInput = ({ question, value, onPick }) => {
+  const { terms, choices } = getMatchingColumns(question);
+  const selections = readMatchingSelections(value);
+  const usedChoices = new Set([...selections.values()]);
+
+  if (!terms.length) return <p className="student-map-prep-hint">This matching question has no pairs yet.</p>;
+
+  return (
+    <div className="student-map-prep-matching">
+      <p className="student-map-prep-hint">Match each term with its correct definition.</p>
+      {terms.map((term) => (
+        <label className="student-map-prep-matching-row" key={`${question._id}-${term}`}>
+          <span className="student-map-prep-matching-term">{term}</span>
+          <select
+            value={selections.get(term) || ''}
+            onChange={(event) => onPick(event.target.value, term)}
+          >
+            <option value="">Choose a match</option>
+            {choices.map((choice) => (
+              <option
+                key={`${question._id}-${term}-${choice}`}
+                value={choice}
+                disabled={choice !== selections.get(term) && usedChoices.has(choice)}
+              >
+                {choice}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  );
+};
 
 const StudentMapTestPrepPage = () => {
   const [searchParams] = useSearchParams();
@@ -195,6 +230,13 @@ const StudentMapTestPrepPage = () => {
     updateAnswer(question._id, next);
   };
 
+  const handleMatchingPick = (question, term, choice) => {
+    const selections = readMatchingSelections(localAnswers[question._id]);
+    if (choice) selections.set(term, choice);
+    else selections.delete(term);
+    updateAnswer(question._id, buildMatchingResponse(selections));
+  };
+
   const handleSubmit = async () => {
     if (!attempt?._id) return;
     setSubmitting(true);
@@ -226,15 +268,18 @@ const StudentMapTestPrepPage = () => {
   const currentAnswer = activeQuestion ? localAnswers[activeQuestion._id] ?? '' : '';
   const currentFeedback = activeQuestion ? answerFeedback[activeQuestion._id] : null;
   const feedbackCorrectAnswer = currentFeedback?.correctAnswer;
-  const correctAnswerText = Array.isArray(currentFeedback?.options)
-    ? String(feedbackCorrectAnswer || '')
-      .split('|')
-      .map((key) => {
-        const option = currentFeedback.options.find((item) => String(item.key) === key);
-        return option ? `${option.key}. ${option.text}` : key;
-      })
-      .join(', ')
-    : feedbackCorrectAnswer;
+  const feedbackMatchingPairs = Array.isArray(currentFeedback?.matchingPairs) ? currentFeedback.matchingPairs : [];
+  const correctAnswerText = feedbackMatchingPairs.length
+    ? feedbackMatchingPairs.map((pair) => `${pair.left} → ${pair.right}`).join(', ')
+    : Array.isArray(currentFeedback?.options)
+      ? String(feedbackCorrectAnswer || '')
+        .split('|')
+        .map((key) => {
+          const option = currentFeedback.options.find((item) => String(item.key) === key);
+          return option ? `${option.key}. ${option.text}` : key;
+        })
+        .join(', ')
+      : feedbackCorrectAnswer;
 
   if (reviewAttempt) {
     return (
@@ -254,6 +299,7 @@ const StudentMapTestPrepPage = () => {
             const question = answer.questionDetails || answer.questionSnapshot || {};
             const options = Array.isArray(question.options) ? question.options : [];
             const responses = Array.isArray(answer.response) ? answer.response : [answer.response];
+            const matchingRows = question.questionType === 'matching' ? getMatchingAnswerRows(question, answer.response) : [];
             const displayAnswer = responses.filter((value) => value !== null && value !== undefined && String(value).trim())
               .map((value) => options.find((option) => String(option.key) === String(value))?.text || String(value))
               .join(', ') || 'No answer saved';
@@ -277,7 +323,19 @@ const StudentMapTestPrepPage = () => {
                     ))}
                   </ul>
                 )}
-                <p><strong>Your answer:</strong> {displayAnswer}</p>
+                {question.questionType === 'matching' ? (
+                  <ul className="student-map-prep-reviewed-matching">
+                    {matchingRows.map((row) => (
+                      <li key={row.term} className={row.unmatched ? 'unmatched' : ''}>
+                        <span className="student-map-prep-matching-term">{row.term}</span>
+                        <strong>{row.choice || 'No match chosen'}</strong>
+                      </li>
+                    ))}
+                    {!matchingRows.length && <li className="unmatched"><strong>No answer saved</strong></li>}
+                  </ul>
+                ) : (
+                  <p><strong>Your answer:</strong> {displayAnswer}</p>
+                )}
                 {answer.teacherComment && <p><strong>Teacher feedback:</strong> {answer.teacherComment}</p>}
               </article>
             );
@@ -369,6 +427,14 @@ const StudentMapTestPrepPage = () => {
                 value={typeof currentAnswer === 'string' ? currentAnswer : ''}
                 onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
                 placeholder="Type your answer here"
+              />
+            )}
+
+            {activeQuestion.questionType === 'matching' && (
+              <MatchingAnswerInput
+                question={activeQuestion}
+                value={currentAnswer}
+                onPick={(choice, term) => handleMatchingPick(activeQuestion, term, choice)}
               />
             )}
             {currentFeedback && (

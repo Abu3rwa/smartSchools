@@ -173,27 +173,31 @@ test('buildMapPracticePreview summarizes 210 questions into the expected sets, s
     MapPracticePlan.findOne = async () => null;
     MapPracticeQuestion.find = () => ({ select: () => ({ lean: async () => [] }) });
     MapPracticeSkill.find = () => ({ select: () => ({ lean: async () => [] }) });
+    const csvHeaders = [...mapPracticeCsvHeader, 'matching_pairs'];
     const rows = Array.from({ length: 210 }, (_, index) => {
       const setNumber = Math.floor(index / 15) + 1;
-      const values = Object.fromEntries(mapPracticeCsvHeader.map((header) => [header, '']));
+      const values = Object.fromEntries(csvHeaders.map((header) => [header, '']));
       Object.assign(values, {
         student_id: 'S-000253', plan_title: 'Fall Focus', set_id: `SET-${setNumber}`, set_title: `Set ${setNumber}`,
         set_order: String(setNumber), question_id: `Q-${index + 1}`, order: String(index + 1), subject: 'Reading',
         strand: 'Vocabulary', skill_code: `VOC-${setNumber}`, skill_name: `Skill ${setNumber}`, rit_band: '201-210',
         passage_id: `P-${Math.floor(index / 70) + 1}`, passage_title: `Passage ${Math.floor(index / 70) + 1}`,
-        question_type: index < 170 ? 'mcq' : index < 185 ? 'multi_select' : 'short_text', stem: `Question ${index + 1}`,
-        option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D', correct_answer: 'A', explanation: 'Because', points: '1'
+        question_type: index < 170 ? 'mcq' : index < 185 ? 'multi_select' : index < 205 ? 'short_text' : 'matching',
+        stem: `Question ${index + 1}`,
+        option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D', correct_answer: 'A', explanation: 'Because', points: '1',
+        matching_pairs: index >= 205 ? 'Solar system::A group of planets orbiting a star|Orbit::The path a planet takes' : ''
       });
-      return mapPracticeCsvHeader.map((header) => values[header]).join(',');
+      return csvHeaders.map((header) => values[header]).join(',');
     });
-    const csv = `${mapPracticeCsvHeader.join(',')}\n${rows.join('\n')}\n`;
+    const csv = `${csvHeaders.join(',')}\n${rows.join('\n')}\n`;
     const preview = await buildMapPracticePreview({ schoolId: 'school-1', fileName: 'S-000253_fall-map-01.csv', fileBuffer: Buffer.from(csv) });
 
     assert.equal(preview.rows, 210);
     assert.equal(preview.sets.length, 14);
     assert.equal(preview.skills.length, 14);
     assert.equal(preview.passages, 3);
-    assert.deepEqual(preview.questionTypes, { mcq: 170, multi_select: 15, short_text: 25 });
+    assert.deepEqual(preview.questionTypes, { mcq: 170, multi_select: 15, short_text: 20, matching: 5 });
+    assert.deepEqual(preview.errors, []);
     assert.equal(preview.willCreate, 210);
     assert.equal(preview.willUpdate, 0);
 
@@ -203,6 +207,38 @@ test('buildMapPracticePreview summarizes 210 questions into the expected sets, s
     assert.equal(repeatPreview.willCreate, 0);
     assert.equal(repeatPreview.willUpdate, 210);
     assert.equal(repeatPreview.notInNewFile, 0);
+  } finally {
+    Student.findOne = originalStudentFindOne;
+    MapPracticePlan.findOne = originalPlanFindOne;
+    MapPracticeQuestion.find = originalQuestionFind;
+    MapPracticeSkill.find = originalSkillFind;
+  }
+});
+
+test('buildMapPracticePreview flags matching rows whose pairs are missing or malformed', async () => {
+  const originalStudentFindOne = Student.findOne;
+  const originalPlanFindOne = MapPracticePlan.findOne;
+  const originalQuestionFind = MapPracticeQuestion.find;
+  const originalSkillFind = MapPracticeSkill.find;
+  try {
+    Student.findOne = async () => ({ _id: 'student-1', studentId: 'S-000253', firstName: 'Mina', lastName: 'Ali', currentClass: 'class-1' });
+    MapPracticePlan.findOne = async () => null;
+    MapPracticeQuestion.find = () => ({ select: () => ({ lean: async () => [] }) });
+    MapPracticeSkill.find = () => ({ select: () => ({ lean: async () => [] }) });
+
+    const headers = [...mapPracticeCsvHeader, 'matching_pairs'].join(',');
+    const matchingRow = (questionId, order, matchingPairs) => [
+      'S-000253', 'Fall Focus', 'SET-1', 'World Studies', '1', questionId, order,
+      'Social Studies', 'History', 'HIST-1', 'Terms', '201-210', '', '', '',
+      'matching', 'Match each term with its definition.', '', '', '', '', '', '', '', '1', matchingPairs
+    ].join(',');
+    const csv = `${headers}\n${matchingRow('Q-1', '1', 'Nile::The longest river in Africa|Sahara::The largest hot desert')}\n${matchingRow('Q-2', '2', 'Nile the longest river')}\n`;
+
+    const preview = await buildMapPracticePreview({ schoolId: 'school-1', fileName: 'S-000253_fall-map-01.csv', fileBuffer: Buffer.from(csv) });
+
+    assert.equal(preview.questionTypes.matching, 2);
+    assert.deepEqual(preview.errors.map((error) => [error.row, error.column]), [[3, 'matching_pairs']]);
+    assert.equal(preview.status, 'has_errors');
   } finally {
     Student.findOne = originalStudentFindOne;
     MapPracticePlan.findOne = originalPlanFindOne;
@@ -254,10 +290,11 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
     };
 
     MapPracticeSet.findByIdAndUpdate = async () => ({ _id: 'set-1' });
-    MapPracticeQuestion.findOneAndUpdate = async (_filter, update) => ({
-      _id: 'question-1',
-      ...update.$set
-    });
+    const questionWrites = [];
+    MapPracticeQuestion.findOneAndUpdate = async (_filter, update) => {
+      questionWrites.push(update.$set);
+      return { _id: 'question-1', ...update.$set };
+    };
     MapPracticeQuestion.countDocuments = async () => 1;
     MapPracticeImportBatch.create = async (doc) => ({ _id: 'batch-1', ...doc });
 
@@ -298,12 +335,59 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
             distractor_note: 'Be careful.',
             points: '1'
           }
+        }, {
+          rowNumber: 3,
+          values: {
+            student_id: 'S-000253',
+            plan_title: 'Fall Focus',
+            set_id: 'SET-1',
+            set_title: 'Vocabulary',
+            set_order: '1',
+            question_id: 'Q-2',
+            order: '2',
+            subject: 'Social Studies',
+            strand: 'Geography',
+            skill_code: 'GEO-terms',
+            skill_name: 'Physical features',
+            rit_band: '201-210',
+            question_type: 'matching',
+            stem: 'Match each feature with its description.',
+            matching_pairs: 'Nile::The longest river in Africa|Sahara::The largest hot desert',
+            points: '1'
+          }
+        }, {
+          rowNumber: 4,
+          values: {
+            student_id: 'S-000253',
+            plan_title: 'Fall Focus',
+            set_id: 'SET-1',
+            set_title: 'Vocabulary',
+            set_order: '1',
+            question_id: 'Q-3',
+            order: '3',
+            subject: 'Social Studies',
+            strand: 'Geography',
+            skill_code: 'GEO-terms',
+            skill_name: 'Physical features',
+            rit_band: '201-210',
+            question_type: 'matching',
+            stem: 'Match each feature with its description.',
+            matching_pairs: 'Nile the longest river in Africa',
+            points: '1'
+          }
         }]
       }]
     });
 
     assert.ok(result.summary);
     assert.equal(result.summary.files, 1);
+    assert.equal(result.summary.created, 2);
+    assert.equal(result.summary.skipped, 1);
+    assert.deepEqual(questionWrites.find((write) => write.questionType === 'matching')?.matchingPairs, [
+      { left: 'Nile', right: 'The longest river in Africa' },
+      { left: 'Sahara', right: 'The largest hot desert' }
+    ]);
+    assert.deepEqual(questionWrites.find((write) => write.questionType === 'mcq')?.matchingPairs, []);
     assert.ok(Array.isArray(result.newSkillsCreated));
     assert.equal(result.newSkillsCreated[0], 'VOC-CONTEXT');
     assert.equal(planWrite.$set.sourceStudentId, 'S-000253');
