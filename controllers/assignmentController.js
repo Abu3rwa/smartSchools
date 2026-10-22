@@ -1324,6 +1324,15 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
             });
         }
 
+        const existingGrade = await Grade.findOne({
+            school: req.schoolId,
+            assignment: assignment._id,
+            student: studentId
+        }).select('marks maxMarks').lean();
+        const gradeValueChanged = !existingGrade
+            || Number(existingGrade.marks) !== marks
+            || Number(existingGrade.maxMarks) !== maxMarks;
+
         const grade = await Grade.findOneAndUpdate(
             {
                 school: req.schoolId,
@@ -1364,7 +1373,7 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
             }
         );
 
-        gradedRows.push({ studentId, grade });
+        gradedRows.push({ studentId, grade, gradeValueChanged });
     }
 
     const shouldNotifyParents = assignment.notifyOnGrade !== false
@@ -1374,7 +1383,7 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
     if (shouldNotifyParents) {
         await sendAssignGradedNotifications({
             assignment,
-            gradedRows,
+            gradedRows: gradedRows.filter((row) => row.gradeValueChanged),
             createdBy: req.user._id
         });
     }

@@ -40,7 +40,9 @@
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
-  transition: background 0.16s ease, color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .assignments-page__tabs [role="tab"]:hover {
@@ -86,7 +88,9 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .assignments-kpi:hover {
@@ -292,7 +296,9 @@
   gap: 7px;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.16s ease, border-color 0.16s ease;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .assignments-status-tab:hover {
@@ -393,7 +399,9 @@
   font: inherit;
   font-size: 13px;
   outline: none;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .assignments-search input::placeholder {
@@ -778,7 +786,10 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .assignments-icon-btn:hover {
@@ -1177,7 +1188,9 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .assignments-drawer__nav button:hover {
@@ -1259,7 +1272,9 @@
   font: inherit;
   font-size: 13px;
   outline: none;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .assignments-field textarea {
@@ -1407,7 +1422,9 @@
   border-radius: 999px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .assignments-switch__track::before {
@@ -1432,7 +1449,10 @@
   transform: translateX(16px);
 }
 
-[dir="rtl"] .assignments-switch input:checked + .assignments-switch__track::before {
+[dir="rtl"]
+  .assignments-switch
+  input:checked
+  + .assignments-switch__track::before {
   transform: translateX(-16px);
 }
 
@@ -1490,28 +1510,50 @@
 
 /* ── Animations ────────────────────────────────────────────── */
 @keyframes assignmentsFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes assignmentsDrawerIn {
-  from { transform: translateX(102%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(102%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes assignmentsDrawerInRtl {
-  from { transform: translateX(-102%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(-102%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes assignmentsMenuIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes assignmentsShimmer {
-  from { background-position: 100% 0; }
-  to { background-position: 0 0; }
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1901,7 +1943,10 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .assignments-page .quiz-question__remove:hover:not(:disabled) {
@@ -1948,7 +1993,9 @@
   color: var(--text-primary);
   font: inherit;
   font-size: 12.5px;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 .assignments-page .quiz-question textarea {
@@ -2117,7 +2164,10 @@
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .assignments-page .quiz-truefalse__choice:hover:not(:disabled) {
@@ -2176,7 +2226,10 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .assignments-page .quiz-builder__add-more:hover:not(:disabled) {
@@ -2341,7 +2394,7 @@
 }
 
 .gfr-head__meta span + span::before {
-  content: '·';
+  content: "·";
   margin-inline-end: 8px;
   color: var(--border-color-hover);
 }
@@ -2460,7 +2513,10 @@
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .gfr-filter span {
@@ -2565,7 +2621,9 @@
 }
 
 @keyframes gfrSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .gfr-responses {
@@ -2579,7 +2637,9 @@
   border-radius: 12px;
   background: var(--bg-primary);
   overflow: hidden;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 .gfr-response:hover {
@@ -2959,6 +3019,50 @@
   border-top: 1px solid var(--border-color);
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.assignments-page .grade-panel .assignment-grade-progress {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.assignment-grade-progress__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.assignment-grade-progress__track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+.assignment-grade-progress__bar {
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: assignment-grade-progress 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes assignment-grade-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assignment-grade-progress__bar {
+    width: 55%;
+    margin-inline-start: 22.5%;
+    animation: none;
+  }
 }
 
 /* Link Editor */
