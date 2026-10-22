@@ -63,8 +63,22 @@ const buildErrorPayload = (error, originalError, statusCode) => {
 // Global error handler middleware
 const errorHandler = (err, req, res, next) => {
     void next;
-    // BE-030: Include correlation ID in error logs
-    logger.error(err.message, { correlationId: req.correlationId, stack: err.stack });
+    const error = mapKnownErrors(err);
+    const statusCode = error.statusCode || 500;
+
+    // BE-030: Include correlation ID in error logs.
+    // Expected client errors (4xx) are a normal response, not a fault, so they
+    // must not raise ERROR-level stack traces in production logs.
+    if (statusCode >= 500) {
+        logger.error(err.message, { correlationId: req.correlationId, stack: err.stack });
+    } else {
+        logger.warn(err.message, {
+            correlationId: req.correlationId,
+            statusCode,
+            method: req.method,
+            path: req.originalUrl
+        });
+    }
 
     // Ensure CORS headers are present on error responses so the browser
     // doesn't mask the real error behind a misleading CORS failure.
@@ -74,8 +88,6 @@ const errorHandler = (err, req, res, next) => {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
     }
 
-    const error = mapKnownErrors(err);
-    const statusCode = error.statusCode || 500;
     const payload = buildErrorPayload(error, err, statusCode);
     if (req.correlationId) {
         payload.requestId = req.correlationId;
