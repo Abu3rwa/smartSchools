@@ -5,7 +5,7 @@ import { authorize } from '../middleware/auth.js';
 import {
     getMonthConfigs, getMonthConfig, createMonthConfig, updateMonthConfig,
     publishMonthConfig, closeMonthConfig,
-    getRecords, getLeaderboard, getRecord, exportRecordDocx, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
+    getRecords, getLeaderboard, getRecord, exportRecordDocx, exportRecordPdf, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
     getEvidence, getStudentEvidence, exportObservationsByTrait, getTraitScoreSuggestions, createEvidence, updateEvidence, deleteEvidence,
     classifyObservationDraft, createQuickObservation, getNeedsReviewObservations,
     getRecordInteractions, addSupervisorNote,
@@ -22,8 +22,9 @@ import {
     getCycles, createCycle, updateCycle, publishCycle, closeCycle, deleteCycle,
     getRecordGoals, createGoal, updateGoal, deleteGoal, reviewGoalByTeacher,
     getPlpEmailConsent, updatePlpEmailConsent,
-    getPlpProgressEmailPreview, sendPlpProgressEmail, getPlpGoalReviewQueue, getPlpTaskReviewQueue,
+    getPlpProgressEmailPreview, sendPlpProgressEmail, getPlpEmailDeliveries, getPlpGoalReviewQueue, getPlpTaskReviewQueue,
     getGoalCopyDestinations, copyGoalToRecords,
+    getPlpGoalPracticeCandidates, suggestPlpGoalPracticeLinks, updatePlpGoalPracticeLinks,
     getGoalTasks, createTask, updateTask, deleteTask,
     retryTaskNotification,
     getRecordActivities, createActivity, updateActivity, deleteActivity,
@@ -55,6 +56,7 @@ router.route('/records/:id')
     .get(authorize('admin', 'teacher', 'department_principal'), getRecord)
     .put(authorize('teacher', 'admin'), updateRecord);
 router.get('/records/:id/export-docx', authorize('admin', 'teacher', 'department_principal'), exportRecordDocx);
+router.get('/records/:id/export-pdf', authorize('admin', 'teacher', 'department_principal'), exportRecordPdf);
 router.delete('/records/:id', authorize('teacher', 'admin'), deleteRecord);
 router.post('/records/:id/submit', authorize('teacher', 'admin'), submitRecord);
 router.post('/records/:id/unlock', authorize('admin'), unlockRecord);
@@ -129,10 +131,14 @@ router.get('/tasks/review-queue', authorize('teacher', 'admin'), getPlpTaskRevie
 router.get('/email-consent', authorize('student', 'parent'), getPlpEmailConsent);
 router.put('/email-consent', authorize('student', 'parent'), updatePlpEmailConsent);
 router.get('/records/:recordId/progress-email-preview', authorize('teacher', 'admin'), getPlpProgressEmailPreview);
+router.get('/records/:recordId/email-deliveries', authorize('teacher', 'admin'), getPlpEmailDeliveries);
 router.post('/records/:recordId/progress-email', authorize('teacher', 'admin'), sendPlpProgressEmail);
 router.delete('/goals/:goalId', authorize('teacher', 'admin'), deleteGoal);
 router.get('/goals/:goalId/copy-destinations', authorize('teacher', 'admin'), getGoalCopyDestinations);
 router.post('/goals/:goalId/copy', authorize('teacher', 'admin'), copyGoalToRecords);
+router.get('/goals/:goalId/practice-candidates', authorize('teacher', 'admin'), getPlpGoalPracticeCandidates);
+router.post('/goals/:goalId/practice-link-suggestions', authorize('teacher', 'admin'), suggestPlpGoalPracticeLinks);
+router.put('/goals/:goalId/practice-links', authorize('teacher', 'admin'), updatePlpGoalPracticeLinks);
 
 // ─── PLP Activities ─────────────────────────────────────────────────────────
 router.get('/records/:id/activities', authorize('admin', 'teacher', 'department_principal'), getRecordActivities);

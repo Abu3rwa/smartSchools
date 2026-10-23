@@ -10,6 +10,7 @@ import {
 } from '../../store/slices/plpSlice';
 import toast from 'react-hot-toast';
 import { formatPlpDate, getPlpDateKey } from './plpDateUtils';
+import { TASK_STATUS_LABELS, plpLabel } from './plpTableLabels';
 import './PLP.css';
 
 const MAX_WORDS = 100;
@@ -28,7 +29,7 @@ const formatDate = (value) => {
     return formatPlpDate(value) || 'No due date';
 };
 
-const statusLabel = (status) => String(status || 'assigned').replaceAll('_', ' ');
+const statusLabel = (status) => plpLabel(TASK_STATUS_LABELS, status, 'Assigned');
 
 export default function PlpMyTasksPage() {
     const dispatch = useDispatch();

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../../config/api';
 
 export default function PlpEmailConsentControl({ studentId = '' }) {
+    const { t, i18n } = useTranslation('plp');
     const [consent, setConsent] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         let active = true;
@@ -16,7 +18,7 @@ export default function PlpEmailConsentControl({ studentId = '' }) {
                 });
                 if (active) setConsent(response.data.data);
             } catch (requestError) {
-                if (active) setError(requestError.response?.data?.message || 'Unable to load PLP email preferences.');
+                if (active) setError({ kind: 'load', message: requestError.response?.data?.message || '' });
             } finally {
                 if (active) setLoading(false);
             }
@@ -27,22 +29,28 @@ export default function PlpEmailConsentControl({ studentId = '' }) {
 
     const setOptIn = async (optedIn) => {
         setSaving(true);
-        setError('');
+        setError(null);
         try {
             const response = await api.put('/plp/email-consent', { studentId: consent.studentId, optedIn });
             setConsent((previous) => ({ ...previous, ...response.data.data }));
         } catch (requestError) {
-            setError(requestError.response?.data?.message || 'Unable to save PLP email preference.');
+            setError({ kind: 'save', message: requestError.response?.data?.message || '' });
         } finally {
             setSaving(false);
         }
     };
 
+    const formatDate = (value) => new Date(value).toLocaleDateString(i18n.language);
+
     return (
         <section className="plp-section">
-            <h2>PLP Progress Email Preference</h2>
-            {loading && <p>Loading preference...</p>}
-            {error && <p role="alert" style={{ color: 'var(--danger, #b42318)' }}>{error}</p>}
+            <h2>{t('consent.title')}</h2>
+            {loading && <p>{t('consent.loading')}</p>}
+            {error && (
+                <p role="alert" style={{ color: 'var(--danger, #b42318)' }}>
+                    {error.message || t(error.kind === 'save' ? 'consent.saveFailed' : 'consent.loadFailed')}
+                </p>
+            )}
             {!loading && consent && (
                 <>
                     <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -52,24 +60,18 @@ export default function PlpEmailConsentControl({ studentId = '' }) {
                             disabled={saving}
                             onChange={(event) => setOptIn(event.target.checked)}
                         />
-                        <span>
-                            I agree to receive PLP progress updates at <strong>{consent.recipientEmail}</strong>.
-                            Opting in records your preference. Teachers may also send to contacts listed in the student record
-                            without an opt-in; if you opt in and later turn this off, teachers will not send to this address.
-                        </span>
+                        <span>{t('consent.agreement', { email: consent.recipientEmail })}</span>
                     </label>
                     {consent.optedInAt && consent.optedIn && (
-                        <div className="plp-evidence-meta">Opted in on {new Date(consent.optedInAt).toLocaleDateString()}</div>
+                        <div className="plp-evidence-meta">{t('consent.optedInOn', { date: formatDate(consent.optedInAt) })}</div>
                     )}
                     {!consent.optedIn && consent.revokedAt && (
                         <div className="plp-evidence-meta">
-                            You opted out on {new Date(consent.revokedAt).toLocaleDateString()}. Teachers will not send PLP progress emails to this address.
+                            {t('consent.optedOutOn', { date: formatDate(consent.revokedAt) })}
                         </div>
                     )}
                     {!consent.optedIn && !consent.revokedAt && (
-                        <div className="plp-evidence-meta">
-                            No preference is recorded. Teachers may send to this address if it is listed in the student record.
-                        </div>
+                        <div className="plp-evidence-meta">{t('consent.noPreference')}</div>
                     )}
                 </>
             )}

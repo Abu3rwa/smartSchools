@@ -23,6 +23,9 @@ import plpAiService from '../services/plpAiService.js';
 import { writePlpAudit } from '../services/plpAuditService.js';
 import { buildPlpPaginationMetadata, getPlpPagination } from '../services/plpPaginationService.js';
 import { buildPlpRoundZip } from '../services/plpRoundExportService.js';
+import { buildPlpReportModel } from '../services/plpReportModel.js';
+import { generatePlpReportPdf } from '../services/plpReportPdfService.js';
+import { collectPracticeCandidates } from '../services/plpPracticeLinkService.js';
 import logger from '../utils/logger.js';
 
 const THEME_TRAITS = {
@@ -849,11 +852,17 @@ export const exportRoundReports = asyncHandler(async (req, res) => {
     }
 
     const recordIds = records.map((record) => record._id);
-    const [goals, tasks] = await Promise.all([
+    const [goals, tasks, evidence] = await Promise.all([
         PlpGoal.find({ school: req.user.school, plpRecord: { $in: recordIds } }).lean(),
         PlpTask.find({ school: req.user.school, plpRecord: { $in: recordIds } }).lean(),
+        PlpEvidence.find({ school: req.user.school, plpRecord: { $in: recordIds } })
+            .populate('traitId', 'name')
+            .populate('teacher', 'firstName lastName')
+            .sort({ createdAt: -1 })
+            .lean(),
     ]);
-    const archive = await buildPlpRoundZip({ records, goals, tasks });
+    const school = await School.findById(req.user.school).select('name').lean();
+    const archive = await buildPlpRoundZip({ records, goals, tasks, evidence, school });
     const roundLabel = String(records[0].cycle?.cycleCode || month).replace(/[^a-z0-9_-]/gi, '-');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="plp-${academicYear}-${roundLabel}-reports.zip"`);
@@ -1127,6 +1136,8 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
             if (goalId) usedGoalIds.add(goalId);
 
             const goalTextParts = [text(goal.title), text(goal.description, '')].filter(Boolean);
+            const practiceLabels = (goal.linkedPractice || []).map((link) => text(link?.label)).filter(Boolean);
+            if (practiceLabels.length) goalTextParts.push(`Linked practice: ${practiceLabels.join(' · ')}`);
             academicHierarchyRows.push({
                 level: 'goal',
                 values: [
@@ -1223,6 +1234,65 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
         logger.error(`PLP DOCX generation failed for record ${req.params.id} by user ${req.user?._id}`);
         if (error?.statusCode) throw error;
         return res.status(500).json({ success: false, message: 'Failed to generate report' });
+    }
+});
+
+export const exportRecordPdf = asyncHandler(async (req, res) => {
+    try {
+        const record = await PlpStudentRecord.findOne({ _id: req.params.id, school: req.user.school })
+            .populate('student', 'firstName lastName studentId')
+            .populate('teacher', 'firstName lastName')
+            .populate('cycle', 'title cycleCode')
+            .populate('class', 'name grade')
+            .lean();
+        if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+        await assertRecordAccess(req.user, record);
+
+        const [school, evidence, goals, tasks, traits] = await Promise.all([
+            School.findById(req.user.school).select('name').lean(),
+            PlpEvidence.find({ school: req.user.school, plpRecord: record._id })
+                .populate('traitId', 'name')
+                .populate('teacher', 'firstName lastName')
+                .sort({ createdAt: -1 })
+                .lean(),
+            PlpGoal.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: -1 }).lean(),
+            PlpTask.find({ school: req.user.school, plpRecord: record._id }).sort({ dueDate: 1, createdAt: -1 }).lean(),
+            PlpTraitConfig.find({ school: req.user.school, isActive: true }).select('_id name').sort({ displayOrder: 1, name: 1 }).lean(),
+        ]);
+
+        // Labels come from a fresh read of the student's own practice items, so a
+        // renamed or deleted session can never be reported from stale stored text.
+        const practiceItems = await collectPracticeCandidates({
+            schoolId: req.user.school,
+            studentId: record.student?._id,
+        }).catch(() => []);
+
+        const storedScores = toPlainTraitScoreEntries(record.traitScoreEntries);
+        const legacyFields = buildRecordScoreFieldByTraitId({ record, activeTraits: traits });
+        const traitScores = traits.map((trait) => {
+            const saved = clampTraitScore(storedScores?.[String(trait._id)]?.score);
+            const legacy = clampTraitScore(record.scores?.[legacyFields.get(String(trait._id))]);
+            return [trait.name, saved ?? legacy];
+        }).filter(([, score]) => score !== null && score !== undefined);
+
+        const model = buildPlpReportModel({
+            record, goals, tasks, evidence, school, traitScores, practiceItems,
+        });
+        const pdf = await generatePlpReportPdf(model);
+        const safeStudentName = `${record.student?.firstName || 'student'}-${record.student?.lastName || 'record'}`
+            .trim()
+            .replace(/[^a-z0-9]+/gi, '-')
+            .toLowerCase();
+        logger.info(`PLP PDF report generated for record ${record._id} by user ${req.user._id}`);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdf.length);
+        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+        res.setHeader('Content-Disposition', `attachment; filename="plp-${safeStudentName}-${record.academicYear}.pdf"`);
+        res.send(pdf);
+    } catch (error) {
+        logger.error(`PLP PDF generation failed for record ${req.params.id} by user ${req.user?._id}`);
+        if (error?.statusCode) throw error;
+        return res.status(500).json({ success: false, message: 'Failed to generate the PDF report' });
     }
 });
 

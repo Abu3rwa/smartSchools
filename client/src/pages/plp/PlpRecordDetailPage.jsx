@@ -16,11 +16,26 @@ import { selectUser } from '../../store/slices/authSlice';
 import toast from 'react-hot-toast';
 import api from '../../config/api';
 import PlpCopyGoalModal from './PlpCopyGoalModal';
+import PlpGoalPracticeLinks from './PlpGoalPracticeLinks';
 import PlpProgressEmailPanel from './PlpProgressEmailPanel';
 import { formatPlpDate } from './plpDateUtils';
+import {
+    GOAL_STATUS_LABELS, GOAL_TYPE_LABELS, LEVEL_LABELS, RECORD_STATUS_LABELS,
+    TASK_STATUS_LABELS, plpLabel,
+} from './plpTableLabels';
+import { downloadBlob, filenameFromContentDisposition } from '../../utils/downloadBlob';
 import './PLP.css';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
+
+const readBlobError = async (data, fallback) => {
+    if (!(data instanceof Blob)) return fallback;
+    try {
+        return JSON.parse(await data.text())?.message || fallback;
+    } catch {
+        return fallback;
+    }
+};
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function ActivityGroups({ activities, canWrite, onEdit, onDelete, onAssign }) {
@@ -98,7 +113,7 @@ export default function PlpRecordDetailPage() {
     const [selectedCycleId, setSelectedCycleId] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('');
     const [activeTab, setActiveTab] = useState('character');
-    const [exportingDocx, setExportingDocx] = useState(false);
+    const [exportingReport, setExportingReport] = useState('');
     const [activityForm, setActivityForm] = useState({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' });
     const [editingActivityId, setEditingActivityId] = useState('');
     const [showActivityForm, setShowActivityForm] = useState(false);
@@ -597,25 +612,23 @@ export default function PlpRecordDetailPage() {
         }
     };
 
-    const exportRecordDocx = async () => {
-        setExportingDocx(true);
+    const exportReport = async (format) => {
+        setExportingReport(format);
         try {
-            const response = await api.get(`/plp/records/${id}/export-docx`, { responseType: 'blob' });
-            const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-            const url = window.URL.createObjectURL(blob);
-            const safeStudentName = `${record.student?.firstName || 'student'}-${record.student?.lastName || 'record'}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `plp-${safeStudentName}-${record.academicYear}.docx`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-            toast.success('DOCX downloaded');
+            const response = await api.get(`/plp/records/${id}/export-${format}`, { responseType: 'blob' });
+            const contentType = String(response.headers?.['content-type'] || '');
+            const expected = format === 'pdf' ? 'application/pdf' : 'officedocument';
+            if (!contentType.includes(expected)) {
+                toast.error(await readBlobError(response.data, `Failed to export ${format.toUpperCase()}`));
+                return;
+            }
+            const fallbackName = `plp-${record.academicYear}.${format}`;
+            downloadBlob(new Blob([response.data], { type: contentType }), filenameFromContentDisposition(response.headers?.['content-disposition'], fallbackName));
+            toast.success(`${format.toUpperCase()} downloaded`);
         } catch (requestError) {
-            toast.error(requestError?.response?.data?.message || 'Failed to export DOCX');
+            toast.error(await readBlobError(requestError?.response?.data, `Failed to export ${format.toUpperCase()}`));
         } finally {
-            setExportingDocx(false);
+            setExportingReport('');
         }
     };
 
@@ -637,15 +650,20 @@ export default function PlpRecordDetailPage() {
                     <button className="btn btn-secondary btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>← Back</button>
                     <h1>{record.student?.firstName} {record.student?.lastName} — {record.month ? MONTHS[record.month - 1] : 'Month'}</h1>
                     <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                        <span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span>
-                        <span className={`plp-badge plp-badge-${record.status}`}>{record.status}</span>
+                        <span className={`plp-badge plp-badge-${record.level}`}>{plpLabel(LEVEL_LABELS, record.level)}</span>
+                        <span className={`plp-badge plp-badge-${record.status}`}>{plpLabel(RECORD_STATUS_LABELS, record.status)}</span>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['teacher', 'admin'].includes(user?.role) && (
-                        <button className="btn btn-secondary" onClick={exportRecordDocx} disabled={exportingDocx}>
-                            {exportingDocx ? 'Exporting...' : 'Download DOCX'}
-                        </button>
+                        <>
+                            <button className="btn btn-secondary" onClick={() => exportReport('pdf')} disabled={Boolean(exportingReport)}>
+                                {exportingReport === 'pdf' ? 'Preparing...' : 'Download PDF'}
+                            </button>
+                            <button className="btn btn-secondary" onClick={() => exportReport('docx')} disabled={Boolean(exportingReport)}>
+                                {exportingReport === 'docx' ? 'Preparing...' : 'Download DOCX'}
+                            </button>
+                        </>
                     )}
                     {canWrite && record.status === 'in_progress' && (
                         <button className="btn btn-primary" onClick={handleSubmit}>Submit Record</button>
@@ -847,7 +865,10 @@ export default function PlpRecordDetailPage() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                                 <div>
                                     <strong>{goal.title}</strong>
-                                    <div className="plp-evidence-meta">{goal.goalType} · status: {goal.status}</div>
+                                    <div className="plp-evidence-meta">
+                                        <span className={`plp-badge plp-badge-${goal.status}`}>{plpLabel(GOAL_STATUS_LABELS, goal.status)}</span>
+                                        {' '}{plpLabel(GOAL_TYPE_LABELS, goal.goalType)}
+                                    </div>
                                     {goal.checkInDate && <div className="plp-evidence-meta">Check-in: {formatPlpDate(goal.checkInDate)}</div>}
                                     {goal.milestones?.length > 0 && (
                                         <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
@@ -923,6 +944,11 @@ export default function PlpRecordDetailPage() {
                                     <div><button type="button" className="btn btn-primary btn-sm" onClick={() => submitGoalReview(goal._id)}>Save Review</button></div>
                                 </div>
                             )}
+                            <PlpGoalPracticeLinks
+                                goal={goal}
+                                canWrite={canWrite}
+                                onSaved={() => dispatch(fetchPlpGoals(id))}
+                            />
                             {canWrite && (
                                 <div style={{ marginTop: 10 }}>
                                     <label className="plp-form-group" style={{ display: 'block', marginBottom: 6 }}>
@@ -985,7 +1011,7 @@ export default function PlpRecordDetailPage() {
                                 <div>
                                     <strong>{task.title}</strong>
                                     <div className="plp-evidence-meta">
-                                        status: {task.status}
+                                        <span className={`plp-badge plp-badge-${task.status}`}>{plpLabel(TASK_STATUS_LABELS, task.status)}</span>
                                         {task.dueDate ? ` · due ${formatPlpDate(task.dueDate)}` : ''}
                                     </div>
                                     {task.instructions && <p style={{ margin: '4px 0 0' }}>{task.instructions}</p>}

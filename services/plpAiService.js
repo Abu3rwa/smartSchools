@@ -279,6 +279,85 @@ Required JSON schema:
             };
         }
     }
+
+    /**
+     * Ranks which of a student's existing spelling/MAP practice items fits a goal.
+     * The model may only pick from the ids it is given, and every returned id is
+     * checked against that list, so a hallucinated link can never reach the plan.
+     */
+    async suggestPracticeLinks(goal = {}, candidates = []) {
+        const list = (Array.isArray(candidates) ? candidates : []).slice(0, 30).map((candidate) => ({
+            id: String(candidate?.targetId || ''),
+            kind: String(candidate?.kind || ''),
+            label: String(candidate?.label || ''),
+            detail: String(candidate?.detail || ''),
+        })).filter((candidate) => candidate.id && candidate.label);
+
+        if (!list.length) {
+            return { suggestions: [], unavailable: false, reason: 'no_candidates' };
+        }
+
+        const goalContext = {
+            goalType: String(goal?.goalType || '').trim(),
+            title: String(goal?.title || '').trim().slice(0, 200),
+            description: String(goal?.description || '').trim().slice(0, 600),
+            successCriteria: String(goal?.successCriteria || '').trim().slice(0, 600),
+        };
+
+        const prompt = `You are choosing which of a student's existing practice work supports a Personal Learning Plan goal.
+
+Goal:
+${JSON.stringify(goalContext, null, 2)}
+
+Candidate practice items (you MUST choose id values from this list only):
+${JSON.stringify(list, null, 2)}
+
+Rules:
+1) Return STRICT JSON only, no markdown.
+2) Choose at most 5 items that genuinely work toward the goal. An empty list is a valid answer.
+3) Never invent ids, labels, or facts about the student.
+4) reason must be one short sentence for a teacher, explaining the fit with the success criteria.
+5) Prefer spelling practice for literacy goals and MAP practice for measured academic goals; character goals often need no links.
+
+Required JSON schema:
+{
+  "selections": [
+    { "id": "string", "reason": "string" }
+  ]
+}`;
+
+        let parsed = null;
+        try {
+            const aiResult = await aiService.generateStructuredJson({
+                prompt,
+                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                maxRetries: 1,
+            });
+            parsed = aiResult?.parsed || null;
+        } catch {
+            return { suggestions: [], unavailable: true, reason: 'ai_unavailable' };
+        }
+
+        const byId = new Map(list.map((candidate) => [candidate.id, candidate]));
+        const seen = new Set();
+        const suggestions = (Array.isArray(parsed?.selections) ? parsed.selections : [])
+            .map((selection) => {
+                const candidate = byId.get(String(selection?.id || '').trim());
+                if (!candidate || seen.has(candidate.id)) return null;
+                seen.add(candidate.id);
+                return {
+                    kind: candidate.kind,
+                    targetId: candidate.id,
+                    label: candidate.label,
+                    detail: candidate.detail,
+                    reason: String(selection?.reason || '').trim().slice(0, 300),
+                };
+            })
+            .filter(Boolean)
+            .slice(0, 5);
+
+        return { suggestions, unavailable: false, reason: '' };
+    }
 }
 
 export default new PlpAiService();

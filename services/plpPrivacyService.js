@@ -49,14 +49,22 @@ export const toPlpHistoryItem = (record) => ({
 export const buildFamilySafeProgressUpdate = ({ student, record, goals = [], tasks = [] }) => ({
     studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
     academicYear: record.academicYear,
-    roundTitle: record.cycle?.title || `Month ${record.month}`,
+    roundTitle: record.cycle?.title || '',
+    month: record.month,
     goals: goals.map((goal) => ({
+        goalType: goal.goalType || '',
         title: goal.title,
         description: goal.description || '',
         successCriteria: goal.successCriteria || '',
         status: goal.status,
         targetDate: goal.targetDate || null,
         reviewOutcome: goal.reviewOutcome || null,
+        // Labels describe the student's own practice work; ids and teacher reasons stay out.
+        linkedPractice: (goal.linkedPractice || []).map((link) => ({
+            kind: link.kind,
+            label: link.label,
+            detail: link.detail || '',
+        })),
     })),
     nextTasks: tasks
         .filter((task) => !['completed', 'reviewed'].includes(task.status))

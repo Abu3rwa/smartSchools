@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpAwardCandidates, setPlpAwardDecision,
@@ -7,7 +8,7 @@ import {
 } from '../../store/slices/plpSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import toast from 'react-hot-toast';
-import api from '../../config/api';
+import { AWARD_LABELS, studentInitials } from './plpTableLabels';
 import './PLP.css';
 
 const MONTHS = [
@@ -73,30 +74,43 @@ export default function PlpAwardsPage() {
             {!loading && candidates.length === 0 && <div className="plp-empty">No students found for this month.</div>}
             {candidates.length > 0 && (
                 <div className="plp-section" style={{ padding: 0 }}>
-                    <table className="plp-table">
-                        <thead>
-                            <tr><th>Student</th><th>Class</th><th>Round</th><th>Trait</th><th>Observation Count</th><th>Decision</th><th>Reason</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {candidates.map((r) => (
-                                <tr key={r._id}>
-                                    <td>{r.student?.firstName} {r.student?.lastName}</td>
-                                    <td>{r.class?.name}</td>
-                                    <td>{r.cycle?.title || 'Unassigned Round'}</td>
-                                    <td>{r.focusTrait?.name || '—'}</td>
-                                    <td>{Number(r.matchedEvidenceCount || 0)}</td>
-                                    <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
-                                    <td style={{ maxWidth: 200, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.awardDecisionReason || '—'}</td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            <button className="btn btn-primary btn-sm" onClick={() => openDecision(r, 'selected')}>Select</button>
-                                            <button className="btn btn-secondary btn-sm" onClick={() => openDecision(r, 'not_selected')}>Not Select</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div className="plp-table-wrap">
+                        <table className="plp-table">
+                            <thead>
+                                <tr><th>Student</th><th className="plp-col-optional">Class</th><th className="plp-col-optional">Round</th><th>Trait</th><th className="plp-cell-number">Observations</th><th>Decision</th><th className="plp-col-optional">Reason</th><th className="plp-cell-actions">Set decision</th></tr>
+                            </thead>
+                            <tbody>
+                                {candidates.map((r) => {
+                                    const studentName = `${r.student?.firstName || ''} ${r.student?.lastName || ''}`.trim();
+                                    const observations = Number(r.matchedEvidenceCount || 0);
+                                    return (
+                                    <tr key={r._id}>
+                                        <td>
+                                            <div className="plp-student-cell">
+                                                <span className="plp-student-avatar" aria-hidden="true">{studentInitials(r.student)}</span>
+                                                <Link className="plp-student-name" to={`/portal/plp/records/${r._id}`}>{studentName || 'Unnamed student'}</Link>
+                                            </div>
+                                        </td>
+                                        <td className="plp-col-optional">{r.class?.name || '-'}</td>
+                                        <td className="plp-col-optional">{r.cycle?.title || 'Unassigned round'}</td>
+                                        <td>{r.focusTrait?.name || '—'}</td>
+                                        <td className="plp-cell-number">
+                                            <span className={`plp-count-pill${observations ? '' : ' is-empty'}`}>{observations}</span>
+                                        </td>
+                                        <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{AWARD_LABELS[r.awardDecision] || r.awardDecision || 'No decision'}</span></td>
+                                        <td className="plp-col-optional" style={{ maxWidth: 200, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.awardDecisionReason || '—'}</td>
+                                        <td>
+                                            <div className="plp-row-actions plp-cell-actions">
+                                                <button className="btn btn-primary btn-sm" onClick={() => openDecision(r, 'selected')}>Select</button>
+                                                <button className="btn btn-secondary btn-sm" onClick={() => openDecision(r, 'not_selected')}>Not selected</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 

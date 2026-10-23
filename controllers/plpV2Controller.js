@@ -34,11 +34,19 @@ import {
 } from '../services/plpAccessService.js';
 import { normalizeGoalMilestones, parseOptionalPlpDate } from '../services/plpGoalProgressService.js';
 import {
+    PLP_EMAIL_LANGUAGES,
     buildPlpEmailRecipientCandidates,
     buildPlpProgressEmail,
+    describeEmailDeliveryError,
     getPlpEmailDeliveryAttempt,
+    normalizePlpEmailLanguage,
 } from '../services/plpProgressEmailService.js';
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
+import plpAiService from '../services/plpAiService.js';
+import {
+    collectPracticeCandidates,
+    resolvePracticeLinks,
+} from '../services/plpPracticeLinkService.js';
 
 const audit = (school, actor, action, targetType, targetId, meta) =>
     writePlpAudit({ school, actor, action, targetType, targetId, meta });
@@ -102,7 +110,7 @@ const resolveAuthenticatedPlpEmailContact = async (req, studentId) => {
     return { student, email, recipientType };
 };
 
-const loadProgressEmailContext = async (req, recordId) => {
+const loadProgressEmailContext = async (req, recordId, { language = 'en' } = {}) => {
     if (!mongoose.isValidObjectId(recordId)) {
         throw Object.assign(new Error('PLP record not found'), { statusCode: 404 });
     }
@@ -110,6 +118,7 @@ const loadProgressEmailContext = async (req, recordId) => {
         .populate('student', 'firstName lastName studentId email studentEmail parentInfo user')
         .populate('student.user', 'email')
         .populate('cycle', 'title')
+        .populate('teacher', 'firstName lastName')
         .lean();
     if (!record) throw Object.assign(new Error('PLP record not found'), { statusCode: 404 });
     await assertTeacherRecordWriteAccess(req.user, record);
@@ -125,7 +134,16 @@ const loadProgressEmailContext = async (req, recordId) => {
         goals,
         tasks,
         recipients,
-        email: buildPlpProgressEmail({ student: record.student, record, goals, tasks }),
+        email: buildPlpProgressEmail({
+            student: record.student,
+            record,
+            goals,
+            tasks,
+            language,
+            school: req.school,
+            teacher: record.teacher,
+            sentAt: new Date(),
+        }),
     };
 };
 
@@ -816,6 +834,81 @@ export const updateGoal = asyncHandler(async (req, res) => {
     res.json({ success: true, data: populated });
 });
 
+const loadGoalWithRecord = async (req, goalId) => {
+    if (!mongoose.isValidObjectId(goalId)) {
+        throw Object.assign(new Error('Goal not found'), { statusCode: 404 });
+    }
+    const goal = await PlpGoal.findOne({ _id: goalId, school: req.user.school });
+    if (!goal) {
+        throw Object.assign(new Error('Goal not found'), { statusCode: 404 });
+    }
+    const record = await PlpStudentRecord.findOne({ _id: goal.plpRecord, school: req.user.school })
+        .select('_id school teacher class academicYear student status');
+    if (!record) {
+        throw Object.assign(new Error('Record not found'), { statusCode: 404 });
+    }
+    await assertTeacherRecordWriteAccess(req.user, record);
+    return { goal, record };
+};
+
+export const getPlpGoalPracticeCandidates = asyncHandler(async (req, res) => {
+    const { goal, record } = await loadGoalWithRecord(req, req.params.goalId);
+    const candidates = await collectPracticeCandidates({
+        schoolId: req.user.school,
+        studentId: record.student,
+    });
+    res.json({
+        success: true,
+        data: {
+            goalId: String(goal._id),
+            linked: goal.linkedPractice || [],
+            candidates,
+        },
+    });
+});
+
+export const suggestPlpGoalPracticeLinks = asyncHandler(async (req, res) => {
+    const { goal, record } = await loadGoalWithRecord(req, req.params.goalId);
+    const candidates = await collectPracticeCandidates({
+        schoolId: req.user.school,
+        studentId: record.student,
+    });
+    const suggestion = await plpAiService.suggestPracticeLinks(goal, candidates);
+    await audit(req.user.school, req.user._id, 'plp_goal_practice_links_suggested', 'PlpGoal', goal._id, {
+        candidates: candidates.length,
+        suggestions: suggestion.suggestions.length,
+        unavailable: suggestion.unavailable,
+    });
+    res.json({ success: true, data: suggestion });
+});
+
+export const updatePlpGoalPracticeLinks = asyncHandler(async (req, res) => {
+    const { goal, record } = await loadGoalWithRecord(req, req.params.goalId);
+    if (record.status === 'locked') {
+        return res.status(400).json({ success: false, message: 'Record is locked' });
+    }
+    if (!Array.isArray(req.body.links)) {
+        return res.status(400).json({ success: false, message: 'links must be an array' });
+    }
+
+    const links = await resolvePracticeLinks({
+        schoolId: req.user.school,
+        studentId: record.student,
+        submitted: req.body.links,
+        actorId: req.user._id,
+    });
+    goal.linkedPractice = links;
+    goal.updatedBy = req.user._id;
+    await goal.save();
+
+    await audit(req.user.school, req.user._id, 'plp_goal_practice_links_updated', 'PlpGoal', goal._id, {
+        count: links.length,
+        kinds: [...new Set(links.map((link) => link.kind))],
+        aiSuggested: links.filter((link) => link.source === 'ai_suggested').length,
+    });
+    res.json({ success: true, data: links });
+});
+
 export const reviewGoalByTeacher = asyncHandler(async (req, res) => {
     const { outcome, reviewNote } = req.body;
     if (!['continue', 'revise', 'complete'].includes(outcome)) {
@@ -909,10 +1002,12 @@ export const updatePlpEmailConsent = asyncHandler(async (req, res) => {
 });
 
 export const getPlpProgressEmailPreview = asyncHandler(async (req, res) => {
-    const context = await loadProgressEmailContext(req, req.params.recordId);
+    const language = normalizePlpEmailLanguage(req.query.language);
+    const context = await loadProgressEmailContext(req, req.params.recordId, { language });
     res.json({
         success: true,
         data: {
+            language,
             subject: context.email.subject,
             text: context.email.text,
             html: context.email.html,
@@ -921,6 +1016,41 @@ export const getPlpProgressEmailPreview = asyncHandler(async (req, res) => {
                 ? ''
                 : 'No student or family email contacts are available. Contacts who explicitly opted out are excluded.',
         },
+    });
+});
+
+export const getPlpEmailDeliveries = asyncHandler(async (req, res) => {
+    const { recordId } = req.params;
+    if (!mongoose.isValidObjectId(recordId)) {
+        return res.status(404).json({ success: false, message: 'PLP record not found' });
+    }
+    const record = await PlpStudentRecord.findOne({ _id: recordId, school: req.user.school })
+        .select('_id school teacher class academicYear student')
+        .lean();
+    if (!record) {
+        return res.status(404).json({ success: false, message: 'PLP record not found' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, record);
+    const deliveries = await PlpEmailDelivery.find({ school: req.user.school, plpRecord: recordId })
+        .select('recipientEmail recipientType language attempt status error startedAt deliveredAt sentBy')
+        .populate('sentBy', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
+    res.json({
+        success: true,
+        data: deliveries.map((delivery) => ({
+            id: String(delivery._id),
+            recipientEmail: delivery.recipientEmail,
+            recipientType: delivery.recipientType,
+            language: delivery.language || 'en',
+            attempt: delivery.attempt,
+            status: delivery.status,
+            error: delivery.error || '',
+            sentAt: delivery.startedAt || delivery.createdAt,
+            deliveredAt: delivery.deliveredAt || null,
+            sentByName: `${delivery.sentBy?.firstName || ''} ${delivery.sentBy?.lastName || ''}`.trim() || null,
+        })),
     });
 });
 
@@ -1035,8 +1165,13 @@ export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
     if (typeof req.body.resend !== 'undefined' && typeof req.body.resend !== 'boolean') {
         return res.status(400).json({ success: false, message: 'resend must be true or false' });
     }
+    if (typeof req.body.language !== 'undefined'
+        && !PLP_EMAIL_LANGUAGES.includes(String(req.body.language).trim().toLowerCase())) {
+        return res.status(400).json({ success: false, message: 'language must be en, ar or both' });
+    }
 
-    const context = await loadProgressEmailContext(req, req.params.recordId);
+    const language = normalizePlpEmailLanguage(req.body.language);
+    const context = await loadProgressEmailContext(req, req.params.recordId, { language });
     const recipientsByEmail = new Map(context.recipients.map((recipient) => [recipient.email, recipient]));
     const emails = [...new Set(requestedEmails.map((email) => String(email || '').trim().toLowerCase()))];
     if (emails.length !== requestedEmails.length || emails.some((email) => !recipientsByEmail.has(email))) {
@@ -1074,6 +1209,7 @@ export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
                 student: context.student._id,
                 recipientEmail,
                 recipientType: recipient.type,
+                language,
                 sentBy: req.user._id,
                 attempt,
                 status: 'sending',
@@ -1090,17 +1226,20 @@ export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
         try {
             transport = await sendTransactionalEmail({
                 to: recipientEmail,
-                ...context.email,
+                subject: context.email.subject,
+                text: context.email.text,
+                html: context.email.html,
                 schoolId: req.user.school,
                 preferredUserId: req.user._id,
             });
         } catch (error) {
+            const reason = describeEmailDeliveryError(error);
             await PlpEmailDelivery.updateOne({ _id: delivery._id }, {
-                $set: { status: 'failed', error: String(error.message || 'Email delivery failed').slice(0, 1000) },
+                $set: { status: 'failed', error: reason },
             });
             logger.error('PLP progress email delivery failed', {
                 recordId: String(context.record._id),
-                error: error.message,
+                error: reason,
             });
             results.push({ email: recipientEmail, status: 'failed', message: 'Email delivery failed. Review the sender configuration and retry.' });
             continue;
@@ -1115,6 +1254,7 @@ export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
         });
         await audit(req.user.school, req.user._id, 'plp_progress_email_sent', 'PlpStudentRecord', context.record._id, {
             recipientType: recipient.type,
+            language,
             attempt,
         });
         results.push({ email: recipientEmail, status: 'sent' });

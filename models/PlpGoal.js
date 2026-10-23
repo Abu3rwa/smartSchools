@@ -1,6 +1,21 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
+const plpPracticeLinkSchema = new mongoose.Schema({
+    kind: {
+        type: String,
+        enum: ['spelling_session', 'map_practice_plan', 'map_practice_assignment'],
+        required: true,
+    },
+    targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    label: { type: String, required: true, trim: true, maxlength: 180 },
+    detail: { type: String, default: '', trim: true, maxlength: 400 },
+    source: { type: String, enum: ['teacher', 'ai_suggested'], default: 'teacher' },
+    reason: { type: String, default: '', trim: true, maxlength: 300 },
+    linkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    linkedAt: { type: Date, default: Date.now },
+}, { _id: false, id: false });
+
 const plpGoalSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     plpRecord: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpStudentRecord', required: true },
@@ -10,6 +25,7 @@ const plpGoalSchema = new mongoose.Schema({
     linkedTraitCodes: [{ type: String, trim: true }],
     linkedSubjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     linkedStandardIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Standard' }],
+    linkedPractice: [plpPracticeLinkSchema],
     baselineNote: { type: String, default: '', trim: true, maxlength: 2000 },
     successCriteria: { type: String, default: '', trim: true, maxlength: 2000 },
     teacherProgressNote: { type: String, default: '', trim: true, maxlength: 2000 },

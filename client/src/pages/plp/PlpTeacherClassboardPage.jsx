@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import api from '../../config/api';
 import PlpPagination from './PlpPagination';
 import { formatPlpDate } from './plpDateUtils';
+import { AWARD_LABELS, RECORD_STATUS_LABELS, studentInitials } from './plpTableLabels';
 import './PLP.css';
 
 const MONTHS = [
@@ -34,6 +35,7 @@ export default function PlpTeacherClassboardPage() {
     const [selectedCycleId, setSelectedCycleId] = useState('');
     const [recordsPage, setRecordsPage] = useState(1);
     const [creating, setCreating] = useState(false);
+    const [setupOpen, setSetupOpen] = useState(null);
     const [initializingRound, setInitializingRound] = useState(false);
     const [classes, setClasses] = useState([]);
     const [studentsByClass, setStudentsByClass] = useState({});
@@ -630,19 +632,28 @@ export default function PlpTeacherClassboardPage() {
         }
     }, [traitOptions, form.focusTrait]);
 
+    const activeCycle = cycleOptions.find((cycle) => String(cycle._id) === String(selectedCycleId));
+    const recordTotal = Number(recordsPagination?.total ?? records.length);
+    const showSetup = setupOpen ?? (!loading && records.length === 0);
+    const canExportRound = ['teacher', 'admin'].includes(user?.role);
+
     return (
         <div className="plp-page">
-            <div className="plp-header">
-                <div>
-                    <h1 style={{ marginBottom: 6 }}>PLP Classboard</h1>
-                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.86rem' }}>
-                        Open a student record to create goals and assign tasks.
-                    </p>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 220 }}>
-                        <label style={{ marginBottom: 6 }}>PLP Round</label>
-                        <select value={selectedCycleId} onChange={(event) => setSelectedCycleId(event.target.value)}>
+            <section className="plp-console">
+                <div className="plp-workbar">
+                    <div className="plp-workbar-title">
+                        <h1>PLP Classboard</h1>
+                        <p>
+                            {activeCycle?.title || 'All rounds'} · {recordTotal} {recordTotal === 1 ? 'record' : 'records'} · {academicYear}
+                        </p>
+                    </div>
+                    <div className="plp-workbar-field">
+                        <label htmlFor="plp-round-select">PLP Round</label>
+                        <select
+                            id="plp-round-select"
+                            value={selectedCycleId}
+                            onChange={(event) => setSelectedCycleId(event.target.value)}
+                        >
                             {cycleOptions.length > 0 && <option value="">All rounds</option>}
                             {cycleOptions.length === 0 && <option value="">No rounds configured</option>}
                             {cycleOptions.map((cycle) => (
@@ -650,225 +661,275 @@ export default function PlpTeacherClassboardPage() {
                             ))}
                         </select>
                     </div>
-                    {['teacher', 'admin'].includes(user?.role) && (
-                        <>
-                            <button className="btn btn-secondary btn-sm" onClick={exportRoundReports} disabled={!selectedCycleId || exportingRound}>
-                                {exportingRound ? 'Exporting...' : 'Export round reports'}
-                            </button>
-                            <button className="btn btn-primary btn-sm" onClick={openObservationModal}>Log Observation</button>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {canCreateRecord && (
-                <div className="plp-section">
-                    <h2>Create PLP Record</h2>
-                    <form onSubmit={handleCreateRecord} style={{ display: 'grid', gap: 10 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-                            <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                <label>Class</label>
-                                <select
-                                    value={form.classId}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, classId: e.target.value, studentId: '' }))}
-                                    required
+                    {canExportRound && (
+                        <div className="plp-workbar-actions">
+                            <button type="button" className="btn btn-primary btn-sm" onClick={openObservationModal}>Log Observation</button>
+                            {canCreateRecord && (
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setSetupOpen(!showSetup)}
+                                    aria-expanded={showSetup}
+                                    aria-controls="plp-record-setup"
                                 >
-                                    <option value="">Select class</option>
-                                    {classes.map((c) => (
-                                        <option key={c._id} value={c._id}>{c.name} ({c.academicYear})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                <label>Student</label>
-                                <select
-                                    value={form.studentId}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, studentId: e.target.value }))}
-                                    required
-                                    disabled={!form.classId}
-                                >
-                                    <option value="">Select student</option>
-                                    {classStudents.map((s) => (
-                                        <option key={s._id} value={s._id}>{s.firstName} {s.lastName}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                <label>Primary Character Trait (optional)</label>
-                                <select
-                                    value={form.focusTrait}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, focusTrait: e.target.value }))}
-                                    disabled={traitOptions.length === 0}
-                                >
-                                    <option value="">No primary trait</option>
-                                    {traitOptions.length === 0 && <option value="">No active traits found</option>}
-                                    {traitOptions.map((trait) => (
-                                        <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                Create the round record first, then open Manage Goals & Tasks.
-                            </p>
-                            <button type="submit" className="btn btn-primary" disabled={creating || !selectedCycleId || !form.classId || !form.studentId}>
-                                {creating ? 'Creating...' : 'Create Record'}
-                            </button>
+                                    {showSetup ? 'Hide record setup' : 'Record setup'}
+                                </button>
+                            )}
                             <button
                                 type="button"
-                                className="btn btn-secondary"
-                                onClick={handleInitializeRoundRecords}
-                                disabled={initializingRound || creating || !selectedCycleId || !form.classId}
+                                className="btn btn-secondary btn-sm"
+                                onClick={exportRoundReports}
+                                disabled={!selectedCycleId || exportingRound}
+                                title={selectedCycleId ? 'Download every record in this round as DOCX' : 'Select a round first'}
                             >
-                                {initializingRound ? 'Initializing...' : 'Initialize All Students'}
+                                {exportingRound ? 'Exporting...' : 'Export round reports'}
                             </button>
                         </div>
-                    </form>
+                    )}
                 </div>
-            )}
+
+                {canCreateRecord && showSetup && (
+                    <div className="plp-setup" id="plp-record-setup">
+                        <form onSubmit={handleCreateRecord}>
+                            <div className="plp-setup-grid">
+                                <div className="plp-form-group">
+                                    <label htmlFor="plp-setup-class">Class</label>
+                                    <select
+                                        id="plp-setup-class"
+                                        value={form.classId}
+                                        onChange={(e) => setForm((prev) => ({ ...prev, classId: e.target.value, studentId: '' }))}
+                                        required
+                                    >
+                                        <option value="">Select class</option>
+                                        {classes.map((c) => (
+                                            <option key={c._id} value={c._id}>{c.name} ({c.academicYear})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="plp-form-group">
+                                    <label htmlFor="plp-setup-student">Student</label>
+                                    <select
+                                        id="plp-setup-student"
+                                        value={form.studentId}
+                                        onChange={(e) => setForm((prev) => ({ ...prev, studentId: e.target.value }))}
+                                        required
+                                        disabled={!form.classId}
+                                    >
+                                        <option value="">Select student</option>
+                                        {classStudents.map((s) => (
+                                            <option key={s._id} value={s._id}>{s.firstName} {s.lastName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="plp-form-group">
+                                    <label htmlFor="plp-setup-trait">Primary Character Trait (optional)</label>
+                                    <select
+                                        id="plp-setup-trait"
+                                        value={form.focusTrait}
+                                        onChange={(e) => setForm((prev) => ({ ...prev, focusTrait: e.target.value }))}
+                                        disabled={traitOptions.length === 0}
+                                    >
+                                        <option value="">No primary trait</option>
+                                        {traitOptions.length === 0 && <option value="">No active traits found</option>}
+                                        {traitOptions.map((trait) => (
+                                            <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="plp-setup-foot">
+                                <p className="plp-setup-hint">
+                                    {!selectedCycleId
+                                        ? 'Choose a PLP round above before creating records.'
+                                        : 'Create the round record first, then open the student to add goals and tasks.'}
+                                </p>
+                                <button type="submit" className="btn btn-primary btn-sm" disabled={creating || !selectedCycleId || !form.classId || !form.studentId}>
+                                    {creating ? 'Creating...' : 'Create Record'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleInitializeRoundRecords}
+                                    disabled={initializingRound || creating || !selectedCycleId || !form.classId}
+                                >
+                                    {initializingRound ? 'Initializing...' : 'Initialize All Students'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+            </section>
 
             {loading && <div className="plp-loading">Loading…</div>}
             {!loading && records.length === 0 && (
-                <div className="plp-empty">
-                    No PLP records for this round. Create or load records first, then use the student detail page to add goals and tasks.
+                <div className="plp-section plp-empty">
+                    No PLP records {activeCycle ? `for ${activeCycle.title}` : 'for this academic year'} yet.
+                    {canCreateRecord && ' Use Record setup above to create one, or initialize the whole class at once.'}
                 </div>
             )}
             {records.length > 0 && (
-                <div className="plp-section" style={{ padding: 0 }}>
-                    <div className="plp-table-wrap">
-                        <table className="plp-table">
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Class</th>
-                                <th>Round</th>
-                                <th>Observed Traits</th>
-                                <th>Observation Count</th>
-                                <th>Award</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {records.map((r) => {
-                                const observedTraits = getRecordTraitProgressRows(r);
-                                return (
-                                    <tr key={r._id}>
-                                        <td>
-                                            <Link to={`/portal/plp/records/${r._id}`}>
-                                                {r.student?.firstName} {r.student?.lastName}
-                                            </Link>
-                                        </td>
-                                        <td>{r.class?.name}</td>
-                                    <td>{r.cycle?.title || 'Unassigned Round'}</td>
-                                        <td>
-                                            <div className="plp-trait-progress-list">
-                                                {observedTraits.map((item) => (
-                                                    <span key={item.id} className="plp-trait-progress-chip">
-                                                        {item.label}
-                                                    </span>
-                                                ))}
-                                                {observedTraits.length === 0 && Number(r.evidenceCount || 0) > 0 && (
-                                                    <span style={{ color: 'var(--text-muted)' }}>Observation saved (trait not tagged yet)</span>
-                                                )}
-                                                {observedTraits.length === 0 && Number(r.evidenceCount || 0) === 0 && (
-                                                    <span style={{ color: 'var(--text-muted)' }}>No observations</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td>{r.evidenceCount}</td>
-                                        <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
-                                        <td><span className={`plp-badge plp-badge-${r.status}`}>{r.status}</span></td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                                <Link to={`/portal/plp/records/${r._id}`} className="btn btn-primary btn-sm">View Details</Link>
-                                                {canCreateRecord && r.status !== 'locked' && (
-                                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteRecord(r)}>Delete</button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                        </table>
+                <div className="plp-section plp-section-flush">
+                    <div className="plp-roster-head">
+                        <h2>Student records</h2>
+                        <span className="plp-count-pill">{recordTotal}</span>
                     </div>
-                </div>
-            )}
-            <PlpPagination pagination={recordsPagination} onPageChange={setRecordsPage} />
-
-            <div className="plp-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                    <div>
-                        <h2 style={{ marginBottom: 4 }}>Evidence Leaderboard</h2>
-                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                            Filter students by trait and rank them by the number of saved observation records for that trait.
-                        </p>
-                    </div>
-                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 250 }}>
-                        <label style={{ marginBottom: 6 }}>Filter by Trait</label>
-                        <select
-                            value={leaderboardFilterTrait}
-                            onChange={(event) => setLeaderboardFilterTrait(event.target.value)}
-                        >
-                            <option value="all">All Traits</option>
-                            {allActiveTraits.map((trait) => (
-                                <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {leaderboardMode === 'trait' && leaderboardSelectedTrait && (
-                    <p style={{ margin: '0 0 10px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                        Showing students ranked by evidence tagged to <strong>{leaderboardSelectedTrait.name}</strong>
-                        {leaderboardSelectedTrait.month ? ` (${MONTHS[leaderboardSelectedTrait.month - 1]})` : ''}.
-                    </p>
-                )}
-
-                {leaderboardLoading && <div className="plp-loading" style={{ padding: 12 }}>Loading leaderboard…</div>}
-                {!leaderboardLoading && leaderboardRows.length === 0 && (
-                    <div className="plp-empty" style={{ padding: 16 }}>No leaderboard data for this trait filter.</div>
-                )}
-                {!leaderboardLoading && leaderboardRows.length > 0 && (
                     <div className="plp-table-wrap">
                         <table className="plp-table">
                             <thead>
                                 <tr>
-                                    <th>Rank</th>
                                     <th>Student</th>
-                                    <th>Class</th>
-                                    <th>Observation Count</th>
+                                    <th className="plp-col-optional">Class</th>
+                                    <th className="plp-col-optional">Round</th>
+                                    <th>Observed traits</th>
+                                    <th className="plp-cell-number">Observations</th>
+                                    <th>Award</th>
+                                    <th>Status</th>
+                                    <th className="plp-cell-actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {leaderboardRows.map((row) => {
-                                    const r = row.record;
+                                {records.map((r) => {
+                                    const observedTraits = getRecordTraitProgressRows(r);
+                                    const studentName = `${r.student?.firstName || ''} ${r.student?.lastName || ''}`.trim();
+                                    const observations = Number(r.evidenceCount || 0);
                                     return (
                                         <tr key={r._id}>
-                                            <td>{row.rank}</td>
-                                            <td>{r.student?.firstName} {r.student?.lastName}</td>
-                                            <td>{r.class?.name || '-'}</td>
-                                            <td>{row.matchedEvidenceCount}</td>
+                                            <td>
+                                                <div className="plp-student-cell">
+                                                    <span className="plp-student-avatar" aria-hidden="true">{studentInitials(r.student)}</span>
+                                                    <Link className="plp-student-name" to={`/portal/plp/records/${r._id}`}>
+                                                        {studentName || 'Unnamed student'}
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                            <td className="plp-col-optional">{r.class?.name || '-'}</td>
+                                            <td className="plp-col-optional">{r.cycle?.title || 'Unassigned round'}</td>
+                                            <td>
+                                                <div className="plp-trait-progress-list">
+                                                    {observedTraits.map((item) => (
+                                                        <span key={item.id} className="plp-trait-progress-chip">
+                                                            {item.label}
+                                                        </span>
+                                                    ))}
+                                                    {observedTraits.length === 0 && observations > 0 && (
+                                                        <span className="plp-cell-muted">Observation saved (trait not tagged yet)</span>
+                                                    )}
+                                                    {observedTraits.length === 0 && observations === 0 && (
+                                                        <span className="plp-cell-muted">No observations</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="plp-cell-number">
+                                                <span className={`plp-count-pill${observations ? '' : ' is-empty'}`}>{observations}</span>
+                                            </td>
+                                            <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{AWARD_LABELS[r.awardDecision] || r.awardDecision || 'No decision'}</span></td>
+                                            <td><span className={`plp-badge plp-badge-${r.status}`}>{RECORD_STATUS_LABELS[r.status] || r.status}</span></td>
+                                            <td className="plp-cell-actions">
+                                                <div className="plp-row-actions">
+                                                    <Link to={`/portal/plp/records/${r._id}`} className="btn btn-primary btn-sm">Open</Link>
+                                                    {canCreateRecord && r.status !== 'locked' && (
+                                                        <button type="button" className="plp-quiet-button" onClick={() => handleDeleteRecord(r)}>Delete</button>
+                                                    )}
+                                                </div>
+                                            </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+            <PlpPagination pagination={recordsPagination} onPageChange={setRecordsPage} />
 
-            <div className="plp-section">
-                <h2>Export Observations by Trait</h2>
-                <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                    Download a CSV of every student's recorded observations for one character trait, for the current Round and academic year.
-                </p>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 240 }}>
-                        <label>Trait</label>
-                        <select value={exportTraitId} onChange={(event) => setExportTraitId(event.target.value)}>
+            <div className="plp-split">
+                <section className="plp-section">
+                    <div className="plp-block-head">
+                        <div>
+                            <h2 style={{ marginBottom: 4 }}>Evidence Leaderboard</h2>
+                            <p className="plp-block-note">
+                                Students ranked by the number of saved observation records for the selected trait.
+                            </p>
+                        </div>
+                        <div className="plp-form-group plp-block-filter">
+                            <label htmlFor="plp-leaderboard-trait">Filter by Trait</label>
+                            <select
+                                id="plp-leaderboard-trait"
+                                value={leaderboardFilterTrait}
+                                onChange={(event) => setLeaderboardFilterTrait(event.target.value)}
+                            >
+                                <option value="all">All Traits</option>
+                                {allActiveTraits.map((trait) => (
+                                    <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {leaderboardMode === 'trait' && leaderboardSelectedTrait && (
+                        <p className="plp-block-note" style={{ marginBottom: 10 }}>
+                            Ranked by evidence tagged to <strong>{leaderboardSelectedTrait.name}</strong>
+                            {leaderboardSelectedTrait.month ? ` (${MONTHS[leaderboardSelectedTrait.month - 1]})` : ''}.
+                        </p>
+                    )}
+
+                    {leaderboardLoading && <div className="plp-loading" style={{ padding: 12 }}>Loading leaderboard…</div>}
+                    {!leaderboardLoading && leaderboardRows.length === 0 && (
+                        <div className="plp-empty" style={{ padding: 16 }}>No leaderboard data for this trait filter.</div>
+                    )}
+                    {!leaderboardLoading && leaderboardRows.length > 0 && (
+                        <div className="plp-table-wrap">
+                            <table className="plp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Student</th>
+                                        <th className="plp-col-optional">Class</th>
+                                        <th className="plp-cell-number">Observations</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {leaderboardRows.map((row) => {
+                                        const r = row.record;
+                                        const studentName = `${r.student?.firstName || ''} ${r.student?.lastName || ''}`.trim();
+                                        return (
+                                            <tr key={r._id}>
+                                                <td><span className={`plp-rank${row.rank <= 3 ? ' is-top' : ''}`}>{row.rank}</span></td>
+                                                <td>
+                                                    <div className="plp-student-cell">
+                                                        <span className="plp-student-avatar" aria-hidden="true">{studentInitials(r.student)}</span>
+                                                        <Link className="plp-student-name" to={`/portal/plp/records/${r._id}`}>
+                                                            {studentName || 'Unnamed student'}
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                                <td className="plp-col-optional">{r.class?.name || '-'}</td>
+                                                <td className="plp-cell-number">
+                                                    <span className={`plp-count-pill${row.matchedEvidenceCount ? '' : ' is-empty'}`}>
+                                                        {row.matchedEvidenceCount}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+
+                <section className="plp-section">
+                    <h2>Export Observations by Trait</h2>
+                    <p className="plp-block-note" style={{ marginBottom: 14 }}>
+                        A CSV of every student's recorded observations for one trait, in the current round and academic year.
+                    </p>
+                    <div className="plp-form-group">
+                        <label htmlFor="plp-export-trait">Trait</label>
+                        <select
+                            id="plp-export-trait"
+                            value={exportTraitId}
+                            onChange={(event) => setExportTraitId(event.target.value)}
+                        >
                             <option value="">Select a trait...</option>
                             {allActiveTraits.map((trait) => (
                                 <option key={trait._id} value={trait._id}>{trait.name}</option>
@@ -877,90 +938,109 @@ export default function PlpTeacherClassboardPage() {
                     </div>
                     <button
                         type="button"
-                        className="btn btn-primary"
+                        className="btn btn-primary btn-sm"
                         onClick={exportObservationsCsv}
                         disabled={!exportTraitId || exporting}
                     >
                         {exporting ? 'Exporting...' : 'Export CSV'}
                     </button>
-                </div>
+                </section>
             </div>
 
-            {needsReviewQueue.length > 0 && (
-                <div className="plp-section">
-                    <h2>Needs Review</h2>
-                    <div style={{ display: 'grid', gap: 10 }}>
-                        {needsReviewQueue.map((item) => (
-                            <div key={item._id} className="plp-evidence-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                                    <strong>
-                                        {item?.plpRecord?.student?.firstName} {item?.plpRecord?.student?.lastName}
-                                    </strong>
-                                    <span className="plp-evidence-meta">{new Date(item.createdAt).toLocaleString()}</span>
-                                </div>
-                                <div className="plp-evidence-meta">
-                                    {item?.plpRecord?.class?.name || 'Class'} · {item?.type?.replace('_', ' ')}
-                                </div>
-                                <p style={{ margin: '6px 0 0' }}>{item.note}</p>
+            {(needsReviewQueue.length > 0 || goalReviewQueue.length > 0 || taskReviewQueue.length > 0) && (
+                <div className="plp-queue-grid">
+                    {needsReviewQueue.length > 0 && (
+                        <section className="plp-section">
+                            <div className="plp-queue-head">
+                                <h2>Observations to confirm</h2>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {goalReviewQueue.length > 0 && (
-                <div className="plp-section">
-                    <h2>Goals Due for Review</h2>
-                    <div style={{ display: 'grid', gap: 10 }}>
-                        {goalReviewQueue.map((item) => (
-                            <div key={item.goalId} className="plp-evidence-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                    <div>
-                                        <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
+                            <p className="plp-queue-note">The most recent {needsReviewQueue.length} awaiting a trait.</p>
+                            <div className="plp-queue-list">
+                                {needsReviewQueue.map((item) => (
+                                    <div key={item._id} className="plp-evidence-item">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                            <strong>
+                                                {item?.plpRecord?.student?.firstName} {item?.plpRecord?.student?.lastName}
+                                            </strong>
+                                            <span className="plp-evidence-meta">{new Date(item.createdAt).toLocaleString()}</span>
+                                        </div>
                                         <div className="plp-evidence-meta">
-                                            {item.class?.name || 'Class'} · {item.goalType}
-                                            {item.checkInDate && ` · check-in ${formatPlpDate(item.checkInDate)}`}
-                                            {!item.checkInDate && item.targetDate && ` · target ${formatPlpDate(item.targetDate)}`}
+                                            {item?.plpRecord?.class?.name || 'Class'} · {item?.type?.replace('_', ' ')}
+                                        </div>
+                                        <p style={{ margin: '6px 0 0' }}>{item.note}</p>
+                                        <Link
+                                            className="plp-quiet-link"
+                                            to={`/portal/plp/records/${item?.plpRecord?._id || ''}`}
+                                        >
+                                            Open record
+                                        </Link>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {goalReviewQueue.length > 0 && (
+                        <section className="plp-section">
+                            <div className="plp-queue-head">
+                                <h2>Goals Due for Review</h2>
+                            </div>
+                            <p className="plp-queue-note">{goalReviewQueue.length} {goalReviewQueue.length === 1 ? 'goal' : 'goals'} at or past their check-in date.</p>
+                            <div className="plp-queue-list">
+                                {goalReviewQueue.map((item) => (
+                                    <div key={item.goalId} className="plp-evidence-item">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <div>
+                                                <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
+                                                <div className="plp-evidence-meta">
+                                                    {item.class?.name || 'Class'} · {item.goalType}
+                                                    {item.checkInDate && ` · check-in ${formatPlpDate(item.checkInDate)}`}
+                                                    {!item.checkInDate && item.targetDate && ` · target ${formatPlpDate(item.targetDate)}`}
+                                                </div>
+                                            </div>
+                                            <Link
+                                                className="btn btn-secondary btn-sm"
+                                                to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}`}
+                                            >
+                                                Review goal
+                                            </Link>
                                         </div>
                                     </div>
-                                    <Link
-                                        className="btn btn-secondary btn-sm"
-                                        to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}`}
-                                    >
-                                        Review goal
-                                    </Link>
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+                        </section>
+                    )}
 
-            {taskReviewQueue.length > 0 && (
-                <div className="plp-section">
-                    <h2>Student Tasks Awaiting Review</h2>
-                    <div style={{ display: 'grid', gap: 10 }}>
-                        {taskReviewQueue.map((item) => (
-                            <div key={item.taskId} className="plp-evidence-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                    <div>
-                                        <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
-                                        <div className="plp-evidence-meta">
-                                            {item.class?.name || 'Class'} · Goal: {item.goalTitle || 'PLP goal'}
-                                            {item.submittedAt && ` · submitted ${new Date(item.submittedAt).toLocaleDateString()}`}
-                                        </div>
-                                        {item.studentCompletionNote && <p style={{ margin: '6px 0 0' }}>{item.studentCompletionNote}</p>}
-                                    </div>
-                                    <Link
-                                        className="btn btn-secondary btn-sm"
-                                        to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}&taskId=${item.taskId}`}
-                                    >
-                                        Review task
-                                    </Link>
-                                </div>
+                    {taskReviewQueue.length > 0 && (
+                        <section className="plp-section">
+                            <div className="plp-queue-head">
+                                <h2>Student Tasks Awaiting Review</h2>
                             </div>
-                        ))}
-                    </div>
+                            <p className="plp-queue-note">{taskReviewQueue.length} {taskReviewQueue.length === 1 ? 'submission' : 'submissions'} ready to grade.</p>
+                            <div className="plp-queue-list">
+                                {taskReviewQueue.map((item) => (
+                                    <div key={item.taskId} className="plp-evidence-item">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                                            <div>
+                                                <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
+                                                <div className="plp-evidence-meta">
+                                                    {item.class?.name || 'Class'} · Goal: {item.goalTitle || 'PLP goal'}
+                                                    {item.submittedAt && ` · submitted ${new Date(item.submittedAt).toLocaleDateString()}`}
+                                                </div>
+                                                {item.studentCompletionNote && <p style={{ margin: '6px 0 0' }}>{item.studentCompletionNote}</p>}
+                                            </div>
+                                            <Link
+                                                className="btn btn-secondary btn-sm"
+                                                to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}&taskId=${item.taskId}`}
+                                            >
+                                                Review task
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
             )}
 
