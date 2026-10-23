@@ -1,5 +1,6 @@
 import React from 'react';
 import { HiOutlineLightningBolt } from 'react-icons/hi';
+import PracticeCountdown from './PracticeCountdown';
 
 const PracticeInitialState = ({
     displayName,
@@ -12,10 +13,7 @@ const PracticeInitialState = ({
     combinedCorrect,
     sessionAccuracy,
     onGenerate,
-    isGenerating,
-    isAssessmentSession,
-    onFinalizeAssessment,
-    isFinalizingAssessment
+    isGenerating
 }) => {
     return (
         <div className="question-card">
@@ -23,10 +21,10 @@ const PracticeInitialState = ({
    
 
             {sessionInfo && (
-                <div style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    Session Type: {sessionInfo.sessionType}
-                    {sessionInfo.questionLimit ? ` | Limit: ${sessionInfo.questionLimit} questions` : ''}
-                    {sessionInfo.timeRemainingSeconds !== null ? ` | Time left: ${sessionInfo.timeRemainingSeconds}s` : ''}
+                <div className="practice-session-summary">
+                    <span>Session Type: {sessionInfo.sessionType}</span>
+                    {sessionInfo.questionLimit ? <span>Limit: {sessionInfo.questionLimit} questions</span> : null}
+                    <PracticeCountdown secondsRemaining={sessionInfo.timeRemainingSeconds} />
                 </div>
             )}
 
@@ -48,17 +46,6 @@ const PracticeInitialState = ({
                 <HiOutlineLightningBolt size={18} style={{ marginRight: 6 }} />
                 Start Question
             </button>
-
-            {/* {isAssessmentSession && combinedAsked > 0 && (
-                <button
-                    className="btn btn-secondary"
-                    onClick={onFinalizeAssessment}
-                    disabled={isFinalizingAssessment}
-                    style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}
-                >
-                    {isFinalizingAssessment ? 'Submitting Assessment...' : 'Submit Final Assessment'}
-                </button>
-            )} */}
         </div>
     );
 };

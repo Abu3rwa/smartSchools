@@ -28,7 +28,13 @@ const TYPE_ALIASES = {
     tf: 'true_false',
     'صح / خطأ': 'true_false',
     'صح/خطأ': 'true_false',
-    'صح أو خطأ': 'true_false'
+    'صح أو خطأ': 'true_false',
+    short_answer: 'short_answer',
+    shortanswer: 'short_answer',
+    'short answer': 'short_answer',
+    sa: 'short_answer',
+    'إجابة قصيرة': 'short_answer',
+    'اجابة قصيرة': 'short_answer'
 };
 const DIFFICULTY_ALIASES = {
     easy: 'easy',
@@ -81,11 +87,21 @@ export const buildTemplateCsv = () =>
             'False',
             'The angles of a triangle add up to 180 degrees.',
             'hard'
+        ]),
+        toCsvLine([
+            'short_answer',
+            'What do we call the process by which plants make their own food?',
+            '',
+            '',
+            '',
+            '',
+            'Photosynthesis',
+            'Plants use sunlight to make food.',
+            'medium'
         ])
     ].join('\r\n');
 
-export const buildAiPrompt = ({
-    subject,
+export const buildAiPrompt = ({    subject,
     grade,
     standardCode,
     standardName,
@@ -105,12 +121,13 @@ export const buildAiPrompt = ({
         `1. Output ONLY CSV text. No markdown, no code fences, no commentary before or after.`,
         `2. The first line must be exactly this header: ${CSV_HEADERS.join(',')}`,
         '3. One question per line. Wrap any field that contains a comma, quote or line break in double quotes, and double any inner quote.',
-        '4. question_type must be multiple_choice or true_false.',
+        '4. question_type must be multiple_choice, true_false or short_answer.',
         '5. For multiple_choice: fill option_a to option_d with four different options and set correct_answer to A, B, C or D.',
         '6. For true_false: leave option_a to option_d empty and set correct_answer to True or False.',
-        '7. explanation: one short sentence explaining the correct answer.',
-        '8. difficulty must be easy, medium or hard. Mix the difficulties.',
-        '9. Every question must clearly assess the standard above and suit the grade level. Do not repeat questions.',
+        '7. For short_answer: leave option_a to option_d empty and set correct_answer to one or two words that fully answer the question.',
+        '8. explanation: one short sentence explaining the correct answer.',
+        '9. difficulty must be easy, medium or hard. Mix the difficulties.',
+        '10. Every question must clearly assess the standard above and suit the grade level. Do not repeat questions.',
         '',
         'Example rows:',
         toCsvLine(CSV_HEADERS),
@@ -135,6 +152,17 @@ export const buildAiPrompt = ({
             'False',
             'The angles of a triangle add up to 180 degrees.',
             'hard'
+        ]),
+        toCsvLine([
+            'short_answer',
+            'What do we call the process by which plants make their own food?',
+            '',
+            '',
+            '',
+            '',
+            'Photosynthesis',
+            'Plants use sunlight to make food.',
+            'medium'
         ])
     ].join('\n');
 };
@@ -245,9 +273,15 @@ export const parseQuestionImport = (rawText) => {
         if (!questionType) {
             if (!rawType) {
                 const filled = optionTexts.filter(Boolean).length;
-                questionType = filled === 0 && FALSE_VALUES.concat(TRUE_VALUES).includes(normalizeKey(rawAnswer))
-                    ? 'true_false'
-                    : 'multiple_choice';
+                if (filled > 0) {
+                    questionType = 'multiple_choice';
+                } else if (
+                    TRUE_VALUES.concat(FALSE_VALUES).includes(normalizeKey(rawAnswer))
+                ) {
+                    questionType = 'true_false';
+                } else {
+                    questionType = 'short_answer';
+                }
             } else {
                 errors.push({ code: 'badType' });
                 questionType = 'multiple_choice';
@@ -269,13 +303,13 @@ export const parseQuestionImport = (rawText) => {
             }));
             if (options.some((option) => !option.text)) {
                 errors.push({ code: 'missingOptions' });
-            } else if (new Set(options.map((option) => option.text.toLowerCase())).size < 4) {
+            } else if (new Set(options.map((option) => option.text)).size < 4) {
                 errors.push({ code: 'duplicateOptions' });
             }
             const letter = rawAnswer.toUpperCase();
             correctAnswer = MC_LABELS.includes(letter) ? letter : ARABIC_LETTERS[rawAnswer] || '';
             if (!correctAnswer) errors.push({ code: 'badCorrectMc' });
-        } else {
+        } else if (questionType === 'true_false') {
             options = [
                 { label: 'A', text: 'True' },
                 { label: 'B', text: 'False' }
@@ -284,10 +318,23 @@ export const parseQuestionImport = (rawText) => {
             if (TRUE_VALUES.includes(key)) correctAnswer = 'True';
             else if (FALSE_VALUES.includes(key)) correctAnswer = 'False';
             else errors.push({ code: 'badCorrectTf' });
+        } else {
+            options = [];
+            // No accepted-answer list in the CSV template, so these are graded by
+            // the teacher unless they add accepted answers in the editor.
+            correctAnswer = rawAnswer;
+            if (!correctAnswer) errors.push({ code: 'missingAnswer' });
         }
 
         if (questionText) {
-            const duplicateKey = `${questionType}|${questionText.toLowerCase()}`;
+            // Options compare case-sensitively because capitalization questions
+            // differ only by case; the stem stays case-insensitive.
+            const optionSignature = options
+                .map((option) => option.text)
+                .filter(Boolean)
+                .sort()
+                .join('|');
+            const duplicateKey = `${questionType}|${questionText.toLowerCase()}|${optionSignature}`;
             if (seen.has(duplicateKey)) errors.push({ code: 'duplicateQuestion' });
             seen.add(duplicateKey);
         }

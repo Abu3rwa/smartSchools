@@ -123,27 +123,12 @@ class StandardsPracticeAIService {
       }
     }
 
+    const reason = lastError?.message || "unknown generation error";
     console.warn(
-      "Question generation used fallback after retries:",
-      lastError?.message || "unknown generation error",
+      "Question generation failed after retries, no fallback question stored:",
+      reason,
     );
-    const fallbackQuestion = this._buildFallbackQuestion({
-      standard,
-      subjectName,
-      requestedLanguages,
-      difficulty,
-      questionType,
-      studentFirstName,
-      questionMemory,
-      contextHints,
-      trueFalseTargetAnswer: normalizedTrueFalseTarget,
-      preserveFullText,
-    });
-
-    return {
-      ...fallbackQuestion,
-      tokenUsage: usage,
-    };
+    throw new Error(`Question generation failed after ${MAX_AI_RETRIES + 1} attempts: ${reason}`);
   }
 
   /**
@@ -618,27 +603,12 @@ class StandardsPracticeAIService {
       }
     }
 
+    const reason = lastError?.message || "unknown true/false generation error";
     console.warn(
-      "True/False generation used fallback after retries:",
-      lastError?.message || "unknown true/false generation error",
+      "True/False generation failed after retries, no fallback question stored:",
+      reason,
     );
-    const fallbackQuestion = this._buildFallbackQuestion({
-      standard,
-      subjectName,
-      requestedLanguages,
-      difficulty,
-      questionType: "true_false",
-      trueFalseTargetAnswer: targetAnswer,
-      studentFirstName,
-      questionMemory,
-      contextHints,
-      preserveFullText,
-    });
-
-    return {
-      ...fallbackQuestion,
-      tokenUsage: usage,
-    };
+    throw new Error(`True/False generation failed after ${MAX_AI_RETRIES + 1} attempts: ${reason}`);
   }
 
   resolveTrueFalseCorrectAnswer(questionText, currentCorrectAnswer) {

@@ -24,7 +24,11 @@ import {
     selectCurrentAcademicYear,
     selectSelectedSemester
 } from '../../../../store/slices/uiSlice';
-import { createInitialFormData, GRAMMAR_LEVEL_OPTIONS } from '../constants';
+import {
+    createInitialFormData,
+    DEFAULT_QUESTION_TYPE_OPTIONS,
+    GRAMMAR_LEVEL_OPTIONS
+} from '../constants';
 import {
     buildAssignmentEditForm,
     getEntityId,
@@ -85,7 +89,7 @@ const useStandardAssignPageData = (options = {}) => {
                 sessionType: 'assessment',
                 enableGrammarLeveling: true,
                 grammarLevels: GRAMMAR_LEVEL_OPTIONS.map((item) => item.value),
-                allowedQuestionTypes: ['multiple_choice', 'true_false']
+                allowedQuestionTypes: DEFAULT_QUESTION_TYPE_OPTIONS
             }
         };
     });
@@ -104,10 +108,16 @@ const useStandardAssignPageData = (options = {}) => {
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
+    // Grammar level tests live on their own page; the standards list shows the
+    // rest so the two views never offer each other's mode.
     const assignmentsForView = useMemo(() => {
-        if (!grammarOnly) return assignments;
+        if (grammarOnly) {
+            return assignments.filter((assignment) =>
+                Boolean(assignment?.practiceConfig?.enableGrammarLeveling)
+            );
+        }
         return assignments.filter((assignment) =>
-            Boolean(assignment?.practiceConfig?.enableGrammarLeveling)
+            !assignment?.practiceConfig?.enableGrammarLeveling
         );
     }, [assignments, grammarOnly]);
 
@@ -249,7 +259,7 @@ const useStandardAssignPageData = (options = {}) => {
                     sessionType: 'assessment',
                     enableGrammarLeveling: true,
                     grammarLevels: GRAMMAR_LEVEL_OPTIONS.map((item) => item.value),
-                    allowedQuestionTypes: ['multiple_choice', 'true_false']
+                    allowedQuestionTypes: DEFAULT_QUESTION_TYPE_OPTIONS
                 }
             }
             : base;
@@ -295,7 +305,7 @@ const useStandardAssignPageData = (options = {}) => {
                     ...nextForm.practiceConfig,
                     sessionType: 'assessment',
                     enableGrammarLeveling: true,
-                    allowedQuestionTypes: ['multiple_choice', 'true_false'],
+                    allowedQuestionTypes: DEFAULT_QUESTION_TYPE_OPTIONS,
                     grammarLevels:
                         Array.isArray(nextForm.practiceConfig?.grammarLevels)
                         && nextForm.practiceConfig.grammarLevels.length > 0
@@ -407,7 +417,7 @@ const useStandardAssignPageData = (options = {}) => {
                     (parseNullablePositiveInt(formData.practiceConfig.timeLimitSeconds) || 0) * 60 ||
                     null,
                 allowedQuestionTypes: grammarOnly
-                    ? ['multiple_choice', 'true_false']
+                    ? DEFAULT_QUESTION_TYPE_OPTIONS
                     : formData.practiceConfig.allowedQuestionTypes,
                 enableGrammarLeveling: grammarOnly
                     ? true
@@ -439,7 +449,9 @@ const useStandardAssignPageData = (options = {}) => {
             }
         };
 
-        if (editingAssignmentId || grammarOnly || !Array.isArray(payload.importedQuestions) || payload.importedQuestions.length === 0) {
+        // Teacher-imported questions are the pool; the server skips generation
+        // whenever they are present, in grammar mode too.
+        if (editingAssignmentId || !Array.isArray(payload.importedQuestions) || payload.importedQuestions.length === 0) {
             delete payload.importedQuestions;
         }
 

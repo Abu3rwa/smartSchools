@@ -47,21 +47,31 @@ const resolveTrueFalseValue = (value, options = []) => {
     : null;
 };
 
+const normalizeForComparison = (value) => normalizeText(value)
+  .replace(/[.,;:!?"'`()[\]{}]/g, ' ')
+  .replace(/\b(a|an|the)\b/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const REVIEW_RESULT = {
+  isCorrect: null,
+  requiresTeacherReview: true,
+  feedback: 'Your answer has been submitted for teacher review.',
+};
+
 export const gradePracticeAnswer = ({
   questionType,
   studentAnswer,
   correctAnswer,
   questionOptions = [],
+  gradingMode = 'conceptual',
+  acceptableAnswers = [],
 }) => {
   if (questionType === 'multiple_choice') {
     const studentValue = resolveChoiceValue(studentAnswer, questionOptions);
     const correctValue = resolveChoiceValue(correctAnswer, questionOptions);
     if (!studentValue || !correctValue) {
-      return {
-        isCorrect: null,
-        requiresTeacherReview: true,
-        feedback: 'Your answer has been submitted for teacher review.',
-      };
+      return REVIEW_RESULT;
     }
     const isCorrect = studentValue === correctValue;
     return {
@@ -84,9 +94,27 @@ export const gradePracticeAnswer = ({
     }
   }
 
-  return {
-    isCorrect: null,
-    requiresTeacherReview: true,
-    feedback: 'Your answer has been submitted for teacher review.',
-  };
+  if (questionType === 'short_answer') {
+    const accepted = acceptableAnswers
+      .map(normalizeForComparison)
+      .filter(Boolean);
+    const studentValue = normalizeForComparison(studentAnswer);
+
+    // A model answer alone is not a grading rule; only a listed set of accepted answers is
+    if (gradingMode === 'conceptual' || accepted.length === 0 || !studentValue) {
+      return REVIEW_RESULT;
+    }
+
+    const isCorrect = accepted.some((answer) => (
+      studentValue === answer
+      || (gradingMode !== 'exact_match' && studentValue.includes(answer))
+    ));
+    return {
+      isCorrect,
+      requiresTeacherReview: false,
+      feedback: isCorrect ? 'Your answer is correct.' : 'Your answer is not correct.',
+    };
+  }
+
+  return REVIEW_RESULT;
 };

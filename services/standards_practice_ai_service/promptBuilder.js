@@ -46,13 +46,15 @@ The "correctAnswer" must be one of: "A", "B", "C", "D".
 Exactly one option can be correct.
 Do not use "all of the above", "none of the above", or trick wording where multiple options are true.`,
       short_answer: `Generate a short-answer question.
-    Set "options" to [].
-    The question must be fully self-contained.
-    If the student needs a sentence set, passage excerpt, example, chart, or data to answer, include it directly inside "questionText".
-    Never ask the student to identify, revise, compare, or explain a sentence that is not shown.
-    For sentence-editing or passage-analysis prompts, place each sentence on its own new line inside "questionText".
-    For sentence-based language questions, include a clear task such as "Task: Add the missing commas." or "Task: Rewrite the sentence correctly.".
-    The "correctAnswer" should be concise (1-2 sentences max).`,
+Set "options" to [].
+The question must be fully self-contained.
+If the student needs a sentence set, passage excerpt, example, chart, or data to answer, include it directly inside "questionText".
+Never ask the student to identify, revise, compare, or explain a sentence that is not shown.
+For sentence-editing or passage-analysis prompts, place each sentence on its own new line inside "questionText".
+For sentence-based language questions, include a clear task such as "Task: Add the missing commas." or "Task: Rewrite the sentence correctly.".
+The "correctAnswer" should be concise (1-2 sentences max).
+Answers are graded by exact or keyword matching with no human or model review, so make the expected answer short and unambiguous.
+Set "gradingMode" to "normalized_match" and list 3-6 brief "acceptableAnswers" (single words or short phrases) that each fully answer the question.`,
       true_false: `Generate a true/false question.
 Set "options" to exactly:
 [{"label":"True","text":"True"},{"label":"False","text":"False"}]

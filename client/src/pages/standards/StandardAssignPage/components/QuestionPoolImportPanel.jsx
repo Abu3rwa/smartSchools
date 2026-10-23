@@ -8,6 +8,11 @@ import {
 } from '../utils/questionImportCsv';
 
 const LANGUAGE_NAMES = { en: 'English', ar: 'Arabic' };
+const TYPE_LABEL_KEYS = {
+    multiple_choice: 'multipleChoice',
+    true_false: 'trueFalse',
+    short_answer: 'shortAnswer'
+};
 
 const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMode = false }) => {
     const { t } = useTranslation(['standardAssign']);
@@ -191,9 +196,12 @@ const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMo
                                         <td>{row.line}</td>
                                         <td>{row.question.questionText || '—'}</td>
                                         <td>
-                                            {row.question.questionType === 'true_false'
-                                                ? t('standardAssign:questionPool.types.trueFalse')
-                                                : t('standardAssign:questionPool.types.multipleChoice')}
+                                            {t(
+                                                `standardAssign:questionPool.types.${
+                                                    TYPE_LABEL_KEYS[row.question.questionType] ||
+                                                    'multipleChoice'
+                                                }`
+                                            )}
                                         </td>
                                         <td>{row.question.correctAnswer || '—'}</td>
                                         <td>

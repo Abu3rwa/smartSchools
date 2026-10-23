@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { PRACTICE_QUESTION_TYPES } from "../constants/practiceQuestionTypes.js";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
 
 const practiceAttemptSchema = new mongoose.Schema(
@@ -39,7 +40,7 @@ const practiceAttemptSchema = new mongoose.Schema(
     },
     questionType: {
       type: String,
-      enum: ["multiple_choice", "short_answer", "true_false"],
+      enum: PRACTICE_QUESTION_TYPES,
       required: true,
     },
     sessionType: {

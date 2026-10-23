@@ -100,7 +100,7 @@ export const formatPercentageAsAverageOutOfTen = (value) => {
     return String(Number((average / 10).toFixed(2)));
 };
 
-const normalizeCategory = (value) => {
+export const normalizeCategory = (value) => {
     const rawCategory = value || 'Other';
     return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();
 };

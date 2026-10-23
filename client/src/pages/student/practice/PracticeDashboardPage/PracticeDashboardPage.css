@@ -338,3 +338,32 @@
         min-width: 0;
     }
 }
+
+.practice-schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.practice-schedule--muted {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.practice-schedule--warn {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--warning-700);
+    border: 1px solid rgba(245, 158, 11, 0.24);
+}
+
+.practice-schedule--urgent {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--error-500);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}

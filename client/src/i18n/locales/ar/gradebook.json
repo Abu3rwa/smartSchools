@@ -20,7 +20,19 @@
     "title": "دفتر الدرجات",
     "advancedReports": "تقارير متقدمة",
     "sendReports": "إرسال التقارير",
-    "addGrades": "إضافة درجات"
+    "addGrades": "إضافة درجات",
+    "communicate": "التواصل",
+    "dailyClasswork": "إرسال العمل اليومي",
+    "summaryLanguage": "لغة الملخص",
+    "summaryLanguageAria": "لغة بريد الملخص الشهري",
+    "languageEnglish": "English",
+    "languageArabic": "العربية",
+    "tableView": "عرض الجدول",
+    "spreadsheetView": "عرض ورقة الحساب",
+    "viewModeAria": "عرض دفتر الدرجات",
+    "editGrades": "تعديل الدرجات",
+    "moreAssessments": "{{n}} تقييمات إضافية في صفحة الإدخال",
+    "more": "المزيد"
   },
   "common": {
     "sending": "جارٍ الإرسال...",
@@ -40,7 +52,10 @@
     "subject": "المادة",
     "selectSubject": "اختر المادة",
     "month": "الشهر",
-    "category": "الفئة"
+    "category": "الفئة",
+    "semester": "الفصل الدراسي",
+    "semester1": "الفصل الدراسي الأول",
+    "semester2": "الفصل الدراسي الثاني"
   },
   "table": {
     "columns": {
@@ -49,9 +64,24 @@
       "overallAvg": "الإجمالي (متوسط /10)"
     },
     "generateProgressReport": "إنشاء تقرير التقدم",
+    "openLearningTrace": "فتح أثر التعلم",
     "noStudents": "لا يوجد طلاب في هذا الصف",
     "classAverage": "متوسط الصف",
-    "noGradesForMonth": "لا توجد درجات لهذا الشهر."
+    "noGradesForMonth": "لا توجد درجات لهذا الشهر.",
+    "caption": "الدرجات المسجلة لهذا الفصل في هذا الشهر",
+    "searchPlaceholder": "ابحث عن طالب",
+    "searchAria": "ابحث عن الطلاب في هذا الفصل",
+    "notGraded": "غير المرصودين ({{n}})",
+    "showing": "الطلاب الظاهرون: {{shown}} من {{total}}",
+    "clearFilters": "مسح التصفية",
+    "retry": "إعادة المحاولة",
+    "loadError": "تعذّر تحميل درجات هذا الفصل.",
+    "noGradesHint": "لم تُسجَّل أي درجات لهذه المادة في هذا الشهر بعد.",
+    "assessmentsCount": "عدد التقييمات: {{n}}",
+    "showAssessments": "عرض تقييمات {{name}}",
+    "noAssessments": "لا توجد تقييمات مسجلة لهذا الطالب في هذا الشهر.",
+    "untitledAssessment": "بدون عنوان",
+    "noMatches": "لا يوجد طلاب مطابقون لهذه التصفية."
   },
   "addModal": {
     "title": "إضافة درجات",

@@ -2,6 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import StandardsGradebookHeader from './components/StandardsGradebookHeader';
 import StandardsGradebookFilters from './components/StandardsGradebookFilters';
 import StandardsGradebookMatrix from './components/StandardsGradebookMatrix';
+import StandardsGradebookLegend from './components/StandardsGradebookLegend';
 import useStandardsGradebookMatrixData from './hooks/useStandardsGradebookMatrixData';
 import api from '../../../config/api';
 import './StandardsGradebookPage.css';
@@ -19,6 +20,7 @@ const StandardsGradebookPage = ({ embedded }) => {
     error,
     filters,
     hasPendingChanges,
+    pendingCount,
     onFilterChange,
     onPageChange,
     onRefresh,
@@ -233,22 +235,39 @@ const StandardsGradebookPage = ({ embedded }) => {
     <div className={embedded ? 'standards-gradebook-page standards-gradebook-page--embedded' : 'standards-gradebook-page'}>
       {/* Toolbar */}
       <div className="gb-toolbar">
-        <button
-          type="button"
-          className="gb-toolbar__save"
-          onClick={onSave}
-          disabled={!hasPendingChanges || saving}
-        >
-          {saving ? t('standardsGradebook:toolbar.saving', 'Saving…') : t('standardsGradebook:toolbar.save', 'Save (Ctrl+S)')}
-        </button>
-        <button
-          type="button"
-          className="gb-toolbar__assign"
-          onClick={openAssignModal}
-          disabled={!canAssignStandard}
-        >
-          {t('standardsGradebook:toolbar.assignStandard', '+ Assign Standard')}
-        </button>
+        <div className="gb-toolbar__actions">
+          <button
+            type="button"
+            className={`gb-toolbar__save${hasPendingChanges ? ' is-dirty' : ''}`}
+            onClick={onSave}
+            disabled={!hasPendingChanges || saving}
+          >
+            {saving
+              ? t('standardsGradebook:toolbar.saving', 'Saving…')
+              : hasPendingChanges
+                ? t('standardsGradebook:toolbar.saveCount', {
+                    n: pendingCount,
+                    defaultValue: 'Save {{n}} changes (Ctrl+S)',
+                  })
+                : t('standardsGradebook:toolbar.save', 'Save (Ctrl+S)')}
+          </button>
+          <button
+            type="button"
+            className="gb-toolbar__assign"
+            onClick={openAssignModal}
+            disabled={!canAssignStandard}
+          >
+            {t('standardsGradebook:toolbar.assignStandard', '+ Assign Standard')}
+          </button>
+          {hasPendingChanges && (
+            <span className="gb-unsaved-pill" role="status">
+              {t('standardsGradebook:toolbar.unsaved', {
+                n: pendingCount,
+                defaultValue: '{{n}} unsaved',
+              })}
+            </span>
+          )}
+        </div>
         <StandardsGradebookHeader onRefresh={onRefresh} loading={loading} embedded={Boolean(embedded)} />
       </div>
 
@@ -269,6 +288,13 @@ const StandardsGradebookPage = ({ embedded }) => {
       {assignSuccess && <div className="standards-gradebook-success">{assignSuccess}</div>}
       {assignError && !showAssignModal && <div className="standards-gradebook-error">{assignError}</div>}
       {loading && <div className="standards-gradebook-loading">{t('standardsGradebook:table.loading', 'Loading…')}</div>}
+
+      {!loading && (
+        <StandardsGradebookLegend
+          standardsCount={standards.length}
+          studentsCount={students.length}
+        />
+      )}
 
       {!loading && (
         <StandardsGradebookMatrix

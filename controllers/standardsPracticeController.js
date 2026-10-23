@@ -1681,6 +1681,8 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     studentAnswer: answer,
     correctAnswer: attempt.correctAnswer,
     questionOptions: attempt.options || [],
+    gradingMode: attempt.gradingMode || "conceptual",
+    acceptableAnswers: attempt.acceptableAnswers || [],
   });
   const requiresTeacherReview = evaluation.requiresTeacherReview;
 

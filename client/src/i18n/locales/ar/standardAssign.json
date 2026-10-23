@@ -256,7 +256,9 @@
     "pendingStudents": "الطلاب المعلّقون",
     "studentResults": "نتائج اختبار الطلاب",
     "testSpecificProgress": "تقدم الاختبار المحدد (المحاولات المتكررة)",
-    "tabSwitches": "تبديلات التبويب"
+    "tabSwitches": "تبديلات التبويب",
+    "statusCorrect": "صحيحة",
+    "statusIncorrect": "خاطئة"
   },
   "questionImport": {
     "chooseFile": "رفع ملف CSV",
@@ -291,9 +293,10 @@
       "badCorrectMc": "يجب أن تكون الإجابة الصحيحة A أو B أو C أو D",
       "badCorrectTf": "يجب أن تكون الإجابة الصحيحة True أو False",
       "badDifficulty": "يجب أن تكون الصعوبة easy أو medium أو hard",
-      "badType": "يجب أن يكون النوع multiple_choice أو true_false",
+      "badType": "يجب أن يكون النوع multiple_choice أو true_false أو short_answer",
       "duplicateOptions": "يجب أن تكون الخيارات مختلفة",
       "duplicateQuestion": "سؤال مكرر",
+      "missingAnswer": "الإجابة المتوقعة مطلوبة",
       "missingOptions": "الخيارات الأربعة مطلوبة",
       "missingQuestion": "نص السؤال مفقود"
     },
@@ -327,7 +330,11 @@
     "defaultTitle": "إسناد بدون عنوان",
     "false": "خطأ",
     "formalAssessmentNote": "بنك أسئلة التقييم الرسمي",
+    "hints": {
+      "acceptedAnswers": "تُصحَّح إجابات الطلاب تلقائيًا فقط عند وجود قائمة إجابات مقبولة. إذا تُركت هذه القائمة فارغة، ستصل إجابات الطلاب إليك للتصحيح."
+    },
     "labels": {
+      "acceptedAnswers": "الإجابات المقبولة (إجابة واحدة في كل سطر)",
       "changeSummaryOptional": "ملخص التغيير (اختياري)",
       "correctAnswer": "الإجابة الصحيحة",
       "correctOption": "الخيار الصحيح",

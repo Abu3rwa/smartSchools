@@ -1,5 +1,6 @@
 import React from 'react';
 import { getQuestionTypeDisplay } from '../utils/practiceSessionPresentation';
+import PracticeCountdown from './PracticeCountdown';
 
 const PracticeQuestionCard = ({ 
     currentQuestion, 
@@ -12,6 +13,7 @@ const PracticeQuestionCard = ({
     showContextHints, 
     usableTopics, 
     recentMistakes,
+    secondsRemaining,
     children 
 }) => {
     return (
@@ -22,6 +24,7 @@ const PracticeQuestionCard = ({
                 ) : (
                     <span className="badge badge-attempt">Question #{currentQuestion.attemptNumber}</span>
                 )}
+                <PracticeCountdown secondsRemaining={secondsRemaining} />
                 <span className={`badge badge-difficulty ${currentQuestion.difficulty}`}>
                     {currentQuestion.difficulty}
                 </span>

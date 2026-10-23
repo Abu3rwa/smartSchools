@@ -113,7 +113,7 @@ const GradebookPage = ({
         resetForm
     } = useGradebookPageState(students);
 
-    const { fetchGrades, availableSubjects, dynamicCategories, processedData } = useGradebookData({
+    const { fetchGrades, availableSubjects, dynamicCategories, processedData, loadError } = useGradebookData({
         classId,
         currentClass,
         subjects,
@@ -276,7 +276,6 @@ const GradebookPage = ({
                 onOpenDailyClasswork={() => setShowDailyClassworkModal(true)}
                 notificationSending={notificationSending}
                 hasStudents={students.length > 0}
-                onOpenAddModal={handleOpenAddModal}
                 grades={grades}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
@@ -310,13 +309,17 @@ const GradebookPage = ({
                     <div className="grades-content">
                         <GradebookTable
                             loading={loading}
+                            error={loadError}
                             students={students}
                             grades={grades}
                             gradingScale={gradingScale}
                             dynamicCategories={dynamicCategories}
                             processedData={processedData}
+                            selectedCategoryFilter={selectedCategoryFilter}
                             onOpenAIModal={handleOpenAIModal}
                             onOpenLearningTrace={handleOpenLearningTrace}
+                            onAddGrades={handleOpenAddModal}
+                            onRetry={fetchGrades}
                         />
                     </div>
                 </>

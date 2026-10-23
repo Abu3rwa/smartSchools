@@ -639,3 +639,33 @@
         align-items: flex-start;
     }
 }
+
+.practice-session-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.practice-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: var(--radius-full);
+    font-size: 0.76rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: rgba(61, 159, 235, 0.12);
+    color: var(--primary-500);
+    border: 1px solid rgba(61, 159, 235, 0.35);
+}
+
+.practice-countdown--urgent {
+    background: rgba(239, 68, 68, 0.14);
+    color: var(--error-500);
+    border-color: rgba(239, 68, 68, 0.32);
+}

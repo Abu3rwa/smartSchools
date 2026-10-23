@@ -45,6 +45,7 @@ const useStandardsGradebookMatrixData = () => {
   const globalAcademicYear = useSelector(selectCurrentAcademicYear);
 
   const hasPendingChanges = Object.keys(pendingScores).length > 0;
+  const pendingCount = Object.keys(pendingScores).length;
 
   // Derive semester from period filter
   const derivedParams = useMemo(() => {
@@ -170,6 +171,7 @@ const useStandardsGradebookMatrixData = () => {
     error,
     filters,
     hasPendingChanges,
+    pendingCount,
     onFilterChange,
     onPageChange,
     onRefresh,

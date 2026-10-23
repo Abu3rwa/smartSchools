@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getScaleBgColor, getScaleColor, getScaleLevelInfo } from '../../../../utils/sbrScaleUtils';
 
 const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
+  const { t } = useTranslation(['standardsGradebook']);
   const [isEditing, setIsEditing] = useState(false);
   const [draftValue, setDraftValue] = useState('');
   const cellRef = useRef(null);
@@ -14,7 +16,7 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
   const normalizedScore = hasValue ? Math.max(0, Math.min(4, Math.round(Number(score)))) : null;
   const displayScore = hasValue
     ? (Number.isInteger(Number(score)) ? Number(score) : Number(score).toFixed(1))
-    : 'NAN';
+    : '—';
 
   const bgColor = hasValue ? getScaleBgColor(normalizedScore) : 'transparent';
   const textColor = hasValue ? getScaleColor(normalizedScore) : 'var(--text-secondary, #a0aec0)';
@@ -91,18 +93,24 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
     }
   }, [hasValue, onChange, score, standardId, studentId]);
 
-  const tooltipText = info
-    ? `${info.label}${cellData?.percentage != null ? ` (${cellData.percentage.toFixed(1)}%)` : ''}${isManual ? ' ✎ Manual' : ''}${isPending ? ' • Unsaved' : ''}`
-    : 'Type a manual score';
+  const levelLabel = info
+    ? t(`standardsGradebook:scale.${normalizedScore}`, { defaultValue: info.label })
+    : t('standardsGradebook:matrix.notAssessed', { defaultValue: 'Not assessed' });
+  const tooltipText = hasValue
+    ? `${levelLabel}${cellData?.percentage != null ? ` (${cellData.percentage.toFixed(1)}%)` : ''}${
+        isManual ? ` ✎ ${t('standardsGradebook:cell.manual', { defaultValue: 'Manual' })}` : ''
+      }${isPending ? ` • ${t('standardsGradebook:cell.unsaved', { defaultValue: 'Unsaved' })}` : ''}`
+    : t('standardsGradebook:cell.emptyHint', { defaultValue: 'Click to add a 0–4 score' });
 
   return (
     <td
       ref={cellRef}
-      className={`gb-cell${isPending ? ' gb-cell--pending' : ''}${isManual ? ' gb-cell--manual' : ''}`}
+      className={`gb-cell${hasValue ? '' : ' gb-cell--empty'}${isPending ? ' gb-cell--pending' : ''}${isManual ? ' gb-cell--manual' : ''}`}
       style={{ backgroundColor: bgColor, cursor: 'pointer', position: 'relative' }}
       tabIndex={0}
       role="gridcell"
       title={tooltipText}
+      aria-label={tooltipText}
       onClick={handleClick}
       onKeyDown={handleCellKeyDown}
     >

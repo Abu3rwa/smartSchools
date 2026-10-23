@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import QuestionPoolImportPanel from './QuestionPoolImportPanel';
+import { PRACTICE_QUESTION_TYPES } from '../../../../constants/practiceQuestionTypes';
 
 const MC_LABELS = ['A', 'B', 'C', 'D'];
-const QUESTION_TYPES = ['multiple_choice', 'true_false'];
+const QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 const GRAMMAR_LEVELS = [
     'beginner',
@@ -33,16 +34,27 @@ const normalizeGrammarLevel = (value) =>
         ? String(value || '').trim().toLowerCase()
         : null;
 
+const toAcceptedAnswers = (value) => {
+    if (Array.isArray(value)) return value.map(toNonEmptyString).filter(Boolean);
+    const raw = toNonEmptyString(value);
+    return raw ? raw.split(/\r?\n/).map(toNonEmptyString).filter(Boolean) : [];
+};
+
 const normalizeIncomingQuestion = (question = {}, index = 0) => {
     const questionType = normalizeQuestionType(question.questionType);
     const base = {
         localId: `${question._id || 'q'}-${index}-${Date.now()}`,
+        instruction: toNonEmptyString(question.instruction),
         questionText: toNonEmptyString(question.questionText),
         questionType,
         difficulty: normalizeDifficulty(question.difficulty),
         grammarLevel: normalizeGrammarLevel(question.grammarLevel),
         explanation: toNonEmptyString(question.explanation),
         correctAnswer: toNonEmptyString(question.correctAnswer),
+        skill: toNonEmptyString(question.skill),
+        subskill: toNonEmptyString(question.subskill),
+        gradingMode: toNonEmptyString(question.gradingMode),
+        acceptableAnswersText: toAcceptedAnswers(question.acceptableAnswers).join('\n'),
         options: []
     };
 
@@ -91,7 +103,6 @@ const createEmptyQuestion = (index = 0) =>
         },
         index
     );
-
 const QuestionPoolEditorModal = ({
     show,
     onClose,
@@ -189,7 +200,9 @@ const QuestionPoolEditorModal = ({
                 ...question,
                 questionType,
                 options: [],
-                correctAnswer: ''
+                correctAnswer: '',
+                acceptableAnswersText: '',
+                gradingMode: ''
             };
         });
     };
@@ -214,6 +227,14 @@ const QuestionPoolEditorModal = ({
             const explanation = toNonEmptyString(item.explanation);
             const questionType = normalizeQuestionType(item.questionType);
             const difficulty = normalizeDifficulty(item.difficulty);
+            const carriedFields = {
+                instruction: toNonEmptyString(item.instruction),
+                explanation,
+                difficulty,
+                grammarLevel: normalizeGrammarLevel(item.grammarLevel),
+                skill: toNonEmptyString(item.skill),
+                subskill: toNonEmptyString(item.subskill)
+            };
 
             if (!questionText) {
                 return {
@@ -261,13 +282,13 @@ const QuestionPoolEditorModal = ({
                     };
                 }
                 normalizedQuestions.push({
+                    ...carriedFields,
                     questionText,
                     questionType,
                     options,
                     correctAnswer,
-                    explanation,
-                    difficulty,
-                    grammarLevel: normalizeGrammarLevel(item.grammarLevel)
+                    gradingMode: toNonEmptyString(item.gradingMode) || 'conceptual',
+                    acceptableAnswers: toAcceptedAnswers(item.acceptableAnswers)
                 });
                 continue;
             }
@@ -276,6 +297,7 @@ const QuestionPoolEditorModal = ({
                 const correctRaw = toNonEmptyString(item.correctAnswer).toLowerCase();
                 const correctAnswer = correctRaw === 'false' ? 'False' : 'True';
                 normalizedQuestions.push({
+                    ...carriedFields,
                     questionText,
                     questionType,
                     options: [
@@ -283,12 +305,34 @@ const QuestionPoolEditorModal = ({
                         { label: 'B', text: 'False' }
                     ],
                     correctAnswer,
-                    explanation,
-                    difficulty,
-                    grammarLevel: normalizeGrammarLevel(item.grammarLevel)
+                    gradingMode: toNonEmptyString(item.gradingMode) || 'conceptual',
+                    acceptableAnswers: toAcceptedAnswers(item.acceptableAnswers)
                 });
                 continue;
             }
+
+            const correctAnswer = toNonEmptyString(item.correctAnswer);
+            if (!correctAnswer) {
+                return {
+                    errorMessage: t('standardAssign:questionPool.validation.expectedAnswerRequired', {
+                        index: i + 1
+                    })
+                };
+            }
+            const acceptableAnswers = toAcceptedAnswers(
+                item.acceptableAnswersText ?? item.acceptableAnswers
+            );
+            normalizedQuestions.push({
+                ...carriedFields,
+                questionText,
+                questionType,
+                options: [],
+                correctAnswer,
+                // Without a listed set of accepted answers the server sends the
+                // response to teacher review instead of auto-grading it.
+                gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
+                acceptableAnswers
+            });
         }
 
         return { questions: normalizedQuestions };
@@ -437,6 +481,7 @@ const QuestionPoolEditorModal = ({
                                                         {t('standardAssign:questionPool.types.multipleChoice')}
                                                     </option>
                                                     <option value="true_false">{t('standardAssign:questionPool.types.trueFalse')}</option>
+                                                    <option value="short_answer">{t('standardAssign:questionPool.types.shortAnswer')}</option>
                                                 </select>
                                             </div>
                                             <div className="form-group">
@@ -560,6 +605,46 @@ const QuestionPoolEditorModal = ({
                                                     <option value="False">{t('standardAssign:questionPool.false')}</option>
                                                 </select>
                                             </div>
+                                        )}
+
+                                        {question.questionType === 'short_answer' && (
+                                            <>
+                                                <div className="form-group">
+                                                    <label>
+                                                        {t('standardAssign:questionPool.labels.expectedAnswerRequired')}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        value={question.correctAnswer}
+                                                        onChange={(event) =>
+                                                            updateQuestion(index, (current) => ({
+                                                                ...current,
+                                                                correctAnswer: event.target.value
+                                                            }))
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>
+                                                        {t('standardAssign:questionPool.labels.acceptedAnswers')}
+                                                    </label>
+                                                    <textarea
+                                                        className="form-input"
+                                                        rows={3}
+                                                        value={question.acceptableAnswersText}
+                                                        onChange={(event) =>
+                                                            updateQuestion(index, (current) => ({
+                                                                ...current,
+                                                                acceptableAnswersText: event.target.value
+                                                            }))
+                                                        }
+                                                    />
+                                                    <p className="text-muted">
+                                                        {t('standardAssign:questionPool.hints.acceptedAnswers')}
+                                                    </p>
+                                                </div>
+                                            </>
                                         )}
 
                                         <div className="form-group">

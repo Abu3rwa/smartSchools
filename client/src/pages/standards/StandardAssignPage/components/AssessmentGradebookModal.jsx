@@ -254,9 +254,12 @@ const StudentAttemptDetailPanel = ({ studentId, assignmentId, studentName, onBac
         const attemptsRows = attempts
             .map((attempt, index) => {
                 const isCorrect = attempt.effectiveIsCorrect ?? attempt.isCorrect;
-                const statusLabel = isCorrect
-                    ? t('standardAssign:progress.correct', { defaultValue: 'Correct' })
-                    : t('standardAssign:progress.needsReview', { defaultValue: 'Incorrect' });
+                const statusLabel =
+                    isCorrect === null || isCorrect === undefined
+                        ? t('standardAssign:progressStatus.needs_review')
+                        : isCorrect
+                            ? t('standardAssign:reports.statusCorrect')
+                            : t('standardAssign:reports.statusIncorrect');
 
                 return `
                     <tr>
@@ -375,12 +378,28 @@ const StudentAttemptDetailPanel = ({ studentId, assignmentId, studentName, onBac
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', maxHeight: 500, overflowY: 'auto' }}>
                     {attempts.map((a, idx) => {
                         const isCorrect = a.effectiveIsCorrect ?? a.isCorrect;
+                        const awaitingReview = isCorrect === null || isCorrect === undefined;
                         const hasOverride = a.teacherOverride?.isCorrect != null;
+                        const borderColor = awaitingReview
+                            ? 'var(--border-color)'
+                            : isCorrect
+                                ? 'var(--status-success)'
+                                : 'var(--status-error)';
+                        const badgeColor = awaitingReview
+                            ? 'var(--text-muted)'
+                            : isCorrect
+                                ? 'var(--status-success)'
+                                : 'var(--status-error)';
+                        const badgeBackground = awaitingReview
+                            ? 'var(--bg-secondary)'
+                            : isCorrect
+                                ? 'var(--status-success-bg)'
+                                : 'var(--status-error-bg)';
                         return (
                             <div
                                 key={a._id}
                                 style={{
-                                    border: `1px solid ${isCorrect ? 'var(--status-success)' : 'var(--status-error)'}`,
+                                    border: `1px solid ${borderColor}`,
                                     borderRadius: 'var(--radius-md, 8px)',
                                     padding: 'var(--spacing-md, 1rem)',
                                     background: 'var(--bg-secondary)',
@@ -396,10 +415,14 @@ const StudentAttemptDetailPanel = ({ studentId, assignmentId, studentName, onBac
                                             padding: '2px 8px',
                                             borderRadius: 9999,
                                             fontWeight: 600,
-                                            background: isCorrect ? 'var(--status-success-bg)' : 'var(--status-error-bg)',
-                                            color: isCorrect ? 'var(--status-success)' : 'var(--status-error)',
+                                            background: badgeBackground,
+                                            color: badgeColor,
                                         }}>
-                                            {isCorrect ? 'Correct' : 'Incorrect'}
+                                            {awaitingReview
+                                                ? t('standardAssign:progressStatus.needs_review')
+                                                : isCorrect
+                                                    ? t('standardAssign:reports.statusCorrect')
+                                                    : t('standardAssign:reports.statusIncorrect')}
                                         </span>
                                         {hasOverride && (
                                             <span style={{

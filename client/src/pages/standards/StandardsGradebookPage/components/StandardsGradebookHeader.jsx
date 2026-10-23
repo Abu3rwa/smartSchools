@@ -2,22 +2,33 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { selectSBGradebookMatrixScoringMode } from '../../../../store/slices/standardSlice';
 
-const SCORING_MODE_LABELS = {
-  average: 'Average',
-  latest: 'Latest',
-  highest: 'Highest',
+const MODE_LABEL_KEYS = {
+  average: 'scoringModes.average',
+  latest: 'scoringModes.latest',
+  highest: 'scoringModes.highest',
 };
 
 const StandardsGradebookHeader = ({ onRefresh, loading, embedded = false }) => {
   const { t } = useTranslation(['standardsGradebook']);
   const scoringMode = useSelector(selectSBGradebookMatrixScoringMode);
-  const modeLabel = SCORING_MODE_LABELS[scoringMode] || 'Average';
+  const modeLabel = t(
+    `standardsGradebook:${MODE_LABEL_KEYS[scoringMode] || MODE_LABEL_KEYS.average}`,
+    'Average',
+  );
+  const scoringText = t('standardsGradebook:header.scoring', {
+    mode: modeLabel,
+    defaultValue: 'Scoring: {{mode}}',
+  });
+  const scoringHint = t(
+    'standardsGradebook:header.scoringHint',
+    'How multiple assessments for the same standard are combined. Change it in School Settings.',
+  );
 
   if (embedded) {
     return (
       <div className="standards-gradebook-header standards-gradebook-header--embedded">
-        <span className="sb-scoring-mode-badge" title="Score aggregation mode (configure in School Settings)">
-          {t('standardsGradebook:header.scoring', 'Scoring')}: {modeLabel}
+        <span className="sb-scoring-mode-badge" title={scoringHint}>
+          {scoringText}
         </span>
         <button
           type="button"
@@ -36,8 +47,8 @@ const StandardsGradebookHeader = ({ onRefresh, loading, embedded = false }) => {
       <div>
         <h1>
           {t('standardsGradebook:header.title')}
-          <span className="sb-scoring-mode-badge" title="Score aggregation mode (configure in School Settings)">
-            Scoring: {modeLabel}
+          <span className="sb-scoring-mode-badge" title={scoringHint}>
+            {scoringText}
           </span>
         </h1>
         <p>{t('standardsGradebook:header.subtitle')}</p>

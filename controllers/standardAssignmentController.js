@@ -10,6 +10,7 @@ import StandardsGradebookEntry from '../models/StandardsGradebookEntry.js';
 import ReviewTask from '../models/ReviewTask.js';
 import InterventionCase from '../models/InterventionCase.js';
 import AssessmentAuditLog from '../models/AssessmentAuditLog.js';
+import { PRACTICE_QUESTION_TYPES } from '../constants/practiceQuestionTypes.js';
 import GrammarTest from '../models/GrammarTest.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -82,7 +83,7 @@ const getAssignmentScopedMasteryMinQuestions = (assignment) => {
     return 5;
 };
 
-const SUPPORTED_REGEN_QUESTION_TYPES = ['multiple_choice', 'true_false'];
+const SUPPORTED_REGEN_QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
 const SUPPORTED_REGEN_DIFFICULTIES = ['easy', 'medium', 'hard'];
 
 const normalizeRegenQuestionType = (value) => {
@@ -1383,6 +1384,13 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
     }
 
     const now = new Date();
+    if (!Array.isArray(pool.questions) || pool.questions.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'The question pool has no questions. Add or regenerate questions before publishing.',
+        });
+    }
+
     pool.status = 'published';
     pool.publishedBy = req.user._id;
     pool.publishedAt = now;

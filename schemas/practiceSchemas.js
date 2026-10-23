@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { PRACTICE_QUESTION_TYPES } from '../constants/practiceQuestionTypes.js';
 
-export const QUESTION_TYPES = ['multiple_choice', 'true_false'];
+export const QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
 export const DIFFICULTIES = ['easy', 'medium', 'hard'];
 export const SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
 export const AI_LANGUAGE_CODES = ['en', 'ar', 'fr', 'es', 'pt', 'tr', 'ur'];

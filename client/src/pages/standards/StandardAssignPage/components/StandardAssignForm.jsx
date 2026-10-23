@@ -290,31 +290,29 @@ const StandardAssignForm = ({
                 value: importedCount > 0
                     ? t('standardAssign:form.summary.importedCount', { count: importedCount })
                     : t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })
-            },
-            {
+            }
+        ];
+
+        if (grammarOnly) {
+            items.push({
                 key: 'grammarLevels',
                 label: t('standardAssign:form.summary.grammarLevels', {
                     defaultValue: 'Grammar Levels'
                 }),
-                value: formData.practiceConfig.enableGrammarLeveling
-                    ? (selectedGrammarLevels.length > 0
-                        ? selectedGrammarLevels
-                            .map((level) =>
-                                t(`standardAssign:grammarLevels.${level}`, {
-                                    defaultValue: level
-                                        .split('_')
-                                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                                        .join(' ')
-                                })
-                            )
-                            .join(', ')
-                        : t('standardAssign:form.summary.noneSelected', { defaultValue: 'None selected' })
-                    )
-                    : t('standardAssign:form.summary.disabled', { defaultValue: 'Disabled' })
-            }
-        ];
-
-        if (!grammarOnly) {
+                value: selectedGrammarLevels.length > 0
+                    ? selectedGrammarLevels
+                        .map((level) =>
+                            t(`standardAssign:grammarLevels.${level}`, {
+                                defaultValue: level
+                                    .split('_')
+                                    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                                    .join(' ')
+                            })
+                        )
+                        .join(', ')
+                    : t('standardAssign:form.summary.noneSelected', { defaultValue: 'None selected' })
+            });
+        } else {
             items.splice(3, 0, {
                 key: 'standard',
                 label: t('standardAssign:form.summary.standard'),
@@ -349,7 +347,6 @@ const StandardAssignForm = ({
         t,
         formData.title,
         formData.practiceConfig.sessionType,
-        formData.practiceConfig.enableGrammarLeveling,
         formData.dueDate,
         formData.preGeneratedQuestionCount,
         importedCount,

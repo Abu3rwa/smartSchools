@@ -137,39 +137,41 @@ const StandardAssignStepRules = ({
                                 />
                             )}
 
-                            <div className="form-group">
-                                <label>{t('standardAssign:form.labels.allowedQuestionTypes')}</label>
-                                <div className="checkbox-group assign-inline-checkboxes">
-                                    {QUESTION_TYPE_OPTIONS.map((type) => (
-                                        <label key={type} className="assign-checkbox-option">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.practiceConfig.allowedQuestionTypes.includes(
-                                                    type
-                                                )}
-                                                onChange={(event) => {
-                                                    const current =
-                                                        formData.practiceConfig
-                                                            .allowedQuestionTypes;
-                                                    const next = event.target.checked
-                                                        ? [...current, type]
-                                                        : current.filter(
-                                                            (item) => item !== type
-                                                        );
-                                                    setFormData({
-                                                        ...formData,
-                                                        practiceConfig: {
-                                                            ...formData.practiceConfig,
-                                                            allowedQuestionTypes: next
-                                                        }
-                                                    });
-                                                }}
-                                            />
-                                            {formatQuestionType(type)}
-                                        </label>
-                                    ))}
+                            {!grammarOnly && (
+                                <div className="form-group">
+                                    <label>{t('standardAssign:form.labels.allowedQuestionTypes')}</label>
+                                    <div className="checkbox-group assign-inline-checkboxes">
+                                        {QUESTION_TYPE_OPTIONS.map((type) => (
+                                            <label key={type} className="assign-checkbox-option">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.practiceConfig.allowedQuestionTypes.includes(
+                                                        type
+                                                    )}
+                                                    onChange={(event) => {
+                                                        const current =
+                                                            formData.practiceConfig
+                                                                .allowedQuestionTypes;
+                                                        const next = event.target.checked
+                                                            ? [...current, type]
+                                                            : current.filter(
+                                                                (item) => item !== type
+                                                            );
+                                                        setFormData({
+                                                            ...formData,
+                                                            practiceConfig: {
+                                                                ...formData.practiceConfig,
+                                                                allowedQuestionTypes: next
+                                                            }
+                                                        });
+                                                    }}
+                                                />
+                                                {formatQuestionType(type)}
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="form-group">
                                 <label>{t('standardAssign:form.labels.allowedDifficulties')}</label>
@@ -213,60 +215,22 @@ const StandardAssignStepRules = ({
                                 </div>
                             </div>
 
-                            <div className="form-group">
-                                {grammarOnly ? (
-                                    <>
-                                        <label>
-                                            {t('standardAssign:form.labels.enableGrammarLeveling', {
-                                                defaultValue: 'Enable Grammar Level Test (MAP-style)'
-                                            })}
-                                        </label>
-                                        <small className="text-muted">
-                                            {t('standardAssign:form.hints.grammarModeFixed', {
-                                                defaultValue: 'Grammar level mode is always enabled on this page.'
-                                            })}
-                                        </small>
-                                    </>
-                                ) : (
-                                    <>
-                                        <label className="assign-checkbox-option">
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(formData.practiceConfig.enableGrammarLeveling)}
-                                                onChange={(event) => {
-                                                    const enabled = event.target.checked;
-                                                    const fallbackLevels = GRAMMAR_LEVEL_OPTIONS.map((item) => item.value);
-                                                    const currentLevels = Array.isArray(formData.practiceConfig.grammarLevels)
-                                                        ? formData.practiceConfig.grammarLevels
-                                                        : [];
-                                                    setFormData({
-                                                        ...formData,
-                                                        practiceConfig: {
-                                                            ...formData.practiceConfig,
-                                                            enableGrammarLeveling: enabled,
-                                                            grammarLevels: enabled
-                                                                ? (currentLevels.length > 0
-                                                                    ? currentLevels
-                                                                    : fallbackLevels)
-                                                                : []
-                                                        }
-                                                    });
-                                                }}
-                                            />
-                                            {t('standardAssign:form.labels.enableGrammarLeveling', {
-                                                defaultValue: 'Enable Grammar Level Test (MAP-style)'
-                                            })}
-                                        </label>
-                                        <small className="text-muted">
-                                            {t('standardAssign:form.hints.enableGrammarLeveling', {
-                                                defaultValue: 'Use level-based grammar coverage (Beginner to Advanced) and save progress over time.'
-                                            })}
-                                        </small>
-                                    </>
-                                )}
-                            </div>
+                            {grammarOnly && (
+                                <div className="form-group">
+                                    <label>
+                                        {t('standardAssign:form.labels.enableGrammarLeveling', {
+                                            defaultValue: 'Enable Grammar Level Test (MAP-style)'
+                                        })}
+                                    </label>
+                                    <small className="text-muted">
+                                        {t('standardAssign:form.hints.grammarModeFixed', {
+                                            defaultValue: 'Grammar level mode is always enabled on this page.'
+                                        })}
+                                    </small>
+                                </div>
+                            )}
 
-                            {Boolean(formData.practiceConfig.enableGrammarLeveling) && (
+                            {grammarOnly && Boolean(formData.practiceConfig.enableGrammarLeveling) && (
                                 <div className="form-group">
                                     <label>
                                         {t('standardAssign:form.labels.grammarLevels', {

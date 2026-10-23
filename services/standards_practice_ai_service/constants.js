@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { PRACTICE_QUESTION_TYPES } from "../../constants/practiceQuestionTypes.js";
 
-export const QUESTION_TYPES = ["multiple_choice", "true_false"];
+export const QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
 export const MAX_AI_RETRIES = 2;
 export const MC_LABELS = ["A", "B", "C", "D"];
 export const AMBIGUOUS_MC_OPTION_PATTERN =

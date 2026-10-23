@@ -1,7 +1,9 @@
 {
   "header": {
     "title": "Standards Gradebook",
-    "subtitle": "Track standards mastery and assessment progress in one place"
+    "subtitle": "Track standards mastery and assessment progress in one place",
+    "scoring": "Scoring: {{mode}}",
+    "scoringHint": "How multiple assessments for the same standard are combined. Change it in School Settings."
   },
   "actions": {
     "refresh": "Refresh",
@@ -15,7 +17,10 @@
     "allStandards": "All standards",
     "allStudents": "All students",
     "allStatuses": "All statuses",
-    "allSessionTypes": "All session types"
+    "allSessionTypes": "All session types",
+    "periodLabel": "Period",
+    "classLabel": "Class",
+    "subjectLabel": "Subject"
   },
   "sessionType": {
     "practice": "Practice",
@@ -60,5 +65,47 @@
     "next": "Next",
     "pageOf": "Page {{page}} of {{pages}}",
     "rowsPerPage": "Rows per page"
+  },
+  "toolbar": {
+    "save": "Save (Ctrl+S)",
+    "saveCount": "Save {{n}} changes (Ctrl+S)",
+    "saving": "Saving…",
+    "unsaved": "{{n}} unsaved",
+    "assignStandard": "+ Assign Standard"
+  },
+  "teacherHelp": {
+    "title": "Teacher Instructions",
+    "steps": "1) Select class and subject. 2) Use + Assign Standard to add missing standards. 3) Enter 1-4 scores in cells. 4) Press Save (Ctrl+S) to store changes."
+  },
+  "legend": {
+    "title": "Scale",
+    "counts": "Standards: {{standards}} · Students: {{students}}"
+  },
+  "matrix": {
+    "classAverage": "Class Average",
+    "notAssessed": "Not assessed",
+    "selectClassSubject": "Select a class and subject to view the gradebook.",
+    "selectClassSubjectTitle": "Choose a class and subject",
+    "noStandards": "No standards assigned for this class/subject.",
+    "noStandardsTitle": "No standards yet",
+    "noStandardsHint": "Use + Assign Standard to add one, then enter 0–4 scores here.",
+    "gridAria": "Standards scores by student"
+  },
+  "scale": {
+    "0": "Not Demonstrated",
+    "1": "Below Standard",
+    "2": "Approaching Standard",
+    "3": "Meets Standard",
+    "4": "Exceeds Standard"
+  },
+  "scoringModes": {
+    "average": "Average",
+    "latest": "Latest",
+    "highest": "Highest"
+  },
+  "cell": {
+    "emptyHint": "Click to add a 0–4 score",
+    "manual": "Manual",
+    "unsaved": "Unsaved"
   }
 }

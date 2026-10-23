@@ -256,7 +256,9 @@
     "pendingStudents": "Pending Students",
     "studentResults": "Student Test Results",
     "testSpecificProgress": "Test-Specific Progress (Repeated Attempts)",
-    "tabSwitches": "Tab Switches"
+    "tabSwitches": "Tab Switches",
+    "statusCorrect": "Correct",
+    "statusIncorrect": "Incorrect"
   },
   "questionImport": {
     "chooseFile": "Upload CSV",
@@ -291,9 +293,10 @@
       "badCorrectMc": "Correct answer must be A, B, C or D",
       "badCorrectTf": "Correct answer must be True or False",
       "badDifficulty": "Difficulty must be easy, medium or hard",
-      "badType": "Type must be multiple_choice or true_false",
+      "badType": "Type must be multiple_choice, true_false or short_answer",
       "duplicateOptions": "Options must be different",
       "duplicateQuestion": "Duplicate question",
+      "missingAnswer": "An expected answer is required",
       "missingOptions": "All four options are required",
       "missingQuestion": "Question text is missing"
     },
@@ -327,7 +330,11 @@
     "defaultTitle": "Untitled Assignment",
     "false": "False",
     "formalAssessmentNote": "Formal assessment question pool",
+    "hints": {
+      "acceptedAnswers": "Answers are graded automatically only when accepted answers are listed. Leave this empty and student answers go to you for grading."
+    },
     "labels": {
+      "acceptedAnswers": "Accepted Answers (one per line)",
       "changeSummaryOptional": "Change Summary (Optional)",
       "correctAnswer": "Correct Answer",
       "correctOption": "Correct Option",

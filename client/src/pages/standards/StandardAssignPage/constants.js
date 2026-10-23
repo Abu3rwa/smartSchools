@@ -1,6 +1,11 @@
 import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
+import {
+    DEFAULT_PRACTICE_QUESTION_TYPES,
+    PRACTICE_QUESTION_TYPES,
+} from '../../../constants/practiceQuestionTypes';
 
-export const QUESTION_TYPE_OPTIONS = ['multiple_choice', 'true_false'];
+export const QUESTION_TYPE_OPTIONS = PRACTICE_QUESTION_TYPES;
+export const DEFAULT_QUESTION_TYPE_OPTIONS = DEFAULT_PRACTICE_QUESTION_TYPES;
 export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'];
 export const GRAMMAR_LEVEL_OPTIONS = [
     { value: 'beginner', label: 'Beginner' },
@@ -17,7 +22,7 @@ export const DEFAULT_PRACTICE_CONFIG = {
     sessionType: 'practice',
     questionLimit: '',
     timeLimitSeconds: '',
-    allowedQuestionTypes: [...QUESTION_TYPE_OPTIONS],
+    allowedQuestionTypes: [...DEFAULT_QUESTION_TYPE_OPTIONS],
     allowedDifficulties: [...DIFFICULTY_OPTIONS],
     enableGrammarLeveling: false,
     grammarLevels: [],

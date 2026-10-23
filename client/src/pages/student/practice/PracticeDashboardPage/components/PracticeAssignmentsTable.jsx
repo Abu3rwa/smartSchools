@@ -1,9 +1,10 @@
-import { HiOutlineEye, HiOutlinePlay, HiOutlineRefresh } from "react-icons/hi";
+import { HiOutlineCalendar, HiOutlineEye, HiOutlinePlay, HiOutlineRefresh } from "react-icons/hi";
+import { useTranslation } from "react-i18next";
 import { PRACTICE_TABLE_HEADERS } from "../constants";
-import { getMasteryColor, getStatusBadge } from "../utils/practiceDashboardPresentation";
+import { getMasteryColor, getScheduleView, getStatusBadge } from "../utils/practiceDashboardPresentation";
 import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
-const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory) => {
+const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now) => {
   const badge = getStatusBadge(assignment);
   const sessionType = assignment.practiceConfig?.sessionType === "assessment"
     ? "assessment"
@@ -42,6 +43,8 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory) => {
         ? `${assignmentQuestionLimit - completedCount} left`
         : "Start when ready";
 
+  const schedule = assessmentComplete ? null : getScheduleView(assignment, now);
+
   const actionLabel = isReview
     ? "Review Now"
     : assessmentComplete || (isMastered && !isReview)
@@ -62,6 +65,7 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory) => {
 
   return {
     badge,
+    schedule,
     sessionType,
     sessionTypeLabel,
     progressPercent,
@@ -75,8 +79,40 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory) => {
   };
 };
 
-const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }) => (
-  <>
+const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }) => {
+  const { t } = useTranslation(['studentPractice']);
+  const now = new Date();
+
+  const renderSchedule = (view) => {
+    if (!view.schedule) return null;
+    return (
+      <span className={`practice-schedule practice-schedule--${view.schedule.tone}`}>
+        <HiOutlineCalendar size={13} aria-hidden="true" />
+        {t(`studentPractice:${view.schedule.key}`, view.schedule.params)}
+      </span>
+    );
+  };
+
+  const renderAction = (view, assignment) => {
+    const ActionIcon = view.actionIcon;
+    const blocked = Boolean(view.schedule?.blocked);
+    return (
+      <button
+        className={`btn btn-sm ${view.isReview ? "btn-warning" : "btn-primary"}`}
+        onClick={() => view.onPrimaryAction(assignment._id)}
+        disabled={blocked}
+        title={blocked && view.schedule
+            ? t(`studentPractice:${view.schedule.key}`, view.schedule.params)
+            : undefined}
+      >
+        <ActionIcon size={16} />
+        <span>{view.actionLabel}</span>
+      </button>
+    );
+  };
+
+  return (
+    <>
     <div className="table-container desktop-assignments">
       <table className="practice-table">
         <thead>
@@ -88,8 +124,7 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
         </thead>
         <tbody>
           {assignments.map((assignment) => {
-            const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory);
-            const ActionIcon = view.actionIcon;
+            const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now);
 
             return (
               <tr key={assignment._id} className={view.isMastered ? "mastered-row" : view.isReview ? "needs-review-row" : ""}>
@@ -104,6 +139,7 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
                     <span className={`assignment-type-badge assignment-type-badge--${view.sessionType}`}>
                       {view.sessionTypeLabel}
                     </span>
+                    {renderSchedule(view)}
                   </div>
                 </td>
                 <td>{assignment.subject?.name || "-"}</td>
@@ -126,13 +162,7 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
                 </td>
                 <td>
                   <div className="actions-cell">
-                    <button
-                      className={`btn btn-sm ${view.isReview ? "btn-warning" : "btn-primary"}`}
-                      onClick={() => view.onPrimaryAction(assignment._id)}
-                    >
-                      <ActionIcon size={16} />
-                      <span>{view.actionLabel}</span>
-                    </button>
+                    {renderAction(view, assignment)}
                   </div>
                 </td>
               </tr>
@@ -144,8 +174,7 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
 
     <div className="mobile-assignment-list" role="list">
       {assignments.map((assignment) => {
-        const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory);
-        const ActionIcon = view.actionIcon;
+        const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now);
 
         return (
           <article key={assignment._id} className="assignment-card" role="listitem">
@@ -168,6 +197,8 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
               </span>
             </div>
 
+            {renderSchedule(view)}
+
             <div className="progress-cell student-first-progress">
               <div className="progress-bar-wrapper" title={view.progressText}>
                 <div
@@ -181,18 +212,13 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
               </div>
             </div>
 
-            <button
-              className={`btn btn-sm ${view.isReview ? "btn-warning" : "btn-primary"}`}
-              onClick={() => view.onPrimaryAction(assignment._id)}
-            >
-              <ActionIcon size={16} />
-              <span>{view.actionLabel}</span>
-            </button>
+            {renderAction(view, assignment)}
           </article>
         );
       })}
     </div>
-  </>
-);
+    </>
+  );
+};
 
 export default PracticeAssignmentsTable;

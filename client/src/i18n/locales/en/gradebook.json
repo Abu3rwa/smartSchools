@@ -20,7 +20,19 @@
     "title": "Gradebook",
     "advancedReports": "Advanced Reports",
     "sendReports": "Send Reports",
-    "addGrades": "Add Grades"
+    "addGrades": "Add Grades",
+    "communicate": "Communicate",
+    "dailyClasswork": "Send Daily Classwork",
+    "summaryLanguage": "Summary language",
+    "summaryLanguageAria": "Monthly summary email language",
+    "languageEnglish": "English",
+    "languageArabic": "العربية",
+    "tableView": "Table view",
+    "spreadsheetView": "Spreadsheet view",
+    "viewModeAria": "Gradebook view",
+    "editGrades": "Edit Grades",
+    "moreAssessments": "{{n}} more assessments on the entry page",
+    "more": "More"
   },
   "common": {
     "sending": "Sending...",
@@ -40,7 +52,10 @@
     "subject": "Subject",
     "selectSubject": "Select Subject",
     "month": "Month",
-    "category": "Category"
+    "category": "Category",
+    "semester": "Semester",
+    "semester1": "Semester 1",
+    "semester2": "Semester 2"
   },
   "table": {
     "columns": {
@@ -49,9 +64,24 @@
       "overallAvg": "Overall (Avg /10)"
     },
     "generateProgressReport": "Generate Progress Report",
+    "openLearningTrace": "Open learning trace",
     "noStudents": "No students in this class",
     "classAverage": "Class Average",
-    "noGradesForMonth": "No grades found for this month."
+    "noGradesForMonth": "No grades found for this month.",
+    "caption": "Grades recorded for this class this month",
+    "searchPlaceholder": "Search student",
+    "searchAria": "Search students in this class",
+    "notGraded": "{{n}} not graded",
+    "showing": "{{shown}} of {{total}} students",
+    "clearFilters": "Clear",
+    "retry": "Retry",
+    "loadError": "Could not load grades for this class.",
+    "noGradesHint": "No grades have been recorded for this subject and month yet.",
+    "assessmentsCount": "{{n}} assessed",
+    "showAssessments": "Show assessments for {{name}}",
+    "noAssessments": "No assessments recorded for this student this month.",
+    "untitledAssessment": "Untitled",
+    "noMatches": "No students match this filter."
   },
   "addModal": {
     "title": "Add Grades",

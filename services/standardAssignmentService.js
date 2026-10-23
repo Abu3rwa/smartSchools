@@ -1,5 +1,6 @@
 import StandardAssignment from '../models/StandardAssignment.js';
 import StandardQuestionPool from '../models/StandardQuestionPool.js';
+import { PRACTICE_QUESTION_TYPES } from '../constants/practiceQuestionTypes.js';
 import standardsPracticeAIService from './standardsPracticeAIService.js';
 import {
     generateGrammarQuestionPool,
@@ -29,7 +30,7 @@ const IMPORT_MC_LABELS = ['A', 'B', 'C', 'D'];
 const IMPORT_DIFFICULTIES = ['easy', 'medium', 'hard'];
 
 /**
- * Validates and normalizes teacher-imported questions (multiple choice / true-false).
+ * Validates and normalizes teacher-imported questions (multiple choice / true-false / short answer).
  * @returns {{ questions: object[], error: string|null }}
  */
 export const sanitizeImportedQuestions = (input) => {
@@ -86,6 +87,24 @@ export const sanitizeImportedQuestions = (input) => {
                 explanation,
                 difficulty,
             });
+        } else if (questionType === 'short_answer') {
+            const correctAnswer = str(item.correctAnswer, 500);
+            if (!correctAnswer) {
+                return { questions: [], error: `${label}: expected answer is required` };
+            }
+            const acceptableAnswers = (Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : [])
+                .map((answer) => str(answer, 500))
+                .filter(Boolean);
+            questions.push({
+                questionText,
+                questionType,
+                options: [],
+                correctAnswer,
+                explanation,
+                difficulty,
+                gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
+                acceptableAnswers,
+            });
         } else {
             return { questions: [], error: `${label}: unsupported question type` };
         }
@@ -101,7 +120,7 @@ export const buildDefaultAssignmentTitle = ({ standard, classDoc, sessionType })
     return `${standardCode}${standardName} - ${classLabel}${typeLabel}`.trim();
 };
 
-const buildQuestionPool = async ({
+export const buildQuestionPool = async ({
     standard,
     subjectName,
     questionCount,
@@ -113,7 +132,7 @@ const buildQuestionPool = async ({
             ? practiceConfig.allowedQuestionTypes
             : ['multiple_choice', 'true_false'];
     const allowedQuestionTypes = allowedQuestionTypesRaw.filter((type) =>
-        ['multiple_choice', 'true_false'].includes(type)
+        PRACTICE_QUESTION_TYPES.includes(type)
     );
     const allowedDifficulties =
         Array.isArray(practiceConfig?.allowedDifficulties) && practiceConfig.allowedDifficulties.length > 0
@@ -121,16 +140,20 @@ const buildQuestionPool = async ({
             : ['easy', 'medium', 'hard'];
 
     if (hasGrammarLevelingEnabled(practiceConfig)) {
-        return generateGrammarQuestionPool({
-            questionCount,
-            allowedQuestionTypes,
-            allowedDifficulties,
-            levels: normalizeGrammarLevels(practiceConfig?.grammarLevels, { fallbackAll: true }),
-            seedPrefix: `${standard?._id || standard?.code || 'grammar'}|pool`,
-        });
+        return {
+            questions: generateGrammarQuestionPool({
+                questionCount,
+                allowedQuestionTypes,
+                allowedDifficulties,
+                levels: normalizeGrammarLevels(practiceConfig?.grammarLevels, { fallbackAll: true }),
+                seedPrefix: `${standard?._id || standard?.code || 'grammar'}|pool`,
+            }),
+            failures: []
+        };
     }
 
     const questions = [];
+    const failures = [];
     for (let i = 0; i < questionCount; i += 1) {
         const questionType = allowedQuestionTypes.length > 0
             ? allowedQuestionTypes[i % allowedQuestionTypes.length]
@@ -172,55 +195,25 @@ const buildQuestionPool = async ({
                 evaluationCriteria: generated.evaluationCriteria || '',
             });
         } catch (error) {
-            logger.warn('Question generation failed for pool item; using deterministic fallback', {
+            const reason = error?.message || String(error);
+            logger.warn('Question generation failed for pool item; slot left empty', {
                 standardId: standard?._id?.toString?.() || null,
                 standardCode: standard?.code || null,
                 questionType,
                 difficulty,
                 itemIndex: i,
-                error: error?.message || String(error),
+                error: reason,
             });
-
-            const standardName = standard?.name || 'this standard';
-            const fallbackType = questionType === 'true_false' ? 'true_false' : 'multiple_choice';
-            questions.push({
-                instruction: fallbackType === 'true_false'
-                    ? 'Read the statement and choose True or False.'
-                    : 'Choose the best answer.',
-                questionText: fallbackType === 'true_false'
-                    ? `${standardName} is a concept students should study in this assignment.`
-                    : `Which option best describes ${standardName}?`,
-                questionType: fallbackType,
-                options: fallbackType === 'true_false'
-                    ? [
-                        { label: 'A', text: 'True' },
-                        { label: 'B', text: 'False' },
-                    ]
-                    : [
-                        { label: 'A', text: `${standardName} is one of this assignment's focus standards.` },
-                        { label: 'B', text: 'It is unrelated to this assignment.' },
-                        { label: 'C', text: 'It is only used for attendance tracking.' },
-                        { label: 'D', text: 'It is only used for timetable generation.' },
-                    ],
-                correctAnswer: fallbackType === 'true_false' ? 'True' : 'A',
-                explanation: 'Review the standard description before answering.',
-                difficulty,
-                grammarLevel: null,
-                skill: '',
-                subskill: '',
-                gradingMode: 'exact_match',
-                acceptableAnswers: [],
-                evaluationCriteria: '',
-            });
+            failures.push({ slot: i + 1, questionType, difficulty, reason });
         }
     }
 
-    return questions;
+    return { questions, failures };
 };
 
 export const resolveQuestionPoolQuestions = async ({ importedQuestions, generate }) => {
     if (Array.isArray(importedQuestions) && importedQuestions.length > 0) {
-        return importedQuestions;
+        return { questions: importedQuestions, failures: [] };
     }
     return generate();
 };
@@ -305,9 +298,10 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         : standard;
 
     let generatedQuestions = [];
+    let generationFailures = [];
     let generationError = null;
     try {
-        generatedQuestions = await resolveQuestionPoolQuestions({
+        const poolResult = await resolveQuestionPoolQuestions({
             importedQuestions,
             generate: () => buildQuestionPool({
                 standard: standardGenerationContext,
@@ -317,6 +311,8 @@ export async function createStandardAssignmentWithPool(opts = {}) {
                 generationLanguages: aiLanguages,
             }),
         });
+        generatedQuestions = poolResult.questions;
+        generationFailures = poolResult.failures;
     } catch (error) {
         generationError = error?.message || 'Question generation failed';
         logger.error('standard_assignment_pool_generation_failed', {
@@ -334,6 +330,23 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         throw generationFailure;
     }
 
+    // An empty pool cannot be released, so the assignment must not claim published either
+    const canAutoPublish = shouldAutoPublishPool && generatedQuestions.length > 0;
+    if (shouldAutoPublishPool && !canAutoPublish) {
+        assignment.questionWorkflow.status = 'draft';
+        await assignment.save();
+    }
+
+    const generationSummaries = [];
+    if (generationError) {
+        generationSummaries.push(`Auto-generation warning: ${generationError}`);
+    }
+    if (generationFailures.length > 0) {
+        generationSummaries.push(
+            `Auto-generation shortfall: ${generatedQuestions.length} of ${generatedCount} questions stored; slots ${generationFailures.map((failure) => failure.slot).join(', ')} left empty`
+        );
+    }
+
     const pool = await StandardQuestionPool.findOneAndUpdate(
         { school: schoolId, assignment: assignment._id },
         {
@@ -341,23 +354,25 @@ export async function createStandardAssignmentWithPool(opts = {}) {
                 standard: assignment.standard,
                 class: assignment.class,
                 subject: assignment.subject,
-                generatedQuestionCount: generatedCount,
+                generatedQuestionCount: generatedQuestions.length,
                 generationLanguages: aiLanguages,
                 currentVersion: 1,
-                status: shouldAutoPublishPool ? 'published' : 'draft',
+                status: canAutoPublish ? 'published' : 'draft',
                 questions: generatedQuestions,
-                publishedBy: shouldAutoPublishPool ? actorUserId : null,
-                publishedAt: shouldAutoPublishPool ? new Date() : null,
+                publishedBy: canAutoPublish ? actorUserId : null,
+                publishedAt: canAutoPublish ? new Date() : null,
                 isActive: true,
             },
-            ...(generationError
+            ...(generationSummaries.length > 0
                 ? {
                       $push: {
                           editHistory: {
-                              version: 1,
-                              editedBy: actorUserId,
-                              editedAt: new Date(),
-                              changeSummary: `Auto-generation warning: ${generationError}`,
+                              $each: generationSummaries.map((changeSummary) => ({
+                                  version: 1,
+                                  editedBy: actorUserId,
+                                  editedAt: new Date(),
+                                  changeSummary
+                              })),
                           },
                       },
                   }
@@ -370,5 +385,6 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         assignment,
         pool,
         generationError,
+        generationFailures,
     };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { fetchClass } from '../../../../store/slices/classSlice';
 import api from '../../../../config/api';
@@ -25,6 +25,7 @@ const useGradebookData = ({
     setLoading
 }) => {
     const dispatch = useDispatch();
+    const [loadError, setLoadError] = useState(null);
 
     useEffect(() => {
         dispatch(fetchClass(classId));
@@ -52,10 +53,15 @@ const useGradebookData = ({
             });
             setGrades(response.data?.data?.grades || []);
             setGradingScale(response.data?.data?.gradingScale || null);
+            setLoadError(null);
         } catch (error) {
             console.error('Failed to fetch grades:', error);
             setGrades([]);
             setGradingScale(null);
+            setLoadError({
+                status: error?.response?.status || null,
+                message: error?.response?.data?.message || null
+            });
         } finally {
             setLoading(false);
         }
@@ -77,7 +83,8 @@ const useGradebookData = ({
         fetchGrades,
         availableSubjects,
         dynamicCategories,
-        processedData
+        processedData,
+        loadError
     };
 };
 

@@ -50,18 +50,17 @@ const PracticeSessionPage = () => {
         showContextHints,
         questionLimit,
         currentSessionStep,
-        // activeQuestionGuidance — commented out with StudentGuidanceCard
+        activeQuestionGuidance,
     } = usePracticeSessionData();
 
     return (
         <div className="practice-session">
             <PracticeSessionHeader onBack={() => navigate('/portal/practice')} />
 
-            {/* <StudentGuidanceCard 
+            <StudentGuidanceCard
                 activeQuestionGuidance={activeQuestionGuidance}
                 assignmentInstructions={assignmentInstructions}
-            /> */}
-            {/* <h2>{assignmentInstructions}</h2> */}
+            />
             {generating && !currentQuestion && <PracticeLoadingState />}
 
             {practiceError && !generating && (
@@ -85,9 +84,6 @@ const PracticeSessionPage = () => {
                     sessionAccuracy={sessionAccuracy}
                     onGenerate={handleGenerate}
                     isGenerating={generating}
-                    isAssessmentSession={isAssessmentSession}
-                    onFinalizeAssessment={handleFinalizeAssessment}
-                    isFinalizingAssessment={finalizingAssessment}
                 />
             )}
 
@@ -116,6 +112,7 @@ const PracticeSessionPage = () => {
                     showContextHints={showContextHints}
                     usableTopics={usableTopics}
                     recentMistakes={sessionContext?.recentMistakes}
+                    secondsRemaining={sessionInfo?.timeRemainingSeconds}
                 >
                     <PracticeAnswerForm
                         questionType={currentQuestion.questionType}

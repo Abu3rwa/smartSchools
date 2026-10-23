@@ -1,4 +1,4 @@
-import { DIFFICULTY_OPTIONS, QUESTION_TYPE_OPTIONS, GRAMMAR_LEVEL_OPTIONS } from '../constants';
+import { DIFFICULTY_OPTIONS, DEFAULT_QUESTION_TYPE_OPTIONS, GRAMMAR_LEVEL_OPTIONS } from '../constants';
 import { formatStandardLabel } from '../../../../utils/standardLabel';
 
 const translate = (t, key, defaultValue, options = {}) =>
@@ -140,7 +140,7 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
                 : '',
             allowedQuestionTypes: assignment?.practiceConfig?.allowedQuestionTypes?.length
                 ? assignment.practiceConfig.allowedQuestionTypes
-                : [...QUESTION_TYPE_OPTIONS],
+                : [...DEFAULT_QUESTION_TYPE_OPTIONS],
             allowedDifficulties: assignment?.practiceConfig?.allowedDifficulties?.length
                 ? assignment.practiceConfig.allowedDifficulties
                 : [...DIFFICULTY_OPTIONS],
