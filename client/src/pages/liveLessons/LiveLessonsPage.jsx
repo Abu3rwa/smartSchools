@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   HiOutlineArrowDownTray,
   HiOutlineArrowUpTray,
+  HiOutlineCalendarDays,
   HiOutlineCheck,
   HiOutlineClipboardDocument,
   HiOutlineEllipsisVertical,
@@ -184,6 +185,12 @@ const LiveLessonsPage = () => {
   const [shareLessons, setShareLessons] = useState([]);
   const [shareRecipient, setShareRecipient] = useState("");
   const [shareSaving, setShareSaving] = useState(false);
+  const [moveLessonTarget, setMoveLessonTarget] = useState(null);
+  const [moveLessonClassId, setMoveLessonClassId] = useState("");
+  const [moveLessonSaving, setMoveLessonSaving] = useState(false);
+  const [moveLessonError, setMoveLessonError] = useState("");
+  const [moveLessonOptions, setMoveLessonOptions] = useState(null);
+  const [moveLessonLoading, setMoveLessonLoading] = useState(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
   const [bulkDeletingLessons, setBulkDeletingLessons] = useState(false);
   const [folderSaving, setFolderSaving] = useState(false);
@@ -1156,6 +1163,85 @@ const LiveLessonsPage = () => {
     }
   };
 
+  const openMoveDialog = async (lesson) => {
+    setMoveLessonTarget(lesson);
+    setMoveLessonClassId("");
+    setMoveLessonError("");
+    setMoveLessonOptions(null);
+    setMoveLessonLoading(true);
+    try {
+      const response = await api.get(`/live/lessons/${lesson._id}/move-targets`);
+      setMoveLessonOptions(response.data?.data || null);
+    } catch (requestError) {
+      setMoveLessonError(
+        requestError.response?.data?.message
+          || "Could not load the classes you can move this lesson into.",
+      );
+    } finally {
+      setMoveLessonLoading(false);
+    }
+  };
+
+  const closeMoveDialog = () => {
+    setMoveLessonTarget(null);
+    setMoveLessonClassId("");
+    setMoveLessonError("");
+    setMoveLessonOptions(null);
+    setMoveLessonLoading(false);
+  };
+
+  const moveLessonToClass = async () => {
+    const lesson = moveLessonTarget;
+    if (!lesson || !moveLessonClassId || moveLessonSaving) return;
+    const selected = (moveLessonOptions?.targets || []).find(
+      (target) => String(target._id) === String(moveLessonClassId),
+    );
+    setMoveLessonSaving(true);
+    setMoveLessonError("");
+    try {
+      const response = await api.post(
+        `/live/lessons/${lesson._id}/move-year`,
+        { classId: moveLessonClassId },
+      );
+      const moved = response.data?.data?.lesson || {};
+      setLessons((current) =>
+        current.map((item) =>
+          String(item._id) === String(lesson._id)
+            ? {
+                ...item,
+                classId: moved.classId || item.classId,
+                subjectId: moved.subjectId ?? item.subjectId,
+                academicYear: moved.academicYear || item.academicYear,
+              }
+            : item,
+        ),
+      );
+      // The launch picker and the session list were both filtered by the old class.
+      setLessonClasses((current) => {
+        const next = { ...current };
+        delete next[lesson._id];
+        return next;
+      });
+      setNotice(
+        response.data?.message
+          || `“${lesson.title}” moved to ${selected?.name || "the selected class"}.`,
+      );
+      closeMoveDialog();
+      void loadSessions();
+    } catch (requestError) {
+      setMoveLessonError(
+        requestError.response?.data?.message
+          || "Could not move this lesson to another year.",
+      );
+    } finally {
+      setMoveLessonSaving(false);
+    }
+  };
+
+  const selectedMoveTarget = (moveLessonOptions?.targets || []).find(
+    (target) => String(target._id) === String(moveLessonClassId),
+  ) || null;
+
   const createFolder = (parentId = null) => {
     setFolderDialog({ mode: "create", parentId, name: "" });
   };
@@ -2080,6 +2166,9 @@ const LiveLessonsPage = () => {
                               </option>
                             ))}
                           </select>
+                          {lesson.academicYear && (
+                            <small>{lesson.academicYear}</small>
+                          )}
                         </td>
                         <td className="live-list-row-actions">
                           <button
@@ -2149,6 +2238,15 @@ const LiveLessonsPage = () => {
                               >
                                 <HiOutlineCheck />{" "}
                                 {lesson.isDone ? "Mark not done" : "Mark done"}
+                              </button>
+                              <button
+                                className="live-secondary-button"
+                                onClick={(event) => {
+                                  closeLessonActions(event);
+                                  void openMoveDialog(lesson);
+                                }}
+                              >
+                                <HiOutlineCalendarDays /> Move to another year
                               </button>
                               <button
                                 className="live-delete-session"
@@ -3025,6 +3123,126 @@ const LiveLessonsPage = () => {
                 {shareSaving
                   ? "Sending…"
                   : `Send ${shareLessons.length === 1 ? "invitation" : `${shareLessons.length} invitations`}`}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {moveLessonTarget && (
+        <div
+          className="live-import-overlay"
+          role="presentation"
+          onClick={() => {
+            if (!moveLessonSaving) closeMoveDialog();
+          }}
+        >
+          <section
+            className="live-share-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="live-move-lesson-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span className="live-eyebrow">ACADEMIC YEAR</span>
+                <h2 id="live-move-lesson-title">
+                  Move “{moveLessonTarget.title}”
+                </h2>
+              </div>
+              <button
+                className="live-dialog-close"
+                onClick={closeMoveDialog}
+                aria-label="Close move lesson dialog"
+                disabled={moveLessonSaving}
+              >
+                ×
+              </button>
+            </header>
+            <p>
+              Filed under{" "}
+              {moveLessonOptions?.lesson?.academicYear || "no academic year"}.
+              Slides and past sessions stay as they are — only the class this
+              lesson launches with, and the year it is filed under, change.
+            </p>
+            {moveLessonLoading && (
+              <p className="live-preview-status" role="status">
+                Loading the classes you teach…
+              </p>
+            )}
+            {moveLessonOptions?.canMove === false && (
+              <p className="live-preview-status live-preview-error" role="alert">
+                This lesson has a {moveLessonOptions.blockingSessionStatus}{" "}
+                session. End or delete it before moving the lesson.
+              </p>
+            )}
+            {!moveLessonLoading && !moveLessonOptions?.targets?.length && (
+              <p className="live-list-empty">
+                You are not assigned to another class yet. Rollover creates next
+                year’s classes without teachers, so ask your school to assign you
+                there before moving this lesson.
+              </p>
+            )}
+            {!!moveLessonOptions?.targets?.length && (
+              <label className="live-edit-field">
+                Destination class
+                <select
+                  value={moveLessonClassId}
+                  onChange={(event) => setMoveLessonClassId(event.target.value)}
+                >
+                  <option value="">Choose a class…</option>
+                  {moveLessonOptions.academicYears.map((year) => (
+                    <optgroup key={year} label={year}>
+                      {moveLessonOptions.targets
+                        .filter((target) => target.academicYear === year)
+                        .map((target) => (
+                          <option
+                            key={target._id}
+                            value={target._id}
+                            disabled={target.isCurrentClass}
+                          >
+                            {`${target.name}${target.section ? ` · ${target.section}` : ""}${
+                              target.isCurrentClass ? " · current" : ""
+                            }`}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
+            {selectedMoveTarget?.subjectCleared && (
+              <p className="live-preview-status">
+                That class does not teach{" "}
+                {moveLessonTarget.subject || "this subject"} yet, so the subject
+                link will be cleared. The lesson keeps its subject name.
+              </p>
+            )}
+            {moveLessonError && (
+              <p className="live-preview-status live-preview-error" role="alert">
+                {moveLessonError}
+              </p>
+            )}
+            <footer>
+              <button
+                className="live-secondary-button"
+                onClick={closeMoveDialog}
+                disabled={moveLessonSaving}
+              >
+                Cancel
+              </button>
+              <button
+                className="live-primary-button"
+                onClick={moveLessonToClass}
+                disabled={
+                  !selectedMoveTarget
+                  || moveLessonSaving
+                  || moveLessonLoading
+                  || moveLessonOptions?.canMove === false
+                }
+              >
+                {moveLessonSaving ? "Moving…" : "Move lesson"}
               </button>
             </footer>
           </section>

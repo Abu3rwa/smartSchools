@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 import Class from '../models/Class.js';
+import LiveLesson from '../models/LiveLesson.js';
 import Student from '../models/Student.js';
 import School from '../models/School.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
+import { moveLiveLessonToClass } from '../helpers/liveLessonYearMove.js';
 
 /**
  * @desc    List academic years that have at least one class or student
@@ -34,12 +36,50 @@ export const getAcademicYears = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Rollover copies classes, not the lessons anchored to them, so a teacher's
+ * library stays filed under last year's class until this runs. It re-points
+ * classId and academicYear together through the same helper the per-lesson
+ * "move to year" action uses. Only called when the admin asks for it, because it
+ * moves every teacher's lessons across the school in one pass.
+ */
+const carryLiveLessonsToYear = async (schoolId, classPairs) => {
+    const summary = { scanned: 0, moved: 0, subjectCleared: 0, skippedOpenSession: 0 };
+    for (const { fromClassId, toClass } of classPairs) {
+        const lessons = await LiveLesson.find({ school: schoolId, classId: fromClassId })
+            .select('_id classId subjectId')
+            .lean();
+        for (const lesson of lessons) {
+            summary.scanned++;
+            const result = await moveLiveLessonToClass({
+                lesson,
+                targetClass: toClass,
+                save: (patch) => LiveLesson.updateOne({ _id: lesson._id, school: schoolId }, { $set: patch }),
+            });
+            if (!result.ok) {
+                summary.skippedOpenSession++;
+                continue;
+            }
+            summary.moved++;
+            if (result.subjectCleared) summary.subjectCleared++;
+        }
+    }
+    return summary;
+};
+
+/**
  * @desc    Create classes for new year by copying structure from previous year (no teachers)
  * @route   POST /api/schools/me/rollover/classes
  * @access  Private (Admin)
  */
 export const copyClassesFromYear = asyncHandler(async (req, res) => {
     const { fromAcademicYear, toAcademicYear } = req.body;
+    const includeLiveLessons = req.body?.includeLiveLessons;
+    if (includeLiveLessons !== undefined && typeof includeLiveLessons !== 'boolean') {
+        return res.status(400).json({
+            success: false,
+            message: 'includeLiveLessons must be true or false'
+        });
+    }
     if (!fromAcademicYear || !toAcademicYear) {
         return res.status(400).json({
             success: false,
@@ -70,6 +110,7 @@ export const copyClassesFromYear = asyncHandler(async (req, res) => {
     }
 
     const created = [];
+    const classPairs = [];
     for (const cls of existing) {
         const newClass = await Class.create({
             school: req.schoolId,
@@ -84,12 +125,17 @@ export const copyClassesFromYear = asyncHandler(async (req, res) => {
             // classTeacher and subjects left empty for admin to assign
         });
         created.push(newClass);
+        classPairs.push({ fromClassId: cls._id, toClass: newClass });
     }
+
+    const liveLessons = includeLiveLessons === true
+        ? await carryLiveLessonsToYear(req.schoolId, classPairs)
+        : null;
 
     res.status(201).json({
         success: true,
         message: `Created ${created.length} classes for ${toAcademicYear}`,
-        data: { classes: created, count: created.length }
+        data: { classes: created, count: created.length, liveLessons }
     });
 });
 

@@ -62,6 +62,37 @@ export const staffClassQuery = async (
   return null;
 };
 
+/**
+ * The list form of staffClassQuery: every class this user may reach in a school,
+ * used when the UI has to offer choices rather than check one. Same role rules,
+ * same refusal for anyone who is not teacher / department_principal / admin.
+ */
+export const staffClassesListQuery = async (
+  user,
+  schoolId,
+  { denyWithoutDepartment = false, departmentId, requireActiveTeacher = false } = {},
+) => {
+  const query = { school: schoolId, isActive: { $ne: false } };
+  if (user.role === "admin") return query;
+  if (user.role === "department_principal") {
+    const scope = applyDepartmentScope(query, user, { denyWithoutDepartment, departmentId });
+    return scope.denied ? null : query;
+  }
+  if (user.role === "teacher") {
+    const teacher = await Teacher.findOne({
+      user: user._id,
+      school: schoolId,
+      ...(requireActiveTeacher ? { isActive: true } : {}),
+    })
+      .select("_id")
+      .lean();
+    if (!teacher) return null;
+    query.$or = [{ classTeacher: teacher._id }, { "subjects.teacher": teacher._id }];
+    return query;
+  }
+  return null;
+};
+
 export const canAccessStaffClass = async (user, schoolId, classId, options = {}) => {
   const access = await staffClassQuery(user, schoolId, classId, options);
   if (!access) return null;

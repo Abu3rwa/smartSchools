@@ -46,6 +46,10 @@ const liveLessonSchema = new Schema(
     school: { type: Schema.Types.ObjectId, ref: "School", required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     classId: { type: Schema.Types.ObjectId, ref: "Class", default: null, index: true },
+    // Mirrors classId's academic year so a lesson can be moved year to year without
+    // losing which year it was written for. Null for lessons created before this
+    // field existed, or lessons never linked to a class.
+    academicYear: { type: String, trim: true, default: null },
     subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
     title: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, trim: true, maxlength: 1000, default: "" },
@@ -63,6 +67,7 @@ const liveLessonSchema = new Schema(
 );
 
 liveLessonSchema.index({ school: 1, ownerId: 1, updatedAt: -1 });
+liveLessonSchema.index({ school: 1, academicYear: 1 });
 liveLessonSchema.index(
   { originShareInvitationId: 1 },
   { unique: true, partialFilterExpression: { originShareInvitationId: { $type: "objectId" } } },

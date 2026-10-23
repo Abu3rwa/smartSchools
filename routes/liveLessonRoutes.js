@@ -30,6 +30,8 @@ import {
   listLiveLessonFolders,
   listLiveSessions,
   previewLiveLessonCsv,
+  listLiveLessonMoveTargets,
+  moveLiveLessonYear,
   setLiveLessonDone,
   updateLiveLesson,
   updateLiveLessonSettings,
@@ -87,6 +89,8 @@ router
   .put(authorize("teacher", "admin", "department_principal"), updateLiveLesson)
   .delete(authorize("teacher", "admin", "department_principal"), deleteLiveLesson);
 router.patch("/lessons/:id/done", authorize("teacher", "admin", "department_principal"), setLiveLessonDone);
+router.get("/lessons/:id/move-targets", authorize("teacher", "admin", "department_principal"), listLiveLessonMoveTargets);
+router.post("/lessons/:id/move-year", authorize("teacher", "admin", "department_principal"), moveLiveLessonYear);
 
 router.post("/sessions", authorize("teacher", "admin", "department_principal"), createLiveSession);
 router.get("/sessions", authorize("teacher", "admin", "department_principal"), listLiveSessions);

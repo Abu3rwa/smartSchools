@@ -44,7 +44,12 @@ import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
 import { buildPortalLink } from "../helpers/portalUrl.js";
 import { getTeacherSubjectIds } from "../helpers/teacherScoping.js";
-import { staffClassQuery } from "../helpers/liveLessonAccess.js";
+import { staffClassQuery, staffClassesListQuery } from "../helpers/liveLessonAccess.js";
+import {
+  buildClassMovePatch,
+  findBlockingLiveSession,
+  lessonAcademicYear,
+} from "../helpers/liveLessonYearMove.js";
 import { slideImageUrlError } from "../utils/slideImageUrl.js";
 import logger from "../utils/logger.js";
 
@@ -174,7 +179,7 @@ const deleteOwnedLiveLessonAndHistory = async ({ schoolId, ownerId, lessonId }) 
 };
 
 const resolveLessonAssignment = async (req, classId, subjectId) => {
-  if (!classId && !subjectId) return { classId: null, subjectId: null, subject: "" };
+  if (!classId && !subjectId) return { classId: null, subjectId: null, subject: "", academicYear: null };
   if (!validId(classId) || !validId(subjectId)) {
     return { error: "Choose both an assigned class and one of that class’s subjects." };
   }
@@ -188,7 +193,12 @@ const resolveLessonAssignment = async (req, classId, subjectId) => {
     .select("_id name")
     .lean();
   if (!subject) return { error: "The selected class subject was not found." };
-  return { classId: classDoc._id, subjectId: subject._id, subject: subject.name };
+  return {
+    classId: classDoc._id,
+    subjectId: subject._id,
+    subject: subject.name,
+    academicYear: lessonAcademicYear(classDoc),
+  };
 };
 
 const validateLessonEdit = ({ title, description, subject, grade, language, slides }) => {
@@ -316,6 +326,7 @@ export const importLiveLessonCsv = asyncHandler(async (req, res) => {
     ownerId: req.user._id,
     ...result.lesson,
     classId: assignment.classId,
+    academicYear: assignment.academicYear,
     subjectId: assignment.subjectId,
     subject: assignment.subject || result.lesson.subject,
     slides: normalizeSlides(result.lesson.slides),
@@ -364,6 +375,7 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
     school: req.schoolId,
     ownerId: req.user._id,
     classId: assignment.classId,
+    academicYear: assignment.academicYear,
     subjectId: assignment.subjectId,
     source: "csv",
     title: String(title).trim(),
@@ -422,6 +434,7 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
         subject: 1,
         subjectId: 1,
         classId: 1,
+        academicYear: 1,
         grade: 1,
         language: 1,
         isDone: 1,
@@ -438,7 +451,7 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
   const subjectIds = [...new Set(rows.map((row) => String(row.subjectId || "")).filter(Boolean))];
   const [classes, subjects, total] = await Promise.all([
     classIds.length
-      ? Class.find({ _id: { $in: classIds }, school: req.schoolId }).select("name").lean()
+      ? Class.find({ _id: { $in: classIds }, school: req.schoolId }).select("name academicYear").lean()
       : [],
     subjectIds.length
       ? Subject.find({ _id: { $in: subjectIds }, school: req.schoolId }).select("name").lean()
@@ -446,6 +459,7 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
     LiveLesson.countDocuments({ school: req.schoolId, ownerId: req.user._id }),
   ]);
   const classNames = new Map(classes.map((doc) => [String(doc._id), doc.name]));
+  const classYears = new Map(classes.map((doc) => [String(doc._id), doc.academicYear || null]));
   const subjectNames = new Map(subjects.map((doc) => [String(doc._id), doc.name]));
   const reference = (id, names) =>
     id && names.has(String(id)) ? { _id: String(id), name: names.get(String(id)) || "" } : null;
@@ -454,6 +468,9 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
     _id: String(row._id),
     classId: reference(row.classId, classNames),
     subjectId: reference(row.subjectId, subjectNames),
+    // Lessons written before academicYear existed inherit it from their class, so
+    // the library can group by year without a migration touching every school.
+    academicYear: row.academicYear || classYears.get(String(row.classId || "")) || null,
   }));
 
   return res.json({
@@ -697,6 +714,7 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   });
   lesson.title = String(next.title).trim();
   lesson.classId = assignment.classId;
+  lesson.academicYear = assignment.academicYear;
   lesson.subjectId = assignment.subjectId;
   lesson.description = String(next.description || "").trim();
   lesson.subject = String(next.subject || "").trim();
@@ -705,6 +723,102 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   if (slides !== undefined) lesson.slides = normalizeSlides(next.slides);
   await lesson.save();
   return res.json({ success: true, data: { lesson } });
+});
+
+// Offer the classes this user may move the lesson into, across every academic
+// year. The portal's class list is filtered to the active year, which is exactly
+// the year the teacher is leaving, so the move picker cannot use it.
+export const listLiveLessonMoveTargets = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
+  const lesson = await LiveLesson.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  });
+  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
+  const query = await staffClassesListQuery(req.user, req.schoolId, {
+    departmentId: req.departmentId || req.user.department?._id || req.user.department,
+  });
+  if (!query) return res.status(403).json({ success: false, message: "You are not assigned to any class." });
+  const classes = await Class.find(query)
+    .select("name grade section academicYear subjects")
+    .sort({ academicYear: -1, grade: 1, section: 1 })
+    .lean();
+  const currentClassId = String(lesson.classId || "");
+  const currentClass = classes.find((classDoc) => String(classDoc._id) === currentClassId) || null;
+  const targets = classes.map((classDoc) => ({
+    _id: String(classDoc._id),
+    name: classDoc.name,
+    grade: classDoc.grade ?? null,
+    section: classDoc.section || "",
+    academicYear: classDoc.academicYear || null,
+    isCurrentClass: String(classDoc._id) === currentClassId,
+    subjectCleared: String(classDoc._id) === currentClassId
+      ? false
+      : buildClassMovePatch(lesson, classDoc).subjectCleared,
+  }));
+  const blocking = await findBlockingLiveSession(lesson._id);
+  return res.json({
+    success: true,
+    data: {
+      lesson: {
+        _id: String(lesson._id),
+        title: lesson.title,
+        // Lessons filed before academicYear existed read their year off the class.
+        academicYear: lesson.academicYear || currentClass?.academicYear || null,
+        classId: currentClassId || null,
+      },
+      academicYears: [...new Set(targets.map((target) => target.academicYear).filter(Boolean))].sort().reverse(),
+      targets,
+      canMove: !blocking,
+      blockingSessionStatus: blocking?.status || null,
+    },
+  });
+});
+
+// Move a lesson to another class, which is how a teacher carries it into the
+// next academic year after rollover copies the classes. The lesson keeps its
+// slides and history; only the class anchor and the year it is filed under move.
+export const moveLiveLessonYear = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
+  const targetClassId = req.body?.classId;
+  if (!validId(targetClassId)) {
+    return res.status(400).json({ success: false, message: "Choose the class to move this lesson into." });
+  }
+  const lesson = await LiveLesson.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+    ownerId: req.user._id,
+  });
+  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
+  if (String(lesson.classId || "") === String(targetClassId)) {
+    return res.status(400).json({ success: false, message: "This lesson is already assigned to that class." });
+  }
+  // A teacher can only move a lesson into a class they teach, which is the same
+  // rule as assigning it in the editor. Freshly copied next-year classes have no
+  // teachers yet, so the school assigns the teacher before the lesson can follow.
+  const targetClass = await findTeacherClass(req, targetClassId);
+  if (!targetClass) {
+    return res.status(403).json({ success: false, message: "You are not assigned to that class." });
+  }
+  const blocking = await findBlockingLiveSession(lesson._id);
+  if (blocking) {
+    return res.status(409).json({
+      success: false,
+      message: "End or delete this lesson’s scheduled or live session before moving it to another year.",
+    });
+  }
+  const { patch, subjectCleared } = buildClassMovePatch(lesson, targetClass);
+  lesson.set(patch);
+  await lesson.save();
+  await lesson.populate("classId", "name academicYear");
+  return res.json({
+    success: true,
+    message: subjectCleared
+      ? `Lesson moved to ${targetClass.name}. Its subject link was cleared because that class does not teach the subject yet.`
+      : `Lesson moved to ${targetClass.name}.`,
+    data: { lesson, subjectCleared },
+  });
 });
 
 export const setLiveLessonDone = asyncHandler(async (req, res) => {
