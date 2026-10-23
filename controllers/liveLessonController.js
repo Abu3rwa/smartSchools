@@ -44,6 +44,8 @@ import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
 import { buildPortalLink } from "../helpers/portalUrl.js";
 import { getTeacherSubjectIds } from "../helpers/teacherScoping.js";
+import { staffClassQuery } from "../helpers/liveLessonAccess.js";
+import { slideImageUrlError } from "../utils/slideImageUrl.js";
 import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
@@ -72,19 +74,18 @@ const findOwnedSession = async (req, res) => {
 };
 
 const findTeacherClass = async (req, classId) => {
-  const query = { _id: classId, school: req.schoolId, isActive: { $ne: false } };
-  if (req.user.role === "department_principal") {
-    const departmentId = req.departmentId || req.user.department?._id || req.user.department;
-    if (departmentId) query.department = departmentId;
+  const access = await staffClassQuery(req.user, req.schoolId, classId, {
+    departmentId: req.departmentId || req.user.department?._id || req.user.department,
+  });
+  if (!access) return null;
+  if (access.scope?.wholeSchool) {
+    logger.warn("live_lesson_whole_school_principal_access", {
+      userId: String(req.user._id),
+      classId: String(classId),
+      schoolId: String(req.schoolId),
+    });
   }
-  if (req.user.role === "teacher") {
-    const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
-      .select("_id")
-      .lean();
-    if (!teacher) return null;
-    query.$or = [{ classTeacher: teacher._id }, { "subjects.teacher": teacher._id }];
-  }
-  return Class.findOne(query);
+  return Class.findOne(access.query);
 };
 
 const normalizeSlides = (slides) =>
@@ -221,12 +222,8 @@ const validateLessonEdit = ({ title, description, subject, grade, language, slid
         errors.push({ row, field, message: `Must be ${max} characters or fewer.` });
       }
     }
-    if (slide.imageUrl && !/^https?:\/\/\S+$/i.test(String(slide.imageUrl))) {
-      errors.push({ row, field: "image URL", message: "Image URL must start with http:// or https://." });
-    }
-    if (String(slide.imageUrl || "").length > 2048) {
-      errors.push({ row, field: "image URL", message: "Image URL must be 2,048 characters or fewer." });
-    }
+    const imageUrlError = slideImageUrlError(slide.imageUrl);
+    if (imageUrlError) errors.push({ row, field: "image URL", message: imageUrlError });
     if (Array.isArray(slide.examples) && slide.examples.some((example) => String(example).length > 5000)) {
       errors.push({ row, field: "examples", message: "Each example must be 5,000 characters or fewer." });
     }
@@ -403,13 +400,71 @@ export const exportLiveLessonCsv = asyncHandler(async (req, res) => {
 });
 
 export const listLiveLessons = asyncHandler(async (req, res) => {
-  const lessons = await LiveLesson.find({ school: req.schoolId, ownerId: req.user._id })
-    .sort({ updatedAt: -1 })
-    .select("title description subject subjectId classId grade language isDone slides.order slides.type createdAt updatedAt")
-    .populate("classId", "name")
-    .populate("subjectId", "name")
-    .lean();
-  return res.json({ success: true, data: { lessons } });
+  // The library grid pages and filters on the client, so no limit means "the whole
+  // library" exactly as before; callers that want a bounded page can ask for one.
+  const requestedLimit = Number.parseInt(req.query.limit, 10);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(500, Math.max(1, requestedLimit))
+    : null;
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const pipeline = [
+    {
+      $match: {
+        school: new mongoose.Types.ObjectId(String(req.schoolId)),
+        ownerId: new mongoose.Types.ObjectId(String(req.user._id)),
+      },
+    },
+    { $sort: { updatedAt: -1 } },
+    {
+      $project: {
+        title: 1,
+        description: 1,
+        subject: 1,
+        subjectId: 1,
+        classId: 1,
+        grade: 1,
+        language: 1,
+        isDone: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        slideCount: { $size: { $ifNull: ["$slides", []] } },
+      },
+    },
+  ];
+  if (limit) pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+  const rows = await LiveLesson.aggregate(pipeline);
+
+  const classIds = [...new Set(rows.map((row) => String(row.classId || "")).filter(Boolean))];
+  const subjectIds = [...new Set(rows.map((row) => String(row.subjectId || "")).filter(Boolean))];
+  const [classes, subjects, total] = await Promise.all([
+    classIds.length
+      ? Class.find({ _id: { $in: classIds }, school: req.schoolId }).select("name").lean()
+      : [],
+    subjectIds.length
+      ? Subject.find({ _id: { $in: subjectIds }, school: req.schoolId }).select("name").lean()
+      : [],
+    LiveLesson.countDocuments({ school: req.schoolId, ownerId: req.user._id }),
+  ]);
+  const classNames = new Map(classes.map((doc) => [String(doc._id), doc.name]));
+  const subjectNames = new Map(subjects.map((doc) => [String(doc._id), doc.name]));
+  const reference = (id, names) =>
+    id && names.has(String(id)) ? { _id: String(id), name: names.get(String(id)) || "" } : null;
+  const lessons = rows.map((row) => ({
+    ...row,
+    _id: String(row._id),
+    classId: reference(row.classId, classNames),
+    subjectId: reference(row.subjectId, subjectNames),
+  }));
+
+  return res.json({
+    success: true,
+    data: {
+      lessons,
+      pagination: limit
+        ? { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
+        : { page: 1, limit: total, total, pages: 1 },
+    },
+  });
 });
 
 export const listLiveLessonFolders = asyncHandler(async (req, res) => {

@@ -4,26 +4,37 @@ import { clearInterval, clearTimeout, setInterval, setTimeout } from "node:timer
 import { URL } from "node:url";
 import { WebSocketServer } from "ws";
 import Class from "../models/Class.js";
-import Teacher from "../models/Teacher.js";
 import User from "../models/User.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
 import logger from "../utils/logger.js";
+import { isAllowedRequestOrigin } from "../utils/requestOrigins.js";
+import { staffClassQuery } from "../helpers/liveLessonAccess.js";
 import { resumeLiveSessionPause } from "../services/liveSessionTime.js";
 import {
   appendLiveEvent,
+  applyStaffExtras,
+  applyStudentAnswer,
+  buildSharedState,
   formatRoster,
   listClassStudents,
+  listEnrolledUserIds,
   getSessionStudents,
-  getStateForUser,
   isStudentEnrolled,
 } from "../services/liveLessonService.js";
 
 const AUTH_TIMEOUT_MS = 10000;
 const HEARTBEAT_TIMEOUT_MS = 15000;
 const RATE_WINDOW_MS = 60 * 1000;
-const MAX_ACTIONS_PER_WINDOW = 120;
+// Presence frames repeat on a timer for every student, so they may reuse a recently
+// read session document. Anything that changes lesson state still reads it fresh.
+const SESSION_CACHE_TTL_MS = 15000;
+const RATE_LIMITS = {
+  action: 120,
+  join: 20,
+  cursor: 1000,
+};
 const OPEN = 1;
 const connections = new Set();
 const sessionSockets = new Map();
@@ -35,6 +46,20 @@ const socketKey = (sessionId, studentId) => `${sessionId}:${studentId}`;
 const sessionKey = (sessionId) => String(sessionId);
 const send = (socket, payload) => {
   if (socket.readyState === OPEN) socket.send(JSON.stringify(payload));
+};
+
+const takeRateToken = (socket, bucket) => {
+  const limit = RATE_LIMITS[bucket];
+  if (!Number.isFinite(limit)) return true;
+  const buckets = socket.__rateBuckets || (socket.__rateBuckets = {});
+  const now = Date.now();
+  const window = buckets[bucket];
+  if (!window || now - window.startedAt >= RATE_WINDOW_MS) {
+    buckets[bucket] = { startedAt: now, count: 1 };
+    return true;
+  }
+  window.count += 1;
+  return window.count <= limit;
 };
 
 const broadcast = (sessionId, payload, teacherOnly = false) => {
@@ -138,24 +163,36 @@ const connectPresence = (socket) => {
   studentPresence.set(key, sockets);
 };
 
-const detachSocket = (socket) => {
-  connections.delete(socket);
-  const current = sessionSockets.get(sessionKey(socket.__liveSessionId));
+const removeFromSession = (socket, { markLeft = false } = {}) => {
+  const key = sessionKey(socket.__liveSessionId);
+  const current = sessionSockets.get(key);
   if (current) {
     current.delete(socket);
     if (current.size === 0) {
-      sessionSockets.delete(sessionKey(socket.__liveSessionId));
-      cursorSpotlights.delete(sessionKey(socket.__liveSessionId));
+      sessionSockets.delete(key);
+      cursorSpotlights.delete(key);
+      studentStatuses.delete(key);
     }
   }
   if (socket.__liveRole === "student") {
-    const key = socketKey(socket.__liveSessionId, socket.__liveUserId);
-    const sockets = studentPresence.get(key);
+    const presenceKey = socketKey(socket.__liveSessionId, socket.__liveUserId);
+    const sockets = studentPresence.get(presenceKey);
     if (sockets) {
       sockets.delete(socket);
-      if (!sockets.size) studentPresence.delete(key);
+      if (!sockets.size) studentPresence.delete(presenceKey);
+    }
+    if (markLeft && sessionSockets.has(key)) {
+      const statuses = studentStatuses.get(key) || new Map();
+      statuses.set(String(socket.__liveUserId), "disconnected");
+      studentStatuses.set(key, statuses);
     }
   }
+};
+
+const detachSocket = (socket) => {
+  connections.delete(socket);
+  removeFromSession(socket);
+  socket.__liveSessionCache = null;
 };
 
 const getPresenceMap = (sessionId) => {
@@ -174,20 +211,6 @@ const getPresenceMap = (sessionId) => {
   return result;
 };
 
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  const configured = [
-    process.env.CLIENT_URL,
-    ...(process.env.ALLOWED_ORIGINS || "").split(","),
-    "http://localhost:5173",
-    "https://schoolos-is02.onrender.com",
-  ].map((value) => String(value || "").trim()).filter(Boolean);
-  const projectPrefix = process.env.FIREBASE_PROJECT_ID || "smile3-8c8c5";
-  return configured.includes(origin) ||
-    origin === `https://${projectPrefix}.web.app` ||
-    origin === `https://${projectPrefix}.firebaseapp.com`;
-};
-
 const emitRoster = async (session) => {
   const students = await getSessionStudents(session);
   broadcast(session._id, {
@@ -197,21 +220,47 @@ const emitRoster = async (session) => {
 };
 
 const broadcastState = async (session) => {
-  const sockets = sessionSockets.get(sessionKey(session._id));
-  if (!sockets) return;
-  for (const socket of sockets) {
-    if (socket.__liveRole === "student" && !(await isStudentEnrolled(session.classId, socket.__liveUserId))) {
+  const sockets = [...(sessionSockets.get(sessionKey(session._id)) || [])];
+  if (!sockets.length) return;
+  const shared = buildSharedState(session);
+  const studentSockets = sockets.filter((socket) => socket.__liveRole === "student");
+  const staffSockets = sockets.filter((socket) => socket.__liveRole !== "student");
+
+  // One enrollment read and one answer read for the whole room, instead of a
+  // round trip per socket on every slide change.
+  const enrolledIds = studentSockets.length ? await listEnrolledUserIds(session.classId) : null;
+  const answers = studentSockets.length && shared.slide
+    ? await LiveResponse.find({
+        sessionId: session._id,
+        slideId: String(shared.slide._id),
+        studentId: { $in: [...new Set(studentSockets.map((socket) => socket.__liveUserId))] },
+      })
+        .select("studentId selectedOptionId isCorrect")
+        .lean()
+    : [];
+  const answerByStudent = new Map(answers.map((answer) => [String(answer.studentId), answer]));
+
+  for (const socket of studentSockets) {
+    socket.__liveSessionCache = { id: String(session._id), at: Date.now(), session };
+    if (!enrolledIds.has(String(socket.__liveUserId))) {
       fail(socket, null, "FORBIDDEN", "You are no longer enrolled in this class.");
       socket.close(1008, "Class enrollment changed");
       continue;
     }
-    const state = await getStateForUser(session, socket.__liveUser);
-    if (socket.__liveRole === "student") {
-      send(socket, { type: "session:state", data: state });
-    } else {
-      state.roster = formatRoster(await getSessionStudents(session), getPresenceMap(session._id));
-      send(socket, { type: "teacher:state", data: state });
-    }
+    send(socket, {
+      type: "session:state",
+      data: applyStudentAnswer(shared, answerByStudent.get(String(socket.__liveUserId)) || null),
+    });
+  }
+
+  if (!staffSockets.length) return;
+  const staffState = applyStaffExtras(
+    shared,
+    formatRoster(await getSessionStudents(session), getPresenceMap(session._id)),
+  );
+  for (const socket of staffSockets) {
+    socket.__liveSessionCache = { id: String(session._id), at: Date.now(), session };
+    send(socket, { type: "teacher:state", data: staffState });
   }
 };
 
@@ -242,17 +291,30 @@ const persistPresence = async (session, socket, action, reason) => {
 
 const handleAction = async (socket, message) => {
   const { action, data = {}, requestId } = message;
-  const session = await LiveSession.findOne({
-    _id: socket.__liveSessionId,
-    school: socket.__liveSchoolId,
-  });
+  const cacheable = action === "presence:ping" || action === "session:state";
+  const cached = socket.__liveSessionCache;
+  let session = cacheable
+    && cached?.id === String(socket.__liveSessionId)
+    && Date.now() - cached.at < SESSION_CACHE_TTL_MS
+    ? cached.session
+    : null;
+  if (!session) {
+    session = await LiveSession.findOne({
+      _id: socket.__liveSessionId,
+      school: socket.__liveSchoolId,
+    });
+    if (session) socket.__liveSessionCache = { id: String(session._id), at: Date.now(), session };
+  }
   if (!session) return fail(socket, requestId, "NOT_FOUND", "Live session not found.");
   if (session.status === "ended" && action !== "session:state") {
     return fail(socket, requestId, "SESSION_ENDED", "This session has ended.");
   }
   const isTeacher = socket.__liveRole !== "student";
   const userId = String(socket.__liveUserId);
-  if (!isTeacher && !(await isStudentEnrolled(session.classId, userId))) {
+  // Enrollment is proved at join and re-checked for every socket on every state
+  // broadcast, so a heartbeat-only frame does not need its own read; the moment a
+  // student stops being enrolled the next broadcast closes their socket.
+  if (!isTeacher && action !== "presence:ping" && !(await isStudentEnrolled(session.classId, userId))) {
     return fail(socket, requestId, "FORBIDDEN", "You are no longer enrolled in this class.");
   }
 
@@ -529,37 +591,20 @@ const authenticate = async (token) => {
 };
 
 const canObserveSession = async (user, session) => {
-  if (user.role === "admin") {
-    return Boolean(await Class.exists({
-      _id: session.classId,
-      school: session.school,
-      isActive: { $ne: false },
-    }));
+  const access = await staffClassQuery(user, session.school, session.classId, {
+    requireActiveTeacher: true,
+  });
+  if (!access) return false;
+  if (access.scope?.wholeSchool) {
+    // Documented school-wide principal mode. Logged because a principal who was
+    // never given a department should not silently gain this reach.
+    logger.warn("live_lessons_whole_school_principal_access", {
+      userId: String(user._id),
+      sessionId: String(session._id),
+      schoolId: String(session.school),
+    });
   }
-  if (user.role === "department_principal" || user.role === "teacher") {
-    const classFilter = {
-      _id: session.classId,
-      school: session.school,
-      isActive: { $ne: false },
-    };
-    if (user.role === "department_principal") {
-      const departmentId = user.department?._id || user.department;
-      if (departmentId) classFilter.department = departmentId;
-      return Boolean(await Class.exists(classFilter));
-    }
-    const teacher = await Teacher.findOne({
-      user: user._id,
-      school: session.school,
-      isActive: true,
-    }).select("_id").lean();
-    if (!teacher) return false;
-    classFilter.$or = [
-      { classTeacher: teacher._id },
-      { "subjects.teacher": teacher._id },
-    ];
-    return Boolean(await Class.exists(classFilter));
-  }
-  return false;
+  return Boolean(await Class.exists(access.query));
 };
 
 export const initLiveLessonsGateway = (httpServer) => {
@@ -567,7 +612,8 @@ export const initLiveLessonsGateway = (httpServer) => {
   httpServer.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url, "http://localhost").pathname;
     if (pathname !== "/ws/live-lessons") return;
-    if (!isAllowedOrigin(request.headers.origin)) {
+    if (!isAllowedRequestOrigin(request.headers.origin)) {
+      logger.warn("live_lessons_origin_blocked", { origin: request.headers.origin });
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();
       return;
@@ -615,6 +661,9 @@ export const initLiveLessonsGateway = (httpServer) => {
         }
 
         if (message.type === "join") {
+          if (!takeRateToken(socket, "join")) {
+            return fail(socket, message.requestId, "RATE_LIMITED", "Too many join attempts. Wait a moment and try again.");
+          }
           const session = await LiveSession.findOne({
             _id: message.sessionId,
             school: socket.__liveSchoolId,
@@ -631,7 +680,11 @@ export const initLiveLessonsGateway = (httpServer) => {
           ) {
             return fail(socket, message.requestId, "FORBIDDEN", "You are not authorized to view this class session.");
           }
+          if (socket.__liveSessionId && socket.__liveSessionId !== String(session._id)) {
+            removeFromSession(socket, { markLeft: true });
+          }
           socket.__liveSessionId = String(session._id);
+          socket.__liveSessionCache = { id: String(session._id), at: Date.now(), session };
           socket.__liveIsOwner = String(session.teacherId) === socket.__liveUserId;
           socket.__liveSessionEnded = false;
           const sockets = sessionSockets.get(sessionKey(session._id)) || new Set();
@@ -666,18 +719,13 @@ export const initLiveLessonsGateway = (httpServer) => {
           return;
         }
         if (message.type === "cursor") {
+          if (!takeRateToken(socket, "cursor")) return;
           handleCursorMessage(socket, message);
           return;
         }
         if (message.type === "action") {
           if (!socket.__liveSessionId) return fail(socket, message.requestId, "BAD_STATE", "Join a lesson first.");
-          const now = Date.now();
-          if (!socket.__actionWindowStartedAt || now - socket.__actionWindowStartedAt >= RATE_WINDOW_MS) {
-            socket.__actionWindowStartedAt = now;
-            socket.__actionCount = 0;
-          }
-          socket.__actionCount += 1;
-          if (socket.__actionCount > MAX_ACTIONS_PER_WINDOW) {
+          if (!takeRateToken(socket, "action")) {
             return fail(socket, message.requestId, "RATE_LIMITED", "Too many live lesson actions. Wait a moment and try again.");
           }
           await handleAction(socket, message);
@@ -706,10 +754,17 @@ export const initLiveLessonsGateway = (httpServer) => {
         if (!remainingOwner) resetCursorSpotlight(sessionId);
       }
       if (sessionId && wasStudent && !studentPresence.has(socketKey(sessionId, userId))) {
-        const statuses = studentStatuses.get(sessionKey(sessionId)) || new Map();
-        const previousStatus = statuses.get(String(userId));
-        statuses.set(String(userId), "disconnected");
-        studentStatuses.set(sessionKey(sessionId), statuses);
+        const key = sessionKey(sessionId);
+        // Only rooms with someone still watching keep a presence map; an empty room
+        // is pruned by detachSocket, and its audit trail lives in LiveSessionEvent.
+        const previousStatus = sessionSockets.has(key)
+          ? (studentStatuses.get(key) || new Map()).get(String(userId))
+          : undefined;
+        if (sessionSockets.has(key)) {
+          const statuses = studentStatuses.get(key) || new Map();
+          statuses.set(String(userId), "disconnected");
+          studentStatuses.set(key, statuses);
+        }
         if (previousStatus !== "disconnected") {
           void (async () => {
             const session = await LiveSession.findOne({ _id: sessionId, school: socket.__liveSchoolId });
@@ -737,6 +792,9 @@ export const initLiveLessonsGateway = (httpServer) => {
   });
 
   const sweepTimer = setInterval(() => {
+    for (const key of studentStatuses.keys()) {
+      if (!sessionSockets.has(key)) studentStatuses.delete(key);
+    }
     for (const socket of connections) {
       if (socket.readyState !== OPEN || !socket.__liveSessionId || socket.__liveRole !== "student") continue;
       if (Date.now() - socket.__lastPingAt > HEARTBEAT_TIMEOUT_MS && !socket.__heartbeatLost) {

@@ -2053,7 +2053,7 @@ const LiveLessonsPage = () => {
                             <small>Not linked to a class</small>
                           )}
                         </td>
-                        <td>{lesson.slides?.length || 0}</td>
+                        <td>{lesson.slideCount ?? lesson.slides?.length ?? 0}</td>
                         <td>
                           {lesson.updatedAt
                             ? new Date(lesson.updatedAt).toLocaleDateString()

@@ -9,6 +9,12 @@ const socketUrl = () => {
   return base.toString();
 };
 
+// Every client used to retry on the same fixed timer, so a server restart turned
+// into a thundering herd and a permanently dead token retried forever.
+const RECONNECT_BASE_MS = 500;
+const RECONNECT_MAX_MS = 15000;
+const MAX_RECONNECT_ATTEMPTS = 12;
+
 export default function useLiveLessonSocket(sessionId, role) {
   const socketRef = useRef(null);
   const pendingRef = useRef(new Map());
@@ -31,7 +37,26 @@ export default function useLiveLessonSocket(sessionId, role) {
     let reconnectTimer;
     let heartbeatTimer;
     let socket;
+    let reconnectAttempt = 0;
     const pendingRequests = pendingRef.current;
+
+    const scheduleReconnect = (fixedDelayMs) => {
+      if (disposed) return;
+      window.clearTimeout(reconnectTimer);
+      reconnectAttempt += 1;
+      if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+        setConnection("closed");
+        setError(
+          "The lesson connection kept dropping. Reload the page to join the lesson again.",
+        );
+        return;
+      }
+      const backoff = fixedDelayMs
+        ?? Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** (reconnectAttempt - 1));
+      const jitter = Math.round(Math.random() * Math.min(500, backoff));
+      setConnection("reconnecting");
+      reconnectTimer = window.setTimeout(connect, backoff + jitter);
+    };
 
     const connect = () => {
       if (disposed) return;
@@ -60,6 +85,7 @@ export default function useLiveLessonSocket(sessionId, role) {
           return;
         }
         if (message.type === "authenticated") {
+          reconnectAttempt = 0;
           setConnection("connected");
           currentSocket.send(JSON.stringify({ type: "join", sessionId }));
           currentSocket.__reportedAway = false;
@@ -145,19 +171,15 @@ export default function useLiveLessonSocket(sessionId, role) {
                 throw new Error("Your login session could not be refreshed. Sign in again.");
               }
               if (disposed) return;
-              reconnectTimer = window.setTimeout(
-                connect,
-                event.reason === "Authentication timeout" ? 2500 : 250,
-              );
+              scheduleReconnect(event.reason === "Authentication timeout" ? 2500 : 250);
             } catch (refreshError) {
               if (disposed) return;
               if (
                 event.reason === "Authentication timeout" &&
                 (!refreshError.response || refreshError.response.status >= 500)
               ) {
-                setConnection("reconnecting");
                 setError("The server is temporarily unavailable. Retrying the lesson connection…");
-                reconnectTimer = window.setTimeout(connect, 2500);
+                scheduleReconnect(2500);
                 return;
               }
               disposed = true;
@@ -171,10 +193,8 @@ export default function useLiveLessonSocket(sessionId, role) {
           disposed = true;
           setConnection("closed");
           if (event.code === 1008) setError("Your access to this live lesson is no longer valid.");
-        } else {
-          setConnection(disposed ? "closed" : "reconnecting");
         }
-        if (!disposed) reconnectTimer = window.setTimeout(connect, 2500);
+        scheduleReconnect();
       });
       currentSocket.addEventListener("error", () => {
         setError("The live lesson connection was interrupted. Reconnecting…");

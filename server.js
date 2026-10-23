@@ -124,42 +124,20 @@ import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJo
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 import { initLiveLessonsGateway } from "./realtime/liveLessonsGateway.js";
 import { validateTenantIsolation } from "./utils/validateTenantIsolation.js";
+import { allowedOrigins, isAllowedRequestOrigin } from "./utils/requestOrigins.js";
 // Validate environment variables
 validateEnvironment();
 // Connect to database
 await connectDB();
 const app = express();
 app.set("trust proxy", 1); // Render single-proxy; update if adding Cloudflare
-// CORS configuration — BE-007: origins from env var
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  ...(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
-  // Fallback defaults kept for backward compatibility
-  "http://localhost:5173",
-  "https://schoolos-is02.onrender.com",
-]
-  .map((origin) => (typeof origin === "string" ? origin.trim() : origin))
-  .filter(Boolean);
-
-const isAllowedFirebaseOrigin = (origin) => {
-  if (!origin) return false;
-  // Restrict to known Firebase project prefix instead of wildcard
-  const projectPrefix = process.env.FIREBASE_PROJECT_ID || 'smile3-8c8c5';
-  return (
-    origin === `https://${projectPrefix}.web.app` ||
-    origin === `https://${projectPrefix}.firebaseapp.com`
-  );
-};
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  return allowedOrigins.includes(origin) || isAllowedFirebaseOrigin(origin);
-};
+// CORS configuration — BE-007: origins from env var. The live-lessons websocket
+// upgrade guard imports the same list so the two can never drift apart.
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) {
+      if (isAllowedRequestOrigin(origin)) {
         callback(null, true);
       } else {
         logger.warn("cors_origin_blocked", {

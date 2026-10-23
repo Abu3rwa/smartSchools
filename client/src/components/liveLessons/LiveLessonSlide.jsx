@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { renderableImageUrl } from "../../utils/liveLessonMedia.js";
 import "./LiveLessonSlide.css";
 
 const splitItems = (text) =>
@@ -108,6 +109,7 @@ export default function LiveLessonSlide({
 
   const items =
     slide.type === "examples" ? slide.examples || [] : splitItems(slide.body);
+  const imageSrc = renderableImageUrl(slide.imageUrl);
   return (
     <article className={`live-slide live-slide-${slide.type}`}>
       <header className="live-slide-header">
@@ -155,9 +157,21 @@ export default function LiveLessonSlide({
           </div>
         )}
         {slide.imageUrl && (
-          <figure className="live-slide-image-wrap">
-            <img src={slide.imageUrl} alt={slide.title || "Lesson visual"} />
-          </figure>
+          imageSrc ? (
+            <figure className="live-slide-image-wrap">
+              <img
+                src={imageSrc}
+                alt={slide.title || "Lesson visual"}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+            </figure>
+          ) : (
+            <p className="live-slide-image-blocked">
+              This lesson image points at an address the school does not allow and
+              was not loaded.
+            </p>
+          )
         )}
       </div>
       {slide.type === "activity" && (

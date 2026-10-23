@@ -11,6 +11,15 @@ export const studentEnrollmentFilter = (classId, userId) => ({
 export const isStudentEnrolled = async (classId, userId) =>
   Boolean(await Student.exists(studentEnrollmentFilter(classId, userId)));
 
+export const listEnrolledUserIds = async (classId) => {
+  const students = await Student.find({
+    $or: [{ currentClass: classId }, { enrolledClasses: classId }],
+  })
+    .select("user")
+    .lean();
+  return new Set(students.map((student) => String(student.user)));
+};
+
 export const listClassStudents = async (classId) =>
   Student.find({
     $or: [{ currentClass: classId }, { enrolledClasses: classId }],
@@ -116,57 +125,80 @@ export const sanitizeStudentReplayEvents = (events) => events
     },
   }));
 
-export const getStateForUser = async (session, user) => {
+const STAFF_ROLES = ["teacher", "admin", "department_principal"];
+
+/**
+ * Everything about a session that is identical for every viewer, split out so a
+ * broadcast can build it once and overlay the two per-student fields.
+ */
+export const buildSharedState = (session) => {
   const slides = session.lessonSnapshot?.slides || [];
   const slide = slides[session.currentSlideIndex] || null;
-  const revealed = Boolean(slide && session.revealedSlideIds.includes(String(slide._id)));
-  const student = user.role === "student";
-  const existingAnswer =
-    student && slide
+  const questionRevealed = Boolean(
+    slide && session.revealedSlideIds.includes(String(slide._id)),
+  );
+  return {
+    slide,
+    questionRevealed,
+    state: {
+      sessionId: String(session._id),
+      status: session.status,
+      startedAt: session.startedAt || null,
+      timerDurationMinutes: session.timerDurationMinutes || 0,
+      paused: Boolean(session.paused),
+      pausedAt: session.pausedAt || null,
+      totalPausedMs: Number(session.totalPausedMs) || 0,
+      currentSlideIndex: session.currentSlideIndex,
+      totalSlides: slides.length,
+      slideHidden: session.slideHidden,
+      studentsFullscreen: Boolean(session.studentsFullscreen),
+      questionOpen: session.questionOpen,
+      slide: safeSlide(slide),
+      myAnswer: null,
+      revealed: Boolean(questionRevealed && slide?.question),
+    },
+  };
+};
+
+export const applyStudentAnswer = (shared, answer) => ({
+  ...shared.state,
+  myAnswer: answer ? { selectedOptionId: answer.selectedOptionId } : null,
+  ...(shared.questionRevealed && answer ? { myIsCorrect: answer.isCorrect } : {}),
+});
+
+export const applyStaffExtras = (shared, roster) => ({
+  ...shared.state,
+  teacherAnswer: shared.slide?.question
+    ? {
+        correctOptionId: shared.slide.question.correctOptionId,
+        explanation: shared.slide.question.explanation || "",
+      }
+    : null,
+  ...(roster ? { roster } : {}),
+});
+
+export const getStateForUser = async (session, user) => {
+  const shared = buildSharedState(session);
+  if (user.role === "student") {
+    const existingAnswer = shared.slide
       ? await LiveResponse.findOne({
           sessionId: session._id,
           studentId: user._id,
-          slideId: String(slide._id),
+          slideId: String(shared.slide._id),
         })
           .select("selectedOptionId isCorrect")
           .lean()
       : null;
-  const state = {
-    sessionId: String(session._id),
-    status: session.status,
-    startedAt: session.startedAt || null,
-    timerDurationMinutes: session.timerDurationMinutes || 0,
-    paused: Boolean(session.paused),
-    pausedAt: session.pausedAt || null,
-    totalPausedMs: Number(session.totalPausedMs) || 0,
-    currentSlideIndex: session.currentSlideIndex,
-    totalSlides: slides.length,
-    slideHidden: session.slideHidden,
-    studentsFullscreen: Boolean(session.studentsFullscreen),
-    questionOpen: session.questionOpen,
-    slide: safeSlide(slide),
-    myAnswer: existingAnswer ? { selectedOptionId: existingAnswer.selectedOptionId } : null,
-    ...(student && revealed && existingAnswer ? { myIsCorrect: existingAnswer.isCorrect } : {}),
-    revealed: Boolean(revealed && slide?.question),
-  };
-  if (user.role !== "teacher" && user.role !== "admin" && user.role !== "department_principal") {
-    return state;
+    return applyStudentAnswer(shared, existingAnswer);
   }
+  if (!STAFF_ROLES.includes(user.role)) return { ...shared.state };
 
-  state.teacherAnswer = slide?.question
-    ? {
-        correctOptionId: slide.question.correctOptionId,
-        explanation: slide.question.explanation || "",
-      }
-    : null;
-
-  const roster = await getSessionStudents(session);
-  state.roster = roster.map(({ studentId, name }) => ({
+  const roster = (await getSessionStudents(session)).map(({ studentId, name }) => ({
     studentId: String(studentId),
     name,
     presence: "not_joined",
   }));
-  return state;
+  return applyStaffExtras(shared, roster);
 };
 
 export const formatRoster = (students, presenceMap = new Map()) =>
