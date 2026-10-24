@@ -1,3 +1,5 @@
+import { Fragment, useEffect } from 'react';
+
 const StandardAssignSummaryPanel = ({
     t,
     showSummaryModal,
@@ -7,20 +9,25 @@ const StandardAssignSummaryPanel = ({
     const openSummary = () => setShowSummaryModal(true);
     const closeSummary = () => setShowSummaryModal(false);
 
+    useEffect(() => {
+        if (!showSummaryModal) return undefined;
+
+        // Capture phase so Escape closes the summary instead of the whole wizard.
+        const handleKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            event.stopPropagation();
+            setShowSummaryModal(false);
+        };
+
+        document.addEventListener('keydown', handleKeyDown, true);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown, true);
+        };
+    }, [showSummaryModal, setShowSummaryModal]);
+
     return (
         <>
-            <div
-                className="assign-summary-card"
-                role="button"
-                tabIndex={0}
-                onClick={openSummary}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openSummary();
-                    }
-                }}
-            >
+            <div className="assign-summary-card" onClick={openSummary}>
                 <div className="assign-summary-card-header">
                     <h4>{t('standardAssign:form.summary.title')}</h4>
                     <button
@@ -31,15 +38,15 @@ const StandardAssignSummaryPanel = ({
                             openSummary();
                         }}
                     >
-                        {t('standardAssign:actions.openSummary', { defaultValue: 'Open Summary' })}
+                        {t('standardAssign:actions.openSummary')}
                     </button>
                 </div>
-                <div className="assign-summary-grid">
+                <div className="assign-summary-chips">
                     {summaryItems.map((item) => (
-                        <>
-                            <span key={`${item.key}-label`}>{item.label}</span>
-                            <strong key={`${item.key}-value`}>{item.value}</strong>
-                        </>
+                        <div className="assign-summary-chip" key={item.key}>
+                            <span className="assign-summary-chip__label">{item.label}</span>
+                            <strong className="assign-summary-chip__value">{item.value}</strong>
+                        </div>
                     ))}
                 </div>
             </div>
@@ -48,14 +55,18 @@ const StandardAssignSummaryPanel = ({
                 <div className="assign-summary-modal-overlay" onClick={closeSummary}>
                     <div
                         className="assign-summary-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="assign-summary-modal-title"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="assign-summary-modal-header">
-                            <h4>{t('standardAssign:form.summary.title')}</h4>
+                            <h4 id="assign-summary-modal-title">{t('standardAssign:form.summary.title')}</h4>
                             <button
                                 type="button"
                                 className="modal-close"
                                 onClick={closeSummary}
+                                aria-label={t('standardAssign:actions.close')}
                             >
                                 &times;
                             </button>
@@ -63,10 +74,10 @@ const StandardAssignSummaryPanel = ({
                         <div className="assign-summary-modal-body">
                             <div className="assign-summary-grid">
                                 {summaryItems.map((item) => (
-                                    <>
-                                        <span key={`${item.key}-modal-label`}>{item.label}</span>
-                                        <strong key={`${item.key}-modal-value`}>{item.value}</strong>
-                                    </>
+                                    <Fragment key={item.key}>
+                                        <span>{item.label}</span>
+                                        <strong>{item.value}</strong>
+                                    </Fragment>
                                 ))}
                             </div>
                         </div>
@@ -76,7 +87,7 @@ const StandardAssignSummaryPanel = ({
                                 className="btn btn-primary"
                                 onClick={closeSummary}
                             >
-                                {t('standardAssign:actions.close', { defaultValue: 'Close' })}
+                                {t('standardAssign:actions.close')}
                             </button>
                         </div>
                     </div>

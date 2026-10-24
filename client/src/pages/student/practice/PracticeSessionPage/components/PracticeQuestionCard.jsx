@@ -1,5 +1,6 @@
 import React from 'react';
 import { getQuestionTypeDisplay } from '../utils/practiceSessionPresentation';
+import PassagePanel from '../../../../../components/assessment/PassagePanel';
 import PracticeCountdown from './PracticeCountdown';
 
 const PracticeQuestionCard = ({ 
@@ -37,7 +38,12 @@ const PracticeQuestionCard = ({
                 <div className="question-instruction"> <span>Instructions:</span> {currentQuestion.instruction}</div>
             )}
 
-            <div className="question-text">{currentQuestion.questionText}</div>
+            <PassagePanel passage={currentQuestion.passage} />
+
+            {/* The blank inputs render the sentence itself, so the plain text would repeat it. */}
+            {currentQuestion.questionType !== 'fill_in_blank' && (
+                <div className="question-text">{currentQuestion.questionText}</div>
+            )}
 
             {currentQuestion.skill && (
                 <div className="question-skill-tag">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { HiOutlineCheck } from 'react-icons/hi2';
 import { AI_STANDARD_LANGUAGE_OPTIONS } from '../constants';
 import StandardAssignSummaryPanel from './standardAssignForm/StandardAssignSummaryPanel';
 import StandardAssignStepCoreSetup from './standardAssignForm/StandardAssignStepCoreSetup';
@@ -225,6 +226,12 @@ const StandardAssignForm = ({
         setCurrentStep(targetStep);
     };
 
+    const canReachStep = (targetStep) => {
+        if (targetStep <= 1) return true;
+        if (targetStep === 2) return isStep1Valid;
+        return isStep1Valid && isStep2Valid;
+    };
+
     const importedCount = Array.isArray(formData.importedQuestions)
         ? formData.importedQuestions.length
         : 0;
@@ -366,22 +373,29 @@ const StandardAssignForm = ({
 
     return (
         <div className="modal-body standard-assign-form-body">
-            <div className="assign-stepper" role="tablist" aria-label={t('standardAssign:form.aria.assignmentSetupSteps')}>
+            <div className="assign-stepper" role="group" aria-label={t('standardAssign:form.aria.assignmentSetupSteps')}>
                 {stepItems.map((step) => {
-                    const stateClass =
-                        currentStep === step.id
-                            ? 'active'
-                            : currentStep > step.id
-                              ? 'completed'
-                              : '';
+                    const isActive = currentStep === step.id;
+                    const isCompleted = currentStep > step.id;
+                    const isLocked = !isActive && !isCompleted && !canReachStep(step.id);
+                    const stateClass = [
+                        isActive ? 'active' : '',
+                        isCompleted ? 'completed' : '',
+                        isLocked ? 'is-locked' : ''
+                    ].filter(Boolean).join(' ');
                     return (
                         <button
                             key={step.id}
                             type="button"
                             className={`assign-step ${stateClass}`.trim()}
                             onClick={() => goToStep(step.id)}
+                            aria-current={isActive ? 'step' : undefined}
                         >
-                            <span className="assign-step-index">{step.id}</span>
+                            <span className="assign-step-index">
+                                {isCompleted
+                                    ? <HiOutlineCheck aria-hidden="true" />
+                                    : step.id}
+                            </span>
                             <span className="assign-step-title">{step.title}</span>
                         </button>
                     );

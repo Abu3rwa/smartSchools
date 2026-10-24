@@ -15,7 +15,9 @@ const StandardsList = ({
     selectedStandardIds = [],
     onSelectedStandardIdsChange,
     onBulkDelete,
-    bulkDeleting = false
+    bulkDeleting = false,
+    hasActiveFilters = false,
+    onClearFilters
 }) => {
     const { t } = useTranslation(['standards']);
     const selectedSet = new Set(selectedStandardIds.map(String));
@@ -53,12 +55,18 @@ const StandardsList = ({
             <>
                 {bulkActions}
                 <div className="standards-empty">
-                    <HiOutlineClipboardList size={48} />
-                    <p>{t('standards:list.empty')}</p>
-                    {isAdmin && (
-                        <p style={{ fontSize: '0.85rem' }}>
-                            {t('standards:list.emptyAdminHint')}
-                        </p>
+                    <HiOutlineClipboardList size={48} aria-hidden="true" />
+                    <p>{t(hasActiveFilters ? 'standards:list.emptyFiltered' : 'standards:list.empty')}</p>
+                    {hasActiveFilters ? (
+                        <button type="button" className="btn btn-secondary" onClick={onClearFilters}>
+                            {t('standards:filters.clear')}
+                        </button>
+                    ) : (
+                        isAdmin && (
+                            <p className="standards-empty__hint">
+                                {t('standards:list.emptyAdminHint')}
+                            </p>
+                        )
                     )}
                 </div>
             </>
@@ -69,11 +77,11 @@ const StandardsList = ({
         <>
             {bulkActions}
             <div className="standards-table">
-                <table>
+                <table aria-label={t('standards:list.tableLabel')}>
                 <thead>
                     <tr>
                         {isAdmin && (
-                            <th>
+                            <th scope="col" className="standards-table__check-col">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -82,14 +90,14 @@ const StandardsList = ({
                                 />
                             </th>
                         )}
-                        <th>{t('standards:list.columns.code')}</th>
-                        <th>{t('standards:list.columns.name')}</th>
-                        <th>{t('standards:list.columns.description')}</th>
-                        <th>{t('standards:list.columns.subject')}</th>
-                        <th>{t('standards:list.columns.grade')}</th>
-                        <th>{t('standards:list.columns.category')}</th>
-                        <th>{t('standards:list.columns.mastery')}</th>
-                        {isAdmin && <th>{t('standards:list.columns.actions')}</th>}
+                        <th scope="col">{t('standards:list.columns.code')}</th>
+                        <th scope="col">{t('standards:list.columns.name')}</th>
+                        <th scope="col">{t('standards:list.columns.description')}</th>
+                        <th scope="col">{t('standards:list.columns.subject')}</th>
+                        <th scope="col">{t('standards:list.columns.grade')}</th>
+                        <th scope="col">{t('standards:list.columns.category')}</th>
+                        <th scope="col">{t('standards:list.columns.mastery')}</th>
+                        {isAdmin && <th scope="col">{t('standards:list.columns.actions')}</th>}
                     </tr>
                 </thead>
                 <tbody>
@@ -123,18 +131,22 @@ const StandardsList = ({
                                 <td>
                                     <div className="standard-actions">
                                         <button
+                                            type="button"
                                             className="btn-icon"
                                             onClick={() => onEdit(standard)}
                                             title={t('standards:actions.edit')}
+                                            aria-label={`${t('standards:actions.edit')} ${standard.code}`}
                                         >
-                                            <HiOutlinePencil />
+                                            <HiOutlinePencil aria-hidden="true" />
                                         </button>
                                         <button
+                                            type="button"
                                             className="btn-icon text-danger"
                                             onClick={() => onDelete(standard._id)}
                                             title={t('standards:actions.delete')}
+                                            aria-label={`${t('standards:actions.delete')} ${standard.code}`}
                                         >
-                                            <HiOutlineTrash />
+                                            <HiOutlineTrash aria-hidden="true" />
                                         </button>
                                     </div>
                                 </td>

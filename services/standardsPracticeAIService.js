@@ -1,4 +1,5 @@
 import { connectAi } from "../utils/connectAi.js";
+import { resolvePracticeQuestionType } from "../constants/practiceQuestionTypes.js";
 import {
   MAX_AI_RETRIES,
   evaluateResponseSchema,
@@ -9,6 +10,16 @@ import promptBuilder from "./standards_practice_ai_service/promptBuilder.js";
 import questionAssembly from "./standards_practice_ai_service/questionAssembly.js";
 import feedbackBuilder from "./standards_practice_ai_service/feedbackBuilder.js";
 import gradingGuards from "./standards_practice_ai_service/gradingGuards.js";
+
+// A published pool question never passes through the generator, so a missing instruction has
+// to be written here in the words that match how the type is answered.
+const OBJECTIVE_INSTRUCTIONS = {
+  multiple_select: "Read the question and select every answer that applies.",
+  matching: "Match each item on the left with its partner on the right.",
+  ordering: "Put the steps in the correct order.",
+  fill_in_blank: "Complete each blank with the correct answer.",
+  numeric_response: "Read the question and write the numeric answer.",
+};
 
 /**
  * Standards Practice AI Service
@@ -41,8 +52,9 @@ class StandardsPracticeAIService {
       attemptNumber = 1,
       preserveFullText = false,
     } = options;
-    const normalizedTrueFalseTarget =
-      this._normalizeTrueFalseToken(trueFalseTargetAnswer);
+    const normalizedTrueFalseTarget = this._normalizeTrueFalseToken(
+      trueFalseTargetAnswer,
+    );
 
     if (questionType === "true_false") {
       return this._generateTrueFalseQuestion({
@@ -70,8 +82,10 @@ class StandardsPracticeAIService {
     const usage = { input: 0, output: 0, total: 0 };
     let previousFailureNotes = [];
     let lastError = null;
+    let attempts = 0;
 
     for (let aiAttempt = 0; aiAttempt <= MAX_AI_RETRIES; aiAttempt += 1) {
+      attempts = aiAttempt + 1;
       try {
         const prompt = this._buildGeneratePrompt({
           standard,
@@ -120,6 +134,10 @@ class StandardsPracticeAIService {
           ...previousFailureNotes,
           this._normalizeSentence(error?.message || "Invalid response"),
         ].slice(-3);
+
+        if (Number(error?.statusCode || error?.status || error?.code) === 429) {
+          break;
+        }
       }
     }
 
@@ -128,7 +146,16 @@ class StandardsPracticeAIService {
       "Question generation failed after retries, no fallback question stored:",
       reason,
     );
-    throw new Error(`Question generation failed after ${MAX_AI_RETRIES + 1} attempts: ${reason}`);
+    const generationError = new Error(
+      `Question generation failed after ${attempts} attempts: ${reason}`,
+    );
+    if (lastError?.statusCode) {
+      generationError.statusCode = lastError.statusCode;
+    }
+    if (lastError?.code) {
+      generationError.code = lastError.code;
+    }
+    throw generationError;
   }
 
   /**
@@ -194,8 +221,12 @@ class StandardsPracticeAIService {
               rawOptions: questionOptions,
             }) || "";
       const isCorrect =
-        String(normalizedStudentAnswer || "").trim().toUpperCase() ===
-        String(normalizedCorrectAnswer || "").trim().toUpperCase();
+        String(normalizedStudentAnswer || "")
+          .trim()
+          .toUpperCase() ===
+        String(normalizedCorrectAnswer || "")
+          .trim()
+          .toUpperCase();
       const deterministic = this._buildDeterministicFeedback({
         isCorrect,
         ...feedbackContext,
@@ -347,8 +378,12 @@ class StandardsPracticeAIService {
         const result = evaluateResponseSchema.safeParse(raw);
         if (!result.success) {
           const issues = result.error?.issues ?? [];
-          const msg = issues.map((issue) => issue?.message || "invalid field").join("; ");
-          throw new Error(`Invalid evaluation format: ${msg || "schema mismatch"}`);
+          const msg = issues
+            .map((issue) => issue?.message || "invalid field")
+            .join("; ");
+          throw new Error(
+            `Invalid evaluation format: ${msg || "schema mismatch"}`,
+          );
         }
 
         const parsed = result.data;
@@ -417,14 +452,15 @@ class StandardsPracticeAIService {
           );
         }
 
-        const feedbackSourceText = guarded.guardApplied || relevance.guardApplied || grammarGuard.guardApplied
-          ? this._buildFeedbackSummary(finalFeedbackParts)
-          : parsed.feedback?.trim() || this._buildFeedbackSummary(finalFeedbackParts);
+        const feedbackSourceText =
+          guarded.guardApplied ||
+          relevance.guardApplied ||
+          grammarGuard.guardApplied
+            ? this._buildFeedbackSummary(finalFeedbackParts)
+            : parsed.feedback?.trim() ||
+              this._buildFeedbackSummary(finalFeedbackParts);
         const finalFeedback = this._ensureFeedbackPersonalization(
-          this._normalizeFeedback(
-            feedbackSourceText,
-            gradeLevel,
-          ),
+          this._normalizeFeedback(feedbackSourceText, gradeLevel),
           studentFirstName,
         );
 
@@ -542,7 +578,8 @@ class StandardsPracticeAIService {
         let resolvedAnswer = targetAnswer;
         let selectedStatement =
           resolvedAnswer === "True" ? trueStatement : falseStatement;
-        const heuristicAnswer = this._inferTrueFalseHeuristic(selectedStatement);
+        const heuristicAnswer =
+          this._inferTrueFalseHeuristic(selectedStatement);
         if (heuristicAnswer && heuristicAnswer !== resolvedAnswer) {
           resolvedAnswer = heuristicAnswer;
           selectedStatement =
@@ -554,9 +591,13 @@ class StandardsPracticeAIService {
           sentenceCase: true,
           preserveLineBreaks: true,
         });
-        questionText = this._ensureStudentNameInStem(questionText, studentFirstName, {
-          preserveFullText,
-        });
+        questionText = this._ensureStudentNameInStem(
+          questionText,
+          studentFirstName,
+          {
+            preserveFullText,
+          },
+        );
 
         if (this._isDuplicateQuestion(questionText, questionMemory)) {
           throw new Error(
@@ -581,7 +622,8 @@ class StandardsPracticeAIService {
         );
 
         return {
-          instruction: "Determine whether the following statement is true or false.",
+          instruction:
+            "Determine whether the following statement is true or false.",
           questionText,
           questionType: "true_false",
           options: this._shuffleTrueFalseOptionsDeterministic(
@@ -608,7 +650,9 @@ class StandardsPracticeAIService {
       "True/False generation failed after retries, no fallback question stored:",
       reason,
     );
-    throw new Error(`True/False generation failed after ${MAX_AI_RETRIES + 1} attempts: ${reason}`);
+    throw new Error(
+      `True/False generation failed after ${MAX_AI_RETRIES + 1} attempts: ${reason}`,
+    );
   }
 
   resolveTrueFalseCorrectAnswer(questionText, currentCorrectAnswer) {
@@ -624,9 +668,13 @@ class StandardsPracticeAIService {
 
     // Guarantee instruction field exists and is non-empty
     if (!q.instruction || !q.instruction.trim()) {
-      if (questionType === "true_false" || q.questionType === "true_false") {
-        q.instruction = "Determine whether the following statement is true or false.";
-      } else if (questionType === "short_answer" || q.questionType === "short_answer") {
+      const resolvedType = resolvePracticeQuestionType(questionType || q.questionType);
+      if (OBJECTIVE_INSTRUCTIONS[resolvedType]) {
+        q.instruction = OBJECTIVE_INSTRUCTIONS[resolvedType];
+      } else if (resolvedType === "true_false") {
+        q.instruction =
+          "Determine whether the following statement is true or false.";
+      } else if (resolvedType === "short_answer") {
         q.instruction = "Read carefully and write your answer.";
       } else {
         q.instruction = "Read the question and select the best answer.";

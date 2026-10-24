@@ -1,15 +1,24 @@
 import React from 'react';
+import MultipleSelectAnswerInput from '../../../../../components/assessment/MultipleSelectAnswerInput';
+import MatchingAnswerInput from '../../../../../components/assessment/MatchingAnswerInput';
+import OrderingAnswerInput from '../../../../../components/assessment/OrderingAnswerInput';
+import FillInBlankAnswerInput from '../../../../../components/assessment/FillInBlankAnswerInput';
+import NumericAnswerInput from '../../../../../components/assessment/NumericAnswerInput';
+import { isAnswerReady, isObjectiveAnswerType } from '../utils/practiceAnswerDraft';
 
-const PracticeAnswerForm = ({ 
-    questionType, 
-    options, 
-    selectedAnswer, 
-    onSelectedAnswerChange, 
-    shortAnswer, 
-    onShortAnswerChange, 
-    submittingAnswer, 
-    onSubmit, 
-    textareaRef 
+const PracticeAnswerForm = ({
+    question,
+    questionType,
+    options,
+    selectedAnswer,
+    onSelectedAnswerChange,
+    shortAnswer,
+    onShortAnswerChange,
+    objectiveAnswer,
+    onObjectiveAnswerChange,
+    submittingAnswer,
+    onSubmit,
+    textareaRef
 }) => {
     const handleOptionKeyDown = (e, idx) => {
         if (!options?.length) return;
@@ -22,9 +31,57 @@ const PracticeAnswerForm = ({
         }
     };
 
+    const objective = isObjectiveAnswerType(questionType);
+    const canSubmit = objective
+        ? isAnswerReady(question, objectiveAnswer)
+        : questionType === 'short_answer'
+            ? Boolean(shortAnswer.trim())
+            : Boolean(selectedAnswer);
+
     return (
         <>
-            {(questionType === 'multiple_choice' || questionType === 'true_false') && (
+            {questionType === 'multiple_select' && (
+                <MultipleSelectAnswerInput
+                    question={question}
+                    value={objectiveAnswer}
+                    onChange={onObjectiveAnswerChange}
+                    name={question?.attemptId}
+                />
+            )}
+
+            {questionType === 'matching' && (
+                <MatchingAnswerInput
+                    question={question}
+                    value={objectiveAnswer}
+                    onChange={onObjectiveAnswerChange}
+                />
+            )}
+
+            {questionType === 'ordering' && (
+                <OrderingAnswerInput
+                    question={question}
+                    value={objectiveAnswer}
+                    onChange={onObjectiveAnswerChange}
+                />
+            )}
+
+            {questionType === 'fill_in_blank' && (
+                <FillInBlankAnswerInput
+                    question={question}
+                    value={objectiveAnswer}
+                    onChange={onObjectiveAnswerChange}
+                />
+            )}
+
+            {questionType === 'numeric_response' && (
+                <NumericAnswerInput
+                    question={question}
+                    value={typeof objectiveAnswer === 'string' ? objectiveAnswer : ''}
+                    onChange={onObjectiveAnswerChange}
+                />
+            )}
+
+            {!objective && (questionType === 'multiple_choice' || questionType === 'true_false') && (
                 <div className="options-list" role="radiogroup" aria-label="Answer options">
                     {options?.map((option, idx) => (
                         <button
@@ -51,7 +108,7 @@ const PracticeAnswerForm = ({
                 </div>
             )}
 
-            {questionType === 'short_answer' && (
+            {!objective && questionType === 'short_answer' && (
                 <textarea
                     ref={textareaRef}
                     className="short-answer-input"
@@ -66,12 +123,7 @@ const PracticeAnswerForm = ({
                 <button
                     className="btn btn-primary"
                     onClick={onSubmit}
-                    disabled={
-                        submittingAnswer ||
-                        (questionType === 'short_answer'
-                            ? !shortAnswer.trim()
-                            : !selectedAnswer)
-                    }
+                    disabled={submittingAnswer || !canSubmit}
                 >
                     {submittingAnswer ? 'Submitting...' : 'Submit Answer'}
                 </button>

@@ -185,6 +185,51 @@ export const migrateTeacherEmployeeIdIndex = async (db = mongoose.connection.db)
   }
 };
 
+export const migrateSubjectCodeIndex = async (db = mongoose.connection.db) => {
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the subject code index.');
+  }
+
+  const collection = db.collection('subjects');
+  const collectionExists = await db.listCollections({ name: 'subjects' }).hasNext();
+  if (!collectionExists) {
+    await collection.createIndex(
+      { school: 1, code: 1 },
+      { unique: true, name: 'school_1_code_1' }
+    );
+    logger.success('Created school-scoped unique subject code index');
+    return;
+  }
+
+  const indexes = await collection.indexes();
+  const legacyGlobalIndex = indexes.find((index) =>
+    index.unique === true &&
+    index.key?.code === 1 &&
+    Object.keys(index.key).length === 1
+  );
+
+  if (legacyGlobalIndex) {
+    await collection.dropIndex(legacyGlobalIndex.name);
+    logger.success(`Dropped legacy global subject code index ${legacyGlobalIndex.name}`);
+  }
+
+  const currentIndexes = await collection.indexes();
+  const schoolScopedIndex = currentIndexes.find((index) =>
+    index.unique === true &&
+    index.key?.school === 1 &&
+    index.key?.code === 1 &&
+    Object.keys(index.key).length === 2
+  );
+
+  if (!schoolScopedIndex) {
+    await collection.createIndex(
+      { school: 1, code: 1 },
+      { unique: true, name: 'school_1_code_1' }
+    );
+    logger.success('Created school-scoped unique subject code index');
+  }
+};
+
 const migrateClassUniqueIndex = async () => {
   const db = mongoose.connection.db;
   if (!db) {
@@ -246,6 +291,7 @@ const connectDB = async () => {
     await migrateSpellingEmailDeliveryIndexes();
     await migrateSpellingRetestQuizIndexes();
     await migrateTeacherEmployeeIdIndex();
+    await migrateSubjectCodeIndex();
     await migrateClassUniqueIndex();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);

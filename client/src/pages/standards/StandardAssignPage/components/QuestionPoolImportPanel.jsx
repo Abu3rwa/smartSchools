@@ -1,5 +1,6 @@
 ﻿import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import QuestionTypeGuide from '../../../../components/assessment/QuestionTypeGuide';
 import {
     MAX_IMPORT_FILE_BYTES,
     buildAiPrompt,
@@ -11,8 +12,24 @@ const LANGUAGE_NAMES = { en: 'English', ar: 'Arabic' };
 const TYPE_LABEL_KEYS = {
     multiple_choice: 'multipleChoice',
     true_false: 'trueFalse',
-    short_answer: 'shortAnswer'
+    short_answer: 'shortAnswer',
+    multiple_select: 'multipleSelect',
+    matching: 'matching',
+    ordering: 'ordering',
+    fill_in_blank: 'fillInBlank',
+    numeric_response: 'numericResponse'
 };
+// An objective row keeps its answer in its own definition column, so the key stays empty.
+const DEFINITION_COLUMN = {
+    multiple_select: 'correctAnswer',
+    matching: 'matching_pairs',
+    ordering: 'ordering_items',
+    fill_in_blank: 'blank_answers',
+    numeric_response: 'numeric_rule'
+};
+
+const readAnswerCell = (question = {}) =>
+    question.correctAnswer || question[DEFINITION_COLUMN[question.questionType]] || '—';
 
 const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMode = false }) => {
     const { t } = useTranslation(['standardAssign']);
@@ -145,6 +162,7 @@ const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMo
                 <button type="button" className="btn btn-secondary btn-sm" onClick={handleDownloadTemplate}>
                     {t('standardAssign:questionImport.downloadTemplate')}
                 </button>
+                <QuestionTypeGuide flow="standards" className="btn btn-secondary btn-sm" />
                 <button
                     type="button"
                     className="btn btn-primary btn-sm"
@@ -203,7 +221,7 @@ const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMo
                                                 }`
                                             )}
                                         </td>
-                                        <td>{row.question.correctAnswer || '—'}</td>
+                                        <td>{readAnswerCell(row.question)}</td>
                                         <td>
                                             {row.errors.length === 0 ? (
                                                 <span className="badge badge-success">

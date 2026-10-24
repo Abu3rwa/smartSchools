@@ -1,58 +1,79 @@
-const hashString = (value) => {
-  let hash = 2166136261;
-  for (const character of String(value)) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-};
+import { buildPassageSnapshot } from './assessment/passageService.js';
+import {
+  buildBlankIds,
+  buildMatchingColumns,
+  buildNumericHint,
+  buildOrderingItems,
+  buildStudentPresentationFields,
+} from './assessment/studentPresentationService.js';
 
-const seededShuffle = (items, seed) => {
-  const result = [...items];
-  let state = seed || 1;
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    state = (Math.imul(state, 1103515245) + 12345) >>> 0;
-    const swap = state % (index + 1);
-    [result[index], result[swap]] = [result[swap], result[index]];
-  }
-  return result;
-};
+const presentationSeed = (question) => `${question?._id}|${question?.student}`;
 
-export const buildMapPracticeMatchingColumns = (question) => {
-  const pairs = (Array.isArray(question?.matchingPairs) ? question.matchingPairs : [])
-    .map((pair) => ({ left: String(pair?.left ?? '').trim(), right: String(pair?.right ?? '').trim() }))
-    .filter((pair) => pair.left && pair.right);
-  if (!pairs.length) return null;
+export const buildMapPracticeMatchingColumns = (question) => buildMatchingColumns(question, presentationSeed(question));
 
-  const terms = pairs.map((pair) => pair.left);
-  const choices = Array.from(new Set(pairs.map((pair) => pair.right)));
-  // The same student must always see one order, while different students see different ones.
-  const shuffled = seededShuffle(choices, hashString(`${question._id}|${question.student}`));
+const STUDENT_HIDDEN_QUESTION_FIELDS = [
+  'correctAnswer',
+  'explanation',
+  'distractorNote',
+  'matchingPairs',
+  'blanks',
+  'numericRule'
+];
 
-  return { terms, choices: shuffled };
-};
+const STUDENT_HIDDEN_ANSWER_FIELDS = [
+  'correctAnswerSnapshot',
+  'explanationSnapshot',
+  'matchingPairsSnapshot',
+  'blanksSnapshot',
+  'numericRuleSnapshot',
+  'orderingKeySnapshot',
+  'gradingDetail'
+];
+
+/**
+ * The authored order is the key, so students get the same shuffled list every time for one
+ * question and a different shuffle for another student.
+ */
+export const buildMapPracticeOrderingItems = (question) => buildOrderingItems(question, presentationSeed(question));
+
+export const buildMapPracticeBlankFields = (question) => buildBlankIds(question);
+
+export const buildMapPracticeNumericHint = (question) => buildNumericHint(question);
+
+export const buildMapPracticeStudentFields = (question) => (
+  buildStudentPresentationFields(question, presentationSeed(question))
+);
+
+export const buildMapPracticePassageSnapshot = (question) => buildPassageSnapshot({
+  _id: question?.passage?._id ?? question?.passage ?? null,
+  passageKey: String(question?.passageId || question?.passage?.passageKey || ''),
+  title: String(question?.passageTitle || question?.passage?.title || ''),
+  text: String(question?.passage?.text || question?.passageText || ''),
+  source: String(question?.passage?.source || ''),
+  language: String(question?.passage?.language || ''),
+  accessibilityText: String(question?.passage?.accessibilityText || ''),
+  contentHash: question?.passage?.contentHash || ''
+});
 
 export const hideMapPracticeQuestionAnswers = (question) => {
   const safe = Object.fromEntries(Object.entries(question).filter(([key]) =>
-    !['correctAnswer', 'explanation', 'distractorNote', 'matchingPairs'].includes(key)
+    !STUDENT_HIDDEN_QUESTION_FIELDS.includes(key)
   ));
-  if (safe.questionType !== 'matching') return safe;
-  return {
-    ...safe,
-    matchingColumns: buildMapPracticeMatchingColumns(question) ?? { terms: [], choices: [] }
-  };
+
+  return { ...safe, ...buildMapPracticeStudentFields(question) };
 };
 
 export const hideMapPracticeAttemptAnswerKeys = (attempt) => ({
   ...attempt,
   answers: (attempt.answers || []).map((answer) => {
     const safe = Object.fromEntries(Object.entries(answer).filter(([key]) =>
-      !['correctAnswerSnapshot', 'explanationSnapshot', 'matchingPairsSnapshot'].includes(key)
+      !STUDENT_HIDDEN_ANSWER_FIELDS.includes(key)
     ));
     if (!safe.questionSnapshot) return safe;
     // Snapshots only ever store the shuffled columns, never the term-to-definition mapping.
     safe.questionSnapshot = Object.fromEntries(
-      Object.entries(safe.questionSnapshot).filter(([key]) => key !== 'matchingPairs')
+      Object.entries(safe.questionSnapshot)
+        .filter(([key]) => !['matchingPairs', 'blanks', 'numericRule'].includes(key))
     );
     return safe;
   }),

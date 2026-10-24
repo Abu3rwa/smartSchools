@@ -1,10 +1,12 @@
 import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
 import {
+    AI_GENERATED_QUESTION_TYPES,
     DEFAULT_PRACTICE_QUESTION_TYPES,
-    PRACTICE_QUESTION_TYPES,
 } from '../../../constants/practiceQuestionTypes';
 
-export const QUESTION_TYPE_OPTIONS = PRACTICE_QUESTION_TYPES;
+// The generator only authors these types; a teacher adds the objective ones from the pool
+// editor or a CSV import, so they stay out of the allowed-type choices.
+export const QUESTION_TYPE_OPTIONS = AI_GENERATED_QUESTION_TYPES;
 export const DEFAULT_QUESTION_TYPE_OPTIONS = DEFAULT_PRACTICE_QUESTION_TYPES;
 export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'];
 export const GRAMMAR_LEVEL_OPTIONS = [

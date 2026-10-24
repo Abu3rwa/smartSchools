@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import StandardAssignForm from './StandardAssignForm';
 import { useTranslation } from 'react-i18next';
 
@@ -31,6 +32,7 @@ const StandardAssignModal = ({
     submitEditLabel
 }) => {
     const { t } = useTranslation(['standardAssign']);
+    const dialogRef = useRef(null);
     const resolvedCreateTitle =
         modalCreateTitle || t('standardAssign:modal.assignStandardTitle');
     const resolvedEditTitle =
@@ -40,18 +42,45 @@ const StandardAssignModal = ({
     const resolvedEditActionLabel =
         submitEditLabel || t('standardAssign:actions.saveChanges');
 
+    useEffect(() => {
+        if (!showAssignModal) return undefined;
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') onClose();
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        dialogRef.current?.focus();
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [showAssignModal, onClose]);
+
     if (!showAssignModal) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div
+                className="modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="standard-assign-modal-title"
+                tabIndex={-1}
+                ref={dialogRef}
+                onClick={(event) => event.stopPropagation()}
+            >
                 <div className="modal-header">
-                    <h3>
+                    <h3 id="standard-assign-modal-title">
                         {editingAssignmentId
                             ? resolvedEditTitle
                             : resolvedCreateTitle}
                     </h3>
-                    <button className="modal-close" onClick={onClose}>
+                    <button
+                        type="button"
+                        className="modal-close"
+                        onClick={onClose}
+                        aria-label={t('standardAssign:actions.close')}
+                    >
                         &times;
                     </button>
                 </div>

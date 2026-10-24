@@ -302,6 +302,7 @@ const useStandardsPageData = () => {
         classes: classOptions,
         isAdmin,
         filteredStandards,
+        totalStandards: Array.isArray(standards) ? standards.length : 0,
         selectedStandardIds,
         setSelectedStandardIds,
         bulkDeleting,

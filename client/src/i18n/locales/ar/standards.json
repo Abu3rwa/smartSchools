@@ -7,6 +7,9 @@
   "tabs": {
     "list": "قائمة المعايير",
     "import": "استيراد",
+    "assign": "الإسناد",
+    "gradebook": "سجل الدرجات",
+    "pool": "بنك الأسئلة",
     "settings": "الإعدادات"
   },
   "filters": {
@@ -14,13 +17,22 @@
     "allClasses": "كل الفصول",
     "allSubjects": "كل المواد",
     "allGrades": "كل الصفوف",
-    "grade": "الصف {{grade}}"
+    "grade": "الصف {{grade}}",
+    "clear": "مسح عوامل التصفية",
+    "resultCount": "عرض {{shown}} من {{total}}",
+    "aria": {
+      "search": "ابحث في المعايير بالرمز أو الاسم أو الوصف",
+      "subject": "تصفية حسب المادة",
+      "class": "تصفية حسب الفصل",
+      "grade": "تصفية حسب الصف"
+    }
   },
   "list": {
     "selectAll": "تحديد جميع المعايير الظاهرة",
     "selectStandard": "تحديد المعيار {{code}}",
     "selectedCount": "تم تحديد {{count}} معايير",
     "empty": "لم يتم العثور على معايير",
+    "emptyFiltered": "لا توجد معايير مطابقة لعوامل التصفية الحالية.",
     "emptyAdminHint": "اضغط \"إضافة معيار\" أو استخدم الاستيراد للبدء.",
     "columns": {
       "code": "الرمز",
@@ -32,7 +44,8 @@
       "mastery": "الإتقان",
       "actions": "الإجراءات"
     },
-    "masteryValue": "{{threshold}}% / {{questions}} س"
+    "masteryValue": "{{threshold}}% / {{questions}} س",
+    "tableLabel": "قائمة المعايير"
   },
   "modal": {
     "editTitle": "تعديل المعيار",
@@ -51,8 +64,11 @@
     "selectGrade": "اختر الصف",
     "category": "الفئة / المجال",
     "categoryPlaceholder": "مثال: العمليات والتفكير الجبري",
+    "masterySectionTitle": "إعدادات الإتقان",
     "masteryThreshold": "حد الإتقان (%)",
-    "minimumQuestions": "الحد الأدنى للأسئلة"
+    "masteryThresholdHint": "الدرجة المطلوبة لاعتبار المعيار متقنًا.",
+    "minimumQuestions": "الحد الأدنى للأسئلة",
+    "minimumQuestionsHint": "عدد الأسئلة التي يجب أن يجيب عنها الطالب قبل احتساب الإتقان."
   },
   "import": {
     "subjectForImport": "المادة للاستيراد *",
@@ -84,7 +100,8 @@
   "common": {
     "cancel": "إلغاء",
     "saving": "جارٍ الحفظ...",
-    "empty": "-"
+    "empty": "-",
+    "close": "إغلاق"
   },
   "toasts": {
     "confirmDelete": "هل أنت متأكد من حذف هذا المعيار؟",

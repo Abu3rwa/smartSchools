@@ -12,7 +12,12 @@
     "guidance": {
       "multipleChoice": "Choose one best answer. Read every option before you submit.",
       "trueFalse": "Read the statement carefully. Pick True if it is correct, or False if it is not correct.",
-      "shortAnswer": "Write 1-2 clear sentences. Use key words from the lesson to explain your thinking."
+      "shortAnswer": "Write 1-2 clear sentences. Use key words from the lesson to explain your thinking.",
+      "multipleSelect": "Select every answer that applies. More than one option can be correct.",
+      "matching": "Match each item with its correct partner from the list.",
+      "ordering": "Put all of the steps in the correct order before you submit.",
+      "fillInBlank": "Type one word or a short phrase in each blank.",
+      "numericResponse": "Write the number and the unit exactly as the question asks."
     },
     "teacherNote": "Teacher note: {{text}}",
     "timeLeft": "{{time}} left",

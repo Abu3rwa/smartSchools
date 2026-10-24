@@ -1,3 +1,5 @@
+import { gradeObjectiveAnswer } from './assessment/objectiveGrading.js';
+
 const normalizeText = (value) => String(value ?? '')
   .normalize('NFKC')
   .trim()
@@ -66,7 +68,32 @@ export const gradePracticeAnswer = ({
   questionOptions = [],
   gradingMode = 'conceptual',
   acceptableAnswers = [],
+  matchingPairs = [],
+  orderingItems = [],
+  blanks = [],
+  numericRule = null,
 }) => {
+  // These types carry their own authored definition and never need a teacher or a model to judge them.
+  const objective = gradeObjectiveAnswer({
+    questionType,
+    studentAnswer,
+    correctAnswer,
+    options: questionOptions,
+    matchingPairs,
+    orderingItems,
+    blanks,
+    numericRule,
+  });
+  if (objective) {
+    return {
+      isCorrect: objective.isCorrect,
+      requiresTeacherReview: objective.requiresTeacherReview,
+      feedback: objective.feedback,
+      score: objective.requiresTeacherReview ? 0 : objective.score,
+      gradingDetail: objective.detail || null,
+    };
+  }
+
   if (questionType === 'multiple_choice') {
     const studentValue = resolveChoiceValue(studentAnswer, questionOptions);
     const correctValue = resolveChoiceValue(correctAnswer, questionOptions);

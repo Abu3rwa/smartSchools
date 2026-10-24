@@ -1,4 +1,5 @@
 import { normalizeShortText, normalizeAnswerList } from '../validators/mapPracticeValidators.js';
+import { gradeObjectiveAnswer } from './assessment/objectiveGrading.js';
 
 const toMatchingSelections = (studentAnswer) => {
   const entries = Array.isArray(studentAnswer)
@@ -18,10 +19,31 @@ export const gradeMapPracticeQuestion = ({
   correctAnswer,
   options = [],
   matchingPairs = [],
+  orderingItems = [],
+  blanks = [],
+  numericRule = null,
   partialCreditMultiSelect = false
 }) => {
   const optionList = Array.isArray(options) ? options : [];
   const normalizeOption = (option) => String(option ?? '').trim().toUpperCase();
+
+  if (['ordering', 'fill_in_blank', 'numeric_response'].includes(questionType)) {
+    const objective = gradeObjectiveAnswer({
+      questionType,
+      studentAnswer,
+      correctAnswer,
+      orderingItems,
+      blanks,
+      numericRule
+    });
+    return {
+      isCorrect: objective.isCorrect,
+      requiresTeacherReview: objective.requiresTeacherReview,
+      score: objective.requiresTeacherReview ? 0 : objective.score,
+      explanation: objective.feedback,
+      gradingDetail: objective.detail || null
+    };
+  }
 
   if (questionType === 'mcq') {
     const rawStudent = normalizeOption(studentAnswer);
@@ -128,6 +150,9 @@ export const gradeMapPracticeAttempt = ({ answers = [], partialCreditMultiSelect
       correctAnswer: answer.correctAnswer,
       options: answer.options || [],
       matchingPairs: answer.matchingPairs || [],
+      orderingItems: answer.orderingItems || [],
+      blanks: answer.blanks || [],
+      numericRule: answer.numericRule || null,
       partialCreditMultiSelect
     });
     maxScore += 1;
@@ -141,7 +166,8 @@ export const gradeMapPracticeAttempt = ({ answers = [], partialCreditMultiSelect
       requiresTeacherReview: result.requiresTeacherReview,
       explanation: result.explanation,
       autoGraded: !result.requiresTeacherReview,
-      teacherOverride: Boolean(answer.teacherOverride)
+      teacherOverride: Boolean(answer.teacherOverride),
+      ...(result.gradingDetail ? { gradingDetail: result.gradingDetail } : {})
     };
   });
 

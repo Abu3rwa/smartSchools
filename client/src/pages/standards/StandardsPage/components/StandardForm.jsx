@@ -9,8 +9,9 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
         <div className="modal-body">
             <div className="form-row">
                 <div className="form-group">
-                    <label>{t('standards:form.code')}</label>
+                    <label htmlFor="standard-code">{t('standards:form.code')}</label>
                     <input
+                        id="standard-code"
                         type="text"
                         value={formData.code}
                         onChange={(event) =>
@@ -24,8 +25,9 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                     />
                 </div>
                 <div className="form-group">
-                    <label>{t('standards:form.name')}</label>
+                    <label htmlFor="standard-name">{t('standards:form.name')}</label>
                     <input
+                        id="standard-name"
                         type="text"
                         value={formData.name}
                         onChange={(event) =>
@@ -40,8 +42,9 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                 </div>
             </div>
             <div className="form-group">
-                <label>{t('standards:form.description')}</label>
+                <label htmlFor="standard-description">{t('standards:form.description')}</label>
                 <textarea
+                    id="standard-description"
                     value={formData.description}
                     onChange={(event) =>
                         onFormDataChange({
@@ -56,8 +59,9 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
             </div>
             <div className="form-row">
                 <div className="form-group">
-                    <label>{t('standards:form.subject')}</label>
+                    <label htmlFor="standard-subject">{t('standards:form.subject')}</label>
                     <select
+                        id="standard-subject"
                         value={formData.subject}
                         onChange={(event) =>
                             onFormDataChange({
@@ -76,8 +80,9 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                     </select>
                 </div>
                 <div className="form-group">
-                    <label>{t('standards:form.gradeLevel')}</label>
+                    <label htmlFor="standard-grade-level">{t('standards:form.gradeLevel')}</label>
                     <select
+                        id="standard-grade-level"
                         value={formData.gradeLevel}
                         onChange={(event) =>
                             onFormDataChange({
@@ -97,49 +102,57 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                 </div>
             </div>
             <div className="form-group">
-                <label>{t('standards:form.category')}</label>
+                <label htmlFor="standard-category">{t('standards:form.category')}</label>
                 <input
+                    id="standard-category"
                     type="text"
                     value={formData.category}
                     onChange={(event) =>
                         onFormDataChange({
-                        ...formData,
-                        category: event.target.value
-                    })
+                            ...formData,
+                            category: event.target.value
+                        })
                     }
                     placeholder={t('standards:form.categoryPlaceholder')}
                 />
             </div>
-            <div className="form-row">
-                <div className="form-group">
-                    <label>{t('standards:form.masteryThreshold')}</label>
-                    <input
-                        type="number"
-                        value={formData.masteryThreshold}
-                        onChange={(event) =>
-                            onFormDataChange({
-                                ...formData,
-                                masteryThreshold: parseInt(event.target.value) || 80
-                            })
-                        }
-                        min={1}
-                        max={100}
-                    />
-                </div>
-                <div className="form-group">
-                    <label>{t('standards:form.minimumQuestions')}</label>
-                    <input
-                        type="number"
-                        value={formData.masteryMinQuestions}
-                        onChange={(event) =>
-                            onFormDataChange({
-                                ...formData,
-                                masteryMinQuestions: parseInt(event.target.value) || 5
-                            })
-                        }
-                        min={1}
-                        max={50}
-                    />
+            <div className="standard-form-section">
+                <h4 className="standard-form-section__title">{t('standards:form.masterySectionTitle')}</h4>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label htmlFor="standard-mastery-threshold">{t('standards:form.masteryThreshold')}</label>
+                        <input
+                            id="standard-mastery-threshold"
+                            type="number"
+                            value={formData.masteryThreshold}
+                            onChange={(event) =>
+                                onFormDataChange({
+                                    ...formData,
+                                    masteryThreshold: parseInt(event.target.value) || 80
+                                })
+                            }
+                            min={1}
+                            max={100}
+                        />
+                        <small className="text-muted">{t('standards:form.masteryThresholdHint')}</small>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="standard-min-questions">{t('standards:form.minimumQuestions')}</label>
+                        <input
+                            id="standard-min-questions"
+                            type="number"
+                            value={formData.masteryMinQuestions}
+                            onChange={(event) =>
+                                onFormDataChange({
+                                    ...formData,
+                                    masteryMinQuestions: parseInt(event.target.value) || 5
+                                })
+                            }
+                            min={1}
+                            max={50}
+                        />
+                        <small className="text-muted">{t('standards:form.minimumQuestionsHint')}</small>
+                    </div>
                 </div>
             </div>
         </div>

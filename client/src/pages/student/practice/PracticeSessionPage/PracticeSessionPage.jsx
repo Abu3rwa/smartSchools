@@ -27,6 +27,8 @@ const PracticeSessionPage = () => {
         setSelectedAnswer,
         shortAnswer,
         setShortAnswer,
+        objectiveAnswer,
+        setObjectiveAnswer,
         difficulty,
         setDifficulty,
         questionType,
@@ -115,12 +117,15 @@ const PracticeSessionPage = () => {
                     secondsRemaining={sessionInfo?.timeRemainingSeconds}
                 >
                     <PracticeAnswerForm
+                        question={currentQuestion}
                         questionType={currentQuestion.questionType}
                         options={currentQuestion.options}
                         selectedAnswer={selectedAnswer}
                         onSelectedAnswerChange={setSelectedAnswer}
                         shortAnswer={shortAnswer}
                         onShortAnswerChange={setShortAnswer}
+                        objectiveAnswer={objectiveAnswer}
+                        onObjectiveAnswerChange={setObjectiveAnswer}
                         submittingAnswer={submittingAnswer}
                         onSubmit={handleSubmit}
                     />

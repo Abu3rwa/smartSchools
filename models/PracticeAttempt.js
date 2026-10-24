@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { PRACTICE_QUESTION_TYPES } from "../constants/practiceQuestionTypes.js";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
+import { objectiveAnswerDefinitionSchemas } from "./questionAnswerDefinitions.js";
 
 const practiceAttemptSchema = new mongoose.Schema(
   {
@@ -54,6 +55,10 @@ const practiceAttemptSchema = new mongoose.Schema(
         text: { type: String },
       },
     ],
+    // The authored definitions and the passage a student saw are frozen on the attempt, so a
+    // later pool edit or a lost connection can never change what is graded.
+    ...objectiveAnswerDefinitionSchemas,
+    passageSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
     correctAnswer: {
       type: String,
       required: true,
@@ -63,6 +68,11 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Structured responses cannot live in a String field, and a typed answer must never
+    // become a Mongo document key, so the raw payload is kept beside the readable text.
+    studentResponse: { type: mongoose.Schema.Types.Mixed, default: null },
+    gradingDetail: { type: mongoose.Schema.Types.Mixed, default: null },
+    score: { type: Number, default: null, min: 0, max: 1 },
     isCorrect: {
       type: Boolean,
       default: null,

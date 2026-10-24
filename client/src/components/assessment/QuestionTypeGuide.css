@@ -1,0 +1,29 @@
+.modal.question-guide-modal { max-width: 860px; }
+
+.question-guide-intro { margin: 0 0 14px; color: var(--text-muted); line-height: 1.6; }
+
+.question-guide-section { margin-bottom: 18px; }
+.question-guide-section h4 { margin: 0 0 8px; font-size: .95rem; color: var(--text-primary); }
+
+.question-guide-separators { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.question-guide-separators li { display: flex; align-items: baseline; gap: 10px; }
+.question-guide-separators code { flex: 0 0 34px; text-align: center; }
+
+.question-guide-types { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.question-guide-type { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-secondary); }
+.question-guide-type-head { display: flex; align-items: center; gap: 10px; }
+.question-guide-type-text, .question-guide-type-grading { margin: 0; line-height: 1.55; }
+.question-guide-type-grading { color: var(--text-muted); font-size: .88rem; }
+.question-guide-type-columns, .question-guide-type-example { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0; font-size: .88rem; }
+.question-guide-type-columns > span, .question-guide-type-example > span { color: var(--text-muted); }
+
+.question-guide-type-columns code, .question-guide-type-example code, .question-guide-separators code, .question-guide-type-head code {
+  padding: 2px 6px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; overflow-wrap: anywhere;
+}
+
+.question-guide-rule { margin: 0 0 8px; line-height: 1.55; }
+
+@media (max-width: 640px) {
+  .question-guide-type-columns, .question-guide-type-example { align-items: flex-start; }
+}

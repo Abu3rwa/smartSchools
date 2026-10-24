@@ -120,3 +120,81 @@ test('gradeMapPracticeAttempt matches pairing text case-insensitively and totals
   assert.equal(evaluation.graded[0].isCorrect, false);
   assert.equal(evaluation.graded[0].requiresTeacherReview, false);
 });
+
+test('gradeMapPracticeQuestion scores ordering, blank and numeric answers deterministically', () => {
+  const orderingItems = [
+    { id: 'i7', text: 'First' },
+    { id: 'i3', text: 'Second' },
+    { id: 'i9', text: 'Third' }
+  ];
+
+  const perfectOrder = gradeMapPracticeQuestion({
+    questionType: 'ordering',
+    studentAnswer: ['i7', 'i3', 'i9'],
+    correctAnswer: 'i7>i3>i9',
+    orderingItems
+  });
+  assert.equal(perfectOrder.isCorrect, true);
+  assert.equal(perfectOrder.score, 1);
+  assert.equal(perfectOrder.requiresTeacherReview, false);
+  assert.equal(perfectOrder.gradingDetail.matched, 3);
+
+  const oneSwapped = gradeMapPracticeQuestion({
+    questionType: 'ordering',
+    studentAnswer: ['i7', 'i9', 'i3'],
+    correctAnswer: 'i7>i3>i9',
+    orderingItems
+  });
+  assert.equal(oneSwapped.isCorrect, false);
+  assert.equal(oneSwapped.score, 0.3333);
+
+  const blankAnswer = gradeMapPracticeQuestion({
+    questionType: 'fill_in_blank',
+    studentAnswer: { nile: 'the Nile.', africa: 'Asia' },
+    blanks: [
+      { id: 'nile', accepts: ['Nile'], caseSensitive: false },
+      { id: 'africa', accepts: ['Africa'], caseSensitive: true }
+    ]
+  });
+  assert.equal(blankAnswer.isCorrect, false);
+  assert.equal(blankAnswer.score, 0.5);
+
+  const numeric = gradeMapPracticeQuestion({
+    questionType: 'numeric_response',
+    studentAnswer: '12.4 days',
+    numericRule: { mode: 'tolerance', value: '12', tolerance: '0.5', unit: 'days' }
+  });
+  assert.equal(numeric.isCorrect, true);
+  assert.equal(numeric.score, 1);
+
+  const unitless = gradeMapPracticeQuestion({
+    questionType: 'numeric_response',
+    studentAnswer: '12',
+    numericRule: { mode: 'exact', value: '12', unit: 'days' }
+  });
+  assert.equal(unitless.isCorrect, false);
+  assert.equal(unitless.gradingDetail.reason, 'missing_unit');
+});
+
+test('gradeMapPracticeAttempt totals the new types and leaves unanswered items for review', () => {
+  const evaluation = gradeMapPracticeAttempt({
+    answers: [
+      {
+        questionType: 'ordering',
+        response: ['i7', 'i3'],
+        correctAnswer: 'i7>i3',
+        orderingItems: [{ id: 'i7', text: 'First' }, { id: 'i3', text: 'Second' }]
+      },
+      { questionType: 'numeric_response', response: '', numericRule: { mode: 'exact', value: '5' } },
+      { questionType: 'mcq', response: 'A', correctAnswer: 'A' }
+    ]
+  });
+
+  assert.equal(evaluation.maxScore, 3);
+  assert.equal(evaluation.score, 2);
+  assert.equal(evaluation.graded[0].isCorrect, true);
+  assert.equal(evaluation.graded[0].requiresTeacherReview, false);
+  assert.equal(evaluation.graded[1].requiresTeacherReview, true);
+  assert.equal(evaluation.graded[1].score, 0);
+  assert.equal(evaluation.graded[2].isCorrect, true);
+});

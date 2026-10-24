@@ -3,6 +3,7 @@ import StandardsPageHeader from './components/StandardsPageHeader';
 import StandardsTabs from './components/StandardsTabs';
 import StandardsFiltersBar from './components/StandardsFiltersBar';
 import StandardsList from './components/StandardsList';
+import LoadingState from './components/LoadingState';
 import StandardModal from './components/StandardModal';
 import StandardsImportTab from './components/StandardsImportTab';
 import useStandardsPageData from './hooks/useStandardsPageData';
@@ -13,8 +14,6 @@ const StandardAssignPage = lazy(() => import('../StandardAssignPage/StandardAssi
 const StandardsGradebookPage = lazy(() => import('../StandardsGradebookPage/StandardsGradebookPage'));
 const AssessmentPoolPage = lazy(() => import('../AssessmentPoolPage/AssessmentPoolPage'));
 const AssessmentSettingsPage = lazy(() => import('../AssessmentSettingsPage/AssessmentSettingsPage'));
-
-const TabFallback = () => <div className="tab-loading">Loading...</div>;
 
 const StandardsPage = () => {
     const {
@@ -47,6 +46,7 @@ const StandardsPage = () => {
         classes,
         isAdmin,
         filteredStandards,
+        totalStandards,
         selectedStandardIds,
         setSelectedStandardIds,
         bulkDeleting,
@@ -62,14 +62,23 @@ const StandardsPage = () => {
         handleDownloadTemplate
     } = useStandardsPageData();
 
+    const hasActiveFilters = Boolean(searchTerm || filterClass || filterSubject || filterGrade);
+
+    const handleClearFilters = () => {
+        setSearchTerm('');
+        setFilterClass('');
+        setFilterSubject('');
+        setFilterGrade('');
+    };
+
     return (
         <div className="standards-page">
             <StandardsPageHeader
                 showAddStandard={isAdmin && activeTab === STANDARDS_PAGE_TABS.list}
                 onAddStandard={handleOpenCreateModal}
-            />
-
-            <StandardsTabs activeTab={activeTab} onTabChange={setActiveTab} isAdmin={isAdmin} />
+            >
+                <StandardsTabs activeTab={activeTab} onTabChange={setActiveTab} isAdmin={isAdmin} />
+            </StandardsPageHeader>
 
             {activeTab === STANDARDS_PAGE_TABS.list && (
                 <>
@@ -84,6 +93,10 @@ const StandardsPage = () => {
                         onFilterGradeChange={setFilterGrade}
                         classes={classes}
                         subjects={subjects}
+                        hasActiveFilters={hasActiveFilters}
+                        onClearFilters={handleClearFilters}
+                        shownCount={filteredStandards.length}
+                        totalCount={totalStandards}
                     />
                     <StandardsList
                         loading={loading}
@@ -95,6 +108,8 @@ const StandardsPage = () => {
                         onSelectedStandardIdsChange={setSelectedStandardIds}
                         onBulkDelete={handleBulkDelete}
                         bulkDeleting={bulkDeleting}
+                        hasActiveFilters={hasActiveFilters}
+                        onClearFilters={handleClearFilters}
                     />
                 </>
             )}
@@ -120,19 +135,19 @@ const StandardsPage = () => {
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.assign && (
-                <Suspense fallback={<TabFallback />}><StandardAssignPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}><StandardAssignPage embedded /></Suspense>
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.gradebook && (
-                <Suspense fallback={<TabFallback />}><StandardsGradebookPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}><StandardsGradebookPage embedded /></Suspense>
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.pool && (
-                <Suspense fallback={<TabFallback />}><AssessmentPoolPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}><AssessmentPoolPage embedded /></Suspense>
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.settings && isAdmin && (
-                <Suspense fallback={<TabFallback />}><AssessmentSettingsPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}><AssessmentSettingsPage embedded /></Suspense>
             )}
 
             <StandardModal

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
+import { readFileSync } from 'node:fs';
+import { URL } from 'node:url';
 import Student from '../models/Student.js';
 import MapPracticeSkill from '../models/MapPracticeSkill.js';
 import MapPracticePlan from '../models/MapPracticePlan.js';
@@ -8,10 +10,12 @@ import MapPracticePlanSkill from '../models/MapPracticePlanSkill.js';
 import MapPracticeSet from '../models/MapPracticeSet.js';
 import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import MapPracticeImportBatch from '../models/MapPracticeImportBatch.js';
+import AssessmentPassage from '../models/AssessmentPassage.js';
 import { mapPracticeCsvHeader } from '../validators/mapPracticeValidators.js';
 import { buildMapPracticeOverviewSummary } from '../controllers/mapPracticeImportController.js';
 import { getMapPracticeImportAction } from '../client/src/pages/mapTestPrep/mapPracticeImportState.js';
 import { getMapPracticeSetProgress } from '../client/src/pages/student/mapTestPrep/studentMapPracticeProgress.js';
+import { buildMapPracticeCsv, mapPracticeBlankTemplate, mapPracticeExampleRows } from '../client/src/pages/mapTestPrep/mapPracticeTemplate.js';
 import {
   importMapPracticeFiles,
   resolveMapPracticeStudentMatch,
@@ -196,7 +200,7 @@ test('buildMapPracticePreview summarizes 210 questions into the expected sets, s
     assert.equal(preview.sets.length, 14);
     assert.equal(preview.skills.length, 14);
     assert.equal(preview.passages, 3);
-    assert.deepEqual(preview.questionTypes, { mcq: 170, multi_select: 15, short_text: 20, matching: 5 });
+    assert.deepEqual(preview.questionTypes, { mcq: 170, multi_select: 15, short_text: 20, matching: 5, ordering: 0, fill_in_blank: 0, numeric_response: 0 });
     assert.deepEqual(preview.errors, []);
     assert.equal(preview.willCreate, 210);
     assert.equal(preview.willUpdate, 0);
@@ -247,6 +251,46 @@ test('buildMapPracticePreview flags matching rows whose pairs are missing or mal
   }
 });
 
+test('buildMapPracticePreview warns only when a row cites a passage the file never carries', async () => {
+  const originalStudentFindOne = Student.findOne;
+  const originalPlanFindOne = MapPracticePlan.findOne;
+  const originalQuestionFind = MapPracticeQuestion.find;
+  const originalSkillFind = MapPracticeSkill.find;
+  try {
+    Student.findOne = async () => ({ _id: 'student-1', studentId: 'S-000253', firstName: 'Mina', lastName: 'Ali', currentClass: 'class-1' });
+    MapPracticePlan.findOne = async () => null;
+    MapPracticeQuestion.find = () => ({ select: () => ({ lean: async () => [] }) });
+    MapPracticeSkill.find = () => ({ select: () => ({ lean: async () => [] }) });
+
+    const headers = [
+      ...mapPracticeCsvHeader,
+      'matching_pairs', 'ordering_items', 'blank_answers', 'numeric_rule', 'passage_source'
+    ].join(',');
+    const mcqRow = (questionId, order, [passageId, passageTitle, passageText]) => [
+      'S-000253', 'Fall Focus', 'SET-1', 'Reading', '1', questionId, order,
+      'Reading', 'Main idea', 'READ-1', 'Main idea', '201-210', passageId, passageTitle, passageText,
+      'mcq', 'What is the main idea?', 'one', 'two', '', '', 'A', 'Because the text says so.', '', '1', '', '', '', '', ''
+    ].join(',');
+    const csv = [
+      headers,
+      mcqRow('Q-1', '1', ['P-1', 'The first map tests', 'MAP practice grew out of adaptive testing.']),
+      mcqRow('Q-2', '2', ['P-1', '', '']),
+      mcqRow('Q-3', '3', ['P-9', '', ''])
+    ].join('\n');
+
+    const preview = await buildMapPracticePreview({ schoolId: 'school-1', fileName: 'S-000253_fall-map-01.csv', fileBuffer: Buffer.from(`${csv}\n`) });
+
+    assert.equal(preview.errors.length, 0);
+    assert.deepEqual(preview.warnings.map((warning) => [warning.row, warning.column]), [[4, 'passage_text']]);
+    assert.equal(preview.status, 'ready_with_warnings');
+  } finally {
+    Student.findOne = originalStudentFindOne;
+    MapPracticePlan.findOne = originalPlanFindOne;
+    MapPracticeQuestion.find = originalQuestionFind;
+    MapPracticeSkill.find = originalSkillFind;
+  }
+});
+
 test('importMapPracticeFiles creates a plan and tracks school-scoped skills without AI', async () => {
   const originalStudentFindOne = Student.findOne;
   const originalSkillFindOneAndUpdate = MapPracticeSkill.findOneAndUpdate;
@@ -257,6 +301,8 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
   const originalQuestionFindOneAndUpdate = MapPracticeQuestion.findOneAndUpdate;
   const originalQuestionCountDocuments = MapPracticeQuestion.countDocuments;
   const originalBatchCreate = MapPracticeImportBatch.create;
+  const originalPassageFindOne = AssessmentPassage.findOne;
+  const originalPassageCreate = AssessmentPassage.create;
   let planWrite = null;
   const upsertWrites = [];
 
@@ -297,6 +343,8 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
     };
     MapPracticeQuestion.countDocuments = async () => 1;
     MapPracticeImportBatch.create = async (doc) => ({ _id: 'batch-1', ...doc });
+    AssessmentPassage.findOne = () => ({ lean: async () => null });
+    AssessmentPassage.create = async (doc) => ({ _id: 'passage-1', ...doc });
 
     const result = await importMapPracticeFiles({
       schoolId: '68c4d166ef9ee9d40512d3ad',
@@ -388,6 +436,8 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
       { left: 'Sahara', right: 'The largest hot desert' }
     ]);
     assert.deepEqual(questionWrites.find((write) => write.questionType === 'mcq')?.matchingPairs, []);
+    assert.equal(questionWrites.find((write) => write.questionType === 'mcq')?.passage, 'passage-1');
+    assert.equal(questionWrites.find((write) => write.questionType === 'matching')?.passage, null);
     assert.ok(Array.isArray(result.newSkillsCreated));
     assert.equal(result.newSkillsCreated[0], 'VOC-CONTEXT');
     assert.equal(planWrite.$set.sourceStudentId, 'S-000253');
@@ -403,6 +453,109 @@ test('importMapPracticeFiles creates a plan and tracks school-scoped skills with
     MapPracticeQuestion.findOneAndUpdate = originalQuestionFindOneAndUpdate;
     MapPracticeQuestion.countDocuments = originalQuestionCountDocuments;
     MapPracticeImportBatch.create = originalBatchCreate;
+    AssessmentPassage.findOne = originalPassageFindOne;
+    AssessmentPassage.create = originalPassageCreate;
+  }
+});
+
+test('importMapPracticeFiles lets a row cite a passage another row carries, in either order', async () => {
+  const originalStudentFindOne = Student.findOne;
+  const originalSkillFindOneAndUpdate = MapPracticeSkill.findOneAndUpdate;
+  const originalPlanFindOneAndUpdate = MapPracticePlan.findOneAndUpdate;
+  const originalPlanSkillFindOneAndUpdate = MapPracticePlanSkill.findOneAndUpdate;
+  const originalSetFindOneAndUpdate = MapPracticeSet.findOneAndUpdate;
+  const originalSetFindByIdAndUpdate = MapPracticeSet.findByIdAndUpdate;
+  const originalQuestionFindOneAndUpdate = MapPracticeQuestion.findOneAndUpdate;
+  const originalQuestionFindOne = MapPracticeQuestion.findOne;
+  const originalQuestionCountDocuments = MapPracticeQuestion.countDocuments;
+  const originalBatchCreate = MapPracticeImportBatch.create;
+  const originalPassageFindOne = AssessmentPassage.findOne;
+  const originalPassageCreate = AssessmentPassage.create;
+  const storedPassages = new Map();
+  const questionWrites = [];
+
+  const row = (rowNumber, questionId, order, extra) => ({
+    rowNumber,
+    values: {
+      student_id: 'S-000253',
+      plan_title: 'Fall Focus',
+      set_id: 'SET-1',
+      set_title: 'Reading',
+      set_order: '1',
+      question_id: questionId,
+      order,
+      subject: 'Reading',
+      strand: 'Main idea',
+      skill_code: 'READ-1',
+      skill_name: 'Main idea',
+      rit_band: '201-210',
+      question_type: 'mcq',
+      option_a: 'one',
+      option_b: 'two',
+      correct_answer: 'A',
+      points: '1',
+      ...extra
+    }
+  });
+
+  try {
+    Student.findOne = () => ({ lean: async () => ({ _id: 'student-1', studentId: 'S-000253', currentClass: 'class-1' }) });
+    MapPracticeSkill.findOneAndUpdate = async (_filter, update) => ({ _id: 'skill-1', ...update.$setOnInsert, ...update.$set });
+    MapPracticePlan.findOneAndUpdate = async (_filter, update) => ({ _id: 'plan-1', ...update.$setOnInsert, ...update.$set });
+    MapPracticePlanSkill.findOneAndUpdate = async (_filter, update) => ({ _id: 'plan-skill-1', ...update.$setOnInsert, ...update.$set });
+    MapPracticeSet.findOneAndUpdate = async (_filter, update) => ({ _id: 'set-1', ...update.$setOnInsert, ...update.$set });
+    MapPracticeSet.findByIdAndUpdate = async () => ({ _id: 'set-1' });
+    MapPracticeQuestion.findOne = () => ({ lean: async () => null });
+    MapPracticeQuestion.findOneAndUpdate = async (_filter, update) => {
+      questionWrites.push(update.$set);
+      return { _id: 'question-1', ...update.$set };
+    };
+    MapPracticeQuestion.countDocuments = async () => 2;
+    MapPracticeImportBatch.create = async (doc) => ({ _id: 'batch-1', ...doc });
+    AssessmentPassage.findOne = (filter) => ({ lean: async () => storedPassages.get(String(filter?.passageKey)) || null });
+    AssessmentPassage.create = async (doc) => {
+      const record = { _id: `passage-${storedPassages.size + 1}`, ...doc };
+      storedPassages.set(String(doc.passageKey), record);
+      return record;
+    };
+
+    await importMapPracticeFiles({
+      schoolId: '68c4d166ef9ee9d40512d3ad',
+      userId: '68c4d166ef9ee9d40512d3ae',
+      mode: 'skip_errors',
+      files: [{
+        fileName: 'S-000253_fall-map.csv',
+        studentId: 'S-000253',
+        decisions: { matchedStudentId: 'S-000253', errors: [], warnings: [] },
+        rows: [
+          row(2, 'Q-1', '1', { passage_id: 'P-1', stem: 'What is the main idea?' }),
+          row(3, 'Q-2', '2', {
+            passage_id: 'P-1',
+            passage_title: 'The first map tests',
+            passage_text: 'MAP practice grew out of adaptive testing.',
+            stem: 'What did adaptive tests replace?'
+          })
+        ]
+      }]
+    });
+
+    assert.equal(storedPassages.size, 1);
+    assert.deepEqual(questionWrites.map((write) => write.passage), ['passage-1', 'passage-1']);
+    assert.equal(questionWrites[0].passageText, 'MAP practice grew out of adaptive testing.');
+    assert.equal(questionWrites[0].passageTitle, 'The first map tests');
+  } finally {
+    Student.findOne = originalStudentFindOne;
+    MapPracticeSkill.findOneAndUpdate = originalSkillFindOneAndUpdate;
+    MapPracticePlan.findOneAndUpdate = originalPlanFindOneAndUpdate;
+    MapPracticePlanSkill.findOneAndUpdate = originalPlanSkillFindOneAndUpdate;
+    MapPracticeSet.findOneAndUpdate = originalSetFindOneAndUpdate;
+    MapPracticeSet.findByIdAndUpdate = originalSetFindByIdAndUpdate;
+    MapPracticeQuestion.findOneAndUpdate = originalQuestionFindOneAndUpdate;
+    MapPracticeQuestion.findOne = originalQuestionFindOne;
+    MapPracticeQuestion.countDocuments = originalQuestionCountDocuments;
+    MapPracticeImportBatch.create = originalBatchCreate;
+    AssessmentPassage.findOne = originalPassageFindOne;
+    AssessmentPassage.create = originalPassageCreate;
   }
 });
 
@@ -450,4 +603,48 @@ test('student set progress counts only saved nonempty responses', () => {
   assert.deepEqual(getMapPracticeSetProgress([emptyAttempt], 'set-1', 10), { answered: 0, total: 10, percentage: 0 });
   assert.deepEqual(getMapPracticeSetProgress([savedAttempt], 'set-1', 10), { answered: 1, total: 10, percentage: 10 });
   assert.deepEqual(getMapPracticeSetProgress([], 'set-1', 0), { answered: 0, total: 0, percentage: 0 });
+});
+
+test('the public template and example csv files match the download generator', () => {
+  assert.equal(
+    readFileSync(new URL('../client/public/map_practice_template.csv', import.meta.url), 'utf8'),
+    mapPracticeBlankTemplate
+  );
+  assert.equal(
+    readFileSync(new URL('../client/public/map_practice_example_student_1.csv', import.meta.url), 'utf8'),
+    buildMapPracticeCsv()
+  );
+});
+
+test('the downloaded example file imports every authored question type', async () => {
+  const originalStudentFindOne = Student.findOne;
+  const originalPlanFindOne = MapPracticePlan.findOne;
+  const originalQuestionFind = MapPracticeQuestion.find;
+  const originalSkillFind = MapPracticeSkill.find;
+  try {
+    Student.findOne = async (filter) => filter.studentId === 'EXAMPLE-001'
+      ? { _id: 'student-1', studentId: 'EXAMPLE-001', firstName: 'Example', lastName: 'Student', currentClass: 'class-1' }
+      : null;
+    MapPracticePlan.findOne = async () => null;
+    MapPracticeQuestion.find = () => ({ select: () => ({ lean: async () => [] }) });
+    MapPracticeSkill.find = () => ({ select: () => ({ lean: async () => [] }) });
+
+    const preview = await buildMapPracticePreview({
+      schoolId: 'school-1',
+      fileName: 'EXAMPLE-001_example.csv',
+      fileBuffer: Buffer.from(buildMapPracticeCsv())
+    });
+
+    assert.deepEqual(preview.errors, []);
+    assert.equal(preview.rows, mapPracticeExampleRows.length);
+    assert.equal(preview.status, 'ready');
+    assert.deepEqual(preview.questionTypes, {
+      mcq: 1, multi_select: 1, short_text: 1, matching: 1, ordering: 1, fill_in_blank: 1, numeric_response: 1
+    });
+  } finally {
+    Student.findOne = originalStudentFindOne;
+    MapPracticePlan.findOne = originalPlanFindOne;
+    MapPracticeQuestion.find = originalQuestionFind;
+    MapPracticeSkill.find = originalSkillFind;
+  }
 });

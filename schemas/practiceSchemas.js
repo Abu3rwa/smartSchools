@@ -118,6 +118,35 @@ export const feedbackPartsSchema = z.object({
     }).optional()
 });
 
+export const studentMatchingColumnsSchema = z.object({
+    terms: z.array(z.string()),
+    choices: z.array(z.string())
+}).optional();
+
+export const studentOrderingItemsSchema = z.array(z.object({
+    id: z.string(),
+    text: z.string()
+})).optional();
+
+export const studentNumericHintSchema = z.object({
+    unit: z.string(),
+    acceptFractions: z.boolean(),
+    acceptPercent: z.boolean(),
+    decimalPlaces: z.number().nullable(),
+    prompt: z.string()
+}).nullable().optional();
+
+export const studentPassageSchema = z.object({
+    passageId: z.string(),
+    passageKey: z.string(),
+    title: z.string(),
+    text: z.string(),
+    source: z.string().optional(),
+    language: z.string().optional(),
+    accessibilityText: z.string().optional(),
+    contentHash: z.string().optional()
+}).nullable().optional();
+
 export const generateQuestionResponseSchema = z.object({
     status: z.enum(['mastered', 'question', 'session_complete']),
     message: z.string().nullable().optional(),
@@ -139,7 +168,14 @@ export const generateQuestionResponseSchema = z.object({
         grammarLevel: z.enum(GRAMMAR_LEVELS).nullable().optional(),
         skill: z.string().nullable().optional(),
         subskill: z.string().nullable().optional(),
-        attemptNumber: z.number()
+        attemptNumber: z.number(),
+        // Presentation-only fields for the key-bearing types: shuffled columns and items,
+        // blank ids, the numeric answer format and the passage the student reads.
+        matchingColumns: studentMatchingColumnsSchema,
+        orderingItems: studentOrderingItemsSchema,
+        blankIds: z.array(z.string()).optional(),
+        numericHint: studentNumericHintSchema,
+        passage: studentPassageSchema
     }).nullable(),
     session: sessionSchema.nullable().optional()
 });

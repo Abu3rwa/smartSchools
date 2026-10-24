@@ -1,0 +1,64 @@
+{
+  "guide": {
+    "columnLabel": "Columns",
+    "exampleLabel": "Example",
+    "intro": "Copy these patterns into your CSV. One row is one question, and only the columns named here are read for that type.",
+    "passages": "One row can carry a reading passage with passage_id, passage_title and passage_text. Any other row may cite the same passage_id and leave passage_text empty, in any order, and it reads the stored wording.",
+    "sections": {
+      "rules": "Shared rules",
+      "separators": "Separators",
+      "types": "Question types"
+    },
+    "separators": {
+      "pairs": "separates the items of one list",
+      "steps": "separates the steps, written in the correct order",
+      "terms": "separates a term from its match, or an id from its value",
+      "variants": "separates the accepted versions of one answer"
+    },
+    "title": "Question type guide",
+    "trigger": "Question types guide",
+    "types": {
+      "fill_in_blank": {
+        "grading": "Every correct blank earns part of the point. Letter case, punctuation and a leading article are ignored.",
+        "name": "Fill in the blank",
+        "write": "Mark each blank in the question with an id, then list the accepted answers for those ids in the same order."
+      },
+      "matching": {
+        "grading": "Every correct pair earns part of the point. Students see the terms in order and the matches shuffled.",
+        "name": "Match pairs",
+        "write": "Write at least {{minPairs}} pairs as a term and its match. Leave the answer column empty."
+      },
+      "multiple_choice": {
+        "grading": "The one correct option earns the whole point.",
+        "name": "Choose one answer",
+        "write": "Fill {{minOptions}} to six options and put a single option letter in the answer column."
+      },
+      "multiple_select": {
+        "grading": "Students must select the exact set of correct options.",
+        "name": "Choose every answer",
+        "write": "Fill {{minOptions}} to six options and list every correct option letter in the answer column."
+      },
+      "numeric_response": {
+        "grading": "All or nothing. Answers are compared as exact rational numbers, never floating-point equality, so 0.5 and 1/2 both match.",
+        "name": "Numeric answer",
+        "write": "State the accepted value as an exact number, a tolerance, a percent window or a range, then add any unit or formatting."
+      },
+      "ordering": {
+        "grading": "Every item standing in its right position earns part of the point. The list is shuffled for each student.",
+        "name": "Put in order",
+        "write": "Write the steps in their correct order, {{minOrderItems}} to {{maxOrderItems}} different steps."
+      },
+      "short_answer": {
+        "grading": "An answer that matches one of the accepted versions is graded automatically; anything else goes to you for review.",
+        "name": "Short answer",
+        "write": "List every wording you accept. Only these are graded automatically."
+      },
+      "true_false": {
+        "grading": "The correct statement earns the whole point.",
+        "name": "True or false",
+        "write": "Leave the option columns empty and write true or false in the answer column."
+      }
+    },
+    "visibility": "Students never receive the answer column, the explanation, the pair map, the accepted answers, the numeric rule or the authored order."
+  }
+}

@@ -15,6 +15,15 @@ import toast from 'react-hot-toast';
 import api from '../../../../../config/api';
 import { QUESTION_TYPE_GUIDANCE } from '../constants';
 import { getStreakLabel, getUsableTopics } from '../utils/practiceSessionPresentation';
+import { isAnswerReady, isObjectiveAnswerType } from '../utils/practiceAnswerDraft';
+
+const OBJECTIVE_INCOMPLETE_MESSAGES = {
+    multiple_select: 'Select at least one answer before submitting.',
+    matching: 'Match at least one item before submitting.',
+    ordering: 'Put every item in order before submitting.',
+    fill_in_blank: 'Fill at least one blank before submitting.',
+    numeric_response: 'Write your numeric answer before submitting.'
+};
 
 const usePracticeSessionData = () => {
     const { assignmentId } = useParams();
@@ -37,6 +46,7 @@ const usePracticeSessionData = () => {
 
     const [selectedAnswer, setSelectedAnswer] = useState('');
     const [shortAnswer, setShortAnswer] = useState('');
+    const [objectiveAnswer, setObjectiveAnswer] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
     const [questionType, setQuestionType] = useState('multiple_choice');
     const [startTime, setStartTime] = useState(null);
@@ -110,6 +120,7 @@ const usePracticeSessionData = () => {
         dispatch(clearLastResult());
         setSelectedAnswer('');
         setShortAnswer('');
+        setObjectiveAnswer(null);
 
         const result = await dispatch(generateQuestion({
             assignmentId,
@@ -125,16 +136,22 @@ const usePracticeSessionData = () => {
     };
 
     const handleSubmit = async () => {
+        const questionType = currentQuestion?.questionType;
+        const isObjective = isObjectiveAnswerType(questionType);
         const normalizedShortAnswer = shortAnswer.trim();
-        const answer = currentQuestion?.questionType === 'short_answer'
+        const answer = questionType === 'short_answer'
             ? normalizedShortAnswer
-            : selectedAnswer;
+            : isObjective
+                ? objectiveAnswer
+                : selectedAnswer;
 
-        if (!answer) {
+        if (isObjective ? !isAnswerReady(currentQuestion, answer) : !answer) {
             toast.error(
-                currentQuestion?.questionType === 'short_answer'
-                    ? 'Write your answer before submitting.'
-                    : 'Select one answer before submitting.'
+                isObjective
+                    ? OBJECTIVE_INCOMPLETE_MESSAGES[questionType]
+                    : questionType === 'short_answer'
+                        ? 'Write your answer before submitting.'
+                        : 'Select one answer before submitting.'
             );
             return;
         }
@@ -255,6 +272,8 @@ const usePracticeSessionData = () => {
         setSelectedAnswer,
         shortAnswer,
         setShortAnswer,
+        objectiveAnswer,
+        setObjectiveAnswer,
         difficulty,
         setDifficulty,
         questionType,

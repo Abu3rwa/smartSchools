@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getMapPracticeAttemptState, getMapPracticeSetAction } from './studentMapPracticeProgress.js';
+import { getMapPracticeAttemptState, getMapPracticeSetAction, isMapPracticeAnswerRecorded } from './studentMapPracticeProgress.js';
+
+test('only a real answer unlocks the submit step that reveals feedback', () => {
+  assert.equal(isMapPracticeAnswerRecorded(''), false);
+  assert.equal(isMapPracticeAnswerRecorded('   '), false);
+  assert.equal(isMapPracticeAnswerRecorded(undefined), false);
+  assert.equal(isMapPracticeAnswerRecorded([]), false);
+  assert.equal(isMapPracticeAnswerRecorded(['', '  ']), false);
+  assert.equal(isMapPracticeAnswerRecorded('B'), true);
+  assert.equal(isMapPracticeAnswerRecorded(['A', 'C']), true);
+  assert.equal(isMapPracticeAnswerRecorded([{ left: 'Simile', right: 'A comparison using like or as' }]), true);
+});
 
 test('shows review and submit when every answer is saved but the attempt is unsubmitted', () => {
   assert.deepEqual(

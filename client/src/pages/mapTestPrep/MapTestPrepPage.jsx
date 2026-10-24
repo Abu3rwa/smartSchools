@@ -17,8 +17,15 @@ import {
   YAxis,
 } from "recharts";
 import api from "../../config/api";
+import QuestionTypeGuide from "../../components/assessment/QuestionTypeGuide";
 import { getMapPracticeImportAction } from "./mapPracticeImportState";
+import { buildMapPracticeCsv, mapPracticeBlankTemplate } from "./mapPracticeTemplate";
 import { getMatchingAnswerRows } from "../../utils/mapPracticeMatching";
+import {
+  describeCorrectAnswer,
+  describeStudentAnswer,
+  isObjectiveAnswerType,
+} from "../../utils/mapPracticeObjectiveAnswers";
 import "./MapTestPrepPage.css";
 
 const initialImportState = {
@@ -2080,6 +2087,18 @@ const MapTestPrepPage = () => {
                                           answer.response,
                                         )
                                       : [];
+                                  const objectiveType = isObjectiveAnswerType(
+                                    question.questionType,
+                                  );
+                                  const objectiveAnswerText = objectiveType
+                                    ? describeStudentAnswer(
+                                        question,
+                                        answer.response,
+                                      )
+                                    : "";
+                                  const objectiveCorrectText = objectiveType
+                                    ? describeCorrectAnswer(question)
+                                    : "";
                                   const markAnswer = (value) =>
                                     setTeacherReviewMarks((current) => ({
                                       ...current,
@@ -2171,8 +2190,23 @@ const MapTestPrepPage = () => {
                                           ))}
                                         </ul>
                                       )}
+                                      {objectiveType && (
+                                        <p className="map-roster-answer-response">
+                                          <strong>Student answer:</strong>{" "}
+                                          {objectiveAnswerText ||
+                                            "No answer saved"}
+                                          {objectiveCorrectText && (
+                                            <span className="map-roster-answer-correct">
+                                              {" · "}
+                                              <strong>Correct:</strong>{" "}
+                                              {objectiveCorrectText}
+                                            </span>
+                                          )}
+                                        </p>
+                                      )}
                                       {options.length === 0 &&
-                                        matchingRows.length === 0 && (
+                                        matchingRows.length === 0 &&
+                                        !objectiveType && (
                                           <p className="map-roster-answer-response">
                                             <strong>Student answer:</strong>{" "}
                                             {responses
@@ -2279,7 +2313,7 @@ const MapTestPrepPage = () => {
                   onClick={() =>
                     downloadTextFile(
                       "map-practice-template.csv",
-                      "student_id,plan_title,set_id,set_title,set_order,question_id,order,subject,strand,skill_code,skill_name,rit_band,passage_id,passage_title,passage_text,question_type,stem,option_a,option_b,option_c,option_d,correct_answer,explanation,distractor_note,points,matching_pairs\n",
+                      mapPracticeBlankTemplate,
                     )
                   }
                 >
@@ -2291,12 +2325,13 @@ const MapTestPrepPage = () => {
                   onClick={() =>
                     downloadTextFile(
                       "map-practice-example.csv",
-                      "student_id,plan_title,set_id,set_title,set_order,question_id,order,subject,strand,skill_code,skill_name,rit_band,passage_id,passage_title,passage_text,question_type,stem,option_a,option_b,option_c,option_d,correct_answer,explanation,distractor_note,points\nEXAMPLE-001,Example plan,SET-1,Sample set,1,Q-1,1,Reading,Vocabulary,VOC-1,Context clues,201-210,,, ,mcq,What does sample mean?,example,practice,question,word,A,Sample explanation,,1\n",
+                      buildMapPracticeCsv(),
                     )
                   }
                 >
                   {t("mapTestPrep:import.exampleFile")}
                 </button>
+                <QuestionTypeGuide flow="map" className="map-text-button" />
               </div>
               {importState.error && (
                 <div className="map-prep-error" role="alert">
@@ -2359,6 +2394,9 @@ const MapTestPrepPage = () => {
                     multi: file.questionTypes?.multi_select || 0,
                     short: file.questionTypes?.short_text || 0,
                     matching: file.questionTypes?.matching || 0,
+                    ordering: file.questionTypes?.ordering || 0,
+                    blanks: file.questionTypes?.fill_in_blank || 0,
+                    numeric: file.questionTypes?.numeric_response || 0,
                   },
                 );
                 return (

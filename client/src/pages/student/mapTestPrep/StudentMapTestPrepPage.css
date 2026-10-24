@@ -10,12 +10,10 @@
 .student-map-prep-options label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); cursor: pointer; }
 .student-map-prep-options input { margin-top: 3px; }
 .student-map-prep-question textarea { width: 100%; min-height: 100px; resize: vertical; border-radius: 8px; }
-.student-map-prep-hint { margin: 0; color: var(--text-muted); font-size: .85rem; }
-.student-map-prep-matching { display: grid; gap: 10px; }
-.student-map-prep-matching-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr); gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); }
+.student-map-prep-answer-inputs { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.student-map-prep-answer-inputs:disabled { opacity: 1; }
+.student-map-prep-answer-hint { margin: 0; color: var(--text-muted); font-size: .85rem; }
 .student-map-prep-matching-term { font-weight: 600; }
-.student-map-prep-matching-row select { width: 100%; padding: 9px 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); font: inherit; }
-.student-map-prep-matching-row select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .student-map-prep-reviewed-matching { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .student-map-prep-reviewed-matching li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
 .student-map-prep-reviewed-matching li.unmatched { border-style: dashed; color: var(--text-muted); }

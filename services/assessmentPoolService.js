@@ -319,6 +319,16 @@ export async function createAssessmentFromPool({
       questionText: q.questionText,
       questionType: q.questionType,
       options: q.options || [],
+      // A copied question must keep the definition its grader reads, or the new pool would
+      // store a question nothing can mark.
+      matchingPairs: q.matchingPairs || [],
+      orderingItems: q.orderingItems || [],
+      blanks: q.blanks || [],
+      numericRule: q.numericRule || null,
+      passage: q.passage || null,
+      passageId: q.passageId || '',
+      passageTitle: q.passageTitle || '',
+      passageText: q.passageText || '',
       correctAnswer: q.correctAnswer,
       explanation: q.explanation || '',
       difficulty: q.difficulty || 'medium',

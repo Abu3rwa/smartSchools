@@ -7,7 +7,20 @@ export const mapPracticeCsvHeader = [
   'correct_answer', 'explanation', 'distractor_note', 'points'
 ];
 
-export const mapPracticeQuestionTypes = ['mcq', 'multi_select', 'short_text', 'matching'];
+// Optional columns. V1 files without them keep importing exactly as before.
+export const mapPracticeOptionalCsvHeader = [
+  'matching_pairs', 'ordering_items', 'blank_answers', 'numeric_rule', 'passage_source'
+];
+
+export const mapPracticeQuestionTypes = [
+  'mcq',
+  'multi_select',
+  'short_text',
+  'matching',
+  'ordering',
+  'fill_in_blank',
+  'numeric_response'
+];
 
 export const mapPracticeQuestionTypeSchema = z.enum(mapPracticeQuestionTypes);
 

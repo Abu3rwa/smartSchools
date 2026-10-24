@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseQuestionImport } from './questionImportCsv.js';
+import { questionGuideRows } from '../../../../components/assessment/questionTypeGuideData.js';
+import { buildTemplateCsv, parseCsv, parseQuestionImport } from './questionImportCsv.js';
 
 const HEADER =
     'question_type,question_text,option_a,option_b,option_c,option_d,correct_answer';
@@ -49,4 +50,12 @@ test('still flags options that are truly identical', () => {
     ]);
 
     assert.deepEqual(rows[0].errors, [{ code: 'duplicateOptions' }]);
+});
+
+test('the teacher guide explains every question type the shipped template uses', () => {
+    const records = parseCsv(buildTemplateCsv());
+    const typeIndex = records[0].indexOf('question_type');
+    const templateTypes = [...new Set(records.slice(1).map((cells) => String(cells[typeIndex]).trim()))].sort();
+
+    assert.deepEqual(questionGuideRows('standards').map((row) => row.token).sort(), templateTypes);
 });

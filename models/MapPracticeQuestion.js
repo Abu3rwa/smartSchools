@@ -1,15 +1,11 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 import { mapPracticeQuestionTypes } from '../validators/mapPracticeValidators.js';
+import { objectiveAnswerDefinitionSchemas } from './questionAnswerDefinitions.js';
 
 const optionSchema = new mongoose.Schema({
     key: { type: String, required: true, trim: true, maxlength: 4 },
     text: { type: String, default: '', trim: true, maxlength: 1200 }
-}, { _id: false });
-
-const matchingPairSchema = new mongoose.Schema({
-    left: { type: String, required: true, trim: true, maxlength: 600 },
-    right: { type: String, required: true, trim: true, maxlength: 1200 }
 }, { _id: false });
 
 const mapPracticeQuestionSchema = new mongoose.Schema({
@@ -28,8 +24,9 @@ const mapPracticeQuestionSchema = new mongoose.Schema({
     questionType: { type: String, enum: mapPracticeQuestionTypes, required: true },
     stem: { type: String, required: true, trim: true, maxlength: 4000 },
     options: [optionSchema],
-    matchingPairs: [matchingPairSchema],
-    correctAnswer: { type: String, default: '', trim: true, maxlength: 200 },
+    ...objectiveAnswerDefinitionSchemas,
+    passage: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentPassage', default: null },
+    correctAnswer: { type: String, default: '', trim: true, maxlength: 600 },
     explanation: { type: String, default: '', trim: true, maxlength: 4000 },
     distractorNote: { type: String, default: '', trim: true, maxlength: 2000 },
     points: { type: Number, default: 1, min: 0 },

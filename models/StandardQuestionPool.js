@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { PRACTICE_QUESTION_TYPES } from '../constants/practiceQuestionTypes.js';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { objectiveAnswerDefinitionSchemas } from './questionAnswerDefinitions.js';
 
 const optionSchema = new mongoose.Schema(
   {
@@ -20,6 +21,11 @@ const questionSchema = new mongoose.Schema(
       required: true,
     },
     options: [optionSchema],
+    ...objectiveAnswerDefinitionSchemas,
+    passage: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentPassage', default: null },
+    passageId: { type: String, trim: true, default: '' },
+    passageTitle: { type: String, trim: true, default: '' },
+    passageText: { type: String, trim: true, default: '' },
     correctAnswer: { type: String, required: true, trim: true },
     explanation: { type: String, trim: true, default: '' },
     difficulty: {

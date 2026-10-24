@@ -16,6 +16,12 @@ import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
 import notificationService from "../services/notificationService.js";
 import { gradePracticeAnswer } from "../services/practiceAnswerGrading.js";
+import { buildPassageSnapshot } from "../services/assessment/passageService.js";
+import { describeObjectiveAnswer } from "../services/assessment/answerFormat.js";
+import {
+  buildStudentPresentationFields,
+  describeStudentResponse,
+} from "../services/assessment/studentPresentationService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import logger from "../utils/logger.js";
 import { percentageToScaleLevel, isValidManualScore, computeEffectiveScore, SCALE_LEVELS } from "../utils/sbrScaleUtils.js";
@@ -38,6 +44,7 @@ import {
   submitAnswerResponseSchema,
   integrityEventSchema,
 } from "../schemas/practiceSchemas.js";
+import { AI_GENERATED_QUESTION_TYPES } from "../constants/practiceQuestionTypes.js";
 
 const DEFAULT_PRACTICE_CONFIG = {
   sessionType: "practice",
@@ -950,11 +957,21 @@ const resolveQuestionSettings = ({
   config,
   recentAttempts,
 }) => {
-  const allowedTypes =
-    Array.isArray(config.allowedQuestionTypes) &&
-    config.allowedQuestionTypes.length > 0
-      ? config.allowedQuestionTypes
-      : DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes;
+  const allowedTypes = (() => {
+    const configured =
+      Array.isArray(config.allowedQuestionTypes) &&
+      config.allowedQuestionTypes.length > 0
+        ? config.allowedQuestionTypes
+        : DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes;
+    // A live student question is generated here, so only ask for the types an authoring
+    // path can actually produce. Teacher-published pool questions carry the other types.
+    const generationSafe = configured.filter((type) =>
+      AI_GENERATED_QUESTION_TYPES.includes(type),
+    );
+    return generationSafe.length > 0
+      ? generationSafe
+      : AI_GENERATED_QUESTION_TYPES;
+  })();
   const allowedDifficulties =
     Array.isArray(config.allowedDifficulties) &&
     config.allowedDifficulties.length > 0
@@ -1478,6 +1495,16 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       questionText: poolQuestion.questionText,
       questionType: poolQuestion.questionType,
       options: poolQuestion.options || [],
+      // The authored definition is what the grader reads, so it travels with the question
+      // from the pool into the attempt instead of being re-derived at submit time.
+      matchingPairs: poolQuestion.matchingPairs || [],
+      orderingItems: poolQuestion.orderingItems || [],
+      blanks: poolQuestion.blanks || [],
+      numericRule: poolQuestion.numericRule || null,
+      passage: poolQuestion.passage || null,
+      passageId: poolQuestion.passageId || "",
+      passageTitle: poolQuestion.passageTitle || "",
+      passageText: poolQuestion.passageText || "",
       correctAnswer: poolQuestion.correctAnswer,
       explanation: poolQuestion.explanation || "",
       difficulty: poolQuestion.difficulty || effectiveDifficulty,
@@ -1552,6 +1579,16 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     questionText: question.questionText,
     questionType: question.questionType,
     options: question.options,
+    matchingPairs: question.matchingPairs || [],
+    orderingItems: question.orderingItems || [],
+    blanks: question.blanks || [],
+    numericRule: question.numericRule || null,
+    passageSnapshot: buildPassageSnapshot({
+      _id: question.passage || null,
+      passageKey: question.passageId || "",
+      title: question.passageTitle || "",
+      text: question.passageText || "",
+    }),
     correctAnswer: question.correctAnswer,
     explanation: question.explanation,
     difficulty: question.difficulty,
@@ -1568,6 +1605,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   });
 
   // Don't send correctAnswer to the student
+  const presentationSeed = `${assignment._id}|${student._id}|${attemptCount + 1}`;
   const payload = generateQuestionResponseSchema.parse({
     status: "question",
     mastery,
@@ -1594,6 +1632,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       skill: attempt.skill || null,
       subskill: attempt.subskill || null,
       attemptNumber: attempt.attemptNumber,
+      // Only the shuffled presentation of a key-bearing type is served, never the key itself.
+      ...buildStudentPresentationFields(attempt.toObject(), presentationSeed),
+      passage: attempt.passageSnapshot || null,
     },
     session: buildSessionInfo(session),
   });
@@ -1683,14 +1724,37 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     questionOptions: attempt.options || [],
     gradingMode: attempt.gradingMode || "conceptual",
     acceptableAnswers: attempt.acceptableAnswers || [],
+    matchingPairs: attempt.matchingPairs || [],
+    orderingItems: attempt.orderingItems || [],
+    blanks: attempt.blanks || [],
+    numericRule: attempt.numericRule || null,
   });
   const requiresTeacherReview = evaluation.requiresTeacherReview;
 
-  // Update the attempt
-  attempt.studentAnswer = answer;
+  // Structured payloads stay beside the readable text: gradebook and history render the
+  // words a student chose, and an object must never be written into a String field.
+  const isStructuredResponse = answer !== null && typeof answer === "object";
+  attempt.studentAnswer = isStructuredResponse
+    ? describeStudentResponse({
+      questionType: attempt.questionType,
+      response: answer,
+      question: attempt.toObject(),
+    })
+    : answer;
+  attempt.studentResponse = isStructuredResponse ? answer : null;
+  attempt.gradingDetail = evaluation.gradingDetail || null;
+  attempt.score = evaluation.score ?? null;
   attempt.isCorrect = evaluation.isCorrect;
+  // History and review read the answer from feedbackParts.displayAnswer first, so the readable
+  // key of an objective question is frozen there rather than left as an opaque id string.
+  const objectiveAnswerDisplay = evaluation.gradingDetail
+    ? describeObjectiveAnswer({ detail: evaluation.gradingDetail })
+    : "";
+  const feedbackParts = objectiveAnswerDisplay
+    ? { ...(evaluation.feedbackParts || {}), displayAnswer: objectiveAnswerDisplay }
+    : evaluation.feedbackParts || null;
   attempt.feedback = evaluation.feedback;
-  attempt.feedbackParts = evaluation.feedbackParts || undefined;
+  attempt.feedbackParts = feedbackParts || undefined;
   attempt.answeredAt = new Date();
   attempt.timeSpentSeconds = timeSpentSeconds || 0;
   attempt.hintsUsed = hintsUsed != null ? Math.max(0, Number(hintsUsed)) : 0;
@@ -1775,7 +1839,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
-  const correctAnswerDisplay = resolveDisplayAnswer(
+  const correctAnswerDisplay = objectiveAnswerDisplay || resolveDisplayAnswer(
     attempt.correctAnswer,
     attempt.options || []
   );
@@ -1838,7 +1902,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     correctAnswerDisplay,
     explanation: attempt.explanation || null,
     feedback: evaluation.feedback || null,
-    feedbackParts: evaluation.feedbackParts || null,
+    feedbackParts,
     studentFirstName: student.firstName || null,
     sessionContext: {
       recentTopics: sessionContext.recentTopics,

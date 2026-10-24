@@ -8,6 +8,8 @@ import MapPracticeImportBatch from '../models/MapPracticeImportBatch.js';
 import Student from '../models/Student.js';
 import { normalizeSkillCode, isValidSkillCode, mapPracticeQuestionTypeSchema, mapPracticeQuestionTypes, emptyMapPracticeQuestionTypeCounts, parseMatchingPairs, MAP_MATCHING_MIN_PAIRS, MAP_MATCHING_TERM_SEPARATOR, MAP_MATCHING_PAIR_SEPARATOR } from '../validators/mapPracticeValidators.js';
 import { parseMapPracticeCsv, extractMapPracticeStudentIdFromFilename } from './mapPracticeCsvService.js';
+import { readTypeDefinition } from './assessment/answerFormat.js';
+import { buildPassageHash, findAssessmentPassage, normalizePassageText, resolveAssessmentPassage } from './assessment/passageService.js';
 
 const previewTokenStore = new Map();
 const TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -30,6 +32,70 @@ const safeNumber = (value, fallback = 1) => {
 };
 
 const normalizeStudentId = (value) => String(value || '').trim();
+
+const MAP_OBJECTIVE_COLUMN_BY_TYPE = {
+  matching: 'matching_pairs',
+  ordering: 'ordering_items',
+  fill_in_blank: 'blank_answers',
+  numeric_response: 'numeric_rule'
+};
+
+/**
+ * One reader for both the preview and the commit pass so a row that previews as valid cannot
+ * later be written with a definition the grader cannot read.
+ */
+const readRowDefinition = ({ values, questionId }) => {
+  const questionType = String(values?.question_type || '').trim().toLowerCase();
+  if (!Object.hasOwn(MAP_OBJECTIVE_COLUMN_BY_TYPE, questionType)) {
+    return { column: null, definition: null, error: null };
+  }
+  const definition = readTypeDefinition({
+    questionType,
+    prompt: String(values?.stem || ''),
+    columns: values,
+    salt: String(questionId || values?.question_id || '')
+  });
+  return {
+    column: MAP_OBJECTIVE_COLUMN_BY_TYPE[questionType],
+    definition,
+    error: definition.error
+      ? {
+        column: MAP_OBJECTIVE_COLUMN_BY_TYPE[questionType],
+        problem: definition.error,
+        fix: `Set ${MAP_OBJECTIVE_COLUMN_BY_TYPE[questionType]} for a ${questionType} question.`
+      }
+      : null
+  };
+};
+
+/**
+ * A passage id must mean one text. Rows that repeat it are fine; rows that change it are not.
+ */
+const collectPassageConflicts = (rows) => {
+  const byId = new Map();
+  const conflicts = [];
+  rows.forEach((row) => {
+    const values = row?.values || row?.original || {};
+    const key = String(values.passage_id || values.passage_title || '').trim();
+    const text = normalizePassageText(values.passage_text);
+    if (!key || !text) return;
+    const hash = buildPassageHash(text);
+    const seen = byId.get(key);
+    if (!seen) {
+      byId.set(key, { hash, firstRow: row.rowNumber || 1 });
+      return;
+    }
+    if (seen.hash !== hash) {
+      conflicts.push({
+        row: row.rowNumber || 1,
+        column: 'passage_text',
+        problem: `passage_id "${key}" has different text in row ${seen.firstRow} and row ${row.rowNumber || 1}.`,
+        fix: 'Keep one text per passage id, or give this text its own passage_id.'
+      });
+    }
+  });
+  return conflicts;
+};
 
 const readMatchingPairs = (rawValue) => {
   const { pairs, invalid } = parseMatchingPairs(rawValue);
@@ -239,6 +305,8 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
   const skillMap = new Map();
   const questionTypeCounts = emptyMapPracticeQuestionTypeCounts();
   const passages = new Set();
+  const passageCarriers = new Set();
+  const passageCitations = [];
   const errors = [];
   const warnings = [];
 
@@ -275,9 +343,18 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
       }
     }
 
+    if (['ordering', 'fill_in_blank', 'numeric_response'].includes(questionType)) {
+      const { error } = readRowDefinition({ values, questionId: values.question_id });
+      if (error) errors.push({ row: rowNumber, ...error });
+    }
+
     if (values.passage_id || values.passage_title) {
       passages.add(String(values.passage_id || values.passage_title || 'unassigned'));
     }
+
+    const passageKey = String(values.passage_id || values.passage_title || '').trim();
+    if (passageKey && String(values.passage_text || '').trim()) passageCarriers.add(passageKey);
+    else if (passageKey) passageCitations.push({ rowNumber, passageKey });
 
     const setId = String(values.set_id || 'default-set').trim() || 'default-set';
     const setTitle = String(values.set_title || setId).trim() || setId;
@@ -297,6 +374,17 @@ export const buildMapPracticePreview = async ({ schoolId, fileName, fileBuffer, 
       questionTypeCounts[questionType] = (questionTypeCounts[questionType] || 0) + 1;
     }
   }
+
+  errors.push(...collectPassageConflicts(rows));
+
+  passageCitations
+    .filter((citation) => !passageCarriers.has(citation.passageKey))
+    .forEach((citation) => warnings.push({
+      row: citation.rowNumber,
+      column: 'passage_text',
+      message: `Row ${citation.rowNumber} cites passage_id "${citation.passageKey}" without passage_text, so it only imports when that passage is already in the plan.`,
+      fix: 'Put the passage text on this row, or import the row that carries it in the same file.'
+    }));
 
   const planTitle = getNormalizedPlanTitle((rows[0]?.values?.plan_title || rows[0]?.original?.plan_title || ''), fileName);
   let willCreate = rows.length;
@@ -467,12 +555,21 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
       const questionType = String(values.question_type || '').trim().toLowerCase();
       const valid = Boolean(values.question_id) && Boolean(values.skill_code) && Boolean(values.stem)
         && mapPracticeQuestionTypes.includes(questionType)
-        && (questionType !== 'matching' || !readMatchingPairs(values.matching_pairs).error);
+        && (questionType !== 'matching' || !readMatchingPairs(values.matching_pairs).error)
+        && !readRowDefinition({ values, questionId: values.question_id }).error;
       if (!valid) {
         summary.errors += 1;
         summary.skipped += 1;
       }
       return valid;
+    });
+
+    // A row may cite a passage by id only, in any order, so read the whole file first.
+    const filePassages = new Map();
+    rowsToProcess.forEach((row) => {
+      const values = row?.values || row?.original || {};
+      const key = String(values.passage_id || values.passage_title || '').trim();
+      if (key && String(values.passage_text || '').trim() && !filePassages.has(key)) filePassages.set(key, values);
     });
 
     for (const row of rowsToProcess) {
@@ -578,6 +675,61 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
         existingQuestion = null;
       }
       const matching = validType.data === 'matching' ? readMatchingPairs(values.matching_pairs) : { pairs: [] };
+      const { definition } = readRowDefinition({ values, questionId });
+      const passageKey = String(values.passage_id || values.passage_title || '').trim();
+      let passageText = String(values.passage_text || '').trim();
+      let passageTitle = String(values.passage_title || '').trim();
+      let passageResult = { passage: null, conflict: null, error: null };
+      if (passageKey) {
+        // A row may cite a passage another row in the same file carries, in either order,
+        // or one an earlier import already stored for this plan.
+        const carrier = passageText ? values : (filePassages.get(passageKey) || null);
+        if (carrier) {
+          passageResult = await resolveAssessmentPassage({
+            schoolId,
+            contextType: 'map_practice',
+            plan: plan._id,
+            passageKey,
+            title: String(carrier.passage_title || '').trim(),
+            text: String(carrier.passage_text || '').trim(),
+            source: String(carrier.passage_source || '').trim(),
+            createdBy: userId
+          });
+          if (!passageText) passageText = normalizePassageText(passageResult.passage?.text || carrier.passage_text);
+          if (!passageTitle) passageTitle = String(passageResult.passage?.title || carrier.passage_title || '').trim();
+        } else {
+          const stored = await findAssessmentPassage({ schoolId, contextType: 'map_practice', plan: plan._id, passageKey });
+          passageResult = stored
+            ? { passage: stored, conflict: null, error: null }
+            : {
+              passage: null,
+              conflict: {
+                passageKey,
+                problem: `passage_id "${passageKey}" is used by this row, but no stored passage carries its text.`,
+                fix: 'Give this row its passage_text, or import the row that holds the passage text first.'
+              },
+              error: null
+            };
+          if (stored) {
+            passageText = normalizePassageText(stored.text);
+            if (!passageTitle) passageTitle = String(stored.title || '').trim();
+          }
+        }
+      }
+
+      if (passageResult.conflict) {
+        summary.errors += 1;
+        summary.skipped += 1;
+        if (mode === 'stop_on_error') {
+          throw new Error(`${passageResult.conflict.problem} ${passageResult.conflict.fix}`);
+        }
+        continue;
+      }
+
+      const objectiveKey = ['ordering', 'fill_in_blank', 'numeric_response'].includes(validType.data)
+        ? definition?.correctAnswer
+        : String(values.correct_answer || '').trim();
+
       const questionPayload = {
         school: schoolId,
         plan: plan._id,
@@ -589,8 +741,9 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
         strand: String(values.strand || '').trim(),
         ritBand: String(values.rit_band || '').trim(),
         passageId: String(values.passage_id || '').trim(),
-        passageTitle: String(values.passage_title || '').trim(),
-        passageText: String(values.passage_text || '').trim(),
+        passageTitle,
+        passageText,
+        passage: passageResult.passage?._id || null,
         questionType: validType.data,
         stem: String(values.stem || '').trim(),
         options: [
@@ -600,7 +753,10 @@ export const importMapPracticeFiles = async ({ schoolId, userId, files, mode = '
           { key: 'D', text: String(values.option_d || '').trim() }
         ].filter((option) => option.text),
         matchingPairs: matching.pairs,
-        correctAnswer: String(values.correct_answer || '').trim(),
+        orderingItems: definition?.fields?.orderingItems || [],
+        blanks: definition?.fields?.blanks || [],
+        numericRule: definition?.fields?.numericRule || null,
+        correctAnswer: objectiveKey,
         explanation: String(values.explanation || '').trim(),
         distractorNote: String(values.distractor_note || '').trim(),
         points: safeNumber(values.points, 1),

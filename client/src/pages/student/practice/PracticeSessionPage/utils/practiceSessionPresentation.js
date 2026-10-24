@@ -32,10 +32,21 @@ export const getUsableTopics = (sessionContext) => {
 
 /**
  * Gets the display text for a question type.
- * @param {string} type 
+ * @param {string} type
  * @returns {string}
  */
+const QUESTION_TYPE_LABELS = {
+    multiple_choice: 'Multiple choice',
+    multiple_select: 'Multiple select',
+    true_false: 'True or false',
+    short_answer: 'Short answer',
+    matching: 'Matching',
+    ordering: 'Ordering',
+    fill_in_blank: 'Fill in the blanks',
+    numeric_response: 'Numeric answer'
+};
+
 export const getQuestionTypeDisplay = (type) => {
     if (!type) return '';
-    return type.replace('_', ' ');
+    return QUESTION_TYPE_LABELS[type] || type.replace(/_/g, ' ');
 };

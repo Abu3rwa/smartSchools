@@ -7,6 +7,9 @@
   "tabs": {
     "list": "Standards List",
     "import": "Import",
+    "assign": "Assign",
+    "gradebook": "Gradebook",
+    "pool": "Question Pool",
     "settings": "Settings"
   },
   "filters": {
@@ -14,13 +17,22 @@
     "allClasses": "All Classes",
     "allSubjects": "All Subjects",
     "allGrades": "All Grades",
-    "grade": "Grade {{grade}}"
+    "grade": "Grade {{grade}}",
+    "clear": "Clear filters",
+    "resultCount": "Showing {{shown}} of {{total}}",
+    "aria": {
+      "search": "Search standards by code, name or description",
+      "subject": "Filter by subject",
+      "class": "Filter by class",
+      "grade": "Filter by grade"
+    }
   },
   "list": {
     "selectAll": "Select all visible standards",
     "selectStandard": "Select standard {{code}}",
     "selectedCount": "{{count}} standards selected",
     "empty": "No standards found",
+    "emptyFiltered": "No standards match the current filters.",
     "emptyAdminHint": "Click \"Add Standard\" or use Import to get started.",
     "columns": {
       "code": "Code",
@@ -32,7 +44,8 @@
       "mastery": "Mastery",
       "actions": "Actions"
     },
-    "masteryValue": "{{threshold}}% / {{questions}}q"
+    "masteryValue": "{{threshold}}% / {{questions}}q",
+    "tableLabel": "Standards list"
   },
   "modal": {
     "editTitle": "Edit Standard",
@@ -51,8 +64,11 @@
     "selectGrade": "Select Grade",
     "category": "Category / Domain",
     "categoryPlaceholder": "e.g., Operations & Algebraic Thinking",
+    "masterySectionTitle": "Mastery settings",
     "masteryThreshold": "Mastery Threshold (%)",
-    "minimumQuestions": "Minimum Questions"
+    "masteryThresholdHint": "Score needed before the standard counts as mastered.",
+    "minimumQuestions": "Minimum Questions",
+    "minimumQuestionsHint": "Questions a student must answer before mastery is calculated."
   },
   "import": {
     "subjectForImport": "Subject for Import *",
@@ -84,7 +100,8 @@
   "common": {
     "cancel": "Cancel",
     "saving": "Saving...",
-    "empty": "-"
+    "empty": "-",
+    "close": "Close"
   },
   "toasts": {
     "confirmDelete": "Are you sure you want to delete this standard?",

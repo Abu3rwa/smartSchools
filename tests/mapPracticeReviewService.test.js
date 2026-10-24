@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   applyMapPracticeReviewMarks,
+  buildMapPracticePassageSnapshot,
   hideMapPracticeAttemptAnswerKeys,
   hideMapPracticeQuestionAnswers
 } from '../services/mapPracticeReviewService.js';
@@ -110,4 +111,87 @@ test('matching questions reach students as shuffled columns without the pairing 
 
   assert.equal('matchingPairsSnapshot' in snapshot.answers[0], false);
   assert.deepEqual(snapshot.answers[0].response, [{ left: 'Orbit', right: 'The path a planet takes' }]);
+});
+
+test('ordering, blank and numeric questions reach students without their answer keys', () => {
+  const ordering = hideMapPracticeQuestionAnswers({
+    _id: 'question-order',
+    student: 'student-1',
+    questionType: 'ordering',
+    stem: 'Put the events in order.',
+    correctAnswer: 'i7>i3>i9',
+    orderingItems: [
+      { id: 'i7', text: 'Egypt is conquered by Alexander' },
+      { id: 'i3', text: 'The Rosetta Stone is carved' },
+      { id: 'i9', text: 'Egypt becomes a Roman province' }
+    ]
+  });
+
+  assert.equal('correctAnswer' in ordering, false);
+  assert.deepEqual([...ordering.orderingItems].map((item) => item.id).sort(), ['i3', 'i7', 'i9']);
+  assert.notEqual(ordering.orderingItems.map((item) => item.id).join('>'), 'i7>i3>i9');
+
+  const blanks = hideMapPracticeQuestionAnswers({
+    _id: 'question-blank',
+    student: 'student-1',
+    questionType: 'fill_in_blank',
+    stem: 'The {{nile}} is the longest river in {{africa}}.',
+    blanks: [
+      { id: 'nile', accepts: ['Nile'], caseSensitive: false },
+      { id: 'africa', accepts: ['Africa'], caseSensitive: true }
+    ]
+  });
+
+  assert.equal('blanks' in blanks, false);
+  assert.deepEqual(blanks.blankIds, ['nile', 'africa']);
+
+  const numeric = hideMapPracticeQuestionAnswers({
+    _id: 'question-number',
+    student: 'student-1',
+    questionType: 'numeric_response',
+    stem: 'How many days did the journey take?',
+    numericRule: { mode: 'tolerance', value: '12', tolerance: '0.5', unit: 'days', decimalPlaces: '' }
+  });
+
+  assert.equal('numericRule' in numeric, false);
+  assert.equal(numeric.numericHint.unit, 'days');
+  assert.equal(JSON.stringify(numeric.numericHint).includes('12'), false);
+});
+
+test('attempt snapshots keep the student-safe render fields and drop authored keys', () => {
+  const studentAttempt = hideMapPracticeAttemptAnswerKeys({
+    answers: [{
+      response: ['i7', 'i3', 'i9'],
+      questionSnapshot: {
+        questionId: 'Q-3',
+        orderingItems: [{ id: 'i7', text: 'Egypt is conquered by Alexander' }],
+        blankIds: ['nile'],
+        numericHint: { unit: 'days' },
+        blanks: [{ id: 'nile', accepts: ['Nile'] }],
+        numericRule: { mode: 'exact', value: '12' }
+      },
+      gradingDetail: { type: 'ordering', correctOrder: ['i7', 'i3', 'i9'] }
+    }]
+  });
+
+  assert.deepEqual(studentAttempt.answers[0].questionSnapshot.blankIds, ['nile']);
+  assert.deepEqual(studentAttempt.answers[0].questionSnapshot.orderingItems, [{ id: 'i7', text: 'Egypt is conquered by Alexander' }]);
+  assert.equal('blanks' in studentAttempt.answers[0].questionSnapshot, false);
+  assert.equal('numericRule' in studentAttempt.answers[0].questionSnapshot, false);
+  assert.equal('gradingDetail' in studentAttempt.answers[0], false);
+});
+
+test('passage snapshots keep the text a student read without inventing one', () => {
+  const snapshot = buildMapPracticePassageSnapshot({
+    passageId: 'P-1',
+    passageTitle: 'The Rosetta Stone',
+    passageText: 'Discovered in 1799,   the stone unlocked hieroglyphs.',
+    passage: { _id: 'passage-abc', contentHash: 'hash-1' }
+  });
+
+  assert.equal(snapshot.passageKey, 'P-1');
+  assert.equal(snapshot.passageId, 'passage-abc');
+  assert.equal(snapshot.text, 'Discovered in 1799, the stone unlocked hieroglyphs.');
+  assert.equal(snapshot.contentHash, 'hash-1');
+  assert.equal(buildMapPracticePassageSnapshot({ passageTitle: 'Empty' }), null);
 });

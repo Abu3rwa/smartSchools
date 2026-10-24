@@ -1,43 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../../config/api';
-import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress } from './studentMapPracticeProgress';
-import { buildMatchingResponse, getMatchingAnswerRows, getMatchingColumns, readMatchingSelections } from '../../../utils/mapPracticeMatching';
+import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress, isMapPracticeAnswerRecorded } from './studentMapPracticeProgress';
+import { getMatchingAnswerRows } from '../../../utils/mapPracticeMatching';
+import { describeStudentAnswer, isObjectiveAnswerType } from '../../../utils/mapPracticeObjectiveAnswers';
+import FillInBlankAnswerInput from '../../../components/assessment/FillInBlankAnswerInput';
+import MatchingAnswerInput from '../../../components/assessment/MatchingAnswerInput';
+import NumericAnswerInput from '../../../components/assessment/NumericAnswerInput';
+import OrderingAnswerInput from '../../../components/assessment/OrderingAnswerInput';
+import PassagePanel from '../../../components/assessment/PassagePanel';
 import './StudentMapTestPrepPage.css';
-
-const MatchingAnswerInput = ({ question, value, onPick }) => {
-  const { terms, choices } = getMatchingColumns(question);
-  const selections = readMatchingSelections(value);
-  const usedChoices = new Set([...selections.values()]);
-
-  if (!terms.length) return <p className="student-map-prep-hint">This matching question has no pairs yet.</p>;
-
-  return (
-    <div className="student-map-prep-matching">
-      <p className="student-map-prep-hint">Match each term with its correct definition.</p>
-      {terms.map((term) => (
-        <label className="student-map-prep-matching-row" key={`${question._id}-${term}`}>
-          <span className="student-map-prep-matching-term">{term}</span>
-          <select
-            value={selections.get(term) || ''}
-            onChange={(event) => onPick(event.target.value, term)}
-          >
-            <option value="">Choose a match</option>
-            {choices.map((choice) => (
-              <option
-                key={`${question._id}-${term}-${choice}`}
-                value={choice}
-                disabled={choice !== selections.get(term) && usedChoices.has(choice)}
-              >
-                {choice}
-              </option>
-            ))}
-          </select>
-        </label>
-      ))}
-    </div>
-  );
-};
 
 const StudentMapTestPrepPage = () => {
   const [searchParams] = useSearchParams();
@@ -55,6 +27,7 @@ const StudentMapTestPrepPage = () => {
   const [reviewAttempt, setReviewAttempt] = useState(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState({});
+  const [revealedAnswers, setRevealedAnswers] = useState({});
   const answerSaveSequence = useRef({});
 
   const loadHome = async () => {
@@ -119,6 +92,7 @@ const StudentMapTestPrepPage = () => {
       setCurrentIndex(attemptState.currentIndex);
       setLocalAnswers(attemptState.answers);
       setAnswerFeedback({});
+      setRevealedAnswers({});
       setResultSummary(null);
       if (!attemptData.attempt?._id) {
         setMessage('The set is ready. Start answering when you are ready.');
@@ -172,7 +146,7 @@ const StudentMapTestPrepPage = () => {
   }, [home, searchParams, assignedSets, openAttemptReview, startAssignment]);
 
   const persistAnswer = async (questionId, response) => {
-    if (!attempt?._id) return;
+    if (!attempt?._id) return false;
     const requestSequence = (answerSaveSequence.current[questionId] || 0) + 1;
     answerSaveSequence.current[questionId] = requestSequence;
     setAnswerFeedback((current) => {
@@ -211,14 +185,24 @@ const StudentMapTestPrepPage = () => {
       });
     } catch {
       setMessage('Your answer was not saved yet. Please try again.');
+      return false;
     } finally {
       setSaving(false);
     }
+    return true;
   };
 
   const updateAnswer = (questionId, response) => {
     setLocalAnswers((current) => ({ ...current, [questionId]: response }));
     persistAnswer(questionId, response);
+  };
+
+  // A student only sees grading once they commit to the answer, and the commit closes the question.
+  const submitCurrentQuestion = async () => {
+    if (!activeQuestion) return;
+    const saved = await persistAnswer(activeQuestion._id, localAnswers[activeQuestion._id]);
+    if (!saved) return;
+    setRevealedAnswers((current) => ({ ...current, [activeQuestion._id]: true }));
   };
 
   const handleOptionChange = (event, question) => {
@@ -228,13 +212,6 @@ const StudentMapTestPrepPage = () => {
       ? current.filter((option) => option !== value)
       : [...current, value];
     updateAnswer(question._id, next);
-  };
-
-  const handleMatchingPick = (question, term, choice) => {
-    const selections = readMatchingSelections(localAnswers[question._id]);
-    if (choice) selections.set(term, choice);
-    else selections.delete(term);
-    updateAnswer(question._id, buildMatchingResponse(selections));
   };
 
   const handleSubmit = async () => {
@@ -249,6 +226,7 @@ const StudentMapTestPrepPage = () => {
       setCurrentIndex(0);
       setLocalAnswers({});
       setAnswerFeedback({});
+      setRevealedAnswers({});
       setResultSummary({
         score: submitted.score ?? 0,
         maxScore: submitted.maxScore ?? 0,
@@ -266,12 +244,16 @@ const StudentMapTestPrepPage = () => {
   };
 
   const currentAnswer = activeQuestion ? localAnswers[activeQuestion._id] ?? '' : '';
-  const currentFeedback = activeQuestion ? answerFeedback[activeQuestion._id] : null;
+  const isRevealed = Boolean(activeQuestion && revealedAnswers[activeQuestion._id]);
+  const currentFeedback = isRevealed && activeQuestion ? answerFeedback[activeQuestion._id] : null;
   const feedbackCorrectAnswer = currentFeedback?.correctAnswer;
   const feedbackMatchingPairs = Array.isArray(currentFeedback?.matchingPairs) ? currentFeedback.matchingPairs : [];
+  const matchingVerdictRows = activeQuestion?.questionType === 'matching' && feedbackMatchingPairs.length
+    ? getMatchingAnswerRows({ ...activeQuestion, matchingPairs: feedbackMatchingPairs }, currentAnswer)
+    : [];
   const correctAnswerText = feedbackMatchingPairs.length
     ? feedbackMatchingPairs.map((pair) => `${pair.left} → ${pair.right}`).join(', ')
-    : Array.isArray(currentFeedback?.options)
+    : currentFeedback?.options?.length
       ? String(feedbackCorrectAnswer || '')
         .split('|')
         .map((key) => {
@@ -300,6 +282,9 @@ const StudentMapTestPrepPage = () => {
             const options = Array.isArray(question.options) ? question.options : [];
             const responses = Array.isArray(answer.response) ? answer.response : [answer.response];
             const matchingRows = question.questionType === 'matching' ? getMatchingAnswerRows(question, answer.response) : [];
+            const objectiveAnswerText = isObjectiveAnswerType(question.questionType)
+              ? describeStudentAnswer(question, answer.response)
+              : '';
             const displayAnswer = responses.filter((value) => value !== null && value !== undefined && String(value).trim())
               .map((value) => options.find((option) => String(option.key) === String(value))?.text || String(value))
               .join(', ') || 'No answer saved';
@@ -311,8 +296,7 @@ const StudentMapTestPrepPage = () => {
                     {answer.isCorrect === true ? 'Correct' : answer.isCorrect === false ? 'Incorrect' : 'Awaiting review'}
                   </span>
                 </div>
-                {question.passageTitle && <h3>{question.passageTitle}</h3>}
-                {question.passageText && <p className="student-map-prep-passage">{question.passageText}</p>}
+                <PassagePanel passage={answer.passageSnapshot || { title: question.passageTitle, text: question.passageText }} />
                 <p className="student-map-prep-reviewed-stem">{question.stem || 'Question text unavailable.'}</p>
                 {options.length > 0 && (
                   <ul className="student-map-prep-reviewed-options">
@@ -333,6 +317,8 @@ const StudentMapTestPrepPage = () => {
                     ))}
                     {!matchingRows.length && <li className="unmatched"><strong>No answer saved</strong></li>}
                   </ul>
+                ) : isObjectiveAnswerType(question.questionType) ? (
+                  <p><strong>Your answer:</strong> {objectiveAnswerText || 'No answer saved'}</p>
                 ) : (
                   <p><strong>Your answer:</strong> {displayAnswer}</p>
                 )}
@@ -387,55 +373,83 @@ const StudentMapTestPrepPage = () => {
           </div>
 
           <div className="student-map-prep-question">
-            <h3>{activeQuestion.stem}</h3>
+            <PassagePanel passage={{ title: activeQuestion.passageTitle, text: activeQuestion.passageText }} />
+            {activeQuestion.questionType !== 'fill_in_blank' && <h3>{activeQuestion.stem}</h3>}
 
-            {activeQuestion.questionType === 'mcq' && (
-              <div className="student-map-prep-options">
-                {Array.isArray(activeQuestion.options) && activeQuestion.options.map((option) => (
-                  <label key={`${activeQuestion._id}-${option.key}`}>
-                    <input
-                      type="radio"
-                      name={activeQuestion._id}
-                      value={option.key}
-                      checked={String(currentAnswer) === String(option.key)}
-                      onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
-                    />
-                    <span><strong>{option.key}.</strong> {option.text}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+            <fieldset className="student-map-prep-answer-inputs" disabled={isRevealed}>
+              {activeQuestion.questionType === 'mcq' && (
+                <div className="student-map-prep-options">
+                  {Array.isArray(activeQuestion.options) && activeQuestion.options.map((option) => (
+                    <label key={`${activeQuestion._id}-${option.key}`}>
+                      <input
+                        type="radio"
+                        name={activeQuestion._id}
+                        value={option.key}
+                        checked={String(currentAnswer) === String(option.key)}
+                        onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
+                      />
+                      <span><strong>{option.key}.</strong> {option.text}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
 
-            {activeQuestion.questionType === 'multi_select' && (
-              <div className="student-map-prep-options">
-                {Array.isArray(activeQuestion.options) && activeQuestion.options.map((option) => (
-                  <label key={`${activeQuestion._id}-${option.key}`}>
-                    <input
-                      type="checkbox"
-                      value={option.key}
-                      checked={Array.isArray(currentAnswer) && currentAnswer.includes(option.key)}
-                      onChange={(event) => handleOptionChange(event, activeQuestion)}
-                    />
-                    <span><strong>{option.key}.</strong> {option.text}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+              {activeQuestion.questionType === 'multi_select' && (
+                <div className="student-map-prep-options">
+                  {Array.isArray(activeQuestion.options) && activeQuestion.options.map((option) => (
+                    <label key={`${activeQuestion._id}-${option.key}`}>
+                      <input
+                        type="checkbox"
+                        value={option.key}
+                        checked={Array.isArray(currentAnswer) && currentAnswer.includes(option.key)}
+                        onChange={(event) => handleOptionChange(event, activeQuestion)}
+                      />
+                      <span><strong>{option.key}.</strong> {option.text}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
 
-            {activeQuestion.questionType === 'short_text' && (
-              <textarea
-                value={typeof currentAnswer === 'string' ? currentAnswer : ''}
-                onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
-                placeholder="Type your answer here"
-              />
-            )}
+              {activeQuestion.questionType === 'short_text' && (
+                <textarea
+                  value={typeof currentAnswer === 'string' ? currentAnswer : ''}
+                  onChange={(event) => updateAnswer(activeQuestion._id, event.target.value)}
+                  placeholder="Type your answer here"
+                />
+              )}
 
-            {activeQuestion.questionType === 'matching' && (
-              <MatchingAnswerInput
-                question={activeQuestion}
-                value={currentAnswer}
-                onPick={(choice, term) => handleMatchingPick(activeQuestion, term, choice)}
-              />
+              {activeQuestion.questionType === 'matching' && (
+                <MatchingAnswerInput
+                  question={activeQuestion}
+                  value={currentAnswer}
+                  onChange={(response) => updateAnswer(activeQuestion._id, response)}
+                  results={matchingVerdictRows}
+                />
+              )}
+              {activeQuestion.questionType === 'ordering' && (
+                <OrderingAnswerInput
+                  question={activeQuestion}
+                  value={currentAnswer}
+                  onChange={(response) => updateAnswer(activeQuestion._id, response)}
+                />
+              )}
+              {activeQuestion.questionType === 'fill_in_blank' && (
+                <FillInBlankAnswerInput
+                  question={activeQuestion}
+                  value={currentAnswer}
+                  onChange={(response) => updateAnswer(activeQuestion._id, response)}
+                />
+              )}
+              {activeQuestion.questionType === 'numeric_response' && (
+                <NumericAnswerInput
+                  question={activeQuestion}
+                  value={typeof currentAnswer === 'string' ? currentAnswer : ''}
+                  onChange={(response) => updateAnswer(activeQuestion._id, response)}
+                />
+              )}
+            </fieldset>
+            {!isRevealed && !isMapPracticeAnswerRecorded(currentAnswer) && (
+              <p className="student-map-prep-answer-hint">Answer this question, then press Submit to see your feedback.</p>
             )}
             {currentFeedback && (
               <div
@@ -458,7 +472,7 @@ const StudentMapTestPrepPage = () => {
                         ? 'Partially correct.'
                         : 'Not quite.'}
                 </strong>
-                {correctAnswerText && currentFeedback.isCorrect === false && (
+                {correctAnswerText && currentFeedback.isCorrect === false && !feedbackMatchingPairs.length && (
                   <span><strong>Correct answer:</strong> {correctAnswerText}</span>
                 )}
                 {currentFeedback.explanation && <span>{currentFeedback.explanation}</span>}
@@ -470,10 +484,22 @@ const StudentMapTestPrepPage = () => {
             <button type="button" className="btn btn-ghost" onClick={() => setCurrentIndex((previous) => Math.max(0, previous - 1))} disabled={currentIndex === 0}>
               Back
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => { const nextIndex = Math.min(questions.length - 1, currentIndex + 1); setCurrentIndex(nextIndex); }}>
-              {currentIndex === questions.length - 1 ? 'Review answers' : 'Next'}
-            </button>
-            {currentIndex === questions.length - 1 && (
+            {!isRevealed && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={submitCurrentQuestion}
+                disabled={!isMapPracticeAnswerRecorded(currentAnswer)}
+              >
+                Submit
+              </button>
+            )}
+            {isRevealed && currentIndex < questions.length - 1 && (
+              <button type="button" className="btn btn-secondary" onClick={() => setCurrentIndex((previous) => Math.min(questions.length - 1, previous + 1))}>
+                Next
+              </button>
+            )}
+            {isRevealed && currentIndex === questions.length - 1 && (
               <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
                 {submitting ? 'Submitting…' : 'Submit set'}
               </button>

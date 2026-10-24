@@ -3,10 +3,28 @@ import { useTranslation } from 'react-i18next';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import QuestionPoolImportPanel from './QuestionPoolImportPanel';
+import QuestionPoolDefinitionFields from './QuestionPoolDefinitionFields';
 import { PRACTICE_QUESTION_TYPES } from '../../../../constants/practiceQuestionTypes';
+import {
+    buildObjectivePayload,
+    createBlankObjectiveFields,
+    createObjectiveFields,
+    getObjectiveDraftErrorKey,
+    isObjectiveDraft
+} from '../utils/questionPoolDefinitions';
 
 const MC_LABELS = ['A', 'B', 'C', 'D'];
 const QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
+const OPTION_TYPE_LABEL_KEYS = {
+    multiple_choice: 'multipleChoice',
+    true_false: 'trueFalse',
+    short_answer: 'shortAnswer',
+    multiple_select: 'multipleSelect',
+    matching: 'matching',
+    ordering: 'ordering',
+    fill_in_blank: 'fillInBlank',
+    numeric_response: 'numericResponse'
+};
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 const GRAMMAR_LEVELS = [
     'beginner',
@@ -55,6 +73,12 @@ const normalizeIncomingQuestion = (question = {}, index = 0) => {
         subskill: toNonEmptyString(question.subskill),
         gradingMode: toNonEmptyString(question.gradingMode),
         acceptableAnswersText: toAcceptedAnswers(question.acceptableAnswers).join('\n'),
+        passageRef: question.passage || null,
+        passageId: toNonEmptyString(question.passageId),
+        passageTitle: toNonEmptyString(question.passageTitle),
+        passageText: toNonEmptyString(question.passageText),
+        showPassage: Boolean(toNonEmptyString(question.passageText)),
+        ...createObjectiveFields(question),
         options: []
     };
 
@@ -91,6 +115,21 @@ const normalizeIncomingQuestion = (question = {}, index = 0) => {
     return base;
 };
 
+/**
+ * A passage can sit in front of any question type, so it is read outside the type branches.
+ * The stored link only travels with a row that still shows the text.
+ */
+const buildPassageFields = (item = {}) => {
+    const passageText = toNonEmptyString(item.passageText);
+    const fields = {
+        passageId: toNonEmptyString(item.passageId),
+        passageTitle: toNonEmptyString(item.passageTitle),
+        passageText
+    };
+    if (passageText && item.passageRef) fields.passage = item.passageRef;
+    return fields;
+};
+
 const createEmptyQuestion = (index = 0) =>
     normalizeIncomingQuestion(
         {
@@ -103,6 +142,7 @@ const createEmptyQuestion = (index = 0) =>
         },
         index
     );
+
 const QuestionPoolEditorModal = ({
     show,
     onClose,
@@ -196,6 +236,17 @@ const QuestionPoolEditorModal = ({
                     correctAnswer: 'True'
                 };
             }
+            if (isObjectiveDraft(questionType)) {
+                return {
+                    ...question,
+                    ...createBlankObjectiveFields(questionType),
+                    questionType,
+                    options: [],
+                    correctAnswer: '',
+                    acceptableAnswersText: '',
+                    gradingMode: ''
+                };
+            }
             return {
                 ...question,
                 questionType,
@@ -287,6 +338,7 @@ const QuestionPoolEditorModal = ({
                     questionType,
                     options,
                     correctAnswer,
+                    ...buildPassageFields(item),
                     gradingMode: toNonEmptyString(item.gradingMode) || 'conceptual',
                     acceptableAnswers: toAcceptedAnswers(item.acceptableAnswers)
                 });
@@ -305,8 +357,31 @@ const QuestionPoolEditorModal = ({
                         { label: 'B', text: 'False' }
                     ],
                     correctAnswer,
+                    ...buildPassageFields(item),
                     gradingMode: toNonEmptyString(item.gradingMode) || 'conceptual',
                     acceptableAnswers: toAcceptedAnswers(item.acceptableAnswers)
+                });
+                continue;
+            }
+
+            if (isObjectiveDraft(questionType)) {
+                const errorKey = getObjectiveDraftErrorKey(questionType, item, questionText);
+                if (errorKey) {
+                    return {
+                        errorMessage: t(`standardAssign:questionPool.validation.${errorKey}`, {
+                            index: i + 1
+                        })
+                    };
+                }
+                normalizedQuestions.push({
+                    ...carriedFields,
+                    questionText,
+                    questionType,
+                    ...buildObjectivePayload(questionType, item),
+                    ...buildPassageFields(item),
+                    // The authored definition decides the mark, so nothing goes to teacher review.
+                    gradingMode: 'exact_match',
+                    acceptableAnswers: []
                 });
                 continue;
             }
@@ -328,6 +403,7 @@ const QuestionPoolEditorModal = ({
                 questionType,
                 options: [],
                 correctAnswer,
+                ...buildPassageFields(item),
                 // Without a listed set of accepted answers the server sends the
                 // response to teacher review instead of auto-grading it.
                 gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
@@ -477,11 +553,11 @@ const QuestionPoolEditorModal = ({
                                                         handleTypeChange(index, event.target.value)
                                                     }
                                                 >
-                                                    <option value="multiple_choice">
-                                                        {t('standardAssign:questionPool.types.multipleChoice')}
-                                                    </option>
-                                                    <option value="true_false">{t('standardAssign:questionPool.types.trueFalse')}</option>
-                                                    <option value="short_answer">{t('standardAssign:questionPool.types.shortAnswer')}</option>
+                                                    {QUESTION_TYPES.map((type) => (
+                                                        <option key={type} value={type}>
+                                                            {t(`standardAssign:questionPool.types.${OPTION_TYPE_LABEL_KEYS[type]}`)}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div className="form-group">
@@ -645,6 +721,72 @@ const QuestionPoolEditorModal = ({
                                                     </p>
                                                 </div>
                                             </>
+                                        )}
+
+                                        {isObjectiveDraft(question.questionType) && (
+                                            <QuestionPoolDefinitionFields
+                                                question={question}
+                                                onChange={(patch) =>
+                                                    updateQuestion(index, (current) => ({
+                                                        ...current,
+                                                        ...patch
+                                                    }))
+                                                }
+                                                t={t}
+                                            />
+                                        )}
+
+                                        {question.showPassage || question.passageText ? (
+                                            <div className="question-pool-passage">
+                                                <div className="form-group">
+                                                    <label>
+                                                        {t('standardAssign:questionPool.labels.passageTitle')}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        value={question.passageTitle}
+                                                        onChange={(event) =>
+                                                            updateQuestion(index, (current) => ({
+                                                                ...current,
+                                                                passageTitle: event.target.value
+                                                            }))
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>
+                                                        {t('standardAssign:questionPool.labels.passageText')}
+                                                    </label>
+                                                    <textarea
+                                                        className="form-input"
+                                                        rows={4}
+                                                        value={question.passageText}
+                                                        onChange={(event) =>
+                                                            updateQuestion(index, (current) => ({
+                                                                ...current,
+                                                                passageText: event.target.value
+                                                            }))
+                                                        }
+                                                    />
+                                                    <p className="question-pool-hint">
+                                                        {t('standardAssign:questionPool.hints.passage')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={() =>
+                                                    updateQuestion(index, (current) => ({
+                                                        ...current,
+                                                        showPassage: true
+                                                    }))
+                                                }
+                                            >
+                                                {t('standardAssign:questionPool.actions.addPassage')}
+                                            </button>
                                         )}
 
                                         <div className="form-group">

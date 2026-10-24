@@ -1,6 +1,14 @@
 import StandardAssignment from '../models/StandardAssignment.js';
 import StandardQuestionPool from '../models/StandardQuestionPool.js';
-import { PRACTICE_QUESTION_TYPES } from '../constants/practiceQuestionTypes.js';
+import {
+    AI_GENERATED_QUESTION_TYPES,
+    isObjectivePracticeQuestionType,
+    PRACTICE_MIN_OPTIONS,
+    PRACTICE_PAIR_SEPARATOR,
+    resolvePracticeQuestionType
+} from '../constants/practiceQuestionTypes.js';
+import { readTypeDefinition } from './assessment/answerFormat.js';
+import { findAssessmentPassage, resolveAssessmentPassage } from './assessment/passageService.js';
 import standardsPracticeAIService from './standardsPracticeAIService.js';
 import {
     generateGrammarQuestionPool,
@@ -27,7 +35,40 @@ export const resolvePreGeneratedQuestionCount = (value, fallbackValue = null) =>
 
 export const MAX_IMPORTED_QUESTION_COUNT = 100;
 const IMPORT_MC_LABELS = ['A', 'B', 'C', 'D'];
+const IMPORT_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const IMPORT_DIFFICULTIES = ['easy', 'medium', 'hard'];
+
+/**
+ * An imported option list only exists for the option-backed types; every other type carries
+ * its own authored definition instead.
+ */
+const normalizeImportedOptions = (questionType, rawOptions) => {
+    if (questionType !== 'multiple_select') return [];
+    const source = Array.isArray(rawOptions) ? rawOptions : [];
+    return source.slice(0, IMPORT_OPTION_LABELS.length).map((option, index) => {
+        const text = option && typeof option === 'object' ? option.text : option;
+        return { label: IMPORT_OPTION_LABELS[index], text: String(text ?? '').trim().slice(0, 500) };
+    });
+};
+
+/**
+ * Imported rows arrive as editor-shaped objects (arrays of pairs, items, blanks) while the
+ * grading engines read one authored key. readTypeDefinition is the single place that turns
+ * either shape into that key, so an imported question is validated exactly like a CSV row.
+ */
+const buildObjectiveQuestionFields = ({ questionType, prompt, item, salt }) => readTypeDefinition({
+    questionType,
+    prompt,
+    columns: {
+        matching_pairs: item.matching_pairs,
+        ordering_items: item.ordering_items,
+        blank_answers: item.blank_answers,
+        numeric_rule: item.numeric_rule,
+        correct_answer: item.correct_answer,
+    },
+    definition: item,
+    salt,
+});
 
 /**
  * Validates and normalizes teacher-imported questions (multiple choice / true-false / short answer).
@@ -53,6 +94,13 @@ export const sanitizeImportedQuestions = (input) => {
         const questionType = item.questionType;
         const explanation = str(item.explanation, 2000);
         const difficulty = IMPORT_DIFFICULTIES.includes(item.difficulty) ? item.difficulty : 'medium';
+        // A passage is attached to any question type, so reading it stays outside the type branches.
+        const passageText = str(item.passageText ?? item.passage_text, 12000);
+        const passageFields = passageText ? {
+            passageId: str(item.passageId ?? item.passage_id, 180),
+            passageTitle: str(item.passageTitle ?? item.passage_title, 220),
+            passageText,
+        } : {};
         if (!questionText) return { questions: [], error: `${label}: question text is required` };
 
         if (questionType === 'multiple_choice') {
@@ -70,7 +118,7 @@ export const sanitizeImportedQuestions = (input) => {
             if (!IMPORT_MC_LABELS.includes(correctAnswer)) {
                 return { questions: [], error: `${label}: correct answer must be A, B, C or D` };
             }
-            questions.push({ questionText, questionType, options, correctAnswer, explanation, difficulty });
+            questions.push({ questionText, questionType, options, correctAnswer, explanation, difficulty, ...passageFields });
         } else if (questionType === 'true_false') {
             const raw = str(item.correctAnswer, 10).toLowerCase();
             if (raw !== 'true' && raw !== 'false') {
@@ -86,6 +134,7 @@ export const sanitizeImportedQuestions = (input) => {
                 correctAnswer: raw === 'true' ? 'True' : 'False',
                 explanation,
                 difficulty,
+                ...passageFields,
             });
         } else if (questionType === 'short_answer') {
             const correctAnswer = str(item.correctAnswer, 500);
@@ -104,6 +153,42 @@ export const sanitizeImportedQuestions = (input) => {
                 difficulty,
                 gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
                 acceptableAnswers,
+                ...passageFields,
+            });
+        } else if (isObjectivePracticeQuestionType(questionType)) {
+            const { questionType: resolvedType, fields, correctAnswer, error } = buildObjectiveQuestionFields({
+                questionType,
+                prompt: questionText,
+                item,
+                salt: questionText,
+            });
+            if (error) return { questions: [], error: `${label}: ${error}` };
+            const options = normalizeImportedOptions(resolvedType, item.options);
+            if (resolvedType === 'multiple_select') {
+                if (options.length < PRACTICE_MIN_OPTIONS) {
+                    return { questions: [], error: `${label}: at least ${PRACTICE_MIN_OPTIONS} options are required` };
+                }
+                if (options.some((option) => !option.text)) {
+                    return { questions: [], error: `${label}: every option needs text` };
+                }
+                if (new Set(options.map((option) => option.text.toLowerCase())).size < options.length) {
+                    return { questions: [], error: `${label}: options must be distinct` };
+                }
+                const labels = new Set(options.map((option) => option.label));
+                if (correctAnswer.split(PRACTICE_PAIR_SEPARATOR).some((key) => !labels.has(key))) {
+                    return { questions: [], error: `${label}: correct answers must match an option label` };
+                }
+            }
+            questions.push({
+                questionText,
+                questionType: resolvedType,
+                options,
+                correctAnswer,
+                explanation,
+                difficulty,
+                gradingMode: 'exact_match',
+                ...fields,
+                ...passageFields,
             });
         } else {
             return { questions: [], error: `${label}: unsupported question type` };
@@ -111,6 +196,61 @@ export const sanitizeImportedQuestions = (input) => {
     }
     return { questions, error: null };
 };
+
+/**
+ * A pool saved by the editor is read back by the grader as authored definition plus key, so a
+ * hand-edited question is checked the same way an imported row is before it can be stored.
+ */
+export const validateQuestionPoolDefinitions = (questions = []) => {
+    const errors = [];
+    (Array.isArray(questions) ? questions : []).forEach((item, index) => {
+        const label = `Question ${index + 1}`;
+        const resolved = resolvePracticeQuestionType(item?.questionType);
+        if (!isObjectivePracticeQuestionType(resolved)) return;
+        const prompt = String(item?.questionText ?? '').trim();
+        if (!prompt) {
+            errors.push(`${label}: question text is required`);
+            return;
+        }
+        const { questionType, correctAnswer, error } = buildObjectiveQuestionFields({
+            questionType: resolved,
+            prompt,
+            item,
+            salt: prompt,
+        });
+        if (error) {
+            errors.push(`${label}: ${error}`);
+            return;
+        }
+        if (questionType === 'multiple_select') {
+            const labels = new Set((Array.isArray(item?.options) ? item.options : [])
+                .map((option) => String(option?.label ?? '').trim().toUpperCase()));
+            const unknown = correctAnswer.split(PRACTICE_PAIR_SEPARATOR).filter((key) => !labels.has(key));
+            if (unknown.length) errors.push(`${label}: correct answers ${unknown.join(', ')} do not match an option label`);
+        }
+    });
+    return errors;
+};
+
+/**
+ * The authored definition is the truth for these types, so both the definition and the key are
+ * rewritten from what the teacher entered on every save. A hand-edited row can never keep a key
+ * or an id set that no longer matches the question it belongs to.
+ */
+export const normalizeQuestionPoolDefinitions = (questions = []) => (
+    (Array.isArray(questions) ? questions : []).map((item) => {
+        const resolved = resolvePracticeQuestionType(item?.questionType);
+        if (!isObjectivePracticeQuestionType(resolved)) return item;
+        const prompt = String(item?.questionText ?? '').trim();
+        const { fields, correctAnswer } = buildObjectiveQuestionFields({
+            questionType: resolved,
+            prompt,
+            item,
+            salt: prompt,
+        });
+        return { ...item, ...fields, correctAnswer };
+    })
+);
 
 export const buildDefaultAssignmentTitle = ({ standard, classDoc, sessionType }) => {
     const standardCode = standard?.code ? `${standard.code} ` : '';
@@ -132,7 +272,7 @@ export const buildQuestionPool = async ({
             ? practiceConfig.allowedQuestionTypes
             : ['multiple_choice', 'true_false'];
     const allowedQuestionTypes = allowedQuestionTypesRaw.filter((type) =>
-        PRACTICE_QUESTION_TYPES.includes(type)
+        AI_GENERATED_QUESTION_TYPES.includes(type)
     );
     const allowedDifficulties =
         Array.isArray(practiceConfig?.allowedDifficulties) && practiceConfig.allowedDifficulties.length > 0
@@ -216,6 +356,82 @@ export const resolveQuestionPoolQuestions = async ({ importedQuestions, generate
         return { questions: importedQuestions, failures: [] };
     }
     return generate();
+};
+
+/**
+ * One passage id means one text inside an assignment. A re-import of the same wording reuses
+ * the stored passage; a row that redefines the id is reported instead of silently changing
+ * what other students already read.
+ */
+export const attachImportedPassages = async ({
+    schoolId,
+    assignmentId,
+    questions = [],
+    createdBy = null,
+}) => {
+    if (!questions.some((question) => String(question?.passageText ?? '').trim() || String(question?.passageId ?? '').trim())) {
+        return { questions, warnings: [] };
+    }
+
+    const warnings = [];
+    const keyed = questions.map((question, index) => ({
+        question,
+        passageKey: String(question?.passageId ?? '').trim()
+            || (String(question?.passageText ?? '').trim() ? `passage-${index + 1}` : '')
+    }));
+
+    // Store every carried text before linking, so a question that only cites the id finds it
+    // whatever order the rows arrive in.
+    const passageByKey = new Map();
+    for (const entry of keyed) {
+        const text = String(entry.question?.passageText ?? '').trim();
+        if (!text || passageByKey.has(entry.passageKey)) continue;
+        const { passage, conflict, error } = await resolveAssessmentPassage({
+            schoolId,
+            contextType: 'standards',
+            assignment: assignmentId,
+            passageKey: entry.passageKey,
+            title: entry.question?.passageTitle,
+            text,
+            createdBy,
+        });
+        if (conflict) warnings.push(`${conflict.problem} ${conflict.fix}`);
+        if (error) warnings.push(`Passage "${entry.passageKey}" could not be stored: ${error}`);
+        if (passage) passageByKey.set(entry.passageKey, passage);
+    }
+
+    const annotated = [];
+    for (const entry of keyed) {
+        if (!entry.passageKey) {
+            annotated.push(entry.question);
+            continue;
+        }
+        let passage = passageByKey.get(entry.passageKey) || null;
+        if (!passage && !String(entry.question?.passageText ?? '').trim()) {
+            // The id may belong to a passage an earlier import stored for this assignment.
+            passage = await findAssessmentPassage({
+                schoolId,
+                contextType: 'standards',
+                assignment: assignmentId,
+                passageKey: entry.passageKey,
+            });
+        }
+        if (!passage) {
+            if (!String(entry.question?.passageText ?? '').trim()) {
+                warnings.push(`Passage "${entry.passageKey}" is cited without text and no stored passage has that id.`);
+            }
+            annotated.push(entry.question);
+            continue;
+        }
+        annotated.push({
+            ...entry.question,
+            passageId: entry.passageKey,
+            passage: passage._id || null,
+            passageTitle: String(passage.title ?? entry.question?.passageTitle ?? ''),
+            passageText: String(passage.text ?? entry.question?.passageText ?? ''),
+        });
+    }
+    return { questions: annotated, warnings };
 };
 
 /**
@@ -346,6 +562,15 @@ export async function createStandardAssignmentWithPool(opts = {}) {
             `Auto-generation shortfall: ${generatedQuestions.length} of ${generatedCount} questions stored; slots ${generationFailures.map((failure) => failure.slot).join(', ')} left empty`
         );
     }
+
+    const passages = await attachImportedPassages({
+        schoolId,
+        assignmentId: assignment._id,
+        questions: generatedQuestions,
+        createdBy: actorUserId,
+    });
+    generatedQuestions = passages.questions;
+    generationSummaries.push(...passages.warnings.map((warning) => `Passage warning: ${warning}`));
 
     const pool = await StandardQuestionPool.findOneAndUpdate(
         { school: schoolId, assignment: assignment._id },

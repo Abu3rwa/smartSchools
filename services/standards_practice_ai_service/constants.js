@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { PRACTICE_QUESTION_TYPES } from "../../constants/practiceQuestionTypes.js";
+import { AI_GENERATED_QUESTION_TYPES } from "../../constants/practiceQuestionTypes.js";
 
-export const QUESTION_TYPES = PRACTICE_QUESTION_TYPES;
+// Only these types can be authored by a model; every other type needs a teacher-written key.
+export const QUESTION_TYPES = AI_GENERATED_QUESTION_TYPES;
 export const MAX_AI_RETRIES = 2;
 export const MC_LABELS = ["A", "B", "C", "D"];
 export const AMBIGUOUS_MC_OPTION_PATTERN =

@@ -28,11 +28,13 @@ const StandardsTabs = ({ activeTab, onTabChange, isAdmin }) => {
             {TAB_DEFS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => (
                 <button
                     key={tab.key}
+                    type="button"
                     className={`tab-btn ${activeTab === tab.key ? 'active' : ''}`}
                     onClick={() => onTabChange(tab.key)}
+                    aria-current={activeTab === tab.key ? 'true' : undefined}
                 >
-                    <tab.icon style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                    {t(`standards:${tab.labelKey}`, tab.fallbackLabel)}
+                    <tab.icon className="tab-btn__icon" aria-hidden="true" />
+                    <span>{t(`standards:${tab.labelKey}`, tab.fallbackLabel)}</span>
                 </button>
             ))}
         </div>

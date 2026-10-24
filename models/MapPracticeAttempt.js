@@ -13,6 +13,8 @@ const answerSchema = new mongoose.Schema({
     timeSpentSeconds: { type: Number, default: 0, min: 0 },
     flagged: { type: Boolean, default: false },
     questionSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+    passageSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+    gradingDetail: { type: mongoose.Schema.Types.Mixed, default: null },
     correctAnswerSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
     explanationSnapshot: { type: String, default: '', trim: true, maxlength: 4000 }
 }, { _id: true });

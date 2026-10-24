@@ -6,6 +6,8 @@ const hasResponseValue = (value) => {
   return true;
 };
 
+export const isMapPracticeAnswerRecorded = (response) => hasResponseValue(response);
+
 export const getMapPracticeSetProgress = (attempts = [], setId, totalQuestions = 0) => {
   const attempt = attempts.find((item) => String(item.set?._id || item.set) === String(setId));
   const answeredQuestionIds = new Set(

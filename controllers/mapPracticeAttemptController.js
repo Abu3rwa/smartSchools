@@ -8,11 +8,13 @@ import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '..
 import { gradeMapPracticeAttempt, gradeMapPracticeQuestion } from '../services/mapPracticeGradingService.js';
 import {
   applyMapPracticeReviewMarks,
-  buildMapPracticeMatchingColumns,
+  buildMapPracticePassageSnapshot,
+  buildMapPracticeStudentFields,
   hideMapPracticeAttemptAnswerKeys,
   hideMapPracticeQuestionAnswers
 } from '../services/mapPracticeReviewService.js';
 import { normalizeShortText, normalizeAnswerList } from '../validators/mapPracticeValidators.js';
+import { describeObjectiveAnswer } from '../services/assessment/answerFormat.js';
 
 const getAttemptAccess = async ({ req, attemptId, allowTeacher = true }) => {
   const attempt = await MapPracticeAttempt.findOne({ _id: attemptId, school: req.schoolId }).lean();
@@ -107,6 +109,9 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
       correctAnswer: question.correctAnswer,
       options: question.options || [],
       matchingPairs: question.matchingPairs || [],
+      orderingItems: question.orderingItems || [],
+      blanks: question.blanks || [],
+      numericRule: question.numericRule || null,
       partialCreditMultiSelect: Boolean(settings?.partialCreditMultiSelect)
     })
     : null;
@@ -122,12 +127,12 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
     teacherComment: '',
     questionSnapshot: {
       questionId: question.questionId,
+      questionType: question.questionType,
       stem: question.stem,
       options: question.options,
-      ...(question.questionType === 'matching'
-        ? { matchingColumns: buildMapPracticeMatchingColumns(question) ?? { terms: [], choices: [] } }
-        : {})
+      ...buildMapPracticeStudentFields(question)
     },
+    passageSnapshot: buildMapPracticePassageSnapshot(question),
     correctAnswerSnapshot: question.correctAnswer,
     explanationSnapshot: question.explanation
   };
@@ -147,15 +152,22 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
   const responseAttempt = req.user.role === 'student'
     ? hideMapPracticeAttemptAnswerKeys(record.toObject())
     : record;
+  const objectiveType = ['ordering', 'fill_in_blank', 'numeric_response'].includes(question.questionType);
+  const revealAnswer = grading?.requiresTeacherReview
+    ? undefined
+    : objectiveType
+      ? describeObjectiveAnswer({ detail: grading.gradingDetail })
+      : question.correctAnswer;
   const feedback = req.user.role === 'student' && instantFeedback
     ? {
       isCorrect: grading.isCorrect,
       score: grading.score,
       requiresTeacherReview: grading.requiresTeacherReview,
       explanation: question.explanation || grading.explanation,
-      correctAnswer: grading.requiresTeacherReview ? undefined : question.correctAnswer,
+      correctAnswer: revealAnswer,
       options: grading.requiresTeacherReview ? undefined : question.options,
-      matchingPairs: grading.requiresTeacherReview ? undefined : question.matchingPairs
+      matchingPairs: grading.requiresTeacherReview ? undefined : question.matchingPairs,
+      ...buildMapPracticeStudentFields(question)
     }
     : undefined;
   res.json({ success: true, data: { attempt: responseAttempt, feedback } });
@@ -191,6 +203,9 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
       correctAnswer: question.correctAnswer,
       options: question.options || [],
       matchingPairs: question.matchingPairs || [],
+      orderingItems: question.orderingItems || [],
+      blanks: question.blanks || [],
+      numericRule: question.numericRule || null,
       score: answer.score ?? 0,
       explanation: answer.explanation || question.explanation || ''
     };
@@ -204,7 +219,9 @@ export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {
     {
       $set: {
         answers: graded.map((answer) => Object.fromEntries(
-          Object.entries(answer).filter(([key]) => !['questionType', 'correctAnswer', 'options', 'matchingPairs'].includes(key))
+          Object.entries(answer).filter(([key]) => ![
+            'questionType', 'correctAnswer', 'options', 'matchingPairs', 'orderingItems', 'blanks', 'numericRule'
+          ].includes(key))
         )),
         score,
         maxScore,
