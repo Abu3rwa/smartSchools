@@ -21,6 +21,7 @@ import {
   formatRoster,
   getSessionStudents,
   getStateForUser,
+  groupIdForStudent,
   groupIdsByStudent,
   isStudentEnrolled,
   listClassStudents,
@@ -44,6 +45,7 @@ import {
   resumeLiveSessionPause,
 } from "../services/liveSessionTime.js";
 import { buildLiveLessonPerformanceReport } from "../services/liveLessonPerformanceReportService.js";
+import liveLessonMarkDraftService, { MAX_DRAFT_ANSWERS } from "../services/liveLessonMarkDraftService.js";
 import { generateLiveLessonReportPdf } from "../services/liveLessonReportPdfService.js";
 import { normalizeLiveLessonMeetingUrl, sendLiveLessonInvitationEmails } from "../services/liveLessonInvitationService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
@@ -322,6 +324,12 @@ const schoolHtmlReviewEnabled = async (schoolId) => {
   return school?.settings?.liveLessonHtmlReview?.aiReviewEnabled === true;
 };
 
+/** An admin, never a teacher, decides whether this school gets suggested marks at all. */
+const schoolMarkDraftingEnabled = async (schoolId) => {
+  const school = await School.findById(schoolId).select("settings.liveLessonMarkDrafting.aiDraftEnabled").lean();
+  return school?.settings?.liveLessonMarkDrafting?.aiDraftEnabled === true;
+};
+
 /**
  * A CSV names the group in words the teacher wrote, because a group id only means something inside
  * this school. Names become ids here, and only groups of the imported-to class are accepted.
@@ -363,23 +371,36 @@ const lessonVariantGroupNames = async (req, slides = []) => {
 export const getLiveLessonSettings = asyncHandler(async (req, res) => {
   return res.json({
     success: true,
-    data: { aiHtmlReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId) },
+    data: {
+      aiHtmlReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
+      aiMarkDraftEnabled: await schoolMarkDraftingEnabled(req.schoolId),
+    },
   });
 });
 
 export const updateLiveLessonSettings = asyncHandler(async (req, res) => {
-  if (typeof req.body?.aiHtmlReviewEnabled !== "boolean") {
-    return res.status(400).json({ success: false, message: "aiHtmlReviewEnabled must be true or false." });
+  const updates = {};
+  if (typeof req.body?.aiHtmlReviewEnabled === "boolean") {
+    updates["settings.liveLessonHtmlReview.aiReviewEnabled"] = req.body.aiHtmlReviewEnabled;
+  }
+  if (typeof req.body?.aiMarkDraftEnabled === "boolean") {
+    updates["settings.liveLessonMarkDrafting.aiDraftEnabled"] = req.body.aiMarkDraftEnabled;
+  }
+  if (!Object.keys(updates).length) {
+    return res.status(400).json({ success: false, message: "Send a live lesson setting to change." });
   }
   const school = await School.findByIdAndUpdate(
     req.schoolId,
-    { $set: { "settings.liveLessonHtmlReview.aiReviewEnabled": req.body.aiHtmlReviewEnabled } },
+    { $set: updates },
     { new: true, runValidators: true },
-  ).select("settings.liveLessonHtmlReview.aiReviewEnabled");
+  ).select("settings.liveLessonHtmlReview.aiReviewEnabled settings.liveLessonMarkDrafting.aiDraftEnabled");
   if (!school) return res.status(404).json({ success: false, message: "School not found." });
   return res.json({
     success: true,
-    data: { aiHtmlReviewEnabled: school.settings?.liveLessonHtmlReview?.aiReviewEnabled === true },
+    data: {
+      aiHtmlReviewEnabled: school.settings?.liveLessonHtmlReview?.aiReviewEnabled === true,
+      aiMarkDraftEnabled: school.settings?.liveLessonMarkDrafting?.aiDraftEnabled === true,
+    },
   });
 });
 
@@ -1428,6 +1449,46 @@ export const getLiveSession = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: { session: payload } });
 });
 
+/**
+ * A student reading their own replay: the question they were asked and only the mark and comment the
+ * teacher released. An answer that is still in the queue reads as not shared yet, and no answer key,
+ * another student's name or another group's variant ever reaches this payload.
+ */
+const studentReplayResults = async (session, studentId) => {
+  const [responses, groupId] = await Promise.all([
+    LiveResponse
+      .find({ school: session.school, sessionId: session._id, studentId })
+      .select("slideId grade submittedAt")
+      .lean(),
+    groupIdForStudent(session, studentId),
+  ]);
+  const responseBySlide = new Map(
+    responses.map((response) => [String(response.slideId), response]),
+  );
+  return (session.lessonSnapshot.slides || [])
+    .filter((slide) => slide.question)
+    .map((slide, index) => {
+      const variant = groupId
+        ? (slide.variants || []).find((item) => String(item.groupId) === String(groupId))
+        : null;
+      const question = variant?.question || slide.question;
+      const response = responseBySlide.get(String(slide._id));
+      const grade = response?.grade;
+      const released = Boolean(grade?.released) && grade?.marks != null;
+      return {
+        slideId: String(slide._id),
+        questionNumber: index + 1,
+        title: slide.title || "",
+        prompt: question.prompt || "",
+        submittedAt: response?.submittedAt || null,
+        released,
+        marks: released ? grade.marks : null,
+        maxMarks: released ? grade.maxMarks ?? null : null,
+        feedback: released ? grade.feedback || "" : "",
+      };
+    });
+};
+
 export const getLiveSessionReplay = asyncHandler(async (req, res) => {
   if (!validId(req.params.id)) {
     return res.status(400).json({ success: false, message: "Invalid session ID." });
@@ -1474,6 +1535,7 @@ export const getLiveSessionReplay = asyncHandler(async (req, res) => {
         : session.lessonSnapshot,
       students,
       events: replayEvents,
+      myResults: isStudent ? await studentReplayResults(session, req.user._id) : [],
     },
   });
 });
@@ -1527,6 +1589,9 @@ const LIVE_OPTION_KINDS = ["mcq", "tf", "multi_select"];
 // Students who are not in a listed group still answer the slide's own question, so the teacher
 // marks that queue under this name.
 const LIVE_BASE_LEVEL = "Class";
+// An exit ticket is worth a small mark by default; the teacher can change it per question and the
+// session keeps the choice.
+const LIVE_DEFAULT_QUESTION_MARKS = 2;
 
 const percentCredit = (rows) => {
   const graded = rows.filter((row) => row.credit !== null);
@@ -1595,6 +1660,9 @@ const buildLiveSessionReportData = async (req, session) => {
   const groupByStudent = await groupIdsByStudent(
     session,
     students.map((student) => String(student.studentId)),
+  );
+  const allocationBySlide = new Map(
+    (session.questionMarks || []).map((entry) => [String(entry.slideId), Number(entry.maxMarks)]),
   );
 
   /**
@@ -1673,6 +1741,8 @@ const buildLiveSessionReportData = async (req, session) => {
     const base = {
       slideId: String(slide._id),
       title: slide.title || "",
+      // The whole question, every level, is marked against this one allocation.
+      maxMarks: allocationBySlide.get(String(slide._id)) || LIVE_DEFAULT_QUESTION_MARKS,
       ...liveQuestionView(slide.question),
       ...levelCounts(rows),
       // Nobody has answered yet while the question is open, as opposed to `pending`, which is an
@@ -1822,6 +1892,175 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
   if (!session) return;
   const data = await buildLiveSessionReportData(req, session);
   return res.json({ success: true, data });
+});
+
+/**
+ * The mark sheet for one question, every level at once. A written answer has no key, so this is the
+ * only thing that turns it into a mark, and releasing it is the only thing that lets the class read
+ * it. A blank mark returns the answer to the queue instead of scoring it zero.
+ */
+export const updateLiveSessionQuestionMarks = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  const slideId = String(req.body?.slideId ?? "").trim();
+  const slide = (session.lessonSnapshot.slides || []).find((item) => (
+    item.question && String(item._id) === slideId
+  ));
+  if (!slide) {
+    return res.status(400).json({ success: false, message: "Choose a question from this session." });
+  }
+  const entries = Array.isArray(req.body?.marks) ? req.body.marks : null;
+  if (!entries || entries.length > 500) {
+    return res.status(400).json({ success: false, message: "Send the marks for this question's answers." });
+  }
+  const storedAllocation = (session.questionMarks || [])
+    .find((allocation) => String(allocation.slideId) === slideId)?.maxMarks;
+  const maxMarks = Number(req.body?.maxMarks ?? storedAllocation ?? LIVE_DEFAULT_QUESTION_MARKS);
+  if (!Number.isFinite(maxMarks) || maxMarks < 0.25 || maxMarks > 100) {
+    return res.status(400).json({ success: false, message: "A question is worth between 0.25 and 100 marks." });
+  }
+
+  const answered = await LiveResponse
+    .find({ school: req.schoolId, sessionId: session._id, slideId })
+    .select("studentId")
+    .lean();
+  const answeredIds = new Set(answered.map((response) => String(response.studentId)));
+  const seen = new Set();
+  const updates = [];
+  let gradedCount = 0;
+  let releasedCount = 0;
+  for (const entry of entries) {
+    const studentId = String(entry?.studentId ?? "").trim();
+    if (!validId(studentId) || seen.has(studentId)) {
+      return res.status(400).json({ success: false, message: "Each mark needs one student, named once." });
+    }
+    seen.add(studentId);
+    if (!answeredIds.has(studentId)) {
+      return res.status(400).json({ success: false, message: "Only an answer that was submitted can be marked." });
+    }
+    const submitted = entry?.marks;
+    const marks = submitted === null || submitted === undefined || submitted === ""
+      ? null
+      : Number(submitted);
+    if (marks !== null && (!Number.isFinite(marks) || marks < 0 || marks > maxMarks)) {
+      return res.status(400).json({ success: false, message: `Marks must be between 0 and ${maxMarks}.` });
+    }
+    const released = marks !== null && Boolean(entry?.released);
+    if (marks !== null) gradedCount += 1;
+    if (released) releasedCount += 1;
+    updates.push({
+      updateOne: {
+        filter: { school: req.schoolId, sessionId: session._id, slideId, studentId },
+        // Clearing a mark leaves isCorrect and score alone: an objective answer falls back to the
+        // verdict the engine gave it, a written one to the queue.
+        update: {
+          $set: {
+            "grade.status": marks === null ? "pending" : "graded",
+            "grade.marks": marks,
+            "grade.maxMarks": maxMarks,
+            "grade.feedback": String(entry?.feedback ?? "").trim().slice(0, 2000),
+            "grade.released": released,
+            ...(marks === null
+              ? {}
+              : {
+                // A full mark reads as correct everywhere else; part credit reads as a score, exactly
+                // like an objective answer the engine only half awarded.
+                "grade.source": "teacher",
+                "grade.gradedBy": req.user._id,
+                "grade.gradedAt": new Date(),
+                isCorrect: marks >= maxMarks,
+                score: Math.min(1, marks / maxMarks),
+              }),
+          },
+        },
+      },
+    });
+  }
+
+  if (updates.length) await LiveResponse.bulkWrite(updates);
+  if (Number(storedAllocation) !== maxMarks) {
+    // One allocation per question, kept on the session so the mark sheet and the gradebook agree.
+    await LiveSession.updateOne(
+      { _id: session._id, school: req.schoolId },
+      { $pull: { questionMarks: { slideId } } },
+    );
+    await LiveSession.updateOne(
+      { _id: session._id, school: req.schoolId },
+      { $push: { questionMarks: { slideId, maxMarks } } },
+    );
+  }
+  return res.json({
+    success: true,
+    data: { slideId, maxMarks, marked: gradedCount, released: releasedCount },
+  });
+});
+
+/**
+ * A first mark and a comment for every answer on one question that is still waiting for the teacher,
+ * all levels at once. Nothing here is saved: each suggestion lands on the mark sheet as an unsaved
+ * value the teacher approves, and a suggestion that cannot be made leaves the queue as it was.
+ */
+export const draftLiveSessionQuestionMarks = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  if (!await schoolMarkDraftingEnabled(req.schoolId)) {
+    return res.status(403).json({
+      success: false,
+      message: "Suggested marks are switched off for this school. An admin can turn them on in live lesson settings.",
+    });
+  }
+  const slideId = String(req.body?.slideId ?? "").trim();
+  const report = await buildLiveSessionReportData(req, session);
+  const question = (report.perQuestion || []).find((item) => item.slideId === slideId);
+  if (!question) {
+    return res.status(400).json({ success: false, message: "Choose a question from this session." });
+  }
+  const maxMarks = Number(req.body?.maxMarks ?? question.maxMarks ?? LIVE_DEFAULT_QUESTION_MARKS);
+  if (!Number.isFinite(maxMarks) || maxMarks < 0.25 || maxMarks > 100) {
+    return res.status(400).json({ success: false, message: "A question is worth between 0.25 and 100 marks." });
+  }
+  // Only a teacher's queue is drafted: an answer the engine already settled keeps its verdict.
+  const waiting = (question.answers || []).filter((answer) => answer.state === "pending");
+  if (!waiting.length) {
+    return res.json({ success: true, data: { slideId, maxMarks, pending: 0, drafts: [], unavailable: false, reason: "" } });
+  }
+  if (waiting.length > MAX_DRAFT_ANSWERS) {
+    return res.status(400).json({
+      success: false,
+      message: `${waiting.length} answers wait on this question, and only ${MAX_DRAFT_ANSWERS} get a suggestion at a time. Mark the rest yourself.`,
+    });
+  }
+  const questionFor = (answer) => (question.levels || []).find((level) => level.level === answer.level) || question;
+  const entries = waiting.map((answer) => {
+    // A levelled slide asks each group something different, so each answer is judged against the
+    // words that group was given.
+    const level = questionFor(answer);
+    return {
+      studentId: answer.studentId,
+      level: answer.level,
+      prompt: level.prompt,
+      guidance: answer.guidance,
+      expected: level.key,
+      answer: answer.answerText,
+    };
+  });
+  const result = await liveLessonMarkDraftService.draftMarks({
+    maxMarks,
+    entries,
+    schoolId: req.schoolId,
+    userId: req.user._id,
+  });
+  return res.json({
+    success: true,
+    data: {
+      slideId,
+      maxMarks,
+      pending: waiting.length,
+      drafts: result.drafts,
+      unavailable: Boolean(result.unavailable),
+      reason: result.reason || "",
+    },
+  });
 });
 
 const sendLiveLessonPdf = (res, pdfData, filename) => {

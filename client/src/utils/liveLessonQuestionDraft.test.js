@@ -201,3 +201,15 @@ test('only the fields the kind uses reach the server', () => {
   assert.equal(written.minWords, 20);
   assert.equal(written.numericRule, undefined);
 });
+
+test('a stored question that omits its answer rows still opens in the editor', () => {
+  const matching = prepareLiveQuestion({ kind: 'matching', prompt: 'Match the fractions.' });
+  assert.deepEqual(matching.matchingPairs, []);
+  assert.deepEqual(matching.orderingItems, []);
+  assert.deepEqual(matching.blanks, []);
+  assert.deepEqual(matching.options, []);
+
+  const legacy = prepareLiveQuestion({ prompt: 'Which one?' });
+  assert.equal(legacy.kind, 'mcq');
+  assert.ok(legacy.options.length > 0);
+});

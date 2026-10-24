@@ -1,4 +1,5 @@
 import express from "express";
+import aiTokenBudgetGuard from "../middleware/aiTokenBudgetGuard.js";
 import { authorize, protect } from "../middleware/auth.js";
 import { requireSchoolContext } from "../middleware/tenantIsolation.js";
 import {
@@ -15,6 +16,7 @@ import {
   deleteLiveSession,
   deleteLiveLesson,
   deleteLiveLessonFolder,
+  draftLiveSessionQuestionMarks,
   getLiveLesson,
   getLiveSession,
   getLiveSessionReplay,
@@ -36,6 +38,7 @@ import {
   updateLiveLesson,
   updateLiveLessonSettings,
   setLiveSessionReplayAvailability,
+  updateLiveSessionQuestionMarks,
   addLiveLessonFolderShortcut,
   removeLiveLessonFolderShortcut,
   reorderLiveLessonFolderShortcuts,
@@ -116,6 +119,8 @@ router.delete("/sessions/finished", authorize("teacher", "admin", "department_pr
 router.delete("/sessions/:id", authorize("teacher", "admin", "department_principal"), deleteLiveSession);
 router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal", "student"), getLiveSessionReplay);
 router.get("/sessions/:id/report", authorize("teacher", "admin", "department_principal"), getLiveSessionReport);
+router.patch("/sessions/:id/marks", authorize("teacher", "admin", "department_principal"), updateLiveSessionQuestionMarks);
+router.post("/sessions/:id/marks/draft", authorize("teacher", "admin", "department_principal"), aiTokenBudgetGuard, draftLiveSessionQuestionMarks);
 router.post("/sessions/:id/report/export.pdf", authorize("teacher", "admin", "department_principal"), exportLiveSessionReportPdf);
 router.get("/sessions/:id/gradebook-preview", authorize("teacher", "admin", "department_principal"), getLiveSessionGradebookPreview);
 router.post("/sessions/:id/gradebook", authorize("teacher", "admin", "department_principal"), createLiveSessionGradebookEntries);

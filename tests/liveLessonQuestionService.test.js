@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildLiveStudentQuestion,
+  describeLiveAnswerKey,
+  describeLiveStudentAnswer,
   gradeLiveAnswer,
   isLiveAnswerEmpty,
   normalizeLiveQuestion,
   resolveLiveQuestionForStudent,
+  sanitizeLiveAnswer,
   validateLiveQuestion,
 } from "../services/liveLessonQuestionService.js";
 
@@ -188,4 +191,29 @@ test("a levelled group answers its own variant and everyone else answers the def
   assert.equal(resolveLiveQuestionForStudent(slide, "507f1f77bcf86cd7994390a2").kind, "mcq");
   assert.equal(resolveLiveQuestionForStudent(slide, null).kind, "mcq");
   assert.equal(resolveLiveQuestionForStudent({ question: mcq }, groupA).kind, "mcq");
+});
+
+// Kinds only exist from the slice that added them, so every lesson and session snapshot stored
+// before it holds questions with no kind. Those were all option questions, and a teacher re-running
+// one must not find every answer parked waiting to be marked.
+const legacyQuestion = {
+  prompt: "Which word means the same as brave?",
+  options: [{ id: "a", text: "bold" }, { id: "b", text: "timid" }],
+  correctOptionId: "a",
+};
+
+test("a question stored before kinds existed still grades, keys and reads as multiple choice", () => {
+  const answer = sanitizeLiveAnswer(legacyQuestion, { selectedOptionId: "a" });
+  assert.deepEqual(answer, { selectedOptionId: "a" });
+  assert.equal(isLiveAnswerEmpty(legacyQuestion, answer), false);
+  assert.deepEqual(gradeLiveAnswer(legacyQuestion, answer), {
+    isCorrect: true,
+    score: 1,
+    status: "auto",
+    feedback: "",
+    detail: null,
+  });
+  assert.equal(describeLiveAnswerKey(legacyQuestion), "bold");
+  assert.equal(describeLiveStudentAnswer(legacyQuestion, answer), "bold");
+  assert.equal(buildLiveStudentQuestion(legacyQuestion, "seed").kind, "mcq");
 });

@@ -119,13 +119,17 @@ const renderPerformanceReport = (report, studentIds) => {
   const students = (report.students || []).filter((student) => (
     !studentIds.length || studentIds.includes(String(student.studentId))
   ));
+  // Accuracy needs a verdict behind it; a rack of answers nobody has marked yet is not a class that answered wrongly.
+  const accuracy = (rate, marked) => marked ? `${rate}%` : "—";
   const sessionRows = (report.sessions || []).map((session) => `
     <tr><td>${escapeHtml(formatDate(session.date))}</td><td>${escapeHtml(session.title)}</td>
-    <td>${session.attendanceRate}%</td><td>${session.engagementRate}%</td><td>${session.accuracyRate}%</td></tr>
+    <td>${session.attendanceRate}%</td><td>${session.engagementRate}%</td>
+    <td>${accuracy(session.accuracyRate, session.markedAnswers)}</td></tr>
   `).join("");
   const studentRows = students.map((student) => `
     <tr><td>${escapeHtml(student.name)}</td><td>${student.sessions}</td>
-    <td>${student.attendanceRate}%</td><td>${student.engagementRate}%</td><td>${student.accuracyRate}%</td>
+    <td>${student.attendanceRate}%</td><td>${student.engagementRate}%</td>
+    <td>${accuracy(student.accuracyRate, student.marked)}</td>
     <td>${student.answers}</td></tr>
   `).join("");
   return `
@@ -137,7 +141,7 @@ const renderPerformanceReport = (report, studentIds) => {
     ["Attendance", `${report.summary?.averageAttendanceRate || 0}%`],
     ["Answered at least once", `${report.summary?.participationRate || 0}%`],
     ["Answer completion", `${report.summary?.averageEngagementRate || 0}%`],
-    ["Accuracy", `${report.summary?.averageAccuracyRate || 0}%`],
+    ["Accuracy", accuracy(report.summary?.averageAccuracyRate || 0, report.summary?.markedAnswers)],
     ["Avg. session", `${report.summary?.averageSessionMinutes || 0} min`],
   ])}</div>
     <h2>Session trends</h2><table><thead><tr><th>Date</th><th>Lesson</th><th>Attendance</th><th>Answered at least once</th><th>Accuracy</th></tr></thead>

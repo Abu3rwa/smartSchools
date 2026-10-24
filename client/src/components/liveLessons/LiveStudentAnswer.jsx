@@ -23,8 +23,10 @@ import "./LiveStudentAnswer.css";
  */
 const LiveStudentAnswer = ({ question, answer = null, canAnswer = false, submitting = false, onSubmit }) => {
   const [draft, setDraft] = useState(() => liveAnswerDraft(question, answer));
-  const kind = question?.kind;
   const presented = liveAnswerQuestion(question);
+  // The presented question carries the resolved kind, so a lesson written before kinds existed
+  // still renders its option buttons instead of an empty card.
+  const kind = presented.kind;
   const answered = Boolean(answer);
   const locked = !canAnswer || submitting;
   const sent = answered ? describeLiveStudentAnswer(question, answer) : "";

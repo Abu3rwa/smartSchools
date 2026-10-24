@@ -279,6 +279,8 @@ const LiveLessonsPage = () => {
   const [notice, setNotice] = useState("");
   const [aiHtmlReviewEnabled, setAiHtmlReviewEnabled] = useState(false);
   const [savingHtmlReviewSetting, setSavingHtmlReviewSetting] = useState(false);
+  const [markDraftEnabled, setMarkDraftEnabled] = useState(false);
+  const [savingMarkDraftSetting, setSavingMarkDraftSetting] = useState(false);
   const [lessonListState, setLessonListState] = useState(defaultListState);
   const [sessionListState, setSessionListState] = useState(defaultListState);
   const [sessionPagination, setSessionPagination] = useState({
@@ -349,6 +351,9 @@ const LiveLessonsPage = () => {
       setFoldersLoaded(true);
       setAiHtmlReviewEnabled(
         settingsResponse.data?.data?.aiHtmlReviewEnabled === true,
+      );
+      setMarkDraftEnabled(
+        settingsResponse.data?.data?.aiMarkDraftEnabled === true,
       );
     } catch (requestError) {
       setError(
@@ -421,6 +426,24 @@ const LiveLessonsPage = () => {
       );
     }
   }, [lessonListState, sessionListState, preferencesKey, preferencesLoaded]);
+
+  const updateMarkDraftSetting = async (enabled) => {
+    setSavingMarkDraftSetting(true);
+    setError("");
+    try {
+      const response = await api.patch("/live/settings", {
+        aiMarkDraftEnabled: enabled,
+      });
+      setMarkDraftEnabled(response.data?.data?.aiMarkDraftEnabled === true);
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Could not update the suggested marks setting.",
+      );
+    } finally {
+      setSavingMarkDraftSetting(false);
+    }
+  };
 
   const updateAiHtmlReviewSetting = async (enabled) => {
     setSavingHtmlReviewSetting(true);
@@ -1280,6 +1303,17 @@ const LiveLessonsPage = () => {
     (target) => String(target._id) === String(moveLessonClassId),
   ) || null;
 
+  // The picker groups by each class's own year, so it never depends on the summary list the server sends beside it.
+  const moveLessonYears = [
+    ...new Set(
+      (moveLessonOptions?.targets || [])
+        .map((target) => target.academicYear)
+        .filter(Boolean),
+    ),
+  ]
+    .sort()
+    .reverse();
+
   const createFolder = (parentId = null) => {
     setFolderDialog({ mode: "create", parentId, name: "" });
   };
@@ -1670,6 +1704,32 @@ const LiveLessonsPage = () => {
             {savingHtmlReviewSetting
               ? "Saving…"
               : aiHtmlReviewEnabled
+                ? "Enabled"
+                : "Disabled"}
+          </label>
+        </section>
+      )}
+      {user?.role === "admin" && (
+        <section className="live-safety-setting">
+          <div>
+            <strong>Suggested marks for approval</strong>
+            <p>
+              When enabled, a teacher marking a live session can ask for a
+              first mark and comment on the written answers that are waiting.
+              Nothing is saved or shared until the teacher approves it, and
+              turning this off leaves the mark sheet exactly as it was.
+            </p>
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={markDraftEnabled}
+              disabled={savingMarkDraftSetting}
+              onChange={(event) => updateMarkDraftSetting(event.target.checked)}
+            />
+            {savingMarkDraftSetting
+              ? "Saving…"
+              : markDraftEnabled
                 ? "Enabled"
                 : "Disabled"}
           </label>
@@ -3282,7 +3342,7 @@ const LiveLessonsPage = () => {
                   onChange={(event) => setMoveLessonClassId(event.target.value)}
                 >
                   <option value="">Choose a class…</option>
-                  {moveLessonOptions.academicYears.map((year) => (
+                  {moveLessonYears.map((year) => (
                     <optgroup key={year} label={year}>
                       {moveLessonOptions.targets
                         .filter((target) => target.academicYear === year)

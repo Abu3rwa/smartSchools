@@ -84,6 +84,61 @@ test("performance report returns roster-scoped session engagement and selected s
   }
 });
 
+test("performance report keeps answers nobody has marked out of the accuracy maths", async () => {
+  const originals = {
+    classExists: Class.exists,
+    sessionFind: LiveSession.find,
+    responseFind: LiveResponse.find,
+    eventFind: LiveSessionEvent.find,
+  };
+  const sessions = [{
+    _id: sessionId,
+    rosterCapturedAt: new Date("2026-05-04T09:00:00.000Z"),
+    rosterSnapshot: [
+      { studentId, name: "Ada" },
+      { studentId: otherStudentId, name: "Grace" },
+    ],
+    lessonSnapshot: { title: "Reported speech", slides: [{ question: true }, { question: true }] },
+    startedAt: new Date("2026-05-04T10:00:00.000Z"),
+    endedAt: new Date("2026-05-04T10:30:00.000Z"),
+    createdAt: new Date("2026-05-04T09:00:00.000Z"),
+  }];
+
+  Class.exists = async () => true;
+  LiveSession.find = () => buildQuery(sessions);
+  LiveResponse.find = () => buildQuery([
+    // A settled objective answer and a written answer the teacher has not read yet.
+    { sessionId, studentId, isCorrect: true, score: 1 },
+    { sessionId, studentId: otherStudentId, isCorrect: null, score: null, grade: { status: "pending" } },
+  ]);
+  LiveSessionEvent.find = () => buildQuery([]);
+
+  try {
+    const report = await buildLiveLessonPerformanceReport({
+      req: { user: { role: "teacher" }, schoolId: "school-1" },
+      classId: "507f1f77bcf86cd799439015",
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-31",
+      resolveClass: async () => ({ _id: "507f1f77bcf86cd799439015", name: "Class 5" }),
+    });
+
+    assert.equal(report.sessions[0].submittedAnswers, 2);
+    assert.equal(report.sessions[0].correctAnswers, 1);
+    assert.equal(report.sessions[0].accuracyRate, 100);
+    assert.equal(report.summary.averageAccuracyRate, 100);
+    const students = report.students.reduce((acc, student) => ({ ...acc, [student.name]: student }), {});
+    assert.equal(students.Ada.marked, 1);
+    assert.equal(students.Ada.accuracyRate, 100);
+    assert.equal(students.Grace.marked, 0);
+    assert.equal(students.Grace.answers, 1);
+  } finally {
+    Class.exists = originals.classExists;
+    LiveSession.find = originals.sessionFind;
+    LiveResponse.find = originals.responseFind;
+    LiveSessionEvent.find = originals.eventFind;
+  }
+});
+
 test("performance report rejects invalid selected student IDs", async () => {
   await assert.rejects(
     buildLiveLessonPerformanceReport({

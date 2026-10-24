@@ -3,6 +3,7 @@ import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
 import { activeLiveSessionDurationMs, getSessionPauseAccounting } from "./liveSessionTime.js";
+import { liveAnswerCredit } from "./liveSessionGradebookService.js";
 
 const MAX_SESSIONS_PER_REPORT = 500;
 const toId = (value) => String(value || "");
@@ -40,6 +41,23 @@ const awaySeconds = (events, endAt) => {
 };
 
 const percent = (value, total) => total ? Math.round((value / total) * 100) : 0;
+
+/**
+ * Accuracy is the credit earned over the answers that have a verdict. An answer the teacher has not
+ * marked yet, or one the engine could not settle, is left out of both sides of the divide, so a
+ * class with a stack of unmarked paragraphs does not read as a class that answered wrongly.
+ */
+const creditTotals = (rows) => {
+  const totals = { credit: 0, marked: 0, correct: 0 };
+  for (const response of rows) {
+    const value = liveAnswerCredit(response);
+    if (value === null) continue;
+    totals.marked += 1;
+    totals.credit += value;
+    if (value === 1) totals.correct += 1;
+  }
+  return totals;
+};
 
 export const buildLiveLessonPerformanceReport = async ({
   req,
@@ -101,7 +119,7 @@ export const buildLiveLessonPerformanceReport = async ({
   const [responses, events] = sessionIds.length
     ? await Promise.all([
       LiveResponse.find({ school: req.schoolId, sessionId: { $in: sessionIds } })
-        .select("sessionId studentId slideId isCorrect latencyMs")
+        .select("sessionId studentId slideId isCorrect score grade latencyMs")
         .lean(),
       LiveSessionEvent.find({
         school: req.schoolId,
@@ -146,7 +164,8 @@ export const buildLiveLessonPerformanceReport = async ({
   let totalParticipating = 0;
   let totalQuestions = 0;
   let totalAnswers = 0;
-  let totalCorrect = 0;
+  let totalCredit = 0;
+  let totalMarked = 0;
   let durationSumMinutes = 0;
 
   for (const session of sessions) {
@@ -167,11 +186,13 @@ export const buildLiveLessonPerformanceReport = async ({
     }) / 60000;
     const rosterIds = new Set(roster.map((student) => toId(student.studentId)).filter(Boolean));
     const rosterResponses = sessionResponses.filter((response) => rosterIds.has(toId(response.studentId)));
+    const sessionCredit = creditTotals(rosterResponses);
     totalRoster += roster.length;
     totalJoined += [...sessionJoined].filter((id) => rosterIds.has(id)).length;
     totalQuestions += roster.length * questionCount;
     totalAnswers += rosterResponses.length;
-    totalCorrect += rosterResponses.filter((response) => response.isCorrect).length;
+    totalCredit += sessionCredit.credit;
+    totalMarked += sessionCredit.marked;
     durationSumMinutes += durationMinutes;
     const participatingIds = new Set(sessionResponses
       .map((response) => toId(response.studentId))
@@ -190,6 +211,8 @@ export const buildLiveLessonPerformanceReport = async ({
           joined: 0,
           answers: 0,
           correct: 0,
+          marked: 0,
+          credit: 0,
           questions: 0,
           awaySeconds: 0,
         });
@@ -200,6 +223,7 @@ export const buildLiveLessonPerformanceReport = async ({
       const joined = sessionJoined.has(studentId);
       if (joined) stats.joined += 1;
       const studentResponses = sessionResponses.filter((response) => toId(response.studentId) === studentId);
+      const studentCredit = creditTotals(studentResponses);
       if (selectedStudentId && studentId === String(selectedStudentId)) {
         studentSessionMetrics.push({
           sessionId: sid,
@@ -210,12 +234,14 @@ export const buildLiveLessonPerformanceReport = async ({
           joined,
           participated: studentResponses.length > 0,
           answers: studentResponses.length,
-          correct: studentResponses.filter((response) => response.isCorrect).length,
+          correct: studentCredit.correct,
           questions: questionCount,
         });
       }
       stats.answers += studentResponses.length;
-      stats.correct += studentResponses.filter((response) => response.isCorrect).length;
+      stats.correct += studentCredit.correct;
+      stats.marked += studentCredit.marked;
+      stats.credit += studentCredit.credit;
       stats.awaySeconds += awaySeconds(
         eventsBySessionStudent.get(`${sid}:${studentId}`) || [],
         session.endedAt || session.startedAt
@@ -231,10 +257,12 @@ export const buildLiveLessonPerformanceReport = async ({
       participatingCount: participatingIds.size,
       questionOpportunities: roster.length * questionCount,
       submittedAnswers: rosterResponses.length,
-      correctAnswers: rosterResponses.filter((response) => response.isCorrect).length,
+      correctAnswers: sessionCredit.correct,
       attendanceRate: percent([...sessionJoined].filter((id) => rosterIds.has(id)).length, roster.length),
       engagementRate: percent(participatingIds.size, roster.length),
-      accuracyRate: percent(rosterResponses.filter((response) => response.isCorrect).length, rosterResponses.length),
+      accuracyRate: percent(sessionCredit.credit, sessionCredit.marked),
+      // Zero means nothing has a verdict yet, so the reader shows a dash instead of a 0% accuracy.
+      markedAnswers: sessionCredit.marked,
       responseCount: rosterResponses.length,
       questionCount,
       durationMinutes: Math.round(durationMinutes),
@@ -246,7 +274,7 @@ export const buildLiveLessonPerformanceReport = async ({
       ...student,
       attendanceRate: percent(student.joined, student.sessions),
       engagementRate: percent(student.answers, student.questions),
-      accuracyRate: percent(student.correct, student.answers),
+      accuracyRate: percent(student.credit, student.marked),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -265,7 +293,8 @@ export const buildLiveLessonPerformanceReport = async ({
       averageAttendanceRate: percent(totalJoined, totalRoster),
       participationRate: percent(totalParticipating, totalRoster),
       averageEngagementRate: percent(totalAnswers, totalQuestions),
-      averageAccuracyRate: percent(totalCorrect, totalAnswers),
+      averageAccuracyRate: percent(totalCredit, totalMarked),
+      markedAnswers: totalMarked,
       responseCount: totalAnswers,
       averageSessionMinutes: sessions.length ? Math.round(durationSumMinutes / sessions.length) : 0,
     },

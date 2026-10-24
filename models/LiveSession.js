@@ -29,6 +29,14 @@ const liveSessionSchema = new Schema(
     studentsFullscreen: { type: Boolean, default: false },
     questionOpen: { type: Boolean, default: false },
     revealedSlideIds: { type: [String], default: [] },
+    // What one question of this session is worth. Written answers have no key, so the teacher marks
+    // them against this allocation; questions left off here fall back to the default the mark sheet
+    // offers.
+    questionMarks: {
+      type: [{ slideId: { type: String, required: true }, maxMarks: { type: Number, min: 0.25, max: 100, required: true } }],
+      default: [],
+      _id: false,
+    },
     eventSeq: { type: Number, default: 0 },
     startedAt: { type: Date },
     endedAt: { type: Date },

@@ -53,7 +53,7 @@ export const liveSelectedOptionIds = (question, labels = []) => {
 
 /** A stored answer reads back into the value the kind's input edits, so a submission stays on screen. */
 export const liveAnswerDraft = (question, answer = {}) => {
-  const kind = question?.kind;
+  const kind = liveQuestionKind(question);
   if (kind === 'mcq' || kind === 'tf') return text(answer?.selectedOptionId);
   const response = answer?.response ?? answer?.text;
   if (kind === 'multi_select') {
@@ -71,8 +71,7 @@ export const countLiveAnswerWords = (value) => text(value).split(/\s+/).filter(B
  * once every step is placed, because a half-ordered list has no defensible mark.
  */
 export const isLiveAnswerReady = (question, draft) => {
-  const kind = question?.kind;
-  if (!kind) return false;
+  const kind = liveQuestionKind(question);
   if (kind === 'mcq' || kind === 'tf') return Boolean(text(draft));
   if (kind === 'multi_select') return Boolean(liveSelectedOptionIds(question, draft).length);
   if (kind === 'numeric' || isLiveWrittenKind(kind)) return Boolean(text(draft));
@@ -94,7 +93,7 @@ export const isLiveAnswerReady = (question, draft) => {
 
 /** The field names the live socket grades per kind; nothing else leaves the browser. */
 export const buildLiveAnswerPayload = (question, draft) => {
-  const kind = question?.kind;
+  const kind = liveQuestionKind(question);
   if (kind === 'mcq' || kind === 'tf') return { selectedOptionId: text(draft).slice(0, 20) };
   if (kind === 'multi_select') return { response: liveSelectedOptionIds(question, draft) };
   if (kind === 'numeric') return { response: text(draft).slice(0, 40) };
@@ -104,7 +103,7 @@ export const buildLiveAnswerPayload = (question, draft) => {
 
 /** Teachers and students read an answer as words, never as the ids or terms behind them. */
 export const describeLiveStudentAnswer = (question, answer = {}) => {
-  const kind = question?.kind;
+  const kind = liveQuestionKind(question);
   if (kind === 'mcq' || kind === 'tf') {
     const chosen = liveAnswerQuestion(question).options
       .find((option) => option.id === text(answer.selectedOptionId));
@@ -122,4 +121,5 @@ export const describeLiveStudentAnswer = (question, answer = {}) => {
       .map((row) => `${text(row.left)} = ${text(row.right) || '—'}`)
       .join('; ');
   }
-  return describeStudentAn
+  return describeStudentAnswer(liveAnswerQuestion(question), response);
+};

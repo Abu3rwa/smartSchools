@@ -125,6 +125,14 @@ const schoolSchema = new mongoose.Schema({
                 default: false
             }
         },
+        // An admin turns suggested live-lesson marks on or off for the whole school; a teacher can
+        // only ever see a suggestion, never a saved mark, until they approve it themselves.
+        liveLessonMarkDrafting: {
+            aiDraftEnabled: {
+                type: Boolean,
+                default: false
+            }
+        },
         newsletter: {
             frequency: {
                 type: String,

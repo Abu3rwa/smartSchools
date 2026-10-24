@@ -111,3 +111,15 @@ test('the written answer counts the words the teacher set a budget for', () => {
   assert.equal(countLiveAnswerWords('  one   two three\t'), 3);
   assert.equal(countLiveAnswerWords(''), 0);
 });
+
+// Live question kinds only exist from the slice that added them, so a lesson written before it
+// stores questions with no kind. Those were option questions, and the card must still work.
+test('a lesson written before question kinds existed still behaves as multiple choice', () => {
+  const legacy = { prompt: 'Which word means brave?', options: [{ id: 'a', text: 'bold' }, { id: 'b', text: 'timid' }], correctOptionId: 'a' };
+  assert.equal(liveAnswerQuestion(legacy).kind, 'mcq');
+  assert.equal(liveAnswerQuestion(legacy).questionType, 'multiple_choice');
+  assert.equal(liveAnswerDraft(legacy, { selectedOptionId: 'b' }), 'b');
+  assert.equal(isLiveAnswerReady(legacy, 'a'), true);
+  assert.deepEqual(buildLiveAnswerPayload(legacy, 'a'), { selectedOptionId: 'a' });
+  assert.equal(describeLiveStudentAnswer(legacy, { selectedOptionId: 'a' }), 'A. bold');
+});
