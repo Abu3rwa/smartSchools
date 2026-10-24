@@ -29,6 +29,25 @@ const isActiveSharingUser = async (userId, schoolId) => {
   }).select("_id").lean());
 };
 
+// Every field that defines the question and its key. A shared lesson must arrive gradeable, so a
+// new kind is carried here rather than trimmed back to mcq/tf.
+const copyQuestion = (question) => ({
+  kind: question.kind,
+  prompt: question.prompt,
+  options: (question.options || []).map((option) => ({ id: option.id, text: option.text })),
+  correctOptionId: question.correctOptionId || "",
+  ...(question.correctOptionIds?.length ? { correctOptionIds: [...question.correctOptionIds] } : {}),
+  ...(question.matchingPairs?.length ? { matchingPairs: question.matchingPairs.map((pair) => ({ ...pair })) } : {}),
+  ...(question.orderingItems?.length ? { orderingItems: question.orderingItems.map((item) => ({ ...item })) } : {}),
+  ...(question.blanks?.length ? { blanks: question.blanks.map((blank) => ({ ...blank, accepts: [...(blank.accepts || [])] })) } : {}),
+  ...(question.numericRule ? { numericRule: { ...question.numericRule } } : {}),
+  ...(question.guidance ? { guidance: question.guidance } : {}),
+  ...(question.criteria ? { criteria: question.criteria } : {}),
+  ...(question.minWords ? { minWords: question.minWords } : {}),
+  ...(question.maxWords ? { maxWords: question.maxWords } : {}),
+  explanation: question.explanation || "",
+});
+
 const getLessonSnapshot = (lesson) => ({
   title: lesson.title,
   description: lesson.description || "",
@@ -37,7 +56,9 @@ const getLessonSnapshot = (lesson) => ({
   language: lesson.language || "en",
   source: lesson.source || "csv",
   slides: lesson.slides.map((slide) => {
-    const value = typeof slide.toObject === "function" ? slide.toObject() : slide;
+    // A level is tied to the sharing teacher's own groups, which the recipient does not have, so
+    // only the class-wide question travels.
+    const value = typeof slide.toObject === "function" ? slide.toObject() : { ...slide };
     return {
       order: value.order,
       type: value.type,
@@ -47,20 +68,9 @@ const getLessonSnapshot = (lesson) => ({
       examples: Array.isArray(value.examples) ? [...value.examples] : [],
       imageUrl: value.imageUrl || "",
       speakerNotes: value.speakerNotes || "",
-      ...(value.question
-        ? {
-            question: {
-              kind: value.question.kind,
-              prompt: value.question.prompt,
-              options: (value.question.options || []).map((option) => ({
-                id: option.id,
-                text: option.text,
-              })),
-              correctOptionId: value.question.correctOptionId,
-              explanation: value.question.explanation || "",
-            },
-          }
-        : {}),
+      // A level is tied to the sharing teacher's own groups, which the recipient does not have, so
+      // the class-wide question is what travels.
+      ...(value.question ? { question: copyQuestion(value.question) } : {}),
     };
   }),
 });

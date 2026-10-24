@@ -252,15 +252,19 @@ const HIDDEN_STUDENT_FIELDS = ["orderingItems", "correctOptionId", "correctOptio
 export const buildLiveStudentQuestion = (question, seed = "") => {
   if (!question) return null;
   const shape = toPracticeQuestionShape(question);
-  const payload = hideTeacherOnlyFields(shape, { seed, extraHiddenFields: HIDDEN_STUDENT_FIELDS });
+  // `stem` and `questionType` are the practice engines' names for prompt and kind; the live client
+  // reads `prompt` and `kind`, so the duplicates are dropped from the payload.
+  const presentation = hideTeacherOnlyFields(shape, { seed, extraHiddenFields: HIDDEN_STUDENT_FIELDS });
+  delete presentation.stem;
+  delete presentation.questionType;
   return {
-    ...payload,
+    ...presentation,
     kind: shape.kind,
     prompt: shape.prompt,
     options: shape.options,
-    guidance: shape.guidance,
-    minWords: shape.minWords,
-    maxWords: shape.maxWords,
+    ...(shape.guidance ? { guidance: shape.guidance } : {}),
+    ...(shape.minWords ? { minWords: shape.minWords } : {}),
+    ...(shape.maxWords ? { maxWords: shape.maxWords } : {}),
   };
 };
 

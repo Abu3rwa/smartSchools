@@ -18,11 +18,20 @@ import {
   applyStudentAnswer,
   buildSharedState,
   formatRoster,
+  groupIdForStudent,
+  groupIdsByStudent,
   listClassStudents,
   listEnrolledUserIds,
   getSessionStudents,
   isStudentEnrolled,
 } from "../services/liveLessonService.js";
+import { isLiveWrittenKind } from "../constants/liveLessonQuestionKinds.js";
+import {
+  gradeLiveAnswer,
+  isLiveAnswerEmpty,
+  resolveLiveQuestionForStudent,
+  sanitizeLiveAnswer,
+} from "../services/liveLessonQuestionService.js";
 
 const AUTH_TIMEOUT_MS = 10000;
 const HEARTBEAT_TIMEOUT_MS = 15000;
@@ -222,23 +231,36 @@ const emitRoster = async (session) => {
 const broadcastState = async (session) => {
   const sockets = [...(sessionSockets.get(sessionKey(session._id)) || [])];
   if (!sockets.length) return;
-  const shared = buildSharedState(session);
+  const slide = (session.lessonSnapshot?.slides || [])[session.currentSlideIndex] || null;
+  const leveled = Boolean(slide?.variants?.length);
   const studentSockets = sockets.filter((socket) => socket.__liveRole === "student");
   const staffSockets = sockets.filter((socket) => socket.__liveRole !== "student");
 
   // One enrollment read and one answer read for the whole room, instead of a
   // round trip per socket on every slide change.
   const enrolledIds = studentSockets.length ? await listEnrolledUserIds(session.classId) : null;
-  const answers = studentSockets.length && shared.slide
+  const answers = studentSockets.length && slide
     ? await LiveResponse.find({
         sessionId: session._id,
-        slideId: String(shared.slide._id),
+        slideId: String(slide._id),
         studentId: { $in: [...new Set(studentSockets.map((socket) => socket.__liveUserId))] },
       })
-        .select("studentId selectedOptionId isCorrect")
+        .select("studentId selectedOptionId response text isCorrect score grade")
         .lean()
     : [];
   const answerByStudent = new Map(answers.map((answer) => [String(answer.studentId), answer]));
+  // Groups only matter while the slide is levelled, so a normal lesson never pays for the read.
+  const groupByStudent = studentSockets.length && leveled
+    ? await groupIdsByStudent(session, studentSockets.map((socket) => socket.__liveUserId))
+    : null;
+
+  // One payload per level, not per student: a class of thirty on three levels builds three states.
+  const sharedByLevel = new Map();
+  const sharedForLevel = (groupId) => {
+    const key = groupId || "class";
+    if (!sharedByLevel.has(key)) sharedByLevel.set(key, buildSharedState(session, { groupId }));
+    return sharedByLevel.get(key);
+  };
 
   for (const socket of studentSockets) {
     socket.__liveSessionCache = { id: String(session._id), at: Date.now(), session };
@@ -247,15 +269,16 @@ const broadcastState = async (session) => {
       socket.close(1008, "Class enrollment changed");
       continue;
     }
+    const groupId = groupByStudent?.get(String(socket.__liveUserId)) || null;
     send(socket, {
       type: "session:state",
-      data: applyStudentAnswer(shared, answerByStudent.get(String(socket.__liveUserId)) || null),
+      data: applyStudentAnswer(sharedForLevel(groupId), answerByStudent.get(String(socket.__liveUserId)) || null),
     });
   }
 
   if (!staffSockets.length) return;
   const staffState = applyStaffExtras(
-    shared,
+    buildSharedState(session),
     formatRoster(await getSessionStudents(session), getPresenceMap(session._id)),
   );
   for (const socket of staffSockets) {
@@ -359,10 +382,16 @@ const handleAction = async (socket, message) => {
     ) {
       return fail(socket, requestId, "QUESTION_CLOSED", "This question is not open for answers.");
     }
-    if (!slide.question.options.some((option) => option.id === data.selectedOptionId)) {
-      return fail(socket, requestId, "VALIDATION", "Choose one of the available answers.");
-    }
     const submittedAt = new Date();
+    // A levelled slide sends each group its own question, so the answer is checked and graded
+    // against the version this student was actually shown.
+    const groupId = slide.variants?.length ? await groupIdForStudent(session, userId) : null;
+    const question = resolveLiveQuestionForStudent(slide, groupId);
+    const answer = sanitizeLiveAnswer(question, data);
+    if (isLiveAnswerEmpty(question, answer)) {
+      return fail(socket, requestId, "VALIDATION", "Answer the question before submitting it.");
+    }
+    const graded = gradeLiveAnswer(question, answer);
     const openedEvent = await LiveSessionEvent.findOne({
       sessionId: session._id,
       type: "question:opened",
@@ -373,8 +402,17 @@ const handleAction = async (socket, message) => {
       sessionId: session._id,
       studentId: socket.__liveUserId,
       slideId: String(slide._id),
-      selectedOptionId: data.selectedOptionId,
-      isCorrect: data.selectedOptionId === slide.question.correctOptionId,
+      selectedOptionId: answer.selectedOptionId || "",
+      ...("response" in answer ? { response: answer.response } : {}),
+      ...("text" in answer ? { text: answer.text } : {}),
+      isCorrect: graded.isCorrect,
+      score: graded.score,
+      grade: {
+        status: graded.status,
+        source: isLiveWrittenKind(question.kind) ? "teacher" : "objective",
+        released: false,
+        feedback: graded.feedback,
+      },
       submittedAt,
       latencyMs: openedEvent ? Math.max(0, submittedAt.getTime() - new Date(openedEvent.at).getTime()) : 0,
     }).catch(async (error) => {
@@ -389,8 +427,11 @@ const handleAction = async (socket, message) => {
       {
         studentId: userId,
         slideId: String(slide._id),
-        selectedOptionId: data.selectedOptionId,
+        kind: question.kind,
+        ...(groupId ? { groupId } : {}),
+        ...(answer.selectedOptionId ? { selectedOptionId: answer.selectedOptionId } : {}),
         isCorrect: response.isCorrect,
+        ...(response.score === null || response.score === undefined ? {} : { score: response.score }),
         latencyMs: response.latencyMs,
       },
       submittedAt,
@@ -564,7 +605,7 @@ const handleAction = async (socket, message) => {
   if (action === "results:reveal") {
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     const responses = await LiveResponse.find({ sessionId: session._id, slideId: String(slide._id) })
-      .select("studentId isCorrect")
+      .select("studentId isCorrect score")
       .lean();
     for (const client of sessionSockets.get(sessionKey(session._id)) || []) {
       if (client.__liveRole !== "student") continue;
@@ -573,7 +614,10 @@ const handleAction = async (socket, message) => {
         type: "results:revealed",
         data: {
           slideId: String(slide._id),
+          // A written answer has no verdict yet: null keeps the popup honest that the teacher
+          // still has to mark it.
           myIsCorrect: result?.isCorrect ?? null,
+          ...(result?.score === null || result?.score === undefined ? {} : { myScore: result.score }),
         },
       });
     }

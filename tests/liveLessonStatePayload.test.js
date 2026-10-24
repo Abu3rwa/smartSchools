@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import LiveGroup from "../models/LiveGroup.js";
 import LiveResponse from "../models/LiveResponse.js";
 import {
   applyStaffExtras,
@@ -7,6 +8,7 @@ import {
   buildSharedState,
   getStateForUser,
 } from "../services/liveLessonService.js";
+import { normalizeLiveQuestion } from "../services/liveLessonQuestionService.js";
 
 const sessionId = "507f1f77bcf86cd799439011";
 const slideId = "607f1f77bcf86cd7994390aa";
@@ -57,7 +59,7 @@ test("the broadcast payload a student receives matches the per-user payload", as
 
   const session = sessionFixture();
   const perUser = await getStateForUser(session, { role: "student", _id: "student-1" });
-  assert.deepEqual(perUser, applyStudentAnswer(buildSharedState(session), answer));
+  assert.deepEqual(perUser, applyStudentAnswer(buildSharedState(session, { groupId: null }), answer));
   assert.equal(perUser.myAnswer.selectedOptionId, "a");
   assert.equal(perUser.myIsCorrect, true);
   assert.equal(perUser.revealed, true);
@@ -105,4 +107,87 @@ test("staff payloads still carry the roster with a not-joined presence", async (
   ]);
   assert.equal(state.totalSlides, 1);
   assert.equal(state.timerDurationMinutes, 20);
+});
+
+const groupId = "507f1f77bcf86cd7994390b1";
+
+const levelledSession = () => ({
+  ...sessionFixture({ revealed: false }),
+  lessonSnapshot: {
+    slides: [
+      {
+        _id: slideId,
+        type: "question",
+        title: "Check for understanding",
+        speakerNotes: "Only the teacher reads this.",
+        question: normalizeLiveQuestion({
+          kind: "matching",
+          prompt: "Match each term with its meaning.",
+          matchingPairs: [
+            { left: "Simile", right: "A comparison using like or as" },
+            { left: "Alliteration", right: "Repeated starting sounds" },
+          ],
+          explanation: "A simile says like or as.",
+        }, { salt: "lesson:0" }),
+        variants: [
+          {
+            groupId,
+            question: normalizeLiveQuestion({
+              kind: "text",
+              prompt: "Explain why the narrator lies.",
+              guidance: "Two sentences.",
+              criteria: "Names the motive.",
+            }, { salt: "lesson:0v0" }),
+          },
+        ],
+      },
+    ],
+  },
+});
+
+test("a levelled slide sends each group its own question and never an answer key", async (t) => {
+  t.mock.method(LiveGroup, "find", () => ({
+    select: () => ({ lean: async () => [{ _id: groupId, studentIds: ["student-1"] }] }),
+  }));
+  t.mock.method(LiveResponse, "findOne", () => ({
+    select: () => ({ lean: async () => null }),
+  }));
+
+  const session = levelledSession();
+  const levelled = await getStateForUser(session, { role: "student", _id: "student-1" });
+  const wholeClass = await getStateForUser(session, { role: "student", _id: "student-2" });
+
+  assert.equal(levelled.slide.question.kind, "text");
+  assert.equal(levelled.slide.question.guidance, "Two sentences.");
+  assert.equal(wholeClass.slide.question.kind, "matching");
+  assert.deepEqual(wholeClass.slide.question.matchingColumns.terms, ["Simile", "Alliteration"]);
+
+  for (const state of [levelled, wholeClass]) {
+    const serialized = JSON.stringify(state);
+    assert.equal(serialized.includes("Names the motive"), false);
+    assert.equal(serialized.includes("A simile says like or as"), false);
+    assert.equal(serialized.includes("Only the teacher reads this"), false);
+    assert.equal(serialized.includes(groupId), false);
+    assert.equal("variants" in state.slide, false);
+    // The matching choices are what the student picks from; the pairing is the key.
+    assert.equal("matchingPairs" in state.slide.question, false);
+  }
+  // The other level's content never crosses over.
+  assert.equal(JSON.stringify(levelled).includes("A comparison using like or as"), false);
+});
+
+test("the teacher payload carries the key for the class question and for every level", async () => {
+  const shared = buildSharedState(levelledSession());
+
+  const staff = applyStaffExtras(shared, [{ studentId: "student-1", name: "A Student", presence: "not_joined" }]);
+  assert.equal(staff.teacherAnswer.kind, "matching");
+  assert.ok(staff.teacherAnswer.answerText.includes("A comparison using like or as"));
+  assert.deepEqual(staff.levelAnswers, [
+    { groupId, teacherAnswer: { kind: "text", correctOptionId: "", correctOptionIds: [], answerText: "", explanation: "" } },
+  ]);
+
+  // Students never get the teacher fields the staff payload adds.
+  const student = applyStudentAnswer(buildSharedState(levelledSession(), { groupId }), null);
+  assert.equal("teacherAnswer" in student, false);
+  assert.equal("levelAnswers" in student, false);
 });

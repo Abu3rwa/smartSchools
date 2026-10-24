@@ -57,8 +57,30 @@ test("share snapshot contains only lesson metadata and slide content", () => {
   assert.equal("studentResponses" in snapshot.slides[0], false);
 });
 
-test("shared lesson and invitation schemas enforce independent-copy provenance and pending deduplication", () => {
-  assert.ok(LiveLesson.schema.path("originLessonId"));
+test("a levelled lesson shares its class-wide question, every kind intact", () => {
+  const snapshot = getLessonSnapshot({
+    title: "Figurative Language",
+    slides: [{
+      order: 0,
+      type: "question",
+      question: {
+        kind: "matching",
+        prompt: "Match each term.",
+        matchingPairs: [{ left: "Simile", right: "Like or as" }],
+        numericRule: { mode: "exact", value: "100" },
+        explanation: "Look for the signal word.",
+      },
+      variants: [{ groupId: "group-a", question: { kind: "text", prompt: "Explain the difference." } }],
+    }],
+  });
+
+  assert.deepEqual(snapshot.slides[0].question.matchingPairs, [{ left: "Simile", right: "Like or as" }]);
+  assert.equal(snapshot.slides[0].question.numericRule.value, "100");
+  assert.equal(snapshot.slides[0].question.explanation, "Look for the signal word.");
+  assert.equal("variants" in snapshot.slides[0], false);
+});
+
+test("shared lesson and invitation schemas enforce independent-copy provenance and pending deduplication", () => {  assert.ok(LiveLesson.schema.path("originLessonId"));
   assert.ok(LiveLesson.schema.path("originOwnerId"));
   assert.ok(LiveLesson.schema.path("originShareInvitationId"));
   assert.equal(LiveLesson.schema.path("isDone").defaultValue, false);

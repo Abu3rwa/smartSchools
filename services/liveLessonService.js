@@ -242,6 +242,15 @@ export const applyStudentAnswer = (shared, answer) => ({
 export const applyStaffExtras = (shared, roster) => ({
   ...shared.state,
   teacherAnswer: buildLiveTeacherAnswer(shared.question),
+  // The teacher runs one lesson but marks several levels, so each level's key travels with it.
+  ...(shared.slide?.variants?.length
+    ? {
+      levelAnswers: shared.slide.variants.map((variant) => ({
+        groupId: String(variant.groupId),
+        teacherAnswer: buildLiveTeacherAnswer(variant.question),
+      })),
+    }
+    : {}),
   ...(roster ? { roster } : {}),
 });
 
