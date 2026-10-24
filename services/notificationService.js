@@ -182,6 +182,15 @@ const formatDateForNotice = (value) => {
   });
 };
 
+// /portal/assignments is the staff list, so a standards practice posted from the
+// standards board has to send the student to the session page that can load it.
+const assignmentNoticePath = (assignment) => {
+  const key = String(assignment?.assignmentTypeKey || "").trim().toLowerCase();
+  return key === "standard_assignment"
+    ? `/practice/${assignment._id}`
+    : `/assignments/${assignment._id}`;
+};
+
 const addSchoolNameToMailContent = (mailOptions, schoolName) => {
   const normalizedSchoolName = String(schoolName || "").trim();
   if (!normalizedSchoolName) return mailOptions;
@@ -811,7 +820,7 @@ class NotificationService {
     const trimmedInstructions =
       instructions.length > 450 ? `${instructions.slice(0, 447)}...` : instructions;
     const assignmentUrl = assignment?._id
-      ? buildPortalLink(`/assignments/${assignment._id}`)
+      ? buildPortalLink(assignmentNoticePath(assignment))
       : "";
 
     const subject = `New ${typeName}: ${title}`;
