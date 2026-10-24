@@ -137,7 +137,7 @@ The Live Lessons importer picks one of three CSV shapes from the header row, so 
 
 - Portable export: the file the lesson card's `Export CSV` writes. `format_version` must be the first cell and the columns must follow it in the order below. Version 2 carries every question kind and the levelled variants; a version 1 file (23 columns, options only) still imports, and a file whose `format_version` does not match the columns it uses is rejected rather than guessed.
 - Standard rows: matched by header name in any order, so `lesson title`, `slide type`, `question prompt`, `question kind`, `options` or `option_a` to `option_d` all work.
-- HTML rows: the fixed 17-column layout, one animated `html` slide per row, with `mcq` or `true_false` questions only. The import panel's `Sample CSV` and `Copy AI prompt` use this layout, so it keeps its two question types.
+- HTML rows: the fixed 17-column layout, one animated `html` slide per row, with `mcq` or `true_false` questions only. A lesson already generated in it still imports, but nothing in the app writes it any more: the `Copy AI prompt` text asks for the portable export layout instead, which carries designed HTML slides and every question kind.
 
 ### Question kinds and their columns
 
@@ -167,7 +167,7 @@ The same cells are named `question_options_json`, `question_pairs_json`, `questi
 
 ### Template files
 
-- `client/src/pages/liveLessons/liveLessonCsvTemplate.js` exports two samples: `LIVE_LESSON_SAMPLE_CSV`, a standard-format lesson with one row per question kind, is the `Sample CSV` download, and `LIVE_LESSON_CSV_TEMPLATE`, the older 17-field HTML layout that only carries `mcq`/`tf`, is what `liveLessonAiPrompt.js` asks an external assistant to reproduce. A CSV test asserts the download equals the service's own template cell for cell, so the sample a teacher sees cannot drift from the parser it is tested against.
+- `client/src/pages/liveLessons/liveLessonCsvTemplate.js` exports two files: `LIVE_LESSON_SAMPLE_CSV`, a standard-format lesson with one row per question kind, is the `Sample CSV` download, and `LIVE_LESSON_AI_REFERENCE_CSV`, a portable-format reference with one row per slide type and per question kind, is the example `liveLessonAiPrompt.js` shows an external assistant. A CSV test asserts the download equals the service's own template cell for cell, and another parses the reference end to end, so neither sample can drift from the parser it is tested against.
 - `services/liveLessonCsvService.js` exports `LIVE_LESSON_CSV_TEMPLATE`, a standard-format sample lesson with one row per question kind. The CSV tests parse it on every run, so the sample and the parser cannot drift.
 - The import panel's `Question types guide` popup is the same `client/src/components/assessment/QuestionTypeGuide.jsx` the MAP practice and Standards panels open, with `flow="live"`, so the guide, the grammars and the kind vocabulary are kept in step by `questionTypeGuideData.test.js`.
 

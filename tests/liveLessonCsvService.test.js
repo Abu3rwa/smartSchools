@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LIVE_LESSON_CSV_TEMPLATE as CLIENT_AI_PROMPT_CSV, LIVE_LESSON_SAMPLE_CSV } from "../client/src/pages/liveLessons/liveLessonCsvTemplate.js";
+import { LIVE_LESSON_AI_REFERENCE_CSV, LIVE_LESSON_SAMPLE_CSV } from "../client/src/pages/liveLessons/liveLessonCsvTemplate.js";
 import {
   LIVE_LESSON_CSV_TEMPLATE,
   parseLiveLessonCsv,
@@ -149,12 +149,26 @@ test("portable CSV names the column behind a broken key for every kind", () => {
   }
 });
 
-test("downloadable HTML CSV template passes the server importer", () => {
-  const result = parseLiveLessonCsv(CLIENT_AI_PROMPT_CSV);
-  assert.equal(result.ok, true);
-  assert.equal(result.lesson.slides.length, 2);
-  assert.equal(result.lesson.slides[0].type, "html");
-  assert.equal(result.lesson.slides[1].question.kind, "mcq");
+// "Copy AI prompt" embeds this reference, so the file the assistant is shown has to be a lesson the
+// importer accepts, and it has to demonstrate every slide type and every kind the prompt names.
+test("the AI prompt's reference lesson imports every slide type and question kind", () => {
+  const result = parseLiveLessonCsv(LIVE_LESSON_AI_REFERENCE_CSV);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.deepEqual(result.lesson.slides.map((slide) => slide.type), [
+    "opening", "goals", "content", "html", "examples",
+    "question", "question", "question", "question", "question", "question", "question",
+    "activity", "exit-ticket", "question",
+  ]);
+  assert.deepEqual(
+    result.lesson.slides.filter((slide) => slide.question).map((slide) => slide.question.kind),
+    ["mcq", "multi_select", "tf", "matching", "ordering", "fill_in_blank", "numeric", "text"],
+  );
+  assert.match(result.lesson.slides[3].html, /prefers-reduced-motion/);
+  assert.equal(result.lesson.slides[5].question.correctOptionId, "b");
+  assert.deepEqual(result.lesson.slides[6].question.correctOptionIds, ["a", "c"]);
+  assert.equal(result.lesson.slides[7].question.correctOptionId, "false");
+  // Differentiated questions are not authored through this file, so the reference never shows one.
+  assert.deepEqual(result.lesson.slides.filter((slide) => slide.variants?.length), []);
 });
 
 // The browser bundle cannot import this service, so the sample the teacher downloads is a mirror
