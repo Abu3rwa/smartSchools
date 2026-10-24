@@ -15,6 +15,7 @@ import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
 import { useSelector } from "react-redux";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
+import LiveStudentAnswer from "../../components/liveLessons/LiveStudentAnswer";
 import useLiveLessonSocket from "../../hooks/useLiveLessonSocket";
 import "./LiveLessonSessionPage.css";
 
@@ -132,7 +133,7 @@ const LiveLessonSessionPage = () => {
     useState(false);
   const [replayAvailabilityError, setReplayAvailabilityError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [localAnswer, setLocalAnswer] = useState("");
+  const [localAnswer, setLocalAnswer] = useState(null);
   const [endConfirm, setEndConfirm] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [timerNow, setTimerNow] = useState(Date.now());
@@ -167,7 +168,7 @@ const LiveLessonSessionPage = () => {
   const currentIndex =
     state?.currentSlideIndex ?? session?.currentSlideIndex ?? 0;
   const totalSlides = state?.totalSlides ?? session?.totalSlides ?? 0;
-  const selectedAnswer = state?.myAnswer?.selectedOptionId || localAnswer;
+  const submittedAnswer = state?.myAnswer || localAnswer;
   const currentRoster = roster.length
     ? roster
     : state?.roster || session?.roster || [];
@@ -349,7 +350,7 @@ const LiveLessonSessionPage = () => {
   }, [isTeacher, sessionStatus, toggleCursorSpotlight]);
 
   useEffect(() => {
-    setLocalAnswer("");
+    setLocalAnswer(null);
   }, [slide?._id]);
 
   useEffect(() => {
@@ -511,18 +512,15 @@ const LiveLessonSessionPage = () => {
     totalSlides,
   ]);
 
-  const submitAnswer = async (optionId) => {
-    if (submitting || selectedAnswer || !slide?._id || isPaused) return;
+  const submitAnswer = async (payload) => {
+    if (submitting || submittedAnswer || !slide?._id || isPaused) return;
     setSubmitting(true);
     setActionError("");
     try {
-      await sendAction("answer:submit", {
-        slideId: String(slide._id),
-        selectedOptionId: optionId,
-      });
-      setLocalAnswer(optionId);
-    } catch (actionFailure) {
-      setActionError(actionFailure.message);
+      await sendAction("answer:submit", { slideId: String(slide._id), ...payload });
+      setLocalAnswer(payload);
+    } catch (requestError) {
+      setActionError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -725,30 +723,21 @@ const LiveLessonSessionPage = () => {
                         </span>
                       </div>
                       <h2>{slide.question.prompt}</h2>
-                      <div className="live-answer-options">
-                        {slide.question.options.map((option) => {
-                          const selected = selectedAnswer === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              className={`live-answer-option ${selected ? "selected" : ""}`}
-                              disabled={
-                                isTeacher ||
-                                role !== "student" ||
-                                isPaused ||
-                                !state?.questionOpen ||
-                                Boolean(selectedAnswer) ||
-                                submitting
-                              }
-                              onClick={() => submitAnswer(option.id)}
-                            >
-                              <span>{option.id.toUpperCase()}</span>
-                              {option.text}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {selectedAnswer && !revealed && role === "student" && (
+                      <LiveStudentAnswer
+                        key={String(slide._id)}
+                        question={slide.question}
+                        answer={submittedAnswer}
+                        canAnswer={
+                          role === "student" &&
+                          !isTeacher &&
+                          !isPaused &&
+                          Boolean(state?.questionOpen) &&
+                          !submittedAnswer
+                        }
+                        submitting={submitting}
+                        onSubmit={submitAnswer}
+                      />
+                      {submittedAnswer && !revealed && role === "student" && (
                         <div className="live-answer-locked">
                           Answer submitted — it is locked until your teacher
                           reveals the results.
@@ -996,12 +985,8 @@ const LiveLessonSessionPage = () => {
             {isTeacher && slide?.question && state?.teacherAnswer && (
               <div className="live-control-card">
                 <h2>Teacher answer key</h2>
-                <p>
-                  {slide.question.options.find(
-                    (option) =>
-                      option.id === state.teacherAnswer.correctOptionId,
-                  )?.text || "Correct option"}
-                </p>
+                {/* answerText describes every kind's key; written answers have none until you mark them. */}
+                <p>{state.teacherAnswer.answerText || "No objective key — you mark this answer yourself."}</p>
                 {state.teacherAnswer.explanation && (
                   <p>{state.teacherAnswer.explanation}</p>
                 )}

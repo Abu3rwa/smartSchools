@@ -2,6 +2,7 @@ import {
   isLiveObjectiveKind,
   isLiveWrittenKind,
   LIVE_QUESTION_KINDS,
+  liveQuestionKind,
 } from "../constants/liveLessonQuestionKinds.js";
 import {
   PRACTICE_MAX_OPTIONS,
@@ -27,8 +28,8 @@ const toKeyList = (value) => (Array.isArray(value) ? value : [value]).map(text).
  * goes through this adapter: the engines read `questionType` and `stem`.
  */
 export const toPracticeQuestionShape = (question) => ({
-  kind: question?.kind,
-  questionType: resolvePracticeQuestionType(question?.kind),
+  kind: liveQuestionKind(question),
+  questionType: resolvePracticeQuestionType(liveQuestionKind(question)),
   prompt: text(question?.prompt),
   stem: text(question?.prompt),
   options: (Array.isArray(question?.options) ? question.options : []).map((option) => ({
@@ -232,6 +233,12 @@ export const validateLiveQuestion = (question, { fieldName = "question" } = {}) 
     } else if (shape.blanks.length > tokenIds.length) {
       errors.push({ field: "blanks", message: "The accepted answers name more blanks than the question text contains." });
     }
+    // Equal counts are not enough: a key naming a token the text does not contain would be dropped
+    // from the student's answer by id, grading a correct word as wrong.
+    const orphanIds = shape.blanks.filter((blank) => !tokenIds.includes(blank.id)).map((blank) => blank.id);
+    if (orphanIds.length) {
+      errors.push({ field: "blanks", message: `The accepted answers name blanks the question text does not contain: ${orphanIds.join(", ")}.` });
+    }
   }
 
   if (kind === "numeric") errors.push(...numericRuleErrors(shape.numericRule));
@@ -291,7 +298,7 @@ const toRows = (value) => {
  * the question actually offers are stored, and no socket can push an unbounded object into a document.
  */
 export const sanitizeLiveAnswer = (question, data = {}) => {
-  const kind = question?.kind;
+  const kind = liveQuestionKind(question);
   if (isLiveWrittenKind(kind)) return { text: bounded(data.response ?? data.text, 4000) };
   if (kind === "mcq" || kind === "tf") return { selectedOptionId: bounded(data.selectedOptionId, 20) };
   if (kind === "multi_select") {
@@ -343,7 +350,7 @@ const countedRows = (kind, response) => {
 };
 
 export const isLiveAnswerEmpty = (question, answer) => {
-  const kind = question?.kind;
+  const kind = liveQuestionKind(question);
   if (isLiveWrittenKind(kind)) return !text(answer?.text ?? answer?.response);
   if (Array.isArray(answer?.response)) return !countedRows(kind, answer.response).length;
   if (kind === "matching" || kind === "fill_in_blank" || kind === "ordering") return !text(answer?.response);
@@ -355,8 +362,7 @@ export const isLiveAnswerEmpty = (question, answer) => {
  * graders; a written answer is parked for the teacher, because nothing auto-marks prose here.
  */
 export const gradeLiveAnswer = (question, answer) => {
-  const kind = question?.kind;
-  if (!kind) return { isCorrect: null, score: null, status: "pending", feedback: "", detail: null };
+  const kind = liveQuestionKind(question);
 
   if (isLiveWrittenKind(kind)) {
     return { isCorrect: null, score: null, status: "pending", feedback: "", detail: null };
@@ -429,4 +435,38 @@ export const buildLiveTeacherAnswer = (question) => {
     answerText: describeLiveAnswerKey(shape),
     explanation: shape.explanation,
   };
+};
+
+/**
+ * A stored answer in the words the class would recognise. The review page, the session PDF and the
+ * released student feedback all quote the answer back with this, so a matching row never reads as
+ * an object and an ordering answer never reads as a list of ids.
+ */
+export const describeLiveStudentAnswer = (question, answer = {}) => {
+  const kind = liveQuestionKind(question);
+  const optionText = (ids) => (Array.isArray(question?.options) ? question.options : [])
+    .filter((option) => ids.includes(text(option?.id)))
+    .map((option) => text(option.text) || text(option.id))
+    .join(", ");
+  if (kind === "mcq" || kind === "tf") {
+    const selected = text(answer.selectedOptionId);
+    return optionText([selected]) || selected;
+  }
+  if (kind === "multi_select") return optionText(toKeyList(answer.response));
+  if (kind === "matching") {
+    return countedRows(kind, answer.response).map((row) => `${row.left} = ${row.right}`).join("; ");
+  }
+  if (kind === "ordering") {
+    const textById = new Map((Array.isArray(question.orderingItems) ? question.orderingItems : [])
+      .map((item) => [text(item?.id), text(item?.text)]));
+    return toKeyList(answer.response)
+      .map((id) => textById.get(id) || id)
+      .join(` ${PRACTICE_ORDER_SEPARATOR} `);
+  }
+  if (kind === "fill_in_blank") {
+    return countedRows(kind, answer.response).map((row) => `${row.id}: ${row.text}`).join("; ");
+  }
+  if (kind === "numeric") return text(answer.response ?? answer.text);
+  if (isLiveWrittenKind(kind)) return text(answer.text ?? answer.response);
+  return "";
 };

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { questionGuideLimits, questionGuideRows, questionGuideSeparators } from './questionTypeGuideData';
+import {
+  questionGuideIntroKey,
+  questionGuideLimits,
+  questionGuideRows,
+  questionGuideRuleKeys,
+  questionGuideSeparators
+} from './questionTypeGuideData';
 import './QuestionTypeGuide.css';
 
 /**
@@ -23,6 +29,8 @@ const QuestionTypeGuide = ({ flow, className = 'question-guide-trigger' }) => {
   const limits = questionGuideLimits();
   const rows = questionGuideRows(flow);
   const separators = questionGuideSeparators();
+  const introKey = questionGuideIntroKey(flow);
+  const ruleKeys = questionGuideRuleKeys(flow);
 
   return (
     <>
@@ -45,7 +53,7 @@ const QuestionTypeGuide = ({ flow, className = 'question-guide-trigger' }) => {
               </button>
             </div>
             <div className="modal-body">
-              <p className="question-guide-intro">{t('questionTypes:guide.intro')}</p>
+              <p className="question-guide-intro">{t(`questionTypes:guide.${introKey}`)}</p>
 
               <section className="question-guide-section">
                 <h4>{t('questionTypes:guide.sections.separators')}</h4>
@@ -97,8 +105,9 @@ const QuestionTypeGuide = ({ flow, className = 'question-guide-trigger' }) => {
 
               <section className="question-guide-section">
                 <h4>{t('questionTypes:guide.sections.rules')}</h4>
-                <p className="question-guide-rule">{t('questionTypes:guide.passages')}</p>
-                <p className="question-guide-rule">{t('questionTypes:guide.visibility')}</p>
+                {ruleKeys.map((ruleKey) => (
+                  <p key={ruleKey} className="question-guide-rule">{t(`questionTypes:guide.${ruleKey}`)}</p>
+                ))}
               </section>
             </div>
             <div className="modal-footer">

@@ -66,6 +66,11 @@ test("authoring rules catch a broken key instead of saving an ungradeable questi
   assert.ok(validateLiveQuestion({ ...matching, matchingPairs: [matching.matchingPairs[0]] }).some((e) => e.field === "question matching pairs"));
   assert.ok(validateLiveQuestion({ ...ordering, orderingItems: ordering.orderingItems.slice(0, 2) }).length);
   assert.ok(validateLiveQuestion({ ...blanks, blanks: blanks.blanks.slice(0, 1) }).length);
+  // the same count is not the same blanks: a key naming a token the text lacks drops that answer
+  assert.ok(
+    validateLiveQuestion({ ...blanks, blanks: [blanks.blanks[0], { id: "b3", accepts: ["Cairo"] }] })
+      .some((e) => e.field === "question blanks" && e.message.includes("b3")),
+  );
   assert.ok(validateLiveQuestion({ kind: "text", prompt: "" }).some((e) => e.field === "question prompt"));
   // a tolerance mode with no tolerance would silently grade as an exact match
   assert.ok(validateLiveQuestion({

@@ -1,12 +1,36 @@
+import { LIVE_QUESTION_KINDS } from "../constants/liveLessonQuestionKinds.js";
+import {
+  PRACTICE_ORDER_SEPARATOR,
+  PRACTICE_PAIR_SEPARATOR,
+  PRACTICE_TERM_SEPARATOR,
+  PRACTICE_VARIANT_SEPARATOR,
+} from "../constants/practiceQuestionTypes.js";
+import { parseNumericRule } from "./assessment/answerFormat.js";
+import { validateLiveQuestion } from "./liveLessonQuestionService.js";
+
 const MAX_CSV_LENGTH = 22 * 1024 * 1024;
 const MAX_SLIDES = 200;
 const MAX_CELL_LENGTH = 5000;
 const MAX_HTML_LENGTH = 100000;
-const PORTABLE_LIVE_LESSON_CSV_HEADERS = [
+// Version 1 carries multiple-choice and true/false only. Version 2 adds the remaining live
+// question kinds and the levelled variants, so an older exported lesson still imports.
+const PORTABLE_LIVE_LESSON_CSV_V1_HEADERS = [
   "format_version", "lesson_id", "lesson_title", "lesson_description", "subject", "grade", "language",
   "assigned_class", "assigned_subject", "is_done", "slide_order", "slide_type", "title", "body", "html",
   "examples_json", "image_url", "question_kind", "question_prompt", "question_options_json",
   "correct_answer", "explanation", "speaker_notes",
+];
+const PORTABLE_LIVE_LESSON_CSV_HEADERS = [
+  "format_version", "lesson_id", "lesson_title", "lesson_description", "subject", "grade", "language",
+  "assigned_class", "assigned_subject", "is_done", "slide_order", "slide_type", "title", "body", "html",
+  "examples_json", "image_url", "question_kind", "question_prompt", "question_options_json",
+  "question_pairs_json", "question_items_json", "question_blanks_json", "question_numeric_json",
+  "question_guidance", "question_criteria", "question_min_words", "question_max_words",
+  "correct_answer", "explanation", "speaker_notes", "levels_json",
+];
+const PORTABLE_LIVE_LESSON_CSV_LAYOUTS = [
+  { version: "1", headers: PORTABLE_LIVE_LESSON_CSV_V1_HEADERS },
+  { version: "2", headers: PORTABLE_LIVE_LESSON_CSV_HEADERS },
 ];
 const HTML_CSV_HEADERS = [
   "lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html",
@@ -25,10 +49,19 @@ const HEADER_ALIASES = {
   imageUrl: ["image url", "image", "visual url", "image link"],
   questionType: ["question type", "question kind", "response type"],
   prompt: ["question prompt", "question", "prompt"],
-  options: ["options", "answer options"],
+  options: ["options", "answer options", "question options json"],
   correctAnswer: ["correct answer", "correct option", "answer", "key"],
   explanation: ["explanation", "answer explanation", "teacher explanation"],
   speakerNotes: ["speaker notes", "teacher notes", "notes"],
+  pairs: ["question pairs", "question pairs json", "matching pairs", "pairs"],
+  items: ["question items", "question items json", "ordering items", "items"],
+  blanks: ["question blanks", "question blanks json", "blank answers", "blanks"],
+  numeric: ["question numeric", "question numeric json", "numeric rule"],
+  guidance: ["question guidance", "question guidance json", "guidance"],
+  criteria: ["question criteria", "criteria", "marking criteria"],
+  minWords: ["question min words", "min words", "minimum words"],
+  maxWords: ["question max words", "max words", "maximum words"],
+  levels: ["levels json", "levels", "levelled questions"],
 };
 
 const normalizeHeader = (value) =>
@@ -81,11 +114,298 @@ const parseCsvRows = (csv) => {
   return rows;
 };
 
+const trimCell = (value) => String(value ?? "").trim();
+
+const splitGrammar = (value, separator) =>
+  trimCell(value).split(separator).map((part) => part.trim()).filter(Boolean);
+
+/** `term::match` with the term missing leaves the match empty so validation can name it. */
+const splitTerm = (chunk) => {
+  const at = chunk.indexOf(PRACTICE_TERM_SEPARATOR);
+  if (at === -1) return { head: trimCell(chunk), tail: "" };
+  return { head: trimCell(chunk.slice(0, at)), tail: trimCell(chunk.slice(at + PRACTICE_TERM_SEPARATOR.length)) };
+};
+
+/**
+ * Structured cells are either JSON or the same plain text grammar the practice CSVs use, so one
+ * teacher learns one syntax. A value that is already parsed (a level inside `levels_json`) passes
+ * straight through.
+ */
+const readStructured = (value, ctx, field) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return value;
+  const raw = value.trim();
+  if (!raw) return null;
+  if (!/^[[{]/.test(raw)) return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    ctx.errors.push({ row: ctx.row, field, message: "This cell must be valid JSON or the plain text grammar shown in the template." });
+    return null;
+  }
+};
+
+const notAnArray = (ctx, field) => {
+  ctx.errors.push({ row: ctx.row, field, message: "This cell must be a JSON array or the plain text grammar shown in the template." });
+};
+
+const readOptionsCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return [];
+  const rows = typeof parsed === "string" ? splitGrammar(parsed, PRACTICE_PAIR_SEPARATOR) : parsed;
+  if (!Array.isArray(rows)) {
+    notAnArray(ctx, field);
+    return [];
+  }
+  return rows.map((option, index) => {
+    const id = typeof option === "string" ? "" : trimCell(option?.id);
+    const text = typeof option === "string" ? option.trim() : trimCell(option?.text);
+    return { id: id || String.fromCharCode(97 + index), text };
+  });
+};
+
+const pairFromChunk = (chunk) => {
+  const { head, tail } = splitTerm(chunk);
+  return { left: head, right: tail };
+};
+
+const readPairsCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return [];
+  const rows = typeof parsed === "string" ? splitGrammar(parsed, PRACTICE_PAIR_SEPARATOR).map(pairFromChunk) : parsed;
+  if (!Array.isArray(rows)) {
+    notAnArray(ctx, field);
+    return [];
+  }
+  return rows.map((pair) => (typeof pair === "string"
+    ? pairFromChunk(pair)
+    : { left: trimCell(pair?.left ?? pair?.term), right: trimCell(pair?.right ?? pair?.match) }));
+};
+
+const readItemsCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return [];
+  const rows = typeof parsed === "string"
+    ? splitGrammar(parsed, PRACTICE_ORDER_SEPARATOR).map((text) => ({ text }))
+    : parsed;
+  if (!Array.isArray(rows)) {
+    notAnArray(ctx, field);
+    return [];
+  }
+  return rows.map((item) => (typeof item === "string"
+    ? { text: item.trim() }
+    : { ...(trimCell(item?.id) ? { id: trimCell(item.id) } : {}), text: trimCell(item?.text ?? item?.value) }));
+};
+
+const readAccepts = (value) => (Array.isArray(value) ? value : splitGrammar(value, PRACTICE_VARIANT_SEPARATOR))
+  .map((answer) => trimCell(answer))
+  .filter(Boolean);
+
+const blankFromChunk = (chunk) => {
+  const { head, tail } = splitTerm(chunk);
+  return tail
+    ? { id: head, accepts: splitGrammar(tail, PRACTICE_VARIANT_SEPARATOR) }
+    : { accepts: splitGrammar(chunk, PRACTICE_VARIANT_SEPARATOR) };
+};
+
+const readBlanksCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return [];
+  const rows = typeof parsed === "string" ? splitGrammar(parsed, PRACTICE_PAIR_SEPARATOR).map(blankFromChunk) : parsed;
+  if (!Array.isArray(rows)) {
+    notAnArray(ctx, field);
+    return [];
+  }
+  return rows.map((blank) => (typeof blank === "string"
+    ? blankFromChunk(blank)
+    : {
+      ...(trimCell(blank?.id ?? blank?.blank) ? { id: trimCell(blank?.id ?? blank?.blank) } : {}),
+      accepts: readAccepts(blank?.accepts ?? blank?.answer),
+    }));
+};
+
+const readNumericCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return null;
+  if (Array.isArray(parsed)) {
+    notAnArray(ctx, field);
+    return null;
+  }
+  if (parsed && typeof parsed === "object") return parsed;
+  const { rule, error } = parseNumericRule(String(parsed));
+  if (error) {
+    ctx.errors.push({ row: ctx.row, field, message: error });
+    return null;
+  }
+  return rule;
+};
+
+const LIVE_KIND_ALIASES = {
+  tf: "tf", true_false: "tf", "true/false": "tf", truefalse: "tf", true_or_false: "tf", boolean: "tf", yes_no: "tf",
+  mcq: "mcq", multiple_choice: "mcq", choice: "mcq",
+  multi_select: "multi_select", multiple_select: "multi_select", multiple_answers: "multi_select",
+  matching: "matching", match: "matching",
+  ordering: "ordering", order: "ordering", sequence: "ordering",
+  fill_in_blank: "fill_in_blank", fill_in_the_blank: "fill_in_blank", gap_fill: "fill_in_blank",
+  numeric: "numeric", numeric_response: "numeric", number: "numeric",
+  text: "text", short_answer: "text", sentence: "text", paragraph: "text", written: "text",
+};
+
+const resolveLiveKind = (raw) => {
+  const key = trimCell(raw).toLowerCase().replace(/[\s-]+/g, "_");
+  if (!key) return "";
+  if (LIVE_KIND_ALIASES[key]) return LIVE_KIND_ALIASES[key];
+  return LIVE_QUESTION_KINDS.includes(key) ? key : "";
+};
+
+/** Option IDs are authored per file, so an answer letter or option text both resolve. */
+const matchOptionId = (options, answer) => {
+  const wanted = trimCell(answer).toLowerCase();
+  if (!wanted) return "";
+  const match = options.find((option) => option.id.toLowerCase() === wanted)
+    || options.find((option) => option.text.toLowerCase() === wanted);
+  return match?.id || "";
+};
+
+/** Only the fields the kind actually uses are kept, so an imported mcq looks like an authored mcq. */
+const isMeaningfulCell = (value) => {
+  if (value === null || value === undefined || value === "") return false;
+  if (typeof value === "number") return value !== 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+};
+
+const buildQuestionFromCells = (cells, ctx, columns) => {
+  const kind = resolveLiveKind(cells.kind) || trimCell(cells.kind);
+  const answer = trimCell(cells.answer);
+  const options = readOptionsCell(cells.options, ctx, columns.options);
+  const question = {
+    kind,
+    prompt: trimCell(cells.prompt),
+    options,
+    correctOptionId: kind === "mcq" || kind === "tf" ? matchOptionId(options, answer) : "",
+    correctOptionIds: kind === "multi_select"
+      ? splitGrammar(answer, PRACTICE_PAIR_SEPARATOR).map((key) => matchOptionId(options, key) || key)
+      : [],
+    matchingPairs: readPairsCell(cells.pairs, ctx, columns.pairs),
+    orderingItems: readItemsCell(cells.items, ctx, columns.items),
+    blanks: readBlanksCell(cells.blanks, ctx, columns.blanks),
+    numericRule: readNumericCell(cells.numeric, ctx, columns.numeric),
+    guidance: trimCell(cells.guidance),
+    criteria: trimCell(cells.criteria),
+    minWords: Number(trimCell(cells.minWords)) || 0,
+    maxWords: Number(trimCell(cells.maxWords)) || 0,
+    explanation: trimCell(cells.explanation),
+  };
+  return Object.fromEntries(Object.entries(question).filter(([, value]) => isMeaningfulCell(value)));
+};
+
+// validateLiveQuestion names its complaints after the question fields; each one belongs to a column.
+const QUESTION_ERROR_KEYS = {
+  prompt: "prompt",
+  options: "options",
+  "correct answer": "answer",
+  "matching pairs": "pairs",
+  "ordering items": "items",
+  blanks: "blanks",
+  "numeric answer": "numeric",
+  tolerance: "numeric",
+  guidance: "guidance",
+  criteria: "criteria",
+  "word limit": "wordLimit",
+  explanation: "explanation",
+};
+
+const questionValidationErrors = (question, ctx, columns, label) =>
+  validateLiveQuestion(question, { fieldName: label }).map((error) => {
+    const subfield = error.field === label ? "" : error.field.slice(label.length + 1);
+    const key = QUESTION_ERROR_KEYS[subfield];
+    return {
+      row: ctx.row,
+      field: key ? columns[key] : (subfield || columns.kind),
+      message: error.message,
+    };
+  });
+
+const PORTABLE_QUESTION_COLUMNS = {
+  kind: "question_kind",
+  prompt: "question_prompt",
+  options: "question_options_json",
+  pairs: "question_pairs_json",
+  items: "question_items_json",
+  blanks: "question_blanks_json",
+  numeric: "question_numeric_json",
+  guidance: "question_guidance",
+  criteria: "question_criteria",
+  wordLimit: "question_min_words",
+  answer: "correct_answer",
+  explanation: "explanation",
+};
+
+const FLEXIBLE_QUESTION_COLUMNS = {
+  kind: "question type",
+  prompt: "question prompt",
+  options: "options",
+  pairs: "matching pairs",
+  items: "ordering items",
+  blanks: "blanks",
+  numeric: "numeric rule",
+  guidance: "guidance",
+  criteria: "criteria",
+  wordLimit: "word limit",
+  answer: "correct answer",
+  explanation: "explanation",
+};
+
+const LEVEL_QUESTION_COLUMNS = Object.fromEntries(
+  [...Object.keys(PORTABLE_QUESTION_COLUMNS), "kind"].map((key) => [key, "levels_json"]),
+);
+
+/** `levels_json` holds one question per ability group, named by the group name, not its id. */
+const readLevelsCell = (value, ctx, field) => {
+  const parsed = readStructured(value, ctx, field);
+  if (parsed === null) return [];
+  if (!Array.isArray(parsed)) {
+    notAnArray(ctx, field);
+    return [];
+  }
+  const seen = new Set();
+  return parsed.map((entry, index) => {
+    const group = trimCell(entry?.group ?? entry?.level ?? entry?.name);
+    if (!group) {
+      ctx.errors.push({ row: ctx.row, field, message: `Level ${index + 1} needs the name of the group it belongs to.` });
+    } else if (seen.has(group.toLowerCase())) {
+      ctx.errors.push({ row: ctx.row, field, message: `Level ${index + 1} repeats the group "${group}".` });
+    } else {
+      seen.add(group.toLowerCase());
+    }
+    const question = buildQuestionFromCells({
+      kind: entry?.kind,
+      prompt: entry?.prompt,
+      options: entry?.options,
+      pairs: entry?.matching_pairs ?? entry?.pairs ?? entry?.matchingPairs,
+      items: entry?.ordering_items ?? entry?.items ?? entry?.orderingItems,
+      blanks: entry?.blank_answers ?? entry?.blanks,
+      numeric: entry?.numeric_rule ?? entry?.numeric ?? entry?.numericRule,
+      guidance: entry?.guidance,
+      criteria: entry?.criteria,
+      minWords: entry?.min_words ?? entry?.minWords,
+      maxWords: entry?.max_words ?? entry?.maxWords,
+      answer: entry?.correct_answer ?? entry?.correctAnswer,
+      explanation: entry?.explanation,
+    }, ctx, LEVEL_QUESTION_COLUMNS);
+    return { group, question, label: `level ${group || index + 1}` };
+  });
+};
+
 const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
   const errors = [];
   const normalizedHeaders = rawHeaders.map(normalizeHeader);
-  if (rawHeaders.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length ||
-      rawHeaders.some((header, index) => normalizedHeaders[index] !== normalizeHeader(PORTABLE_LIVE_LESSON_CSV_HEADERS[index]))) {
+  const layout = PORTABLE_LIVE_LESSON_CSV_LAYOUTS.find((candidate) =>
+    candidate.headers.length === rawHeaders.length
+    && candidate.headers.every((header, index) => normalizeHeader(header) === normalizedHeaders[index]));
+  if (!layout) {
     return {
       ok: false,
       errors: [{ row: 1, field: "headers", message: `Portable lesson CSV must use these columns in order: ${PORTABLE_LIVE_LESSON_CSV_HEADERS.join(", ")}.` }],
@@ -101,8 +421,8 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
   const headerIndex = Object.fromEntries(normalizedHeaders.map((header, index) => [header.replace(/\s+/g, "_"), index]));
   const valueAt = (row, field) => String(row[headerIndex[field]] ?? "");
   const firstRow = dataRows[0];
-  if (firstRow.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length) {
-    errors.push({ row: 2, field: "columns", message: `Expected ${PORTABLE_LIVE_LESSON_CSV_HEADERS.length} columns, found ${firstRow.length}.` });
+  if (firstRow.length !== layout.headers.length) {
+    errors.push({ row: 2, field: "columns", message: `Expected ${layout.headers.length} columns, found ${firstRow.length}.` });
   }
 
   const metadataColumns = [
@@ -118,7 +438,7 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
     ["is_done", "isDone"],
   ];
   const lessonMetadata = Object.fromEntries(metadataColumns.map(([column, field]) => [field, valueAt(firstRow, column)]));
-  if (lessonMetadata.version !== "1") errors.push({ row: 2, field: "format_version", message: "Unsupported portable lesson CSV format version." });
+  if (lessonMetadata.version !== layout.version) errors.push({ row: 2, field: "format_version", message: `The format_version cell must be ${layout.version} for these columns.` });
   if (!lessonMetadata.lessonId || lessonMetadata.lessonId.length > 100) errors.push({ row: 2, field: "lesson_id", message: "Lesson ID is required and must be 100 characters or fewer." });
   if (!lessonMetadata.title || lessonMetadata.title.length > 200) errors.push({ row: 2, field: "lesson_title", message: "Lesson title is required and must be 200 characters or fewer." });
   if (lessonMetadata.description.length > 1000) errors.push({ row: 2, field: "lesson_description", message: "Lesson description must be 1,000 characters or fewer." });
@@ -131,8 +451,8 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
 
   dataRows.forEach((row, index) => {
     const rowNumber = index + 2;
-    if (row.length !== PORTABLE_LIVE_LESSON_CSV_HEADERS.length) {
-      errors.push({ row: rowNumber, field: "columns", message: `Expected ${PORTABLE_LIVE_LESSON_CSV_HEADERS.length} columns, found ${row.length}.` });
+    if (row.length !== layout.headers.length) {
+      errors.push({ row: rowNumber, field: "columns", message: `Expected ${layout.headers.length} columns, found ${row.length}.` });
       return;
     }
     for (const [column, field] of metadataColumns) {
@@ -172,36 +492,34 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
       examples = [];
     }
 
-    const questionKind = valueAt(row, "question_kind");
-    const prompt = valueAt(row, "question_prompt");
-    const answer = valueAt(row, "correct_answer");
-    const explanation = valueAt(row, "explanation");
+    const ctx = { row: rowNumber, errors };
+    const questionCells = {
+      kind: valueAt(row, "question_kind"),
+      prompt: valueAt(row, "question_prompt"),
+      options: valueAt(row, "question_options_json"),
+      pairs: valueAt(row, "question_pairs_json"),
+      items: valueAt(row, "question_items_json"),
+      blanks: valueAt(row, "question_blanks_json"),
+      numeric: valueAt(row, "question_numeric_json"),
+      guidance: valueAt(row, "question_guidance"),
+      criteria: valueAt(row, "question_criteria"),
+      minWords: valueAt(row, "question_min_words"),
+      maxWords: valueAt(row, "question_max_words"),
+      answer: valueAt(row, "correct_answer"),
+      explanation: valueAt(row, "explanation"),
+    };
+    const prompt = questionCells.prompt;
+    const levelsCell = valueAt(row, "levels_json");
     let question;
+    let levels = [];
     if (type === "question") {
-      let options = [];
-      try {
-        options = JSON.parse(valueAt(row, "question_options_json") || "[]");
-        if (!Array.isArray(options)) throw new Error("Question options must be a JSON array.");
-      } catch (error) {
-        errors.push({ row: rowNumber, field: "question_options_json", message: error.message || "Question options must contain valid JSON." });
-        options = [];
-      }
-      if (!["mcq", "tf"].includes(questionKind)) errors.push({ row: rowNumber, field: "question_kind", message: "Question kind must be mcq or tf." });
-      if (!prompt || prompt.length > 500) errors.push({ row: rowNumber, field: "question_prompt", message: "Question prompt is required and must be 500 characters or fewer." });
-      if (explanation.length > 2000) errors.push({ row: rowNumber, field: "explanation", message: "Explanation must be 2,000 characters or fewer." });
-      if ((questionKind === "mcq" && (options.length < 2 || options.length > 6)) ||
-          (questionKind === "tf" && (options.length !== 2 || !options.some((option) => option?.id === "true") || !options.some((option) => option?.id === "false")))) {
-        errors.push({ row: rowNumber, field: "question_options_json", message: "Question options do not match the question kind." });
-      }
-      const optionIds = options.map((option) => String(option?.id || ""));
-      if (new Set(optionIds).size !== optionIds.length || options.some((option) =>
-        !option || typeof option.id !== "string" || !option.id || option.id.length > 20 ||
-        typeof option.text !== "string" || !option.text.trim() || option.text.length > 300)) {
-        errors.push({ row: rowNumber, field: "question_options_json", message: "Question options need unique IDs and non-empty text (maximum 300 characters)." });
-      }
-      if (!optionIds.includes(answer)) errors.push({ row: rowNumber, field: "correct_answer", message: "Correct answer must match a question option ID." });
-      question = { kind: questionKind, prompt, options, correctOptionId: answer, explanation };
-    } else if (questionKind || prompt || valueAt(row, "question_options_json") || answer || explanation) {
+      question = buildQuestionFromCells(questionCells, ctx, PORTABLE_QUESTION_COLUMNS);
+      levels = readLevelsCell(levelsCell, ctx, "levels_json");
+      errors.push(...questionValidationErrors(question, ctx, PORTABLE_QUESTION_COLUMNS, "question"));
+      levels.forEach((level) => {
+        errors.push(...questionValidationErrors(level.question, ctx, LEVEL_QUESTION_COLUMNS, level.label));
+      });
+    } else if (Object.values(questionCells).some(Boolean) || levelsCell) {
       errors.push({ row: rowNumber, field: "question", message: "Question columns must be empty for non-question slides." });
     }
 
@@ -222,6 +540,7 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
       imageUrl,
       speakerNotes,
       ...(question ? { question } : {}),
+      ...(levels.length ? { variants: levels.map((level) => ({ group: level.group, question: level.question })) } : {}),
     });
   });
 
@@ -238,7 +557,7 @@ const parsePortableLiveLessonCsv = (rawHeaders, dataRows) => {
       importHints: { assignedClass: lessonMetadata.assignedClass, assignedSubject: lessonMetadata.assignedSubject },
       slides,
     },
-    matchedColumns: Object.fromEntries(PORTABLE_LIVE_LESSON_CSV_HEADERS.map((header) => [header, header])),
+    matchedColumns: Object.fromEntries(layout.headers.map((header, index) => [header, rawHeaders[index]])),
   };
 };
 
@@ -419,76 +738,55 @@ const parseOptions = (row, headers) => {
     .filter((option) => option.text);
 };
 
+const TRUE_FALSE_ANSWERS = {
+  true: "true", t: "true", yes: "true", y: "true",
+  false: "false", f: "false", no: "false", n: "false",
+};
+
 const makeQuestion = (row, headers, rowNumber, errors) => {
-  const prompt = valueAt(row, headers.result.prompt);
-  const kindValue = normalizeHeader(valueAt(row, headers.result.questionType));
+  const ctx = { row: rowNumber, errors };
+  // A row with a prompt but no type column stays multiple choice, exactly as before.
+  const kindCell = normalizeHeader(valueAt(row, headers.result.questionType)) || "mcq";
+  const kind = resolveLiveKind(kindCell) || kindCell;
   const options = parseOptions(row, headers);
-  const kind =
-    kindValue === "tf" ||
-    kindValue === "true false" ||
-    kindValue === "true/false" ||
-    kindValue === "true or false"
-      ? "tf"
-      : "mcq";
-  const answer = valueAt(row, headers.result.correctAnswer);
-  if (prompt.length > 500) {
-    errors.push({ row: rowNumber, field: "question prompt", message: "Question prompts must be 500 characters or fewer." });
-  }
-  if (!prompt) errors.push({ row: rowNumber, field: "question prompt", message: "Question slides need a prompt." });
   if (kind === "tf" && options.length === 0) {
     options.push({ id: "true", text: "True" }, { id: "false", text: "False" });
   }
   if (kind === "tf" && options.length === 2) {
-    const explicit = options.map((option) => {
-      const text = normalizeHeader(option.text);
-      if (["false", "f", "no", "n"].includes(text)) return "false";
-      if (["true", "t", "yes", "y"].includes(text)) return "true";
-      return "";
-    });
+    const explicit = options.map((option) => TRUE_FALSE_ANSWERS[normalizeHeader(option.text)] || "");
     const canInfer = explicit[0] && explicit[1] && explicit[0] !== explicit[1];
     options[0].id = canInfer ? explicit[0] : "true";
     options[1].id = canInfer ? explicit[1] : "false";
   }
-  if (kind === "mcq" && (options.length < 2 || options.length > 6)) {
-    errors.push({ row: rowNumber, field: "options", message: "Multiple-choice questions need 2–6 non-empty options." });
-  }
-  if (kind === "tf" && options.length !== 2) {
-    errors.push({ row: rowNumber, field: "options", message: "True/false questions need exactly two options." });
-  }
-  if (options.some((option) => option.text.length > 300)) {
-    errors.push({ row: rowNumber, field: "options", message: "Each answer option must be 300 characters or fewer." });
-  }
-  const explanation = valueAt(row, headers.result.explanation);
-  if (explanation.length > 2000) {
-    errors.push({ row: rowNumber, field: "explanation", message: "Explanations must be 2,000 characters or fewer." });
-  }
-  let correctOptionId = "";
-  if (answer) {
-    const match = options.find(
-      (option) =>
-        normalizeHeader(option.id) === normalizeHeader(answer) ||
-        normalizeHeader(option.text) === normalizeHeader(answer),
-    );
-    if (match) correctOptionId = match.id;
-    else errors.push({ row: rowNumber, field: "correct answer", message: "Correct answer must match an option label or option text." });
-  } else {
-    errors.push({ row: rowNumber, field: "correct answer", message: "Question slides need a correct answer for teacher grading." });
-  }
-  if (kind === "tf" && answer) {
-    const truthy = ["true", "t", "yes", "y"];
-    const falsy = ["false", "f", "no", "n"];
-    const normalized = normalizeHeader(answer);
-    if (truthy.includes(normalized)) correctOptionId = "true";
-    else if (falsy.includes(normalized)) correctOptionId = "false";
-  }
+  const rawAnswer = valueAt(row, headers.result.correctAnswer);
+  const answer = kind === "tf" ? (TRUE_FALSE_ANSWERS[normalizeHeader(rawAnswer)] || rawAnswer) : rawAnswer;
 
-  return {
-    kind,
-    prompt,
+  const question = buildQuestionFromCells({
+    kind: kindCell,
+    prompt: valueAt(row, headers.result.prompt),
     options,
-    correctOptionId,
-    explanation,
-  };
+    pairs: valueAt(row, headers.result.pairs),
+    items: valueAt(row, headers.result.items),
+    blanks: valueAt(row, headers.result.blanks),
+    numeric: valueAt(row, headers.result.numeric),
+    guidance: valueAt(row, headers.result.guidance),
+    criteria: valueAt(row, headers.result.criteria),
+    minWords: valueAt(row, headers.result.minWords),
+    maxWords: valueAt(row, headers.result.maxWords),
+    answer,
+    explanation: valueAt(row, headers.result.explanation),
+  }, ctx, FLEXIBLE_QUESTION_COLUMNS);
+  errors.push(...questionValidationErrors(question, ctx, FLEXIBLE_QUESTION_COLUMNS, "question"));
+  return question;
+};
+
+const makeLevels = (row, headers, rowNumber, errors) => {
+  const ctx = { row: rowNumber, errors };
+  const levels = readLevelsCell(valueAt(row, headers.result.levels), ctx, "levels");
+  levels.forEach((level) => {
+    errors.push(...questionValidationErrors(level.question, ctx, LEVEL_QUESTION_COLUMNS, level.label));
+  });
+  return levels.map((level) => ({ group: level.group, question: level.question }));
 };
 
 export const parseLiveLessonCsv = (csv) => {
@@ -592,8 +890,12 @@ export const parseLiveLessonCsv = (csv) => {
     }
     if (type === "question") {
       slide.question = makeQuestion(row, headers, rowNumber, errors);
+      const variants = makeLevels(row, headers, rowNumber, errors);
+      if (variants.length) slide.variants = variants;
     } else if (isQuestion) {
       errors.push({ row: rowNumber, field: "slide type", message: "A row with a question prompt must use the question slide type." });
+    } else if (valueAt(row, headers.result.levels)) {
+      errors.push({ row: rowNumber, field: "levels", message: "Only question slides can carry levelled questions." });
     }
     slides.push(slide);
   });
@@ -617,25 +919,94 @@ export const parseLiveLessonCsv = (csv) => {
   };
 };
 
-export const LIVE_LESSON_CSV_TEMPLATE = [
-  "lesson_title,lesson_description,slide_order,slide_type,title,body,examples,image_url,question_type,question_prompt,option_a,option_b,option_c,option_d,correct_answer,explanation,speaker_notes",
-  '"Figurative Language","ELA lesson",1,opening,"Figurative Language","Explore similes, metaphors and personification.",,,,,,,,,,,"Welcome students"',
-  '"Figurative Language","ELA lesson",2,goals,"Learning goals","Define each technique and identify it in a sentence.",,,,,,,,,,,',
-  '"Figurative Language","ELA lesson",3,content,"How to spot the technique","Read carefully; look for a comparison or human action; decide if it is literal.",,,,,,,,,,,',
-  '"Figurative Language","ELA lesson",4,examples,"Simile","A simile compares two things using like or as.","Her laugh was as bright as a bell|Ideas fell like rain",,,,,,,,',
-  '"Figurative Language","ELA lesson",5,question,"Check for understanding",,,"",mcq,"The classroom was a beehive. Which technique is used?","Simile","Metaphor","Personification",,"Metaphor","It says the classroom is a beehive without like or as.",',
-  '"Figurative Language","ELA lesson",6,activity,"Your turn","Write one simile, one metaphor, and one example of personification.",,,,,,,,,,,',
-  '"Figurative Language","ELA lesson",7,exit-ticket,"Exit ticket","Name the technique in ""The stars winked at us"" and explain how a metaphor differs from a simile.",,,,,,,,,,',
-].join("\r\n");
-
 const csvCell = (value) => {
   const cell = String(value ?? "");
   return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 };
 
-export const serializeLiveLessonCsv = (lesson) => {
+const csvRow = (values) => values.map(csvCell).join(",");
+
+const LIVE_LESSON_TEMPLATE_HEADERS = [
+  "lesson_title", "lesson_description", "slide_order", "slide_type", "title", "body", "examples",
+  "image_url", "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d",
+  "correct_answer", "explanation", "speaker_notes", "matching_pairs", "ordering_items",
+  "blank_answers", "numeric_rule", "guidance", "criteria", "min_words", "max_words", "levels_json",
+];
+
+const templateRow = (cells) => csvRow(LIVE_LESSON_TEMPLATE_HEADERS.map((header) => cells[header] ?? ""));
+
+const TEMPLATE_LESSON = { lesson_title: "Figurative Language", lesson_description: "ELA lesson" };
+
+/**
+ * One row per live question kind plus a levelled exit ticket, so the sample lesson teaches every
+ * column without a separate reference sheet. Type cells take either JSON or the shared practice
+ * grammar: `term::match` joined by `|`, steps joined by `>`, and `blank::answer~alternative`.
+ */
+export const LIVE_LESSON_CSV_TEMPLATE = [
+  csvRow(LIVE_LESSON_TEMPLATE_HEADERS),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 1, slide_type: "opening", title: "Figurative Language", body: "Explore similes, metaphors and personification.", speaker_notes: "Welcome students" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 2, slide_type: "goals", title: "Learning goals", body: "Define each technique and identify it in a sentence." }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 3, slide_type: "content", title: "How to spot the technique", body: "Read carefully; look for a comparison or human action; decide if it is literal." }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 4, slide_type: "examples", title: "Simile", body: "A simile compares two things using like or as.", examples: "Her laugh was as bright as a bell|Ideas fell like rain" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 5, slide_type: "question", title: "Check for understanding", question_type: "mcq", question_prompt: "The classroom was a beehive. Which technique is used?", option_a: "Simile", option_b: "Metaphor", option_c: "Personification", correct_answer: "Metaphor", explanation: "It says the classroom is a beehive without like or as." }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 6, slide_type: "question", title: "Select the similes", question_type: "multi_select", question_prompt: "Which sentences use a simile? Select all that apply.", option_a: "Her laugh was as bright as a bell.", option_b: "The classroom was a beehive.", option_c: "Ideas fell like rain.", correct_answer: "a|c", explanation: "Both compare using like." }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 7, slide_type: "question", title: "True or false", question_type: "tf", question_prompt: "A metaphor compares two things using like or as.", correct_answer: "false", explanation: "That is a simile." }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 8, slide_type: "question", title: "Match the technique", question_type: "matching", question_prompt: "Match each technique to its definition.", matching_pairs: "Simile::a comparison using like or as|Personification::human qualities given to a thing" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 9, slide_type: "question", title: "Order the steps", question_type: "ordering", question_prompt: "Put the steps for naming a tense in order.", ordering_items: "Read the sentence > Find the verb > Name the tense" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 10, slide_type: "question", title: "Complete the definition", question_type: "fill_in_blank", question_prompt: "A {{b1}} compares two things using {{b2}}.", blank_answers: "b1::simile|b2::like or as~like and as" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 11, slide_type: "question", title: "How many techniques", question_type: "numeric", question_prompt: "How many techniques does this lesson define?", numeric_rule: "exact::3" }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 12, slide_type: "activity", title: "Your turn", body: "Write one simile, one metaphor, and one example of personification." }),
+  templateRow({
+    ...TEMPLATE_LESSON,
+    slide_order: 13,
+    slide_type: "question",
+    title: "Exit ticket",
+    question_type: "text",
+    question_prompt: "Name the technique in “The stars winked at us” and explain how a metaphor differs from a simile.",
+    guidance: "Two sentences, one example of each.",
+    criteria: "Names both techniques and the difference between them.",
+    min_words: 20,
+    levels_json: JSON.stringify([
+      { group: "Needs support", kind: "mcq", prompt: "Which sentence uses a simile?", options: [{ id: "a", text: "Her laugh was as bright as a bell." }, { id: "b", text: "The classroom was a beehive." }], correct_answer: "a" },
+      { group: "Ready to stretch", kind: "text", prompt: "Write your own simile and say what is compared to what.", guidance: "Name both things in the comparison.", min_words: 25 },
+    ]),
+  }),
+].join("\r\n");
+
+const jsonCell = (value) => (value && typeof value === "object" && (!Array.isArray(value) || value.length)
+  ? JSON.stringify(value)
+  : "");
+
+const liveAnswerCell = (question) => {
+  if (question.kind === "mcq" || question.kind === "tf") return question.correctOptionId || "";
+  if (question.kind === "multi_select") return (question.correctOptionIds || []).join(PRACTICE_PAIR_SEPARATOR);
+  return "";
+};
+
+/** Level cells name the group rather than its id, because the id belongs to this school only. */
+const levelEntry = (variant, groupNames) => {
+  const question = variant.question || {};
+  return {
+    group: groupNames[String(variant.groupId)] || "",
+    kind: question.kind || "",
+    prompt: question.prompt || "",
+    ...(question.options?.length ? { options: question.options.map((option) => ({ id: option.id, text: option.text })) } : {}),
+    ...(question.matchingPairs?.length ? { matchingPairs: question.matchingPairs } : {}),
+    ...(question.orderingItems?.length ? { orderingItems: question.orderingItems.map((item) => ({ id: item.id, text: item.text })) } : {}),
+    ...(question.blanks?.length ? { blanks: question.blanks.map((blank) => ({ id: blank.id, accepts: blank.accepts })) } : {}),
+    ...(question.numericRule ? { numericRule: question.numericRule } : {}),
+    ...(question.guidance ? { guidance: question.guidance } : {}),
+    ...(question.criteria ? { criteria: question.criteria } : {}),
+    ...(question.minWords ? { minWords: question.minWords } : {}),
+    ...(question.maxWords ? { maxWords: question.maxWords } : {}),
+    ...(liveAnswerCell(question) ? { correctAnswer: liveAnswerCell(question) } : {}),
+    ...(question.explanation ? { explanation: question.explanation } : {}),
+  };
+};
+
+export const serializeLiveLessonCsv = (lesson, { groupNames = {} } = {}) => {
   const metadata = [
-    "1",
+    PORTABLE_LIVE_LESSON_CSV_LAYOUTS.at(-1).version,
     lesson._id || "",
     lesson.title || "",
     lesson.description || "",
@@ -649,6 +1020,7 @@ export const serializeLiveLessonCsv = (lesson) => {
   const rows = [PORTABLE_LIVE_LESSON_CSV_HEADERS];
   (lesson.slides || []).forEach((slide, index) => {
     const question = slide.question || {};
+    const variants = Array.isArray(slide.variants) ? slide.variants : [];
     rows.push([
       ...metadata,
       index + 1,
@@ -660,10 +1032,19 @@ export const serializeLiveLessonCsv = (lesson) => {
       slide.imageUrl || "",
       question.kind || "",
       question.prompt || "",
-      question.options ? JSON.stringify(question.options.map((option) => ({ id: option.id, text: option.text }))) : "",
-      question.correctOptionId || "",
+      jsonCell(question.options?.length ? question.options.map((option) => ({ id: option.id, text: option.text })) : []),
+      jsonCell(question.matchingPairs || []),
+      jsonCell(question.orderingItems || []),
+      jsonCell(question.blanks?.map((blank) => ({ id: blank.id, accepts: blank.accepts })) || []),
+      jsonCell(question.numericRule || null),
+      question.guidance || "",
+      question.criteria || "",
+      question.minWords || "",
+      question.maxWords || "",
+      liveAnswerCell(question),
       question.explanation || "",
       slide.speakerNotes || "",
+      jsonCell(variants.map((variant) => levelEntry(variant, groupNames))),
     ]);
   });
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");

@@ -22,8 +22,19 @@ import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
 import { fetchSubjects, selectSubjects } from "../../store/slices/subjectSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
-import { LIVE_LESSON_CSV_TEMPLATE } from "./liveLessonCsvTemplate";
+import LiveGroupPanel from "../../components/liveLessons/LiveGroupPanel";
+import LiveQuestionEditor from "../../components/liveLessons/LiveQuestionEditor";
+import LiveQuestionLevels from "../../components/liveLessons/LiveQuestionLevels";
+import {
+  LIVE_QUESTION_KIND_LABELS,
+  buildLiveQuestionPayload,
+  createLiveQuestion,
+  linkLiveLessonLevels,
+  prepareLiveQuestion,
+} from "../../utils/liveLessonQuestionDraft.js";
+import { LIVE_LESSON_SAMPLE_CSV } from "./liveLessonCsvTemplate";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
+import QuestionTypeGuide from "../../components/assessment/QuestionTypeGuide";
 import "./LiveLessonsPage.css";
 
 const emptyForm = {
@@ -49,6 +60,62 @@ const defaultListState = {
   status: "",
 };
 const SHOW_LESSON_FOLDERS = false;
+
+/**
+ * The editor works on a complete question draft, so every input it shows has a value, and the kind's
+ * unused fields are emptied at save instead of at every keystroke. A levelled slide imported from a
+ * CSV names its group in words, because a group id only means something inside this class.
+ */
+const toEditorSlide = (slide = {}) => ({
+  ...slide,
+  examples: slide.examples || [],
+  question: slide.question ? prepareLiveQuestion(slide.question) : undefined,
+  variants: (slide.variants || []).map((variant) => ({
+    ...(variant.groupId ? { groupId: String(variant.groupId) } : {}),
+    ...(variant.group ? { group: variant.group } : {}),
+    question: prepareLiveQuestion(variant.question),
+  })),
+});
+
+const toStoredSlide = (slide = {}) => {
+  const { variants = [], ...rest } = slide;
+  return {
+    ...rest,
+    ...(slide.question ? { question: buildLiveQuestionPayload(slide.question) } : {}),
+    ...(variants.length
+      ? {
+        // A level is stored by group id; the CSV's name was only ever how the teacher wrote it down.
+        variants: variants.map((variant) => ({
+          groupId: variant.groupId,
+          question: buildLiveQuestionPayload(variant.question),
+        })),
+      }
+      : {}),
+  };
+};
+
+const liveNumericRuleSummary = (rule = {}) => {
+  const unit = rule.unit ? ` ${rule.unit}` : "";
+  if (rule.mode === "range") {
+    return `Any value from ${rule.min}${unit} to ${rule.max}${unit}.`;
+  }
+  if (rule.mode === "tolerance") {
+    return `${rule.value}${unit} plus or minus ${rule.tolerance}${unit}.`;
+  }
+  if (rule.mode === "relative") {
+    return `Within ${rule.tolerance}% of ${rule.value}${unit}.`;
+  }
+  return `${rule.value}${unit}.`;
+};
+
+const unlinkedLevelMessage = (slides = []) => {
+  const index = slides.findIndex((entry) =>
+    (entry.variants || []).some((variant) => !variant.groupId),
+  );
+  if (index === -1) return "";
+  const variant = slides[index].variants.find((entry) => !entry.groupId);
+  return `Slide ${index + 1} has a level${variant.group ? ` for "${variant.group}"` : ""} that is not linked to a group in this class. Choose a group for it, or remove the level.`;
+};
 
 const normalizeListState = (saved = {}) => {
   const preferences = saved && typeof saved === "object" ? saved : {};
@@ -92,13 +159,13 @@ const readListPreferences = (key) => {
 };
 
 const downloadTemplate = () => {
-  const blob = new Blob([LIVE_LESSON_CSV_TEMPLATE], {
+  const blob = new Blob([LIVE_LESSON_SAMPLE_CSV], {
     type: "text/csv;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "live-lesson-template.csv";
+  link.download = "live-lesson-sample.csv";
   link.click();
   URL.revokeObjectURL(url);
 };
@@ -201,6 +268,8 @@ const LiveLessonsPage = () => {
   const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  const [lessonGroups, setLessonGroups] = useState({ groups: [], students: [] });
+  const [lessonGroupsError, setLessonGroupsError] = useState("");
   const [endingSessionId, setEndingSessionId] = useState("");
   const [deletingFinishedSessions, setDeletingFinishedSessions] =
     useState(false);
@@ -508,6 +577,41 @@ const LiveLessonsPage = () => {
     };
   }, [loadShares, user?.role]);
 
+  // Groups belong to a class, so the editor reads them whenever the lesson's class changes.
+  const loadLessonGroups = useCallback(async (classId) => {
+    if (!classId) {
+      setLessonGroups({ groups: [], students: [] });
+      setLessonGroupsError("");
+      return;
+    }
+    try {
+      const response = await api.get("/live/groups", { params: { classId } });
+      setLessonGroups({
+        groups: response.data?.data?.groups || [],
+        students: response.data?.data?.students || [],
+      });
+      setLessonGroupsError("");
+    } catch (requestError) {
+      setLessonGroupsError(
+        requestError.response?.data?.message ||
+          "Could not load the groups for this class.",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!importOpen) return;
+    loadLessonGroups(form.classId);
+  }, [importOpen, form.classId, loadLessonGroups]);
+
+  useEffect(() => {
+    if (!importOpen || !lessonGroups.groups.length) return;
+    setForm((previous) => {
+      const slides = linkLiveLessonLevels(previous.slides, lessonGroups.groups);
+      return slides === previous.slides ? previous : { ...previous, slides };
+    });
+  }, [importOpen, lessonGroups.groups]);
+
   const handleSelectFile = async (event) => {
     const file = event.target.files?.[0];
     setErrors([]);
@@ -540,6 +644,7 @@ const LiveLessonsPage = () => {
         : null;
       setForm({
         ...importedLesson,
+        slides: (importedLesson.slides || []).map(toEditorSlide),
         classId: suggestedClass?._id || "",
         subjectId: suggestedSubject?._id || "",
         subject: suggestedSubject?.name || importedLesson.subject || "",
@@ -581,16 +686,7 @@ const LiveLessonsPage = () => {
         subjectId: String(lesson.subjectId?._id || lesson.subjectId || ""),
         grade: lesson.grade || "",
         language: lesson.language || "en",
-        slides: (lesson.slides || []).map((slide) => ({
-          ...slide,
-          examples: slide.examples || [],
-          question: slide.question
-            ? {
-                ...slide.question,
-                options: slide.question.options || [],
-              }
-            : undefined,
-        })),
+        slides: (lesson.slides || []).map(toEditorSlide),
       });
       setSelectedSlideIndex(0);
       setFileName("");
@@ -636,81 +732,18 @@ const LiveLessonsPage = () => {
     }));
   };
 
-  const updateQuestion = (slideIndex, change) => {
-    setForm((previous) => ({
-      ...previous,
-      slides: previous.slides.map((slide, index) =>
-        index === slideIndex
-          ? { ...slide, question: { ...slide.question, ...change } }
-          : slide,
-      ),
-    }));
-  };
-
-  const changeQuestionKind = (slideIndex, kind) => {
-    const question = form.slides[slideIndex].question;
-    const options =
-      kind === "tf"
-        ? [
-            { id: "true", text: "True" },
-            { id: "false", text: "False" },
-          ]
-        : question.options.map((option, index) => ({
-            id: String.fromCharCode(97 + index),
-            text: option.text,
-          }));
-    updateQuestion(slideIndex, {
-      kind,
-      options,
-      correctOptionId: options.some(
-        (option) => option.id === question.correctOptionId,
-      )
-        ? question.correctOptionId
-        : options[0].id,
-    });
-  };
-
-  const addQuestionOption = (slideIndex) => {
-    const question = form.slides[slideIndex].question;
-    if (question.kind !== "mcq" || question.options.length >= 6) return;
-    const usedIds = new Set(question.options.map((option) => option.id));
-    const nextId = ["a", "b", "c", "d", "e", "f"].find(
-      (id) => !usedIds.has(id),
-    );
-    updateQuestion(slideIndex, {
-      options: [...question.options, { id: nextId, text: "" }],
-    });
-  };
-
-  const removeQuestionOption = (slideIndex, optionId) => {
-    const question = form.slides[slideIndex].question;
-    if (question.kind !== "mcq" || question.options.length <= 2) return;
-    const options = question.options.filter((option) => option.id !== optionId);
-    updateQuestion(slideIndex, {
-      options,
-      correctOptionId:
-        question.correctOptionId === optionId
-          ? options[0].id
-          : question.correctOptionId,
-    });
-  };
-
   const changeSlideType = (slideIndex, type) => {
     const currentSlide = form.slides[slideIndex];
-    const question =
-      type === "question"
-        ? currentSlide.question || {
-            kind: "mcq",
-            prompt: "",
-            options: [
-              { id: "a", text: "" },
-              { id: "b", text: "" },
-            ],
-            correctOptionId: "a",
-            explanation: "",
-          }
-        : undefined;
-    updateSlide(slideIndex, { type, question });
+    if (type !== "question") {
+      // Only question slides may carry a question or levels, so both go with the type.
+      updateSlide(slideIndex, { type, question: undefined, variants: [] });
+      return;
+    }
+    updateSlide(slideIndex, {
+      type,
+      question: currentSlide.question || createLiveQuestion("mcq"),
+      variants: currentSlide.variants || [],
+    });
   };
 
   const addSlide = () => {
@@ -767,6 +800,11 @@ const LiveLessonsPage = () => {
 
   const saveImportedLesson = async () => {
     if (editorMode === "create" && !selectedFile) return;
+    const orphanLevel = unlinkedLevelMessage(form.slides);
+    if (orphanLevel) {
+      setErrors([{ row: 1, field: "levels", message: orphanLevel }]);
+      return;
+    }
     setSaving(true);
     setErrors([]);
     try {
@@ -779,7 +817,7 @@ const LiveLessonsPage = () => {
         grade: form.grade || "",
         language: form.language || "en",
         ...(editorMode === "create" ? { isDone: form.isDone === true } : {}),
-        slides: form.slides,
+        slides: form.slides.map(toStoredSlide),
       };
       if (editorMode === "edit") {
         await api.put(`/live/lessons/${editingLessonId}`, lessonData);
@@ -2742,33 +2780,85 @@ const LiveLessonsPage = () => {
                           />
                           {slide.question && (
                             <section className="live-preview-question">
-                              <span className="live-eyebrow">QUESTION</span>
+                              <span className="live-eyebrow">
+                                QUESTION ·{" "}
+                                {LIVE_QUESTION_KIND_LABELS[slide.question.kind] ||
+                                  "Multiple choice"}
+                              </span>
                               <h3>{slide.question.prompt}</h3>
-                              <ol type="A">
-                                {(slide.question.options || []).map(
-                                  (option) => (
+                              {(slide.question.options || []).length > 0 && (
+                                <ol type="A">
+                                  {slide.question.options.map((option) => (
                                     <li
                                       key={option.id}
                                       className={
-                                        option.id ===
-                                        slide.question.correctOptionId
+                                        option.id === slide.question.correctOptionId ||
+                                        (slide.question.correctOptionIds || []).includes(option.id)
                                           ? "correct"
                                           : ""
                                       }
                                     >
                                       {option.text}
-                                      {option.id ===
-                                        slide.question.correctOptionId && (
+                                      {(option.id === slide.question.correctOptionId ||
+                                        (slide.question.correctOptionIds || []).includes(option.id)) && (
                                         <strong> · Correct answer</strong>
                                       )}
                                     </li>
-                                  ),
-                                )}
-                              </ol>
+                                  ))}
+                                </ol>
+                              )}
+                              {(slide.question.matchingPairs || []).length > 0 && (
+                                <ul className="live-preview-pairs">
+                                  {slide.question.matchingPairs.map((pair, pairIndex) => (
+                                    <li key={`pair-${pairIndex}`}>
+                                      {pair.left} &rarr; {pair.right}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              {(slide.question.orderingItems || []).length > 0 && (
+                                <ol>
+                                  {slide.question.orderingItems.map((item, itemIndex) => (
+                                    <li key={item.id || `step-${itemIndex}`}>{item.text}</li>
+                                  ))}
+                                </ol>
+                              )}
+                              {(slide.question.blanks || []).length > 0 && (
+                                <ul className="live-preview-pairs">
+                                  {slide.question.blanks.map((blank) => (
+                                    <li key={blank.id}>
+                                      {blank.id}: {(blank.accepts || []).join(" / ")}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              {slide.question.numericRule && (
+                                <p>
+                                  <strong>Answer:</strong>{" "}
+                                  {liveNumericRuleSummary(slide.question.numericRule)}
+                                </p>
+                              )}
+                              {slide.question.guidance && (
+                                <p>
+                                  <strong>Guidance:</strong> {slide.question.guidance}
+                                </p>
+                              )}
+                              {slide.question.criteria && (
+                                <p>
+                                  <strong>Marking criteria:</strong> {slide.question.criteria}
+                                </p>
+                              )}
                               {slide.question.explanation && (
                                 <p>
                                   <strong>Explanation:</strong>{" "}
                                   {slide.question.explanation}
+                                </p>
+                              )}
+                              {(slide.variants || []).length > 0 && (
+                                <p className="live-preview-levels">
+                                  This slide also sends a levelled question to{" "}
+                                  {slide.variants.length}{" "}
+                                  {slide.variants.length === 1 ? "group" : "groups"} of this class.
                                 </p>
                               )}
                             </section>
@@ -3299,6 +3389,7 @@ const LiveLessonsPage = () => {
                   >
                     <HiOutlineArrowDownTray /> Sample CSV
                   </button>
+                  <QuestionTypeGuide flow="live" className="live-text-button" />
                 </div>
               </div>
             )}
@@ -3608,127 +3699,41 @@ const LiveLessonsPage = () => {
                         </>
                       )}
                       {activeSlide.question && (
-                        <div className="live-preview-question-editor">
-                          {editorMode === "edit" && (
-                            <label className="live-edit-field">
-                              Question type
-                              <select
-                                value={activeSlide.question.kind}
-                                onChange={(event) =>
-                                  changeQuestionKind(
-                                    selectedSlideIndex,
-                                    event.target.value,
-                                  )
-                                }
-                              >
-                                <option value="mcq">Multiple choice</option>
-                                <option value="tf">True or false</option>
-                              </select>
-                            </label>
-                          )}
-                          <label className="live-edit-field">
-                            Student question
-                            <input
-                              value={activeSlide.question.prompt}
-                              onChange={(event) =>
-                                updateQuestion(selectedSlideIndex, {
-                                  prompt: event.target.value,
-                                })
+                        <LiveQuestionEditor
+                          question={activeSlide.question}
+                          onChange={(question) =>
+                            updateSlide(selectedSlideIndex, { question })
+                          }
+                        />
+                      )}
+                      {activeSlide.type === "question" && activeSlide.question && (
+                        form.classId ? (
+                          <>
+                            <LiveQuestionLevels
+                              slide={activeSlide}
+                              groups={lessonGroups.groups}
+                              onChange={(variants) =>
+                                updateSlide(selectedSlideIndex, { variants })
                               }
                             />
-                          </label>
-                          {editorMode === "edit" && (
-                            <>
-                              {activeSlide.question.options.map(
-                                (option, optionIndex) => (
-                                  <div
-                                    className="live-option-editor"
-                                    key={option.id}
-                                  >
-                                    <label className="live-edit-field">
-                                      Option {option.id.toUpperCase()}
-                                      <input
-                                        value={option.text}
-                                        onChange={(event) =>
-                                          updateQuestion(selectedSlideIndex, {
-                                            options:
-                                              activeSlide.question.options.map(
-                                                (item, index) =>
-                                                  index === optionIndex
-                                                    ? {
-                                                        ...item,
-                                                        text: event.target
-                                                          .value,
-                                                      }
-                                                    : item,
-                                              ),
-                                          })
-                                        }
-                                      />
-                                    </label>
-                                    {activeSlide.question.kind === "mcq" &&
-                                      activeSlide.question.options.length >
-                                        2 && (
-                                        <button
-                                          type="button"
-                                          className="live-remove-option"
-                                          onClick={() =>
-                                            removeQuestionOption(
-                                              selectedSlideIndex,
-                                              option.id,
-                                            )
-                                          }
-                                        >
-                                          Remove option
-                                        </button>
-                                      )}
-                                  </div>
-                                ),
-                              )}
-                              {activeSlide.question.kind === "mcq" &&
-                                activeSlide.question.options.length < 6 && (
-                                  <button
-                                    type="button"
-                                    className="live-text-button live-add-option"
-                                    onClick={() =>
-                                      addQuestionOption(selectedSlideIndex)
-                                    }
-                                  >
-                                    <HiOutlinePlus /> Add answer option
-                                  </button>
-                                )}
-                              <label className="live-edit-field">
-                                Explanation
-                                <textarea
-                                  rows={2}
-                                  value={activeSlide.question.explanation || ""}
-                                  onChange={(event) =>
-                                    updateQuestion(selectedSlideIndex, {
-                                      explanation: event.target.value,
-                                    })
-                                  }
-                                />
-                              </label>
-                            </>
-                          )}
-                          <label className="live-edit-field">
-                            Correct answer
-                            <select
-                              value={activeSlide.question.correctOptionId}
-                              onChange={(event) =>
-                                updateQuestion(selectedSlideIndex, {
-                                  correctOptionId: event.target.value,
-                                })
-                              }
-                            >
-                              {activeSlide.question.options.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.text}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
+                            <LiveGroupPanel
+                              classId={form.classId}
+                              groups={lessonGroups.groups}
+                              students={lessonGroups.students}
+                              onRefresh={() => loadLessonGroups(form.classId)}
+                            />
+                            {lessonGroupsError && (
+                              <p className="live-group-error" role="alert">
+                                {lessonGroupsError}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="live-question-hint">
+                            Assign this lesson to a class to make groups and level a question for
+                            them.
+                          </p>
+                        )
                       )}
                     </div>
                   )}

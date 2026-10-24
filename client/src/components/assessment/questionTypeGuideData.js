@@ -54,12 +54,19 @@ const TYPE_GUIDE = {
   numeric_response: {
     answerColumn: 'numeric_rule',
     example: `exact${PRACTICE_TERM_SEPARATOR}100${PRACTICE_PAIR_SEPARATOR}unit${PRACTICE_TERM_SEPARATOR}km`
+  },
+  // A live written answer carries no key: the teacher grades it while reviewing the session.
+  written_answer: {
+    columns: ['question_prompt', 'guidance', 'criteria', 'min_words', 'max_words'],
+    example: 'Names both techniques and the difference between them'
   }
 };
 
 const FLOWS = {
   map: {
+    intro: 'intro',
     promptColumn: 'stem',
+    rules: ['passages', 'visibility'],
     optionRange: ['option_a', 'option_d'],
     types: [
       ['multiple_choice', 'mcq'],
@@ -72,7 +79,9 @@ const FLOWS = {
     ]
   },
   standards: {
+    intro: 'intro',
     promptColumn: 'question_text',
+    rules: ['passages', 'visibility'],
     optionRange: ['option_a', 'option_f'],
     types: [
       ['multiple_choice', 'multiple_choice'],
@@ -84,8 +93,34 @@ const FLOWS = {
       ['fill_in_blank', 'fill_in_blank'],
       ['numeric_response', 'numeric_response']
     ]
+  },
+  live: {
+    intro: 'introLive',
+    promptColumn: 'question_prompt',
+    rules: ['levels', 'visibility'],
+    optionRange: ['option_a', 'option_d'],
+    types: [
+      ['multiple_choice', 'mcq'],
+      ['true_false', 'tf'],
+      ['multiple_select', 'multi_select'],
+      ['matching', 'matching'],
+      ['ordering', 'ordering'],
+      ['fill_in_blank', 'fill_in_blank'],
+      ['numeric_response', 'numeric'],
+      ['written_answer', 'text']
+    ]
   }
 };
+
+const flowConfig = (flow) => {
+  const config = FLOWS[flow];
+  if (!config) throw new Error(`Unknown question guide flow: ${flow}`);
+  return config;
+};
+
+export const questionGuideIntroKey = (flow) => flowConfig(flow).intro;
+
+export const questionGuideRuleKeys = (flow) => flowConfig(flow).rules;
 
 export const questionGuideSeparators = () => [
   { key: 'pairs', symbol: PRACTICE_PAIR_SEPARATOR },
@@ -102,17 +137,18 @@ export const questionGuideLimits = () => ({
 });
 
 export const questionGuideRows = (flow) => {
-  const config = FLOWS[flow];
-  if (!config) throw new Error(`Unknown question guide flow: ${flow}`);
-  return config.types.map(([key, token]) => ({
-    key,
-    token,
-    columns: TYPE_GUIDE[key].optionColumns
-      ? [...config.optionRange, TYPE_GUIDE[key].answerColumn]
-      : [TYPE_GUIDE[key].answerColumn],
-    example: TYPE_GUIDE[key].example,
-    stemExample: TYPE_GUIDE[key].stemExample
-      ? { column: config.promptColumn, value: TYPE_GUIDE[key].stemExample }
-      : null
-  }));
+  const config = flowConfig(flow);
+  return config.types.map(([key, token]) => {
+    const guide = TYPE_GUIDE[key];
+    return {
+      key,
+      token,
+      columns: guide.columns
+        || (guide.optionColumns ? [...config.optionRange, guide.answerColumn] : [guide.answerColumn]),
+      example: guide.example,
+      stemExample: guide.stemExample
+        ? { column: config.promptColumn, value: guide.stemExample }
+        : null
+    };
+  });
 };

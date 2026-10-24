@@ -1,0 +1,139 @@
+.live-question-editor {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid #e1e8e9;
+  border-radius: 13px;
+  background: #fbfdfc;
+}
+.live-question-editor .live-edit-field:last-child {
+  margin-bottom: 0;
+}
+.live-question-editor input:disabled,
+.live-question-editor textarea:disabled,
+.live-question-editor select:disabled {
+  color: #6d7d88;
+  background: #f2f5f6;
+  cursor: not-allowed;
+}
+.live-question-hint {
+  margin: 0 0 0.6rem;
+  color: #6c7d88;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.live-question-rows,
+.live-question-grid {
+  display: grid;
+  gap: 0.35rem;
+}
+.live-question-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.live-question-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+.live-question-row > input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #d9e2e5;
+  border-radius: 9px;
+  outline: none;
+  color: #243746;
+  background: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.live-question-row > input:focus {
+  border-color: #399896;
+  box-shadow: 0 0 0 3px rgba(57, 152, 150, 0.12);
+}
+.live-question-answer {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 1.35rem 0 0;
+  padding: 0;
+  accent-color: #167b78;
+  cursor: pointer;
+}
+.live-question-row-position {
+  margin-top: 1.25rem;
+  color: #19817e;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.live-question-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 1.05rem;
+}
+.live-question-row-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  border: 0;
+  border-radius: 8px;
+  color: #147875;
+  background: transparent;
+  cursor: pointer;
+}
+.live-question-row-actions button:hover:not(:disabled) {
+  background: rgba(55, 139, 136, 0.1);
+}
+.live-question-row-actions button:disabled {
+  color: #b3c0c7;
+  cursor: not-allowed;
+}
+.live-question-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 1.25rem;
+  padding: 0.35rem 0.1rem;
+  border: 0;
+  color: #9b5860;
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.live-question-remove:hover:not(:disabled) {
+  color: #813b43;
+}
+.live-question-remove:disabled {
+  color: #b3c0c7;
+  cursor: not-allowed;
+}
+.live-question-add {
+  justify-self: start;
+  margin: 0.1rem 0 0.35rem;
+}
+.live-question-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0.35rem 0 0.5rem;
+}
+.live-question-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #516675;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.live-question-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  accent-color: #167b78;
+}

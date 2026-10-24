@@ -31,6 +31,7 @@
     "sbGradebook": "SB Gradebook",
     "selectAllVisible": "Select all visible",
     "showAdvancedSettings": "Show Advanced Settings",
+    "print": "Print",
     "printReport": "Print Report",
     "printStudentResult": "Print Student Result",
     "submitReview": "Submit Review",
@@ -259,7 +260,8 @@
     "testSpecificProgress": "Test-Specific Progress (Repeated Attempts)",
     "tabSwitches": "Tab Switches",
     "statusCorrect": "Correct",
-    "statusIncorrect": "Incorrect"
+    "statusIncorrect": "Incorrect",
+    "loadFailed": "The report could not be loaded."
   },
   "questionImport": {
     "chooseFile": "Upload CSV",

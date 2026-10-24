@@ -21,6 +21,7 @@ import {
   formatRoster,
   getSessionStudents,
   getStateForUser,
+  groupIdsByStudent,
   isStudentEnrolled,
   listClassStudents,
   resolveLiveSessionSubjectId,
@@ -32,7 +33,11 @@ import {
   closeLiveSessionConnections,
 } from "../realtime/liveLessonsGateway.js";
 import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
-import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
+import {
+  calculateLiveSessionMark,
+  liveAnswerCredit,
+  liveAnswerState,
+} from "../services/liveSessionGradebookService.js";
 import {
   activeLiveSessionDurationMs,
   getSessionPauseAccounting,
@@ -52,7 +57,13 @@ import {
   lessonAcademicYear,
 } from "../helpers/liveLessonYearMove.js";
 import { slideImageUrlError } from "../utils/slideImageUrl.js";
-import { normalizeLiveQuestion, validateLiveQuestion } from "../services/liveLessonQuestionService.js";
+import {
+  describeLiveAnswerKey,
+  describeLiveStudentAnswer,
+  normalizeLiveQuestion,
+  validateLiveQuestion,
+} from "../services/liveLessonQuestionService.js";
+import { liveQuestionKind } from "../constants/liveLessonQuestionKinds.js";
 import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
@@ -311,6 +322,44 @@ const schoolHtmlReviewEnabled = async (schoolId) => {
   return school?.settings?.liveLessonHtmlReview?.aiReviewEnabled === true;
 };
 
+/**
+ * A CSV names the group in words the teacher wrote, because a group id only means something inside
+ * this school. Names become ids here, and only groups of the imported-to class are accepted.
+ */
+const resolveLessonVariantGroups = async (req, { classId, slides = [] }) => {
+  const named = [];
+  slides.forEach((slide, slideIndex) => {
+    (Array.isArray(slide.variants) ? slide.variants : []).forEach((variant, variantIndex) => {
+      const name = String(variant?.group ?? "").trim();
+      if (name) named.push({ variant, name, label: `Slide ${slideIndex + 1}, level ${variantIndex + 1}` });
+    });
+  });
+  if (!named.length) return [];
+  if (!classId) return [{ field: "levels", message: "Assign the lesson to a class before adding levelled questions." }];
+  const groups = await LiveGroup.find({ school: req.schoolId, classId }).select("_id name").lean();
+  const idByName = new Map(groups.map((group) => [String(group.name).trim().toLowerCase(), String(group._id)]));
+  const errors = [];
+  named.forEach(({ variant, name, label }) => {
+    const groupId = idByName.get(name.toLowerCase());
+    if (!groupId) {
+      errors.push({ field: "levels", message: `${label} names the group "${name}", which this class does not have.` });
+      return;
+    }
+    delete variant.group;
+    variant.groupId = groupId;
+  });
+  return errors;
+};
+
+const lessonVariantGroupNames = async (req, slides = []) => {
+  const groupIds = slides.flatMap((slide) => (Array.isArray(slide.variants) ? slide.variants : [])
+    .map((variant) => variant?.groupId)
+    .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id))));
+  if (!groupIds.length) return {};
+  const groups = await LiveGroup.find({ _id: { $in: groupIds }, school: req.schoolId }).select("_id name").lean();
+  return Object.fromEntries(groups.map((group) => [String(group._id), group.name]));
+};
+
 export const getLiveLessonSettings = asyncHandler(async (req, res) => {
   return res.json({
     success: true,
@@ -348,6 +397,14 @@ export const importLiveLessonCsv = asyncHandler(async (req, res) => {
   if (assignment.error) return res.status(400).json({ success: false, message: assignment.error });
   if (!assignment.classId) {
     return res.status(400).json({ success: false, message: "Assign the lesson to a class and one of its subjects before importing it." });
+  }
+  const levelErrors = await resolveLessonVariantGroups(req, { classId: assignment.classId, slides: result.lesson.slides });
+  if (levelErrors.length) {
+    return res.status(400).json({
+      success: false,
+      message: "The CSV needs changes before it can be imported.",
+      errors: levelErrors,
+    });
   }
   await assertLiveLessonHtmlSafe({
     slides: result.lesson.slides,
@@ -437,7 +494,7 @@ export const exportLiveLessonCsv = asyncHandler(async (req, res) => {
     .lean();
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
 
-  const csv = serializeLiveLessonCsv(lesson);
+  const csv = serializeLiveLessonCsv(lesson, { groupNames: await lessonVariantGroupNames(req, lesson.slides) });
   const safeTitle = String(lesson.title || "lesson").normalize("NFKD").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "lesson";
   res.set({
     "Content-Type": "text/csv; charset=utf-8",
@@ -1466,12 +1523,61 @@ const awayDurationForStudent = (events, studentId, endAt) => {
   return Math.round(total / 1000);
 };
 
+const LIVE_OPTION_KINDS = ["mcq", "tf", "multi_select"];
+// Students who are not in a listed group still answer the slide's own question, so the teacher
+// marks that queue under this name.
+const LIVE_BASE_LEVEL = "Class";
+
+const percentCredit = (rows) => {
+  const graded = rows.filter((row) => row.credit !== null);
+  if (!graded.length) return 0;
+  return Math.round((graded.reduce((total, row) => total + row.credit, 0) / graded.length) * 100);
+};
+
+const levelCounts = (rows) => ({
+  answered: rows.length,
+  correct: rows.filter((row) => row.state === "correct").length,
+  partial: rows.filter((row) => row.state === "partial").length,
+  wrong: rows.filter((row) => row.state === "wrong").length,
+  // Submitted answers with no verdict yet: a paragraph the teacher has not read, or an objective
+  // answer the engines could not settle. It is never counted as wrong.
+  pending: rows.filter((row) => row.state === "pending").length,
+  percentCorrect: percentCredit(rows),
+});
+
+/** What a question asks, in a shape any kind fits: option kinds are the only ones with options. */
+const liveQuestionView = (question) => {
+  const kind = liveQuestionKind(question);
+  const optionKind = LIVE_OPTION_KINDS.includes(kind);
+  const correctIds = [question.correctOptionId, ...(question.correctOptionIds || [])].filter(Boolean);
+  return {
+    kind,
+    prompt: question.prompt,
+    key: describeLiveAnswerKey(question),
+    options: optionKind
+      ? (question.options || []).map((option) => ({
+        id: option.id,
+        text: option.text,
+        correct: correctIds.includes(option.id),
+      }))
+      : [],
+  };
+};
+
+const optionTally = (question, rows) => (LIVE_OPTION_KINDS.includes(liveQuestionKind(question))
+  ? Object.fromEntries((question.options || []).map((option) => [
+    option.id,
+    rows.filter((row) => row.selectedOptionId === option.id).length,
+  ]))
+  : {});
+
 const buildLiveSessionReportData = async (req, session) => {
-  const [students, responses, events, classDoc] = await Promise.all([
+  const [students, responses, events, classDoc, groups] = await Promise.all([
     getSessionStudents(session),
     LiveResponse.find({ sessionId: session._id, school: req.schoolId }).lean(),
     LiveSessionEvent.find({ sessionId: session._id, school: req.schoolId }).sort({ seq: 1 }).lean(),
     Class.findOne({ _id: session.classId, school: req.schoolId }).select("name grade section academicYear").lean(),
+    LiveGroup.find({ school: req.schoolId, classId: session.classId }).select("_id name").lean(),
   ]);
   const questionSlides = session.lessonSnapshot.slides.filter((slide) => slide.question);
   const pauseAccounting = getSessionPauseAccounting(events);
@@ -1484,6 +1590,32 @@ const buildLiveSessionReportData = async (req, session) => {
   const responseByStudentSlide = new Map(
     responses.map((response) => [`${String(response.studentId)}:${response.slideId}`, response]),
   );
+  const nameByStudent = new Map(students.map((student) => [String(student.studentId), student.name]));
+  const groupNameById = new Map(groups.map((group) => [String(group._id), group.name]));
+  const groupByStudent = await groupIdsByStudent(
+    session,
+    students.map((student) => String(student.studentId)),
+  );
+
+  /**
+   * A levelled slide asks each group something different, so the question a student answered, the
+   * key it is marked against and the words that describe their answer all depend on who answered it.
+   */
+  const levelForStudent = (slide, studentId) => {
+    const variants = slide.variants || [];
+    if (!variants.length) return { question: slide.question, level: null, levelKey: "class" };
+    const groupId = groupByStudent.get(String(studentId)) || null;
+    const variant = groupId
+      ? variants.find((item) => String(item.groupId) === String(groupId))
+      : null;
+    if (!variant) return { question: slide.question, level: LIVE_BASE_LEVEL, levelKey: "class" };
+    return {
+      question: variant.question,
+      level: groupNameById.get(String(groupId)) || "Level",
+      levelKey: String(groupId),
+    };
+  };
+
   const questionStateBySlide = new Map();
   for (const event of events) {
     if (event.payload?.slideId && ["question:opened", "question:closed", "results:revealed"].includes(event.type)) {
@@ -1492,44 +1624,97 @@ const buildLiveSessionReportData = async (req, session) => {
   }
   const currentSlide = session.lessonSnapshot.slides[session.currentSlideIndex];
   const currentQuestionIsOpen = Boolean(session.status === "live" && session.questionOpen && currentSlide?.question);
+
+  const openStateOf = (slide) => {
+    const state = questionStateBySlide.get(String(slide._id));
+    const isCurrentOpenQuestion = currentQuestionIsOpen && String(currentSlide?._id) === String(slide._id);
+    return {
+      isOpen: session.status === "live" && (state === "open" || (state === undefined && isCurrentOpenQuestion)),
+      opened: state !== undefined || isCurrentOpenQuestion,
+      closed: state === "closed" || (session.status === "ended" && state === "open"),
+    };
+  };
+
+  const answerRows = (slide) => responses
+    .filter((response) => response.slideId === String(slide._id))
+    .map((response) => {
+      const { question, level, levelKey } = levelForStudent(slide, response.studentId);
+      return {
+        studentId: String(response.studentId),
+        name: nameByStudent.get(String(response.studentId)) || "Student",
+        level,
+        levelKey,
+        kind: liveQuestionKind(question),
+        selectedOptionId: response.selectedOptionId || null,
+        answerText: describeLiveStudentAnswer(question, response),
+        keyText: describeLiveAnswerKey(question),
+        guidance: question.guidance || "",
+        state: liveAnswerState(response),
+        credit: liveAnswerCredit(response),
+        marks: response.grade?.marks ?? null,
+        maxMarks: response.grade?.maxMarks ?? null,
+        feedback: response.grade?.feedback || "",
+        released: Boolean(response.grade?.released),
+        submittedAt: response.submittedAt || null,
+        latencyMs: response.latencyMs ?? null,
+      };
+    })
+    .sort((first, second) => first.name.localeCompare(second.name));
+
   const presentedQuestionCount = questionSlides.filter((slide) => (
     questionStateBySlide.has(String(slide._id)) ||
-    (currentQuestionIsOpen && String(currentSlide._id) === String(slide._id))
+    (currentQuestionIsOpen && String(currentSlide?._id) === String(slide._id))
   )).length;
   const perQuestion = questionSlides.map((slide) => {
-    const answers = responses.filter((response) => response.slideId === String(slide._id));
-    const state = questionStateBySlide.get(String(slide._id));
-    const isCurrentOpenQuestion = currentQuestionIsOpen && String(currentSlide._id) === String(slide._id);
-    const isOpen = session.status === "live" && (state === "open" || (state === undefined && isCurrentOpenQuestion));
-    const opened = state !== undefined || isCurrentOpenQuestion;
-    const closed = state === "closed" || (session.status === "ended" && state === "open");
-    return {
+    const rows = answerRows(slide);
+    const { isOpen, opened, closed } = openStateOf(slide);
+    const variants = slide.variants || [];
+    const rowsByLevel = (levelKey) => rows.filter((row) => row.levelKey === levelKey);
+    const base = {
       slideId: String(slide._id),
       title: slide.title || "",
-      prompt: slide.question.prompt,
-      options: slide.question.options.map((option) => ({
-        id: option.id,
-        text: option.text,
-        correct: option.id === slide.question.correctOptionId,
-      })),
-      answered: answers.length,
-      correct: answers.filter((answer) => answer.isCorrect).length,
-      wrong: answers.filter((answer) => !answer.isCorrect).length,
-      unanswered: closed ? Math.max(0, students.length - answers.length) : null,
-      pending: isOpen ? Math.max(0, students.length - answers.length) : 0,
+      ...liveQuestionView(slide.question),
+      ...levelCounts(rows),
+      // Nobody has answered yet while the question is open, as opposed to `pending`, which is an
+      // answer the teacher still has to mark.
+      awaiting: isOpen ? Math.max(0, students.length - rows.length) : 0,
+      unanswered: closed ? Math.max(0, students.length - rows.length) : null,
+      perOption: optionTally(slide.question, rows),
       opened,
       closed,
-      percentCorrect: answers.length
-        ? Math.round((answers.filter((answer) => answer.isCorrect).length / answers.length) * 100)
-        : 0,
-      perOption: Object.fromEntries(
-        slide.question.options.map((option) => [
-          option.id,
-          answers.filter((answer) => answer.selectedOptionId === option.id).length,
-        ]),
-      ),
+      answers: rows,
+    };
+    if (!variants.length) return base;
+    return {
+      ...base,
+      levels: [
+        {
+          level: LIVE_BASE_LEVEL,
+          levelKey: "class",
+          ...liveQuestionView(slide.question),
+          ...levelCounts(rowsByLevel("class")),
+          perOption: optionTally(slide.question, rowsByLevel("class")),
+        },
+        ...variants.map((variant) => {
+          const levelRows = rowsByLevel(String(variant.groupId));
+          return {
+            level: groupNameById.get(String(variant.groupId)) || "Level",
+            levelKey: String(variant.groupId),
+            ...liveQuestionView(variant.question),
+            ...levelCounts(levelRows),
+            perOption: optionTally(variant.question, levelRows),
+          };
+        }),
+      ],
     };
   });
+
+  const answerRowByStudentSlide = new Map(
+    perQuestion.flatMap((question) => question.answers.map((row) => [
+      `${row.studentId}:${question.slideId}`,
+      row,
+    ])),
+  );
 
   const endedAt = session.endedAt || new Date();
   const perStudent = students.map((student) => {
@@ -1539,24 +1724,28 @@ const buildLiveSessionReportData = async (req, session) => {
       String(event.actor?.userId || event.payload?.studentId || "") === studentId,
     );
     const joinedEvent = studentEvents.find((event) => event.type === "presence:joined");
-    const correct = answers.filter((answer) => answer.isCorrect).length;
     const answerDetails = questionSlides.map((slide, index) => {
       const response = responseByStudentSlide.get(`${studentId}:${String(slide._id)}`);
-      const option = (optionId) => slide.question.options.find((item) => item.id === optionId);
-      const state = questionStateBySlide.get(String(slide._id));
-      const isCurrentOpenQuestion = currentQuestionIsOpen && String(currentSlide._id) === String(slide._id);
-      const isOpen = session.status === "live" && (state === "open" || (state === undefined && isCurrentOpenQuestion));
-      const closed = state === "closed" || (session.status === "ended" && state === "open");
+      const row = answerRowByStudentSlide.get(`${studentId}:${String(slide._id)}`);
+      const { question, level } = levelForStudent(slide, studentId);
+      const { isOpen, closed } = openStateOf(slide);
       return {
         slideId: String(slide._id),
         questionNumber: index + 1,
         title: slide.title || "",
-        prompt: slide.question.prompt,
+        kind: liveQuestionKind(question),
+        level,
+        prompt: question.prompt,
         selectedOptionId: response?.selectedOptionId || null,
-        selectedAnswer: response ? option(response.selectedOptionId)?.text || "" : "",
-        correctOptionId: slide.question.correctOptionId,
-        correctAnswer: option(slide.question.correctOptionId)?.text || "",
+        selectedAnswer: row?.answerText || "",
+        correctAnswer: describeLiveAnswerKey(question),
         isCorrect: response ? response.isCorrect : null,
+        result: row?.state || null,
+        credit: row?.credit ?? null,
+        marks: row?.marks ?? null,
+        maxMarks: row?.maxMarks ?? null,
+        feedback: row?.feedback || "",
+        released: Boolean(row?.released),
         submittedAt: response?.submittedAt || null,
         latencyMs: response?.latencyMs ?? null,
         status: response
@@ -1570,18 +1759,24 @@ const buildLiveSessionReportData = async (req, session) => {
                 : "not_opened",
       };
     });
+    const answered = answerDetails.filter((answer) => answer.status === "answered");
+    const withVerdict = answered.filter((answer) => answer.credit !== null);
     return {
       studentId,
       name: student.name,
       joined: Boolean(joinedEvent),
       joinedAt: joinedEvent?.at || null,
-      answered: answers.length,
-      correct,
-      wrong: answers.length - correct,
+      answered: answered.length,
+      correct: answered.filter((answer) => answer.result === "correct").length,
+      partial: answered.filter((answer) => answer.result === "partial").length,
+      wrong: answered.filter((answer) => answer.result === "wrong").length,
+      toMark: answered.filter((answer) => answer.result === "pending").length,
       unanswered: answerDetails.filter((answer) => answer.status === "unanswered").length,
       pending: answerDetails.filter((answer) => answer.status === "pending").length,
       coveragePercent: presentedQuestionCount ? Math.round((answers.length / presentedQuestionCount) * 100) : 0,
-      scorePercent: presentedQuestionCount ? Math.round((correct / presentedQuestionCount) * 100) : 0,
+      scorePercent: withVerdict.length
+        ? Math.round((withVerdict.reduce((total, answer) => total + answer.credit, 0) / withVerdict.length) * 100)
+        : 0,
       totalAwaySeconds: awayDurationForStudent(events, studentId, endedAt),
       answerDetails,
       presenceEvents: studentEvents
@@ -1613,6 +1808,9 @@ const buildLiveSessionReportData = async (req, session) => {
       questionCount: questionSlides.length,
       presentedQuestionCount,
       submittedAnswers: responses.length,
+      // The teacher's queue: submitted answers with no verdict, so a paragraph no one has read
+      // cannot be mistaken for a wrong one.
+      awaitingMarks: perQuestion.reduce((total, question) => total + question.pending, 0),
     },
     perQuestion,
     perStudent,
@@ -1790,13 +1988,15 @@ const buildSessionGradePreview = async ({ req, session, context, subjectId, maxM
   const students = roster.map((rosterStudent) => {
     const userId = String(rosterStudent.studentId);
     const student = profilesByUserId.get(userId);
-    const correct = questionSlides.filter((slide) => (
-      responseByStudentSlide.get(`${userId}:${String(slide._id)}`)?.isCorrect === true
-    )).length;
+    // Every presented question is on the sheet. A question the student left earns nothing and still
+    // counts; an answer the teacher has not marked yet counts on neither side of the divide.
+    const credits = questionSlides.map((slide) => {
+      const response = responseByStudentSlide.get(`${userId}:${String(slide._id)}`);
+      return response ? liveAnswerCredit(response) : 0;
+    });
     const incidents = visibilityIncidents.get(userId) || 0;
     const score = calculateLiveSessionMark({
-      correctAnswers: correct,
-      questionCount: questionSlides.length,
+      credits,
       maxMarks: resolvedMaxMarks,
       visibilityIncidents: incidents,
       deductionPerIncident: resolvedDeduction,
@@ -1805,9 +2005,10 @@ const buildSessionGradePreview = async ({ req, session, context, subjectId, maxM
       studentId: String(student._id),
       userId,
       name: `${student.firstName || ""} ${student.lastName || ""}`.trim() || rosterStudent.name,
-      correct,
-      questionCount: questionSlides.length,
+      correct: credits.filter((credit) => credit === 1).length,
+      questionCount: score.countedQuestions,
       answered: questionSlides.filter((slide) => responseByStudentSlide.has(`${userId}:${String(slide._id)}`)).length,
+      pendingMarks: score.pendingQuestions,
       baseMarks: score.baseMarks,
       visibilityIncidents: incidents,
       behaviorDeduction: score.behaviorDeduction,

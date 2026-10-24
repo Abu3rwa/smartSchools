@@ -25,7 +25,7 @@ import {
   getSessionStudents,
   isStudentEnrolled,
 } from "../services/liveLessonService.js";
-import { isLiveWrittenKind } from "../constants/liveLessonQuestionKinds.js";
+import { isLiveWrittenKind, liveQuestionKind } from "../constants/liveLessonQuestionKinds.js";
 import {
   gradeLiveAnswer,
   isLiveAnswerEmpty,
@@ -387,6 +387,7 @@ const handleAction = async (socket, message) => {
     // against the version this student was actually shown.
     const groupId = slide.variants?.length ? await groupIdForStudent(session, userId) : null;
     const question = resolveLiveQuestionForStudent(slide, groupId);
+    const kind = liveQuestionKind(question);
     const answer = sanitizeLiveAnswer(question, data);
     if (isLiveAnswerEmpty(question, answer)) {
       return fail(socket, requestId, "VALIDATION", "Answer the question before submitting it.");
@@ -409,7 +410,7 @@ const handleAction = async (socket, message) => {
       score: graded.score,
       grade: {
         status: graded.status,
-        source: isLiveWrittenKind(question.kind) ? "teacher" : "objective",
+        source: isLiveWrittenKind(kind) ? "teacher" : "objective",
         released: false,
         feedback: graded.feedback,
       },
@@ -427,7 +428,7 @@ const handleAction = async (socket, message) => {
       {
         studentId: userId,
         slideId: String(slide._id),
-        kind: question.kind,
+        kind,
         ...(groupId ? { groupId } : {}),
         ...(answer.selectedOptionId ? { selectedOptionId: answer.selectedOptionId } : {}),
         isCorrect: response.isCorrect,

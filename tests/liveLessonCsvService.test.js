@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LIVE_LESSON_CSV_TEMPLATE as CLIENT_LIVE_LESSON_CSV_TEMPLATE } from "../client/src/pages/liveLessons/liveLessonCsvTemplate.js";
+import { LIVE_LESSON_CSV_TEMPLATE as CLIENT_AI_PROMPT_CSV, LIVE_LESSON_SAMPLE_CSV } from "../client/src/pages/liveLessons/liveLessonCsvTemplate.js";
 import {
   LIVE_LESSON_CSV_TEMPLATE,
   parseLiveLessonCsv,
@@ -19,23 +19,151 @@ const csvRow = (cells) => cells.map((value) => {
 
 test("sample CSV imports a structured lesson with a graded question", () => {
   const result = parseLiveLessonCsv(LIVE_LESSON_CSV_TEMPLATE);
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
   assert.equal(result.lesson.title, "Figurative Language");
-  assert.equal(result.lesson.slides.length, 7);
+  assert.equal(result.lesson.slides.length, 13);
   assert.equal(result.lesson.slides[0].type, "opening");
-  assert.equal(result.lesson.slides.at(-1).type, "exit-ticket");
+  assert.equal(result.lesson.slides.at(-1).type, "question");
   const question = result.lesson.slides.find((slide) => slide.question)?.question;
   assert.equal(question.kind, "mcq");
   assert.equal(question.correctOptionId, "b");
   assert.equal(question.options[1].text, "Metaphor");
 });
 
+test("the sample lesson covers every live question kind and a levelled ticket", () => {
+  const { lesson } = parseLiveLessonCsv(LIVE_LESSON_CSV_TEMPLATE);
+  assert.deepEqual(
+    lesson.slides.filter((slide) => slide.question).map((slide) => slide.question.kind),
+    ["mcq", "multi_select", "tf", "matching", "ordering", "fill_in_blank", "numeric", "text"],
+  );
+
+  const ordering = lesson.slides.find((slide) => slide.question?.kind === "ordering");
+  assert.deepEqual(ordering.question.orderingItems.map((item) => item.text), ["Read the sentence", "Find the verb", "Name the tense"]);
+  const blanks = lesson.slides.find((slide) => slide.question?.kind === "fill_in_blank");
+  assert.deepEqual(blanks.question.blanks, [
+    { id: "b1", accepts: ["simile"] },
+    { id: "b2", accepts: ["like or as", "like and as"] },
+  ]);
+  const numeric = lesson.slides.find((slide) => slide.question?.kind === "numeric");
+  assert.deepEqual(numeric.question.numericRule, { mode: "exact", value: "3" });
+
+  const levelled = lesson.slides.find((slide) => slide.variants?.length);
+  assert.equal(levelled.question.kind, "text");
+  assert.deepEqual(levelled.variants.map((variant) => variant.group), ["Needs support", "Ready to stretch"]);
+  assert.equal(levelled.variants[0].question.correctOptionId, "a");
+  assert.equal(levelled.variants[1].question.minWords, 25);
+});
+
+test("portable CSV round-trips every question kind and its levels", () => {
+  const source = {
+    _id: "lesson-kinds",
+    title: "Every kind",
+    slides: [
+      {
+        type: "question",
+        title: "Match",
+        question: {
+          kind: "matching",
+          prompt: "Match each term.",
+          matchingPairs: [{ left: "Simile", right: "uses like or as" }, { left: "Alliteration", right: "repeated beginning sounds" }],
+          explanation: "Read them aloud.",
+        },
+      },
+      {
+        type: "question",
+        title: "Order",
+        question: {
+          kind: "ordering",
+          prompt: "Order the steps.",
+          orderingItems: [{ id: "i7", text: "Read the sentence" }, { id: "i3", text: "Find the verb" }, { id: "i9", text: "Name the tense" }],
+        },
+      },
+      {
+        type: "question",
+        title: "Blanks",
+        question: {
+          kind: "fill_in_blank",
+          prompt: "A {{b1}} compares with {{b2}}.",
+          blanks: [{ id: "b1", accepts: ["simile"] }, { id: "b2", accepts: ["like or as", "as"] }],
+        },
+      },
+      {
+        type: "question",
+        title: "Number",
+        question: { kind: "numeric", prompt: "How long?", numericRule: { mode: "tolerance", value: "45", tolerance: "5", unit: "minutes" } },
+      },
+      {
+        type: "question",
+        title: "Exit ticket",
+        question: { kind: "text", prompt: "Explain the difference.", guidance: "Two sentences.", criteria: "Names both.", minWords: 20 },
+        variants: [
+          {
+            groupId: "group-support",
+            question: { kind: "mcq", prompt: "Which sentence is a simile?", options: [{ id: "a", text: "as bright as a bell" }, { id: "b", text: "was a beehive" }], correctOptionId: "a" },
+          },
+          { groupId: "group-stretch", question: { kind: "text", prompt: "Write your own simile.", guidance: "Name both things." } },
+        ],
+      },
+    ],
+  };
+  const csv = serializeLiveLessonCsv(source, {
+    groupNames: { "group-support": "Needs support", "group-stretch": "Ready to stretch" },
+  });
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  result.lesson.slides.forEach((slide, index) => {
+    assert.deepEqual(slide.question, source.slides[index].question);
+  });
+  assert.deepEqual(result.lesson.slides[4].variants.map((variant) => variant.group), ["Needs support", "Ready to stretch"]);
+  assert.deepEqual(result.lesson.slides[4].variants[1].question, source.slides[4].variants[1].question);
+});
+
+test("a format version 1 export still imports", () => {
+  const csv = [
+    csvRow(["format_version", "lesson_id", "lesson_title", "lesson_description", "subject", "grade", "language", "assigned_class", "assigned_subject", "is_done", "slide_order", "slide_type", "title", "body", "html", "examples_json", "image_url", "question_kind", "question_prompt", "question_options_json", "correct_answer", "explanation", "speaker_notes"]),
+    csvRow(["1", "L9", "Old export", "", "", "", "", "", "", "false", 1, "question", "Check", "", "", "[]", "", "mcq", "Which is right?", '[{"id":"a","text":"First"},{"id":"b","text":"Second"}]', "b", "", "note"]),
+  ].join("\r\n");
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.lesson.slides[0].question.correctOptionId, "b");
+});
+
+test("portable CSV names the column behind a broken key for every kind", () => {
+  const broken = {
+    _id: "lesson-broken",
+    title: "Broken keys",
+    slides: [
+      { type: "question", title: "Match", question: { kind: "matching", prompt: "Match these.", matchingPairs: [{ left: "Simile", right: "" }] } },
+      { type: "question", title: "Blanks", question: { kind: "fill_in_blank", prompt: "No blank token here", blanks: [{ id: "b1", accepts: ["simile"] }] } },
+      { type: "question", title: "Number", question: { kind: "numeric", prompt: "How many?", numericRule: { mode: "tolerance", value: "10" } } },
+      { type: "question", title: "Sort", question: { kind: "ordering", prompt: "Sort these.", orderingItems: [{ id: "i1", text: "One" }, { id: "i2", text: "Two" }] } },
+      { type: "question", title: "Bubble", question: { kind: "bubble", prompt: "Draw it." } },
+      { type: "question", title: "Ticket", question: { kind: "text", prompt: "Explain." }, variants: [{ groupId: "group-x", question: { kind: "text" } }] },
+    ],
+  };
+  const result = parseLiveLessonCsv(serializeLiveLessonCsv(broken));
+
+  assert.equal(result.ok, false);
+  const fields = result.errors.map((error) => error.field);
+  for (const column of ["question_pairs_json", "question_blanks_json", "question_numeric_json", "question_items_json", "question_kind", "levels_json"]) {
+    assert.ok(fields.includes(column), `expected an error on ${column}: ${JSON.stringify(result.errors)}`);
+  }
+});
+
 test("downloadable HTML CSV template passes the server importer", () => {
-  const result = parseLiveLessonCsv(CLIENT_LIVE_LESSON_CSV_TEMPLATE);
+  const result = parseLiveLessonCsv(CLIENT_AI_PROMPT_CSV);
   assert.equal(result.ok, true);
   assert.equal(result.lesson.slides.length, 2);
   assert.equal(result.lesson.slides[0].type, "html");
   assert.equal(result.lesson.slides[1].question.kind, "mcq");
+});
+
+// The browser bundle cannot import this service, so the sample the teacher downloads is a mirror
+// of the server's. Comparing the two files is what stops the sample and the importer drifting.
+test("the downloaded sample CSV is the server template, cell for cell", () => {
+  assert.equal(LIVE_LESSON_SAMPLE_CSV, LIVE_LESSON_CSV_TEMPLATE);
 });
 
 test("HTML slide CSV imports lesson metadata, animated HTML, and structured MCQ", () => {

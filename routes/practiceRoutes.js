@@ -19,7 +19,8 @@ import {
     getIntegrityByAssignment,
     getIntegrityByStudent,
     overrideAttemptGrading,
-    getStudentAssessmentAttempts
+    getStudentAssessmentAttempts,
+    getStudentResultReport
 } from '../controllers/standardsPracticeController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
@@ -56,6 +57,8 @@ router.put('/sb-gradebook/manual-scores/bulk', authorize('admin', 'teacher'), up
 router.put('/attempts/:attemptId/override', authorize('admin', 'teacher', 'department_principal'), overrideAttemptGrading);
 router.get('/attempts/student/:studentId/assessment/:assignmentId', authorize('admin', 'teacher', 'department_principal'), getStudentAssessmentAttempts);
 router.get('/attempts/student/:studentId/assignment/:assignmentId', authorize('admin', 'teacher', 'department_principal'), getStudentAssessmentAttempts);
+router.get('/assessment/:assignmentId/student/:studentId/result-report', authorize('admin', 'teacher', 'department_principal'), getStudentResultReport);
+router.get('/assignment/:assignmentId/student/:studentId/result-report', authorize('admin', 'teacher', 'department_principal'), getStudentResultReport);
 router.post('/assessment/:assignmentId/release', authorize('admin', 'teacher'), releaseAssessmentResults);
 router.get('/integrity/assignment/:assignmentId', authorize('admin', 'teacher'), getIntegrityByAssignment);
 router.get('/integrity/student/:studentId', authorize('admin', 'teacher'), getIntegrityByStudent);

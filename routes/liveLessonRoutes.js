@@ -53,9 +53,20 @@ import {
   revokeLiveLessonShare,
   respondToLiveLessonShares,
 } from "../controllers/liveLessonShareController.js";
+import {
+  createLiveGroup,
+  deleteLiveGroup,
+  listLiveGroups,
+  updateLiveGroup,
+} from "../controllers/liveLessonGroupController.js";
 
 const router = express.Router();
 router.use(protect, requireSchoolContext);
+
+router.get("/groups", authorize("teacher", "admin", "department_principal"), listLiveGroups);
+router.post("/groups", authorize("teacher", "admin", "department_principal"), createLiveGroup);
+router.patch("/groups/:groupId", authorize("teacher", "admin", "department_principal"), updateLiveGroup);
+router.delete("/groups/:groupId", authorize("teacher", "admin", "department_principal"), deleteLiveGroup);
 
 router.post("/lessons/:lessonId/shares", authorize("teacher", "admin"), createLiveLessonShare);
 router.post("/shares/bulk", authorize("teacher", "admin"), createLiveLessonShares);

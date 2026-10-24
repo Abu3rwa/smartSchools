@@ -3,6 +3,8 @@
     "columnLabel": "Columns",
     "exampleLabel": "Example",
     "intro": "Copy these patterns into your CSV. One row is one question, and only the columns named here are read for that type.",
+    "introLive": "Each row is one slide, and a question row carries one question in the columns named here. Type either the grammar shown below or the JSON a lesson export writes, and the answer column takes an option letter or its wording.",
+    "levels": "levels_json puts a different question on the same slide for each group you name in it, so every level answers its own question. The group must already exist for the class you import the lesson into.",
     "passages": "One row can carry a reading passage with passage_id, passage_title and passage_text. Any other row may cite the same passage_id and leave passage_text empty, in any order, and it reads the stored wording.",
     "sections": {
       "rules": "Shared rules",
@@ -57,6 +59,11 @@
         "grading": "The correct statement earns the whole point.",
         "name": "True or false",
         "write": "Leave the option columns empty and write true or false in the answer column."
+      },
+      "written_answer": {
+        "grading": "You grade it yourself while reviewing the session; no written answer is scored automatically.",
+        "name": "Written answer",
+        "write": "Write the question and how students should answer it, and add the marking criteria or a word range if you want them shown. Leave the answer column empty."
       }
     },
     "visibility": "Students never receive the answer column, the explanation, the pair map, the accepted answers, the numeric rule or the authored order."

@@ -131,6 +131,46 @@ A `passage_id` names one passage for every row that uses it, and only one row ha
 - The import panel's download buttons build both files from `client/src/pages/mapTestPrep/mapPracticeTemplate.js`, which is the source these samples mirror.
 - The "Question types guide" popup next to those buttons explains every accepted type, the columns it reads, and its grammar with an example. Both the MAP practice and the Standards assignment import panels open the same popup from `client/src/components/assessment/QuestionTypeGuide.jsx`, whose rows come from `questionTypeGuideData.js`, so the guide, the sample files and the parsers are kept in step by `questionTypeGuideData.test.js`.
 
+## Live Lesson CSV Import
+
+The Live Lessons importer picks one of three CSV shapes from the header row, so a teacher's spreadsheet, an AI-generated lesson and a lesson export all import without a format switch. One row is one slide, and a `question` slide carries one question; non-question slides must leave every question column empty.
+
+- Portable export: the file the lesson card's `Export CSV` writes. `format_version` must be the first cell and the columns must follow it in the order below. Version 2 carries every question kind and the levelled variants; a version 1 file (23 columns, options only) still imports, and a file whose `format_version` does not match the columns it uses is rejected rather than guessed.
+- Standard rows: matched by header name in any order, so `lesson title`, `slide type`, `question prompt`, `question kind`, `options` or `option_a` to `option_d` all work.
+- HTML rows: the fixed 17-column layout, one animated `html` slide per row, with `mcq` or `true_false` questions only. The import panel's `Sample CSV` and `Copy AI prompt` use this layout, so it keeps its two question types.
+
+### Question kinds and their columns
+
+The kind cell accepts `mcq`, `tf`, `multi_select`, `matching`, `ordering`, `fill_in_blank`, `numeric` and `text`. `multiple_choice`, `true_false`, `true or false`, `yes_no`, `boolean`, `match`, `sequence`, `fill_in_the_blank`, `gap_fill`, `numeric_response`, `short_answer`, `sentence`, `paragraph` and `written` are read as the same kinds, and a standard row with options but no kind cell is `mcq`.
+
+A kind column takes the shared practice grammar or the JSON an export writes, and a cell that is neither is reported against the column that held it:
+
+- `matching_pairs` for `matching`: `term::definition|term::definition`, at least two pairs.
+- `ordering_items` for `ordering`: `first > second > third`, three to eight different steps. The authored order is the key, and item ids are hashed server-side.
+- `blank_answers` for `fill_in_blank`: `b1::simile|b2::like or as~like and as`, with each blank marked `{{b1}}` in `question_prompt`.
+- `numeric_rule` for `numeric`: `exact::3`, `tolerance::100~5`, `relative::40~25` or `range::90~110`, plus any of `|unit::cm`, `|decimals::2`, `|fractions::on`, `|percent::on`. A bare number is read as exact.
+- `correct_answer`: an option letter or the option's own wording for `mcq`, `true` or `false` for `tf`, letters joined by `|` for `multi_select`, and empty for every other kind.
+- `guidance`, `criteria`, `min_words`, `max_words`: shown to the student answering a `text` question, which you grade while reviewing the session. No written answer grades automatically, in a live lesson or in practice.
+
+The same cells are named `question_options_json`, `question_pairs_json`, `question_items_json`, `question_blanks_json`, `question_numeric_json`, `question_guidance`, `question_criteria`, `question_min_words` and `question_max_words` in a portable file. The portable column list is `format_version, lesson_id, lesson_title, lesson_description, subject, grade, language, assigned_class, assigned_subject, is_done, slide_order, slide_type, title, body, html, examples_json, image_url, question_kind, question_prompt, question_options_json, question_pairs_json, question_items_json, question_blanks_json, question_numeric_json, question_guidance, question_criteria, question_min_words, question_max_words, correct_answer, explanation, speaker_notes, levels_json`.
+
+### Levelled questions on one slide
+
+`levels_json` holds one entry per group, using the same keys as the question columns: `{"group":"Needs support","kind":"mcq","prompt":"Which sentence uses a simile?","options":[{"id":"a","text":"Her laugh was as bright as a bell."}],"correct_answer":"a"}`. Each entry is the question that group answers on that slide, so an exit ticket can be a choice question for one group and a paragraph for another. Groups are named, never given by id: the importer looks the name up in the class the lesson is imported into and rejects a name that class does not have, and an export writes the names back, so a lesson keeps its levels when it moves to another class or another year.
+
+### Import flow
+
+1. Upload the CSV and preview it; every error names the row and the column behind it.
+2. Confirm the import. The app creates the lesson and its slides under the matched class and subject, and resolves each level to a group of that class.
+3. Objective kinds are graded the moment the answer arrives, through the same engines MAP practice and Standards assignments use. A `text` answer stays in the session review until you mark it.
+4. Student payloads and session replay never carry `correct_answer`, `explanation`, the option key, the pair map, the accepted answers, the numeric rule, or the authored order.
+
+### Template files
+
+- `client/src/pages/liveLessons/liveLessonCsvTemplate.js` exports two samples: `LIVE_LESSON_SAMPLE_CSV`, a standard-format lesson with one row per question kind and a levelled exit ticket, is the `Sample CSV` download, and `LIVE_LESSON_CSV_TEMPLATE`, the older 17-field HTML layout that only carries `mcq`/`tf`, is what `liveLessonAiPrompt.js` asks an external assistant to reproduce. A CSV test asserts the download equals the service's own template cell for cell, so the sample a teacher sees cannot drift from the parser it is tested against.
+- `services/liveLessonCsvService.js` exports `LIVE_LESSON_CSV_TEMPLATE`, a standard-format sample lesson with one row per question kind and a levelled exit ticket. The CSV tests parse it on every run, so the sample and the parser cannot drift.
+- The import panel's `Question types guide` popup is the same `client/src/components/assessment/QuestionTypeGuide.jsx` the MAP practice and Standards panels open, with `flow="live"`, so the guide, the grammars and the kind vocabulary are kept in step by `questionTypeGuideData.test.js`.
+
 ## Project Structure
 
 ```

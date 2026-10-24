@@ -37,15 +37,44 @@ const metricCards = (entries) => entries.map(([label, value]) => `
   <div class="metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
 `).join("");
 
+const LIVE_RESULT_LABELS = {
+  correct: "Correct",
+  partial: "Partially correct",
+  wrong: "Incorrect",
+  // A written answer nobody has read yet. It is never printed as incorrect.
+  pending: "To mark",
+};
+
+const resultLabel = (answer) => (
+  LIVE_RESULT_LABELS[answer.result]
+  || answer.status?.replace(/_/g, " ")
+  || "—"
+);
+
+const marksLabel = (answer) => (
+  answer.marks == null ? "—" : `${answer.marks}${answer.maxMarks == null ? "" : ` / ${answer.maxMarks}`}`
+);
+
+/**
+ * A levelled slide asks each group a different question, so its blended accuracy would describe no
+ * one. One row per level keeps each group's own key, counts and accuracy visible.
+ */
+const questionRows = (perQuestion) => perQuestion.flatMap((question, index) => {
+  const levels = question.levels || [null];
+  return levels.map((level) => `
+    <tr><td>${index + 1}</td><td>${escapeHtml([question.title || question.prompt, level?.level]
+    .filter(Boolean).join(" · "))}</td>
+    <td>${(level || question).answered || 0}</td><td>${(level || question).correct || 0}</td>
+    <td>${(level || question).partial || 0}</td><td>${(level || question).pending || 0}</td>
+    <td>${(level || question).percentCorrect || 0}%</td></tr>
+  `);
+});
+
 const renderSessionReport = (report, studentIds) => {
   const students = (report.perStudent || []).filter((student) => (
     !studentIds.length || studentIds.includes(String(student.studentId))
   ));
-  const questions = (report.perQuestion || []).map((question, index) => `
-    <tr><td>${index + 1}</td><td>${escapeHtml(question.title || question.prompt)}</td>
-    <td>${question.answered || 0}</td><td>${question.correct || 0}</td>
-    <td>${question.percentCorrect || 0}%</td></tr>
-  `).join("");
+  const questions = questionRows(report.perQuestion || []);
   const studentSections = students.map((student) => `
     <section class="student page-break">
       <h2>${escapeHtml(student.name)}</h2>
@@ -53,14 +82,17 @@ const renderSessionReport = (report, studentIds) => {
     ["Attendance", student.joined ? "Present" : "Absent"],
     ["Score", `${student.scorePercent || 0}%`],
     ["Correct", student.correct || 0],
+    ["To mark", student.toMark || 0],
     ["Answered", student.answered || 0],
     ["Away time", `${student.totalAwaySeconds || 0}s`],
   ])}</div>
-      <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Response time</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Marks</th><th>Response time</th></tr></thead>
       <tbody>${(student.answerDetails || []).map((answer) => `
-        <tr><td>${answer.questionNumber || ""}</td><td>${escapeHtml(answer.prompt)}</td>
+        <tr><td>${answer.questionNumber || ""}</td><td>${escapeHtml([answer.prompt, answer.level && `Level: ${answer.level}`]
+    .filter(Boolean).join(" "))}</td>
         <td>${escapeHtml(answer.selectedAnswer || "—")}</td><td>${escapeHtml(answer.correctAnswer || "—")}</td>
-        <td>${escapeHtml(answer.status === "answered" ? answer.isCorrect ? "Correct" : "Incorrect" : answer.status?.replace(/_/g, " ") || "—")}</td>
+        <td>${escapeHtml(resultLabel(answer))}</td>
+        <td>${escapeHtml(marksLabel(answer))}</td>
         <td>${answer.latencyMs == null ? "—" : `${(answer.latencyMs / 1000).toFixed(1)}s`}</td></tr>
       `).join("")}</tbody></table>
     </section>
@@ -71,13 +103,14 @@ const renderSessionReport = (report, studentIds) => {
     ["Joined", report.summary?.joinedCount || 0],
     ["Questions", report.summary?.questionCount || 0],
     ["Answers", report.summary?.submittedAnswers || 0],
+    ["Answers to mark", report.summary?.awaitingMarks || 0],
   ];
   return `
     <header><div class="eyebrow">LIVE LESSON REPORT</div><h1>${escapeHtml(report.session?.title || "Session report")}</h1>
     <p>${escapeHtml(className)} · ${escapeHtml(report.session?.subject || "Subject not set")}</p>
     <p>${escapeHtml(formatDate(report.session?.startedAt))} — ${escapeHtml(formatDate(report.session?.endedAt))}</p></header>
     <section><div class="metrics">${metricCards(metrics)}</div>
-    <h2>Class question results</h2><table><thead><tr><th>#</th><th>Question</th><th>Answered</th><th>Correct</th><th>Accuracy</th></tr></thead><tbody>${questions || "<tr><td colspan='5'>No questions were included.</td></tr>"}</tbody></table></section>
+    <h2>Class question results</h2><table><thead><tr><th>#</th><th>Question</th><th>Answered</th><th>Correct</th><th>Partial</th><th>To mark</th><th>Accuracy</th></tr></thead><tbody>${questions || "<tr><td colspan='7'>No questions were included.</td></tr>"}</tbody></table></section>
     ${studentSections}
   `;
 };

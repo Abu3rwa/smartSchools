@@ -16,6 +16,7 @@ import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
 import notificationService from "../services/notificationService.js";
 import { gradePracticeAnswer } from "../services/practiceAnswerGrading.js";
+import { renderStudentResultReportHtml } from "../services/studentResultReportService.js";
 import { buildPassageSnapshot } from "../services/assessment/passageService.js";
 import { describeObjectiveAnswer } from "../services/assessment/answerFormat.js";
 import {
@@ -24,7 +25,12 @@ import {
 } from "../services/assessment/studentPresentationService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import logger from "../utils/logger.js";
-import { percentageToScaleLevel, isValidManualScore, computeEffectiveScore, SCALE_LEVELS } from "../utils/sbrScaleUtils.js";
+import {
+  percentageToScaleLevel,
+  isValidManualScore,
+  computeEffectiveScore,
+  SCALE_LEVELS,
+} from "../utils/sbrScaleUtils.js";
 import {
   getClassIdsForAcademicYear,
   isClassInAcademicYear,
@@ -81,7 +87,8 @@ const normalizeSemester = (value) => {
 };
 
 const resolveSemesterForRequest = (req) => {
-  if (req?.query?.period === "full_year" || req?.body?.period === "full_year") return null;
+  if (req?.query?.period === "full_year" || req?.body?.period === "full_year")
+    return null;
   const fromQuery = normalizeSemester(req?.query?.semester);
   if (fromQuery) return fromQuery;
   const fromBody = normalizeSemester(req?.body?.semester);
@@ -107,15 +114,15 @@ const getAssignmentPracticeConfig = (assignment) => {
 
   const allowedQuestionTypes = sanitizeAllowedValues(
     cfg.allowedQuestionTypes,
-    QUESTION_TYPES
+    QUESTION_TYPES,
   );
   const allowedDifficulties = sanitizeAllowedValues(
     cfg.allowedDifficulties,
-    DIFFICULTIES
+    DIFFICULTIES,
   );
   const allowedGrammarLevels = sanitizeAllowedValues(
     cfg.grammarLevels,
-    GRAMMAR_LEVELS
+    GRAMMAR_LEVELS,
   );
   const enableGrammarLeveling = Boolean(cfg.enableGrammarLeveling);
 
@@ -148,12 +155,16 @@ const getAssignmentPracticeConfig = (assignment) => {
 };
 
 const getAssignmentScopedMasteryMinQuestions = (assignment) => {
-  const questionLimit = Number(getAssignmentPracticeConfig(assignment)?.questionLimit);
+  const questionLimit = Number(
+    getAssignmentPracticeConfig(assignment)?.questionLimit,
+  );
   if (Number.isFinite(questionLimit) && questionLimit > 0) {
     return Math.max(1, Math.trunc(questionLimit));
   }
 
-  const standardMinQuestions = Number(assignment?.standard?.masteryMinQuestions);
+  const standardMinQuestions = Number(
+    assignment?.standard?.masteryMinQuestions,
+  );
   if (Number.isFinite(standardMinQuestions) && standardMinQuestions > 0) {
     return Math.max(1, Math.trunc(standardMinQuestions));
   }
@@ -173,7 +184,7 @@ const isWithinAvailability = (availability) => {
 const calculateTimeRemaining = (session) => {
   if (!session?.timeLimitSeconds) return null;
   const elapsedSeconds = Math.floor(
-    (Date.now() - new Date(session.startedAt).getTime()) / 1000
+    (Date.now() - new Date(session.startedAt).getTime()) / 1000,
   );
   return Math.max(session.timeLimitSeconds - elapsedSeconds, 0);
 };
@@ -227,7 +238,7 @@ const resolveDisplayAnswer = (correctAnswer, questionOptions = []) => {
   const option =
     Array.isArray(questionOptions) &&
     questionOptions.find(
-      (item) => (item?.label || "").trim().toUpperCase() === normalized
+      (item) => (item?.label || "").trim().toUpperCase() === normalized,
     );
 
   if (option?.text) {
@@ -313,13 +324,12 @@ const LEGACY_OPTION_SUFFIX_PATTERN =
   /\s*\((?:choice|option)\s*[a-z]?\s*\d+\)\s*$/i;
 
 const stripLegacyOptionSuffix = (text = "") =>
-  String(text || "").replace(LEGACY_OPTION_SUFFIX_PATTERN, "").trim();
+  String(text || "")
+    .replace(LEGACY_OPTION_SUFFIX_PATTERN, "")
+    .trim();
 
 const normalizeOptionCollisionKey = (text = "") =>
-  stripLegacyOptionSuffix(text)
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  stripLegacyOptionSuffix(text).toLowerCase().replace(/\s+/g, " ").trim();
 
 const hasDuplicateMultipleChoiceOptions = (question) => {
   if (question?.questionType !== "multiple_choice") return false;
@@ -346,17 +356,18 @@ const sanitizeServedMultipleChoiceQuestion = (
 
   const options = Array.isArray(question.options) ? question.options : [];
   try {
-    const normalized = standardsPracticeAIService._normalizeMultipleChoicePayload({
-      options: options.map((option, index) => ({
-        label: String(option?.label || MC_LABELS[index] || "")
-          .trim()
-          .toUpperCase(),
-        text: stripLegacyOptionSuffix(option?.text || ""),
-      })),
-      correctAnswer: stripLegacyOptionSuffix(question.correctAnswer || ""),
-      optionMaxLength: 180,
-      seed,
-    });
+    const normalized =
+      standardsPracticeAIService._normalizeMultipleChoicePayload({
+        options: options.map((option, index) => ({
+          label: String(option?.label || MC_LABELS[index] || "")
+            .trim()
+            .toUpperCase(),
+          text: stripLegacyOptionSuffix(option?.text || ""),
+        })),
+        correctAnswer: stripLegacyOptionSuffix(question.correctAnswer || ""),
+        optionMaxLength: 180,
+        seed,
+      });
     return {
       ...question,
       options: normalized.options,
@@ -488,7 +499,9 @@ const buildSessionContextHints = (attempts = []) => {
   );
   const recentMistakes = dedupeStrings(
     attempts
-      .filter((attempt) => attempt?.status === "answered" && !attempt?.isCorrect)
+      .filter(
+        (attempt) => attempt?.status === "answered" && !attempt?.isCorrect,
+      )
       .flatMap((attempt) => {
         const missingConcepts = attempt?.feedbackParts?.conceptChecks?.missing;
         if (Array.isArray(missingConcepts) && missingConcepts.length > 0) {
@@ -502,14 +515,22 @@ const buildSessionContextHints = (attempts = []) => {
     4,
   );
 
-  const answeredAttempts = attempts.filter((attempt) => attempt?.status === "answered");
+  const answeredAttempts = attempts.filter(
+    (attempt) => attempt?.status === "answered",
+  );
   const recentPerformance = computeRecentPerformance(
-    answeredAttempts.map((attempt) => ({ isCorrect: Boolean(attempt?.isCorrect) })),
+    answeredAttempts.map((attempt) => ({
+      isCorrect: Boolean(attempt?.isCorrect),
+    })),
   );
   const recentWindow = answeredAttempts.slice(0, 5);
-  const recentCorrect = recentWindow.filter((attempt) => attempt?.isCorrect).length;
+  const recentCorrect = recentWindow.filter(
+    (attempt) => attempt?.isCorrect,
+  ).length;
   const recentAccuracy =
-    recentWindow.length > 0 ? Math.round((recentCorrect / recentWindow.length) * 100) : 0;
+    recentWindow.length > 0
+      ? Math.round((recentCorrect / recentWindow.length) * 100)
+      : 0;
   const confidenceHint =
     recentWindow.length === 0
       ? "Build momentum with your first question."
@@ -580,10 +601,14 @@ const getProgressSummaryFromRows = (rows = [], accessor) => {
 const buildAssessmentScore = ({ correctCount, totalAnswered, maxMarks }) => {
   const safeAnswered = Math.max(0, Number(totalAnswered || 0));
   const safeCorrect = Math.max(0, Number(correctCount || 0));
-  const safeMaxMarks = Math.max(1, Number(maxMarks || DEFAULT_ASSESSMENT_CONFIG.maxMarks));
-  const percentage = safeAnswered > 0
-    ? Number(((safeCorrect / safeAnswered) * 100).toFixed(2))
-    : 0;
+  const safeMaxMarks = Math.max(
+    1,
+    Number(maxMarks || DEFAULT_ASSESSMENT_CONFIG.maxMarks),
+  );
+  const percentage =
+    safeAnswered > 0
+      ? Number(((safeCorrect / safeAnswered) * 100).toFixed(2))
+      : 0;
   const score = Number(((percentage / 100) * safeMaxMarks).toFixed(2));
   return { score, percentage };
 };
@@ -657,14 +682,23 @@ const upsertAssessmentGradebookProgress = async ({
     score,
     maxScore: assessmentConfig.maxMarks,
     percentage,
-    effectiveScore: Number.isFinite(percentage) ? percentageToScale4(percentage) : null,
+    effectiveScore: Number.isFinite(percentage)
+      ? percentageToScale4(percentage)
+      : null,
     metadata: {
       passMarks: assessmentConfig.passMarks,
       resultsVisibility: assessmentConfig.resultsVisibility,
       resultsReleaseAt: assessmentConfig.resultsReleaseAt || null,
-      tabSwitchCount: await PracticeSession.findOne(
-        { school: schoolId, student: studentId, assignment: assignment._id, ...(sessionId ? { _id: sessionId } : {}) }
-      ).sort({ createdAt: -1 }).select("tabSwitchCount").lean().then((s) => s?.tabSwitchCount || 0),
+      tabSwitchCount: await PracticeSession.findOne({
+        school: schoolId,
+        student: studentId,
+        assignment: assignment._id,
+        ...(sessionId ? { _id: sessionId } : {}),
+      })
+        .sort({ createdAt: -1 })
+        .select("tabSwitchCount")
+        .lean()
+        .then((s) => s?.tabSwitchCount || 0),
     },
   };
   if (submittedAt) {
@@ -675,9 +709,13 @@ const upsertAssessmentGradebookProgress = async ({
   }
 
   // If a manual score already exists, preserve it as effective score
-  const existingEntry = await StandardsGradebookEntry.findOne(
-    { school: schoolId, assignment: assignment._id, student: studentId }
-  ).select("manualScore isManualEntry").lean();
+  const existingEntry = await StandardsGradebookEntry.findOne({
+    school: schoolId,
+    assignment: assignment._id,
+    student: studentId,
+  })
+    .select("manualScore isManualEntry")
+    .lean();
 
   if (existingEntry?.isManualEntry && existingEntry.manualScore != null) {
     update.effectiveScore = existingEntry.manualScore;
@@ -686,7 +724,7 @@ const upsertAssessmentGradebookProgress = async ({
   return StandardsGradebookEntry.findOneAndUpdate(
     { school: schoolId, assignment: assignment._id, student: studentId },
     { $set: update },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 };
 
@@ -808,7 +846,7 @@ const upsertMasteryRecord = async (
   studentId,
   standardId,
   mastery,
-  recentDifficulty
+  recentDifficulty,
 ) => {
   const query = {
     school: schoolId,
@@ -830,7 +868,7 @@ const upsertMasteryRecord = async (
     : existing?.masteredAt || null;
   const highestDifficultyPassed = resolveHighestDifficulty(
     existing?.highestDifficultyPassed,
-    isMastered ? recentDifficulty : null
+    isMastered ? recentDifficulty : null,
   );
 
   await MasteryRecord.findOneAndUpdate(
@@ -860,7 +898,7 @@ const upsertMasteryRecord = async (
       new: true,
       upsert: true,
       setDefaultsOnInsert: true,
-    }
+    },
   );
 };
 
@@ -1006,7 +1044,7 @@ const resolveQuestionSettings = ({
   const difficulty = getNextDifficulty(
     baseDifficulty,
     allowedDifficulties,
-    recentAttempts
+    recentAttempts,
   );
   const order = DIFFICULTIES.filter((d) => allowedDifficulties.includes(d));
   const wasRemediated =
@@ -1016,16 +1054,16 @@ const resolveQuestionSettings = ({
 
 const resolvePreferredTrueFalseAnswer = (
   recentAttempts = [],
-  attemptNumber = 1
+  attemptNumber = 1,
 ) => {
   const trueFalseAttempts = recentAttempts.filter(
-    (attempt) => attempt?.questionType === "true_false"
+    (attempt) => attempt?.questionType === "true_false",
   );
   const trueCount = trueFalseAttempts.filter(
-    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "True"
+    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "True",
   ).length;
   const falseCount = trueFalseAttempts.filter(
-    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "False"
+    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "False",
   ).length;
 
   if (trueCount > falseCount) return "False";
@@ -1162,10 +1200,10 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
 
   const assessmentAssignments = assignments.filter(
     (assignment) =>
-      getAssignmentPracticeConfig(assignment).sessionType === "assessment"
+      getAssignmentPracticeConfig(assignment).sessionType === "assessment",
   );
   const assessmentAssignmentIds = assessmentAssignments.map(
-    (assignment) => assignment._id
+    (assignment) => assignment._id,
   );
   let assessmentEntriesByAssignment = new Map();
   if (assessmentAssignmentIds.length > 0) {
@@ -1178,7 +1216,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
       .lean();
 
     assessmentEntriesByAssignment = new Map(
-      assessmentEntries.map((entry) => [entry.assignment.toString(), entry])
+      assessmentEntries.map((entry) => [entry.assignment.toString(), entry]),
     );
   }
 
@@ -1193,11 +1231,11 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
         getAssignmentScopedMasteryMinQuestions(a),
         3,
         req.schoolId,
-        [a._id]
+        [a._id],
       );
 
       const assessmentEntry = assessmentEntriesByAssignment.get(
-        a._id.toString()
+        a._id.toString(),
       );
       const isAssessment = practiceConfig.sessionType === "assessment";
       const assessmentIsComplete =
@@ -1220,7 +1258,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
             }
           : null,
       };
-    })
+    }),
   );
 
   res.json({
@@ -1349,7 +1387,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     getAssignmentScopedMasteryMinQuestions(assignment),
     3,
     req.schoolId,
-    [assignment._id]
+    [assignment._id],
   );
 
   if (mastery.isMastered) {
@@ -1430,7 +1468,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     session: session._id,
   })
     .select(
-      "questionText questionType difficulty isCorrect status feedbackParts correctAnswer"
+      "questionText questionType difficulty isCorrect status feedbackParts correctAnswer",
     )
     .sort({ createdAt: -1 })
     .limit(Math.max(ACCURACY_WINDOW, 25))
@@ -1475,7 +1513,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
 
   const grammarLevelingEnabled = Boolean(practiceConfig.enableGrammarLeveling);
   const grammarLevels = grammarLevelingEnabled
-    ? normalizeGrammarLevels(practiceConfig.grammarLevels, { fallbackAll: true })
+    ? normalizeGrammarLevels(practiceConfig.grammarLevels, {
+        fallbackAll: true,
+      })
     : [];
   let question = null;
 
@@ -1487,7 +1527,8 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     if (!poolQuestion) {
       return res.status(503).json({
         success: false,
-        message: "Published question pool is empty. Please contact your teacher.",
+        message:
+          "Published question pool is empty. Please contact your teacher.",
       });
     }
     question = {
@@ -1546,7 +1587,6 @@ export const generateQuestion = asyncHandler(async (req, res) => {
         message: "Could not generate a clear question. Please try again.",
       });
     }
-
   }
 
   question = sanitizeServedMultipleChoiceQuestion(question, {
@@ -1555,10 +1595,13 @@ export const generateQuestion = asyncHandler(async (req, res) => {
 
   // Pedagogical validation gate: ensure instruction, skill, subskill are present
   const preGateInstruction = question.instruction;
-  question = standardsPracticeAIService.ensureInstructionalCompleteness(question, {
-    standard: assignment.standard,
-    questionType: question.questionType,
-  });
+  question = standardsPracticeAIService.ensureInstructionalCompleteness(
+    question,
+    {
+      standard: assignment.standard,
+      questionType: question.questionType,
+    },
+  );
   if (!preGateInstruction || !preGateInstruction.trim()) {
     logger.warn("question_instruction_synthesized", {
       schoolId: req.schoolId,
@@ -1661,7 +1704,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   const attempt = await PracticeAttempt.findById(attemptId)
     .populate(
       "standard",
-      "code name description gradeLevel masteryThreshold masteryMinQuestions"
+      "code name description gradeLevel masteryThreshold masteryMinQuestions",
     )
     .populate({
       path: "assignment",
@@ -1707,7 +1750,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     const resolvedCorrectAnswer =
       standardsPracticeAIService.resolveTrueFalseCorrectAnswer(
         attempt.questionText,
-        attempt.correctAnswer
+        attempt.correctAnswer,
       );
     if (
       resolvedCorrectAnswer &&
@@ -1736,10 +1779,10 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   const isStructuredResponse = answer !== null && typeof answer === "object";
   attempt.studentAnswer = isStructuredResponse
     ? describeStudentResponse({
-      questionType: attempt.questionType,
-      response: answer,
-      question: attempt.toObject(),
-    })
+        questionType: attempt.questionType,
+        response: answer,
+        question: attempt.toObject(),
+      })
     : answer;
   attempt.studentResponse = isStructuredResponse ? answer : null;
   attempt.gradingDetail = evaluation.gradingDetail || null;
@@ -1751,7 +1794,10 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     ? describeObjectiveAnswer({ detail: evaluation.gradingDetail })
     : "";
   const feedbackParts = objectiveAnswerDisplay
-    ? { ...(evaluation.feedbackParts || {}), displayAnswer: objectiveAnswerDisplay }
+    ? {
+        ...(evaluation.feedbackParts || {}),
+        displayAnswer: objectiveAnswerDisplay,
+      }
     : evaluation.feedbackParts || null;
   attempt.feedback = evaluation.feedback;
   attempt.feedbackParts = feedbackParts || undefined;
@@ -1769,7 +1815,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     getAssignmentScopedMasteryMinQuestions(attempt.assignment),
     3,
     req.schoolId,
-    [attempt.assignment?._id || attempt.assignment]
+    [attempt.assignment?._id || attempt.assignment],
   );
   const recordBefore = await MasteryRecord.findOne({
     school: req.schoolId,
@@ -1783,7 +1829,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     student._id,
     attempt.standard._id,
     mastery,
-    attempt.difficulty
+    attempt.difficulty,
   );
   const newlyMastered = mastery.isMastered && !recordBefore?.isMastered;
 
@@ -1816,7 +1862,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
 
   if (attempt.sessionType === "assessment") {
     const assessmentAssignment = await StandardAssignment.findById(
-      attempt.assignment?._id || attempt.assignment
+      attempt.assignment?._id || attempt.assignment,
     ).select("assessmentConfig standard class subject academicYear semester");
     if (assessmentAssignment) {
       if (session && session.status !== "active") {
@@ -1839,17 +1885,18 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
-  const correctAnswerDisplay = objectiveAnswerDisplay || resolveDisplayAnswer(
-    attempt.correctAnswer,
-    attempt.options || []
-  );
+  const correctAnswerDisplay =
+    objectiveAnswerDisplay ||
+    resolveDisplayAnswer(attempt.correctAnswer, attempt.options || []);
   const sessionContextAttempts = await PracticeAttempt.find({
     school: req.schoolId,
     student: student._id,
     assignment: attempt.assignment?._id || attempt.assignment,
     ...(attempt.session ? { session: attempt.session } : {}),
   })
-    .select("questionText questionType difficulty isCorrect status feedbackParts")
+    .select(
+      "questionText questionType difficulty isCorrect status feedbackParts",
+    )
     .sort({ createdAt: -1 })
     .limit(Math.max(10, ACCURACY_WINDOW))
     .lean();
@@ -1875,8 +1922,12 @@ export const submitAnswer = asyncHandler(async (req, res) => {
         studentId: student._id,
         standardId: attempt.standard?._id || attempt.standard,
         assignmentId: attempt.assignment?._id || attempt.assignment || null,
-        classId: attempt.assignment?.class?._id || attempt.assignment?.class || null,
-        subjectId: attempt.assignment?.subject?._id || attempt.assignment?.subject || null,
+        classId:
+          attempt.assignment?.class?._id || attempt.assignment?.class || null,
+        subjectId:
+          attempt.assignment?.subject?._id ||
+          attempt.assignment?.subject ||
+          null,
         sessionContext: {
           recentTopics: sessionContext.recentTopics,
           recentMistakes: sessionContext.recentMistakes,
@@ -1981,7 +2032,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
 
   const attemptsRaw = await PracticeAttempt.find(query)
     .select(
-      "questionText questionType studentAnswer correctAnswer options isCorrect explanation feedback feedbackParts difficulty attemptNumber answeredAt timeSpentSeconds"
+      "questionText questionType studentAnswer correctAnswer options isCorrect explanation feedback feedbackParts difficulty attemptNumber answeredAt timeSpentSeconds",
     )
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
@@ -2006,7 +2057,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     5,
     3,
     req.schoolId,
-    yearAssignmentIds
+    yearAssignmentIds,
   );
 
   res.json({
@@ -2038,7 +2089,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
     await getYearScopedClassIds(req);
 
   const student = await Student.findById(studentId).select(
-    "firstName lastName studentId currentClass"
+    "firstName lastName studentId currentClass",
   );
   if (!student) {
     return res
@@ -2048,10 +2099,12 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
   if (req.user?.role === "teacher") {
     const teacherCanAccess = await ensureTeacherCanAccessClass(
       req,
-      student.currentClass
+      student.currentClass,
     );
     if (!teacherCanAccess) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     }
   }
   if (yearClassIds.length === 0) {
@@ -2100,7 +2153,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
   })
     .populate(
       "standard",
-      "code name description masteryThreshold masteryMinQuestions"
+      "code name description masteryThreshold masteryMinQuestions",
     )
     .populate("subject", "name code")
     .populate("class", "name grade section academicYear");
@@ -2114,7 +2167,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         getAssignmentScopedMasteryMinQuestions(a),
         3,
         req.schoolId,
-        [a._id]
+        [a._id],
       );
 
       // Get total attempts count
@@ -2139,12 +2192,12 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         progressStatus,
         totalAllAttempts,
       };
-    })
+    }),
   );
 
   const summaryCounts = getProgressSummaryFromRows(
     progressData,
-    (item) => item.progressStatus
+    (item) => item.progressStatus,
   );
 
   res.json({
@@ -2190,7 +2243,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
   }
   const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
     req,
-    assignment
+    assignment,
   );
   if (!teacherCanAccessAssignment) {
     return res.status(403).json({ success: false, message: "Not authorized" });
@@ -2225,12 +2278,12 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
       student: { $in: students.map((student) => student._id) },
     })
       .select(
-        "student status totalAnswered correctCount percentage score maxScore submittedAt releasedAt"
+        "student status totalAnswered correctCount percentage score maxScore submittedAt releasedAt",
       )
       .lean();
 
     assessmentEntryByStudent = new Map(
-      assessmentEntries.map((entry) => [entry.student.toString(), entry])
+      assessmentEntries.map((entry) => [entry.student.toString(), entry]),
     );
   }
 
@@ -2243,7 +2296,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         getAssignmentScopedMasteryMinQuestions(assignment),
         3,
         req.schoolId,
-        [assignment._id]
+        [assignment._id],
       );
       const totalAttempts = await PracticeAttempt.countDocuments({
         student: student._id,
@@ -2258,7 +2311,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
 
       if (isAssessmentAssignment) {
         const assessmentEntry = assessmentEntryByStudent.get(
-          student._id.toString()
+          student._id.toString(),
         );
 
         if (assessmentEntry) {
@@ -2270,7 +2323,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
               ? Number(((correct / answered) * 100).toFixed(2))
               : 0;
           const isComplete = ["submitted", "released"].includes(
-            assessmentEntry.status
+            assessmentEntry.status,
           );
 
           effectiveMastery = {
@@ -2316,8 +2369,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
               ? Number(((fallbackCorrect / fallbackAnswered) * 100).toFixed(2))
               : 0;
 
-          progressStatus =
-            fallbackAnswered > 0 ? "in_progress" : "not_started";
+          progressStatus = fallbackAnswered > 0 ? "in_progress" : "not_started";
           effectiveMastery = {
             ...mastery,
             totalAttempts: fallbackAnswered,
@@ -2335,12 +2387,12 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         totalAttempts: effectiveTotalAttempts,
         assessmentProgress,
       };
-    })
+    }),
   );
 
   const summaryCounts = getProgressSummaryFromRows(
     studentsProgress,
-    (item) => item.progressStatus
+    (item) => item.progressStatus,
   );
 
   res.json({
@@ -2356,7 +2408,9 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         needsReview: summaryCounts.needsReview,
         masteryRate:
           studentsProgress.length > 0
-            ? Math.round((summaryCounts.mastered / studentsProgress.length) * 100)
+            ? Math.round(
+                (summaryCounts.mastered / studentsProgress.length) * 100,
+              )
             : 0,
       },
       academicYear: effectiveAcademicYear,
@@ -2472,12 +2526,18 @@ export const finalizeAssessment = asyncHandler(async (req, res) => {
 
   // Notify parents of completion (fire-and-forget)
   if (assignment.notifyParents !== false) {
-    notificationService.sendStandardAssignmentCompletedNotification({
-      studentId: student._id,
-      assignment,
-      score: entry.score ?? null,
-      maxScore: entry.maxScore ?? null,
-    }).catch(err => logger.error("finalize_assessment_notif_failed", { error: err?.message }));
+    notificationService
+      .sendStandardAssignmentCompletedNotification({
+        studentId: student._id,
+        assignment,
+        score: entry.score ?? null,
+        maxScore: entry.maxScore ?? null,
+      })
+      .catch((err) =>
+        logger.error("finalize_assessment_notif_failed", {
+          error: err?.message,
+        }),
+      );
   }
 
   res.json({
@@ -2508,10 +2568,9 @@ const buildGrammarProgressDocument = ({
   academicYear,
   semester,
 }) => {
-  const studentName = [student?.firstName, student?.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim() || "Student";
+  const studentName =
+    [student?.firstName, student?.lastName].filter(Boolean).join(" ").trim() ||
+    "Student";
   const generatedAt = new Date().toISOString();
   const lines = [
     "# Grammar Progress Report",
@@ -2533,9 +2592,10 @@ const buildGrammarProgressDocument = ({
     lines.push("- No grammar assessment attempts yet.");
   } else {
     items.forEach((item) => {
-      const levels = Array.isArray(item?.grammarLevels) && item.grammarLevels.length > 0
-        ? item.grammarLevels.join(", ")
-        : "N/A";
+      const levels =
+        Array.isArray(item?.grammarLevels) && item.grammarLevels.length > 0
+          ? item.grammarLevels.join(", ")
+          : "N/A";
       const score = Number.isFinite(item?.score)
         ? `${item.score}/${item.maxScore || 0}`
         : "Pending";
@@ -2543,7 +2603,7 @@ const buildGrammarProgressDocument = ({
         ? `${item.percentage}%`
         : "Pending";
       lines.push(
-        `- ${item?.title || "Assessment"} | Status: ${item?.status || "not_started"} | Score: ${score} | Percentage: ${percentage} | Levels: ${levels}`
+        `- ${item?.title || "Assessment"} | Status: ${item?.status || "not_started"} | Score: ${score} | Percentage: ${percentage} | Levels: ${levels}`,
       );
     });
   }
@@ -2651,7 +2711,7 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
 
   const assessmentAssignments = assignments.filter(
     (assignment) =>
-      getAssignmentPracticeConfig(assignment).sessionType === "assessment"
+      getAssignmentPracticeConfig(assignment).sessionType === "assessment",
   );
   if (assessmentAssignments.length === 0) {
     return res.json({
@@ -2672,9 +2732,14 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
   }
 
   const assignmentMap = new Map(
-    assessmentAssignments.map((assignment) => [assignment._id.toString(), assignment])
+    assessmentAssignments.map((assignment) => [
+      assignment._id.toString(),
+      assignment,
+    ]),
   );
-  const assignmentIds = assessmentAssignments.map((assignment) => assignment._id);
+  const assignmentIds = assessmentAssignments.map(
+    (assignment) => assignment._id,
+  );
 
   const entries = await StandardsGradebookEntry.find({
     school: req.schoolId,
@@ -2682,10 +2747,12 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
     assignment: { $in: assignmentIds },
   })
     .select(
-      "assignment status score maxScore percentage submittedAt releasedAt totalAnswered correctCount"
+      "assignment status score maxScore percentage submittedAt releasedAt totalAnswered correctCount",
     )
     .lean();
-  const entryMap = new Map(entries.map((entry) => [entry.assignment.toString(), entry]));
+  const entryMap = new Map(
+    entries.map((entry) => [entry.assignment.toString(), entry]),
+  );
 
   const now = new Date();
   const items = [];
@@ -2702,20 +2769,30 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
       releaseReached ||
       entry?.status === "released";
 
-    const score = isVisible ? entry?.score ?? null : null;
-    const maxScore = isVisible ? entry?.maxScore ?? assessmentConfig.maxMarks : null;
-    const percentage = isVisible ? entry?.percentage ?? null : null;
-    const scale4 = Number.isFinite(percentage) ? percentageToScale4(percentage) : null;
+    const score = isVisible ? (entry?.score ?? null) : null;
+    const maxScore = isVisible
+      ? (entry?.maxScore ?? assessmentConfig.maxMarks)
+      : null;
+    const percentage = isVisible ? (entry?.percentage ?? null) : null;
+    const scale4 = Number.isFinite(percentage)
+      ? percentageToScale4(percentage)
+      : null;
 
     items.push({
       assignmentId,
-      title: assignment.title || `${assignment.standard?.code || "STD"} Assessment`,
+      title:
+        assignment.title || `${assignment.standard?.code || "STD"} Assessment`,
       standard: assignment.standard || null,
       subject: assignment.subject || null,
       class: assignment.class || null,
-      academicYear: assignment.academicYear || assignment.class?.academicYear || effectiveAcademicYear,
+      academicYear:
+        assignment.academicYear ||
+        assignment.class?.academicYear ||
+        effectiveAcademicYear,
       semester: assignment.semester || effectiveSemester,
-      grammarLevelingEnabled: Boolean(assignment?.practiceConfig?.enableGrammarLeveling),
+      grammarLevelingEnabled: Boolean(
+        assignment?.practiceConfig?.enableGrammarLeveling,
+      ),
       grammarLevels: Array.isArray(assignment?.practiceConfig?.grammarLevels)
         ? assignment.practiceConfig.grammarLevels
         : [],
@@ -2738,17 +2815,19 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
   }
 
   const gradedItems = items.filter((item) => Number.isFinite(item.percentage));
-  const averagePercentage = gradedItems.length > 0
-    ? Number(
-        (
-          gradedItems.reduce((sum, item) => sum + Number(item.percentage || 0), 0) /
-          gradedItems.length
-        ).toFixed(2)
-      )
-    : 0;
-  const averageScale4 = gradedItems.length > 0
-    ? percentageToScale4(averagePercentage)
-    : 0;
+  const averagePercentage =
+    gradedItems.length > 0
+      ? Number(
+          (
+            gradedItems.reduce(
+              (sum, item) => sum + Number(item.percentage || 0),
+              0,
+            ) / gradedItems.length
+          ).toFixed(2),
+        )
+      : 0;
+  const averageScale4 =
+    gradedItems.length > 0 ? percentageToScale4(averagePercentage) : 0;
   const summary = {
     totalAssessments: items.length,
     gradedCount: gradedItems.length,
@@ -2785,23 +2864,25 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
       : percentageToScale4(Number(item.percentage || 0));
   }
 
-  const standardAverages = Array.from(standardAccumulator.values()).map((item) => {
-    const averagePct =
-      item.totalAssessments > 0
-        ? Number((item.totalPercentage / item.totalAssessments).toFixed(2))
-        : 0;
-    return {
-      standardId: item.standardId,
-      standardCode: item.standardCode,
-      standardName: item.standardName,
-      totalAssessments: item.totalAssessments,
-      averagePercentage: averagePct,
-      averageScale4:
+  const standardAverages = Array.from(standardAccumulator.values()).map(
+    (item) => {
+      const averagePct =
         item.totalAssessments > 0
-          ? Number((item.totalScale4 / item.totalAssessments).toFixed(2))
-          : 0,
-    };
-  });
+          ? Number((item.totalPercentage / item.totalAssessments).toFixed(2))
+          : 0;
+      return {
+        standardId: item.standardId,
+        standardCode: item.standardCode,
+        standardName: item.standardName,
+        totalAssessments: item.totalAssessments,
+        averagePercentage: averagePct,
+        averageScale4:
+          item.totalAssessments > 0
+            ? Number((item.totalScale4 / item.totalAssessments).toFixed(2))
+            : 0,
+      };
+    },
+  );
 
   res.json({
     success: true,
@@ -2841,7 +2922,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
   }
   const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
     req,
-    assignment
+    assignment,
   );
   if (!teacherCanAccessAssignment) {
     return res.status(403).json({ success: false, message: "Not authorized" });
@@ -2876,11 +2957,11 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
       assignment: assignment._id,
     })
       .select(
-        "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata effectiveScore manualScore isManualEntry"
+        "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata effectiveScore manualScore isManualEntry",
       )
       .lean();
     entryByStudent = new Map(
-      entries.map((entry) => [entry.student.toString(), entry])
+      entries.map((entry) => [entry.student.toString(), entry]),
     );
   } else {
     const attempts = await PracticeAttempt.find({
@@ -2905,9 +2986,10 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         return;
       }
       totals.totalAnswered += 1;
-      const isCorrect = attempt.teacherOverride?.isCorrect != null
-        ? attempt.teacherOverride.isCorrect
-        : attempt.isCorrect;
+      const isCorrect =
+        attempt.teacherOverride?.isCorrect != null
+          ? attempt.teacherOverride.isCorrect
+          : attempt.isCorrect;
       if (isCorrect === true) totals.correctCount += 1;
       practiceAttemptsByStudent.set(studentId, totals);
     });
@@ -2916,21 +2998,29 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
   const rows = await Promise.all(
     students.map(async (student) => {
       if (!isAssessment) {
-        const attemptTotals = practiceAttemptsByStudent.get(student._id.toString()) || {
+        const attemptTotals = practiceAttemptsByStudent.get(
+          student._id.toString(),
+        ) || {
           totalAnswered: 0,
           correctCount: 0,
           pendingReviewCount: 0,
         };
-        const percentage = attemptTotals.totalAnswered > 0
-          ? Number(
-              ((attemptTotals.correctCount / attemptTotals.totalAnswered) * 100).toFixed(2)
-            )
-          : null;
+        const percentage =
+          attemptTotals.totalAnswered > 0
+            ? Number(
+                (
+                  (attemptTotals.correctCount / attemptTotals.totalAnswered) *
+                  100
+                ).toFixed(2),
+              )
+            : null;
         return {
           student: student.toObject(),
-          status: attemptTotals.totalAnswered > 0 || attemptTotals.pendingReviewCount > 0
-            ? "in_progress"
-            : "not_started",
+          status:
+            attemptTotals.totalAnswered > 0 ||
+            attemptTotals.pendingReviewCount > 0
+              ? "in_progress"
+              : "not_started",
           totalAnswered: attemptTotals.totalAnswered,
           correctCount: attemptTotals.correctCount,
           pendingReviewCount: attemptTotals.pendingReviewCount,
@@ -2949,11 +3039,12 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
 
       const existing = entryByStudent.get(student._id.toString());
       if (existing) {
-        const scale4 = existing.isManualEntry && existing.manualScore != null
-          ? existing.manualScore
-          : existing.effectiveScore != null
-            ? existing.effectiveScore
-            : percentageToScale4(existing.percentage);
+        const scale4 =
+          existing.isManualEntry && existing.manualScore != null
+            ? existing.manualScore
+            : existing.effectiveScore != null
+              ? existing.effectiveScore
+              : percentageToScale4(existing.percentage);
         return {
           student: student.toObject(),
           status: existing.status,
@@ -2966,7 +3057,8 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
           isManualEntry: existing.isManualEntry || false,
           submittedAt: existing.submittedAt || null,
           releasedAt: existing.releasedAt || null,
-          academicYear: existing.academicYear || assignment.academicYear || null,
+          academicYear:
+            existing.academicYear || assignment.academicYear || null,
           semester: existing.semester || assignment.semester || null,
           tabSwitchCount: existing.metadata?.tabSwitchCount || 0,
         };
@@ -2994,7 +3086,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         semester: assignment.semester || null,
         tabSwitchCount: 0,
       };
-    })
+    }),
   );
 
   const statusSummary = rows.reduce(
@@ -3005,21 +3097,23 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
       else acc.notStarted += 1;
       return acc;
     },
-    { released: 0, submitted: 0, inProgress: 0, notStarted: 0 }
+    { released: 0, submitted: 0, inProgress: 0, notStarted: 0 },
   );
 
   const gradedRows = rows.filter((row) => Number.isFinite(row.percentage));
-  const averagePercentage = gradedRows.length > 0
-    ? Number(
-        (
-          gradedRows.reduce((sum, row) => sum + Number(row.percentage || 0), 0) /
-          gradedRows.length
-        ).toFixed(2)
-      )
-    : 0;
-  const averageScale4 = gradedRows.length > 0
-    ? percentageToScale4(averagePercentage)
-    : 0;
+  const averagePercentage =
+    gradedRows.length > 0
+      ? Number(
+          (
+            gradedRows.reduce(
+              (sum, row) => sum + Number(row.percentage || 0),
+              0,
+            ) / gradedRows.length
+          ).toFixed(2),
+        )
+      : 0;
+  const averageScale4 =
+    gradedRows.length > 0 ? percentageToScale4(averagePercentage) : 0;
 
   res.json({
     success: true,
@@ -3032,7 +3126,8 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         subject: assignment.subject,
         assessmentConfig: getAssessmentConfig(assignment),
         practiceConfig: { sessionType: practiceConfig.sessionType },
-        academicYear: assignment.academicYear || assignment.class?.academicYear || null,
+        academicYear:
+          assignment.academicYear || assignment.class?.academicYear || null,
         semester: assignment.semester || null,
       },
       rows,
@@ -3067,7 +3162,7 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
   const teacherCanAccessClassSubject = await ensureTeacherCanAccessClassSubject(
     req,
     classId,
-    subjectId
+    subjectId,
   );
   if (!teacherCanAccessClassSubject) {
     return res.status(403).json({ success: false, message: "Not authorized" });
@@ -3080,7 +3175,11 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
     subject: subjectId,
     standard: standardId,
     "practiceConfig.sessionType": "assessment",
-    $or: [{ semester: effectiveSemester }, { semester: null }, { semester: { $exists: false } }],
+    $or: [
+      { semester: effectiveSemester },
+      { semester: null },
+      { semester: { $exists: false } },
+    ],
   })
     .select("_id title class subject standard academicYear semester")
     .lean();
@@ -3094,17 +3193,20 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
     .select("firstName lastName studentId")
     .lean();
 
-  const entries = assignmentIds.length > 0
-    ? await StandardsGradebookEntry.find({
-        school: req.schoolId,
-        assignment: { $in: assignmentIds },
-        class: classId,
-        subject: subjectId,
-        standard: standardId,
-      })
-        .select("student assignment percentage score maxScore status submittedAt releasedAt")
-        .lean()
-    : [];
+  const entries =
+    assignmentIds.length > 0
+      ? await StandardsGradebookEntry.find({
+          school: req.schoolId,
+          assignment: { $in: assignmentIds },
+          class: classId,
+          subject: subjectId,
+          standard: standardId,
+        })
+          .select(
+            "student assignment percentage score maxScore status submittedAt releasedAt",
+          )
+          .lean()
+      : [];
 
   const entriesByStudent = new Map();
   entries.forEach((entry) => {
@@ -3120,16 +3222,24 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
     const percentages = list
       .map((entry) => Number(entry.percentage))
       .filter((value) => Number.isFinite(value));
-    const averagePercentage = percentages.length > 0
-      ? Number((percentages.reduce((sum, value) => sum + value, 0) / percentages.length).toFixed(2))
-      : null;
+    const averagePercentage =
+      percentages.length > 0
+        ? Number(
+            (
+              percentages.reduce((sum, value) => sum + value, 0) /
+              percentages.length
+            ).toFixed(2),
+          )
+        : null;
 
     return {
       student,
       attemptCount: list.length,
       gradedAttemptCount: percentages.length,
       averagePercentage,
-      averageScale4: Number.isFinite(averagePercentage) ? percentageToScale4(averagePercentage) : null,
+      averageScale4: Number.isFinite(averagePercentage)
+        ? percentageToScale4(averagePercentage)
+        : null,
       attempts: list
         .map((entry) => ({
           assignmentId: entry.assignment,
@@ -3141,22 +3251,31 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
           releasedAt: entry.releasedAt || null,
         }))
         .sort((left, right) => {
-          const leftTime = left.submittedAt ? new Date(left.submittedAt).getTime() : 0;
-          const rightTime = right.submittedAt ? new Date(right.submittedAt).getTime() : 0;
+          const leftTime = left.submittedAt
+            ? new Date(left.submittedAt).getTime()
+            : 0;
+          const rightTime = right.submittedAt
+            ? new Date(right.submittedAt).getTime()
+            : 0;
           return rightTime - leftTime;
         }),
     };
   });
 
-  const gradedRows = rows.filter((row) => Number.isFinite(row.averagePercentage));
-  const classAveragePercentage = gradedRows.length > 0
-    ? Number(
-        (
-          gradedRows.reduce((sum, row) => sum + Number(row.averagePercentage || 0), 0) /
-          gradedRows.length
-        ).toFixed(2)
-      )
-    : 0;
+  const gradedRows = rows.filter((row) =>
+    Number.isFinite(row.averagePercentage),
+  );
+  const classAveragePercentage =
+    gradedRows.length > 0
+      ? Number(
+          (
+            gradedRows.reduce(
+              (sum, row) => sum + Number(row.averagePercentage || 0),
+              0,
+            ) / gradedRows.length
+          ).toFixed(2),
+        )
+      : 0;
 
   res.json({
     success: true,
@@ -3205,31 +3324,40 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   const limit = Math.min(parsePositiveInt(req.query?.limit, 25), 200);
   const normalizedSortOrder = normalizeSortOrder(sortOrder);
   const statusFilter = new Set(parseCommaList(status));
-  const searchTerm = String(search || "").trim().toLowerCase();
+  const searchTerm = String(search || "")
+    .trim()
+    .toLowerCase();
   const fromTime = toTimeOrNull(fromDate);
   const toTime = toTimeOrNull(toDate);
 
   // Read scoringMode for this school
-  const schoolDoc = await School.findById(req.schoolId).select('settings.standardsGradebook').lean();
-  const scoringMode = schoolDoc?.settings?.standardsGradebook?.scoringMode || 'average';
+  const schoolDoc = await School.findById(req.schoolId)
+    .select("settings.standardsGradebook")
+    .lean();
+  const scoringMode =
+    schoolDoc?.settings?.standardsGradebook?.scoringMode || "average";
 
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const effectiveSemester = resolveSemesterForRequest(req);
 
   const { classIds: yearClassIds } = await getYearScopedClassIds(
     req,
-    classId ? [classId] : null
+    classId ? [classId] : null,
   );
 
   let allowedClassIds = yearClassIds;
   if (req.user?.role === "teacher") {
     const teacher = await resolveTeacherProfile(req);
     if (!teacher) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     }
     const teacherClassIds = await getTeacherClassIds(teacher._id);
     const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
-    allowedClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+    allowedClassIds = yearClassIds.filter((id) =>
+      teacherClassSet.has(String(id)),
+    );
   }
 
   if (!allowedClassIds.length) {
@@ -3250,7 +3378,13 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
           averagePercentage: 0,
         },
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        filterOptions: {
+          classes: [],
+          subjects: [],
+          standards: [],
+          students: [],
+          statuses: [],
+        },
         academicYear: effectiveAcademicYear,
         semester: effectiveSemester,
       },
@@ -3273,7 +3407,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   if (sessionType) assignmentQuery["practiceConfig.sessionType"] = sessionType;
 
   const assignments = await StandardAssignment.find(assignmentQuery)
-    .select("_id title class subject standard assignedDate dueDate practiceConfig students")
+    .select(
+      "_id title class subject standard assignedDate dueDate practiceConfig students",
+    )
     .populate("class", "name grade section")
     .populate("subject", "name code")
     .populate("standard", "code name masteryThreshold masteryMinQuestions")
@@ -3297,7 +3433,13 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
           averagePercentage: 0,
         },
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        filterOptions: {
+          classes: [],
+          subjects: [],
+          standards: [],
+          students: [],
+          statuses: [],
+        },
         academicYear: effectiveAcademicYear,
         semester: effectiveSemester,
       },
@@ -3305,9 +3447,15 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   }
 
   const assignmentIds = assignments.map((assignment) => assignment._id);
-  const assignmentMap = new Map(assignments.map((assignment) => [String(assignment._id), assignment]));
+  const assignmentMap = new Map(
+    assignments.map((assignment) => [String(assignment._id), assignment]),
+  );
 
-  const classIdSet = new Set(assignments.map((assignment) => String(assignment.class?._id || assignment.class)).filter(Boolean));
+  const classIdSet = new Set(
+    assignments
+      .map((assignment) => String(assignment.class?._id || assignment.class))
+      .filter(Boolean),
+  );
   const generalClassIdSet = new Set();
   const targetedStudentIdSet = new Set();
 
@@ -3321,7 +3469,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
       return;
     }
 
-    const assignmentClassId = String(assignment.class?._id || assignment.class || "");
+    const assignmentClassId = String(
+      assignment.class?._id || assignment.class || "",
+    );
     if (assignmentClassId) generalClassIdSet.add(assignmentClassId);
   });
 
@@ -3333,7 +3483,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
 
   const studentOrFilters = [];
   if (generalClassIdSet.size > 0) {
-    studentOrFilters.push({ currentClass: { $in: Array.from(generalClassIdSet) } });
+    studentOrFilters.push({
+      currentClass: { $in: Array.from(generalClassIdSet) },
+    });
   }
   if (targetedStudentIdSet.size > 0) {
     studentOrFilters.push({ _id: { $in: Array.from(targetedStudentIdSet) } });
@@ -3350,7 +3502,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   const students = await Student.find(studentQuery)
     .select("_id firstName lastName studentId currentClass")
     .lean();
-  const studentMap = new Map(students.map((student) => [String(student._id), student]));
+  const studentMap = new Map(
+    students.map((student) => [String(student._id), student]),
+  );
 
   if (!students.length) {
     return res.json({
@@ -3370,7 +3524,13 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
           averagePercentage: 0,
         },
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        filterOptions: {
+          classes: [],
+          subjects: [],
+          standards: [],
+          students: [],
+          statuses: [],
+        },
         academicYear: effectiveAcademicYear,
         semester: effectiveSemester,
       },
@@ -3406,7 +3566,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   }
 
   const gradebookEntries = await StandardsGradebookEntry.find(entryQuery)
-    .select("student assignment status percentage submittedAt releasedAt updatedAt")
+    .select(
+      "student assignment status percentage submittedAt releasedAt updatedAt",
+    )
     .lean();
 
   const bucketMap = new Map();
@@ -3480,7 +3642,7 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
         student,
         assignment,
         classId: bucket.class._id,
-      })
+      }),
     );
     if (!assignedAssignments.length) return null;
 
@@ -3545,7 +3707,10 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
     row.totalAttempts += 1;
     if (attempt.isCorrect) row.correctCount += 1;
     const activityTime = toTimeOrNull(attempt.answeredAt || attempt.createdAt);
-    if (activityTime && (!row.lastActivityAt || activityTime > row.lastActivityAt)) {
+    if (
+      activityTime &&
+      (!row.lastActivityAt || activityTime > row.lastActivityAt)
+    ) {
       row.lastActivityAt = activityTime;
     }
   });
@@ -3577,10 +3742,19 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
     if (entry.status === "released") row.releasedCount += 1;
 
     if (Number.isFinite(Number(entry.percentage))) {
-      const existing = percentageTotalsByRow.get(row.rowKey) || { total: 0, count: 0, latestTime: 0, latestPercentage: null, maxPercentage: -Infinity };
+      const existing = percentageTotalsByRow.get(row.rowKey) || {
+        total: 0,
+        count: 0,
+        latestTime: 0,
+        latestPercentage: null,
+        maxPercentage: -Infinity,
+      };
       existing.total += Number(entry.percentage);
       existing.count += 1;
-      const entryTime = toTimeOrNull(entry.releasedAt || entry.submittedAt || entry.updatedAt) || 0;
+      const entryTime =
+        toTimeOrNull(
+          entry.releasedAt || entry.submittedAt || entry.updatedAt,
+        ) || 0;
       if (entryTime > (existing.latestTime || 0)) {
         existing.latestTime = entryTime;
         existing.latestPercentage = Number(entry.percentage);
@@ -3591,8 +3765,13 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
       percentageTotalsByRow.set(row.rowKey, existing);
     }
 
-    const activityTime = toTimeOrNull(entry.releasedAt || entry.submittedAt || entry.updatedAt);
-    if (activityTime && (!row.lastActivityAt || activityTime > row.lastActivityAt)) {
+    const activityTime = toTimeOrNull(
+      entry.releasedAt || entry.submittedAt || entry.updatedAt,
+    );
+    if (
+      activityTime &&
+      (!row.lastActivityAt || activityTime > row.lastActivityAt)
+    ) {
       row.lastActivityAt = activityTime;
     }
   });
@@ -3606,12 +3785,21 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
     const percentageStats = percentageTotalsByRow.get(row.rowKey);
     let averagePercentage = null;
     if (percentageStats && percentageStats.count > 0) {
-      if (scoringMode === 'latest') {
-        averagePercentage = percentageStats.latestPercentage ?? Number((percentageStats.total / percentageStats.count).toFixed(2));
-      } else if (scoringMode === 'highest') {
-        averagePercentage = percentageStats.maxPercentage !== -Infinity ? percentageStats.maxPercentage : Number((percentageStats.total / percentageStats.count).toFixed(2));
+      if (scoringMode === "latest") {
+        averagePercentage =
+          percentageStats.latestPercentage ??
+          Number((percentageStats.total / percentageStats.count).toFixed(2));
+      } else if (scoringMode === "highest") {
+        averagePercentage =
+          percentageStats.maxPercentage !== -Infinity
+            ? percentageStats.maxPercentage
+            : Number(
+                (percentageStats.total / percentageStats.count).toFixed(2),
+              );
       } else {
-        averagePercentage = Number((percentageStats.total / percentageStats.count).toFixed(2));
+        averagePercentage = Number(
+          (percentageStats.total / percentageStats.count).toFixed(2),
+        );
       }
     }
 
@@ -3628,13 +3816,17 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
       ...row,
       masteryPercentage,
       averagePercentage,
-      lastActivityAt: row.lastActivityAt ? new Date(row.lastActivityAt).toISOString() : null,
+      lastActivityAt: row.lastActivityAt
+        ? new Date(row.lastActivityAt).toISOString()
+        : null,
       status: statusValue,
     };
   });
 
   if (statusFilter.size > 0) {
-    rows = rows.filter((row) => statusFilter.has(String(row.status || "").toLowerCase()));
+    rows = rows.filter((row) =>
+      statusFilter.has(String(row.status || "").toLowerCase()),
+    );
   }
 
   if (searchTerm) {
@@ -3684,14 +3876,16 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
       masterySum: 0,
       percentageSum: 0,
       percentageCount: 0,
-    }
+    },
   );
 
   const sortReaders = {
-    student: (row) => `${row.student.firstName} ${row.student.lastName}`.trim().toLowerCase(),
+    student: (row) =>
+      `${row.student.firstName} ${row.student.lastName}`.trim().toLowerCase(),
     class: (row) => String(row.class.name || "").toLowerCase(),
     subject: (row) => String(row.subject.name || "").toLowerCase(),
-    standard: (row) => String(row.standard.code || row.standard.name || "").toLowerCase(),
+    standard: (row) =>
+      String(row.standard.code || row.standard.name || "").toLowerCase(),
     status: (row) => String(row.status || "").toLowerCase(),
     masteryPercentage: (row) => Number(row.masteryPercentage || 0),
     averagePercentage: (row) => Number(row.averagePercentage || -1),
@@ -3744,7 +3938,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
             : 0,
         averagePercentage:
           summary.percentageCount > 0
-            ? Number((summary.percentageSum / summary.percentageCount).toFixed(2))
+            ? Number(
+                (summary.percentageSum / summary.percentageCount).toFixed(2),
+              )
             : 0,
       },
       pagination: {
@@ -3791,8 +3987,9 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
  */
 export const releaseAssessmentResults = asyncHandler(async (req, res) => {
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
-  const assignment = await StandardAssignment.findById(req.params.assignmentId)
-    .populate("class", "academicYear");
+  const assignment = await StandardAssignment.findById(
+    req.params.assignmentId,
+  ).populate("class", "academicYear");
 
   if (!assignment) {
     return res
@@ -3807,7 +4004,7 @@ export const releaseAssessmentResults = asyncHandler(async (req, res) => {
   }
   const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
     req,
-    assignment
+    assignment,
   );
   if (!teacherCanAccessAssignment) {
     return res.status(403).json({ success: false, message: "Not authorized" });
@@ -3829,7 +4026,7 @@ export const releaseAssessmentResults = asyncHandler(async (req, res) => {
     },
     {
       $set: { status: "released", releasedAt: now },
-    }
+    },
   );
 
   if (assignment.assessmentConfig?.resultsVisibility !== "immediate") {
@@ -3886,9 +4083,7 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Student profile not found" });
   }
 
-  const assignment = await StandardAssignment.findById(
-    parsed.data.assignmentId
-  )
+  const assignment = await StandardAssignment.findById(parsed.data.assignmentId)
     .populate("standard")
     .populate("class", "academicYear");
 
@@ -3977,7 +4172,7 @@ export const getIntegrityByAssignment = asyncHandler(async (req, res) => {
   }
   const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
     req,
-    assignment
+    assignment,
   );
   if (!teacherCanAccessAssignment) {
     return res.status(403).json({ success: false, message: "Not authorized" });
@@ -4070,7 +4265,7 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
     await getYearScopedClassIds(req);
 
   const student = await Student.findById(studentId).select(
-    "firstName lastName studentId currentClass"
+    "firstName lastName studentId currentClass",
   );
   if (!student) {
     return res
@@ -4080,10 +4275,12 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
   if (req.user?.role === "teacher") {
     const teacherCanAccess = await ensureTeacherCanAccessClass(
       req,
-      student.currentClass
+      student.currentClass,
     );
     if (!teacherCanAccess) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     }
   }
 
@@ -4098,7 +4295,7 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
   if (assignmentId) {
     const assignment = await StandardAssignment.findById(assignmentId).populate(
       "class",
-      "academicYear"
+      "academicYear",
     );
     if (!assignment) {
       return res
@@ -4113,10 +4310,12 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
     }
     const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
       req,
-      assignment
+      assignment,
     );
     if (!teacherCanAccessAssignment) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     }
     scopedAssignmentIds = [assignment._id];
   } else {
@@ -4193,28 +4392,64 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const updateManualScore = asyncHandler(async (req, res) => {
-  const { studentId, standardId, classId, subjectId, score, semester, academicYear } = req.body || {};
+  const {
+    studentId,
+    standardId,
+    classId,
+    subjectId,
+    score,
+    semester,
+    academicYear,
+  } = req.body || {};
 
   if (!studentId || !standardId || !classId || !subjectId) {
-    return res.status(400).json({ success: false, message: "studentId, standardId, classId and subjectId are required." });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "studentId, standardId, classId and subjectId are required.",
+      });
   }
   if (!isValidManualScore(score)) {
-    return res.status(400).json({ success: false, message: "score must be a number between 0 and 4, or null to clear." });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "score must be a number between 0 and 4, or null to clear.",
+      });
   }
 
-  const effectiveAcademicYear = academicYear || resolveAcademicYearForRequest(req);
-  const effectiveSemester = semester != null ? Number(semester) : resolveSemesterForRequest(req);
+  const effectiveAcademicYear =
+    academicYear || resolveAcademicYearForRequest(req);
+  const effectiveSemester =
+    semester != null ? Number(semester) : resolveSemesterForRequest(req);
 
   if (req.user?.role === "teacher") {
-    const authorized = await ensureTeacherCanAccessClassSubject(req, classId, subjectId);
+    const authorized = await ensureTeacherCanAccessClassSubject(
+      req,
+      classId,
+      subjectId,
+    );
     if (!authorized) {
-      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized for this class/subject.",
+        });
     }
   }
 
-  const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select("_id").lean();
+  const student = await Student.findOne({
+    _id: studentId,
+    school: req.schoolId,
+  })
+    .select("_id")
+    .lean();
   if (!student) {
-    return res.status(404).json({ success: false, message: "Student not found." });
+    return res
+      .status(404)
+      .json({ success: false, message: "Student not found." });
   }
 
   const filter = {
@@ -4239,7 +4474,10 @@ export const updateManualScore = asyncHandler(async (req, res) => {
       entry.effectiveScore = percentageToScale4(entry.percentage);
       await entry.save();
     }
-    return res.json({ success: true, data: { entry: entry || null, cleared: true } });
+    return res.json({
+      success: true,
+      data: { entry: entry || null, cleared: true },
+    });
   }
 
   if (!entry) {
@@ -4252,7 +4490,9 @@ export const updateManualScore = asyncHandler(async (req, res) => {
       subject: subjectId,
       standard: standardId,
       isActive: true,
-    }).select("_id").lean();
+    })
+      .select("_id")
+      .lean();
     if (existingAssignment) assignmentId = existingAssignment._id;
 
     if (!assignmentId) {
@@ -4314,7 +4554,9 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
   const { isCorrect, reason } = req.body || {};
 
   if (typeof isCorrect !== "boolean") {
-    return res.status(400).json({ success: false, message: "isCorrect (boolean) is required." });
+    return res
+      .status(400)
+      .json({ success: false, message: "isCorrect (boolean) is required." });
   }
 
   const attempt = await PracticeAttempt.findOne({
@@ -4322,7 +4564,9 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
     school: req.schoolId,
   });
   if (!attempt) {
-    return res.status(404).json({ success: false, message: "Attempt not found." });
+    return res
+      .status(404)
+      .json({ success: false, message: "Attempt not found." });
   }
 
   // Authorization: teachers can only override their own class/subject attempts
@@ -4337,14 +4581,20 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
         String(assignment.subject),
       );
       if (!authorized) {
-        return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not authorized for this class/subject.",
+          });
       }
     }
   }
 
-  const previousIsCorrect = attempt.teacherOverride?.isCorrect != null
-    ? attempt.teacherOverride.isCorrect
-    : attempt.isCorrect;
+  const previousIsCorrect =
+    attempt.teacherOverride?.isCorrect != null
+      ? attempt.teacherOverride.isCorrect
+      : attempt.isCorrect;
 
   attempt.teacherOverride = {
     isCorrect,
@@ -4402,16 +4652,28 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
 export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
   const { studentId, assignmentId } = req.params;
 
-  const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select("firstName lastName studentId").lean();
+  const student = await Student.findOne({
+    _id: studentId,
+    school: req.schoolId,
+  })
+    .select("firstName lastName studentId")
+    .lean();
   if (!student) {
-    return res.status(404).json({ success: false, message: "Student not found." });
+    return res
+      .status(404)
+      .json({ success: false, message: "Student not found." });
   }
 
-  const assignment = await StandardAssignment.findOne({ _id: assignmentId, school: req.schoolId })
+  const assignment = await StandardAssignment.findOne({
+    _id: assignmentId,
+    school: req.schoolId,
+  })
     .select("class subject standard title")
     .lean();
   if (!assignment) {
-    return res.status(404).json({ success: false, message: "Assignment not found." });
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found." });
   }
 
   if (req.user?.role === "teacher") {
@@ -4421,7 +4683,12 @@ export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
       String(assignment.subject),
     );
     if (!authorized) {
-      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized for this class/subject.",
+        });
     }
   }
 
@@ -4431,7 +4698,9 @@ export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
     assignment: assignmentId,
     status: { $in: ["answered", "pending_review"] },
   })
-    .select("questionText questionType options correctAnswer studentAnswer isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode")
+    .select(
+      "questionText questionType options matchingPairs orderingItems blanks numericRule correctAnswer studentAnswer studentResponse isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode",
+    )
     .sort({ attemptNumber: 1 })
     .lean();
 
@@ -4442,10 +4711,200 @@ export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
       assignment,
       attempts: attempts.map((a) => ({
         ...a,
-        effectiveIsCorrect: a.teacherOverride?.isCorrect != null ? a.teacherOverride.isCorrect : a.isCorrect,
+        effectiveIsCorrect:
+          a.teacherOverride?.isCorrect != null
+            ? a.teacherOverride.isCorrect
+            : a.isCorrect,
       })),
     },
   });
+});
+
+/**
+ * The printed result sheet is one server-rendered A4 document, so the school, the teacher, the
+ * answer key and the colours on the paper are the same words the teacher reads on screen.
+ * @route   GET /api/practice/assessment/:assignmentId/student/:studentId/result-report
+ * @access  Private (Admin, Teacher, Department Principal)
+ */
+export const getStudentResultReport = asyncHandler(async (req, res) => {
+  const { studentId, assignmentId } = req.params;
+  const language = req.query.lang === "ar" ? "ar" : "en";
+
+  const student = await Student.findOne({
+    _id: studentId,
+    school: req.schoolId,
+  })
+    .select("firstName lastName studentId")
+    .lean();
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Student not found." });
+  }
+
+  const assignment = await StandardAssignment.findOne({
+    _id: assignmentId,
+    school: req.schoolId,
+  })
+    .populate("standard", "code name")
+    .populate("class", "name grade section academicYear")
+    .populate("subject", "name code")
+    .populate("school", "name")
+    .populate({
+      path: "teacher",
+      select: "employeeId",
+      populate: { path: "user", select: "firstName lastName" },
+    })
+    .lean();
+  if (!assignment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found." });
+  }
+
+  if (req.user?.role === "teacher") {
+    const authorized = await ensureTeacherCanAccessClassSubject(
+      req,
+      String(assignment.class?._id || assignment.class),
+      String(assignment.subject?._id || assignment.subject),
+    );
+    if (!authorized) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized for this class/subject.",
+        });
+    }
+  }
+
+  const attempts = await PracticeAttempt.find({
+    school: req.schoolId,
+    student: studentId,
+    assignment: assignmentId,
+    status: { $in: ["answered", "pending_review"] },
+  })
+    .select(
+      "questionText questionType options matchingPairs orderingItems blanks numericRule correctAnswer studentAnswer studentResponse isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode",
+    )
+    .sort({ attemptNumber: 1 })
+    .lean();
+
+  const isAssessment =
+    getAssignmentPracticeConfig(assignment).sessionType === "assessment";
+
+  let result;
+  if (isAssessment) {
+    const entry = await StandardsGradebookEntry.findOne({
+      school: req.schoolId,
+      assignment: assignmentId,
+      student: studentId,
+    })
+      .select(
+        "status totalAnswered correctCount score maxScore percentage effectiveScore manualScore isManualEntry",
+      )
+      .lean();
+
+    if (entry) {
+      result = {
+        status: entry.status,
+        totalAnswered: entry.totalAnswered,
+        correctCount: entry.correctCount,
+        score: entry.score,
+        maxScore: entry.maxScore,
+        percentage: entry.percentage,
+        scale4:
+          entry.isManualEntry && entry.manualScore != null
+            ? entry.manualScore
+            : entry.effectiveScore != null
+              ? entry.effectiveScore
+              : percentageToScale4(entry.percentage),
+      };
+    } else {
+      const answeredCount = await PracticeAttempt.countDocuments({
+        school: req.schoolId,
+        student: studentId,
+        assignment: assignmentId,
+        status: "answered",
+        sessionType: "assessment",
+      });
+      result = {
+        status: answeredCount > 0 ? "in_progress" : "not_started",
+        totalAnswered: answeredCount,
+        correctCount: null,
+        score: null,
+        maxScore: null,
+        percentage: null,
+        scale4: null,
+      };
+    }
+  } else {
+    // Practice sessions have no gradebook row, so the sheet counts the same override-aware attempts the table does.
+    const graded = attempts.filter((attempt) => attempt.status !== "pending_review");
+    const correctCount = graded.filter(
+      (attempt) =>
+        (attempt.teacherOverride?.isCorrect != null
+          ? attempt.teacherOverride.isCorrect
+          : attempt.isCorrect) === true,
+    ).length;
+    result = {
+      status:
+        graded.length > 0 || graded.length < attempts.length
+          ? "in_progress"
+          : "not_started",
+      totalAnswered: graded.length,
+      correctCount,
+      score: correctCount,
+      maxScore: graded.length,
+      percentage:
+        graded.length > 0
+          ? Number(((correctCount / graded.length) * 100).toFixed(2))
+          : null,
+      scale4: null,
+    };
+  }
+
+  const dateLocale = language === "ar" ? "ar-EG-u-nu-latn" : "en-GB";
+  const now = new Date();
+
+  const html = renderStudentResultReportHtml({
+    language,
+    report: {
+      kind: isAssessment ? "assessment" : "practice",
+      schoolName: assignment.school?.name,
+      teacherName: [
+        assignment.teacher?.user?.firstName,
+        assignment.teacher?.user?.lastName,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      assignmentTitle:
+        assignment.title || assignment.standard?.name || assignment.standard?.code,
+      className: assignment.class?.name,
+      subjectName: assignment.subject?.name,
+      standardLabel: [assignment.standard?.code, assignment.standard?.name]
+        .filter(Boolean)
+        .join(" - "),
+      academicYear: assignment.academicYear || assignment.class?.academicYear,
+      semester: assignment.semester,
+      studentName:
+        `${student.firstName || ""} ${student.lastName || ""}`.trim() || null,
+      studentNumber: student.studentId,
+      generatedAt: new Intl.DateTimeFormat(dateLocale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(now),
+      generatedDate: new Intl.DateTimeFormat(dateLocale, {
+        dateStyle: "medium",
+      }).format(now),
+      ...result,
+      attempts,
+    },
+  });
+
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.set("Cache-Control", "private, no-store");
+  return res.status(200).send(html);
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -4461,30 +4920,58 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
   const { classId, subjectId, semester, academicYear, scores } = req.body || {};
 
   if (!classId || !subjectId || !Array.isArray(scores) || scores.length === 0) {
-    return res.status(400).json({ success: false, message: "classId, subjectId and scores[] are required." });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "classId, subjectId and scores[] are required.",
+      });
   }
   if (scores.length > 500) {
-    return res.status(400).json({ success: false, message: "Maximum 500 scores per batch." });
+    return res
+      .status(400)
+      .json({ success: false, message: "Maximum 500 scores per batch." });
   }
 
   for (const item of scores) {
     if (!item.studentId || !item.standardId) {
-      return res.status(400).json({ success: false, message: "Each score must have studentId and standardId." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Each score must have studentId and standardId.",
+        });
     }
     if (!isValidManualScore(item.score)) {
-      return res.status(400).json({ success: false, message: `Invalid score value: ${item.score}. Must be between 0 and 4 or null.` });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: `Invalid score value: ${item.score}. Must be between 0 and 4 or null.`,
+        });
     }
   }
 
   if (req.user?.role === "teacher") {
-    const authorized = await ensureTeacherCanAccessClassSubject(req, classId, subjectId);
+    const authorized = await ensureTeacherCanAccessClassSubject(
+      req,
+      classId,
+      subjectId,
+    );
     if (!authorized) {
-      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized for this class/subject.",
+        });
     }
   }
 
-  const effectiveAcademicYear = academicYear || resolveAcademicYearForRequest(req);
-  const effectiveSemester = semester != null ? Number(semester) : resolveSemesterForRequest(req);
+  const effectiveAcademicYear =
+    academicYear || resolveAcademicYearForRequest(req);
+  const effectiveSemester =
+    semester != null ? Number(semester) : resolveSemesterForRequest(req);
 
   const results = { updated: 0, created: 0, cleared: 0, errors: [] };
 
@@ -4518,27 +5005,48 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
       if (!entry) {
         let assignmentId = null;
         const existing = await StandardAssignment.findOne({
-          school: req.schoolId, class: classId, subject: subjectId, standard: standardId, isActive: true,
-        }).select("_id").lean();
+          school: req.schoolId,
+          class: classId,
+          subject: subjectId,
+          standard: standardId,
+          isActive: true,
+        })
+          .select("_id")
+          .lean();
 
         if (existing) {
           assignmentId = existing._id;
         } else {
           const newAssignment = await StandardAssignment.create({
-            school: req.schoolId, class: classId, subject: subjectId, standard: standardId,
-            title: "Manual Assessment", createdBy: req.user?._id, isActive: true,
-            academicYear: effectiveAcademicYear, semester: effectiveSemester || null,
+            school: req.schoolId,
+            class: classId,
+            subject: subjectId,
+            standard: standardId,
+            title: "Manual Assessment",
+            createdBy: req.user?._id,
+            isActive: true,
+            academicYear: effectiveAcademicYear,
+            semester: effectiveSemester || null,
             practiceConfig: { sessionType: "assessment" },
           });
           assignmentId = newAssignment._id;
         }
 
         await StandardsGradebookEntry.create({
-          school: req.schoolId, assignment: assignmentId, student: studentId, standard: standardId,
-          class: classId, subject: subjectId, academicYear: effectiveAcademicYear,
-          semester: effectiveSemester || null, status: "released",
-          manualScore: score, isManualEntry: true, manualEnteredBy: req.user?._id,
-          manualEnteredAt: new Date(), effectiveScore: score,
+          school: req.schoolId,
+          assignment: assignmentId,
+          student: studentId,
+          standard: standardId,
+          class: classId,
+          subject: subjectId,
+          academicYear: effectiveAcademicYear,
+          semester: effectiveSemester || null,
+          status: "released",
+          manualScore: score,
+          isManualEntry: true,
+          manualEnteredBy: req.user?._id,
+          manualEnteredAt: new Date(),
+          effectiveScore: score,
         });
         results.created += 1;
       } else {
@@ -4573,8 +5081,11 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const limit = Math.min(parsePositiveInt(req.query?.limit, 50), 200);
 
   // Read scoringMode from school settings
-  const schoolDoc = await School.findById(req.schoolId).select('settings.standardsGradebook').lean();
-  const scoringMode = schoolDoc?.settings?.standardsGradebook?.scoringMode || 'average';
+  const schoolDoc = await School.findById(req.schoolId)
+    .select("settings.standardsGradebook")
+    .lean();
+  const scoringMode =
+    schoolDoc?.settings?.standardsGradebook?.scoringMode || "average";
 
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const effectiveSemester = resolveSemesterForRequest(req);
@@ -4585,10 +5096,15 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   let teacherScopedSubjectIds = null;
   if (req.user?.role === "teacher") {
     teacherProfile = await resolveTeacherProfile(req);
-    if (!teacherProfile) return res.status(403).json({ success: false, message: "Not authorized" });
+    if (!teacherProfile)
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     const teacherClassIds = await getTeacherClassIds(teacherProfile._id);
     const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
-    availableClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+    availableClassIds = yearClassIds.filter((id) =>
+      teacherClassSet.has(String(id)),
+    );
 
     const [teacherAssignments, teacherClasses] = await Promise.all([
       getTeacherAssignments(teacherProfile._id),
@@ -4596,12 +5112,14 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
         m.default
           .find({ _id: { $in: availableClassIds } })
           .select("_id classTeacher subjects.teacher subjects.subject")
-          .lean()
+          .lean(),
       ),
     ]);
 
     const scopedSubjectSet = new Set();
-    const allowedClassIdSet = new Set(availableClassIds.map((id) => String(id)));
+    const allowedClassIdSet = new Set(
+      availableClassIds.map((id) => String(id)),
+    );
 
     teacherAssignments.forEach((assignment) => {
       const classKey = String(assignment?.classId || "");
@@ -4612,11 +5130,15 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     });
 
     teacherClasses.forEach((classDoc) => {
-      const isClassTeacher = String(classDoc?.classTeacher || "") === String(teacherProfile._id);
+      const isClassTeacher =
+        String(classDoc?.classTeacher || "") === String(teacherProfile._id);
       (classDoc?.subjects || []).forEach((subjectRow) => {
         const subjectKey = String(subjectRow?.subject || "");
         if (!subjectKey) return;
-        if (isClassTeacher || String(subjectRow?.teacher || "") === String(teacherProfile._id)) {
+        if (
+          isClassTeacher ||
+          String(subjectRow?.teacher || "") === String(teacherProfile._id)
+        ) {
           scopedSubjectSet.add(subjectKey);
         }
       });
@@ -4626,7 +5148,10 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   }
 
   const allClasses = await import("../models/Class.js").then((m) =>
-    m.default.find({ _id: { $in: availableClassIds } }).select("_id name grade section").lean()
+    m.default
+      .find({ _id: { $in: availableClassIds } })
+      .select("_id name grade section")
+      .lean(),
   );
   const allSubjects = await import("../models/Subject.js").then((m) => {
     const subjectQuery = { school: req.schoolId };
@@ -4640,31 +5165,55 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     return res.json({
       success: true,
       data: {
-        standards: [], students: [], matrix: {}, classAverage: {},
+        standards: [],
+        students: [],
+        matrix: {},
+        classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
-        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+        filterOptions: {
+          classes: allClasses,
+          subjects: allSubjects,
+          standards: [],
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
       },
     });
   }
 
-  const allowedClassIds = availableClassIds.filter((id) => String(id) === String(classId));
+  const allowedClassIds = availableClassIds.filter(
+    (id) => String(id) === String(classId),
+  );
 
   if (!allowedClassIds.length) {
     return res.json({
       success: true,
       data: {
-        standards: [], students: [], matrix: {}, classAverage: {},
+        standards: [],
+        students: [],
+        matrix: {},
+        classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
-        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+        filterOptions: {
+          classes: allClasses,
+          subjects: allSubjects,
+          standards: [],
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
       },
     });
   }
 
   // Fetch assignments for this class + subject
   const semesterCondition = effectiveSemester
-    ? { $or: [{ semester: effectiveSemester }, { semester: null }, { semester: { $exists: false } }] }
+    ? {
+        $or: [
+          { semester: effectiveSemester },
+          { semester: null },
+          { semester: { $exists: false } },
+        ],
+      }
     : {};
 
   const assignmentQuery = {
@@ -4678,7 +5227,10 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
 
   const assignments = await StandardAssignment.find(assignmentQuery)
     .select("_id class subject standard students practiceConfig")
-    .populate("standard", "code name description category masteryThreshold masteryMinQuestions")
+    .populate(
+      "standard",
+      "code name description category masteryThreshold masteryMinQuestions",
+    )
     .lean();
 
   const assignmentIds = assignments.map((a) => a._id);
@@ -4719,7 +5271,8 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       });
     } else {
       const existing = standardsMap.get(dedupeKey);
-      if (!existing.description && std.description) existing.description = std.description;
+      if (!existing.description && std.description)
+        existing.description = std.description;
       if (!existing.name && std.name) existing.name = std.name;
       if (!existing.code && std.code) existing.code = std.code;
     }
@@ -4728,24 +5281,35 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     standardIdToColumnId.set(stdId, String(canonicalColumn._id));
   });
 
-  const assignmentStandardIds = [...new Set(assignments
-    .map((a) => a?.standard?._id)
-    .filter(Boolean)
-    .map((id) => String(id))
-  )];
+  const assignmentStandardIds = [
+    ...new Set(
+      assignments
+        .map((a) => a?.standard?._id)
+        .filter(Boolean)
+        .map((id) => String(id)),
+    ),
+  ];
 
   const standards = [...standardsMap.values()].sort((a, b) =>
-    (a.code || a.name).localeCompare(b.code || b.name)
+    (a.code || a.name).localeCompare(b.code || b.name),
   );
 
   if (!standards.length) {
     return res.json({
       success: true,
       data: {
-        standards: [], students: [], matrix: {}, classAverage: {},
+        standards: [],
+        students: [],
+        matrix: {},
+        classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
-        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+        filterOptions: {
+          classes: allClasses,
+          subjects: allSubjects,
+          standards: [],
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
       },
     });
   }
@@ -4770,10 +5334,13 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   });
 
   // Search filter
-  const searchTerm = String(search || "").trim().toLowerCase();
+  const searchTerm = String(search || "")
+    .trim()
+    .toLowerCase();
   if (searchTerm) {
     students = students.filter((s) => {
-      const hay = `${s.firstName || ""} ${s.middleName || ""} ${s.lastName || ""} ${s.studentId || ""}`.toLowerCase();
+      const hay =
+        `${s.firstName || ""} ${s.middleName || ""} ${s.lastName || ""} ${s.studentId || ""}`.toLowerCase();
       return hay.includes(searchTerm);
     });
   }
@@ -4784,7 +5351,10 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   // Paginate students
   const totalStudents = students.length;
   const totalPages = totalStudents > 0 ? Math.ceil(totalStudents / limit) : 0;
-  const pagedStudents = students.slice((page - 1) * limit, (page - 1) * limit + limit);
+  const pagedStudents = students.slice(
+    (page - 1) * limit,
+    (page - 1) * limit + limit,
+  );
   const studentIds = pagedStudents.map((s) => s._id);
 
   // Fetch gradebook entries for all students × standards in scope
@@ -4803,7 +5373,9 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   }
 
   const entries = await StandardsGradebookEntry.find(entryFilter)
-    .select("student standard percentage manualScore isManualEntry effectiveScore status updatedAt")
+    .select(
+      "student standard percentage manualScore isManualEntry effectiveScore status updatedAt",
+    )
     .lean();
 
   // Build matrix
@@ -4815,7 +5387,12 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     const sid = String(student._id);
     matrix[sid] = {};
     for (const std of standards) {
-      matrix[sid][String(std._id)] = { effectiveScore: null, isManual: false, percentage: null, hasAutoAssessment: false };
+      matrix[sid][String(std._id)] = {
+        effectiveScore: null,
+        isManual: false,
+        percentage: null,
+        hasAutoAssessment: false,
+      };
     }
   }
 
@@ -4826,7 +5403,9 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     const stdId = standardIdToColumnId.get(rawStdId) || rawStdId;
     if (!matrix[sid] || !matrix[sid][stdId]) continue;
 
-    const percentage = Number.isFinite(entry.percentage) ? Number(entry.percentage) : null;
+    const percentage = Number.isFinite(entry.percentage)
+      ? Number(entry.percentage)
+      : null;
     const isManual = Boolean(entry.isManualEntry);
     let effectiveScore = entry.effectiveScore;
 
@@ -4878,19 +5457,24 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
 
   for (const agg of studentStandardAgg.values()) {
     let finalScore;
-    if (scoringMode === 'latest') {
-      finalScore = agg.latestScore ?? Number((agg.scoreSum / agg.scoreCount).toFixed(2));
-    } else if (scoringMode === 'highest') {
-      finalScore = agg.maxScore !== -Infinity ? agg.maxScore : Number((agg.scoreSum / agg.scoreCount).toFixed(2));
+    if (scoringMode === "latest") {
+      finalScore =
+        agg.latestScore ?? Number((agg.scoreSum / agg.scoreCount).toFixed(2));
+    } else if (scoringMode === "highest") {
+      finalScore =
+        agg.maxScore !== -Infinity
+          ? agg.maxScore
+          : Number((agg.scoreSum / agg.scoreCount).toFixed(2));
     } else {
       finalScore = Number((agg.scoreSum / agg.scoreCount).toFixed(2));
     }
     matrix[agg.sid][agg.stdId] = {
       effectiveScore: finalScore,
       isManual: agg.manualCount > 0,
-      percentage: agg.percentageCount > 0
-        ? Number((agg.percentageSum / agg.percentageCount).toFixed(2))
-        : null,
+      percentage:
+        agg.percentageCount > 0
+          ? Number((agg.percentageSum / agg.percentageCount).toFixed(2))
+          : null,
       hasAutoAssessment: agg.percentageCount > 0,
     };
   }
@@ -4900,7 +5484,11 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const allEntries = await StandardsGradebookEntry.find({
     ...entryFilter,
     student: { $in: allStudentObjectIds },
-  }).select("student standard percentage manualScore isManualEntry effectiveScore updatedAt").lean();
+  })
+    .select(
+      "student standard percentage manualScore isManualEntry effectiveScore updatedAt",
+    )
+    .lean();
 
   const allStudentStandardAgg = new Map();
   for (const entry of allEntries) {
@@ -4926,7 +5514,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
         scoreCount: 0,
         latestTime: 0,
         latestScore: null,
-        maxScore: -Infinity
+        maxScore: -Infinity,
       });
     }
     const agg = allStudentStandardAgg.get(key);
@@ -4944,22 +5532,29 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
 
   for (const agg of allStudentStandardAgg.values()) {
     let perStudentScore;
-    if (scoringMode === 'latest') {
+    if (scoringMode === "latest") {
       perStudentScore = agg.latestScore ?? agg.scoreSum / agg.scoreCount;
-    } else if (scoringMode === 'highest') {
-      perStudentScore = agg.maxScore !== -Infinity ? agg.maxScore : agg.scoreSum / agg.scoreCount;
+    } else if (scoringMode === "highest") {
+      perStudentScore =
+        agg.maxScore !== -Infinity
+          ? agg.maxScore
+          : agg.scoreSum / agg.scoreCount;
     } else {
       perStudentScore = agg.scoreSum / agg.scoreCount;
     }
-    scoreSumByStandard[agg.stdId] = (scoreSumByStandard[agg.stdId] || 0) + perStudentScore;
-    scoreCountByStandard[agg.stdId] = (scoreCountByStandard[agg.stdId] || 0) + 1;
+    scoreSumByStandard[agg.stdId] =
+      (scoreSumByStandard[agg.stdId] || 0) + perStudentScore;
+    scoreCountByStandard[agg.stdId] =
+      (scoreCountByStandard[agg.stdId] || 0) + 1;
   }
 
   const classAverage = {};
   for (const std of standards) {
     const key = String(std._id);
     if (scoreCountByStandard[key] > 0) {
-      classAverage[key] = Number((scoreSumByStandard[key] / scoreCountByStandard[key]).toFixed(2));
+      classAverage[key] = Number(
+        (scoreSumByStandard[key] / scoreCountByStandard[key]).toFixed(2),
+      );
     }
   }
 
@@ -4972,7 +5567,9 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
         firstName: s.firstName || "",
         middleName: s.middleName || "",
         lastName: s.lastName || "",
-        fullName: [s.firstName, s.middleName, s.lastName].filter(Boolean).join(" "),
+        fullName: [s.firstName, s.middleName, s.lastName]
+          .filter(Boolean)
+          .join(" "),
         studentId: s.studentId || "",
       })),
       matrix,

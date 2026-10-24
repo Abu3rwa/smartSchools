@@ -296,8 +296,7 @@
 }
 .live-edit-lesson,
 .live-delete-lesson,
-.live-delete-slide,
-.live-remove-option {
+.live-delete-slide {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -328,8 +327,7 @@
   color: #105f5d;
 }
 .live-delete-lesson:hover,
-.live-delete-slide:hover,
-.live-remove-option:hover {
+.live-delete-slide:hover {
   color: #813b43;
 }
 .live-slide-edit-actions {
@@ -337,28 +335,12 @@
   flex-wrap: wrap;
   gap: 0.4rem;
 }
-.live-delete-slide,
-.live-remove-option {
+.live-delete-slide {
   color: #9b5860;
 }
 .live-delete-slide:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-.live-option-editor {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-}
-.live-option-editor .live-edit-field {
-  flex: 1;
-}
-.live-remove-option {
-  margin-top: 1.25rem;
-}
-.live-add-option {
-  justify-self: start;
-  margin: -0.35rem 0 0.45rem;
 }
 .live-session-list {
   display: grid;
@@ -1088,6 +1070,20 @@
   color: #617284;
   line-height: 1.5;
 }
+.live-preview-pairs {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
+  color: #617284;
+  font-size: 0.9rem;
+}
+.live-preview-levels {
+  margin-top: 0.6rem;
+  color: #116e59;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 .live-preview-status {
   margin: 1.5rem;
   color: #617284;
@@ -1319,11 +1315,6 @@
   border-radius: 12px;
   background: #fff;
 }
-.live-preview-question-editor {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
 .live-preview-note {
   margin-top: 0.7rem;
   color: #75838d;
@@ -1363,9 +1354,6 @@
     justify-content: flex-start;
   }
   .live-preview-workspace {
-    grid-template-columns: 1fr;
-  }
-  .live-preview-question-editor {
     grid-template-columns: 1fr;
   }
   .live-lesson-metadata-fields {
