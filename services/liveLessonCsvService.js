@@ -930,7 +930,7 @@ const LIVE_LESSON_TEMPLATE_HEADERS = [
   "lesson_title", "lesson_description", "slide_order", "slide_type", "title", "body", "examples",
   "image_url", "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d",
   "correct_answer", "explanation", "speaker_notes", "matching_pairs", "ordering_items",
-  "blank_answers", "numeric_rule", "guidance", "criteria", "min_words", "max_words", "levels_json",
+  "blank_answers", "numeric_rule", "guidance", "criteria", "min_words", "max_words",
 ];
 
 const templateRow = (cells) => csvRow(LIVE_LESSON_TEMPLATE_HEADERS.map((header) => cells[header] ?? ""));
@@ -938,9 +938,9 @@ const templateRow = (cells) => csvRow(LIVE_LESSON_TEMPLATE_HEADERS.map((header) 
 const TEMPLATE_LESSON = { lesson_title: "Figurative Language", lesson_description: "ELA lesson" };
 
 /**
- * One row per live question kind plus a levelled exit ticket, so the sample lesson teaches every
- * column without a separate reference sheet. Type cells take either JSON or the shared practice
- * grammar: `term::match` joined by `|`, steps joined by `>`, and `blank::answer~alternative`.
+ * One row per live question kind, so the sample lesson teaches every column without a separate
+ * reference sheet. Type cells take either JSON or the shared practice grammar: `term::match` joined
+ * by `|`, steps joined by `>`, and `blank::answer~alternative`.
  */
 export const LIVE_LESSON_CSV_TEMPLATE = [
   csvRow(LIVE_LESSON_TEMPLATE_HEADERS),
@@ -956,21 +956,7 @@ export const LIVE_LESSON_CSV_TEMPLATE = [
   templateRow({ ...TEMPLATE_LESSON, slide_order: 10, slide_type: "question", title: "Complete the definition", question_type: "fill_in_blank", question_prompt: "A {{b1}} compares two things using {{b2}}.", blank_answers: "b1::simile|b2::like or as~like and as" }),
   templateRow({ ...TEMPLATE_LESSON, slide_order: 11, slide_type: "question", title: "How many techniques", question_type: "numeric", question_prompt: "How many techniques does this lesson define?", numeric_rule: "exact::3" }),
   templateRow({ ...TEMPLATE_LESSON, slide_order: 12, slide_type: "activity", title: "Your turn", body: "Write one simile, one metaphor, and one example of personification." }),
-  templateRow({
-    ...TEMPLATE_LESSON,
-    slide_order: 13,
-    slide_type: "question",
-    title: "Exit ticket",
-    question_type: "text",
-    question_prompt: "Name the technique in “The stars winked at us” and explain how a metaphor differs from a simile.",
-    guidance: "Two sentences, one example of each.",
-    criteria: "Names both techniques and the difference between them.",
-    min_words: 20,
-    levels_json: JSON.stringify([
-      { group: "Needs support", kind: "mcq", prompt: "Which sentence uses a simile?", options: [{ id: "a", text: "Her laugh was as bright as a bell." }, { id: "b", text: "The classroom was a beehive." }], correct_answer: "a" },
-      { group: "Ready to stretch", kind: "text", prompt: "Write your own simile and say what is compared to what.", guidance: "Name both things in the comparison.", min_words: 25 },
-    ]),
-  }),
+  templateRow({ ...TEMPLATE_LESSON, slide_order: 13, slide_type: "question", title: "Exit ticket", question_type: "text", question_prompt: "Name the technique in “The stars winked at us” and explain how a metaphor differs from a simile.", guidance: "Two sentences, one example of each.", criteria: "Names both techniques and the difference between them.", min_words: 20 }),
 ].join("\r\n");
 
 const jsonCell = (value) => (value && typeof value === "object" && (!Array.isArray(value) || value.length)

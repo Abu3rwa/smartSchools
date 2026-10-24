@@ -156,7 +156,7 @@ The same cells are named `question_options_json`, `question_pairs_json`, `questi
 
 ### Levelled questions on one slide
 
-`levels_json` holds one entry per group, using the same keys as the question columns: `{"group":"Needs support","kind":"mcq","prompt":"Which sentence uses a simile?","options":[{"id":"a","text":"Her laugh was as bright as a bell."}],"correct_answer":"a"}`. Each entry is the question that group answers on that slide, so an exit ticket can be a choice question for one group and a paragraph for another. Groups are named, never given by id: the importer looks the name up in the class the lesson is imported into and rejects a name that class does not have, and an export writes the names back, so a lesson keeps its levels when it moves to another class or another year.
+`levels_json` holds one entry per group, using the same keys as the question columns: `{"group":"Needs support","kind":"mcq","prompt":"Which sentence uses a simile?","options":[{"id":"a","text":"Her laugh was as bright as a bell."}],"correct_answer":"a"}`. Each entry is the question that group answers on that slide, so an exit ticket can be a choice question for one group and a paragraph for another. Groups are named, never given by id: the importer looks the name up in the class the lesson is imported into and rejects a name that class does not have, and an export writes the names back, so a lesson keeps its levels when it moves to another class or another year. The teacher editor no longer shows groups or levelled questions, so this column is the only way a lesson gains levels; the download sample leaves it out.
 
 ### Import flow
 
@@ -167,8 +167,8 @@ The same cells are named `question_options_json`, `question_pairs_json`, `questi
 
 ### Template files
 
-- `client/src/pages/liveLessons/liveLessonCsvTemplate.js` exports two samples: `LIVE_LESSON_SAMPLE_CSV`, a standard-format lesson with one row per question kind and a levelled exit ticket, is the `Sample CSV` download, and `LIVE_LESSON_CSV_TEMPLATE`, the older 17-field HTML layout that only carries `mcq`/`tf`, is what `liveLessonAiPrompt.js` asks an external assistant to reproduce. A CSV test asserts the download equals the service's own template cell for cell, so the sample a teacher sees cannot drift from the parser it is tested against.
-- `services/liveLessonCsvService.js` exports `LIVE_LESSON_CSV_TEMPLATE`, a standard-format sample lesson with one row per question kind and a levelled exit ticket. The CSV tests parse it on every run, so the sample and the parser cannot drift.
+- `client/src/pages/liveLessons/liveLessonCsvTemplate.js` exports two samples: `LIVE_LESSON_SAMPLE_CSV`, a standard-format lesson with one row per question kind, is the `Sample CSV` download, and `LIVE_LESSON_CSV_TEMPLATE`, the older 17-field HTML layout that only carries `mcq`/`tf`, is what `liveLessonAiPrompt.js` asks an external assistant to reproduce. A CSV test asserts the download equals the service's own template cell for cell, so the sample a teacher sees cannot drift from the parser it is tested against.
+- `services/liveLessonCsvService.js` exports `LIVE_LESSON_CSV_TEMPLATE`, a standard-format sample lesson with one row per question kind. The CSV tests parse it on every run, so the sample and the parser cannot drift.
 - The import panel's `Question types guide` popup is the same `client/src/components/assessment/QuestionTypeGuide.jsx` the MAP practice and Standards panels open, with `flow="live"`, so the guide, the grammars and the kind vocabulary are kept in step by `questionTypeGuideData.test.js`.
 
 ## Project Structure

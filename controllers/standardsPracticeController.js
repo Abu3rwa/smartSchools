@@ -1198,7 +1198,23 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
     .populate("class", "name grade section")
     .sort({ createdAt: -1 });
 
-  const assessmentAssignments = assignments.filter(
+  // An assignment that points at a deleted standard populates to null, and there
+  // is nothing for a student to practise against it. Drop those rows rather than
+  // letting one broken reference blank the dashboard for the whole class.
+  const practiceableAssignments = assignments.filter(
+    (assignment) => Boolean(assignment.standard?._id),
+  );
+  const orphanedAssignmentIds = assignments
+    .filter((assignment) => !assignment.standard?._id)
+    .map((assignment) => String(assignment._id));
+  if (orphanedAssignmentIds.length > 0) {
+    logger.warn("practice_assignment_standard_missing", {
+      schoolId: req.schoolId,
+      assignmentIds: orphanedAssignmentIds,
+    });
+  }
+
+  const assessmentAssignments = practiceableAssignments.filter(
     (assignment) =>
       getAssignmentPracticeConfig(assignment).sessionType === "assessment",
   );
@@ -1222,7 +1238,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
 
   // Calculate mastery for each assignment
   const assignmentsWithProgress = await Promise.all(
-    assignments.map(async (a) => {
+    practiceableAssignments.map(async (a) => {
       const practiceConfig = getAssignmentPracticeConfig(a);
       const mastery = await PracticeAttempt.calculateMastery(
         student._id,

@@ -10,7 +10,9 @@
 export const EMAIL_FONT = "'Segoe UI', Roboto, Tahoma, Arial, sans-serif";
 
 export const EMAIL_COLORS = {
-    page: '#eef2f7',
+    // The same grey the spelling and homework notices use, so the page behind the
+    // card is identical whichever family email a parent opens.
+    page: '#f1f5f9',
     card: '#ffffff',
     header: '#0f172a',
     eyebrow: '#5eead4',
@@ -36,6 +38,16 @@ export const escapeHtml = (value) => String(value ?? '')
     .replace(/'/g, '&#39;');
 
 export const isRtl = (language) => language === 'ar';
+
+/**
+ * The school's own accent, or the house teal when the stored colour is not a plain
+ * hex — a malformed value must never reach a style attribute.
+ */
+export const schoolAccent = (school = null) => (
+    HEX_COLOR.test(String(school?.branding?.primaryColor || ''))
+        ? school.branding.primaryColor
+        : EMAIL_COLORS.accent
+);
 
 export const emailParagraphs = (text) => String(text || '')
     .trim()
@@ -96,9 +108,7 @@ export const renderSchoolEmailShell = ({
     const dir = rtl ? 'rtl' : 'ltr';
     const align = rtl ? 'right' : 'left';
     const schoolName = String(school?.name || '').trim();
-    const accent = HEX_COLOR.test(String(school?.branding?.primaryColor || ''))
-        ? school.branding.primaryColor
-        : EMAIL_COLORS.accent;
+    const accent = schoolAccent(school);
     const logo = ABSOLUTE_LOGO.test(String(school?.branding?.logoUrl || ''))
         ? school.branding.logoUrl
         : '';

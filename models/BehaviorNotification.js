@@ -20,6 +20,16 @@ const behaviorNotificationSchema = new mongoose.Schema({
     language: { type: String, enum: ['en', 'ar'], default: 'en' },
     subject: { type: String, default: '' },
     body: { type: String, default: '' },
+    // The prose belongs to the school's template; these are the facts it was written
+    // from, rendered in the row's own language so the email can carry a summary panel.
+    facts: {
+        student: { type: String, default: '' },
+        school: { type: String, default: '' },
+        date: { type: String, default: '' },
+        behavior: { type: String, default: '' },
+        nextStep: { type: String, default: '' },
+        dueBy: { type: String, default: '' }
+    },
     recipients: [{ name: String, email: String, relation: String, hasEmail: Boolean }],
     cc: [{ role: String, name: String, email: String }],
     idempotencyKey: { type: String, required: true, trim: true, maxlength: 300 },

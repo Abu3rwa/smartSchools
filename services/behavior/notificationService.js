@@ -18,7 +18,7 @@ export const BEHAVIOR_DEFAULT_TEMPLATES = {
                 'Dear parent or guardian,',
                 '',
                 '{{studentFirstName}} was involved in an incident at {{schoolName}} on {{date}}: {{behavior}}.',
-                'The agreed next step is {{consequence}}.{{dueLine}}',
+                'The agreed next step is {{consequence}}.',
                 '',
                 'We are working with {{studentFirstName}} on this. Mistakes are for learning, not for shame.',
                 'If you would like to talk it through, please reply to this message.'
@@ -30,7 +30,7 @@ export const BEHAVIOR_DEFAULT_TEMPLATES = {
                 'ولي أمر عزيز,',
                 '',
                 'وقع موقف ل{{studentFirstName}} في {{schoolName}} بتاريخ {{date}}: {{behavior}}.',
-                'الخطوة التالية المتفق عليها هي: {{consequence}}.{{dueLine}}',
+                'الخطوة التالية المتفق عليها هي: {{consequence}}.',
                 '',
                 'نحن نعمل مع {{studentFirstName}} على هذا الأمر. الأخطاء فرصة للتعلم لا للخجل.',
                 'يسعدنا الحديث معكم عند الحاجة.'
@@ -46,24 +46,56 @@ export const renderBehaviorTemplate = (template = '', variables = {}) => String(
         Object.prototype.hasOwnProperty.call(variables, key) ? String(variables[key] ?? '') : ''
     ));
 
-const formatDueLine = (dueAt) => {
-    if (!dueAt) return '';
-    const date = new Date(dueAt);
-    if (Number.isNaN(date.getTime())) return '';
-    return `\nThe work is due by ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.`;
+// Each row is one language, and a parent reading Arabic should not get English
+// month names inside it. Latin digits keep the date readable in both.
+const DATE_LOCALES = { en: 'en-GB', ar: 'ar-EG-u-nu-latn' };
+
+const formatEmailDate = (value, language) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    try {
+        return new Intl.DateTimeFormat(DATE_LOCALES[language] || 'en-GB', {
+            day: 'numeric', month: 'long', year: 'numeric'
+        }).format(date);
+    } catch {
+        return '';
+    }
 };
 
-export const buildBehaviorVariables = ({ student, behaviorType, incident, step, school, staff, earliestDueAt }) => ({
+const DUE_LINE_PREFIX = { en: 'The work is due by ', ar: 'المطلوب إنجازه قبل ' };
+
+const formatDueLine = (dueAt, language) => {
+    const label = formatEmailDate(dueAt, language);
+    if (!label) return '';
+    return `\n${(DUE_LINE_PREFIX[language] || DUE_LINE_PREFIX.en)}${label}.`;
+};
+
+export const buildBehaviorVariables = ({
+    student, behaviorType, incident, step, school, staff, earliestDueAt, language = 'en'
+}) => ({
     studentFirstName: student?.firstName || '',
     schoolName: school?.name || '',
     behavior: behaviorType?.name || '',
-    date: new Date(incident?.occurredAt || Date.now())
-        .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+    date: formatEmailDate(incident?.occurredAt || Date.now(), language),
     consequence: step?.title || '',
     stepNumber: step?.order || '',
     dueDate: earliestDueAt ? new Date(earliestDueAt).toISOString().slice(0, 10) : '',
-    dueLine: formatDueLine(earliestDueAt).trim(),
+    dueLabel: formatEmailDate(earliestDueAt, language),
+    dueLine: formatDueLine(earliestDueAt, language).trim(),
     teacherFirstName: staff?.firstName || ''
+});
+
+/**
+ * The facts behind the message, kept beside the rendered prose so the email can
+ * show a scannable summary without the delivery layer re-reading the incident.
+ */
+const buildNotificationFacts = (variables) => ({
+    student: variables.studentFirstName,
+    school: variables.schoolName,
+    date: variables.date,
+    behavior: variables.behavior,
+    nextStep: variables.consequence,
+    dueBy: variables.dueLabel
 });
 
 /**
@@ -165,9 +197,6 @@ export const releaseIncidentCommunications = async ({
         .map((task) => task.dueAt)
         .filter(Boolean)
         .sort()[0] || null;
-    const variables = buildBehaviorVariables({
-        student, behaviorType, incident, step, school, staff, earliestDueAt
-    });
 
     const showInPortal = step?.actions?.showInPortal !== false;
     const emailWanted = step?.actions?.emailParents === true;
@@ -208,6 +237,9 @@ export const releaseIncidentCommunications = async ({
             language
         });
         const idempotencyKey = notificationKey({ incident, step, channel: 'email', language });
+        const variables = buildBehaviorVariables({
+            student, behaviorType, incident, step, school, staff, earliestDueAt, language
+        });
         const existing = await BehaviorNotification.findOne({ idempotencyKey }).select('status').lean();
         // A message that already reached a family is never re-queued by a second
         // release of the same step; only its stored text is refreshed.
@@ -222,6 +254,7 @@ export const releaseIncidentCommunications = async ({
             language,
             subject: applyEdit('subject', language, renderBehaviorTemplate(template.subject, variables)),
             body: applyEdit('body', language, renderBehaviorTemplate(template.body, variables)),
+            facts: buildNotificationFacts(variables),
             recipients,
             cc,
             readyAt,

@@ -30,7 +30,7 @@ test("sample CSV imports a structured lesson with a graded question", () => {
   assert.equal(question.options[1].text, "Metaphor");
 });
 
-test("the sample lesson covers every live question kind and a levelled ticket", () => {
+test("the sample lesson covers every live question kind", () => {
   const { lesson } = parseLiveLessonCsv(LIVE_LESSON_CSV_TEMPLATE);
   assert.deepEqual(
     lesson.slides.filter((slide) => slide.question).map((slide) => slide.question.kind),
@@ -47,11 +47,8 @@ test("the sample lesson covers every live question kind and a levelled ticket", 
   const numeric = lesson.slides.find((slide) => slide.question?.kind === "numeric");
   assert.deepEqual(numeric.question.numericRule, { mode: "exact", value: "3" });
 
-  const levelled = lesson.slides.find((slide) => slide.variants?.length);
-  assert.equal(levelled.question.kind, "text");
-  assert.deepEqual(levelled.variants.map((variant) => variant.group), ["Needs support", "Ready to stretch"]);
-  assert.equal(levelled.variants[0].question.correctOptionId, "a");
-  assert.equal(levelled.variants[1].question.minWords, 25);
+  // Differentiated questions are not authored or downloaded any more, so no sample slide carries one.
+  assert.deepEqual(lesson.slides.filter((slide) => slide.variants?.length), []);
 });
 
 test("portable CSV round-trips every question kind and its levels", () => {

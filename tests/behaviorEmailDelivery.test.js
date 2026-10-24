@@ -6,7 +6,7 @@ import BehaviorAuditLog from '../models/BehaviorAuditLog.js';
 import User from '../models/User.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
 import { deliverBehaviorEmails } from '../services/behavior/emailDeliveryService.js';
-import { renderBehaviorEmailHtml } from '../services/behavior/emailHtml.js';
+import { renderBehaviorEmailHtml, renderBehaviorEmailText } from '../services/behavior/emailHtml.js';
 
 const originals = {
     count: BehaviorNotification.countDocuments,
@@ -39,6 +39,14 @@ const queuedRow = (overrides = {}) => ({
     status: 'draft',
     subject: 'About Sara: Phone use',
     body: 'Dear parent,\nSara was involved in an incident.',
+    facts: {
+        student: 'Sara',
+        school: 'AMLY School',
+        date: '20 October 2026',
+        behavior: 'Phone use',
+        nextStep: 'Written reflection',
+        dueBy: '23 October 2026'
+    },
     recipients: [
         { name: 'Mr Sara', email: 'father@example.test', relation: 'father' },
         { name: 'Mrs Sara', email: 'mother@example.test', relation: 'mother' }
@@ -255,4 +263,54 @@ test('school branding reaches the email only when it is safe to inline', () => {
     });
     assert.match(hostile, /border-top:4px solid #0f766e/, 'a bad color must not reach a style attribute');
     assert.equal(hostile.includes('<img'), false, 'a non-https logo cannot be loaded by a mail client');
+});
+
+test('the mailed notice carries the incident as a summary panel, not only as prose', async () => {
+    const { sent } = wiring();
+
+    await deliverBehaviorEmails({
+        schoolId: 'school-1',
+        settings: SETTINGS_ON,
+        school: { name: 'AMLY School', branding: { primaryColor: '#123456' } },
+        deliver: true
+    });
+
+    const html = sent[0].mailOptions.html;
+    assert.match(html, /At a glance/);
+    assert.match(html, /Incident date/);
+    assert.match(html, /20 October 2026/);
+    // The two rows a family acts on are tinted with the school's own colour.
+    assert.match(html, /Written reflection<\/td>/);
+    assert.match(html, /color:#123456/, 'the school accent reaches the body, not just the letterhead');
+    // A reader whose client ignores html must not lose the deadline with it.
+    assert.match(sent[0].mailOptions.text, /At a glance\n- Student: Sara/);
+    assert.match(sent[0].mailOptions.text, /Due by: 23 October 2026/);
+});
+
+test('the summary panel speaks the language of the row', () => {
+    const arabic = renderBehaviorEmailHtml({
+        subject: 'عن سارة',
+        body: 'ولي أمر عزيز,',
+        language: 'ar',
+        facts: { student: 'سارة', nextStep: 'رسالة اعتذار', dueBy: '23 أكتوبر 2026' }
+    });
+
+    assert.match(arabic, /لمحة سريعة/);
+    assert.match(arabic, /الخطوة التالية/);
+    assert.match(arabic, /المطلوب إنجازه قبل/);
+    assert.equal(arabic.includes('At a glance'), false, 'no english label may leak into an arabic notice');
+});
+
+test('a fact value is escaped and a row without facts sends no panel', () => {
+    const hostile = renderBehaviorEmailHtml({
+        subject: 'About Sara',
+        body: 'Dear parent',
+        facts: { student: '<img src=x onerror=alert(1)>' }
+    });
+    assert.equal(hostile.includes('<img src=x'), false);
+    assert.match(hostile, /&lt;img/);
+
+    const bare = renderBehaviorEmailHtml({ subject: 'About Sara', body: 'Dear parent' });
+    assert.equal(bare.includes('At a glance'), false, 'a panel of empty rows is not a layout');
+    assert.equal(renderBehaviorEmailText({ body: 'Dear parent' }), 'Dear parent');
 });

@@ -1,7 +1,7 @@
 import BehaviorNotification from '../../models/BehaviorNotification.js';
 import School from '../../models/School.js';
 import { sendTransactionalEmail } from '../transactionalEmailService.js';
-import { renderBehaviorEmailHtml } from './emailHtml.js';
+import { renderBehaviorEmailHtml, renderBehaviorEmailText } from './emailHtml.js';
 import { recordBehaviorAudit, BEHAVIOR_AUDIT_ACTIONS } from './auditService.js';
 import logger from '../../utils/logger.js';
 
@@ -77,17 +77,14 @@ const claimDueRow = async ({ schoolId, now }) => {
 const sendRow = async (row, school) => {
     const to = emailList(row.recipients);
     const cc = emailList(row.cc);
+    const message = { body: row.body || '', language: row.language, facts: row.facts };
     return sendTransactionalEmail({
         to,
         ...(cc.length ? { cc } : {}),
         subject: row.subject || '',
-        text: row.body || '',
-        html: renderBehaviorEmailHtml({
-            subject: row.subject,
-            body: row.body,
-            language: row.language,
-            school
-        }),
+        // Both parts carry the same facts, so neither reader gets a shorter notice.
+        text: renderBehaviorEmailText(message),
+        html: renderBehaviorEmailHtml({ ...message, subject: row.subject, school }),
         schoolId: row.school,
         // A family notice is a school message, not a teacher's personal mail, and
         // a shared SMTP account must never be used for it.

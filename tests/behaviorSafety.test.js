@@ -342,6 +342,34 @@ test('the approver wording edit reaches the row that is sent', async () => {
     restore();
 });
 
+test('each language draft carries its own facts and its own date wording', async () => {
+    const { rows, incident, student, settings } = commSetup();
+
+    await releaseIncidentCommunications({
+        incident,
+        step: { order: 3, title: 'Make it right', summary: '', actions: { emailParents: true, showInPortal: true, ccRoles: [] } },
+        student,
+        behaviorType: { _id: 'bt-1', name: 'Phone use' },
+        school: { name: 'Test School' },
+        staff: { _id: 'u-1', firstName: 'A' },
+        settings: { ...settings, emailDelivery: { ...settings.emailDelivery, enabled: true } },
+        tasks: [{ dueAt: new Date('2026-10-23T08:00:00.000Z') }],
+        approvalCleared: true,
+        actor: { _id: 'u-1' }
+    });
+
+    const english = rows.find((row) => row.filter.idempotencyKey.endsWith(':en')).payload;
+    const arabic = rows.find((row) => row.filter.idempotencyKey.endsWith(':ar')).payload;
+
+    assert.equal(english.facts.nextStep, 'Make it right');
+    assert.equal(english.facts.dueBy, '23 October 2026');
+    assert.match(arabic.facts.dueBy, /أكتوبر/, 'an arabic draft dates itself in arabic');
+    assert.equal(arabic.body.includes('The work is due by'), false,
+        'the english due line must not be glued onto the arabic letter');
+    assert.equal(english.body.includes('{{dueLine}}'), false, 'no token may survive into a sent message');
+    restore();
+});
+
 test('notification rows are idempotent per incident, step, channel and language', async () => {
     const { incident, student, settings, rows } = commSetup();
     const args = {

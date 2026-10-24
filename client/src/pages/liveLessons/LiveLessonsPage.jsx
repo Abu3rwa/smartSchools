@@ -22,9 +22,7 @@ import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
 import { fetchSubjects, selectSubjects } from "../../store/slices/subjectSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
-import LiveGroupPanel from "../../components/liveLessons/LiveGroupPanel";
 import LiveQuestionEditor from "../../components/liveLessons/LiveQuestionEditor";
-import LiveQuestionLevels from "../../components/liveLessons/LiveQuestionLevels";
 import {
   LIVE_QUESTION_KIND_LABELS,
   buildLiveQuestionPayload,
@@ -108,13 +106,17 @@ const liveNumericRuleSummary = (rule = {}) => {
   return `${rule.value}${unit}.`;
 };
 
+/**
+ * Levelled questions are no longer authored in the editor, so the only way a slide can arrive with a
+ * level is a CSV that named one. A name this class does not have would send that level to nobody.
+ */
 const unlinkedLevelMessage = (slides = []) => {
   const index = slides.findIndex((entry) =>
     (entry.variants || []).some((variant) => !variant.groupId),
   );
   if (index === -1) return "";
   const variant = slides[index].variants.find((entry) => !entry.groupId);
-  return `Slide ${index + 1} has a level${variant.group ? ` for "${variant.group}"` : ""} that is not linked to a group in this class. Choose a group for it, or remove the level.`;
+  return `Slide ${index + 1} has a levelled question${variant.group ? ` for the group "${variant.group}"` : ""}, which this class does not have. Correct that group name in the CSV, or remove the levelled question.`;
 };
 
 const normalizeListState = (saved = {}) => {
@@ -268,8 +270,7 @@ const LiveLessonsPage = () => {
   const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
-  const [lessonGroups, setLessonGroups] = useState({ groups: [], students: [] });
-  const [lessonGroupsError, setLessonGroupsError] = useState("");
+  const [lessonGroups, setLessonGroups] = useState([]);
   const [endingSessionId, setEndingSessionId] = useState("");
   const [deletingFinishedSessions, setDeletingFinishedSessions] =
     useState(false);
@@ -600,25 +601,18 @@ const LiveLessonsPage = () => {
     };
   }, [loadShares, user?.role]);
 
-  // Groups belong to a class, so the editor reads them whenever the lesson's class changes.
+  // Groups are no longer edited here, but a CSV may still name one in a levelled question, and that
+  // name only means something once it is matched to this class, so the list is read quietly.
   const loadLessonGroups = useCallback(async (classId) => {
     if (!classId) {
-      setLessonGroups({ groups: [], students: [] });
-      setLessonGroupsError("");
+      setLessonGroups([]);
       return;
     }
     try {
       const response = await api.get("/live/groups", { params: { classId } });
-      setLessonGroups({
-        groups: response.data?.data?.groups || [],
-        students: response.data?.data?.students || [],
-      });
-      setLessonGroupsError("");
-    } catch (requestError) {
-      setLessonGroupsError(
-        requestError.response?.data?.message ||
-          "Could not load the groups for this class.",
-      );
+      setLessonGroups(response.data?.data?.groups || []);
+    } catch {
+      setLessonGroups([]);
     }
   }, []);
 
@@ -628,12 +622,12 @@ const LiveLessonsPage = () => {
   }, [importOpen, form.classId, loadLessonGroups]);
 
   useEffect(() => {
-    if (!importOpen || !lessonGroups.groups.length) return;
+    if (!importOpen || !lessonGroups.length) return;
     setForm((previous) => {
-      const slides = linkLiveLessonLevels(previous.slides, lessonGroups.groups);
+      const slides = linkLiveLessonLevels(previous.slides, lessonGroups);
       return slides === previous.slides ? previous : { ...previous, slides };
     });
-  }, [importOpen, lessonGroups.groups]);
+  }, [importOpen, lessonGroups]);
 
   const handleSelectFile = async (event) => {
     const file = event.target.files?.[0];
@@ -1667,6 +1661,14 @@ const LiveLessonsPage = () => {
         >
           Session history <span>{sessionPagination.total}</span>
         </button>
+        {user?.role === "admin" && (
+          <button
+            className={tab === "settings" ? "active" : ""}
+            onClick={() => setTab("settings")}
+          >
+            School settings
+          </button>
+        )}
       </nav>
 
       {error && (
@@ -1681,61 +1683,66 @@ const LiveLessonsPage = () => {
           <button onClick={() => setNotice("")}>Dismiss</button>
         </div>
       )}
-      {user?.role === "admin" && (
-        <section className="live-safety-setting">
-          <div>
-            <strong>AI HTML safety review</strong>
-            <p>
-              When enabled, AI reviews HTML and scripts before saving. When
-              disabled, CSS animation still works but slides containing
-              JavaScript are rejected. Approved scripts run in an isolated,
-              network-restricted sandbox.
-            </p>
-          </div>
-          <label>
-            <input
-              type="checkbox"
-              checked={aiHtmlReviewEnabled}
-              disabled={savingHtmlReviewSetting}
-              onChange={(event) =>
-                updateAiHtmlReviewSetting(event.target.checked)
-              }
-            />
-            {savingHtmlReviewSetting
-              ? "Saving…"
-              : aiHtmlReviewEnabled
-                ? "Enabled"
-                : "Disabled"}
-          </label>
-        </section>
-      )}
-      {user?.role === "admin" && (
-        <section className="live-safety-setting">
-          <div>
-            <strong>Suggested marks for approval</strong>
-            <p>
-              When enabled, a teacher marking a live session can ask for a
-              first mark and comment on the written answers that are waiting.
-              Nothing is saved or shared until the teacher approves it, and
-              turning this off leaves the mark sheet exactly as it was.
-            </p>
-          </div>
-          <label>
-            <input
-              type="checkbox"
-              checked={markDraftEnabled}
-              disabled={savingMarkDraftSetting}
-              onChange={(event) => updateMarkDraftSetting(event.target.checked)}
-            />
-            {savingMarkDraftSetting
-              ? "Saving…"
-              : markDraftEnabled
-                ? "Enabled"
-                : "Disabled"}
-          </label>
-        </section>
-      )}
-      {loading ? (
+      {tab === "settings" ? (
+        <>
+          {user?.role === "admin" && (
+            <section className="live-safety-setting">
+              <div>
+                <strong>AI HTML safety review</strong>
+                <p>
+                  When enabled, AI reviews HTML and scripts before saving. When
+                  disabled, CSS animation still works but slides containing
+                  JavaScript are rejected. Approved scripts run in an isolated,
+                  network-restricted sandbox.
+                </p>
+              </div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={aiHtmlReviewEnabled}
+                  disabled={savingHtmlReviewSetting}
+                  onChange={(event) =>
+                    updateAiHtmlReviewSetting(event.target.checked)
+                  }
+                />
+                {savingHtmlReviewSetting
+                  ? "Saving…"
+                  : aiHtmlReviewEnabled
+                    ? "Enabled"
+                    : "Disabled"}
+              </label>
+            </section>
+          )}
+          {user?.role === "admin" && (
+            <section className="live-safety-setting">
+              <div>
+                <strong>Suggested marks for approval</strong>
+                <p>
+                  When enabled, a teacher marking a live session can ask for a
+                  first mark and comment on the written answers that are waiting.
+                  Nothing is saved or shared until the teacher approves it, and
+                  turning this off leaves the mark sheet exactly as it was.
+                </p>
+              </div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={markDraftEnabled}
+                  disabled={savingMarkDraftSetting}
+                  onChange={(event) =>
+                    updateMarkDraftSetting(event.target.checked)
+                  }
+                />
+                {savingMarkDraftSetting
+                  ? "Saving…"
+                  : markDraftEnabled
+                    ? "Enabled"
+                    : "Disabled"}
+              </label>
+            </section>
+          )}
+        </>
+      ) : loading ? (
         <div className="live-loading">Loading live lessons…</div>
       ) : tab === "lessons" ? (
         <>
@@ -3765,35 +3772,6 @@ const LiveLessonsPage = () => {
                             updateSlide(selectedSlideIndex, { question })
                           }
                         />
-                      )}
-                      {activeSlide.type === "question" && activeSlide.question && (
-                        form.classId ? (
-                          <>
-                            <LiveQuestionLevels
-                              slide={activeSlide}
-                              groups={lessonGroups.groups}
-                              onChange={(variants) =>
-                                updateSlide(selectedSlideIndex, { variants })
-                              }
-                            />
-                            <LiveGroupPanel
-                              classId={form.classId}
-                              groups={lessonGroups.groups}
-                              students={lessonGroups.students}
-                              onRefresh={() => loadLessonGroups(form.classId)}
-                            />
-                            {lessonGroupsError && (
-                              <p className="live-group-error" role="alert">
-                                {lessonGroupsError}
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="live-question-hint">
-                            Assign this lesson to a class to make groups and level a question for
-                            them.
-                          </p>
-                        )
                       )}
                     </div>
                   )}

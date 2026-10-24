@@ -97,7 +97,7 @@ const FLOWS = {
   live: {
     intro: 'introLive',
     promptColumn: 'question_prompt',
-    rules: ['levels', 'visibility'],
+    rules: ['visibility'],
     optionRange: ['option_a', 'option_d'],
     types: [
       ['multiple_choice', 'mcq'],
