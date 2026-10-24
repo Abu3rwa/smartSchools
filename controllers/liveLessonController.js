@@ -5,6 +5,7 @@ import Grade from "../models/Grade.js";
 import GradebookColumn from "../models/GradebookColumn.js";
 import LiveLesson from "../models/LiveLesson.js";
 import LiveLessonFolder from "../models/LiveLessonFolder.js";
+import LiveGroup from "../models/LiveGroup.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
@@ -51,6 +52,7 @@ import {
   lessonAcademicYear,
 } from "../helpers/liveLessonYearMove.js";
 import { slideImageUrlError } from "../utils/slideImageUrl.js";
+import { normalizeLiveQuestion, validateLiveQuestion } from "../services/liveLessonQuestionService.js";
 import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
@@ -93,7 +95,10 @@ const findTeacherClass = async (req, classId) => {
   return Class.findOne(access.query);
 };
 
-const normalizeSlides = (slides) =>
+const normalizeSlideQuestion = (question, salt) =>
+  question ? normalizeLiveQuestion(question, { salt }) : undefined;
+
+const normalizeSlides = (slides, saltBase = "lesson") =>
   slides.map((slide, index) => ({
     order: index,
     type: slide.type,
@@ -103,7 +108,15 @@ const normalizeSlides = (slides) =>
     examples: Array.isArray(slide.examples) ? slide.examples.map((value) => String(value)) : [],
     imageUrl: String(slide.imageUrl || "").trim(),
     speakerNotes: String(slide.speakerNotes || "").trim(),
-    ...(slide.question ? { question: slide.question } : {}),
+    ...(slide.question ? { question: normalizeSlideQuestion(slide.question, `${saltBase}:${index}`) } : {}),
+    ...(Array.isArray(slide.variants) && slide.variants.length
+      ? {
+        variants: slide.variants.map((variant, variantIndex) => ({
+          groupId: variant.groupId,
+          question: normalizeSlideQuestion(variant.question, `${saltBase}:${index}:v${variantIndex}`),
+        })),
+      }
+      : {}),
   }));
 
 const createJoinCode = () =>
@@ -238,31 +251,32 @@ const validateLessonEdit = ({ title, description, subject, grade, language, slid
       errors.push({ row, field: "examples", message: "Each example must be 5,000 characters or fewer." });
     }
     if (slide.type === "question") {
-      const question = slide.question;
-      if (!question || !["mcq", "tf"].includes(question.kind) || !String(question.prompt || "").trim()) {
-        errors.push({ row, field: "question", message: "Question slides need an MCQ or true/false prompt." });
-        return;
+      if (!slide.question) {
+        errors.push({ row, field: "question", message: "Question slides need a question." });
+      } else {
+        errors.push(...validateLiveQuestion(slide.question).map((error) => ({ row, ...error })));
       }
-      if (String(question.prompt).length > 500 || String(question.explanation || "").length > 2000) {
-        errors.push({ row, field: "question", message: "Question prompts are limited to 500 characters and explanations to 2,000." });
-      }
-      const options = Array.isArray(question.options) ? question.options : [];
-      const ids = options.map((option) => String(option.id || ""));
-      if ((question.kind === "mcq" && (options.length < 2 || options.length > 6)) ||
-        (question.kind === "tf" && (options.length !== 2 || !ids.includes("true") || !ids.includes("false")))) {
-        errors.push({ row, field: "options", message: "Question has an invalid number or shape of answer options." });
-      }
-      if (new Set(ids).size !== ids.length || options.some((option) => !String(option.text || "").trim())) {
-        errors.push({ row, field: "options", message: "Answer options must have unique IDs and non-empty text." });
-      }
-      if (options.some((option) => String(option.id).length > 20 || String(option.text).length > 300)) {
-        errors.push({ row, field: "options", message: "Option IDs are limited to 20 characters and option text to 300." });
-      }
-      if (!ids.includes(question.correctOptionId)) {
-        errors.push({ row, field: "correct answer", message: "The correct answer must match an option." });
-      }
+      const variants = Array.isArray(slide.variants) ? slide.variants : [];
+      const seenGroups = new Set();
+      variants.forEach((variant, variantIndex) => {
+        const label = `level ${variantIndex + 1}`;
+        if (!variant || !String(variant.groupId || "").trim() || !mongoose.Types.ObjectId.isValid(variant.groupId)) {
+          errors.push({ row, field: label, message: "Each levelled question needs to name a group." });
+        } else if (seenGroups.has(String(variant.groupId))) {
+          errors.push({ row, field: label, message: "A group can only have one levelled question per slide." });
+        } else {
+          seenGroups.add(String(variant.groupId));
+        }
+        if (!variant?.question) {
+          errors.push({ row, field: `${label} question`, message: "Each levelled question needs question content." });
+          return;
+        }
+        errors.push(...validateLiveQuestion(variant.question, { fieldName: label }).map((error) => ({ row, ...error })));
+      });
     } else if (slide.question) {
       errors.push({ row, field: "question", message: "Only question slides can include question data." });
+    } else if (Array.isArray(slide.variants) && slide.variants.length) {
+      errors.push({ row, field: "levels", message: "Only question slides can include levelled questions." });
     }
     if (slide.type === "html") {
       if (!String(slide.html || "").trim()) errors.push({ row, field: "html", message: "HTML slides need slide content." });
@@ -272,6 +286,24 @@ const validateLessonEdit = ({ title, description, subject, grade, language, slid
     }
   });
   return errors;
+};
+
+/** Levelled questions may only target groups the teacher made for the lesson's own class. */
+const validateLessonGroupOwnership = async (req, { classId, slides = [] }) => {
+  const groupIds = [];
+  slides.forEach((slide) => {
+    (Array.isArray(slide.variants) ? slide.variants : []).forEach((variant) => {
+      const id = String(variant?.groupId || "").trim();
+      if (id && mongoose.Types.ObjectId.isValid(id) && !groupIds.includes(id)) groupIds.push(id);
+    });
+  });
+  if (!groupIds.length) return [];
+  if (!classId) return [{ field: "levels", message: "Assign the lesson to a class before adding levelled questions." }];
+  const found = await LiveGroup.find({ _id: { $in: groupIds }, school: req.schoolId, classId })
+    .select("_id")
+    .lean();
+  if (found.length === groupIds.length) return [];
+  return [{ field: "levels", message: "One of the levelled groups does not belong to the selected class." }];
 };
 
 const schoolHtmlReviewEnabled = async (schoolId) => {
@@ -367,6 +399,10 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
   if (!assignment.classId) {
     return res.status(400).json({ success: false, message: "Assign the lesson to a class and one of its subjects before saving it." });
   }
+  const groupErrors = await validateLessonGroupOwnership(req, { classId: assignment.classId, slides });
+  if (groupErrors.length) {
+    return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors: groupErrors });
+  }
   await assertLiveLessonHtmlSafe({
     slides,
     aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
@@ -384,7 +420,7 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
     grade: String(req.body.grade || "").trim(),
     language: String(req.body.language || "en").trim(),
     isDone: req.body.isDone === true,
-    slides: normalizeSlides(slides),
+    slides: normalizeSlides(slides, "csv"),
   });
   return res.status(201).json({ success: true, data: { lesson } });
 });
@@ -708,6 +744,10 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   if (errors.length) {
     return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors });
   }
+  const groupErrors = await validateLessonGroupOwnership(req, { classId: assignment.classId, slides: next.slides });
+  if (groupErrors.length) {
+    return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors: groupErrors });
+  }
   await assertLiveLessonHtmlSafe({
     slides: next.slides,
     aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
@@ -720,7 +760,7 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   lesson.subject = String(next.subject || "").trim();
   lesson.grade = String(next.grade || "").trim();
   lesson.language = String(next.language || "en").trim();
-  if (slides !== undefined) lesson.slides = normalizeSlides(next.slides);
+  if (slides !== undefined) lesson.slides = normalizeSlides(next.slides, String(lesson._id));
   await lesson.save();
   return res.json({ success: true, data: { lesson } });
 });

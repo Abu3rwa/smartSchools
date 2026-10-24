@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
+import { LIVE_QUESTION_KINDS } from "../constants/liveLessonQuestionKinds.js";
 
 const { Schema } = mongoose;
 
@@ -11,13 +12,75 @@ const optionSchema = new Schema(
   { _id: false },
 );
 
+const matchingPairSchema = new Schema(
+  {
+    left: { type: String, required: true, maxlength: 300 },
+    right: { type: String, required: true, maxlength: 300 },
+  },
+  { _id: false },
+);
+
+// Ordering ids are written once when the question is authored, so a student answer keeps naming
+// the same item even after the lesson is edited or a slide changes position.
+const orderingItemSchema = new Schema(
+  {
+    id: { type: String, required: true, maxlength: 40 },
+    text: { type: String, required: true, maxlength: 300 },
+  },
+  { _id: false },
+);
+
+const blankSchema = new Schema(
+  {
+    id: { type: String, required: true, maxlength: 40 },
+    accepts: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
+// Numbers stay strings: the numeric engine compares them as exact rationals, and a float column
+// would silently round what the teacher wrote.
+const numericRuleSchema = new Schema(
+  {
+    mode: { type: String, enum: ["exact", "tolerance", "relative", "range"], default: "exact" },
+    value: { type: String, maxlength: 40, default: "" },
+    min: { type: String, maxlength: 40, default: "" },
+    max: { type: String, maxlength: 40, default: "" },
+    tolerance: { type: String, maxlength: 40, default: "" },
+    unit: { type: String, maxlength: 40, default: "" },
+    decimalPlaces: { type: String, maxlength: 6, default: "" },
+    allowFractions: { type: Boolean, default: false },
+    allowPercent: { type: Boolean, default: false },
+  },
+  { _id: false },
+);
+
 const questionSchema = new Schema(
   {
-    kind: { type: String, enum: ["mcq", "tf"], required: true },
+    kind: { type: String, enum: LIVE_QUESTION_KINDS, required: true },
     prompt: { type: String, required: true, maxlength: 500 },
-    options: { type: [optionSchema], required: true },
-    correctOptionId: { type: String, required: true, maxlength: 20 },
+    options: { type: [optionSchema], default: [] },
+    correctOptionId: { type: String, maxlength: 20, default: "" },
+    correctOptionIds: { type: [String], default: [] },
+    matchingPairs: { type: [matchingPairSchema], default: [] },
+    orderingItems: { type: [orderingItemSchema], default: [] },
+    blanks: { type: [blankSchema], default: [] },
+    numericRule: { type: numericRuleSchema, default: undefined },
+    // Written answers carry the teacher's own expectation and marking focus; the reader — a
+    // teacher now, a drafter later — grades against these words and nothing else.
+    guidance: { type: String, maxlength: 500, default: "" },
+    criteria: { type: String, maxlength: 1000, default: "" },
+    minWords: { type: Number, min: 0, max: 2000, default: 0 },
+    maxWords: { type: Number, min: 0, max: 2000, default: 0 },
     explanation: { type: String, maxlength: 2000, default: "" },
+  },
+  { _id: false },
+);
+
+const variantSchema = new Schema(
+  {
+    groupId: { type: Schema.Types.ObjectId, ref: "LiveGroup", required: true },
+    question: { type: questionSchema, required: true },
   },
   { _id: false },
 );
@@ -37,6 +100,9 @@ const slideSchema = new Schema(
     imageUrl: { type: String, maxlength: 2048, default: "" },
     speakerNotes: { type: String, maxlength: 2000, default: "" },
     question: { type: questionSchema, default: undefined },
+    // Students in these groups get the variant instead of `question`; anyone not in a listed group,
+    // and the whole class when there are no variants, still answers `question`.
+    variants: { type: [variantSchema], default: [] },
   },
   { timestamps: false },
 );
