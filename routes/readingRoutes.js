@@ -17,6 +17,7 @@ import {
   myAssignments,
   getTeacherAssignments,
   getAssignmentResults,
+  removeAssignment,
   importReadingCsv,
   updateReading,
   deleteReading,
@@ -42,6 +43,7 @@ router.get('/texts/:textId', authorize('teacher', 'admin'), getTextById);
 router.post('/assign', authorize('teacher', 'admin'), createAssignment);
 router.get('/assignments/teacher', authorize('teacher', 'admin'), getTeacherAssignments);
 router.get('/assignments/:assignmentId/results', authorize('teacher', 'admin'), getAssignmentResults);
+router.delete('/assignments/:assignmentId', authorize('teacher', 'admin'), removeAssignment);
 
 // Student: my assigned readings
 router.get('/assignments', authorize('student'), myAssignments);

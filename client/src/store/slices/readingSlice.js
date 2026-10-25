@@ -79,6 +79,19 @@ export const fetchAssignmentResults = createAsyncThunk(
   }
 );
 
+// Teacher: remove an assignment for its students
+export const removeAssignment = createAsyncThunk(
+  'reading/removeAssignment',
+  async (assignmentId, { rejectWithValue }) => {
+    try {
+      const res = await readingService.removeAssignment(assignmentId);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to remove assignment');
+    }
+  }
+);
+
 // Student: my assignments
 export const fetchMyAssignments = createAsyncThunk(
   'reading/fetchMyAssignments',
@@ -180,6 +193,17 @@ const readingSlice = createSlice({
       })
       .addCase(fetchTeacherAssignments.fulfilled, (state, { payload }) => {
         state.assignments = payload || [];
+      })
+      .addCase(removeAssignment.fulfilled, (state, { payload }) => {
+        const target = state.assignments.find(
+          (assignment) => String(assignment._id) === String(payload?._id)
+        );
+        if (target) target.isActive = false;
+        const open = state.assignmentResults?.assignment;
+        if (open && String(open._id) === String(payload?._id)) open.isActive = false;
+      })
+      .addCase(removeAssignment.rejected, (state, { payload }) => {
+        state.error = payload;
       })
       .addCase(fetchAssignmentResults.pending, (state) => {
         state.resultsLoading = true;

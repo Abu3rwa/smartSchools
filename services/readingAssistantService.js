@@ -981,6 +981,29 @@ export async function createAssignment(
 }
 
 /**
+ * Remove an assignment for its students. The record and any saved work stay in
+ * place so the teacher can still review results, but student queries only read
+ * active assignments, so the reading disappears from student portals.
+ */
+export async function removeAssignment(schoolId, assignmentId, userId, isAdmin = false) {
+  const assignment = await ReadingAssignment.findOne({ school: schoolId, _id: assignmentId });
+  if (!assignment) {
+    throw Object.assign(new Error("Reading assignment not found"), { statusCode: 404 });
+  }
+  if (!isAdmin && String(assignment.assignedBy) !== String(userId)) {
+    throw Object.assign(
+      new Error("Only the teacher who assigned this reading or a school admin can remove it."),
+      { statusCode: 403 }
+    );
+  }
+  if (assignment.isActive !== false) {
+    assignment.isActive = false;
+    await assignment.save();
+  }
+  return { _id: assignment._id, isActive: false };
+}
+
+/**
  * List assignments for a student (assigned to them).
  */
 export async function getAssignmentsForStudent(studentId, schoolId, academicYear = null) {
@@ -1320,6 +1343,7 @@ export async function getAssignmentsForTeacher(schoolId, filters = {}, academicY
     const stats = statsByAssignment.get(String(assignment._id)) || { completed: 0, correct: 0, possible: 0 };
     return {
       ...assignment,
+      isActive: assignment.isActive !== false,
       studentCount: (assignment.students || []).length,
       completedCount: stats.completed,
       averagePercent: stats.possible > 0 ? Math.round((stats.correct / stats.possible) * 100) : null,

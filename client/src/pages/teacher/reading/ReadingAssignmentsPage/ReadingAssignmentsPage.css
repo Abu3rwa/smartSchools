@@ -137,6 +137,30 @@
   white-space: pre-wrap;
 }
 
+.results-removed-note {
+  margin: 0 0 var(--spacing-md) 0;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--accent-amber);
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--accent-amber) 12%, var(--bg-card));
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.reading-remove-btn {
+  color: color-mix(in srgb, var(--accent-red, #b42318) 88%, var(--text-primary));
+}
+
+.reading-remove-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-red, #b42318) 12%, var(--bg-card));
+}
+
+.reading-tags em.is-removed {
+  background: color-mix(in srgb, var(--accent-amber) 20%, var(--bg-card));
+  color: var(--text-secondary);
+}
+
 .results-empty-note {
   display: block;
   margin-bottom: var(--spacing-md);

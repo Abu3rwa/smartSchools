@@ -490,6 +490,25 @@ export const myAssignments = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Remove an assignment for its students (keeps the submitted work)
+ * @route   DELETE /api/reading/assignments/:assignmentId
+ * @access  Private (Teacher who assigned it, Admin)
+ */
+export const removeAssignment = asyncHandler(async (req, res) => {
+  const data = await readingAssistantService.removeAssignment(
+    req.schoolId,
+    req.params.assignmentId,
+    req.user._id,
+    req.user.role === "admin"
+  );
+  res.status(200).json({
+    success: true,
+    message: "Reading removed for students",
+    data,
+  });
+});
+
+/**
  * @desc    List assignments (teacher: filter by class/text)
  * @route   GET /api/reading/assignments/teacher
  * @access  Private (Teacher, Admin)

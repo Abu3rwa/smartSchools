@@ -5,9 +5,11 @@ import {
   HiOutlineChevronUp,
   HiOutlineCheckCircle,
   HiOutlineClock,
+  HiOutlineTrash,
   HiOutlineXCircle,
 } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import {
   answerForQuestion,
   assignmentSummary,
@@ -29,17 +31,33 @@ export default function ReadingAssignmentsPage() {
     loading,
     resultsLoading,
     academicYear,
+    canRemoveAssignment,
     textFilter,
     openAssignmentId,
     openResults,
     closeResults,
     clearTextFilter,
+    removeAssignment,
     onBack,
   } = useReadingAssignmentsData();
   const [expanded, setExpanded] = useState({ assignmentId: null, studentId: null });
+  const [removingId, setRemovingId] = useState("");
 
-  const summary = useMemo(() => assignmentSummary(assignments), [assignments]);
+  const activeAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.isActive !== false),
+    [assignments],
+  );
+  const summary = useMemo(() => assignmentSummary(activeAssignments), [activeAssignments]);
   const expandedStudent = expanded.assignmentId === openAssignmentId ? expanded.studentId : null;
+
+  const handleRemove = async (assignment) => {
+    const title = assignment.text?.title || "—";
+    if (!window.confirm(t("reading:assignments.removeConfirm", { title }))) return;
+    setRemovingId(assignment._id);
+    const removed = await removeAssignment(assignment._id);
+    setRemovingId("");
+    if (removed) toast.success(t("reading:assignments.removeSuccess"));
+  };
 
   const formatDate = (value) => (value
     ? new Date(value).toLocaleDateString(i18n.language, {
@@ -147,6 +165,11 @@ export default function ReadingAssignmentsPage() {
                       <td>
                         <div className="reading-title-cell">
                           <span className="reading-title">{assignment.text?.title || "—"}</span>
+                          {assignment.isActive === false && (
+                            <span className="reading-tags">
+                              <em className="is-removed">{t("reading:assignments.removed")}</em>
+                            </span>
+                          )}
                           {assignment.instructions && (
                             <span className="reading-tags">
                               <em>{t("reading:assignments.hasInstructions")}</em>
@@ -180,17 +203,33 @@ export default function ReadingAssignmentsPage() {
                         {formatDate(assignment.dueDate)}
                       </td>
                       <td className="reading-cell-actions">
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${isRowOpen ? "btn-secondary" : "btn-primary"}`}
-                          onClick={() => (isRowOpen ? closeResults() : openResults(assignment._id))}
-                          aria-expanded={isRowOpen}
-                        >
-                          {isRowOpen ? t("reading:assignments.hideResults") : t("reading:assignments.viewResults")}
-                          {isRowOpen
-                            ? <HiOutlineChevronUp size={16} aria-hidden="true" />
-                            : <HiOutlineChevronDown size={16} aria-hidden="true" />}
-                        </button>
+                        <div className="reading-row-actions">
+                          {assignment.isActive !== false && canRemoveAssignment(assignment) && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm reading-remove-btn"
+                              disabled={removingId === assignment._id}
+                              onClick={() => handleRemove(assignment)}
+                              aria-label={t("reading:assignments.removeAssignmentAria", {
+                                title: assignment.text?.title || "",
+                              })}
+                            >
+                              <HiOutlineTrash size={16} aria-hidden="true" />
+                              {t("reading:assignments.removeAssignment")}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${isRowOpen || assignment.isActive === false ? "btn-secondary" : "btn-primary"}`}
+                            onClick={() => (isRowOpen ? closeResults() : openResults(assignment._id))}
+                            aria-expanded={isRowOpen}
+                          >
+                            {isRowOpen ? t("reading:assignments.hideResults") : t("reading:assignments.viewResults")}
+                            {isRowOpen
+                              ? <HiOutlineChevronUp size={16} aria-hidden="true" />
+                              : <HiOutlineChevronDown size={16} aria-hidden="true" />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -234,6 +273,10 @@ export default function ReadingAssignmentsPage() {
 
               {results.assignment.instructions && (
                 <p className="results-instructions">{results.assignment.instructions}</p>
+              )}
+
+              {results.assignment.isActive === false && (
+                <p className="results-removed-note">{t("reading:assignments.removedNotice")}</p>
               )}
 
               {results.totals.assigned === 0 ? (

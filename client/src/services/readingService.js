@@ -24,6 +24,10 @@ export const readingService = {
   getAssignmentResults: (assignmentId) =>
     api.get(`/reading/assignments/${assignmentId}/results`),
 
+  // Teacher: remove an assignment for its students (submitted work is kept)
+  removeAssignment: (assignmentId) =>
+    api.delete(`/reading/assignments/${assignmentId}`),
+
   // Student: my assignments
   getMyAssignments: () => api.get('/reading/assignments'),
 

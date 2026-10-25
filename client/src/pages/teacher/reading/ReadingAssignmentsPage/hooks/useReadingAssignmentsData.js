@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {
   fetchTeacherAssignments,
   fetchAssignmentResults,
+  removeAssignment as removeAssignmentThunk,
   clearAssignmentResults,
   selectReadingAssignments,
   selectReadingAssignmentResults,
@@ -12,6 +13,7 @@ import {
   selectReadingResultsLoading,
   selectReadingError,
 } from "../../../../../store/slices/readingSlice.js";
+import { selectUser, selectIsAdmin } from "../../../../../store/slices/authSlice.js";
 import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice.js";
 
 export function useReadingAssignmentsData() {
@@ -24,6 +26,8 @@ export function useReadingAssignmentsData() {
   const resultsLoading = useSelector(selectReadingResultsLoading);
   const error = useSelector(selectReadingError);
   const academicYear = useSelector(selectCurrentAcademicYear);
+  const currentUserId = useSelector(selectUser)?._id || "";
+  const isAdmin = useSelector(selectIsAdmin);
   const textFilter = searchParams.get("text") || "";
   const openAssignmentId = searchParams.get("assignment") || "";
 
@@ -61,11 +65,17 @@ export function useReadingAssignmentsData() {
     loading,
     resultsLoading,
     academicYear,
+    canRemoveAssignment: (assignment) => isAdmin
+      || String(assignment?.assignedBy?._id || "") === String(currentUserId),
     textFilter,
     openAssignmentId,
     openResults: (assignmentId) => writeParams({ assignment: assignmentId }),
     closeResults: () => writeParams({ assignment: "" }),
     clearTextFilter: () => writeParams({ text: "", assignment: "" }),
+    removeAssignment: async (assignmentId) => {
+      const result = await dispatch(removeAssignmentThunk(assignmentId));
+      return result.meta.requestStatus === "fulfilled";
+    },
     onBack: () => navigate("/portal/reading/texts"),
   };
 }
