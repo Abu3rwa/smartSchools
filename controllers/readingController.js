@@ -162,11 +162,14 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
     school: req.schoolId,
     student: student._id,
     assignment: result.assignmentId,
-  }).select("responses completedAt").lean();
+  }).select("responses completedAt correctCount totalCount").lean();
   result.savedAnswers = Object.fromEntries(
     (completion?.responses || []).map(({ questionId, answer }) => [questionId, answer])
   );
   result.completed = Boolean(completion?.completedAt);
+  result.score = completion?.completedAt && completion.totalCount > 0
+    ? { correctCount: completion.correctCount, totalCount: completion.totalCount }
+    : null;
   const safeQuestions = (result.text.comprehensionQuestions || []).map((question) => {
     const studentQuestion = { ...question };
     delete studentQuestion.correctIndex;
@@ -500,4 +503,17 @@ export const getTeacherAssignments = asyncHandler(async (req, res) => {
     effectiveAcademicYear
   );
   res.status(200).json({ success: true, data: list, academicYear: effectiveAcademicYear });
+});
+
+/**
+ * @desc    Per-student results and saved answers for one reading assignment
+ * @route   GET /api/reading/assignments/:assignmentId/results
+ * @access  Private (Teacher, Admin)
+ */
+export const getAssignmentResults = asyncHandler(async (req, res) => {
+  const data = await readingAssistantService.getAssignmentResults(
+    req.schoolId,
+    req.params.assignmentId
+  );
+  res.status(200).json({ success: true, data });
 });

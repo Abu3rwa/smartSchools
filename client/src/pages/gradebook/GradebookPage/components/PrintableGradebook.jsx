@@ -52,11 +52,13 @@ const PrintableGradebook = ({ classId, subjectId, semester, academicYear }) => {
         return grades?.[studentId]?.[columnId]?.marks ?? grades?.[key]?.marks ?? '';
     };
 
+    const maxOf = (col) => col?.maxMarks ?? col?.totalMarks;
+
     const getStudentAvg = (studentId) => {
         let sum = 0, count = 0;
         (columns || []).forEach(col => {
             const val = getGrade(studentId, col._id);
-            const maxMarks = col.maxMarks ?? col.totalMarks;
+            const maxMarks = maxOf(col);
             if (val !== '' && !isNaN(val) && maxMarks > 0) {
                 sum += (Number(val) / maxMarks) * 100;
                 count++;
@@ -105,7 +107,7 @@ const PrintableGradebook = ({ classId, subjectId, semester, academicYear }) => {
                                         <th key={col._id} style={{ fontSize: 10 }}>
                                             {col.name}
                                             <br />
-                                            <span style={{ fontWeight: 400, fontSize: 9 }}>/{col.totalMarks}</span>
+                                            <span style={{ fontWeight: 400, fontSize: 9 }}>/{maxOf(col)}</span>
                                         </th>
                                     ))}
                                     <th>Avg</th>
@@ -185,14 +187,15 @@ const PrintableGradebook = ({ classId, subjectId, semester, academicYear }) => {
                                     <tbody>
                                         {(columns || []).map(col => {
                                             const val = getGrade(s._id, col._id);
-                                            const pct = val !== '' && col.totalMarks > 0
-                                                ? ((Number(val) / col.totalMarks) * 100).toFixed(0)
+                                            const maxMarks = maxOf(col);
+                                            const pct = val !== '' && maxMarks > 0
+                                                ? ((Number(val) / maxMarks) * 100).toFixed(0)
                                                 : '—';
                                             return (
                                                 <tr key={col._id}>
                                                     <td style={{ textAlign: 'left' }}>{col.name}</td>
                                                     <td>{val || '—'}</td>
-                                                    <td>{col.totalMarks}</td>
+                                                    <td>{maxMarks}</td>
                                                     <td style={{
                                                         fontWeight: 600,
                                                         color: pct === '—' ? '#9ca3af' :

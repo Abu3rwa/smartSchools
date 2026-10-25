@@ -95,13 +95,13 @@ export const studentNavLinks = [
     labelKey: "plpMyTasks",
     section: "learning",
   },
-  // {
-  //   path: "/portal/reading",
-  //   icon: HiOutlineBookOpen,
-  //   labelKey: "reading",
-  //   feature: "readingAssistant",
-  //   section: "learning",
-  // },
+  {
+    path: "/portal/reading",
+    icon: HiOutlineBookOpen,
+    labelKey: "reading",
+    feature: "readingAssistant",
+    section: "learning",
+  },
   // {
   //   path: "/portal/settings",
   //   icon: HiOutlineCog,

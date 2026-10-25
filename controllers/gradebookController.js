@@ -21,11 +21,11 @@ import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../u
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
-import { resolveSemesterForDate } from '../services/gradebookConfigService.js';
+import { resolveSemesterForDate, getCategoryMaxMarks } from '../services/gradebookConfigService.js';
 import logger from '../utils/logger.js';
 import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
 import { buildStudentGradebookDocx } from '../services/studentGradebookDocxService.js';
-import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults.js';
+import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
 const MAX_GRADE_PAGE_LIMIT = 100;
@@ -258,6 +258,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
 
     // Get subject details
     const subjectData = await Subject.findById(subject);
+    const categoryMaxMarks = await getCategoryMaxMarks(req.schoolId, academicYear);
 
     const gradeData = {
         school: req.schoolId,
@@ -269,7 +270,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         gradeType: 'daily',
         date: date || new Date(),
         marks,
-        maxMarks: maxMarks ?? subjectData?.dailyMaxMarks ?? 10,
+        maxMarks: maxMarks ?? subjectData?.dailyMaxMarks ?? resolveCategoryMaxMarks('classwork', categoryMaxMarks),
         title,
         description,
         remarks,
@@ -373,6 +374,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
     const gradeDate = date ? new Date(date) : new Date();
     const month = gradeDate.getUTCMonth() + 1;
     const semester = await resolveSemesterForDate(req.schoolId, gradeDate) || ((month >= 8 && month <= 12) ? 1 : 2);
+    const categoryMaxMarks = await getCategoryMaxMarks(req.schoolId, academicYear);
 
     const gradeDocuments = grades.map(g => ({
         school: req.schoolId,
@@ -387,7 +389,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         month,
         semester,
         marks: g.marks,
-        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory(effectiveCategory),
+        maxMarks: maxMarks ?? resolveCategoryMaxMarks(effectiveCategory, categoryMaxMarks),
         title: title || '',
         notes: g.notes || '',
         remarks: g.remarks || '',
@@ -985,6 +987,7 @@ export const addExamGrade = asyncHandler(async (req, res) => {
 
     const academicYear = resolveRequestedAcademicYear(req.body?.academicYear, req.school);
     const effectiveGradeType = gradeType || 'monthly_test';
+    const categoryMaxMarks = await getCategoryMaxMarks(req.schoolId, academicYear);
     const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
         lessonPlanIds,
         schoolId: req.schoolId,
@@ -1004,7 +1007,7 @@ export const addExamGrade = asyncHandler(async (req, res) => {
         category: 'exam',
         date: date || new Date(),
         marks,
-        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory('exam'),
+        maxMarks: maxMarks ?? resolveCategoryMaxMarks('exam', categoryMaxMarks),
         examName,
         remarks,
         assessmentGroupId: assessmentGroupId || generateAssessmentGroupId('asg'),
@@ -1625,7 +1628,8 @@ export const getGradebookGrades = asyncHandler(async (req, res) => {
         data: {
             grades: result.grades,
             monthlyAverages: result.monthlyAverages,
-            gradingScale: result.gradingScale || null
+            gradingScale: result.gradingScale || null,
+            categoryMaxMarks: result.categoryMaxMarks || {}
         }
     });
 });
@@ -2426,7 +2430,8 @@ export const autoFillColumn = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Gradebook column not found' });
     }
     const effectiveCategory = column?.category || category || 'classwork';
-    const effectiveMaxMarks = maxMarks ?? column?.maxMarks ?? getDefaultMaxMarksForCategory(effectiveCategory);
+    const categoryMaxMarks = await getCategoryMaxMarks(req.schoolId, year);
+    const effectiveMaxMarks = maxMarks ?? column?.maxMarks ?? resolveCategoryMaxMarks(effectiveCategory, categoryMaxMarks);
 
     if (onlyEmpty && columnId) {
         // Find students who already have a grade in this column

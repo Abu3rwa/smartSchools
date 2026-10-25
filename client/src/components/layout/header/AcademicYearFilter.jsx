@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { HiOutlineCalendar, HiOutlineLockClosed } from 'react-icons/hi';
+import { HiOutlineCalendar, HiOutlineLockClosed, HiOutlineChevronDown } from 'react-icons/hi';
 import {
     selectCurrentAcademicYear,
     selectAvailableYears,
@@ -16,6 +16,13 @@ import {
 } from '../../../store/slices/uiSlice';
 import { selectUser } from '../../../store/slices/authSlice';
 import './AcademicYearFilter.css';
+
+const focusOption = (listEl, index) => {
+    const options = Array.from(listEl.querySelectorAll('.ay-filter__option'));
+    if (options.length === 0) return;
+    const clamped = Math.max(0, Math.min(index, options.length - 1));
+    options[clamped].focus();
+};
 
 const AcademicYearFilter = () => {
     const dispatch = useDispatch();
@@ -32,6 +39,8 @@ const AcademicYearFilter = () => {
     const [activatingYear, setActivatingYear] = useState('');
     const yearRef = useRef(null);
     const semesterRef = useRef(null);
+    const yearListRef = useRef(null);
+    const semesterListRef = useRef(null);
 
     const isCurrentYear = !schoolCurrentYear || selectedYear === schoolCurrentYear;
     const hasMultipleYears = availableYears.length > 1;
@@ -50,6 +59,29 @@ const AcademicYearFilter = () => {
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
+
+    useEffect(() => {
+        if (yearOpen && yearListRef.current) focusOption(yearListRef.current, availableYears.indexOf(selectedYear));
+    }, [yearOpen, availableYears, selectedYear]);
+
+    useEffect(() => {
+        if (semesterOpen && semesterListRef.current) {
+            const values = [null, 1, 2];
+            focusOption(semesterListRef.current, values.indexOf(selectedSemester));
+        }
+    }, [semesterOpen, selectedSemester]);
+
+    const handleListKeyDown = (event, close, refocusTrigger) => {
+        if (event.key === 'Escape') {
+            close();
+            refocusTrigger?.();
+            return;
+        }
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        event.preventDefault();
+        const options = Array.from(event.currentTarget.querySelectorAll('.ay-filter__option'));
+        focusOption(event.currentTarget, options.indexOf(document.activeElement) + (event.key === 'ArrowDown' ? 1 : -1));
+    };
 
     const handleYearSelect = (year) => {
         dispatch(setCurrentAcademicYear(year));
@@ -90,44 +122,50 @@ const AcademicYearFilter = () => {
             {/* Year selector */}
             <div className="ay-filter__group" ref={yearRef}>
                 <button
-                    className={`ay-filter__btn${!isCurrentYear ? ' ay-filter__btn--past' : ''}`}
+                    className={`ay-filter__btn ay-filter__btn--year${!isCurrentYear ? ' ay-filter__btn--past' : ''}`}
                     onClick={() => hasMultipleYears && setYearOpen(!yearOpen)}
                     disabled={!hasMultipleYears || loading}
                     aria-expanded={yearOpen}
-                    aria-haspopup="listbox"
+                    aria-haspopup="menu"
+                    aria-controls={yearOpen ? 'ay-filter-year-list' : undefined}
                 >
                     <HiOutlineCalendar size={14} />
                     <span>{selectedYear}</span>
                     {!isCurrentYear && <HiOutlineLockClosed size={12} className="ay-filter__lock" />}
-                    {hasMultipleYears && <span className="ay-filter__chevron">▾</span>}
+                    {hasMultipleYears && <HiOutlineChevronDown size={13} className="ay-filter__chevron" />}
                 </button>
                 {yearOpen && (
-                    <ul className="ay-filter__dropdown" role="listbox">
+                    <ul
+                        id="ay-filter-year-list"
+                        className="ay-filter__dropdown"
+                        role="menu"
+                        ref={yearListRef}
+                        onKeyDown={(event) => handleListKeyDown(event, () => setYearOpen(false), () => yearRef.current?.querySelector('.ay-filter__btn')?.focus())}
+                    >
                         {availableYears.map((year) => (
-                            <li
-                                key={year}
-                                role="option"
-                                aria-selected={year === selectedYear}
-                                className={`ay-filter__option${year === selectedYear ? ' ay-filter__option--active' : ''}`}
-                                onClick={() => handleYearSelect(year)}
-                            >
-                                <span>{year}</span>
-                                {year === schoolCurrentYear && (
-                                    <span className="ay-filter__current-badge">
-                                        {t('current', 'Current')}
-                                    </span>
-                                )}
-                                {year !== schoolCurrentYear && (
-                                    <HiOutlineLockClosed size={12} className="ay-filter__lock" />
-                                )}
+                            <li key={year} role="none" className="ay-filter__option-row">
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    aria-selected={year === selectedYear}
+                                    className={`ay-filter__option${year === selectedYear ? ' ay-filter__option--active' : ''}`}
+                                    onClick={() => handleYearSelect(year)}
+                                >
+                                    <span>{year}</span>
+                                    {year === schoolCurrentYear && (
+                                        <span className="ay-filter__current-badge">
+                                            {t('current', 'Current')}
+                                        </span>
+                                    )}
+                                    {year !== schoolCurrentYear && (
+                                        <HiOutlineLockClosed size={12} className="ay-filter__lock" />
+                                    )}
+                                </button>
                                 {canActivateYearFromTopbar && year !== schoolCurrentYear && (
                                     <button
                                         type="button"
                                         className="ay-filter__action-btn"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleActivateYear(year);
-                                        }}
+                                        onClick={() => handleActivateYear(year)}
                                         disabled={Boolean(activatingYear)}
                                     >
                                         {activatingYear === year
@@ -146,40 +184,40 @@ const AcademicYearFilter = () => {
             {/* Semester selector */}
             <div className="ay-filter__group" ref={semesterRef}>
                 <button
-                    className="ay-filter__btn"
+                    className="ay-filter__btn ay-filter__btn--semester"
                     onClick={() => setSemesterOpen(!semesterOpen)}
                     aria-expanded={semesterOpen}
-                    aria-haspopup="listbox"
+                    aria-haspopup="menu"
+                    aria-controls={semesterOpen ? 'ay-filter-semester-list' : undefined}
                 >
                     <span>{semesterLabel}</span>
-                    <span className="ay-filter__chevron">▾</span>
+                    <HiOutlineChevronDown size={13} className="ay-filter__chevron" />
                 </button>
                 {semesterOpen && (
-                    <ul className="ay-filter__dropdown" role="listbox">
-                        <li
-                            role="option"
-                            aria-selected={selectedSemester === null}
-                            className={`ay-filter__option${selectedSemester === null ? ' ay-filter__option--active' : ''}`}
-                            onClick={() => handleSemesterSelect(null)}
-                        >
-                            {t('fullYear', 'Full Year')}
-                        </li>
-                        <li
-                            role="option"
-                            aria-selected={selectedSemester === 1}
-                            className={`ay-filter__option${selectedSemester === 1 ? ' ay-filter__option--active' : ''}`}
-                            onClick={() => handleSemesterSelect(1)}
-                        >
-                            {t('semester1', 'Semester 1')}
-                        </li>
-                        <li
-                            role="option"
-                            aria-selected={selectedSemester === 2}
-                            className={`ay-filter__option${selectedSemester === 2 ? ' ay-filter__option--active' : ''}`}
-                            onClick={() => handleSemesterSelect(2)}
-                        >
-                            {t('semester2', 'Semester 2')}
-                        </li>
+                    <ul
+                        id="ay-filter-semester-list"
+                        className="ay-filter__dropdown ay-filter__dropdown--semester"
+                        role="menu"
+                        ref={semesterListRef}
+                        onKeyDown={(event) => handleListKeyDown(event, () => setSemesterOpen(false), () => semesterRef.current?.querySelector('.ay-filter__btn')?.focus())}
+                    >
+                        {[
+                            { value: null, label: t('fullYear', 'Full Year') },
+                            { value: 1, label: t('semester1', 'Semester 1') },
+                            { value: 2, label: t('semester2', 'Semester 2') },
+                        ].map((option) => (
+                            <li key={String(option.value)} role="none">
+                                <button
+                                    type="button"
+                                    role="menuitemradio"
+                                    aria-checked={selectedSemester === option.value}
+                                    className={`ay-filter__option${selectedSemester === option.value ? ' ay-filter__option--active' : ''}`}
+                                    onClick={() => handleSemesterSelect(option.value)}
+                                >
+                                    <span>{option.label}</span>
+                                </button>
+                            </li>
+                        ))}
                     </ul>
                 )}
             </div>

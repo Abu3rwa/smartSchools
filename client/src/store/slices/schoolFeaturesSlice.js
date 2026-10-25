@@ -25,6 +25,7 @@ const initialState = {
     limits: null,
     usage: null,
     loading: false,
+    fetched: false,
     error: null
 };
 
@@ -45,6 +46,7 @@ const schoolFeaturesSlice = createSlice({
             })
             .addCase(fetchSchoolFeatures.fulfilled, (state, action) => {
                 state.loading = false;
+                state.fetched = true;
                 state.plan = action.payload.plan;
                 state.planName = action.payload.planName;
                 state.subscriptionStatus = action.payload.subscriptionStatus || null;
@@ -78,6 +80,8 @@ export const selectFeatureMetadata = (state, featureKey) =>
 export const selectSchoolFeatureLimits = (state) => state.schoolFeatures.limits;
 export const selectSchoolFeatureUsage = (state) => state.schoolFeatures.usage;
 export const selectSchoolFeaturesLoading = (state) => state.schoolFeatures.loading;
+/** True once a features fetch has succeeded, so "unknown" is never read as "not entitled". */
+export const selectSchoolFeaturesKnown = (state) => state.schoolFeatures.fetched;
 export const selectSchoolFeaturesError = (state) => state.schoolFeatures.error;
 export const selectHasFeature = (state, featureKey) => Boolean(state.schoolFeatures.features?.[featureKey]);
 

@@ -1,7 +1,7 @@
 .reading-my-assignments-page {
   animation: fadeIn 0.3s ease;
   padding: var(--spacing-lg);
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
@@ -10,8 +10,9 @@
 }
 
 .reading-my-assignments-page .page-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.65rem;
   font-weight: 700;
+  letter-spacing: -0.015em;
   margin: 0 0 8px 0;
   color: var(--text-primary);
 }
@@ -33,22 +34,23 @@
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .reading-assignment-card:hover {
   box-shadow: var(--shadow-md);
+  border-color: var(--border-color-hover);
+  transform: translateY(-1px);
 }
 
 .reading-assignment-card.completed {
-  border-color: var(--success-400);
-  background: var(--bg-secondary);
+  border-color: color-mix(in srgb, var(--success-400) 40%, var(--border-color));
 }
 
 .reading-assignment-card .card-main {
@@ -56,29 +58,60 @@
   min-width: 0;
 }
 
-.reading-assignment-card .card-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0 0 6px 0;
-  color: var(--text-primary);
+.reading-assignment-card .card-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
-.reading-assignment-card .card-meta {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-right: var(--spacing-sm);
+.reading-assignment-card .card-title {
+  font-size: 1.08rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.reading-assignment-card .card-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: 6px;
+}
+
+.reading-assignment-card .card-meta,
+.reading-assignment-card .card-due,
+.reading-assignment-card .card-score {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
 }
 
 .reading-assignment-card .card-due {
-  font-size: 0.8rem;
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+
+.reading-assignment-card.completed .card-due {
   color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.reading-assignment-card .card-score {
+  color: var(--status-success);
+  background: var(--status-success-bg);
 }
 
 .reading-assignment-card .card-instructions {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
-  margin: 8px 0 0 0;
-  line-height: 1.4;
+  margin: var(--spacing-sm) 0 0 0;
+  line-height: 1.5;
 }
 
 .reading-assignment-card .card-footer {
@@ -88,15 +121,18 @@
 .reading-assignment-card .completed-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--success-600);
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--status-success);
+  background: var(--status-success-bg);
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
 }
 
 .reading-empty {
   text-align: center;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-2xl) var(--spacing-xl);
   background: var(--bg-card);
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-lg);
@@ -109,20 +145,26 @@
 
 .reading-empty h3 {
   margin: 0 0 8px 0;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   color: var(--text-primary);
 }
 
 .reading-empty p {
   color: var(--text-muted);
   margin: 0;
+  font-size: 0.9rem;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+  .reading-my-assignments-page {
+    padding: var(--spacing-md);
+  }
   .reading-assignment-card {
     flex-direction: column;
+    align-items: stretch;
   }
-  .reading-assignment-card .card-footer {
+  .reading-assignment-card .card-footer .btn {
     width: 100%;
+    justify-content: center;
   }
 }

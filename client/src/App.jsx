@@ -125,6 +125,7 @@ const RevisionPlanCreatePage = lazy(() => import("./pages/revisionPlans/Revision
 const RevisionPlanViewPage = lazy(() => import("./pages/revisionPlans/RevisionPlanViewPage"));
 const ReadingMyAssignmentsPage = lazy(() => import("./pages/student/reading/ReadingMyAssignmentsPage"));
 const ReadingTextsListPage = lazy(() => import("./pages/teacher/reading/ReadingTextsListPage"));
+const ReadingAssignmentsPage = lazy(() => import("./pages/teacher/reading/ReadingAssignmentsPage"));
 const ReadingUploadPage = lazy(() => import("./pages/teacher/reading/ReadingUploadPage"));
 const ReadingViewPage = lazy(() => import("./pages/student/reading/ReadingViewPage"));
 const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
@@ -1406,6 +1407,16 @@ function App() {
                 <RoleRoute roles={["teacher", "admin"]}>
                   <FeatureGate feature="readingAssistant" showUpgradePrompt>
                     <ReadingTextsListPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="reading/assignments"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="readingAssistant" showUpgradePrompt>
+                    <ReadingAssignmentsPage />
                   </FeatureGate>
                 </RoleRoute>
               }

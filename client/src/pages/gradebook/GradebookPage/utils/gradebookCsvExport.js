@@ -1,10 +1,11 @@
 import {
+    formatAverageOutOfScale,
     formatPercentageAsAverageOutOfTen,
     getClassCategoryAverage,
     getClassOverallAverage,
     getStudentCategoryAverage,
     getStudentOverallAverage
-} from './gradebookPresentation';
+} from './gradebookPresentation.js';
 
 const escapeCsvValue = (value) => {
     const text = String(value ?? '');
@@ -15,18 +16,20 @@ const escapeCsvValue = (value) => {
 export const buildGradebookCsv = ({
     students = [],
     categories = [],
+    categoryScales = {},
     processedData = {},
     className = '',
     academicYear = '',
     subjectName = '',
     monthName = ''
 }) => {
-    const headers = ['Student', ...categories, 'Overall'];
+    const scaleFor = (category) => categoryScales[category] || 10;
+    const headers = ['Student', ...categories.map((category) => `${category} (/${scaleFor(category)})`), 'Overall (/10)'];
     const rows = students.map(student => {
         const studentData = processedData[student._id];
         const categoryAverages = categories.map(category => {
             const average = getStudentCategoryAverage(studentData, category);
-            return average === '-' ? '' : formatPercentageAsAverageOutOfTen(average);
+            return average === '-' ? '' : formatAverageOutOfScale(average, scaleFor(category));
         });
         const overallAverage = getStudentOverallAverage(studentData);
         return [
@@ -38,7 +41,7 @@ export const buildGradebookCsv = ({
 
     const classAverages = categories.map(category => {
         const average = getClassCategoryAverage({ students, processedData, category });
-        return average === '-' ? '' : formatPercentageAsAverageOutOfTen(average);
+        return average === '-' ? '' : formatAverageOutOfScale(average, scaleFor(category));
     });
     const classOverallAverage = getClassOverallAverage({ students, processedData });
     rows.push([

@@ -48,7 +48,8 @@ const EMPTY_CATEGORY = {
   color: '#64748b',
   isExam: false,
   sortOrder: 0,
-  isActive: true
+  isActive: true,
+  defaultMaxMarks: null
 };
 
 const DEFAULT_GRADING_POLICY = {
@@ -517,7 +518,7 @@ const GradebookConfigTab = () => {
               key={idx}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '32px 40px 1fr 1fr 120px 60px 60px 32px 32px',
+                gridTemplateColumns: '32px 40px 1fr 1fr 90px 120px 60px 60px 32px 32px',
                 gap: 8,
                 alignItems: 'center',
                 padding: '6px 8px',
@@ -572,6 +573,16 @@ const GradebookConfigTab = () => {
                 onChange={(e) => updateCategory(idx, 'labelAr', e.target.value)}
                 placeholder="الاسم بالعربية"
                 dir="rtl"
+                style={{ fontSize: 13 }}
+              />
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={cat.defaultMaxMarks ?? ''}
+                onChange={(e) => updateCategory(idx, 'defaultMaxMarks', e.target.value === '' ? null : Number(e.target.value))}
+                placeholder="Total"
+                title="Total marks new grades in this category start from. Leave blank for the built-in default."
                 style={{ fontSize: 13 }}
               />
               <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', margin: 0 }}>

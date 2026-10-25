@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
-import { useTheme, useMediaQuery } from "@mui/material";
+import { useTheme, useMediaQuery, Tooltip } from "@mui/material";
 import { selectUser } from "../../store/slices/authSlice";
 import { fetchMessageThreads } from "../../api/messagesApi";
 import {
@@ -75,8 +75,42 @@ import {
   HiOutlineUserGroup,
   HiOutlineBriefcase,
   HiOutlineSparkles as HiOutlinePLP,
+  HiOutlineMagnifyingGlass,
+  HiOutlineXMark,
+  HiOutlineChevronDown,
 } from "react-icons/hi2";
 import "./Sidebar.css";
+
+const SECTION_TONES = {
+  overview: "tone-blue",
+  communication: "tone-cyan",
+  teaching: "tone-purple",
+  assessment: "tone-pink",
+  support: "tone-red",
+  operations: "tone-teal",
+  finance: "tone-green",
+  hr: "tone-indigo",
+  plp: "tone-amber",
+  insights: "tone-orange",
+  admin: "tone-indigo",
+  account: "tone-cyan",
+};
+
+const COLLAPSED_SECTIONS_KEY = "sidebar.collapsedSections";
+
+const readCollapsedSections = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(COLLAPSED_SECTIONS_KEY));
+    return Array.isArray(stored) ? stored.filter((key) => typeof key === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+const isActiveNavItem = (item, pathname) =>
+  item.end
+    ? pathname === item.path
+    : pathname === item.path || pathname.startsWith(`${item.path}/`);
 
 const Sidebar = () => {
   const dispatch = useDispatch();
@@ -94,6 +128,15 @@ const Sidebar = () => {
   const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const isRtl = i18n.dir() === "rtl";
+  const [searchInput, setSearchInput] = useState({ path: location.pathname, value: "" });
+  const [collapsedSections, setCollapsedSections] = useState(readCollapsedSections);
+  const searchInputRef = useRef(null);
+
+  // A navigation clears the filter without an extra state update
+  const searchQuery =
+    searchInput.path === location.pathname ? searchInput.value.trim() : "";
+  const updateSearchQuery = (value) =>
+    setSearchInput({ path: location.pathname, value });
 
   const canSeeMessages = useMemo(() => {
     return ["admin", "teacher", "department_principal", "staff"].includes(
@@ -163,6 +206,50 @@ const Sidebar = () => {
       window.clearInterval(intervalId);
     };
   }, [dispatch, isTeacher]);
+
+  // Ctrl/Cmd+K or "/" focuses the sidebar filter on desktop
+  useEffect(() => {
+    if (!isDesktop) return undefined;
+
+    const openSearch = () => {
+      if (!sidebarOpen) dispatch(setSidebarOpen(true));
+      window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    };
+
+    const handleKeyDown = (event) => {
+      const active = document.activeElement;
+      const isTyping =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active?.isContentEditable;
+
+      if (event.ctrlKey || event.metaKey) {
+        // leave Ctrl/Cmd+Shift+K (browser devtools) and form fields alone
+        if (event.shiftKey || isTyping || event.key.toLowerCase() !== "k") return;
+        event.preventDefault();
+        openSearch();
+        return;
+      }
+      if (event.altKey || event.key !== "/" || isTyping) return;
+      event.preventDefault();
+      openSearch();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [dispatch, isDesktop, sidebarOpen]);
+
+  const toggleSection = (sectionKey) => {
+    const next = collapsedSections.includes(sectionKey)
+      ? collapsedSections.filter((key) => key !== sectionKey)
+      : [...collapsedSections, sectionKey];
+    setCollapsedSections(next);
+    try {
+      localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage can be full or blocked; the in-memory state still works
+    }
+  };
 
   const SECTION_ORDER = [
     "overview",
@@ -571,7 +658,15 @@ const Sidebar = () => {
       path: "/portal/reading/texts",
       icon: HiOutlineRectangleStack,
       labelKey: "reading",
-      roles: ["admin"],
+      roles: ["admin", "teacher"],
+      feature: "readingAssistant",
+      section: "teaching",
+    },
+    {
+      path: "/portal/reading/assignments",
+      icon: HiOutlineRectangleStack,
+      labelKey: "readingResults",
+      roles: ["admin", "teacher"],
       feature: "readingAssistant",
       section: "teaching",
     },
@@ -808,7 +903,7 @@ const Sidebar = () => {
       icon: HiOutlinePLP,
       labelKey: "plp",
       roles: ["admin", "teacher", "department_principal", "student"],
-      section: "plp",
+      section: "support",
       end: true,
     },
     {
@@ -816,7 +911,7 @@ const Sidebar = () => {
       icon: HiOutlineCheckCircle,
       labelKey: "plpMyTasks",
       roles: ["student"],
-      section: "plp",
+      section: "support",
     },
     {
       path: "/portal/settings",
@@ -862,10 +957,30 @@ const Sidebar = () => {
     return hasRoleAccess;
   });
 
+  const matchesSearch = (item) => {
+    if (!searchQuery) return true;
+    return [
+      t(`layout.sidebar:items.${item.labelKey}`),
+      t(`layout.sidebar:sections.${item.section || "overview"}`),
+      item.path,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+  };
+
+  // The section holding the open page never auto-collapses
+  const activeSectionKeys = new Set(
+    filteredNavItems
+      .filter((item) => isActiveNavItem(item, location.pathname))
+      .map((item) => item.section || "overview"),
+  );
+
   // Group by section (preserve order), only include sections that have items
   const itemsBySection = SECTION_ORDER.reduce((acc, sectionKey) => {
     const items = filteredNavItems.filter(
-      (item) => (item.section || "overview") === sectionKey,
+      (item) =>
+        (item.section || "overview") === sectionKey && matchesSearch(item),
     );
     if (items.length > 0) acc.push({ key: sectionKey, items });
     return acc;
@@ -902,65 +1017,146 @@ const Sidebar = () => {
         </button>
       </div>
 
+      {/* Filter */}
+      {sidebarOpen && (
+        <div className="sidebar-search">
+          <HiOutlineMagnifyingGlass size={16} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            className="sidebar-search-input"
+            value={searchQuery}
+            onChange={(event) => updateSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              updateSearchQuery("");
+              event.currentTarget.blur();
+            }}
+            placeholder={t("layout.sidebar:actions.search")}
+            aria-label={t("layout.sidebar:actions.search")}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="sidebar-search-clear"
+              onClick={() => updateSearchQuery("")}
+              aria-label={t("layout.sidebar:actions.clearSearch")}
+            >
+              <HiOutlineXMark size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="sidebar-nav">
-        {itemsBySection.map(({ key: sectionKey, items }, sectionIndex) => (
-          <div key={sectionKey} className="sidebar-nav-section">
-            {sidebarOpen && (
-              <div className="sidebar-section-title">
-                {t(`layout.sidebar:sections.${sectionKey}`)}
-              </div>
-            )}
-            {!sidebarOpen && sectionIndex > 0 && (
-              <div className="sidebar-section-divider" />
-            )}
-            {items.map((item) => {
-              const isLocked =
-                item.feature && schoolFeatures?.[item.feature] === false;
-              const itemClassName = `nav-item ${isLocked ? "locked" : ""}`;
+        {itemsBySection.map(({ key: sectionKey, items }, sectionIndex) => {
+          const isSectionCollapsed =
+            !searchQuery &&
+            !activeSectionKeys.has(sectionKey) &&
+            collapsedSections.includes(sectionKey);
 
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.end || false}
-                  className={({ isActive }) =>
-                    `${itemClassName} ${isActive ? "active" : ""}`
-                  }
-                >
-                  <item.icon className="nav-icon" size={20} />
-                  {sidebarOpen && (
-                    <span className="nav-label">
-                      {t(`layout.sidebar:items.${item.labelKey}`)}
-                    </span>
+          return (
+            <div
+              key={sectionKey}
+              className={`sidebar-nav-section ${
+                SECTION_TONES[sectionKey] || ""
+              } ${isSectionCollapsed ? "sidebar-section-collapsed" : ""}`}
+            >
+              {sidebarOpen && (
+                <button
+                  type="button"
+                  className="sidebar-section-title"
+                  onClick={() => toggleSection(sectionKey)}
+                  aria-expanded={!isSectionCollapsed}
+                  aria-label={t(
+                    isSectionCollapsed
+                      ? "layout.sidebar:actions.expandSection"
+                      : "layout.sidebar:actions.collapseSection",
+                    { section: t(`layout.sidebar:sections.${sectionKey}`) },
                   )}
-                  {isLocked && sidebarOpen && (
-                    <HiOutlineLockClosed
-                      className="nav-feature-lock"
+                >
+                  <span>{t(`layout.sidebar:sections.${sectionKey}`)}</span>
+                  {!searchQuery && isSectionCollapsed && (
+                    <span className="sidebar-section-count">{items.length}</span>
+                  )}
+                  {!searchQuery && (
+                    <HiOutlineChevronDown
+                      className="sidebar-section-chevron"
                       size={14}
                     />
                   )}
-                  {/* {isLocked && sidebarOpen && (
-                    <span className="nav-badge nav-badge-upgrade">
-                      {t("layout.sidebar:actions.upgrade")}
-                    </span>
-                  )} */}
-                  {isLocked && !sidebarOpen && (
-                    <span
-                      className="nav-lock-dot"
-                      aria-label={t("layout.sidebar:actions.featureLocked")}
+                </button>
+              )}
+              {!sidebarOpen && sectionIndex > 0 && (
+                <div className="sidebar-section-divider" />
+              )}
+              {!isSectionCollapsed &&
+                items.map((item) => {
+                  const isLocked =
+                    item.feature && schoolFeatures?.[item.feature] === false;
+                  const itemClassName = `nav-item ${isLocked ? "locked" : ""}`;
+                  const label = t(`layout.sidebar:items.${item.labelKey}`);
+
+                  const row = (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      end={item.end || false}
+                      className={({ isActive }) =>
+                        `${itemClassName} ${isActive ? "active" : ""}`
+                      }
                     >
-                      <HiOutlineLockClosed size={10} />
-                    </span>
-                  )}
-                  {!!item.badgeCount && item.badgeCount > 0 && (
-                    <span className="nav-badge">{item.badgeCount}</span>
-                  )}
-                </NavLink>
-              );
-            })}
+                      <item.icon className="nav-icon" size={20} />
+                      {sidebarOpen && <span className="nav-label">{label}</span>}
+                      {isLocked && sidebarOpen && (
+                        <HiOutlineLockClosed
+                          className="nav-feature-lock"
+                          size={14}
+                        />
+                      )}
+                      {/* {isLocked && sidebarOpen && (
+                        <span className="nav-badge nav-badge-upgrade">
+                          {t("layout.sidebar:actions.upgrade")}
+                        </span>
+                      )} */}
+                      {isLocked && !sidebarOpen && (
+                        <span
+                          className="nav-lock-dot"
+                          aria-label={t("layout.sidebar:actions.featureLocked")}
+                        >
+                          <HiOutlineLockClosed size={10} />
+                        </span>
+                      )}
+                      {!!item.badgeCount && item.badgeCount > 0 && (
+                        <span className="nav-badge">{item.badgeCount}</span>
+                      )}
+                    </NavLink>
+                  );
+
+                  if (sidebarOpen || !isDesktop) return row;
+
+                  return (
+                    <Tooltip
+                      key={item.path}
+                      arrow
+                      placement={isRtl ? "left" : "right"}
+                      title={`${label} · ${t(
+                        `layout.sidebar:sections.${sectionKey}`,
+                      )}`}
+                    >
+                      {row}
+                    </Tooltip>
+                  );
+                })}
+            </div>
+          );
+        })}
+        {searchQuery && itemsBySection.length === 0 && (
+          <div className="sidebar-empty">
+            {t("layout.sidebar:actions.noResults")}
           </div>
-        ))}
+        )}
       </nav>
 
       {/* User info */}

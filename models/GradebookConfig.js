@@ -120,6 +120,14 @@ const categorySchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
+        },
+        // Null means "use the built-in default for this category" (classwork 10,
+        // project 20, exam 25), so a school that never set it keeps today's numbers.
+        defaultMaxMarks: {
+            type: Number,
+            min: 1,
+            max: 1000,
+            default: null
         }
     },
     { _id: false }

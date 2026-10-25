@@ -74,6 +74,8 @@ const GradebookPage = ({
         setGrades,
         gradingScale,
         setGradingScale,
+        categoryMaxMarks,
+        setCategoryMaxMarks,
         loading,
         setLoading,
         showAddModal,
@@ -113,7 +115,14 @@ const GradebookPage = ({
         resetForm
     } = useGradebookPageState(students);
 
-    const { fetchGrades, availableSubjects, dynamicCategories, processedData, loadError } = useGradebookData({
+    const {
+        fetchGrades,
+        availableSubjects,
+        dynamicCategories,
+        categoryScales,
+        processedData,
+        loadError
+    } = useGradebookData({
         classId,
         currentClass,
         subjects,
@@ -125,9 +134,11 @@ const GradebookPage = ({
         selectedMonth,
         selectedCategoryFilter,
         academicYear,
+        categoryMaxMarks,
         setSelectedSubject,
         setGrades,
         setGradingScale,
+        setCategoryMaxMarks,
         setLoading
     });
 
@@ -249,6 +260,7 @@ const GradebookPage = ({
         const csv = buildGradebookCsv({
             students,
             categories: dynamicCategories,
+            categoryScales,
             processedData,
             className: currentClass?.name,
             academicYear,
@@ -314,6 +326,7 @@ const GradebookPage = ({
                             grades={grades}
                             gradingScale={gradingScale}
                             dynamicCategories={dynamicCategories}
+                            categoryScales={categoryScales}
                             processedData={processedData}
                             selectedCategoryFilter={selectedCategoryFilter}
                             onOpenAIModal={handleOpenAIModal}
@@ -332,6 +345,7 @@ const GradebookPage = ({
                 students={students}
                 selectedClassId={classId}
                 selectedSubjectId={selectedSubject}
+                categoryMaxMarks={categoryMaxMarks}
                 onGradeChange={handleGradeChange}
                 onClose={handleCloseAddModal}
                 onSubmit={handleAddGrades}

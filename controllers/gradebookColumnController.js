@@ -1,6 +1,7 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import * as columnService from '../services/gradebookColumnService.js';
-import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults.js';
+import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults.js';
+import { getCategoryMaxMarks, resolveSemesterForDate } from '../services/gradebookConfigService.js';
 
 /**
  * GET /api/gradebook-columns
@@ -39,39 +40,57 @@ export const getColumn = asyncHandler(async (req, res) => {
     res.json({ success: true, data: column });
 });
 
+const resolveColumnSemester = async (schoolId, semester, columnDate) => {
+    const explicit = Number(semester);
+    if (explicit === 1 || explicit === 2) return explicit;
+
+    const fromConfig = Number(await resolveSemesterForDate(schoolId, columnDate));
+    if (fromConfig === 1 || fromConfig === 2) return fromConfig;
+
+    const month = columnDate.getMonth() + 1;
+    return month >= 8 && month <= 12 ? 1 : 2;
+};
+
 /**
  * POST /api/gradebook-columns
  * Create a new gradebook column.
  */
 export const createColumn = asyncHandler(async (req, res) => {
     const { name, category, date, maxMarks, semester, classId, subjectId, academicYear, examPeriod, lessonPlanIds } = req.body;
-
-    if (!name || !category || !classId || !subjectId || !academicYear || !semester) {
+    const missing = ['name', 'category', 'classId', 'subjectId', 'academicYear']
+        .filter((field) => !req.body[field]);
+    if (missing.length > 0) {
         return res.status(400).json({
             success: false,
-            message: 'name, category, classId, subjectId, academicYear, and semester are required'
+            message: `${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required`
         });
     }
 
-    if (semester !== 1 && semester !== 2) {
+    if (semester !== undefined && semester !== null && semester !== '' && semester !== 1 && semester !== 2) {
         return res.status(400).json({ success: false, message: 'semester must be 1 or 2' });
     }
 
+    const columnDate = new Date(date || Date.now());
+    // The header filter can sit on "Full Year", which carries no semester. A column
+    // belongs to whichever semester its own date falls in, exactly like a Grade does.
+    const resolvedSemester = await resolveColumnSemester(req.schoolId, semester, columnDate);
+
     // Count existing columns to set sortOrder
     const existingColumns = await columnService.getColumns(req.schoolId, {
-        classId, subjectId, academicYear, semester
+        classId, subjectId, academicYear, semester: resolvedSemester
     });
+    const categoryMaxMarks = await getCategoryMaxMarks(req.schoolId, academicYear);
 
     const column = await columnService.createColumn({
         school: req.schoolId,
         class: classId,
         subject: subjectId,
         academicYear,
-        semester,
+        semester: resolvedSemester,
         name: name.trim(),
         category: category.toLowerCase().trim(),
         date: date || new Date(),
-        maxMarks: maxMarks ?? getDefaultMaxMarksForCategory(category),
+        maxMarks: maxMarks ?? resolveCategoryMaxMarks(category, categoryMaxMarks),
         examPeriod: examPeriod || null,
         lessonPlanIds: lessonPlanIds || [],
         sortOrder: existingColumns.length + 1,

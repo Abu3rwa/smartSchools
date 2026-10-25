@@ -32,7 +32,9 @@ import {
     HiOutlineSearch,
     HiOutlineTrash,
     HiOutlineUpload,
-    HiOutlineUserAdd
+    HiOutlineUserAdd,
+    HiOutlineUserGroup,
+    HiOutlineX
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
@@ -677,134 +679,225 @@ const StudentsPage = () => {
     const isAllSelected = students.length > 0
         && students.every((student) => selectedStudentIds.has(student._id));
 
+    const isFiltered = Boolean(searchTerm.trim()) || Boolean(filterClass);
+
+    const clearFilters = () => {
+        setSearchTerm('');
+        setFilterClass('');
+        setCurrentPage(1);
+    };
+
+    const filterClassLabel = filterClass === 'unassigned'
+        ? t('students:filters.unassignedStudents')
+        : classes.find((currentClass) => currentClass._id === filterClass)?.name;
+
+    const activeFilterChips = [
+        ...(searchTerm.trim() ? [{ key: 'search', label: searchTerm.trim(), onClear: () => setSearchTerm('') }] : []),
+        ...(filterClass ? [{ key: 'class', label: filterClassLabel || filterClass, onClear: () => setFilterClass('') }] : [])
+    ];
+
     return (
         <div className="students-page">
-            {showCapacityBanner && (
-                <div className={`students-capacity-banner ${studentCapacity.isFull ? 'full' : ''}`}>
-                    {studentCapacity.isLimited ? (
-                        <>
-                            <strong>{t('students:capacity.title')}</strong>
-                            <span>
-                                {t('students:capacity.summary', {
-                                    current: studentCapacity.currentStudents,
-                                    max: studentCapacity.maxStudents,
-                                    remaining: studentCapacity.remainingSeats
-                                })}
-                            </span>
-                        </>
-                    ) : (
-                        <span>
-                            {t('students:capacity.unlimitedSummary', {
-                                current: studentCapacity.currentStudents
-                            })}
-                        </span>
-                    )}
-                </div>
-            )}
-
-            <div className="page-header">
-                <div className="student-header-text">
+            <div className="page-header students-hero">
+                <div className="students-hero-text">
                     <h1>{t('students:page.title')}</h1>
                     <p className="text-muted">{t('students:page.subtitle')}</p>
+                    {showCapacityBanner && (
+                        <div
+                            className={`students-capacity-pill${studentCapacity.isFull ? ' is-full' : ''}`}
+                            role="status"
+                        >
+                            <HiOutlineUserGroup size={15} />
+                            {studentCapacity.isLimited ? (
+                                <span>
+                                    <strong>{t('students:capacity.title')}</strong>
+                                    {' '}
+                                    {t('students:capacity.summary', {
+                                        current: studentCapacity.currentStudents,
+                                        max: studentCapacity.maxStudents,
+                                        remaining: studentCapacity.remainingSeats
+                                    })}
+                                </span>
+                            ) : (
+                                <span>
+                                    {t('students:capacity.unlimitedSummary', {
+                                        current: studentCapacity.currentStudents
+                                    })}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
+
                 {isAdmin && (
                     <div className="header-actions">
                         <button
-                            className="btn btn-outline"
+                            type="button"
+                            className="btn btn-ghost"
                             onClick={() => navigate('/portal/students/promotion-center')}
                         >
-                            <HiOutlineClipboardCheck size={20} />
+                            <HiOutlineClipboardCheck size={18} />
                             {t('students:actions.openPromotionCenter')}
                         </button>
                         <button
-                            className="btn btn-outline"
-                            onClick={handleBulkSendStudentInvites}
-                            disabled={selectedStudentIds.size === 0 || bulkStudentInviteLoading}
-                            title={selectedStudentIds.size === 0 ? t('students:actions.selectStudentsFirst') : ''}
-                        >
-                            <HiOutlineUserAdd size={20} />
-                            {bulkStudentInviteLoading
-                                ? t('students:actions.sendingInvites')
-                                : t('students:actions.sendInvitesForSelected', { count: selectedStudentIds.size })}
-                        </button>
-                        <button
-                            className="btn btn-outline"
-                            onClick={handleBulkSendParentInvites}
-                            disabled={selectedStudentIds.size === 0 || bulkParentInviteLoading}
-                            title={selectedStudentIds.size === 0 ? t('students:actions.selectStudentsFirst') : ''}
-                        >
-                            <HiOutlineMail size={20} />
-                            {bulkParentInviteLoading
-                                ? t('students:actions.sendingParentInvites')
-                                : t('students:actions.sendParentInvitesForSelected', { count: selectedStudentIds.size })}
-                        </button>
-                        <button
-                            className="btn btn-outline"
+                            type="button"
+                            className="btn btn-secondary"
                             onClick={() => setShowImportModal(true)}
                             disabled={studentCapacity.isFull}
                             title={studentCapacity.isFull ? t('students:capacity.planFull') : ''}
                         >
-                            <HiOutlineUpload size={20} />
+                            <HiOutlineUpload size={18} />
                             {t('students:actions.importCsv')}
                         </button>
                         <button
+                            type="button"
                             className="btn btn-primary"
                             onClick={() => setShowModal(true)}
                             disabled={studentCapacity.isFull}
                             title={studentCapacity.isFull ? t('students:capacity.planFull') : ''}
                         >
-                            <HiOutlinePlus size={20} />
+                            <HiOutlinePlus size={18} />
                             {t('students:actions.addStudent')}
                         </button>
+                        <span className="students-header-divider" aria-hidden="true" />
                         <button
-                            className="btn btn-danger"
+                            type="button"
+                            className="btn btn-danger-quiet"
                             onClick={openBulkDeleteModal}
-                            title="Delete students by selection, class, or academic year"
+                            title={t('students:actions.bulkDeleteHint')}
                         >
-                            <HiOutlineTrash size={20} />
-                            Delete Students
+                            <HiOutlineTrash size={18} />
+                            {t('students:actions.bulkDelete')}
                         </button>
                     </div>
                 )}
             </div>
 
-            <div className="filters-bar">
-                <div className="search-bar">
+            {isAdmin && selectedStudentIds.size > 0 && (
+                <div className="students-selection-bar">
+                    <span className="students-selection-count">
+                        {t('students:selection.count', { total: selectedStudentIds.size })}
+                    </span>
+                    <div className="students-selection-actions">
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={handleBulkSendStudentInvites}
+                            disabled={bulkStudentInviteLoading}
+                        >
+                            <HiOutlineUserAdd size={16} />
+                            <span>
+                                {bulkStudentInviteLoading
+                                    ? t('students:actions.sendingInvites')
+                                    : t('students:actions.sendLoginInvites')}
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={handleBulkSendParentInvites}
+                            disabled={bulkParentInviteLoading}
+                        >
+                            <HiOutlineMail size={16} />
+                            <span>
+                                {bulkParentInviteLoading
+                                    ? t('students:actions.sendingParentInvites')
+                                    : t('students:actions.sendParentInvites')}
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => setSelectedStudentIds(new Set())}
+                        >
+                            {t('students:selection.clear')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="filters-bar students-filters">
+                <div className="search-bar students-search">
                     <HiOutlineSearch className="search-icon" />
                     <input
                         type="text"
                         placeholder={t('students:filters.searchPlaceholder')}
+                        aria-label={t('students:filters.searchAria')}
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
                     />
+                    {searchTerm && (
+                        <button
+                            type="button"
+                            className="search-clear"
+                            onClick={() => setSearchTerm('')}
+                            aria-label={t('students:filters.clearSearch')}
+                        >
+                            <HiOutlineX size={16} />
+                        </button>
+                    )}
                 </div>
-                <select
-                    value={selectedAcademicYear}
-                    onChange={(event) => {
-                        setSelectedAcademicYear(event.target.value);
-                        setFilterClass('');
-                        setCurrentPage(1);
-                        setSelectedStudentIds(new Set());
-                    }}
-                    aria-label="Academic year"
-                >
-                    {[...new Set([academicYear, ...studentAcademicYears].filter(Boolean))]
-                        .sort()
-                        .map((year) => <option key={year} value={year}>{year}</option>)}
-                </select>
-                <select value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
-                    <option value="">{t('students:filters.allClasses')}</option>
-                    <option value="unassigned">{t('students:filters.unassignedStudents')}</option>
-                    {classes.map((currentClass) => (
-                        <option key={currentClass._id} value={currentClass._id}>{currentClass.name}</option>
-                    ))}
-                </select>
+                <label className="students-filter-field">
+                    <span className="students-filter-label">{t('students:filters.academicYear')}</span>
+                    <select
+                        value={selectedAcademicYear}
+                        aria-label={t('students:filters.academicYear')}
+                        onChange={(event) => {
+                            setSelectedAcademicYear(event.target.value);
+                            setFilterClass('');
+                            setCurrentPage(1);
+                            setSelectedStudentIds(new Set());
+                        }}
+                    >
+                        {[...new Set([academicYear, ...studentAcademicYears].filter(Boolean))]
+                            .sort()
+                            .map((year) => <option key={year} value={year}>{year}</option>)}
+                    </select>
+                </label>
+                <label className="students-filter-field">
+                    <span className="students-filter-label">{t('students:filters.classFilter')}</span>
+                    <select
+                        value={filterClass}
+                        aria-label={t('students:filters.classFilter')}
+                        onChange={(event) => setFilterClass(event.target.value)}
+                    >
+                        <option value="">{t('students:filters.allClasses')}</option>
+                        <option value="unassigned">{t('students:filters.unassignedStudents')}</option>
+                        {classes.map((currentClass) => (
+                            <option key={currentClass._id} value={currentClass._id}>{currentClass.name}</option>
+                        ))}
+                    </select>
+                </label>
+                {activeFilterChips.length > 0 && (
+                    <div className="students-active-filters">
+                        {activeFilterChips.map((chip) => (
+                            <button
+                                key={chip.key}
+                                type="button"
+                                className="students-filter-chip"
+                                onClick={chip.onClear}
+                            >
+                                <span>{chip.label}</span>
+                                <HiOutlineX size={14} />
+                            </button>
+                        ))}
+                        <button
+                            type="button"
+                            className="students-filter-reset"
+                            onClick={clearFilters}
+                        >
+                            {t('students:filters.clearAll')}
+                        </button>
+                    </div>
+                )}
             </div>
 
             <StudentsTable
                 students={students}
                 isAdmin={isAdmin}
                 loading={loading}
+                isFiltered={isFiltered}
+                onClearFilters={clearFilters}
                 isAllSelected={isAllSelected}
                 selectedStudentIds={selectedStudentIds}
                 toggleSelectAllStudents={toggleSelectAllStudents}

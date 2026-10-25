@@ -37,6 +37,7 @@ export function useReadingViewData() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [progressSubmitting, setProgressSubmitting] = useState(false);
+  const [submittedScore, setSubmittedScore] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -63,22 +64,22 @@ export function useReadingViewData() {
   const assignmentId = routeAssignmentId || content?.assignmentId;
   const criticalThinkingQuestions = useMemo(() => content?.criticalThinkingQuestions || [], [content]);
   const comprehensionQuestions = useMemo(() => content?.comprehensionQuestions || [], [content]);
+  const score = submittedScore || content?.score || null;
 
   const handleGetFeedback = useCallback(
-    (index, question) => {
+    (index, question, textExcerpt) => {
       const answer = (ctAnswers[index] || '').trim();
       if (!answer) {
         toast.error(t('reading:view.toasts.answerFirst'));
         return;
       }
       setCtFeedback((prev) => ({ ...prev, [index]: { ...prev[index], loading: true } }));
-      const bodyText = content?.simplifiedContent || content?.text?.originalText || '';
       readingService
         .evaluateAnswer({
           textId: content?.text?._id,
           question,
           studentAnswer: answer,
-          textExcerpt: bodyText.slice(0, 2500),
+          textExcerpt: String(textExcerpt || content?.simplifiedContent || content?.text?.originalText || '').slice(0, 2500),
           requestedLanguages: content?.text?.requestedLanguages,
         })
         .then((res) => {
@@ -120,6 +121,7 @@ export function useReadingViewData() {
       .then((result) => {
         if (result.type === 'reading/updateProgress/fulfilled') {
           setQuizSubmitted(true);
+          setSubmittedScore(result.payload?.score || null);
           const score = result.payload?.score;
           toast.success(score?.totalCount
             ? t('reading:view.toasts.score', {
@@ -144,6 +146,7 @@ export function useReadingViewData() {
     criticalThinkingQuestions,
     comprehensionQuestions,
     assignmentId,
+    score,
     handleGetFeedback,
     handleQuizSubmit,
     updateProgress,

@@ -97,5 +97,11 @@ export function useReadingTextsListData() {
     assignmentCountByText,
     onBack: () => navigate("/portal/dashboard"),
     onUpload: () => navigate("/portal/reading/upload"),
+    onResults: (textId) =>
+      navigate(
+        textId
+          ? `/portal/reading/assignments?text=${encodeURIComponent(textId)}`
+          : "/portal/reading/assignments",
+      ),
   };
 }

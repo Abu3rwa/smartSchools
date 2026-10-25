@@ -11,7 +11,7 @@ import {
     selectSpreadsheetColumns,
     selectSpreadsheetGrades
 } from '../../../../store/slices/spreadsheetSlice';
-import { formatPercentageAsAverageOutOfTen } from '../utils/gradebookPresentation';
+import { formatAverageOutOfScale, formatPercentageAsAverageOutOfTen } from '../utils/gradebookPresentation';
 
 const GRADE_BANDS = [
     { label: 'A (90-100)', min: 90, color: '#10b981' },
@@ -22,6 +22,10 @@ const GRADE_BANDS = [
 ];
 
 const getBand = (pct) => GRADE_BANDS.find(b => pct >= b.min) || GRADE_BANDS[GRADE_BANDS.length - 1];
+
+// A column keeps the total it was created with, so its average is reported out of
+// that total rather than a fixed 10.
+const columnScale = (col) => Number(col?.maxMarks ?? col?.totalMarks) || 10;
 
 const GradeAnalyticsDashboard = () => {
     const students = useSelector(selectSpreadsheetStudents);
@@ -176,7 +180,7 @@ const GradeAnalyticsDashboard = () => {
                                     fontWeight: 600, fontSize: 13,
                                     color: col.avg !== null ? getBand(col.avg).color : '#9ca3af'
                                 }}>
-                                    {col.avg !== null ? `${formatPercentageAsAverageOutOfTen(col.avg)}/10` : '—'}
+                                    {col.avg !== null ? `${formatAverageOutOfScale(col.avg, columnScale(col))}/${columnScale(col)}` : '—'}
                                 </span>
                             </div>
                         ))}

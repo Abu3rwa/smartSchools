@@ -1,15 +1,12 @@
 {
-  "search": {
-    "placeholder": "Search students...",
-    "ariaLabel": "Search students"
-  },
   "actions": {
     "openMenu": "Open menu",
     "toggleTheme": "Toggle theme",
     "toggleLanguage": "Switch language",
+    "toggleLanguageTo": "Switch to {{language}}",
     "pinCurrentPage": "Pin this page",
+    "unpinCurrentPage": "Unpin this page",
     "manageShortcuts": "Manage shortcuts",
-    "backToDashboard": "Back to Dashboard",
     "notifications": "Notifications",
     "notificationsAria_zero": "Notifications",
     "notificationsAria_one": "Notifications ({{count}} pending)",
@@ -25,8 +22,15 @@
     "pinCurrentPage": "Pin current page",
     "pinCurrentPageDisabled": "Open a pinnable page first",
     "orderTitle": "Shortcut order",
-    "orderHint": "Drag items to reorder.",
-    "none": "No shortcuts selected"
+    "orderHint": "Drag or use the arrows.",
+    "none": "No shortcuts selected",
+    "searchPlaceholder": "Find a page",
+    "clearSearch": "Clear search",
+    "noResults": "No page matches that search",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "remove": "Remove from shortcuts",
+    "more": "{{total}} more"
   },
   "menu": {
     "settings": "Settings",

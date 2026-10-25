@@ -84,7 +84,8 @@
   /* Layout */
   --sidebar-width: 280px;
   --sidebar-collapsed: 80px;
-  --header-height: 70px;
+  --header-height: 56px;
+  --banner-height: 36px;
   --content-max-width: 1400px;
 
   /* Responsive breakpoints (use in media queries: max-width) */

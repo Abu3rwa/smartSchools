@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { HiOutlineX } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
-import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults';
+import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const AddGradesModal = ({
@@ -12,11 +13,27 @@ const AddGradesModal = ({
     students,
     selectedClassId,
     selectedSubjectId,
+    categoryMaxMarks = null,
     onGradeChange,
     onClose,
     onSubmit
 }) => {
     const { t } = useTranslation(['gradebook']);
+
+    // The school's own maximum for a category only exists once the gradebook has
+    // loaded, so apply it to the pre-selected category instead of the generic 10.
+    useEffect(() => {
+        if (!open) return;
+        const configured = resolveCategoryMaxMarks(formData.category, categoryMaxMarks);
+        if (Number(formData.maxMarks) !== configured) {
+            setFormData((current) => (
+                Number(current.maxMarks) === configured
+                    ? current
+                    : { ...current, maxMarks: configured }
+            ));
+        }
+    }, [categoryMaxMarks, formData.category, formData.maxMarks, open, setFormData]);
+
     if (!open) {
         return null;
     }
@@ -52,7 +69,7 @@ const AddGradesModal = ({
                                     onChange={(event) => setFormData({
                                         ...formData,
                                         category: event.target.value,
-                                        maxMarks: getDefaultMaxMarksForCategory(event.target.value)
+                                        maxMarks: resolveCategoryMaxMarks(event.target.value, categoryMaxMarks)
                                     })}
                                     required
                                 >
@@ -85,7 +102,7 @@ const AddGradesModal = ({
                                         setFormData({ ...formData, maxMarks: Number(event.target.value) });
                                     }}
                                     min={1}
-                                    max={100}
+                                    max={1000}
                                 />
                             </div>
                         </div>

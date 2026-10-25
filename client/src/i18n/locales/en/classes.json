@@ -5,6 +5,7 @@
   },
   "actions": {
     "importCsv": "Import CSV",
+    "downloadSample": "Download Sample CSV",
     "addClass": "Add Class",
     "createClass": "Create Class",
     "creating": "Creating...",
@@ -14,11 +15,18 @@
     "deactivated": "deactivated"
   },
   "filters": {
-    "searchPlaceholder": "Search classes..."
+    "searchPlaceholder": "Search classes...",
+    "searchAria": "Search classes",
+    "clearSearch": "Clear search",
+    "matches": "{{total}} matching"
+  },
+  "template": {
+    "active": "Sample template {{version}} updated {{date}}",
+    "fallback": "Sample template comes from the import schema",
+    "unknownDate": "recently"
   },
   "table": {
     "columns": {
-      "grade": "Grade",
       "section": "Section",
       "className": "Class Name",
       "department": "Department",
@@ -34,7 +42,9 @@
   },
   "empty": {
     "title": "No classes found",
-    "description": "Create a new class to get started"
+    "description": "Create a new class to get started",
+    "noMatches": "No classes match your search",
+    "noMatchesDescription": "Try a different class name or grade level."
   },
   "modal": {
     "createTitle": "Create New Class"
@@ -53,10 +63,15 @@
   },
   "confirm": {
     "toggleActive": "Are you sure you want to {{action}} {{className}}?",
-    "delete": "Delete {{className}}? This will deactivate the class and hide it from active workflows.",
-    "deleteModePrompt": "Choose delete option for {{className}}:\n1 = Delete class only (keep students and historical data)\n2 = Delete class with students detached and related class data removed\n\nType 1 or 2.",
-    "deleteClassOnly": "Delete {{className}} only? Students and historical data will be kept.",
-    "deleteWithData": "Delete {{className}} with related class data and detach enrolled students? This cannot be undone."
+    "deleteClassOnly": "Students stay enrolled and every grade, attendance and report they already have is kept.",
+    "deleteWithData": "Enrolled students are detached and related class data is removed. This cannot be undone."
+  },
+  "delete": {
+    "title": "Delete class",
+    "classOnlyTitle": "Delete the class only",
+    "withDataTitle": "Delete with related class data",
+    "confirm": "Delete class",
+    "deleting": "Deleting..."
   },
   "toast": {
     "created": "Class created successfully!",
@@ -66,13 +81,12 @@
     "deleted": "Class deleted successfully",
     "deletedClassOnly": "Class deleted (class only)",
     "deletedWithData": "Class deleted with related data cleanup",
-    "deleteChoiceInvalid": "Invalid choice. Please type 1 or 2.",
     "deleteFailed": "Failed to delete class",
     "selectCsv": "Please select a CSV file",
     "noValidRows": "No valid rows found in CSV",
-    "imported": "Imported {{count}} classes",
-    "importFailedRows": "{{count}} class rows failed",
-    "importSkippedRows": "{{count}} class rows skipped",
+    "imported": "Imported {{total}} classes",
+    "importFailedRows": "{{total}} class rows failed",
+    "importSkippedRows": "{{total}} class rows skipped",
     "importFailed": "Failed to import classes"
   }
 }

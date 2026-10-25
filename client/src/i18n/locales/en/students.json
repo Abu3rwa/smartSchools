@@ -11,15 +11,26 @@
   },
   "filters": {
     "searchPlaceholder": "Search students...",
+    "searchAria": "Search students",
+    "clearSearch": "Clear search",
+    "academicYear": "Academic year",
+    "classFilter": "Class",
+    "clearAll": "Clear filters",
     "allClasses": "All Classes",
     "unassignedStudents": "Unassigned Students"
+  },
+  "selection": {
+    "count": "{{total}} selected",
+    "clear": "Clear selection"
   },
   "actions": {
     "selectWithoutLoginFirst": "Select students without a login first",
     "selectStudentsFirst": "Select at least one student first",
     "createLoginsForSelected": "Create logins for selected ({{count}})",
-    "sendInvitesForSelected": "Send invites for selected ({{count}})",
-    "sendParentInvitesForSelected": "Send parent invites for selected ({{count}})",
+    "sendLoginInvites": "Send login invites",
+    "sendParentInvites": "Send parent invites",
+    "bulkDelete": "Delete Students",
+    "bulkDeleteHint": "Delete students by selection, class, or academic year",
     "sendLoginInvite": "Send login invite",
     "resendLoginInvite": "Resend login invite",
     "sendInvite": "Send Invite",
@@ -88,7 +99,10 @@
     "inactive": "inactive"
   },
   "empty": {
-    "noStudents": "No students found"
+    "noStudents": "No students found",
+    "noStudentsHint": "Add a student or import a class list to get started.",
+    "noMatches": "No students match these filters",
+    "noMatchesHint": "Try a different name, or clear the filters to see the whole roster."
   },
   "modal": {
     "editTitle": "Edit Student",

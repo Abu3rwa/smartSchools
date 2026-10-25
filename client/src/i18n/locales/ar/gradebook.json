@@ -60,7 +60,7 @@
   "table": {
     "columns": {
       "student": "الطالب",
-      "categoryAvg": "{{category}} (متوسط /10)",
+      "categoryAvg": "{{category}} (متوسط /{{max}})",
       "overallAvg": "الإجمالي (متوسط /10)"
     },
     "generateProgressReport": "إنشاء تقرير التقدم",

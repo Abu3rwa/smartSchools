@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { createColumn } from '../../../../store/slices/gradebookColumnsSlice';
-import { getDefaultMaxMarksForCategory } from '../utils/gradebookDefaults';
+import gradebookConfigService from '../../../../services/gradebookConfigService';
+import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults';
 
 const CATEGORIES = [
     { key: 'classwork', label: 'Classwork' },
@@ -64,7 +65,35 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
         maxMarks: 10,
         examPeriod: ''
     });
+    const [categoryMaxMarks, setCategoryMaxMarks] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+
+    // A school can mark a category out of its own total, and the column inherits it.
+    useEffect(() => {
+        let cancelled = false;
+        gradebookConfigService.getCategories(academicYear)
+            .then((payload) => {
+                if (cancelled) return;
+                const map = {};
+                for (const category of payload?.data || []) {
+                    const configured = Number(category?.defaultMaxMarks);
+                    if (category?.key && Number.isFinite(configured) && configured > 0) {
+                        map[category.key.toLowerCase()] = configured;
+                    }
+                }
+                setCategoryMaxMarks(map);
+                setForm((current) => ({
+                    ...current,
+                    maxMarks: resolveCategoryMaxMarks(current.category, map)
+                }));
+            })
+            .catch(() => {
+                // Without a readable config the built-in defaults keep applying.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [academicYear]);
 
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -82,7 +111,7 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
                 name: form.name.trim(),
                 category: form.category,
                 date: form.date,
-                maxMarks: Number(form.maxMarks) || getDefaultMaxMarksForCategory(form.category),
+                maxMarks: Number(form.maxMarks) || resolveCategoryMaxMarks(form.category, categoryMaxMarks),
                 examPeriod: form.examPeriod || null
             })).unwrap();
             toast.success('Column added');
@@ -92,7 +121,7 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
         } finally {
             setSubmitting(false);
         }
-    }, [dispatch, form, classId, subjectId, academicYear, semester, onCreated]);
+    }, [dispatch, form, categoryMaxMarks, classId, subjectId, academicYear, semester, onCreated]);
 
     return (
         <div className="modal-overlay" onClick={onClose} style={modalOverlayStyle}>
@@ -112,7 +141,7 @@ const AddColumnModal = ({ classId, subjectId, academicYear, semester, onClose, o
                         <select value={form.category} onChange={e => setForm(p => ({
                             ...p,
                             category: e.target.value,
-                            maxMarks: getDefaultMaxMarksForCategory(e.target.value)
+                            maxMarks: resolveCategoryMaxMarks(e.target.value, categoryMaxMarks)
                         }))}>
                             {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                         </select>

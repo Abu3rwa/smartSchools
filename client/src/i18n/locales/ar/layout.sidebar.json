@@ -60,11 +60,12 @@
     "attendanceTickets": "تذاكر الحضور",
     "attendanceReminders": "تذكيرات الحضور",
     "subRequests": "طلبات البديل",
-    "behaviorManagement": "إدارة السلوك",
+    "behaviorManagement": "السلوك",
     "behaviorAnalytics": "تحليلات السلوك",
     "teachers": "المعلمون",
     "subjects": "المواد",
     "reading": "القراءة",
+    "readingResults": "نتائج القراءة",
     "sbrConfig": "إعدادات SBR",
     "sbrGenerate": "إنشاء SBR",
     "sbrReports": "تقارير SBR",
@@ -103,6 +104,11 @@
     "collapseSidebar": "طي الشريط الجانبي",
     "expandSidebar": "توسيع الشريط الجانبي",
     "upgrade": "ترقية",
-    "featureLocked": "الميزة مقفلة"
+    "featureLocked": "الميزة مقفلة",
+    "search": "ابحث في الصفحات",
+    "clearSearch": "مسح البحث",
+    "noResults": "لا توجد صفحات مطابقة",
+    "collapseSection": "طي {{section}}",
+    "expandSection": "توسيع {{section}}"
   }
 }

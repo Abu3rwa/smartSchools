@@ -1,24 +1,55 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineArrowLeft, HiOutlineLightBulb, HiOutlineQuestionMarkCircle } from 'react-icons/hi';
+import { Popover } from '@mui/material';
+import {
+  HiOutlineArrowLeft,
+  HiOutlineCheckCircle,
+  HiOutlineLightBulb,
+  HiOutlineQuestionMarkCircle,
+  HiOutlineStop,
+  HiOutlineVolumeUp,
+  HiOutlineX,
+} from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import { useReadingViewData } from './hooks/useReadingViewData';
 import { findVocabularyMatches } from './vocabularyHighlight.js';
-import { planAudio, playChain } from '../../../../utils/vocabAudio.js';
+import {
+  buildReadingLevels,
+  findLevelIndex,
+  mergeVocabulary,
+  readingBlocksFor,
+} from './readingPresentation.js';
+import { canSpeak, chunkForSpeech, speechLang, speakChunks } from './readAloud.js';
+import { planAudio, playChain, hasRecording } from '../../../../utils/vocabAudio.js';
 import { readStoredVoice } from '../../../../utils/voicePlayback.js';
 import './ReadingViewPage.css';
 
+const isOptionAnswered = (question, quizAnswers) => {
+  const raw = quizAnswers[String(question._id)];
+  const index = Number(raw);
+  return String(raw ?? '') !== ''
+    && Number.isInteger(index)
+    && index >= 0
+    && index < (question.options?.length || 0);
+};
+
+const scoreTier = (correctCount, totalCount) => {
+  const ratio = totalCount ? correctCount / totalCount : 0;
+  if (ratio >= 0.8) return 'resultGreat';
+  if (ratio >= 0.5) return 'resultGood';
+  return 'resultKeepGoing';
+};
+
 const ReadingViewPage = () => {
-  const { t } = useTranslation(['reading']);
+  const { t, i18n } = useTranslation(['reading']);
   const navigate = useNavigate();
   const academicYear = useSelector(selectCurrentAcademicYear);
 
   const {
     content,
     loading,
-    vocabulary,
     criticalThinkingQuestions,
     comprehensionQuestions,
     handleGetFeedback,
@@ -30,55 +61,83 @@ const ReadingViewPage = () => {
     setQuizAnswers,
     quizSubmitted,
     progressSubmitting,
+    score,
   } = useReadingViewData();
 
-  const [vocabPopup, setVocabPopup] = useState(null);
-  const [showCriticalThinking, setShowCriticalThinking] = useState(false);
-  const [showQuiz, setShowQuiz] = useState(false);
+  const [vocab, setVocab] = useState({ anchorEl: null, item: null });
+  const [selection, setSelection] = useState({ textKey: null, index: 0 });
+  const [speakingKey, setSpeakingKey] = useState(null);
   const vocabularyPlayback = useRef(null);
+  const speechRef = useRef(null);
+
+  const levels = useMemo(() => buildReadingLevels(content), [content]);
+  const recommendedIndex = findLevelIndex(levels, content?.targetLevel);
+  const textKey = String(content?.text?._id || '');
+  const activeLevelIndex = selection.textKey === textKey
+    ? Math.min(selection.index, levels.length - 1)
+    : recommendedIndex;
 
   useEffect(() => () => {
     vocabularyPlayback.current?.cancel();
+    speechRef.current?.cancel();
   }, []);
 
-  const openVocabulary = (item, term) => {
+  const stopReadingAloud = () => {
+    speechRef.current?.cancel();
+    speechRef.current = null;
+    setSpeakingKey(null);
+  };
+
+  const activeLevel = levels[activeLevelIndex];
+  const blocks = useMemo(() => (activeLevel ? readingBlocksFor(activeLevel) : []), [activeLevel]);
+  const vocabulary = useMemo(
+    () => mergeVocabulary(content?.vocabularySubstitutions, activeLevel?.vocabularySubstitutions),
+    [content?.vocabularySubstitutions, activeLevel]
+  );
+  const passageText = blocks.map((block) => block.text).join('\n\n');
+  const languageCode = content?.text?.language || (i18n.dir() === 'rtl' ? 'ar' : 'en');
+  const audioSupported = canSpeak();
+
+  const closeVocabulary = () => {
+    vocabularyPlayback.current?.cancel();
+    vocabularyPlayback.current = null;
+    setVocab({ anchorEl: null, item: null });
+  };
+
+  const playVocabularyWord = (item, term) => {
     vocabularyPlayback.current?.cancel();
     vocabularyPlayback.current = playChain({
       urls: planAudio(item?.audio, readStoredVoice()),
       text: item?.original || term,
     });
-    setVocabPopup(item);
   };
 
-  const closeVocabulary = () => {
-    vocabularyPlayback.current?.cancel();
-    vocabularyPlayback.current = null;
-    setVocabPopup(null);
+  const openVocabulary = (event, item, term) => {
+    playVocabularyWord(item, term);
+    setVocab({ anchorEl: event.currentTarget, item });
   };
 
-  const wrapTextWithVocabulary = (text) => {
-    const matches = findVocabularyMatches(text, vocabulary);
-    if (!matches.length) return text;
-    const result = [];
-    let cursor = 0;
-    matches.forEach(({ start, end, term, vocabulary: definition }) => {
-      if (start > cursor) result.push(text.slice(cursor, start));
-      result.push(
-        <button
-          type="button"
-          key={`v-${start}-${term}`}
-          className="vocab-word"
-          title={definition?.definition || definition?.simple}
-          aria-label={`${term}: ${definition?.definition || definition?.simple || ''}`}
-          onClick={() => openVocabulary(definition, term)}
-        >
-          {term}
-        </button>
-      );
-      cursor = end;
+  const toggleReadAloud = (key, text) => {
+    if (speakingKey === key) {
+      stopReadingAloud();
+      return;
+    }
+    closeVocabulary();
+    speechRef.current = speakChunks(chunkForSpeech(text), {
+      lang: speechLang(languageCode),
+      onEnd: () => {
+        setSpeakingKey(null);
+        speechRef.current = null;
+      },
     });
-    if (cursor < text.length) result.push(text.slice(cursor));
-    return result;
+    setSpeakingKey(key);
+  };
+
+  const switchLevel = (index) => {
+    if (index === activeLevelIndex) return;
+    stopReadingAloud();
+    closeVocabulary();
+    setSelection({ textKey, index });
   };
 
   if (loading && !content) {
@@ -91,7 +150,7 @@ const ReadingViewPage = () => {
     );
   }
 
-  if (!content) {
+  if (!content || !activeLevel) {
     return (
       <div className="reading-view-page">
         <button
@@ -107,11 +166,39 @@ const ReadingViewPage = () => {
     );
   }
 
-  const bodyText = content.simplifiedContent || content.text?.originalText || '';
-  const readingSections = (content.text?.sections?.length
-    ? [...content.text.sections].sort((a, b) => a.order - b.order)
-    : [{ order: 1, title: '', text: bodyText }]);
   const hasQuiz = comprehensionQuestions.length > 0;
+  const answeredCount = comprehensionQuestions.filter((question) => isOptionAnswered(question, quizAnswers)).length;
+  const thinkingAnswered = criticalThinkingQuestions
+    .filter((question) => (ctAnswers[String(question._id)] || '').trim()).length;
+  const sortedQuestions = [...comprehensionQuestions]
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const sortedThinking = [...criticalThinkingQuestions]
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  const wrapTextWithVocabulary = (text) => {
+    const matches = findVocabularyMatches(text, vocabulary);
+    if (!matches.length) return text;
+    const result = [];
+    let cursor = 0;
+    matches.forEach(({ start, end, term, vocabulary: definition }) => {
+      if (start > cursor) result.push(text.slice(cursor, start));
+      result.push(
+        <button
+          type="button"
+          key={`v-${start}-${term}`}
+          className="vocab-word"
+          title={definition?.definition || definition?.simple}
+          aria-label={`${term}: ${definition?.definition || definition?.simple || ''}`}
+          onClick={(event) => openVocabulary(event, definition, term)}
+        >
+          {term}
+        </button>
+      );
+      cursor = end;
+    });
+    if (cursor < text.length) result.push(text.slice(cursor));
+    return result;
+  };
 
   return (
     <div className="reading-view-page">
@@ -124,228 +211,297 @@ const ReadingViewPage = () => {
         {t('reading:common.back')}
       </button>
 
-      <header className="reading-view-header">
-        <h1>{content.text?.title}</h1>
-        {content.targetLevel != null && (
-          <span className="level-badge">{t('reading:view.gradeLevel', { level: content.targetLevel })}</span>
+      <header className="reading-hero">
+        <h1 className="reading-hero-title">{content.text?.title}</h1>
+        <div className="reading-hero-meta">
+          {content.targetLevel != null && (
+            <span className="reading-chip is-recommended">
+              {t('reading:view.gradeLevel', { level: Math.round(content.targetLevel) })}
+              {content.levelIsRecommended && (
+                <>
+                  {' · '}
+                  {t('reading:view.forYou')}
+                </>
+              )}
+            </span>
+          )}
+          {academicYear && (
+            <span className="reading-chip">{t('reading:view.academicYearShort', { year: academicYear })}</span>
+          )}
+        </div>
+        {levels.length > 1 && (
+          <div className="reading-levels" role="group" aria-label={t('reading:view.levelsLabel')}>
+            {levels.map((level, index) => (
+              <button
+                type="button"
+                key={level.targetLevel}
+                className={`level-chip${index === activeLevelIndex ? ' active' : ''}`}
+                aria-pressed={index === activeLevelIndex}
+                onClick={() => switchLevel(index)}
+              >
+                {t('reading:view.gradeLevel', { level: level.targetLevel })}
+                {index === recommendedIndex && content.levelIsRecommended && (
+                  <span className="level-chip-flag">{t('reading:view.forYou')}</span>
+                )}
+              </button>
+            ))}
+          </div>
         )}
-        {academicYear && (
-          <span className="level-badge">{t('reading:view.academicYearShort', { year: academicYear })}</span>
+        {levels.length > 1 && (
+          <p className="reading-levels-hint">{t('reading:view.levelsHint')}</p>
         )}
       </header>
 
-      <section className="reading-body">
+      <article className="reading-passage">
         <p className="reading-instruction">
-          {t('reading:view.vocabInstructionPrefix')} <span className="vocab-hint">{t('reading:view.vocabInstructionHighlighted')}</span> {t('reading:view.vocabInstructionSuffix')}
+          {t('reading:view.vocabInstructionPrefix')}{' '}
+          <span className="vocab-hint">{t('reading:view.vocabInstructionHighlighted')}</span>
+          {t('reading:view.vocabInstructionSuffix')}
         </p>
-        {readingSections.map((section) => (
-          <article className="reading-text-section" key={section.order}>
-            {section.title && <h2>{section.title}</h2>}
-            <div className="reading-text">{wrapTextWithVocabulary(section.text)}</div>
-          </article>
+        {blocks.map((block) => (
+          <section className="reading-block" key={block.key}>
+            {block.title && <h2 className="reading-block-title">{block.title}</h2>}
+            <div className="reading-text">{wrapTextWithVocabulary(block.text)}</div>
+            {audioSupported && (
+              <button
+                type="button"
+                className={`listen-btn${speakingKey === block.key ? ' speaking' : ''}`}
+                onClick={() => toggleReadAloud(block.key, block.text)}
+              >
+                {speakingKey === block.key ? <HiOutlineStop size={16} /> : <HiOutlineVolumeUp size={16} />}
+                {speakingKey === block.key ? t('reading:view.stop') : t('reading:view.listen')}
+              </button>
+            )}
+          </section>
         ))}
-      </section>
+      </article>
+
+      {quizSubmitted && score?.totalCount > 0 && (
+        <section className="reading-result">
+          <div className="result-score">
+            <HiOutlineCheckCircle size={22} />
+            <span>{t('reading:view.resultScore', {
+              correct: score.correctCount,
+              total: score.totalCount,
+            })}</span>
+          </div>
+          <div className="progress-track" role="presentation">
+            <div
+              className="progress-fill"
+              style={{ width: `${Math.round((score.correctCount / score.totalCount) * 100)}%` }}
+            />
+          </div>
+          <p className="result-message">{t(`reading:view.${scoreTier(score.correctCount, score.totalCount)}`)}</p>
+        </section>
+      )}
 
       {criticalThinkingQuestions.length > 0 && (
-        <section className="reading-section critical-thinking">
-          <button
-            type="button"
-            className="section-toggle"
-            onClick={() => setShowCriticalThinking(!showCriticalThinking)}
-          >
-            <HiOutlineLightBulb size={20} />
-            {t('reading:view.criticalThinking', { count: criticalThinkingQuestions.length })}
-          </button>
-          {showCriticalThinking && (
-            <ul className="critical-thinking-list">
-              {[...criticalThinkingQuestions]
-                .sort((a, b) => (a.order || 0) - (b.order || 0))
-                .map((q, i) => (
-                  <li key={i} className="ct-item">
-                    <strong>{q.question}</strong>
-                    {q.prompt && (
-                      <p className="ct-prompt">{q.prompt}</p>
-                    )}
-                    <div className="ct-answer-block">
-                      <label htmlFor={`ct-answer-${i}`} className="ct-answer-label">
-                        {t('reading:view.yourAnswer')}
-                      </label>
-                      <textarea
-                        id={`ct-answer-${i}`}
-                        className="ct-answer-input"
-                        value={ctAnswers[String(q._id)] || ''}
-                        onChange={(e) =>
-                          setCtAnswers((prev) => ({ ...prev, [String(q._id)]: e.target.value }))
-                        }
-                        placeholder={t('reading:view.answerPlaceholder')}
-                        rows={4}
-                        disabled={quizSubmitted || ctFeedback[String(q._id)]?.loading}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleGetFeedback(String(q._id), q.question)}
-                        disabled={quizSubmitted || ctFeedback[String(q._id)]?.loading || !(ctAnswers[String(q._id)] || '').trim()}
-                      >
-                        {ctFeedback[String(q._id)]?.loading ? t('reading:view.evaluating') : t('reading:view.getFeedback')}
-                      </button>
+        <section className="reading-task">
+          <div className="reading-task-head">
+            <h2>
+              <HiOutlineLightBulb size={20} />
+              {t('reading:view.criticalThinking', { total: criticalThinkingQuestions.length })}
+            </h2>
+            <span className="reading-task-count">
+              {t('reading:view.thinkingProgress', {
+                answered: thinkingAnswered,
+                total: criticalThinkingQuestions.length,
+              })}
+            </span>
+          </div>
+          <ol className="thinking-list">
+            {sortedThinking.map((question, index) => {
+              const key = String(question._id);
+              const feedback = ctFeedback[key];
+              return (
+                <li key={key} className="thinking-item">
+                  <p className="thinking-question">{question.question}</p>
+                  {question.prompt && <p className="thinking-prompt">{question.prompt}</p>}
+                  <label className="thinking-answer-label" htmlFor={`ct-answer-${index}`}>
+                    {t('reading:view.yourAnswer')}
+                  </label>
+                  <textarea
+                    id={`ct-answer-${index}`}
+                    className="thinking-answer"
+                    value={ctAnswers[key] || ''}
+                    onChange={(event) => setCtAnswers((prev) => ({ ...prev, [key]: event.target.value }))}
+                    placeholder={t('reading:view.answerPlaceholder')}
+                    rows={3}
+                    disabled={quizSubmitted || Boolean(feedback?.loading)}
+                  />
+                  {quizSubmitted ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleGetFeedback(key, question.question, passageText)}
+                      disabled={feedback?.loading || !(ctAnswers[key] || '').trim()}
+                    >
+                      {feedback?.loading ? t('reading:view.evaluating') : t('reading:view.getFeedback')}
+                    </button>
+                  ) : (
+                    <p className="thinking-hint">{t('reading:view.feedbackAfterSubmit')}</p>
+                  )}
+                  {feedback?.feedback && !feedback?.loading && (
+                    <div className="thinking-feedback">
+                      <span className="thinking-feedback-label">{t('reading:view.feedback')}</span>
+                      <p>{feedback.feedback}</p>
                     </div>
-                    {ctFeedback[String(q._id)]?.feedback && !ctFeedback[String(q._id)]?.loading && (
-                      <div className="ct-feedback">
-                        <span className="ct-feedback-label">{t('reading:view.feedback')}:</span>
-                        <p className="ct-feedback-text">{ctFeedback[String(q._id)].feedback}</p>
-                      </div>
-                    )}
-                  </li>
-                ))}
-            </ul>
-          )}
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 
       {hasQuiz && (
-        <section className="reading-section comprehension">
-          <button
-            type="button"
-            className="section-toggle"
-            onClick={() => setShowQuiz(!showQuiz)}
-          >
-            <HiOutlineQuestionMarkCircle size={20} />
-            {t('reading:view.comprehensionCheck')}
-          </button>
-          {showQuiz && (
-            <div className="quiz-box">
-              {!quizSubmitted ? (
-                <>
-                  <ol className="quiz-questions">
-                    {[...comprehensionQuestions]
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((q, i) => (
-                        <li key={i} className="quiz-item">
-                          <span className="quiz-q">{q.question}</span>
-                          <ul className="quiz-options">
-                            {(q.options || []).map((opt, j) => (
-                              <li key={j}>
-                                <label className="quiz-option">
-                                  <input
-                                    type="radio"
-                                    name={`q-${i}`}
-                                    checked={quizAnswers[String(q._id)] === String(j)}
-                                    onChange={() =>
-                                      setQuizAnswers((prev) => ({
-                                        ...prev,
-                                        [String(q._id)]: String(j),
-                                      }))
-                                    }
-                                  />
-                                  {opt}
-                                </label>
-                              </li>
-                            ))}
-                          </ul>
-                        </li>
-                      ))}
-                  </ol>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleQuizSubmit}
-                    disabled={
-                      progressSubmitting ||
-                      comprehensionQuestions.some((question) => (
-                        !['0', '1', '2', '3', '4', '5'].includes(
-                          String(quizAnswers[String(question._id)] ?? '')
-                        )
-                      ))
-                    }
-                  >
-                    {progressSubmitting ? t('reading:common.submitting') : t('reading:view.submitAnswers')}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <ol className="quiz-questions">
-                    {[...comprehensionQuestions]
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((question) => (
-                        <li key={question._id} className="quiz-item">
-                          <span className="quiz-q">{question.question}</span>
-                          <p className="quiz-saved-answer">
-                            {t('reading:view.yourAnswer')}: {question.options?.[Number(quizAnswers[String(question._id)])] || '—'}
-                          </p>
-                        </li>
-                      ))}
-                  </ol>
-                  <p className="quiz-done">{t('reading:view.answersSaved')}</p>
-                </>
-              )}
-            </div>
-          )}
+        <section className="reading-task">
+          <div className="reading-task-head">
+            <h2>
+              <HiOutlineQuestionMarkCircle size={20} />
+              {t('reading:view.comprehensionCheck')}
+            </h2>
+            <span className="reading-task-count">
+              {t('reading:view.quizProgress', {
+                answered: answeredCount,
+                total: comprehensionQuestions.length,
+              })}
+            </span>
+          </div>
+          <ol className="quiz-list">
+            {sortedQuestions.map((question, index) => {
+              const key = String(question._id);
+              const selected = quizAnswers[key];
+              return (
+                <li key={key} className="quiz-item">
+                  <p className="quiz-question">{question.question}</p>
+                  <ul className="quiz-options">
+                    {(question.options || []).map((option, optionIndex) => (
+                      <li key={optionIndex}>
+                        <label className={`quiz-option${selected === String(optionIndex) ? ' selected' : ''}`}>
+                          <input
+                            type="radio"
+                            name={`q-${index}`}
+                            checked={selected === String(optionIndex)}
+                            disabled={quizSubmitted}
+                            onChange={() => setQuizAnswers((prev) => ({ ...prev, [key]: String(optionIndex) }))}
+                          />
+                          {option}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {quizSubmitted && (
+                    <p className="quiz-saved">
+                      {t('reading:view.yourAnswer')}: {question.options?.[Number(selected)] || '—'}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 
-      {!hasQuiz && !quizSubmitted && (
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleQuizSubmit}
-          disabled={progressSubmitting}
-        >
-          {progressSubmitting ? t('reading:common.submitting') : t('reading:view.markComplete')}
-        </button>
-      )}
-
-      {!hasQuiz && quizSubmitted && <p className="quiz-done">{t('reading:view.answersSaved')}</p>}
-
-      {vocabPopup && (
-        <div
-          className="vocab-overlay"
-          onClick={closeVocabulary}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Escape' && closeVocabulary()}
-        >
-          <div
-            className="vocab-popup"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="vocab-popup-term">
-              {vocabPopup.original}
-              {vocabPopup.simple && vocabPopup.simple !== vocabPopup.original && (
-                <span className="vocab-simple"> → {vocabPopup.simple}</span>
-              )}
-            </div>
-            {(vocabPopup.meaning || vocabPopup.definition) && (
-              <p className="vocab-popup-def">{vocabPopup.meaning || vocabPopup.definition}</p>
-            )}
-            {vocabPopup.arabicMeaning && vocabPopup.arabicMeaning !== (vocabPopup.meaning || vocabPopup.definition) && (
-              <p className="vocab-popup-def" lang="ar" dir="rtl">{vocabPopup.arabicMeaning}</p>
-            )}
-            {Object.entries(vocabPopup.audio?.dictionaries || {}).flatMap(([dictionary, recording]) => (
-              ['us', 'uk', ...(recording.examples ? ['examples'] : [])]
-                .filter((kind) => recording[kind])
-                .map((kind) => {
-                  const urls = kind === 'examples' ? recording.examples : [recording[kind]];
-                  return urls.map((url, index) => (
-                    <div className="vocab-audio" key={`${dictionary}-${kind}-${index}`}>
-                      <span>{`${dictionary} ${kind === 'examples' ? t('reading:view.exampleAudio') : kind.toUpperCase()}`}</span>
-                      <audio controls preload="none" src={url} aria-label={`${vocabPopup.original} ${dictionary} ${kind}`}>
-                        {t('reading:view.audioUnsupported')}
-                      </audio>
-                    </div>
-                  ));
-                })
-            ))}
+      {quizSubmitted ? (
+        <p className="reading-done">
+          <HiOutlineCheckCircle size={18} />
+          {t('reading:view.answersSaved')}
+        </p>
+      ) : (
+        <div className="reading-footer">
+          {hasQuiz ? (
+            <>
+              <div className="reading-footer-progress">
+                <span>
+                  {t('reading:view.quizProgress', {
+                    answered: answeredCount,
+                    total: comprehensionQuestions.length,
+                  })}
+                </span>
+                <div className="progress-track" role="presentation">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.round((answeredCount / comprehensionQuestions.length) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleQuizSubmit}
+                disabled={progressSubmitting || answeredCount < comprehensionQuestions.length}
+              >
+                {progressSubmitting ? t('reading:common.submitting') : t('reading:view.submitAnswers')}
+              </button>
+            </>
+          ) : (
             <button
               type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={closeVocabulary}
+              className="btn btn-primary"
+              onClick={handleQuizSubmit}
+              disabled={progressSubmitting}
             >
-              {t('reading:common.close')}
+              {progressSubmitting ? t('reading:common.submitting') : t('reading:view.markComplete')}
             </button>
-          </div>
+          )}
         </div>
       )}
+
+      <Popover
+        open={Boolean(vocab.item && vocab.anchorEl)}
+        anchorEl={vocab.anchorEl}
+        onClose={closeVocabulary}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        slotProps={{
+          paper: {
+            className: 'vocab-pop',
+            sx: { width: 300, maxWidth: 'calc(100vw - 32px)' },
+          },
+        }}
+      >
+        {vocab.item && (
+          <>
+            <div className="vocab-pop-head">
+              <div className="vocab-pop-term">
+                <span className="vocab-pop-word">{vocab.item.original}</span>
+                {vocab.item.simple && vocab.item.simple !== vocab.item.original && (
+                  <span className="vocab-pop-simple">{vocab.item.simple}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="vocab-pop-close"
+                onClick={closeVocabulary}
+                aria-label={t('reading:common.close')}
+              >
+                <HiOutlineX size={18} />
+              </button>
+            </div>
+            {(vocab.item.definition || vocab.item.meaning) && (
+              <p className="vocab-pop-def">{vocab.item.definition || vocab.item.meaning}</p>
+            )}
+            {vocab.item.arabicMeaning && (
+              <p className="vocab-pop-def" lang="ar" dir="rtl">{vocab.item.arabicMeaning}</p>
+            )}
+            <div className="vocab-pop-actions">
+              {(audioSupported || hasRecording(vocab.item.audio)) && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => playVocabularyWord(vocab.item, vocab.item.original)}
+                >
+                  <HiOutlineVolumeUp size={16} />
+                  {t('reading:view.listen')}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </Popover>
     </div>
   );
 };

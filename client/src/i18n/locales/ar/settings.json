@@ -49,6 +49,27 @@
     "revisionPlanning": "تخطيط المراجعة",
     "newsletterCommunication": "التواصل عبر النشرة",
     "academicIntelligence": "الذكاء الأكاديمي",
-    "aiEmailDrafts": "مسودات البريد بالذكاء الاصطناعي"
+    "aiEmailDrafts": "مسودات البريد بالذكاء الاصطناعي",
+    "presentationBuilder": "أداة إنشاء العروض",
+    "worksheetChecker": "فاحص أوراق العمل",
+    "mapTestPrep": "التحضير لاختبار MAP",
+    "socialStudies": "الدراسات الاجتماعية",
+    "gradeAnalytics": "تحليلات الدرجات",
+    "parentGradebook": "دفتر درجات ولي الأمر",
+    "traditionalReportCards": "شهادات التقويم التقليدية"
+  },
+  "upgradePrompt": {
+    "lockedTitle": "{{feature}} مقفلة",
+    "notOnPlan": "هذه الميزة غير متوفرة في خطتك الحالية.",
+    "higherPlan": "خطة أعلى",
+    "unlockWithPlan": "قم بالترقية إلى {{plan}} لفتح هذه الميزة.",
+    "viewOptions": "عرض خيارات الترقية",
+    "requiresPlan": "{{feature}} تتطلب {{plan}}.",
+    "upgrade": "ترقية"
+  },
+  "planCheck": {
+    "title": "لا يمكن تأكيد {{feature}} الآن",
+    "body": "لم نتمكن من الوصول إلى معلومات خطة المدرسة، لذا قد تكون هذه الصفحة متاحة. تحقّق من الاتصال وحاول مجددًا.",
+    "retry": "حاول مجددًا"
   }
 }

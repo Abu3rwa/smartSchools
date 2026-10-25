@@ -60,7 +60,7 @@
   "table": {
     "columns": {
       "student": "Student",
-      "categoryAvg": "{{category}} (Avg /10)",
+      "categoryAvg": "{{category}} (Avg /{{max}})",
       "overallAvg": "Overall (Avg /10)"
     },
     "generateProgressReport": "Generate Progress Report",

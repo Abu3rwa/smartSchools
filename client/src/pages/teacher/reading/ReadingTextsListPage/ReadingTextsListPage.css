@@ -33,81 +33,14 @@
   margin: 0;
 }
 
-.reading-texts-list-page .reading-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.reading-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: box-shadow 0.2s;
-}
-
-.reading-card:hover {
-  box-shadow: var(--shadow-md);
-}
-
-.reading-card-body {
-  padding: var(--spacing-md);
-}
-
-.reading-card-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0 0 var(--spacing-sm) 0;
-  color: var(--text-primary);
-  line-height: 1.3;
-}
-
-.reading-card-meta {
-  display: inline-block;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-right: var(--spacing-sm);
-  margin-bottom: var(--spacing-xs);
-}
-
-.reading-card-actions {
+.reading-texts-list-page .page-header-actions {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-sm);
-  border-top: 1px solid var(--border-color);
 }
 
-.reading-card-actions .assignment-count {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.reading-empty {
-  text-align: center;
-  padding: var(--spacing-xl);
-  background: var(--bg-card);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-lg);
-}
-
-.reading-empty .empty-icon {
-  color: var(--text-muted);
-  margin-bottom: var(--spacing-md);
-}
-
-.reading-empty h3 {
-  margin: 0 0 8px 0;
-  font-size: 1.25rem;
-  color: var(--text-primary);
-}
-
-.reading-empty p {
-  color: var(--text-muted);
-  margin: 0 0 var(--spacing-md) 0;
+.reading-row-menu .is-danger {
+  color: color-mix(in srgb, var(--accent-red, #b42318) 88%, var(--text-primary));
 }
 
 .modal-overlay {
@@ -274,13 +207,16 @@
   border-top: 1px solid var(--border-color);
 }
 
-.reading-card-actions .btn-danger {
-  color: var(--accent-red, #b42318);
-}
-
 @media (max-width: 600px) {
   .reading-texts-list-page .page-header-row {
     flex-direction: column;
+  }
+  .reading-texts-list-page .page-header-actions {
+    width: 100%;
+  }
+  .reading-texts-list-page .page-header-actions .btn {
+    flex: 1;
+    justify-content: center;
   }
   .reading-editor-grid {
     grid-template-columns: 1fr;

@@ -23,6 +23,24 @@ export const getActiveGradebookConfig = async (schoolId) => {
 };
 
 /**
+ * The school's per-category maximum marks, keyed by normalised category.
+ * Categories the school never set are left out, so callers fall through to the
+ * app-wide defaults instead of inheriting a stored null.
+ */
+export const getCategoryMaxMarks = async (schoolId, academicYear = null) => {
+    const config = (await getGradebookConfig(schoolId, academicYear))
+        || (await getActiveGradebookConfig(schoolId));
+
+    const map = {};
+    for (const category of config?.categories || []) {
+        const value = Number(category?.defaultMaxMarks);
+        if (!category?.key || !Number.isFinite(value) || value <= 0) continue;
+        map[String(category.key).trim().toLowerCase().replace(/[\s-]+/g, '_')] = value;
+    }
+    return map;
+};
+
+/**
  * Create a new gradebook config. Enforces one active config per school+year.
  */
 export const createGradebookConfig = async ({ school, academicYear, semesters, categories, gradingPolicy, createdBy }) => {

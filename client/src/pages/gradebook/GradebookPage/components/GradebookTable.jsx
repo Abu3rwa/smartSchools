@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
     getClassCategoryAverage,
     getClassOverallAverage,
-    formatPercentageAsAverageOutOfTen,
+    formatAverageOutOfScale,
     getScaleBandForPercentage,
     getStudentCategoryAverage,
     getStudentOverallAverage,
@@ -30,6 +30,7 @@ const GradebookTable = ({
     grades,
     gradingScale,
     dynamicCategories,
+    categoryScales = {},
     processedData,
     selectedCategoryFilter = 'All',
     onOpenAIModal,
@@ -131,7 +132,7 @@ const GradebookTable = ({
         });
     };
 
-    const renderAverageCell = (averageValue, count) => {
+    const renderAverageCell = (averageValue, count, scale = 10) => {
         if (averageValue === '-' || averageValue === null || averageValue === undefined) {
             return '-';
         }
@@ -142,7 +143,8 @@ const GradebookTable = ({
         }
 
         const band = getScaleBandForPercentage(numericAverage, gradingScale);
-        const averageOutOfTen = formatPercentageAsAverageOutOfTen(numericAverage);
+        const averageOutOfScale = formatAverageOutOfScale(numericAverage, scale);
+        const chipLabel = `${averageOutOfScale}/${scale}`;
         return (
             <>
                 <span
@@ -151,9 +153,9 @@ const GradebookTable = ({
                         backgroundColor: `${band?.color || '#64748b'}22`,
                         color: band?.color || 'var(--text-primary)'
                     }}
-                    title={band?.grade ? `${band.grade} (${averageOutOfTen}/10)` : `${averageOutOfTen}/10`}
+                    title={band?.grade ? `${band.grade} (${chipLabel})` : chipLabel}
                 >
-                    {averageOutOfTen}/10
+                    {chipLabel}
                     {band?.grade ? ` (${band.grade})` : ''}
                 </span>
                 {count ? (
@@ -298,7 +300,8 @@ const GradebookTable = ({
                                 <th key={category} scope="col" className="sortable-header text-center" aria-sort={sortState(category)}>
                                     <button type="button" onClick={() => applySort(category)}>
                                         {t('gradebook:table.columns.categoryAvg', {
-                                            category: t(`gradebook:categories.${category}`, { defaultValue: category })
+                                            category: t(`gradebook:categories.${category}`, { defaultValue: category }),
+                                            max: categoryScales[category] || 10
                                         })}
                                     </button>
                                 </th>
@@ -372,7 +375,7 @@ const GradebookTable = ({
                                             const count = studentData.categories?.[category]?.count || 0;
                                             return (
                                                 <td key={category} className="text-center font-mono">
-                                                    {renderAverageCell(average, count)}
+                                                    {renderAverageCell(average, count, categoryScales[category] || 10)}
                                                 </td>
                                             );
                                         })}
@@ -445,7 +448,7 @@ const GradebookTable = ({
                                 const average = getClassCategoryAverage({ students, processedData, category });
                                 return (
                                     <td key={category} className="text-center">
-                                        {renderAverageCell(average, null)}
+                                        {renderAverageCell(average, null, categoryScales[category] || 10)}
                                     </td>
                                 );
                             })}

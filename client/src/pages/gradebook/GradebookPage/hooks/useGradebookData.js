@@ -19,9 +19,11 @@ const useGradebookData = ({
     selectedMonth,
     selectedCategoryFilter,
     academicYear,
+    categoryMaxMarks,
     setSelectedSubject,
     setGrades,
     setGradingScale,
+    setCategoryMaxMarks,
     setLoading
 }) => {
     const dispatch = useDispatch();
@@ -53,11 +55,13 @@ const useGradebookData = ({
             });
             setGrades(response.data?.data?.grades || []);
             setGradingScale(response.data?.data?.gradingScale || null);
+            setCategoryMaxMarks(response.data?.data?.categoryMaxMarks || {});
             setLoadError(null);
         } catch (error) {
             console.error('Failed to fetch grades:', error);
             setGrades([]);
             setGradingScale(null);
+            setCategoryMaxMarks({});
             setLoadError({
                 status: error?.response?.status || null,
                 message: error?.response?.data?.message || null
@@ -65,7 +69,7 @@ const useGradebookData = ({
         } finally {
             setLoading(false);
         }
-    }, [academicYear, classId, selectedMonth, selectedSubject, setGrades, setGradingScale, setLoading]);
+    }, [academicYear, classId, selectedMonth, selectedSubject, setGrades, setGradingScale, setCategoryMaxMarks, setLoading]);
 
     useEffect(() => {
         fetchGrades();
@@ -75,14 +79,19 @@ const useGradebookData = ({
         return getAvailableSubjects({ currentClass, subjects, userRole, teacherProfile });
     }, [currentClass, subjects, teacherProfile, userRole]);
 
-    const { categories: dynamicCategories, data: processedData } = useMemo(() => {
-        return processGradebookData({ students, grades, selectedCategoryFilter });
-    }, [grades, selectedCategoryFilter, students]);
+    const {
+        categories: dynamicCategories,
+        categoryScales,
+        data: processedData
+    } = useMemo(() => {
+        return processGradebookData({ students, grades, selectedCategoryFilter, categoryMaxMarks });
+    }, [categoryMaxMarks, grades, selectedCategoryFilter, students]);
 
     return {
         fetchGrades,
         availableSubjects,
         dynamicCategories,
+        categoryScales,
         processedData,
         loadError
     };

@@ -1,7 +1,9 @@
 import React from 'react';
 import {
+    HiOutlineInbox,
     HiOutlineMail,
     HiOutlinePencil,
+    HiOutlineSearch,
     HiOutlineTrash
 } from 'react-icons/hi';
 import { useDispatch } from 'react-redux';
@@ -32,6 +34,8 @@ const StudentsTable = ({
     students,
     isAdmin,
     loading,
+    isFiltered,
+    onClearFilters,
     isAllSelected,
     selectedStudentIds,
     toggleSelectAllStudents,
@@ -50,6 +54,35 @@ const StudentsTable = ({
         return (
             <div className="loading-container">
                 <div className="spinner"></div>
+            </div>
+        );
+    }
+
+    if (students.length === 0) {
+        return (
+            <div className="card">
+                <div className="students-empty-state">
+                    {isFiltered ? (
+                        <>
+                            <span className="students-empty-icon">
+                                <HiOutlineSearch size={26} />
+                            </span>
+                            <h3>{t('students:empty.noMatches')}</h3>
+                            <p>{t('students:empty.noMatchesHint')}</p>
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={onClearFilters}>
+                                {t('students:filters.clearAll')}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <span className="students-empty-icon">
+                                <HiOutlineInbox size={26} />
+                            </span>
+                            <h3>{t('students:empty.noStudents')}</h3>
+                            <p>{t('students:empty.noStudentsHint')}</p>
+                        </>
+                    )}
+                </div>
             </div>
         );
     }
@@ -152,10 +185,14 @@ const StudentsTable = ({
                                                     </span>
                                                 )}
                                                 <button
+                                                    type="button"
                                                     className="btn btn-xs btn-outline"
                                                     onClick={() => handleSendStudentInvite(student)}
                                                     disabled={isSendingStudentInvite}
                                                     title={student.user
+                                                        ? t('students:actions.resendLoginInvite')
+                                                        : t('students:actions.sendLoginInvite')}
+                                                    aria-label={student.user
                                                         ? t('students:actions.resendLoginInvite')
                                                         : t('students:actions.sendLoginInvite')}
                                                 >
@@ -175,6 +212,7 @@ const StudentsTable = ({
                                         <td>
                                             <div className="student-actions">
                                                 <button
+                                                    type="button"
                                                     className="btn-icon"
                                                     onClick={() => handleSendParentInvite(student)}
                                                     title={
@@ -184,19 +222,23 @@ const StudentsTable = ({
                                                                 ? t('students:actions.sendParentInvite')
                                                                 : t('students:actions.noParentEmailOnFile')
                                                     }
+                                                    aria-label={t('students:actions.sendParentInvite')}
                                                     disabled={!hasParentEmail || isSendingParentInvite}
                                                 >
                                                     <HiOutlineMail size={16} />
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     className="btn-icon"
                                                     onClick={() => handleEdit(student)}
                                                     title={t('students:actions.editStudent')}
+                                                    aria-label={t('students:actions.editStudent')}
                                                 >
                                                     <HiOutlinePencil size={16} />
                                                 </button>
                                                 <button
-                                                    className="btn-icon text-danger"
+                                                    type="button"
+                                                    className="btn-icon btn-icon-danger"
                                                     onClick={() => {
                                                         const confirmMessage = isInactive
                                                             ? t('students:confirm.permanentDeleteInactive', { name: `${student.firstName} ${student.lastName}` })
@@ -225,13 +267,6 @@ const StudentsTable = ({
                                 </tr>
                             );
                         })}
-                        {students.length === 0 && (
-                            <tr>
-                                <td colSpan={isAdmin ? 9 : 6} className="empty-row">
-                                    {t('students:empty.noStudents')}
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
             </div>

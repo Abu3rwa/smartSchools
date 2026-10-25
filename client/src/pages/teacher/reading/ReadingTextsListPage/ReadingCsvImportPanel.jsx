@@ -85,8 +85,8 @@ export default function ReadingCsvImportPanel({ onImported }) {
       {reading && (
         <div className="reading-csv-preview">
           <strong>{reading.title}</strong>
-          <span>{t('reading:texts.questionCount', { count: reading.questions.length })} · {reading.subjectArea || t('reading:texts.noSubjectSpecified')}</span>
-          {reading.sections.length > 0 && <span>{t('reading:texts.sectionCount', { count: reading.sections.length })}</span>}
+          <span>{t('reading:texts.questionCount', { total: reading.questions.length })} · {reading.subjectArea || t('reading:texts.noSubjectSpecified')}</span>
+          {reading.sections.length > 0 && <span>{t('reading:texts.sectionCount', { total: reading.sections.length })}</span>}
           <label>
             <input type="checkbox" checked={isShared} onChange={(event) => setIsShared(event.target.checked)} />
             {t('reading:texts.shareWithSchool')}

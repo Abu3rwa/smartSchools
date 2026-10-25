@@ -531,7 +531,8 @@ export async function getSimplifiedForStudent(
     school: schoolId,
     student: studentId,
   });
-  if (profile?.currentReadingLevel != null) {
+  const hasMeasuredLevel = profile?.currentReadingLevel != null;
+  if (hasMeasuredLevel) {
     targetLevel = profile.currentReadingLevel;
   }
 
@@ -627,16 +628,31 @@ export async function getSimplifiedForStudent(
     });
   };
 
+  const orderedSections = [...(text.sections || [])]
+    .sort((a, b) => a.order - b.order)
+    .map((section) => ({ order: section.order, title: section.title || "", text: section.text }));
+
   const versions = text.simplifiedVersions || [];
   if (versions.length === 0) {
+    const vocabularySubstitutions = await attachVocabularyAudio(
+      text.vocabularySubstitutions || [],
+      text.sections?.length ? text.sections.map((section) => section.text).join("\n\n") : text.originalText
+    );
     return {
       text: text.toObject(),
       simplifiedContent: text.originalText,
-      vocabularySubstitutions: await attachVocabularyAudio(
-        text.vocabularySubstitutions || [],
-        text.sections?.length ? text.sections.map((section) => section.text).join("\n\n") : text.originalText
-      ),
+      vocabularySubstitutions,
       targetLevel: text.originalComplexity || targetLevel,
+      levelIsRecommended: false,
+      availableLevels: [],
+      readingLevels: [
+        {
+          targetLevel: text.originalComplexity || targetLevel,
+          text: text.originalText,
+          sections: orderedSections,
+          vocabularySubstitutions,
+        },
+      ],
       criticalThinkingQuestions: text.criticalThinkingQuestions || [],
       comprehensionQuestions: text.comprehensionQuestions || [],
       assignmentId: options.assignmentId || undefined,
@@ -669,12 +685,19 @@ export async function getSimplifiedForStudent(
     simplifiedContent: best.simplifiedText,
     vocabularySubstitutions: await attachVocabularyAudio(
       [...vocabularyByOriginal.values()],
-      text.sections?.length
-        ? text.sections.map((section) => section.text).join("\n\n")
-        : best.simplifiedText
+      best.simplifiedText
     ),
     targetLevel: best.targetLevel,
+    levelIsRecommended: hasMeasuredLevel,
     availableLevels: versions.map((v) => v.targetLevel),
+    readingLevels: [...versions]
+      .sort((a, b) => a.targetLevel - b.targetLevel)
+      .map((version) => ({
+        targetLevel: version.targetLevel,
+        text: version.simplifiedText,
+        sections: [],
+        vocabularySubstitutions: version.vocabularySubstitutions || [],
+      })),
     criticalThinkingQuestions: text.criticalThinkingQuestions || [],
     comprehensionQuestions: text.comprehensionQuestions || [],
     assignmentId: options.assignmentId || undefined,
@@ -975,21 +998,29 @@ export async function getAssignmentsForStudent(studentId, schoolId, academicYear
     .sort({ createdAt: -1 })
     .lean();
 
-  const completedIds = await ReadingCompletion.find({
+  const completions = await ReadingCompletion.find({
     school: schoolId,
     student: studentId,
     assignment: { $in: assignments.map((a) => a._id) },
   })
-    .select("assignment")
+    .select("assignment completedAt correctCount totalCount")
     .lean();
 
-  const completedSet = new Set(
-    completedIds.map((c) => c.assignment.toString())
+  const completedByAssignment = new Map(
+    completions
+      .filter((completion) => completion.completedAt)
+      .map((completion) => [String(completion.assignment), completion])
   );
-  return assignments.map((a) => ({
-    ...a,
-    completed: completedSet.has(a._id.toString()),
-  }));
+  return assignments.map((a) => {
+    const completion = completedByAssignment.get(String(a._id));
+    return {
+      ...a,
+      completed: Boolean(completion),
+      score: completion && completion.totalCount > 0
+        ? { correctCount: completion.correctCount, totalCount: completion.totalCount }
+        : null,
+    };
+  });
 }
 
 /**
@@ -1007,7 +1038,7 @@ export async function getTexts(schoolId, filters = {}) {
   if (filters.subjectArea) query.subjectArea = filters.subjectArea;
   const list = await SimplifiedText.find(query)
     .select(
-      "title subjectArea originalComplexity topicTags createdAt simplifiedVersions.targetLevel createdBy isShared"
+      "title subjectArea originalComplexity topicTags createdAt simplifiedVersions.targetLevel createdBy isShared comprehensionQuestions._id criticalThinkingQuestions._id"
     )
     .populate("createdBy", "firstName lastName")
     .sort({ createdAt: -1 })
@@ -1267,5 +1298,115 @@ export async function getAssignmentsForTeacher(schoolId, filters = {}, academicY
     .populate("class", "name")
     .sort({ createdAt: -1 })
     .lean();
-  return assignments;
+  if (assignments.length === 0) return assignments;
+  const completions = await ReadingCompletion.find({
+    school: schoolId,
+    assignment: { $in: assignments.map((assignment) => assignment._id) },
+  })
+    .select("assignment correctCount totalCount")
+    .lean();
+  const statsByAssignment = new Map();
+  for (const completion of completions) {
+    const key = String(completion.assignment);
+    const stats = statsByAssignment.get(key) || { completed: 0, correct: 0, possible: 0 };
+    stats.completed += 1;
+    if (completion.totalCount > 0) {
+      stats.correct += completion.correctCount || 0;
+      stats.possible += completion.totalCount;
+    }
+    statsByAssignment.set(key, stats);
+  }
+  return assignments.map((assignment) => {
+    const stats = statsByAssignment.get(String(assignment._id)) || { completed: 0, correct: 0, possible: 0 };
+    return {
+      ...assignment,
+      studentCount: (assignment.students || []).length,
+      completedCount: stats.completed,
+      averagePercent: stats.possible > 0 ? Math.round((stats.correct / stats.possible) * 100) : null,
+    };
+  });
+}
+
+/**
+ * Teacher-facing results for one assignment: the roster, each student's score, and
+ * their saved answers next to the question text and answer key.
+ */
+export async function getAssignmentResults(schoolId, assignmentId) {
+  const assignment = await ReadingAssignment.findOne({ school: schoolId, _id: assignmentId })
+    .populate("text", "title subjectArea comprehensionQuestions criticalThinkingQuestions")
+    .populate("class", "name")
+    .populate("assignedBy", "firstName lastName")
+    .lean();
+  if (!assignment) {
+    throw Object.assign(new Error("Reading assignment not found"), { statusCode: 404 });
+  }
+
+  const rosterIds = (assignment.students || []).map(String);
+  const completions = await ReadingCompletion.find({ school: schoolId, assignment: assignment._id })
+    .select("student correctCount totalCount responses completedAt")
+    .lean();
+  // A student can submit and then move class or year, so their result must still appear.
+  const lookupIds = [...new Set([
+    ...rosterIds,
+    ...completions.map((completion) => String(completion.student)),
+  ])];
+  const roster = await Student.find({ school: schoolId, _id: { $in: lookupIds } })
+    .select("_id firstName lastName")
+    .lean();
+
+  const completionByStudent = new Map(
+    completions.map((completion) => [String(completion.student), completion]),
+  );
+
+  const students = roster
+    .filter((student) => rosterIds.includes(String(student._id))
+      || completionByStudent.has(String(student._id)))
+    .map((student) => ({
+      ...student,
+      assigned: rosterIds.includes(String(student._id)),
+      completed: completionByStudent.get(String(student._id)) || null,
+    }))
+    .sort((a, b) => {
+      const nameA = `${a.firstName || ""} ${a.lastName || ""}`.trim().toLocaleLowerCase();
+      const nameB = `${b.firstName || ""} ${b.lastName || ""}`.trim().toLocaleLowerCase();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    });
+
+  const graded = students.filter((student) => student.completed?.totalCount > 0);
+  const correctSum = graded.reduce((sum, student) => sum + student.completed.correctCount, 0);
+  const possibleSum = graded.reduce((sum, student) => sum + student.completed.totalCount, 0);
+
+  return {
+    assignment: {
+      _id: assignment._id,
+      dueDate: assignment.dueDate || null,
+      instructions: assignment.instructions || "",
+      isActive: assignment.isActive !== false,
+      createdAt: assignment.createdAt,
+      className: assignment.class?.name || "",
+      assignedBy: [assignment.assignedBy?.firstName, assignment.assignedBy?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+      text: {
+        _id: assignment.text?._id || null,
+        title: assignment.text?.title || "",
+        subjectArea: assignment.text?.subjectArea || "",
+        comprehensionQuestions: (assignment.text?.comprehensionQuestions || [])
+          .slice()
+          .sort((a, b) => (a.order || 0) - (b.order || 0)),
+        criticalThinkingQuestions: (assignment.text?.criticalThinkingQuestions || [])
+          .slice()
+          .sort((a, b) => (a.order || 0) - (b.order || 0)),
+      },
+    },
+    students,
+    totals: {
+      assigned: students.filter((student) => student.assigned).length,
+      completed: students.filter((student) => student.completed).length,
+      averagePercent: possibleSum > 0
+        ? Math.round((correctSum / possibleSum) * 100)
+        : null,
+    },
+  };
 }

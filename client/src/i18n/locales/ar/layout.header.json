@@ -1,15 +1,12 @@
 {
-  "search": {
-    "placeholder": "ابحث عن الطلاب...",
-    "ariaLabel": "ابحث عن الطلاب"
-  },
   "actions": {
     "openMenu": "فتح القائمة",
     "toggleTheme": "تبديل النمط",
     "toggleLanguage": "تغيير اللغة",
+    "toggleLanguageTo": "التبديل إلى {{language}}",
     "pinCurrentPage": "تثبيت هذه الصفحة",
+    "unpinCurrentPage": "إلغاء تثبيت هذه الصفحة",
     "manageShortcuts": "إدارة الاختصارات",
-    "backToDashboard": "العودة إلى لوحة التحكم",
     "notifications": "الإشعارات",
     "notificationsAria_zero": "الإشعارات",
     "notificationsAria_one": "الإشعارات ({{count}} قيد الانتظار)",
@@ -25,8 +22,15 @@
     "pinCurrentPage": "تثبيت الصفحة الحالية",
     "pinCurrentPageDisabled": "افتح صفحة قابلة للتثبيت أولاً",
     "orderTitle": "ترتيب الاختصارات",
-    "orderHint": "اسحب العناصر لإعادة الترتيب.",
-    "none": "لا توجد اختصارات محددة"
+    "orderHint": "اسحب أو استخدم الأسهم.",
+    "none": "لا توجد اختصارات محددة",
+    "searchPlaceholder": "ابحث عن صفحة",
+    "clearSearch": "مسح البحث",
+    "noResults": "لا توجد صفحة مطابقة",
+    "moveUp": "تحريك للأعلى",
+    "moveDown": "تحريك للأسفل",
+    "remove": "إزالة من الاختصارات",
+    "more": "{{total}} إضافية"
   },
   "menu": {
     "settings": "الإعدادات",

@@ -59,12 +59,13 @@
     "attendanceTickets": "Attendance Tickets",
     "attendanceReminders": "Attendance Reminders",
     "subRequests": "Sub Requests",
-    "behaviorManagement": "Behavior Management",
+    "behaviorManagement": "Behavior",
     "behaviorAnalytics": "Behavior Analytics",
     "teachers": "Teachers",
     "subjects": "Subjects",
     "subscription": "Subscription",
     "reading": "Reading",
+    "readingResults": "Reading results",
     "sbrConfig": "SBR Config",
     "sbrGenerate": "SBR Generate",
     "sbrReports": "SBR Reports",
@@ -103,6 +104,11 @@
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "upgrade": "Upgrade",
-    "featureLocked": "Feature locked"
+    "featureLocked": "Feature locked",
+    "search": "Search pages",
+    "clearSearch": "Clear search",
+    "noResults": "No matching pages",
+    "collapseSection": "Collapse {{section}}",
+    "expandSection": "Expand {{section}}"
   }
 }

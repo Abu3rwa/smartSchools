@@ -49,6 +49,27 @@
     "revisionPlanning": "Revision Planning",
     "newsletterCommunication": "Newsletter Communication",
     "academicIntelligence": "Academic Intelligence",
-    "aiEmailDrafts": "AI Email Drafts"
+    "aiEmailDrafts": "AI Email Drafts",
+    "presentationBuilder": "Presentation Builder",
+    "worksheetChecker": "Worksheet Checker",
+    "mapTestPrep": "MAP Test Prep",
+    "socialStudies": "Social Studies",
+    "gradeAnalytics": "Grade Analytics",
+    "parentGradebook": "Parent Gradebook",
+    "traditionalReportCards": "Traditional Report Cards"
+  },
+  "upgradePrompt": {
+    "lockedTitle": "{{feature}} is locked",
+    "notOnPlan": "This feature is not available on your current plan.",
+    "higherPlan": "a higher plan",
+    "unlockWithPlan": "Upgrade to {{plan}} to unlock this feature.",
+    "viewOptions": "View upgrade options",
+    "requiresPlan": "{{feature}} requires {{plan}}.",
+    "upgrade": "Upgrade"
+  },
+  "planCheck": {
+    "title": "Can't confirm {{feature}} right now",
+    "body": "We couldn't reach your school's plan information, so this page may still be available. Check the connection and try again.",
+    "retry": "Try again"
   }
 }

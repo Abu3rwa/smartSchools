@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { useTheme, useMediaQuery, Menu, MenuItem } from '@mui/material';
+import { useTheme, useMediaQuery, Menu, MenuItem, Tooltip } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { selectUser, logout, selectIsImpersonating } from '../../store/slices/authSlice';
 import {
@@ -17,11 +17,13 @@ import {
     HiOutlineMoon,
     HiOutlineSun,
     HiOutlineLogout,
-     HiOutlineBell,
-     HiOutlineMenu,
+    HiOutlineBell,
+    HiOutlineMenu,
     HiOutlineCog,
     HiOutlineStar,
     HiOutlinePlus,
+    HiOutlineCheck,
+    HiOutlineDotsHorizontal,
 } from 'react-icons/hi';
 import notificationService from '../../services/notificationService';
 import ShortcutsMenu from './header/ShortcutsMenu';
@@ -31,11 +33,25 @@ import AcademicYearFilter from './header/AcademicYearFilter';
 import { useHeaderShortcuts } from './header/useHeaderShortcuts';
 import './Header.css';
 
+// How many pinned links sit in the bar before the rest fold into "+N"
+const WIDE_CHIP_LIMIT = 5;
+const NARROW_CHIP_LIMIT = 3;
+const NOTIFICATION_POLL_MS = 60000;
+
+const HeaderTip = ({ tip, disabled, children }) => (
+    <Tooltip title={tip} placement="bottom" disableInteractive>
+        {/* a disabled button fires no pointer events, so the wrapper carries the hover */}
+        <span className={disabled ? 'header-tip-wrap header-tip-wrap--disabled' : 'header-tip-wrap'}>
+            {children}
+        </span>
+    </Tooltip>
+);
+
 const Header = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
-    const { t, i18n } = useTranslation(['layout.header', 'layout.sidebar', 'common']);
+    const { t, i18n } = useTranslation(['layout.header', 'layout.sidebar', 'schoolSettings', 'common']);
     const user = useSelector(selectUser);
     const isStudent = user?.role === 'student';
     const schoolFeatures = useSelector(selectSchoolFeatures);
@@ -43,12 +59,15 @@ const Header = () => {
     const language = useSelector(selectLanguage);
     const muiTheme = useTheme();
     const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
+    const isWide = useMediaQuery('(min-width: 1280px)');
     const isRtl = i18n.dir(language) === 'rtl';
     const isImpersonating = useSelector(selectIsImpersonating);
 
     const [notificationCount, setNotificationCount] = useState(0);
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
     const [shortcutsMenuAnchor, setShortcutsMenuAnchor] = useState(null);
+    const [overflowMenuAnchor, setOverflowMenuAnchor] = useState(null);
+    const manageShortcutsBtnRef = useRef(null);
 
     const {
         maxShortcuts,
@@ -66,22 +85,42 @@ const Header = () => {
         locationPathname: location.pathname,
     });
 
+    const currentShortcut = availableShortcuts.find((item) => item.path === currentShortcutPath);
+    const isCurrentPagePinned = !!currentShortcutPath && selectedShortcutPaths.includes(currentShortcutPath);
+    const chipLimit = isWide ? WIDE_CHIP_LIMIT : NARROW_CHIP_LIMIT;
+    const visibleShortcuts = selectedShortcuts.slice(0, chipLimit);
+    const currentOverflowIndex = selectedShortcuts.findIndex((item) => item.path === currentShortcutPath);
+    if (currentOverflowIndex >= chipLimit) {
+        // the page you are on should never be hidden behind "+N"
+        visibleShortcuts[chipLimit - 1] = selectedShortcuts[currentOverflowIndex];
+    }
+    const visibleShortcutPaths = new Set(visibleShortcuts.map((item) => item.path));
+    const overflowShortcuts = selectedShortcuts.filter((item) => !visibleShortcutPaths.has(item.path));
+    const shortcutLabel = (shortcut) => t(`layout.sidebar:items.${shortcut.labelKey}`);
+    const roleLabel = user?.role
+        ? t(`schoolSettings:roles.${user.role}`, { defaultValue: user.role })
+        : '';
+
     useEffect(() => {
-        if (isStudent) {
-            setNotificationCount(0);
-            return undefined;
-        }
+        if (isStudent) return undefined;
 
         let cancelled = false;
-        notificationService.getNotificationHistory({ status: 'pending', limit: 1 })
-            .then((res) => {
-                if (cancelled) return;
-                const data = res?.data ?? res;
-                const total = data?.pagination?.total ?? 0;
-                setNotificationCount(total);
-            })
-            .catch(() => {});
-        return () => { cancelled = true; };
+        const loadCount = () => {
+            notificationService.getNotificationHistory({ status: 'pending', limit: 1 })
+                .then((res) => {
+                    if (cancelled) return;
+                    const data = res?.data ?? res;
+                    setNotificationCount(data?.pagination?.total ?? 0);
+                })
+                .catch(() => {});
+        };
+
+        loadCount();
+        const intervalId = window.setInterval(loadCount, NOTIFICATION_POLL_MS);
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
     }, [isStudent]);
 
     const handleLogout = () => {
@@ -102,8 +141,6 @@ const Header = () => {
         dispatch(setLanguage(language === 'ar' ? 'en' : 'ar'));
     };
 
-   
-
     const handleNotificationClick = () => {
         navigate('/portal/notifications');
     };
@@ -112,20 +149,33 @@ const Header = () => {
         ? t('layout.header:actions.notificationsAria', { count: notificationCount })
         : t('layout.header:actions.notifications');
 
+    const pinTip = isCurrentPagePinned
+        ? t('layout.header:actions.unpinCurrentPage')
+        : t('layout.header:actions.pinCurrentPage');
+
+    const handlePinClick = () => {
+        if (isCurrentPagePinned) {
+            toggleShortcut(currentShortcutPath);
+            return;
+        }
+        pinCurrentPage();
+    };
+
     return (
         <>
             <ImpersonationBanner />
             <header className={`header${isImpersonating ? ' header-impersonating' : ''}`}>
             <div className="header-left">
                 {isStudent && location.pathname !== '/portal/dashboard' && (
-                    <button
-                        className="header-btn student-home-btn"
-                        onClick={() => navigate('/portal/dashboard')}
-                        aria-label={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
-                        title={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
-                    >
-                        <HiOutlineHome size={20} />
-                    </button>
+                    <HeaderTip tip={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}>
+                        <button
+                            className="header-btn student-home-btn"
+                            onClick={() => navigate('/portal/dashboard')}
+                            aria-label={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
+                        >
+                            <HiOutlineHome size={20} />
+                        </button>
+                    </HeaderTip>
                 )}
                 {!isDesktop && !isStudent && (
                     <button
@@ -137,100 +187,141 @@ const Header = () => {
                     </button>
                 )}
 
-                
+                {currentShortcut && (
+                    <div className="header-breadcrumb">
+                        <span className="header-breadcrumb-section">
+                            {t(`layout.sidebar:sections.${currentShortcut.section || 'overview'}`)}
+                        </span>
+                        <span className="header-breadcrumb-sep" aria-hidden="true">/</span>
+                        <span className="header-breadcrumb-page">{shortcutLabel(currentShortcut)}</span>
+                    </div>
+                )}
             </div>
 
             <div className="header-right">
                 {isDesktop && !isStudent && (
                     <>
                         <div className="header-shortcuts">
-                            {selectedShortcuts.length === 0 ? (
-                                <span className="header-shortcuts-empty">{t('layout.header:shortcuts.none')}</span>
-                            ) : selectedShortcuts.map((shortcut) => {
+                            {visibleShortcuts.map((shortcut) => {
                                 const isActive = currentShortcutPath === shortcut.path;
                                 return (
                                     <button
                                         key={shortcut.path}
                                         className={`header-shortcut-btn ${isActive ? 'active' : ''}`}
                                         onClick={() => navigate(shortcut.path)}
-                                        title={t(`layout.sidebar:items.${shortcut.labelKey}`)}
+                                        aria-current={isActive ? 'page' : undefined}
                                     >
-                                        {t(`layout.sidebar:items.${shortcut.labelKey}`)}
+                                        {shortcutLabel(shortcut)}
                                     </button>
                                 );
                             })}
+                            {overflowShortcuts.length > 0 && (
+                                <button
+                                    className="header-shortcut-btn header-shortcut-more"
+                                    onClick={(event) => setOverflowMenuAnchor(event.currentTarget)}
+                                    aria-haspopup="true"
+                                    aria-expanded={!!overflowMenuAnchor}
+                                    aria-label={t('layout.header:shortcuts.more', { total: overflowShortcuts.length })}
+                                >
+                                    +{overflowShortcuts.length}
+                                </button>
+                            )}
                         </div>
 
-                        <button
-                            className="header-btn"
-                            onClick={pinCurrentPage}
-                            disabled={!canPinCurrentPage}
-                            aria-label={t('layout.header:actions.pinCurrentPage')}
-                            title={t('layout.header:actions.pinCurrentPage')}
-                        >
-                            <HiOutlinePlus size={20} />
-                        </button>
+                        {currentShortcut && (
+                            <HeaderTip tip={pinTip} disabled={!isCurrentPagePinned && !canPinCurrentPage}>
+                                <button
+                                    className={`header-btn header-pin-btn ${isCurrentPagePinned ? 'pinned' : ''}`}
+                                    onClick={handlePinClick}
+                                    disabled={!isCurrentPagePinned && !canPinCurrentPage}
+                                    aria-label={pinTip}
+                                    aria-pressed={isCurrentPagePinned}
+                                >
+                                    {isCurrentPagePinned ? <HiOutlineCheck size={19} /> : <HiOutlinePlus size={20} />}
+                                </button>
+                            </HeaderTip>
+                        )}
 
-                        <button
-                            className="header-btn"
-                            onClick={(event) => setShortcutsMenuAnchor(event.currentTarget)}
-                            aria-label={t('layout.header:actions.manageShortcuts')}
-                            title={t('layout.header:actions.manageShortcuts')}
-                        >
-                            <HiOutlineStar size={20} />
-                        </button>
+                        <HeaderTip tip={t('layout.header:actions.manageShortcuts')}>
+                            <button
+                                ref={manageShortcutsBtnRef}
+                                className="header-btn"
+                                onClick={(event) => setShortcutsMenuAnchor(event.currentTarget)}
+                                aria-label={t('layout.header:actions.manageShortcuts')}
+                                aria-haspopup="dialog"
+                                aria-expanded={!!shortcutsMenuAnchor}
+                            >
+                                <HiOutlineStar size={20} />
+                            </button>
+                        </HeaderTip>
+
+                        <span className="header-divider" />
                     </>
                 )}
 
-                <AcademicYearFilter />
+                {!isStudent && <AcademicYearFilter />}
 
                 <RoleSwitcher isRtl={isRtl} />
 
-                
-                <button
-                    className="header-btn"
-                    onClick={handleThemeToggle}
-                    aria-label={t('layout.header:actions.toggleTheme')}
-                >
-                    {theme === 'dark' ? <HiOutlineSun size={20} /> : <HiOutlineMoon size={20} />}
-                </button>
+                <HeaderTip tip={t('layout.header:actions.toggleTheme')}>
+                    <button
+                        className="header-btn"
+                        onClick={handleThemeToggle}
+                        aria-label={t('layout.header:actions.toggleTheme')}
+                    >
+                        {theme === 'dark' ? <HiOutlineSun size={20} /> : <HiOutlineMoon size={20} />}
+                    </button>
+                </HeaderTip>
 
-                <button
-                    className="header-btn"
-                    onClick={handleLanguageToggle}
-                    aria-label={t('layout.header:actions.toggleLanguage')}
-                    title={t('layout.header:actions.toggleLanguage')}
-                >
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>{language.toUpperCase()}</span>
-                </button>
+                <HeaderTip tip={t('layout.header:actions.toggleLanguageTo', {
+                    language: language === 'ar' ? 'English' : 'العربية',
+                })}>
+                    <button
+                        className="header-btn header-lang-btn"
+                        onClick={handleLanguageToggle}
+                        aria-label={t('layout.header:actions.toggleLanguage')}
+                    >
+                        {language.toUpperCase()}
+                    </button>
+                </HeaderTip>
 
                 {!isStudent && (
-                    <button
-                        className="header-btn notification-btn"
-                        onClick={handleNotificationClick}
-                        aria-label={notificationsAriaLabel}
-                    >
-                        <HiOutlineBell size={20} />
-                        {notificationCount > 0 && (
-                            <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
-                        )}
-                    </button>
+                    <HeaderTip tip={notificationsAriaLabel}>
+                        <button
+                            className="header-btn notification-btn"
+                            onClick={handleNotificationClick}
+                            aria-label={notificationsAriaLabel}
+                        >
+                            <HiOutlineBell size={20} />
+                            {notificationCount > 0 && (
+                                <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
+                            )}
+                        </button>
+                    </HeaderTip>
                 )}
 
                 {!isStudent && <div className="header-divider" />}
 
                 <div className="user-menu">
-                    <button
-                        className="header-btn user-avatar-btn"
-                        onClick={(event) => setUserMenuAnchor(event.currentTarget)}
-                        aria-label={t('layout.header:actions.userMenu')}
-                        aria-haspopup="true"
-                        aria-expanded={!!userMenuAnchor}
-                    >
-                        <div className="user-avatar-sm">
-                            {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                        </div>
-                    </button>
+                    <HeaderTip tip={user ? `${user.firstName} ${user.lastName}` : t('layout.header:actions.userMenu')}>
+                        <button
+                            className="header-btn user-avatar-btn"
+                            onClick={(event) => setUserMenuAnchor(event.currentTarget)}
+                            aria-label={t('layout.header:actions.userMenu')}
+                            aria-haspopup="true"
+                            aria-expanded={!!userMenuAnchor}
+                        >
+                            <div className="user-avatar-sm">
+                                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                            </div>
+                            {isDesktop && (
+                                <div className="header-user-meta">
+                                    <span className="header-user-name">{user?.firstName}</span>
+                                    <span className="header-user-role">{roleLabel}</span>
+                                </div>
+                            )}
+                        </button>
+                    </HeaderTip>
 
                     <Menu
                         anchorEl={userMenuAnchor}
@@ -238,14 +329,48 @@ const Header = () => {
                         onClose={() => setUserMenuAnchor(null)}
                         anchorOrigin={{ vertical: 'bottom', horizontal: isRtl ? 'left' : 'right' }}
                         transformOrigin={{ vertical: 'top', horizontal: isRtl ? 'left' : 'right' }}
-                        PaperProps={{ sx: { minWidth: 180, mt: 1.5 } }}
+                        PaperProps={{ sx: { minWidth: 220, mt: 1 } }}
                     >
+                        <div className="header-menu-identity">
+                            <span className="header-menu-name">{user?.firstName} {user?.lastName}</span>
+                            <span className="header-menu-role">{roleLabel}</span>
+                        </div>
                         <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/portal/settings'); }}>
                             <HiOutlineCog size={18} style={{ marginInlineEnd: 8 }} />
                             {t('layout.header:menu.settings')}
                         </MenuItem>
                         <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
                             <HiOutlineLogout size={18} style={{ marginInlineEnd: 8 }} /> {t('layout.header:menu.logout')}
+                        </MenuItem>
+                    </Menu>
+
+                    <Menu
+                        anchorEl={overflowMenuAnchor}
+                        open={!!overflowMenuAnchor}
+                        onClose={() => setOverflowMenuAnchor(null)}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: isRtl ? 'left' : 'right' }}
+                        transformOrigin={{ vertical: 'top', horizontal: isRtl ? 'left' : 'right' }}
+                        PaperProps={{ sx: { minWidth: 220, mt: 1 } }}
+                    >
+                        {overflowShortcuts.map((shortcut) => (
+                            <MenuItem
+                                key={`overflow-${shortcut.path}`}
+                                onClick={() => {
+                                    setOverflowMenuAnchor(null);
+                                    navigate(shortcut.path);
+                                }}
+                            >
+                                {shortcutLabel(shortcut)}
+                            </MenuItem>
+                        ))}
+                        <MenuItem
+                            onClick={() => {
+                                setOverflowMenuAnchor(null);
+                                setShortcutsMenuAnchor(manageShortcutsBtnRef.current);
+                            }}
+                        >
+                            <HiOutlineDotsHorizontal size={18} style={{ marginInlineEnd: 8 }} />
+                            {t('layout.header:actions.manageShortcuts')}
                         </MenuItem>
                     </Menu>
 

@@ -11,15 +11,26 @@
   },
   "filters": {
     "searchPlaceholder": "ابحث عن الطلاب...",
+    "searchAria": "البحث عن الطلاب",
+    "clearSearch": "مسح البحث",
+    "academicYear": "السنة الدراسية",
+    "classFilter": "الفصل",
+    "clearAll": "مسح المرشحات",
     "allClasses": "كل الفصول",
     "unassignedStudents": "طلاب غير مخصصين"
+  },
+  "selection": {
+    "count": "تم تحديد {{total}}",
+    "clear": "إلغاء التحديد"
   },
   "actions": {
     "selectWithoutLoginFirst": "اختر طلاباً بدون حساب أولاً",
     "selectStudentsFirst": "حدد طالباً واحداً على الأقل أولاً",
     "createLoginsForSelected": "إنشاء حسابات للمحدد ({{count}})",
-    "sendInvitesForSelected": "إرسال دعوات للمحدد ({{count}})",
-    "sendParentInvitesForSelected": "إرسال دعوات أولياء الأمور للمحدد ({{count}})",
+    "sendLoginInvites": "إرسال دعوات الدخول",
+    "sendParentInvites": "إرسال دعوات أولياء الأمور",
+    "bulkDelete": "حذف الطلاب",
+    "bulkDeleteHint": "احذف الطلاب حسب التحديد أو الفصل أو السنة الدراسية",
     "sendLoginInvite": "إرسال دعوة دخول",
     "resendLoginInvite": "إعادة إرسال دعوة الدخول",
     "sendInvite": "إرسال الدعوة",
@@ -88,7 +99,10 @@
     "inactive": "غير نشط"
   },
   "empty": {
-    "noStudents": "لا يوجد طلاب"
+    "noStudents": "لا يوجد طلاب",
+    "noStudentsHint": "أضف طالباً أو استورد قائمة الفصل من ملف CSV للبدء.",
+    "noMatches": "لا يوجد طلاب يطابقون هذه المرشحات",
+    "noMatchesHint": "جرّب اسماً آخر أو امسح المرشحات لعرض القائمة كاملة."
   },
   "modal": {
     "editTitle": "تعديل الطالب",

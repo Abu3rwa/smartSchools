@@ -5,6 +5,7 @@
   },
   "actions": {
     "importCsv": "استيراد CSV",
+    "downloadSample": "تنزيل نموذج CSV",
     "addClass": "إضافة فصل",
     "createClass": "إنشاء فصل",
     "creating": "جارٍ الإنشاء...",
@@ -14,11 +15,18 @@
     "deactivated": "تم تعطيله"
   },
   "filters": {
-    "searchPlaceholder": "ابحث عن الفصول..."
+    "searchPlaceholder": "ابحث عن الفصول...",
+    "searchAria": "ابحث عن الفصول",
+    "clearSearch": "مسح البحث",
+    "matches": "{{total}} نتيجة"
+  },
+  "template": {
+    "active": "نموذج العينة {{version}} حُدِّث {{date}}",
+    "fallback": "نموذج العينة يأتي من مخطط الاستيراد",
+    "unknownDate": "مؤخراً"
   },
   "table": {
     "columns": {
-      "grade": "الصف",
       "section": "الشعبة",
       "className": "اسم الفصل",
       "department": "القسم",
@@ -34,7 +42,9 @@
   },
   "empty": {
     "title": "لا توجد فصول",
-    "description": "أنشئ فصلاً جديداً للبدء"
+    "description": "أنشئ فصلاً جديداً للبدء",
+    "noMatches": "لا توجد فصول مطابقة للبحث",
+    "noMatchesDescription": "جرّب اسم فصل أو مستوى صف مختلف."
   },
   "modal": {
     "createTitle": "إنشاء فصل جديد"
@@ -53,10 +63,15 @@
   },
   "confirm": {
     "toggleActive": "هل أنت متأكد من رغبتك في {{action}} {{className}}؟",
-    "delete": "حذف {{className}}؟ سيؤدي هذا إلى تعطيل الفصل وإخفائه من سير العمل النشط.",
-    "deleteModePrompt": "اختر طريقة الحذف للفصل {{className}}:\n1 = حذف الفصل فقط (مع إبقاء الطلاب والبيانات التاريخية)\n2 = حذف الفصل مع فصل الطلاب وحذف بيانات الفصل المرتبطة\n\nاكتب 1 أو 2.",
-    "deleteClassOnly": "حذف {{className}} فقط؟ سيتم الاحتفاظ بالطلاب والبيانات التاريخية.",
-    "deleteWithData": "حذف {{className}} مع بيانات الفصل المرتبطة وفصل الطلاب المسجلين؟ لا يمكن التراجع عن هذا الإجراء."
+    "deleteClassOnly": "يبقى الطلاب مسجلين وتُحتفظ بكل الدرجات والحضور والتقارير السابقة.",
+    "deleteWithData": "يتم فصل الطلاب المسجلين وحذف بيانات الفصل المرتبطة. لا يمكن التراجع عن هذا الإجراء."
+  },
+  "delete": {
+    "title": "حذف الفصل",
+    "classOnlyTitle": "حذف الفصل فقط",
+    "withDataTitle": "حذف مع بيانات الفصل المرتبطة",
+    "confirm": "حذف الفصل",
+    "deleting": "جارٍ الحذف..."
   },
   "toast": {
     "created": "تم إنشاء الفصل بنجاح!",
@@ -66,13 +81,12 @@
     "deleted": "تم حذف الفصل بنجاح",
     "deletedClassOnly": "تم حذف الفصل (الفصل فقط)",
     "deletedWithData": "تم حذف الفصل مع تنظيف البيانات المرتبطة",
-    "deleteChoiceInvalid": "اختيار غير صالح. يرجى كتابة 1 أو 2.",
     "deleteFailed": "فشل حذف الفصل",
     "selectCsv": "يرجى اختيار ملف CSV",
     "noValidRows": "لا توجد صفوف صالحة في ملف CSV",
-    "imported": "تم استيراد {{count}} فصول",
-    "importFailedRows": "فشل {{count}} من صفوف الفصول",
-    "importSkippedRows": "تم تخطي {{count}} من صفوف الفصول",
+    "imported": "تم استيراد {{total}} فصول",
+    "importFailedRows": "فشل {{total}} من صفوف الفصول",
+    "importSkippedRows": "تم تخطي {{total}} من صفوف الفصول",
     "importFailed": "فشل استيراد الفصول"
   }
 }

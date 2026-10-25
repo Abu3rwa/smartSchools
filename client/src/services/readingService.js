@@ -20,6 +20,10 @@ export const readingService = {
   // Teacher: list assignments
   getTeacherAssignments: (params) => api.get('/reading/assignments/teacher', { params }),
 
+  // Teacher: per-student results for one assignment
+  getAssignmentResults: (assignmentId) =>
+    api.get(`/reading/assignments/${assignmentId}/results`),
+
   // Student: my assignments
   getMyAssignments: () => api.get('/reading/assignments'),
 

@@ -89,10 +89,15 @@ export const fetchAvailableYears = createAsyncThunk(
     }
 );
 
+const getInitialSidebarOpen = () => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('sidebarOpen') !== 'false';
+};
+
 const uiSlice = createSlice({
     name: 'ui',
     initialState: {
-        sidebarOpen: true,
+        sidebarOpen: getInitialSidebarOpen(),
         theme: localStorage.getItem('theme') || 'light',
         appName: DEFAULT_APP_NAME,
         language: getInitialLanguage(),
@@ -112,9 +117,12 @@ const uiSlice = createSlice({
     reducers: {
         toggleSidebar: (state) => {
             state.sidebarOpen = !state.sidebarOpen;
+            localStorage.setItem('sidebarOpen', state.sidebarOpen ? 'true' : 'false');
         },
         setSidebarOpen: (state, action) => {
             state.sidebarOpen = action.payload;
+            // Only an explicit expand is remembered: mobile closes the drawer on every route change
+            if (action.payload) localStorage.setItem('sidebarOpen', 'true');
         },
         setTheme: (state, action) => {
             state.theme = action.payload;

@@ -6,7 +6,7 @@ import { fetchClasses, selectClasses, selectClassesPagination, selectClassesLoad
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineOfficeBuilding, HiOutlineX } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import classService from '../../../services/classService';
 import importTemplateService from '../../../services/importTemplateService';
@@ -34,12 +34,15 @@ const ClassesPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleteMode, setDeleteMode] = useState('class_only');
+    const [deleting, setDeleting] = useState(false);
     const [formData, setFormData] = useState({
         grade: '',
         section: '',
         academicYear: academicYear,
         room: '',
-        capacity: 15,
+        capacity: 40,
         department: ''
     });
 
@@ -124,61 +127,30 @@ const ClassesPage = () => {
         }
     };
 
-    const handleDeleteClass = async (cls) => {
-        const deleteChoice = window.prompt(
-            t('classes:confirm.deleteModePrompt', {
-                defaultValue:
-                    'Choose delete option for {{className}}:\n1 = Delete class only (keep students and historical data)\n2 = Delete class with students detached and related class data removed\n\nType 1 or 2.',
-                className: cls.name
-            }),
-            '1'
-        );
+    const openDeleteDialog = (cls) => {
+        setDeleteTarget(cls);
+        setDeleteMode('class_only');
+    };
 
-        if (deleteChoice === null) {
-            return;
-        }
+    const closeDeleteDialog = () => {
+        if (deleting) return;
+        setDeleteTarget(null);
+    };
 
-        const normalizedChoice = String(deleteChoice).trim();
-        if (normalizedChoice !== '1' && normalizedChoice !== '2') {
-            toast.error(
-                t('classes:toast.deleteChoiceInvalid', {
-                    defaultValue: 'Invalid choice. Please type 1 or 2.'
-                })
-            );
-            return;
-        }
+    const confirmDeleteClass = async () => {
+        if (!deleteTarget) return;
 
-        const deleteMode = normalizedChoice === '2' ? 'with_related_data' : 'class_only';
-        const confirmationKey =
-            deleteMode === 'with_related_data'
-                ? 'classes:confirm.deleteWithData'
-                : 'classes:confirm.deleteClassOnly';
+        setDeleting(true);
+        const result = await dispatch(deleteClass({ id: deleteTarget._id, deleteMode }));
+        setDeleting(false);
 
-        if (!window.confirm(t(confirmationKey, {
-            defaultValue:
-                deleteMode === 'with_related_data'
-                    ? 'Delete {{className}} with related class data and detach enrolled students? This cannot be undone.'
-                    : 'Delete {{className}} only? Students and historical data will be kept.',
-            className: cls.name
-        }))) {
-            return;
-        }
-
-        const result = await dispatch(deleteClass({ id: cls._id, deleteMode }));
         if (deleteClass.fulfilled.match(result)) {
-            toast.success(
-                t(
-                    deleteMode === 'with_related_data'
-                        ? 'classes:toast.deletedWithData'
-                        : 'classes:toast.deletedClassOnly',
-                    {
-                        defaultValue:
-                            deleteMode === 'with_related_data'
-                                ? 'Class deleted with related data cleanup'
-                                : 'Class deleted (class only)'
-                    }
-                )
-            );
+            toast.success(t(
+                deleteMode === 'with_related_data'
+                    ? 'classes:toast.deletedWithData'
+                    : 'classes:toast.deletedClassOnly'
+            ));
+            setDeleteTarget(null);
             dispatch(fetchClasses(classQueryParams));
         } else {
             toast.error(result.payload || t('classes:toast.deleteFailed'));
@@ -225,19 +197,19 @@ const ClassesPage = () => {
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
             if (imported > 0) {
-                toast.success(response?.message || t('classes:toast.imported', { count: imported }));
+                toast.success(response?.message || t('classes:toast.imported', { total: imported }));
             }
             if (failed > 0) {
                 const issues = response?.errors || response?.data?.errors || [];
                 const details = issues.slice(0, 2).map((issue) => (
                     `Row ${issue.row}${issue.field ? ` (${issue.field})` : ''}: ${issue.message}`
                 ));
-                const failureSummary = t('classes:toast.importFailedRows', { count: failed });
+                const failureSummary = t('classes:toast.importFailedRows', { total: failed });
                 toast.error(details.length ? `${failureSummary} ${details.join('; ')}` : failureSummary, {
                     duration: 10000
                 });
             } else if (skipped > 0) {
-                toast(t('classes:toast.importSkippedRows', { count: skipped }));
+                toast(t('classes:toast.importSkippedRows', { total: skipped }));
             }
             dispatch(fetchClasses(classQueryParams));
         } catch (importError) {
@@ -253,6 +225,17 @@ const ClassesPage = () => {
         }
     };
 
+    const templateNote = templateMeta
+        ? (templateMeta.hasActiveTemplate
+            ? t('classes:template.active', {
+                version: templateMeta.activeTemplate?.version || 'v1',
+                date: templateMeta.activeTemplate?.updatedAt
+                    ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString()
+                    : t('classes:template.unknownDate')
+            })
+            : t('classes:template.fallback'))
+        : null;
+
     return (
         <div className="classes-page">
             <input
@@ -262,46 +245,61 @@ const ClassesPage = () => {
                 style={{ display: 'none' }}
                 onChange={handleClassImportFileChange}
             />
-            {/* Header */}
-            <div className="page-header">
-                <div>
+            <div className="page-header classes-hero">
+                <div className="classes-hero-text">
                     <h1>{t('classes:page.title')}</h1>
                     <p className="text-muted">{t('classes:page.subtitle')}</p>
-                    {templateMeta && (
-                        <p className="text-muted" style={{ marginTop: 6, fontSize: '0.82rem' }}>
-                            {templateMeta.hasActiveTemplate
-                                ? `Sample template ${templateMeta.activeTemplate?.version || 'v1'} updated ${templateMeta.activeTemplate?.updatedAt ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
-                                : 'Sample template uses fallback from import schema'}
-                        </p>
+                    {templateNote && (
+                        <div className="classes-template-pill">
+                            <HiOutlineDownload size={14} />
+                            <span>{templateNote}</span>
+                        </div>
                     )}
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
-                        <button className="btn btn-outline" onClick={handleTriggerImport}>
-                            <HiOutlineUpload size={20} />
+                        <button type="button" className="btn btn-ghost" onClick={handleDownloadSample}>
+                            <HiOutlineDownload size={18} />
+                            {t('classes:actions.downloadSample')}
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={handleTriggerImport}>
+                            <HiOutlineUpload size={18} />
                             {t('classes:actions.importCsv')}
                         </button>
-                        <button className="btn btn-outline" onClick={handleDownloadSample}>
-                            <HiOutlineDownload size={20} />
-                            Download Sample CSV
-                        </button>
-                        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                            <HiOutlinePlus size={20} />
+                        <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}>
+                            <HiOutlinePlus size={18} />
                             {t('classes:actions.addClass')}
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* Search */}
-            <div className="search-bar">
-                <HiOutlineSearch className="search-icon" />
-                <input
-                    type="text"
-                    placeholder={t('classes:filters.searchPlaceholder')}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="classes-toolbar">
+                <div className="search-bar classes-search">
+                    <HiOutlineSearch className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder={t('classes:filters.searchPlaceholder')}
+                        aria-label={t('classes:filters.searchAria')}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <button
+                            type="button"
+                            className="search-clear"
+                            onClick={() => setSearchTerm('')}
+                            aria-label={t('classes:filters.clearSearch')}
+                        >
+                            <HiOutlineX size={16} />
+                        </button>
+                    )}
+                </div>
+                {searchTerm.trim() && totalItems > 0 && (
+                    <span className="classes-result-count">
+                        {t('classes:filters.matches', { total: totalItems })}
+                    </span>
+                )}
             </div>
 
             {/* Classes Table */}
@@ -321,33 +319,42 @@ const ClassesPage = () => {
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>{t('classes:table.columns.grade')}</th>
-                                <th>{t('classes:table.columns.section')}</th>
                                 <th>{t('classes:table.columns.className')}</th>
+                                <th>{t('classes:table.columns.section')}</th>
                                 <th>{t('classes:table.columns.department')}</th>
                                 <th>{t('classes:table.columns.academicYear')}</th>
                                 <th>{t('classes:table.columns.students')}</th>
                                 <th>{t('classes:table.columns.subjects')}</th>
-                                <th>{t('classes:table.columns.actions')}</th>
+                                <th className="classes-th-actions">{t('classes:table.columns.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {classes.map((cls, index) => (
                                 <tr key={cls._id} className="animate-fadeIn" style={{ animationDelay: `${index * 0.05}s` }}>
                                     <td>
-                                        <span className="grade-badge">{cls.grade}</span>
+                                        <div className="class-identity">
+                                            <span className="grade-badge">{cls.grade}</span>
+                                            <div className="class-identity-text">
+                                                <Link to={`/portal/classes/${cls._id}`} className="class-link">
+                                                    {cls.name}
+                                                </Link>
+                                                {cls.room && (
+                                                    <span className="class-room">
+                                                        <HiOutlineOfficeBuilding size={13} />
+                                                        {cls.room}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td>{cls.section || t('classes:table.mainSection')}</td>
                                     <td>
-                                        <Link to={`/portal/classes/${cls._id}`} className="class-link">
-                                            {cls.name}
-                                        </Link>
+                                        <span className="class-section">{cls.section || t('classes:table.mainSection')}</span>
                                     </td>
                                     <td>{cls.department?.name ?? '—'}</td>
                                     <td>
-                                        {cls.academicYear}
+                                        <span className="class-year">{cls.academicYear}</span>
                                         {cls.isActive === false && (
-                                            <span className="badge badge-secondary" style={{ marginInlineStart: 6 }}>
+                                            <span className="badge badge-secondary class-inactive-badge">
                                                 {t('classes:status.inactive')}
                                             </span>
                                         )}
@@ -355,7 +362,10 @@ const ClassesPage = () => {
                                     <td>
                                         <div className="stat-cell">
                                             <HiOutlineUserGroup />
-                                            <span>{cls.studentCount || 0}</span>
+                                            <span>
+                                                {cls.studentCount || 0}
+                                                {cls.capacity ? ` / ${cls.capacity}` : ''}
+                                            </span>
                                         </div>
                                     </td>
                                     <td>
@@ -364,7 +374,7 @@ const ClassesPage = () => {
                                             <span>{cls.subjects?.length || 0}</span>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td className="classes-td-actions">
                                         <div className="actions-cell">
                                             <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
                                                 {t('common:actions.view')}
@@ -380,11 +390,12 @@ const ClassesPage = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        className="btn btn-sm btn-danger"
-                                                        onClick={() => handleDeleteClass(cls)}
+                                                        className="btn-icon btn-icon-danger"
+                                                        onClick={() => openDeleteDialog(cls)}
+                                                        title={t('common:actions.delete')}
+                                                        aria-label={t('common:actions.delete')}
                                                     >
-                                                        <HiOutlineTrash size={14} />
-                                                        {t('common:actions.delete')}
+                                                        <HiOutlineTrash size={16} />
                                                     </button>
                                                 </>
                                             )}
@@ -395,16 +406,22 @@ const ClassesPage = () => {
                         </tbody>
                     </table>
                     {classes.length === 0 && (
-                        <div className="empty-state">
-                            <HiOutlineAcademicCap size={48} />
-                            <h3>{t('classes:empty.title')}</h3>
-                            <p>{t('classes:empty.description')}</p>
-                            {isAdmin && (
-                                <button className="btn btn-primary mt-4" onClick={() => setShowModal(true)}>
+                        <div className="empty-state classes-empty-state">
+                            <span className="classes-empty-icon">
+                                <HiOutlineSearch size={26} />
+                            </span>
+                            <h3>{searchTerm.trim() ? t('classes:empty.noMatches') : t('classes:empty.title')}</h3>
+                            <p>{searchTerm.trim() ? t('classes:empty.noMatchesDescription') : t('classes:empty.description')}</p>
+                            {searchTerm.trim() ? (
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSearchTerm('')}>
+                                    {t('classes:filters.clearSearch')}
+                                </button>
+                            ) : (isAdmin && (
+                                <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}>
                                     <HiOutlinePlus size={20} />
                                     <span>{t('classes:actions.createClass')}</span>
                                 </button>
-                            )}
+                            ))}
                         </div>
                     )}
                 </div>
@@ -427,7 +444,7 @@ const ClassesPage = () => {
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>{t('classes:modal.createTitle')}</h3>
-                            <button className="modal-close" onClick={() => setShowModal(false)}>&times;</button>
+                            <button type="button" className="modal-close" onClick={() => setShowModal(false)} aria-label={t('common:actions.close')}>&times;</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
@@ -501,6 +518,64 @@ const ClassesPage = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {deleteTarget && (
+                <div className="modal-overlay" onClick={closeDeleteDialog}>
+                    <div
+                        className="modal classes-delete-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="classes-delete-title"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="modal-header">
+                            <h3 id="classes-delete-title">{t('classes:delete.title')}</h3>
+                            <button type="button" className="modal-close" onClick={closeDeleteDialog} aria-label={t('common:actions.close')}>
+                                &times;
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <p className="classes-delete-target">{deleteTarget.name}</p>
+                            <div className="classes-delete-options">
+                                <label className={`classes-delete-option${deleteMode === 'class_only' ? ' is-selected' : ''}`}>
+                                    <input
+                                        type="radio"
+                                        name="class-delete-mode"
+                                        value="class_only"
+                                        checked={deleteMode === 'class_only'}
+                                        onChange={() => setDeleteMode('class_only')}
+                                    />
+                                    <span className="classes-delete-option-text">
+                                        <strong>{t('classes:delete.classOnlyTitle')}</strong>
+                                        <span>{t('classes:confirm.deleteClassOnly')}</span>
+                                    </span>
+                                </label>
+                                <label className={`classes-delete-option classes-delete-option--danger${deleteMode === 'with_related_data' ? ' is-selected' : ''}`}>
+                                    <input
+                                        type="radio"
+                                        name="class-delete-mode"
+                                        value="with_related_data"
+                                        checked={deleteMode === 'with_related_data'}
+                                        onChange={() => setDeleteMode('with_related_data')}
+                                    />
+                                    <span className="classes-delete-option-text">
+                                        <strong>{t('classes:delete.withDataTitle')}</strong>
+                                        <span>{t('classes:confirm.deleteWithData')}</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
+                                {t('common:actions.cancel')}
+                            </button>
+                            <button type="button" className="btn btn-danger" onClick={confirmDeleteClass} disabled={deleting}>
+                                {deleting ? t('classes:delete.deleting') : t('classes:delete.confirm')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

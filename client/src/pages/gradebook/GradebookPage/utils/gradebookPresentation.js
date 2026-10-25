@@ -94,19 +94,43 @@ export const getScaleBandForPercentage = (value, gradingScale = null) => {
     return bands.find((band) => percentage >= band.min && percentage <= band.max) || null;
 };
 
-export const formatPercentageAsAverageOutOfTen = (value) => {
-    const average = Number(value);
-    if (!Number.isFinite(average)) return '-';
-    return String(Number((average / 10).toFixed(2)));
+export const formatAverageOutOfScale = (value, scale = 10) => {
+    const average = Number(String(value ?? '').replace('%', '').trim());
+    const max = Number(scale);
+    if (!Number.isFinite(average) || !Number.isFinite(max) || max <= 0) return '-';
+    return String(Number(((average / 100) * max).toFixed(2)));
 };
+
+export const formatPercentageAsAverageOutOfTen = (value) => formatAverageOutOfScale(value, 10);
 
 export const normalizeCategory = (value) => {
     const rawCategory = value || 'Other';
     return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();
 };
 
-export const processGradebookData = ({ students = [], grades = [], selectedCategoryFilter = 'All' }) => {
+// The scale a category is marked on. Recorded marks win, because that is what the
+// teacher actually entered; the school's configured default is the fallback for a
+// category whose grades all arrived without a usable maximum.
+const resolveCategoryScale = ({ tallies, categoryMaxMarks, category }) => {
+    const counts = tallies[category];
+    if (counts && counts.size > 0) {
+        const [topMax, topCount] = [...counts.entries()].sort(
+            (a, b) => b[1] - a[1] || b[0] - a[0]
+        )[0];
+        if (topCount > 0) return topMax;
+    }
+    const configured = Number(categoryMaxMarks?.[String(category).toLowerCase()]);
+    return Number.isFinite(configured) && configured > 0 ? configured : 10;
+};
+
+export const processGradebookData = ({
+    students = [],
+    grades = [],
+    selectedCategoryFilter = 'All',
+    categoryMaxMarks = {}
+}) => {
     const categories = new Set();
+    const maxMarksTallies = {};
     const data = {};
 
     students.forEach((student) => {
@@ -136,6 +160,13 @@ export const processGradebookData = ({ students = [], grades = [], selectedCateg
             data[studentId].categories[category] = { total: 0, count: 0, percentageTotal: 0 };
         }
 
+        if (!maxMarksTallies[category]) maxMarksTallies[category] = new Map();
+        const enteredMax = Number(grade.maxMarks);
+        if (Number.isFinite(enteredMax) && enteredMax > 0) {
+            const tally = maxMarksTallies[category];
+            tally.set(enteredMax, (tally.get(enteredMax) || 0) + 1);
+        }
+
         const percentage = (grade.marks / grade.maxMarks) * 100;
         data[studentId].categories[category].total += grade.marks;
         data[studentId].categories[category].count += 1;
@@ -145,8 +176,18 @@ export const processGradebookData = ({ students = [], grades = [], selectedCateg
         data[studentId].overallCount += 1;
     });
 
+    const categoryScales = {};
+    Array.from(categories).forEach((category) => {
+        categoryScales[category] = resolveCategoryScale({
+            tallies: maxMarksTallies,
+            categoryMaxMarks,
+            category
+        });
+    });
+
     return {
         categories: Array.from(categories).sort(),
+        categoryScales,
         data
     };
 };

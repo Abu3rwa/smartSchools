@@ -66,6 +66,19 @@ export const fetchTeacherAssignments = createAsyncThunk(
   }
 );
 
+// Teacher: per-student results for one assignment
+export const fetchAssignmentResults = createAsyncThunk(
+  'reading/fetchAssignmentResults',
+  async (assignmentId, { rejectWithValue }) => {
+    try {
+      const res = await readingService.getAssignmentResults(assignmentId);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to load reading results');
+    }
+  }
+);
+
 // Student: my assignments
 export const fetchMyAssignments = createAsyncThunk(
   'reading/fetchMyAssignments',
@@ -105,19 +118,6 @@ export const updateProgress = createAsyncThunk(
   }
 );
 
-// Get student level
-export const fetchStudentLevel = createAsyncThunk(
-  'reading/fetchStudentLevel',
-  async (studentId, { rejectWithValue }) => {
-    try {
-      const res = await readingService.getStudentLevel(studentId);
-      return res.data.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to fetch level');
-    }
-  }
-);
-
 const readingSlice = createSlice({
   name: 'reading',
   initialState: {
@@ -126,8 +126,9 @@ const readingSlice = createSlice({
     assignments: [],
     myAssignments: [],
     simplifiedContent: null,
-    studentLevel: null,
+    assignmentResults: null,
     loading: false,
+    resultsLoading: false,
     uploading: false,
     error: null,
   },
@@ -137,6 +138,9 @@ const readingSlice = createSlice({
     },
     clearCurrentText: (state) => {
       state.currentText = null;
+    },
+    clearAssignmentResults: (state) => {
+      state.assignmentResults = null;
     },
     clearError: (state) => {
       state.error = null;
@@ -177,6 +181,19 @@ const readingSlice = createSlice({
       .addCase(fetchTeacherAssignments.fulfilled, (state, { payload }) => {
         state.assignments = payload || [];
       })
+      .addCase(fetchAssignmentResults.pending, (state) => {
+        state.resultsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAssignmentResults.fulfilled, (state, { payload }) => {
+        state.resultsLoading = false;
+        state.assignmentResults = payload;
+      })
+      .addCase(fetchAssignmentResults.rejected, (state, { payload }) => {
+        state.resultsLoading = false;
+        state.assignmentResults = null;
+        state.error = payload;
+      })
       .addCase(fetchMyAssignments.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -200,23 +217,18 @@ const readingSlice = createSlice({
       .addCase(fetchSimplified.rejected, (state, { payload }) => {
         state.loading = false;
         state.error = payload;
-      })
-      .addCase(updateProgress.fulfilled, (state) => {
-        state.studentLevel = null;
-      })
-      .addCase(fetchStudentLevel.fulfilled, (state, { payload }) => {
-        state.studentLevel = payload;
       });
   },
 });
 
-export const { clearSimplifiedContent, clearCurrentText, clearError } = readingSlice.actions;
+export const { clearSimplifiedContent, clearCurrentText, clearAssignmentResults, clearError } = readingSlice.actions;
 export const selectReadingTexts = (state) => state.reading.texts;
 export const selectCurrentReadingText = (state) => state.reading.currentText;
 export const selectReadingAssignments = (state) => state.reading.assignments;
+export const selectReadingAssignmentResults = (state) => state.reading.assignmentResults;
+export const selectReadingResultsLoading = (state) => state.reading.resultsLoading;
 export const selectMyReadingAssignments = (state) => state.reading.myAssignments;
 export const selectSimplifiedContent = (state) => state.reading.simplifiedContent;
-export const selectStudentLevel = (state) => state.reading.studentLevel;
 export const selectReadingLoading = (state) => state.reading.loading;
 export const selectReadingUploading = (state) => state.reading.uploading;
 export const selectReadingError = (state) => state.reading.error;

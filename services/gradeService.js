@@ -1,6 +1,7 @@
 import Grade from '../models/Grade.js';
 import mongoose from 'mongoose';
 import { decorateGradesWithScale, getActiveGradingScale } from './gradingScaleEngine.js';
+import { getCategoryMaxMarks } from './gradebookConfigService.js';
 
 class GradeService {
     /**
@@ -226,7 +227,10 @@ class GradeService {
         return {
             grades: decoratedGrades,
             monthlyAverages: studentAverages,
-            gradingScale: gradingScale || null
+            gradingScale: gradingScale || null,
+            // The school's own scale per category, so the view can label an average
+            // "/25" when the school marks exams out of 25 instead of assuming 10.
+            categoryMaxMarks: await getCategoryMaxMarks(options.schoolId, academicYear)
         };
     }
 
