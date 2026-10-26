@@ -1,59 +1,62 @@
 {
   "header": {
     "title": "لوحة المدرسة",
-    "subtitle": "مرحبًا بعودتك، {{firstName}}. إليك نظرة عامة على المدرسة ليوم {{todayLabel}}."
+    "subtitle": "مرحبًا بعودتك، {{firstName}}. إليك ما يجري في مدرستك اليوم.",
+    "academicYear": "العام الدراسي {{year}}"
   },
   "stats": {
     "totalStudents": "إجمالي الطلاب",
     "totalClasses": "إجمالي الفصول",
     "teachers": "المعلمون",
-    "activeTeachers": "{{count}} نشط",
-    "attendanceRate": "معدل الحضور",
-    "attendanceToday": "{{present}}/{{total}} اليوم",
-    "noData": "لا توجد بيانات حضور بعد"
+    "attendanceRate": "حضور اليوم"
+  },
+  "metrics": {
+    "label": "الأرقام الرئيسية",
+    "newThisMonth": "{{newCount}} هذا الشهر",
+    "activeTeachers": "{{activeCount}} نشط",
+    "presentOf": "الحاضرون: {{presentCount}} من {{totalCount}}",
+    "noAttendance": "لا يوجد حضور مسجّل بعد"
+  },
+  "links": {
+    "label": "روابط سريعة",
+    "students": "الطلاب",
+    "attendance": "الحضور",
+    "classes": "الفصول"
   },
   "common": {
     "viewAll": "عرض الكل",
-    "viewDetails": "عرض التفاصيل",
-    "unassigned": "غير مُعيَّن",
-    "classFallback": "فصل",
+    "unassigned": "غير مُعيَّن",
     "noDataShort": "غير متاح"
   },
+  "today": {
+    "title": "اليوم",
+    "openAttendance": "فتح الحضور",
+    "present": "حاضر",
+    "late": "متأخر",
+    "absent": "غائب",
+    "noRecords": "لا يوجد حضور مسجّل بعد",
+    "recordedClasses": "الفصول المسجلة: {{recordedCount}} من {{totalClasses}}",
+    "missingClasses": "لم يُسجَّل بعد: {{missingCount}}"
+  },
   "classDistribution": {
-    "title": "توزيع الفصول",
-    "students": "الطلاب"
+    "title": "أكبر الفصول",
+    "subtitle": "حسب عدد الطلاب",
+    "empty": "لا توجد فصول بعد"
   },
   "performanceTrend": {
     "title": "اتجاه الأداء",
-    "subtitle": "متوسط الدرجات عبر الوقت",
-    "average": "المتوسط"
-  },
-  "quickActions": {
-    "title": "إجراءات سريعة",
-    "items": {
-      "viewClasses": "عرض الفصول",
-      "viewAttendance": "عرض الحضور",
-      "viewStudents": "عرض الطلاب",
-      "viewAnalytics": "عرض التحليلات"
-    }
-  },
-  "attendanceCard": {
-    "title": "ملخص الحضور",
-    "present": "حاضر",
-    "absent": "غائب",
-    "classes": "الفصول"
+    "subtitle": "متوسط نسبة الدرجات هذا العام",
+    "average": "المتوسط",
+    "empty": "لا توجد درجات مسجّلة بعد"
   },
   "recentStudents": {
     "title": "أحدث الطلاب",
-    "empty": "لا يوجد طلاب حديثون"
-  },
-  "classesOverview": {
-    "title": "نظرة عامة على الفصول",
-    "studentCount": "{{count}} طالب",
-    "empty": "لا توجد فصول"
-  },
-  "loading": {
-    "message": "جارٍ تحميل اللوحة..."
+    "empty": "لا يوجد طلاب حديثون",
+    "columns": {
+      "student": "الطالب",
+      "id": "الرقم",
+      "class": "الفصل"
+    }
   },
   "error": {
     "message": "تعذر تحميل اللوحة. {{message}}",

@@ -25,7 +25,6 @@ import practiceHistoryReducer from './slices/practiceHistorySlice';
 import messagesReducer from './slices/messagesSlice';
 import studentGroupingReducer from './slices/studentGroupingSlice';
 import newsletterTemplatesReducer from './slices/newsletterTemplateSlice';
-import presentationsReducer from './slices/presentationSlice';
 import gradebookConfigReducer from './slices/gradebookConfigSlice';
 import gradebookColumnsReducer from './slices/gradebookColumnsSlice';
 import formulaReducer from './slices/formulaSlice';
@@ -64,7 +63,6 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'sbGradebook',
     'practiceHistory',
     'spelling',
-    'presentations',
     'gradebookConfig',
     'gradebookColumns',
     'formulas',
@@ -103,7 +101,6 @@ const appReducer = combineReducers({
     messages: messagesReducer,
     studentGrouping: studentGroupingReducer,
     newsletterTemplates: newsletterTemplatesReducer,
-    presentations: presentationsReducer,
     gradebookConfig: gradebookConfigReducer,
     gradebookColumns: gradebookColumnsReducer,
     formulas: formulaReducer,

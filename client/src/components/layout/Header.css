@@ -360,27 +360,6 @@
     color: var(--text-muted);
 }
 
-.notification-btn {
-    position: relative;
-}
-
-.notification-badge {
-    position: absolute;
-    top: 2px;
-    inset-inline-end: 2px;
-    min-width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-red);
-    color: white;
-    font-size: 0.625rem;
-    font-weight: 700;
-    border-radius: var(--radius-full);
-    padding: 0 3px;
-}
-
 .header-divider {
     width: 1px;
     height: 22px;

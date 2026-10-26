@@ -507,15 +507,6 @@ const Sidebar = () => {
       section: "communication",
     },
     {
-      path: "/portal/presentations",
-      icon: HiOutlinePresentationChartBar,
-      labelKey: "presentations",
-      roles: ["admin"],
-      permissions: [PERMISSIONS.MANAGE_PRESENTATIONS],
-      feature: "presentationBuilder",
-      section: "teaching",
-    },
-    {
       path: "/portal/live-lessons",
       icon: HiOutlinePresentationChartBar,
       labelKey: "liveLessons",

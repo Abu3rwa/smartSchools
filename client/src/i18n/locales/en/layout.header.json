@@ -7,13 +7,6 @@
     "pinCurrentPage": "Pin this page",
     "unpinCurrentPage": "Unpin this page",
     "manageShortcuts": "Manage shortcuts",
-    "notifications": "Notifications",
-    "notificationsAria_zero": "Notifications",
-    "notificationsAria_one": "Notifications ({{count}} pending)",
-    "notificationsAria_two": "Notifications ({{count}} pending)",
-    "notificationsAria_few": "Notifications ({{count}} pending)",
-    "notificationsAria_many": "Notifications ({{count}} pending)",
-    "notificationsAria_other": "Notifications ({{count}} pending)",
     "userMenu": "User menu"
   },
   "shortcuts": {

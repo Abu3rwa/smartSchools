@@ -7,13 +7,6 @@
     "pinCurrentPage": "تثبيت هذه الصفحة",
     "unpinCurrentPage": "إلغاء تثبيت هذه الصفحة",
     "manageShortcuts": "إدارة الاختصارات",
-    "notifications": "الإشعارات",
-    "notificationsAria_zero": "الإشعارات",
-    "notificationsAria_one": "الإشعارات ({{count}} قيد الانتظار)",
-    "notificationsAria_two": "الإشعارات ({{count}} قيد الانتظار)",
-    "notificationsAria_few": "الإشعارات ({{count}} قيد الانتظار)",
-    "notificationsAria_many": "الإشعارات ({{count}} قيد الانتظار)",
-    "notificationsAria_other": "الإشعارات ({{count}} قيد الانتظار)",
     "userMenu": "قائمة المستخدم"
   },
   "shortcuts": {

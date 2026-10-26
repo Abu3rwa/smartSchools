@@ -1,59 +1,62 @@
 {
   "header": {
     "title": "School Dashboard",
-    "subtitle": "Welcome back, {{firstName}}. Here's your school overview for {{todayLabel}}."
+    "subtitle": "Welcome back, {{firstName}}. Here's what's happening across your school today.",
+    "academicYear": "Academic year {{year}}"
   },
   "stats": {
-    "totalStudents": "Total Students",
-    "totalClasses": "Total Classes",
+    "totalStudents": "Students",
+    "totalClasses": "Classes",
     "teachers": "Teachers",
-    "activeTeachers": "{{count}} active",
-    "attendanceRate": "Attendance Rate",
-    "attendanceToday": "{{present}}/{{total}} today",
-    "noData": "No attendance data yet"
+    "attendanceRate": "Attendance today"
   },
-  "common": {
-    "viewAll": "View All",
-    "viewDetails": "View Details",
-    "unassigned": "Unassigned",
-    "classFallback": "Class",
-    "noDataShort": "N/A"
+  "metrics": {
+    "label": "Key figures",
+    "newThisMonth": "{{newCount}} this month",
+    "activeTeachers": "{{activeCount}} active",
+    "presentOf": "{{presentCount}} of {{totalCount}} present",
+    "noAttendance": "No attendance recorded yet"
   },
-  "classDistribution": {
-    "title": "Class Distribution",
-    "students": "Students"
-  },
-  "performanceTrend": {
-    "title": "Performance Trend",
-    "subtitle": "Average grades over time",
-    "average": "Average"
-  },
-  "quickActions": {
-    "title": "Quick Actions",
-    "items": {
-      "viewClasses": "View Classes",
-      "viewAttendance": "View Attendance",
-      "viewStudents": "View Students",
-      "viewAnalytics": "View Analytics"
-    }
-  },
-  "attendanceCard": {
-    "title": "Attendance Snapshot",
-    "present": "Present",
-    "absent": "Absent",
+  "links": {
+    "label": "Common destinations",
+    "students": "Students",
+    "attendance": "Attendance",
     "classes": "Classes"
   },
+  "common": {
+    "viewAll": "View all",
+    "unassigned": "Unassigned",
+    "noDataShort": "N/A"
+  },
+  "today": {
+    "title": "Today",
+    "openAttendance": "Open attendance",
+    "present": "present",
+    "late": "late",
+    "absent": "absent",
+    "noRecords": "No attendance recorded yet",
+    "recordedClasses": "{{recordedCount}} of {{totalClasses}} classes recorded",
+    "missingClasses": "{{missingCount}} not recorded yet"
+  },
+  "classDistribution": {
+    "title": "Largest classes",
+    "subtitle": "By enrollment",
+    "empty": "No classes yet"
+  },
+  "performanceTrend": {
+    "title": "Performance trend",
+    "subtitle": "Average grade percentage this year",
+    "average": "Average",
+    "empty": "No grades recorded yet"
+  },
   "recentStudents": {
-    "title": "Recent Students",
-    "empty": "No recent students found"
-  },
-  "classesOverview": {
-    "title": "Classes Overview",
-    "studentCount": "{{count}} students",
-    "empty": "No classes found"
-  },
-  "loading": {
-    "message": "Loading dashboard..."
+    "title": "Recent students",
+    "empty": "No recent students found",
+    "columns": {
+      "student": "Student",
+      "id": "Student ID",
+      "class": "Class"
+    }
   },
   "error": {
     "message": "Unable to load dashboard. {{message}}",

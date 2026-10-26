@@ -6,8 +6,9 @@ const isChunkLoadError = (error) => {
   const message = String(error?.message || '').toLowerCase();
   return (
     message.includes('loading chunk') ||
-    message.includes('failed to fetch dynamically imported module') ||
-    message.includes('importing a module script failed')
+    message.includes('dynamically imported module') ||
+    message.includes('module script') ||
+    message.includes('mime type')
   );
 };
 

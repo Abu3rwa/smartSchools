@@ -1,11 +1,9 @@
 import {
   HiOutlineAcademicCap,
-  HiOutlineBell,
   HiOutlineBookOpen,
   HiOutlineChartBar,
   HiOutlineCheckCircle,
   HiOutlineClipboardList,
-  HiOutlineHome,
   HiOutlineLightningBolt,
   HiOutlinePencil,
   HiOutlinePresentationChartBar,
@@ -13,19 +11,6 @@ import {
 } from "react-icons/hi";
 
 export const studentNavLinks = [
-  {
-    path: "/portal/dashboard",
-    icon: HiOutlineHome,
-    labelKey: "dashboard",
-    section: "overview",
-  },
-  
-  // {
-  //   path: "/portal/attendance-requests",
-  //   icon: HiOutlineClipboardList,
-  //   labelKey: "attendanceRequests",
-  //   section: "attendance",
-  // },
   {
     path: "/portal/my-grades",
     icon: HiOutlineClipboardList,
@@ -49,63 +34,57 @@ export const studentNavLinks = [
     path: "/portal/practice",
     icon: HiOutlineLightningBolt,
     labelKey: "practice",
-    section: "learning",
+    section: "practice",
   },
   {
     path: "/portal/practice/sb-results",
     icon: HiOutlineChartBar,
     labelKey: "sbResults",
-    section: "learning",
+    section: "practice",
   },
   {
     path: "/portal/map-test-prep/student",
     icon: HiOutlineAcademicCap,
     labelKey: "mapTestPrep",
     feature: "mapTestPrep",
-    section: "learning",
+    section: "practice",
   },
   {
     path: "/portal/spelling/student",
     icon: HiOutlinePencil,
     labelKey: "spelling",
-    section: "learning",
+    section: "practice",
   },
   {
     path: "/portal/vocabulary/student",
     icon: HiOutlineBookOpen,
     labelKey: "vocabulary",
-    section: "learning",
-  },
-  {
-    path: "/portal/live-lessons/join",
-    icon: HiOutlinePresentationChartBar,
-    labelKey: "liveLessons",
-    liveLessons: true,
-    section: "learning",
-  },
-  {
-    path: "/portal/plp",
-    icon: HiOutlineSparkles,
-    labelKey: "plp",
-    section: "learning",
-  },
-  {
-    path: "/portal/plp/my-tasks",
-    icon: HiOutlineCheckCircle,
-    labelKey: "plpMyTasks",
-    section: "learning",
+    section: "practice",
   },
   {
     path: "/portal/reading",
     icon: HiOutlineBookOpen,
     labelKey: "reading",
     feature: "readingAssistant",
-    section: "learning",
+    section: "practice",
   },
-  // {
-  //   path: "/portal/settings",
-  //   icon: HiOutlineCog,
-  //   labelKey: "settings",
-  //   section: "account",
-  // },
+  {
+    path: "/portal/plp",
+    icon: HiOutlineSparkles,
+    labelKey: "plp",
+    section: "character",
+  },
+  {
+    path: "/portal/plp/my-tasks",
+    icon: HiOutlineCheckCircle,
+    labelKey: "plpMyTasks",
+    section: "character",
+  },
+  {
+    path: "/portal/live-lessons/join",
+    icon: HiOutlinePresentationChartBar,
+    labelKey: "liveLessons",
+    liveLessons: true,
+    section: "character",
+  },
 ];

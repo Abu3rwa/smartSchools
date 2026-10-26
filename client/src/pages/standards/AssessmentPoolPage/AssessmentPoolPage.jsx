@@ -5,6 +5,7 @@ import { fetchPool, createAssessmentFromPool, clearPoolError } from '../../../st
 import { fetchPoolQuestion } from '../../../api/standardAssessmentApi';
 import standardService from '../../../services/standardService';
 import TablePagination from '../../../components/common/TablePagination';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import './AssessmentPoolPage.css';
 
 const AssessmentPoolPage = ({ embedded }) => {
@@ -33,16 +34,19 @@ const AssessmentPoolPage = ({ embedded }) => {
   const [previewQuestion, setPreviewQuestion] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  const { subjectId, gradeLevel, standardIds, questionType, difficulty } = filters;
+  const debouncedSearch = useDebouncedValue(filters.search);
+
   const loadPool = useCallback(() => {
     const params = { page, limit: pageSize };
-    if (filters.subjectId) params.subjectId = filters.subjectId;
-    if (filters.gradeLevel) params.gradeLevel = filters.gradeLevel;
-    if (filters.standardIds?.length > 0) params.standards = filters.standardIds.join(',');
-    if (filters.questionType) params.questionType = filters.questionType;
-    if (filters.difficulty) params.difficulty = filters.difficulty;
-    if (filters.search) params.search = filters.search;
+    if (subjectId) params.subjectId = subjectId;
+    if (gradeLevel) params.gradeLevel = gradeLevel;
+    if (standardIds?.length > 0) params.standards = standardIds.join(',');
+    if (questionType) params.questionType = questionType;
+    if (difficulty) params.difficulty = difficulty;
+    if (debouncedSearch) params.search = debouncedSearch;
     dispatch(fetchPool(params));
-  }, [dispatch, filters, page, pageSize]);
+  }, [dispatch, page, pageSize, subjectId, gradeLevel, standardIds, questionType, difficulty, debouncedSearch]);
 
   useEffect(() => { loadPool(); }, [loadPool]);
 

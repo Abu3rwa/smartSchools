@@ -3,7 +3,7 @@ import test from 'node:test';
 import { humanizeFeatureKey, resolveFeatureLabel } from './featureNames.js';
 
 test('feature keys read as names instead of code', () => {
-  assert.equal(humanizeFeatureKey('presentationBuilder'), 'Presentation Builder');
+  assert.equal(humanizeFeatureKey('gradebookSpreadsheet'), 'Gradebook Spreadsheet');
   assert.equal(humanizeFeatureKey('aiEmailDrafts'), 'Ai Email Drafts');
   assert.equal(humanizeFeatureKey('worksheet_checker'), 'Worksheet Checker');
   assert.equal(humanizeFeatureKey(''), '');

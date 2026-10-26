@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchStaffProfiles, selectStaffProfiles, selectStaffPagination,
   selectHRLoading, selectHRError, createStaffProfile,
 } from '../../store/slices/hrSlice';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 import './HR.css';
 
 const STAFF_TYPES = [
@@ -24,7 +25,15 @@ const StaffDirectoryPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ userId: '', staffType: 'teacher', department: '' });
 
-  useEffect(() => { dispatch(fetchStaffProfiles(filters)); }, [dispatch, filters]);
+  const debouncedSearch = useDebouncedValue(filters.search);
+  const queryFilters = useMemo(() => ({
+    staffType: filters.staffType,
+    status: filters.status,
+    page: filters.page,
+    search: debouncedSearch,
+  }), [filters.staffType, filters.status, filters.page, debouncedSearch]);
+
+  useEffect(() => { dispatch(fetchStaffProfiles(queryFilters)); }, [dispatch, queryFilters]);
 
   const getInitials = (user) => {
     if (!user) return '?';
@@ -36,7 +45,7 @@ const StaffDirectoryPage = () => {
     await dispatch(createStaffProfile(form));
     setShowCreate(false);
     setForm({ userId: '', staffType: 'teacher', department: '' });
-    dispatch(fetchStaffProfiles(filters));
+    dispatch(fetchStaffProfiles(queryFilters));
   };
 
   return (

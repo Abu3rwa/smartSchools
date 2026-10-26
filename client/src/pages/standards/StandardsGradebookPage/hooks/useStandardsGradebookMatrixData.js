@@ -17,6 +17,7 @@ import {
 import {
   selectCurrentAcademicYear,
 } from '../../../../store/slices/uiSlice';
+import useDebouncedValue from '../../../../hooks/useDebouncedValue';
 
 const INITIAL_FILTERS = {
   classId: '',
@@ -49,7 +50,7 @@ const useStandardsGradebookMatrixData = () => {
 
   // Derive semester from period filter
   const derivedParams = useMemo(() => {
-    const { period } = filters;
+    const period = filters.period;
     const academicYear = globalAcademicYear;
     let semester = null;
 
@@ -60,11 +61,13 @@ const useStandardsGradebookMatrixData = () => {
     return { academicYear, semester };
   }, [filters.period, globalAcademicYear]);
 
+  const debouncedSearch = useDebouncedValue(filters.search);
+
   const queryParams = useMemo(() => {
     const params = {
       classId: filters.classId,
       subjectId: filters.subjectId,
-      search: filters.search,
+      search: debouncedSearch,
       page: filters.page,
       limit: filters.limit,
       academicYear: derivedParams.academicYear,
@@ -79,7 +82,15 @@ const useStandardsGradebookMatrixData = () => {
       }
     });
     return params;
-  }, [filters, derivedParams]);
+  }, [
+    filters.classId,
+    filters.subjectId,
+    filters.page,
+    filters.limit,
+    filters.period,
+    debouncedSearch,
+    derivedParams,
+  ]);
 
   useEffect(() => {
     dispatch(fetchSBGradebookMatrix(queryParams));

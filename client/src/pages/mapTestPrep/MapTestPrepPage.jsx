@@ -252,7 +252,7 @@ const MapTestPrepPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.get("/map-test-prep/practice/overview");
@@ -269,7 +269,7 @@ const MapTestPrepPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const loadStudents = useCallback(
     async (classId) => {
@@ -388,14 +388,33 @@ const MapTestPrepPage = () => {
         answerId: String(answer._id),
         isCorrect: teacherReviewMarks[String(answer._id)] ?? null,
       }));
-      await api.post(
+      const reviewResponse = await api.post(
         `/map-test-prep/practice/attempts/${selectedReviewAttempt._id}/review`,
         { answers },
       );
-      const response = await api.get(
-        `/map-test-prep/practice/attempts/${selectedReviewAttempt._id}`,
+      const nextAttempt = reviewResponse.data?.data?.attempt;
+      // The POST already returns the new marks, so keep the loaded question details instead of re-fetching.
+      const answerDetailsById = new Map(
+        (selectedReviewAttempt.answers || []).map((answer) => [
+          String(answer._id),
+          answer,
+        ]),
       );
-      const updatedAttempt = response.data?.data?.attempt;
+      const updatedAttempt = nextAttempt
+        ? {
+            ...selectedReviewAttempt,
+            score: nextAttempt.score,
+            maxScore: nextAttempt.maxScore,
+            status: nextAttempt.status,
+            reviewStatus: nextAttempt.reviewStatus,
+            teacherComment: nextAttempt.teacherComment,
+            submittedAt: nextAttempt.submittedAt,
+            answers: (nextAttempt.answers || []).map((answer) => ({
+              ...(answerDetailsById.get(String(answer._id)) || {}),
+              ...answer,
+            })),
+          }
+        : selectedReviewAttempt;
       setSelectedReviewAttempt(updatedAttempt);
       setTeacherReviewMarks(
         Object.fromEntries(
@@ -544,7 +563,7 @@ const MapTestPrepPage = () => {
     }
   };
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const response = await api.get("/map-test-prep/practice/settings");
       const nextSettings = response.data?.data?.settings || {};
@@ -552,7 +571,7 @@ const MapTestPrepPage = () => {
     } catch {
       // keep defaults if unavailable
     }
-  };
+  }, []);
 
   const previewUploads = async (uploads, overrides = {}) => {
     if (!uploads.length) {
@@ -786,10 +805,18 @@ const MapTestPrepPage = () => {
     }
   };
 
+  const settingsLoadedRef = useRef(false);
+
   useEffect(() => {
-    loadClasses();
-    loadSettings();
-  }, []);
+    void loadClasses();
+  }, [loadClasses]);
+
+  // Settings are only needed on their own tab, so the page does not pay for them on every visit.
+  useEffect(() => {
+    if (activeTab !== "settings" || settingsLoadedRef.current) return;
+    settingsLoadedRef.current = true;
+    void loadSettings();
+  }, [activeTab, loadSettings]);
 
   useEffect(() => {
     if (selectedClass?._id) {

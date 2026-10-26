@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import { selectClasses } from '../../../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import {
@@ -55,6 +56,7 @@ const PromotionCenterPage = () => {
   const currentAcademicYear = useSelector(selectCurrentAcademicYear);
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [decisionStatus, setDecisionStatus] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [reasonCodes, setReasonCodes] = useState([]);
@@ -72,13 +74,13 @@ const PromotionCenterPage = () => {
 
   const loadQueue = useCallback(() => {
     dispatch(fetchPromotionQueue({
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       decisionStatus: decisionStatus || undefined,
       academicYear: currentAcademicYear || undefined,
       page: 1,
       limit: 200
     }));
-  }, [currentAcademicYear, decisionStatus, dispatch, search]);
+  }, [currentAcademicYear, decisionStatus, debouncedSearch, dispatch]);
 
   const loadSettings = useCallback(async () => {
     setSettingsLoading(true);

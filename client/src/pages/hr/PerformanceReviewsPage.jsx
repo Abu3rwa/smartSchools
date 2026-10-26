@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchReviews, selectReviews, createReview, updateReview,
   selectHRLoading, selectHRError,
 } from '../../store/slices/hrSlice';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 import './HR.css';
 
 const PERIODS = ['q1','q2','q3','q4','semester_1','semester_2','annual','mid_year','probation'];
@@ -18,18 +19,24 @@ const PerformanceReviewsPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ staffId: '', academicYear: '', period: 'annual', dueDate: '' });
 
-  useEffect(() => { dispatch(fetchReviews(filters)); }, [dispatch, filters]);
+  const debouncedAcademicYear = useDebouncedValue(filters.academicYear);
+  const queryFilters = useMemo(() => ({
+    status: filters.status,
+    academicYear: debouncedAcademicYear,
+  }), [filters.status, debouncedAcademicYear]);
+
+  useEffect(() => { dispatch(fetchReviews(queryFilters)); }, [dispatch, queryFilters]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     await dispatch(createReview(form));
     setShowForm(false);
-    dispatch(fetchReviews(filters));
+    dispatch(fetchReviews(queryFilters));
   };
 
   const handleStatusChange = async (id, newStatus) => {
     await dispatch(updateReview({ id, data: { status: newStatus } }));
-    dispatch(fetchReviews(filters));
+    dispatch(fetchReviews(queryFilters));
   };
 
   return (

@@ -1,112 +1,50 @@
 import { Link } from 'react-router-dom';
-import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-} from 'recharts';
 import { HiOutlineArrowRight } from 'react-icons/hi';
-import { CARD_SX, CARD_HEADER_SX, CARD_TITLE_SX, CHART_STYLES } from '../constants.js';
-import { truncateClassLabel } from '../utils/schoolAdminDashboardPresentation.js';
+import { formatCount, truncateClassLabel } from '../utils/schoolAdminDashboardPresentation.js';
 
 /**
- * Class distribution bar chart card. Uses existing CSS: btn-link.
+ * Largest classes by enrollment, drawn as lightweight CSS bars instead of a chart.
  */
 export default function ClassDistributionCard({ data }) {
     const { t, i18n } = useTranslation(['adminDashboard']);
-    const theme = useTheme();
-    const isSm = useMediaQuery(theme.breakpoints.down('sm'));
     const isRtl = i18n.dir() === 'rtl';
-
-    if (!data || data.length === 0) return null;
+    const locale = i18n.language === 'ar' ? 'ar' : 'en';
+    const rows = Array.isArray(data) ? data : [];
+    const largest = rows.reduce((max, row) => Math.max(max, Number(row.students) || 0), 0);
 
     return (
-        <Box sx={CARD_SX}>
-            <Box
-                sx={{
-                    ...CARD_HEADER_SX,
-                    flexWrap: { xs: 'wrap', sm: 'nowrap' },
-                    gap: { xs: 1, sm: 0 },
-                }}
-            >
-                <Typography component="h3" sx={CARD_TITLE_SX}>
-                    {t('adminDashboard:classDistribution.title')}
-                </Typography>
-                <Link to="/portal/classes" className="btn-link">
-                    {t('adminDashboard:common.viewAll')} <HiOutlineArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
+        <section className="admin-panel admin-panel-chart">
+            <div className="admin-panel-head">
+                <h2 className="admin-panel-title">{t('adminDashboard:classDistribution.title')}</h2>
+                <Link to="/portal/classes" className="admin-text-link">
+                    {t('adminDashboard:common.viewAll')}
+                    <HiOutlineArrowRight size={15} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
                 </Link>
-            </Box>
-            <Box
-                sx={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: { xs: 210, sm: 230, md: 260 },
-                }}
-            >
-                <ResponsiveContainer width="100%" height={isSm ? 220 : 260}>
-                    <BarChart
-                        data={data}
-                        margin={{
-                            top: 8,
-                            right: isSm ? 8 : 16,
-                            left: isSm ? -16 : 0,
-                            bottom: isSm ? 8 : 24,
-                        }}
-                    >
-                        <CartesianGrid
-                            stroke={CHART_STYLES.grid}
-                            strokeDasharray="3 3"
-                            vertical={false}
-                        />
-                        <XAxis
-                            dataKey="name"
-                            tick={{ fontSize: isSm ? 10 : 11 }}
-                            stroke={CHART_STYLES.axis}
-                            tickLine={{ stroke: CHART_STYLES.axis }}
-                            axisLine={{ stroke: CHART_STYLES.axis }}
-                            angle={isSm ? 0 : -30}
-                            textAnchor={isSm ? 'middle' : 'end'}
-                            height={isSm ? 36 : 60}
-                            interval={0}
-                            minTickGap={isSm ? 8 : 16}
-                            tickFormatter={(value) => truncateClassLabel(value, isSm ? 10 : 18)}
-                        />
-                        <YAxis
-                            allowDecimals={false}
-                            width={isSm ? 28 : 36}
-                            stroke={CHART_STYLES.axis}
-                            tickLine={{ stroke: CHART_STYLES.axis }}
-                            axisLine={{ stroke: CHART_STYLES.axis }}
-                            tick={{
-                                fontSize: isSm ? 10 : 11,
-                                fill: CHART_STYLES.axis,
-                            }}
-                        />
-                        <Tooltip
-                            contentStyle={{
-                                backgroundColor: CHART_STYLES.tooltipBg,
-                                border: `1px solid ${CHART_STYLES.tooltipBorder}`,
-                                borderRadius: 8,
-                                color: CHART_STYLES.tooltipText,
-                            }}
-                            labelStyle={{ color: CHART_STYLES.tooltipText }}
-                        />
-                        <Bar
-                            dataKey="students"
-                            fill="var(--primary, #5aaeee)"
-                            radius={[4, 4, 0, 0]}
-                            name={t('adminDashboard:classDistribution.students')}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
-            </Box>
-        </Box>
+            </div>
+
+            {rows.length > 0 ? (
+                <ul className="admin-bars">
+                    {rows.map((row) => (
+                        <li className="admin-bar-row" key={row.id}>
+                            <span className="admin-bar-name" title={row.name}>
+                                {truncateClassLabel(row.name, 20)}
+                            </span>
+                            <span className="admin-bar-track">
+                                <span
+                                    className="admin-bar-fill"
+                                    style={{
+                                        width: `${largest > 0 ? Math.max(4, (row.students / largest) * 100) : 0}%`,
+                                    }}
+                                />
+                            </span>
+                            <span className="admin-bar-value">{formatCount(row.students, locale)}</span>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p className="admin-panel-empty">{t('adminDashboard:classDistribution.empty')}</p>
+            )}
+        </section>
     );
 }

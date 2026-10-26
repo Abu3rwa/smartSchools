@@ -142,9 +142,6 @@ const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/
 const SuperAdminAnalyticsPage = lazy(() => import("./pages/superAdmin/SuperAdminAnalyticsPage/SuperAdminAnalyticsPage"));
 const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperAdminLandingPageEditor"));
 const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
-const PresentationListPage = lazy(() => import("./pages/presentations/PresentationListPage/PresentationListPage"));
-const PresentationEditorPage = lazy(() => import("./pages/presentations/PresentationEditorPage/PresentationEditorPage"));
-const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterViewPage/PresenterViewPage"));
 const LiveLessonsPage = lazy(() => import("./pages/liveLessons/LiveLessonsPage"));
 const LiveLessonSessionPage = lazy(() => import("./pages/liveLessons/LiveLessonSessionPage"));
 const LiveLessonJoinPage = lazy(() => import("./pages/liveLessons/LiveLessonJoinPage"));
@@ -1279,44 +1276,6 @@ function App() {
                 />
               </>
             )}
-            {/* Presentations */}
-            <Route
-              path="presentations"
-              element={
-                <RoleRoute
-                  roles={["admin", "department_principal", "teacher"]}
-                  permissions={["manage_presentations"]}
-                >
-                  <FeatureGate feature="presentationBuilder" showUpgradePrompt>
-                    <PresentationListPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="presentations/:id"
-              element={
-                <RoleRoute
-                  roles={["admin", "department_principal", "teacher"]}
-                  permissions={["manage_presentations"]}
-                >
-                  <FeatureGate feature="presentationBuilder" showUpgradePrompt>
-                    <PresentationEditorPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="presentations/:id/present"
-              element={
-                <RoleRoute
-                  roles={["admin", "department_principal", "teacher"]}
-                  permissions={["manage_presentations"]}
-                >
-                  <PresenterViewPage />
-                </RoleRoute>
-              }
-            />
             {/* Worksheet Checker */}
             <Route
               path="worksheets"

@@ -7,7 +7,7 @@ export const humanizeFeatureKey = (featureKey) => String(featureKey || '')
 
 /**
  * Prefer the translated feature name, then the plan catalogue label from the
- * server, then the humanized key, so a screen never prints `presentationBuilder`.
+ * server, then the humanized key, so a screen never prints `gradebookSpreadsheet`.
  */
 export const resolveFeatureLabel = (t, featureKey, metadataLabel) => {
   const fallback = metadataLabel || humanizeFeatureKey(featureKey);

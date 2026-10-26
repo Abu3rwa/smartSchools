@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,6 +23,7 @@ import {
 } from 'react-icons/hi';
 import scheduleService from '../../../../services/scheduleService';
 import roomService from '../../../../services/roomService';
+import useDebouncedValue from '../../../../hooks/useDebouncedValue';
 import './AdminSchedulePage.css';
 
 const AdminSchedulePage = () => {
@@ -59,6 +60,17 @@ const AdminSchedulePage = () => {
         endDate: '',
         search: ''
     });
+
+    const debouncedSearch = useDebouncedValue(filters.search);
+    const queryFilters = useMemo(() => ({
+        type: filters.type,
+        teacher: filters.teacher,
+        class: filters.class,
+        status: filters.status,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        search: debouncedSearch
+    }), [filters.type, filters.teacher, filters.class, filters.status, filters.startDate, filters.endDate, debouncedSearch]);
 
     // Form data
     const [formData, setFormData] = useState({
@@ -104,7 +116,7 @@ const AdminSchedulePage = () => {
         try {
             setLoading(true);
             setError(null);
-            const params = { ...filters };
+            const params = { ...queryFilters };
             if (currentView === 'list') {
                 const res = await scheduleService.getSchedules(params);
                 setSchedules(res?.data?.schedules ?? []);
@@ -127,7 +139,7 @@ const AdminSchedulePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [filters, currentView, currentDate, t]);
+    }, [queryFilters, currentView, currentDate, t]);
 
     useEffect(() => {
         fetchSchedules();

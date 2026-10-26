@@ -12,6 +12,7 @@ import classService from '../../../services/classService';
 import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
 import TablePagination from '../../../components/common/TablePagination';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import './ClassesPage.css';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -46,12 +47,13 @@ const ClassesPage = () => {
         department: ''
     });
 
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
     const classQueryParams = useMemo(() => ({
         academicYear,
         page: currentPage,
         limit: pageSize,
-        search: searchTerm.trim() || undefined
-    }), [academicYear, currentPage, pageSize, searchTerm]);
+        search: debouncedSearchTerm.trim() || undefined
+    }), [academicYear, currentPage, pageSize, debouncedSearchTerm]);
 
     useEffect(() => {
         dispatch(fetchDepartments());

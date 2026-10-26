@@ -20,7 +20,6 @@
   "items": {
     "dashboard": "Dashboard",
     "notifications": "Notifications",
-    "presentations": "Presentations",
     "liveLessons": "Live Lessons",
     "worksheetChecker": "Worksheet Checker",
     "messages": "Messages",
@@ -99,6 +98,27 @@
     "plpConfig": "PLP Config",
     "plpSupervisorAssignments": "Supervisor Assignments",
     "settings": "Settings"
+  },
+  "studentDashboard": {
+    "groups": {
+      "learning": "Learning",
+      "practice": "Practice & Growth",
+      "character": "Character & Community"
+    },
+    "descriptions": {
+      "myGrades": "Marks, teacher feedback, and report cards.",
+      "socialStudiesStudent": "Your Social Studies course, lessons, and work.",
+      "assignments": "What is due soon and what has been returned.",
+      "practice": "Adaptive practice sets across your subjects.",
+      "sbResults": "Your standards-based results and progress.",
+      "mapTestPrep": "Targeted MAP practice and skill review.",
+      "spelling": "Weekly word lists, practice, and retests.",
+      "vocabulary": "Build word knowledge with quick practice.",
+      "reading": "Read assigned texts and answer questions.",
+      "plp": "Character goals, habits, and monthly focus.",
+      "plpMyTasks": "The character tasks assigned to you.",
+      "liveLessons": "Join a live class session when it starts."
+    }
   },
   "actions": {
     "collapseSidebar": "Collapse sidebar",

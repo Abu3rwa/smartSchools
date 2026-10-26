@@ -1,38 +1,39 @@
-import { Box, Typography } from '@mui/material';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+
+const HEADER_LINKS = [
+    { key: 'students', path: '/portal/students' },
+    { key: 'attendance', path: '/portal/attendance/admin' },
+    { key: 'classes', path: '/portal/classes' },
+];
 
 /**
- * Dashboard page header with title and subtitle.
- * Uses existing CSS classes: admin-dashboard-title, admin-dashboard-subtitle.
+ * Page header: context chips, greeting and the three destinations an admin
+ * reaches for most often.
  */
-export default function AdminDashboardHeader({ title, subtitle }) {
+export default function AdminDashboardHeader({ title, subtitle, todayLabel, academicYear }) {
+    const { t } = useTranslation(['adminDashboard']);
+
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', sm: 'row' },
-                justifyContent: 'space-between',
-                alignItems: { xs: 'stretch', sm: 'flex-start' },
-                mb: { xs: 2, md: 3 },
-                gap: 2,
-            }}
-        >
-            <Box sx={{ minWidth: 0 }}>
-                <Typography
-                    variant="h5"
-                    component="h1"
-                    className="admin-dashboard-title"
-                    sx={{
-                        mb: 0.5,
-                        fontWeight: 700,
-                        fontSize: { xs: '1.25rem', sm: '1.4rem', md: '1.5rem' },
-                    }}
-                >
-                    {title}
-                </Typography>
-                <Typography variant="body2" className="admin-dashboard-subtitle">
-                    {subtitle}
-                </Typography>
-            </Box>
-        </Box>
+        <header className="admin-header">
+            <div className="admin-header-main">
+                <div className="admin-header-context">
+                    {todayLabel && <span>{todayLabel}</span>}
+                    {todayLabel && academicYear && <span aria-hidden="true">·</span>}
+                    {academicYear && (
+                        <span>{t('adminDashboard:header.academicYear', { year: academicYear })}</span>
+                    )}
+                </div>
+                <h1 className="admin-dashboard-title">{title}</h1>
+                <p className="admin-dashboard-subtitle">{subtitle}</p>
+            </div>
+            <nav className="admin-quick-links" aria-label={t('adminDashboard:links.label')}>
+                {HEADER_LINKS.map((link) => (
+                    <Link key={link.key} to={link.path} className="admin-quick-link">
+                        {t(`adminDashboard:links.${link.key}`)}
+                    </Link>
+                ))}
+            </nav>
+        </header>
     );
 }

@@ -25,6 +25,7 @@ import {
 } from '../../../store/slices/schoolFeaturesSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import {
     HiOutlineClipboardCheck,
     HiOutlineMail,
@@ -150,13 +151,15 @@ const StudentsPage = () => {
     const [importTemplateMeta, setImportTemplateMeta] = useState(null);
     const pagination = useSelector(selectStudentsPagination);
 
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
+
     const studentsQueryParams = useMemo(() => ({
         page: currentPage,
         limit: pageSize,
-        search: searchTerm.trim() || undefined,
+        search: debouncedSearchTerm.trim() || undefined,
         classId: filterClass || undefined,
         academicYear: selectedAcademicYear || undefined
-    }), [currentPage, pageSize, searchTerm, filterClass, selectedAcademicYear]);
+    }), [currentPage, pageSize, debouncedSearchTerm, filterClass, selectedAcademicYear]);
 
     const totalItems = Number.isFinite(Number(pagination?.total))
         ? Number(pagination.total)

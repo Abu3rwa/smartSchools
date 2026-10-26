@@ -19,6 +19,7 @@ import SubjectsFilters from './components/SubjectsFilters';
 import SubjectsTable from './components/SubjectsTable';
 import SubjectFormModal from './components/SubjectFormModal';
 import useSubjectsPageState from './hooks/useSubjectsPageState';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import { createDefaultSubjectForm } from './constants';
 import { mapSubjectToFormData } from './utils/subjectPresentation';
 import subjectService from '../../../services/subjectService';
@@ -56,11 +57,12 @@ const SubjectsPage = () => {
         resetForm
     } = useSubjectsPageState(subjects);
 
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
     const subjectsQueryParams = useMemo(() => ({
         page: currentPage,
         limit: pageSize,
-        search: searchTerm.trim() || undefined
-    }), [currentPage, pageSize, searchTerm]);
+        search: debouncedSearchTerm.trim() || undefined
+    }), [currentPage, pageSize, debouncedSearchTerm]);
 
     const totalItems = Number.isFinite(Number(pagination?.total))
         ? Number(pagination.total)

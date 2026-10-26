@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getMapPracticeAttemptState, getMapPracticeSetAction, isMapPracticeAnswerRecorded } from './studentMapPracticeProgress.js';
+import { getMapPracticeAttemptState, getMapPracticeSetAction, getMapPracticeSetProgress, isMapPracticeAnswerRecorded } from './studentMapPracticeProgress.js';
 
 test('only a real answer unlocks the submit step that reveals feedback', () => {
   assert.equal(isMapPracticeAnswerRecorded(''), false);
@@ -27,6 +27,17 @@ test('offers answer review instead of continuation for a submitted attempt', () 
     { label: 'Review answers', disabled: false }
   );
   assert.equal(getMapPracticeSetAction({ status: 'reviewed' }, { answered: 15, total: 15 }).label, 'Review answers');
+});
+
+test('counts a finished attempt as fully answered even when answers are not loaded', () => {
+  assert.deepEqual(
+    getMapPracticeSetProgress([{ set: 'set-1', status: 'submitted' }], 'set-1', 15),
+    { answered: 15, total: 15, percentage: 100 }
+  );
+  assert.deepEqual(
+    getMapPracticeSetProgress([{ set: 'set-1', status: 'in_progress', answers: [{ question: 'q1', response: 'A' }] }], 'set-1', 15),
+    { answered: 1, total: 15, percentage: 7 }
+  );
 });
 
 test('uses Start and Continue for untouched and partially answered attempts', () => {

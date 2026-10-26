@@ -10,14 +10,16 @@ export const isMapPracticeAnswerRecorded = (response) => hasResponseValue(respon
 
 export const getMapPracticeSetProgress = (attempts = [], setId, totalQuestions = 0) => {
   const attempt = attempts.find((item) => String(item.set?._id || item.set) === String(setId));
+  const total = Math.max(0, Number(totalQuestions) || 0);
+  const isFinished = attempt?.status === 'submitted' || attempt?.status === 'reviewed';
   const answeredQuestionIds = new Set(
     (attempt?.answers || [])
       .filter((answer) => hasResponseValue(answer.response))
       .map((answer) => String(answer.question?._id || answer.question || answer.questionId || ''))
       .filter(Boolean)
   );
-  const total = Math.max(0, Number(totalQuestions) || 0);
-  const answered = Math.min(total, answeredQuestionIds.size);
+  // Finished attempts arrive without their answers to keep the home payload small.
+  const answered = isFinished ? total : Math.min(total, answeredQuestionIds.size);
 
   return {
     answered,

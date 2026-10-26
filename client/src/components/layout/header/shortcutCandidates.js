@@ -32,14 +32,6 @@ export const SHORTCUT_CANDIDATES = [
     { path: '/portal/admin-academic-excellence', labelKey: 'academicExcellenceAnalytics', roles: ['admin', 'department_principal'], feature: 'academicIntelligence', section: 'insights' },
     { path: '/portal/newsletters', labelKey: 'newsletters', roles: ['teacher'], feature: 'newsletterCommunication', section: 'communication' },
     {
-        path: '/portal/presentations',
-        labelKey: 'presentations',
-        roles: ['admin'],
-        permissions: [PERMISSIONS.MANAGE_PRESENTATIONS],
-        feature: 'presentationBuilder',
-        section: 'teaching'
-    },
-    {
         path: '/portal/live-lessons',
         labelKey: 'liveLessons',
         roles: ['admin', 'department_principal', 'teacher'],

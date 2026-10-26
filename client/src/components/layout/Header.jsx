@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery, Menu, MenuItem, Tooltip } from '@mui/material';
@@ -17,7 +17,6 @@ import {
     HiOutlineMoon,
     HiOutlineSun,
     HiOutlineLogout,
-    HiOutlineBell,
     HiOutlineMenu,
     HiOutlineCog,
     HiOutlineStar,
@@ -25,7 +24,6 @@ import {
     HiOutlineCheck,
     HiOutlineDotsHorizontal,
 } from 'react-icons/hi';
-import notificationService from '../../services/notificationService';
 import ShortcutsMenu from './header/ShortcutsMenu';
 import RoleSwitcher from './header/RoleSwitcher';
 import ImpersonationBanner from './header/ImpersonationBanner';
@@ -36,7 +34,6 @@ import './Header.css';
 // How many pinned links sit in the bar before the rest fold into "+N"
 const WIDE_CHIP_LIMIT = 5;
 const NARROW_CHIP_LIMIT = 3;
-const NOTIFICATION_POLL_MS = 60000;
 
 const HeaderTip = ({ tip, disabled, children }) => (
     <Tooltip title={tip} placement="bottom" disableInteractive>
@@ -63,7 +60,6 @@ const Header = () => {
     const isRtl = i18n.dir(language) === 'rtl';
     const isImpersonating = useSelector(selectIsImpersonating);
 
-    const [notificationCount, setNotificationCount] = useState(0);
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
     const [shortcutsMenuAnchor, setShortcutsMenuAnchor] = useState(null);
     const [overflowMenuAnchor, setOverflowMenuAnchor] = useState(null);
@@ -101,28 +97,6 @@ const Header = () => {
         ? t(`schoolSettings:roles.${user.role}`, { defaultValue: user.role })
         : '';
 
-    useEffect(() => {
-        if (isStudent) return undefined;
-
-        let cancelled = false;
-        const loadCount = () => {
-            notificationService.getNotificationHistory({ status: 'pending', limit: 1 })
-                .then((res) => {
-                    if (cancelled) return;
-                    const data = res?.data ?? res;
-                    setNotificationCount(data?.pagination?.total ?? 0);
-                })
-                .catch(() => {});
-        };
-
-        loadCount();
-        const intervalId = window.setInterval(loadCount, NOTIFICATION_POLL_MS);
-        return () => {
-            cancelled = true;
-            window.clearInterval(intervalId);
-        };
-    }, [isStudent]);
-
     const handleLogout = () => {
         setUserMenuAnchor(null);
         dispatch(logout());
@@ -140,14 +114,6 @@ const Header = () => {
     const handleLanguageToggle = () => {
         dispatch(setLanguage(language === 'ar' ? 'en' : 'ar'));
     };
-
-    const handleNotificationClick = () => {
-        navigate('/portal/notifications');
-    };
-
-    const notificationsAriaLabel = notificationCount > 0
-        ? t('layout.header:actions.notificationsAria', { count: notificationCount })
-        : t('layout.header:actions.notifications');
 
     const pinTip = isCurrentPagePinned
         ? t('layout.header:actions.unpinCurrentPage')
@@ -284,21 +250,6 @@ const Header = () => {
                         {language.toUpperCase()}
                     </button>
                 </HeaderTip>
-
-                {!isStudent && (
-                    <HeaderTip tip={notificationsAriaLabel}>
-                        <button
-                            className="header-btn notification-btn"
-                            onClick={handleNotificationClick}
-                            aria-label={notificationsAriaLabel}
-                        >
-                            <HiOutlineBell size={20} />
-                            {notificationCount > 0 && (
-                                <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
-                            )}
-                        </button>
-                    </HeaderTip>
-                )}
 
                 {!isStudent && <div className="header-divider" />}
 

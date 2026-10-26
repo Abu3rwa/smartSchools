@@ -1,234 +1,161 @@
-import { useEffect, useMemo, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { useTranslation } from "react-i18next";
-import { selectUser } from "../../../../../store/slices/authSlice";
+import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
+import api from '../../../../../config/api';
+import { selectUser } from '../../../../../store/slices/authSlice';
+import { selectCurrentAcademicYear, selectLanguage } from '../../../../../store/slices/uiSlice';
 import {
-  selectClasses,
-} from "../../../../../store/slices/classSlice";
-import {
-  fetchStudents,
-  selectStudents,
-} from "../../../../../store/slices/studentSlice";
-import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice";
-import {
-  fetchDashboardStats,
-  selectDashboardStats,
-  selectDashboardLoading,
-  selectDashboardError,
-} from "../../../../../store/slices/dashboardSlice";
-import { selectLanguage } from "../../../../../store/slices/uiSlice";
-import api from "../../../../../config/api";
-import {
-  HiOutlineUserGroup,
-  HiOutlineAcademicCap,
-  HiOutlineUsers,
-  HiOutlineCheckCircle,
-} from "react-icons/hi";
+    buildAttendanceSegments,
+    formatCount,
+    formatDelta,
+    formatMonthKeyLabel,
+    formatPercent,
+} from '../utils/schoolAdminDashboardPresentation.js';
 
 /**
- * Fetches and exposes all data for the School Admin Dashboard.
- * Preserves original API calls, Redux selectors/actions, and derived data.
+ * Loads the whole admin dashboard from a single aggregated endpoint.
+ * Sheet-level data (classes, subjects, teachers) already comes from MainLayout.
  */
 export function useSchoolAdminDashboardData() {
-  const { t } = useTranslation(["adminDashboard"]);
-  const dispatch = useDispatch();
-  const user = useSelector(selectUser);
-  const classes = useSelector(selectClasses);
-  const students = useSelector(selectStudents);
-  const academicYear = useSelector(selectCurrentAcademicYear);
-  const dashboardStats = useSelector(selectDashboardStats);
-  const loading = useSelector(selectDashboardLoading);
-  const error = useSelector(selectDashboardError);
-  const language = useSelector(selectLanguage);
+    const { t } = useTranslation(['adminDashboard']);
+    const user = useSelector(selectUser);
+    const academicYear = useSelector(selectCurrentAcademicYear);
+    const language = useSelector(selectLanguage);
 
-  const [teachers, setTeachers] = useState([]);
-  const [attendanceSummary, setAttendanceSummary] = useState(null);
-  const [loadingAdditional, setLoadingAdditional] = useState(true);
+    const [result, setResult] = useState({ key: null, summary: null, error: null });
+    const [reloadToken, setReloadToken] = useState(0);
 
-  const fetchAdditionalData = async () => {
-    try {
-      setLoadingAdditional(true);
-      const [teachersResult, attendanceResult] = await Promise.allSettled([
-        // Use school-scoped users endpoint and filter teachers below
-        api.get("/schools/me/users", {
-          params: { role: "teacher", limit: 100 },
-        }),
-        api.get("/attendance/admin", { viewMode: "today" }),
-      ]);
+    const requestKey = `${academicYear || 'current'}|${reloadToken}`;
 
-      if (teachersResult.status === "fulfilled") {
-        const teachersRes = teachersResult.value;
-        if (teachersRes.data?.success) {
-          const payload = teachersRes.data.data;
-          const allUsers = Array.isArray(payload?.users)
-            ? payload.users
-            : Array.isArray(payload)
-            ? payload
-            : [];
-          setTeachers(allUsers.filter((u) => u.role === "teacher"));
-        } else {
-          setTeachers([]);
-        }
-      } else {
-        setTeachers([]);
-        console.error("Error fetching teachers:", teachersResult.reason);
-      }
+    useEffect(() => {
+        const controller = new AbortController();
+        let cancelled = false;
 
-      if (attendanceResult.status === "fulfilled") {
-        const attendanceRes = attendanceResult.value;
-        const attendancePayload =
-          attendanceRes.data?.data || attendanceRes.data || {};
-        const records = attendancePayload.attendanceRecords || [];
-        const totalStudents = records.reduce(
-          (sum, r) => sum + (r.totalStudents || 0),
-          0,
-        );
-        const totalPresent = records.reduce(
-          (sum, r) => sum + (r.present || 0),
-          0,
-        );
-        const totalAbsent = records.reduce(
-          (sum, r) => sum + (r.absent || 0),
-          0,
-        );
-        const attendanceRate =
-          totalStudents > 0
-            ? Number(((totalPresent / totalStudents) * 100).toFixed(1))
-            : 0;
-        setAttendanceSummary({
-          totalClasses: records.length,
-          totalStudents,
-          totalPresent,
-          totalAbsent,
-          attendanceRate,
-        });
-      } else {
-        setAttendanceSummary(null);
-        console.error(
-          "Error fetching attendance summary:",
-          attendanceResult.reason,
-        );
-      }
-    } finally {
-      setLoadingAdditional(false);
-    }
-  };
+        api.get('/dashboard/school-admin', {
+            params: {
+                ...(academicYear ? { academicYear } : {}),
+                ...(reloadToken > 0 ? { refresh: 1 } : {}),
+            },
+            signal: controller.signal,
+        })
+            .then((response) => {
+                if (cancelled) return;
+                setResult({
+                    key: requestKey,
+                    summary: response.data?.data || null,
+                    error: null,
+                });
+            })
+            .catch((requestError) => {
+                if (cancelled || requestError.code === 'ERR_CANCELED') return;
+                setResult({
+                    key: requestKey,
+                    summary: null,
+                    error: requestError.response?.data?.message || requestError.message,
+                });
+            });
 
-  useEffect(() => {
-    dispatch(fetchStudents({ limit: 10 }));
-    dispatch(fetchDashboardStats(academicYear));
-    fetchAdditionalData();
-  }, [dispatch, academicYear]);
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [requestKey, academicYear, reloadToken]);
 
-  const todayLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      }).format(new Date()),
-    [language],
-  );
+    // A key mismatch means a request is in flight; stale data stays visible meanwhile.
+    const loading = result.key !== requestKey;
+    const summary = result.summary;
+    const error = loading ? null : result.error;
 
-  const classDistributionData = useMemo(() => {
-    const fromStats = Array.isArray(dashboardStats?.classDistribution)
-      ? dashboardStats.classDistribution
-      : [];
-    if (fromStats.length > 0) {
-      return fromStats.map((item) => ({
-        name: item.name?.substring(0, 18) || t("adminDashboard:common.classFallback"),
-        students: Number(item.students) || 0,
-      }));
-    }
-    return classes
-      .slice(0, 12)
-      .map((cls) => ({
-        name: cls.name?.substring(0, 18) || t("adminDashboard:common.classFallback"),
-        students: cls.studentCount || 0,
-      }))
-      .filter((item) => item.students > 0);
-  }, [classes, dashboardStats, t]);
+    const locale = language === 'ar' ? 'ar' : 'en';
 
-  const performanceTrendData = useMemo(() => {
-    const fromStats = Array.isArray(dashboardStats?.performanceTrend)
-      ? dashboardStats.performanceTrend
-      : [];
-    if (fromStats.length > 0) {
-      return fromStats.map((item) => ({
-        month: item.month,
-        average: Number(item.average) || 0,
-      }));
-    }
-    return [];
-  }, [dashboardStats]);
-   const stats = useMemo(
-    () => [
-      {
-        titleKey: "stats.totalStudents",
-        value: dashboardStats.totalStudents || students.length || 0,
-        icon: HiOutlineUserGroup,
-        color: "primary",
-        change: dashboardStats.changes?.students || "+0%",
-      },
-      {
-        titleKey: "stats.totalClasses",
-        value: dashboardStats.totalClasses || classes.length || 0,
-        icon: HiOutlineAcademicCap,
-        color: "purple",
-        change: dashboardStats.changes?.classes || "+0%",
-      },
-      {
-        titleKey: "stats.teachers",
-        value: teachers.length || 0,
-        icon: HiOutlineUsers,
-        color: "blue",
-        subtitleKey: "stats.activeTeachers",
-        subtitleParams: { count: teachers.filter((t) => t.isActive === true).length },
-      },
-      {
-        titleKey: "stats.attendanceRate",
-        value: Number.isFinite(attendanceSummary?.attendanceRate)
-          ? `${attendanceSummary.attendanceRate}%`
-          : t("adminDashboard:common.noDataShort"),
-        icon: HiOutlineCheckCircle,
-        color: "green",
-        subtitleKey: attendanceSummary ? "stats.attendanceToday" : "stats.noData",
-        subtitleParams: attendanceSummary
-          ? {
-              present: attendanceSummary.totalPresent,
-              total: attendanceSummary.totalStudents,
-            }
-          : undefined,
-      },
-    ],
-    [
-      dashboardStats,
-      students.length,
-      classes.length,
-      teachers,
-      attendanceSummary,
-      t,
-    ],
-  );
+    const todayLabel = useMemo(
+        () =>
+            new Intl.DateTimeFormat(locale, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+            }).format(new Date()),
+        [locale]
+    );
 
-  const isLoading = loading || loadingAdditional;
+    const stats = useMemo(() => {
+        if (!summary) return [];
+        const { students, classes, teachers, attendance } = summary;
+        return [
+            {
+                key: 'students',
+                label: t('adminDashboard:stats.totalStudents'),
+                value: formatCount(students.total, locale),
+                meta: t('adminDashboard:metrics.newThisMonth', {
+                    newCount: formatDelta(students.newThisMonth),
+                }),
+            },
+            {
+                key: 'classes',
+                label: t('adminDashboard:stats.totalClasses'),
+                value: formatCount(classes.total, locale),
+                meta: t('adminDashboard:metrics.newThisMonth', {
+                    newCount: formatDelta(classes.newThisMonth),
+                }),
+            },
+            {
+                key: 'teachers',
+                label: t('adminDashboard:stats.teachers'),
+                value: formatCount(teachers.total, locale),
+                meta: t('adminDashboard:metrics.activeTeachers', {
+                    activeCount: formatCount(teachers.active, locale),
+                }),
+            },
+            {
+                key: 'attendance',
+                label: t('adminDashboard:stats.attendanceRate'),
+                value: formatPercent(attendance.rate) || t('adminDashboard:common.noDataShort'),
+                meta: attendance.totalStudents > 0
+                    ? t('adminDashboard:metrics.presentOf', {
+                        presentCount: formatCount(attendance.present, locale),
+                        totalCount: formatCount(attendance.totalStudents, locale),
+                    })
+                    : t('adminDashboard:metrics.noAttendance'),
+            },
+        ];
+    }, [summary, t, locale]);
 
-  const retry = () => {
-    dispatch(fetchDashboardStats(academicYear));
-    fetchAdditionalData();
-  };
+    const performanceTrend = useMemo(
+        () =>
+            (summary?.performanceTrend || []).map((point) => ({
+                monthKey: point.monthKey,
+                label: formatMonthKeyLabel(point.monthKey, locale),
+                average: point.average,
+            })),
+        [summary, locale]
+    );
 
-  return {
-    user,
-    todayLabel,
-    stats,
-    classDistributionData,
-    performanceTrendData,
-    students,
-    classes,
-    attendanceSummary,
-    loading: isLoading,
-    error,
-    retry,
-  };
+    const attendanceSegments = useMemo(
+        () => buildAttendanceSegments(summary?.attendance),
+        [summary]
+    );
+
+    const classDistribution = summary?.classDistribution || [];
+    const recentStudents = summary?.recentStudents || [];
+    const hasData = Boolean(summary);
+
+    const retry = () => setReloadToken((token) => token + 1);
+
+    return {
+        user,
+        academicYear,
+        locale,
+        todayLabel,
+        stats,
+        attendance: summary?.attendance || null,
+        attendanceSegments,
+        classDistribution,
+        performanceTrend,
+        recentStudents,
+        loading,
+        error,
+        retry,
+        hasData,
+        showInitialSkeleton: loading && !hasData,
+    };
 }
