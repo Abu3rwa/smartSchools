@@ -1,7 +1,9 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
+import mongoose from 'mongoose';
 import MapPracticeAttempt from '../models/MapPracticeAttempt.js';
 import MapPracticeAssignment from '../models/MapPracticeAssignment.js';
 import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
+import MapPracticeSet from '../models/MapPracticeSet.js';
 import MapPracticeSettings from '../models/MapPracticeSettings.js';
 import Student from '../models/Student.js';
 import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
@@ -70,6 +72,103 @@ export const startMapPracticeAttempt = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { attempt: responseAttempt, questions: responseQuestions } });
 });
 
+export const resumeMapPracticeAttempt = asyncHandler(async (req, res) => {
+  const attempt = await getAttemptAccess({ req, attemptId: req.params.attemptId });
+  if (!attempt) {
+    return res.status(403).json({ success: false, message: 'Not authorized to access this attempt.' });
+  }
+  if (attempt.status !== 'in_progress') {
+    return res.status(400).json({ success: false, message: 'This practice set has already been submitted.' });
+  }
+
+  const [questions, assignment, set] = await Promise.all([
+    MapPracticeQuestion.find({ school: req.schoolId, set: attempt.set, active: true }).sort({ order: 1 }).lean(),
+    attempt.assignment
+      ? MapPracticeAssignment.findOne({ _id: attempt.assignment, school: req.schoolId })
+        .select('plan set status dueDate feedbackMode')
+        .populate('set', 'title questionCount estimatedMinutes order')
+        .lean()
+      : null,
+    MapPracticeSet.findOne({ _id: attempt.set, school: req.schoolId })
+      .select('title questionCount estimatedMinutes order')
+      .lean()
+  ]);
+  if (questions.length === 0) {
+    return res.status(404).json({ success: false, message: 'This practice set has no questions.' });
+  }
+
+  const isStudent = req.user.role === 'student';
+  res.json({
+    success: true,
+    data: {
+      attempt: isStudent ? hideMapPracticeAttemptAnswerKeys(attempt) : attempt,
+      questions: isStudent ? questions.map(hideMapPracticeQuestionAnswers) : questions,
+      // The page needs a title even when the assignment record was removed.
+      assignment: assignment || (attempt.assignment ? { _id: attempt.assignment, set } : { set })
+    }
+  });
+});
+
+const buildAttemptAnswerFields = ({ question, response, flagged = false, grading = null }) => ({
+  questionId: question.questionId,
+  response,
+  flagged: Boolean(flagged),
+  isCorrect: grading?.isCorrect ?? null,
+  score: grading?.score ?? 0,
+  autoGraded: Boolean(grading && !grading.requiresTeacherReview),
+  teacherOverride: false,
+  teacherComment: '',
+  questionSnapshot: {
+    questionId: question.questionId,
+    questionType: question.questionType,
+    stem: question.stem,
+    options: question.options,
+    ...buildMapPracticeStudentFields(question)
+  },
+  passageSnapshot: buildMapPracticePassageSnapshot(question),
+  correctAnswerSnapshot: question.correctAnswer,
+  explanationSnapshot: question.explanation
+});
+
+// One answer per atomic update. Replacing the whole answers array made concurrent
+// saves overwrite each other and rewrote every snapshot on every save.
+const saveAttemptAnswer = async ({ attemptId, schoolId, question, fields }) => {
+  const updated = await MapPracticeAttempt.updateOne(
+    {
+      _id: attemptId,
+      school: schoolId,
+      status: 'in_progress',
+      'answers.question': question._id
+    },
+    {
+      $set: {
+        ...Object.fromEntries(
+          Object.entries(fields).map(([key, value]) => [`answers.$[entry].${key}`, value])
+        ),
+        savedAt: new Date()
+      }
+    },
+    { arrayFilters: [{ 'entry.question': question._id }] }
+  );
+  if (updated.matchedCount > 0) return;
+
+  await MapPracticeAttempt.updateOne(
+    // The $ne guard keeps two concurrent first-saves from pushing duplicate entries.
+    {
+      _id: attemptId,
+      school: schoolId,
+      status: 'in_progress',
+      'answers.question': { $ne: question._id }
+    },
+    {
+      $push: {
+        answers: { _id: new mongoose.Types.ObjectId(), question: question._id, ...fields }
+      },
+      $set: { savedAt: new Date() }
+    }
+  );
+};
+
 export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
   const attempt = await getAttemptAccess({ req, attemptId: req.params.attemptId });
   if (!attempt) {
@@ -94,12 +193,12 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Question not found.' });
   }
 
-  const currentAnswers = Array.isArray(attempt.answers) ? attempt.answers : [];
-  const index = currentAnswers.findIndex((answer) => String(answer.question) === String(question._id));
-  const assignment = attempt.assignment
-    ? await MapPracticeAssignment.findOne({ _id: attempt.assignment, school: req.schoolId }).lean()
-    : null;
-  const settings = await MapPracticeSettings.findOne({ school: req.schoolId }).lean();
+  const [assignment, settings] = await Promise.all([
+    attempt.assignment
+      ? MapPracticeAssignment.findOne({ _id: attempt.assignment, school: req.schoolId }).lean()
+      : null,
+    MapPracticeSettings.findOne({ school: req.schoolId }).lean()
+  ]);
   const feedbackMode = assignment?.feedbackMode || settings?.feedbackMode || 'instant';
   const instantFeedback = feedbackMode === 'instant';
   const grading = instantFeedback
@@ -115,43 +214,21 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
       partialCreditMultiSelect: Boolean(settings?.partialCreditMultiSelect)
     })
     : null;
-  const answerRecord = {
+  const answerFields = buildAttemptAnswerFields({ question, response, flagged, grading });
+  await saveAttemptAnswer({
+    attemptId: attempt._id,
+    schoolId: req.schoolId,
+    question,
+    fields: answerFields
+  });
+
+  // The page only needs the saved response for its progress bars; snapshots stay on the server.
+  const responseAnswer = {
     question: question._id,
-    questionId: question.questionId,
+    questionId: answerFields.questionId,
     response,
-    flagged,
-    isCorrect: grading?.isCorrect ?? null,
-    score: grading?.score ?? 0,
-    autoGraded: Boolean(grading && !grading.requiresTeacherReview),
-    teacherOverride: false,
-    teacherComment: '',
-    questionSnapshot: {
-      questionId: question.questionId,
-      questionType: question.questionType,
-      stem: question.stem,
-      options: question.options,
-      ...buildMapPracticeStudentFields(question)
-    },
-    passageSnapshot: buildMapPracticePassageSnapshot(question),
-    correctAnswerSnapshot: question.correctAnswer,
-    explanationSnapshot: question.explanation
+    isCorrect: answerFields.isCorrect
   };
-
-  if (index >= 0) {
-    currentAnswers[index] = answerRecord;
-  } else {
-    currentAnswers.push(answerRecord);
-  }
-
-  const record = await MapPracticeAttempt.findByIdAndUpdate(
-    attempt._id,
-    { $set: { answers: currentAnswers, savedAt: new Date(), status: 'in_progress' } },
-    { new: true }
-  );
-
-  const responseAttempt = req.user.role === 'student'
-    ? hideMapPracticeAttemptAnswerKeys(record.toObject())
-    : record;
   const objectiveType = ['ordering', 'fill_in_blank', 'numeric_response'].includes(question.questionType);
   const revealAnswer = grading?.requiresTeacherReview
     ? undefined
@@ -170,7 +247,64 @@ export const saveMapPracticeAnswer = asyncHandler(async (req, res) => {
       ...buildMapPracticeStudentFields(question)
     }
     : undefined;
-  res.json({ success: true, data: { attempt: responseAttempt, feedback } });
+  res.json({ success: true, data: { answer: responseAnswer, feedback } });
+});
+
+export const saveMapPracticeAnswers = asyncHandler(async (req, res) => {
+  const attempt = await getAttemptAccess({ req, attemptId: req.params.attemptId });
+  if (!attempt) {
+    return res.status(403).json({ success: false, message: 'Not authorized to access this attempt.' });
+  }
+  if (attempt.status !== 'in_progress') {
+    return res.status(400).json({ success: false, message: 'Submitted practice answers can no longer be changed.' });
+  }
+
+  const items = Array.isArray(req.body?.answers) ? req.body.answers : null;
+  if (!items) {
+    return res.status(400).json({ success: false, message: 'Provide the answers to save.' });
+  }
+  if (items.length > 200) {
+    return res.status(400).json({ success: false, message: 'Save fewer answers at once.' });
+  }
+  if (items.length === 0) {
+    return res.json({ success: true, data: { saved: 0, skipped: 0 } });
+  }
+
+  const seen = new Set();
+  const candidates = [];
+  items.forEach((item) => {
+    const questionId = String(item?.questionId || '');
+    if (!mongoose.isValidObjectId(questionId) || seen.has(questionId)) return;
+    seen.add(questionId);
+    candidates.push({ questionId, response: item.response ?? null, flagged: Boolean(item.flagged) });
+  });
+
+  const questions = candidates.length
+    ? await MapPracticeQuestion.find({
+      _id: { $in: candidates.map((item) => item.questionId) },
+      school: req.schoolId,
+      set: attempt.set,
+      active: true
+    }).lean()
+    : [];
+  const questionById = new Map(questions.map((question) => [String(question._id), question]));
+  const pending = candidates.filter((item) => questionById.has(item.questionId));
+
+  await Promise.all(pending.map((item) => saveAttemptAnswer({
+    attemptId: attempt._id,
+    schoolId: req.schoolId,
+    question: questionById.get(item.questionId),
+    fields: buildAttemptAnswerFields({
+      question: questionById.get(item.questionId),
+      response: item.response,
+      flagged: item.flagged
+    })
+  })));
+
+  res.json({
+    success: true,
+    data: { saved: pending.length, skipped: candidates.length - pending.length }
+  });
 });
 
 export const submitMapPracticeAttempt = asyncHandler(async (req, res) => {

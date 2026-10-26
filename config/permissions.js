@@ -130,10 +130,6 @@ export const PERMISSIONS = {
     MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates',
     MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings',
 
-    // Presentations
-    MANAGE_PRESENTATIONS: 'manage_presentations',
-    MANAGE_PRESENTATION_TEMPLATES: 'manage_presentation_templates',
-
     // Standards Assessment
     VIEW_ASSESSMENT_POOL: 'view_assessment_pool',
     CREATE_ASSESSMENT_FROM_POOL: 'create_assessment_from_pool',
@@ -638,16 +634,6 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Configure newsletter frequency and AI word limits',
         category: 'communication'
     },
-    [PERMISSIONS.MANAGE_PRESENTATIONS]: {
-        label: 'Manage Presentations',
-        description: 'Create, edit, and manage AI classroom presentations',
-        category: 'content'
-    },
-    [PERMISSIONS.MANAGE_PRESENTATION_TEMPLATES]: {
-        label: 'Manage Presentation Templates',
-        description: 'Create and manage presentation template structures',
-        category: 'content'
-    },
 
     // Standards Assessment
     [PERMISSIONS.VIEW_ASSESSMENT_POOL]: {
@@ -934,7 +920,6 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS,
         PERMISSIONS.EXPORT_ACADEMIC_EXCELLENCE_REPORTS,
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT,
-        PERMISSIONS.MANAGE_PRESENTATIONS,
         PERMISSIONS.VIEW_ASSESSMENT_POOL,
         PERMISSIONS.CREATE_ASSESSMENT_FROM_POOL,
         PERMISSIONS.VIEW_STUDENT_FINANCE,
@@ -985,7 +970,6 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS,
         PERMISSIONS.EXPORT_ACADEMIC_EXCELLENCE_REPORTS,
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT,
-        PERMISSIONS.MANAGE_PRESENTATIONS,
         PERMISSIONS.VIEW_ASSESSMENT_POOL,
         PERMISSIONS.CREATE_ASSESSMENT_FROM_POOL,
         PERMISSIONS.MANAGE_ASSESSMENT_POOL_SETTINGS,

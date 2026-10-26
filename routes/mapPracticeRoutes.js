@@ -15,7 +15,9 @@ import {
 } from '../controllers/mapPracticeController.js';
 import {
   startMapPracticeAttempt,
+  resumeMapPracticeAttempt,
   saveMapPracticeAnswer,
+  saveMapPracticeAnswers,
   submitMapPracticeAttempt,
   getMapPracticeReviewQueue,
   reviewMapPracticeAttempt,
@@ -59,9 +61,11 @@ router.get('/assignments/:assignmentId/questions', authorizeWithPermission(['stu
 router.get('/me/home', authorizeWithPermission(['student'], []), getMyMapPracticeHome);
 router.post('/assignments/:assignmentId/start', authorizeWithPermission(['student', 'admin', 'teacher'], []), startMapPracticeAttempt);
 router.post('/attempts/:attemptId/answer', authorizeWithPermission(['student', 'admin', 'teacher'], []), saveMapPracticeAnswer);
+router.post('/attempts/:attemptId/answers', authorizeWithPermission(['student', 'admin', 'teacher'], []), saveMapPracticeAnswers);
 router.post('/attempts/:attemptId/submit', authorizeWithPermission(['student', 'admin', 'teacher'], []), submitMapPracticeAttempt);
 router.get('/reviews/queue', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeReviewQueue);
 router.get('/reviews/options', authorizeWithPermission(['student', 'admin', 'teacher'], []), getMapPracticeReviewOptions);
+router.get('/attempts/:attemptId/resume', authorizeWithPermission(['student', 'admin', 'teacher'], []), resumeMapPracticeAttempt);
 router.get('/attempts/:attemptId', authorizeWithPermission(['student', 'admin', 'teacher'], []), getMapPracticeAttemptById);
 router.post('/attempts/:attemptId/review', authorizeWithPermission(['admin', 'teacher'], []), reviewMapPracticeAttempt);
 

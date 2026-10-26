@@ -13,6 +13,9 @@ import { ensureStudentOwnsPracticeData, ensureTeacherCanAccessStudent } from '..
 import { hideMapPracticeAttemptAnswerKeys, hideMapPracticeQuestionAnswers } from '../services/mapPracticeReviewService.js';
 import { withTransaction } from '../utils/withTransaction.js';
 
+const ACTIVE_ATTEMPT_LIMIT = 20;
+const FINISHED_ATTEMPT_LIMIT = 5;
+
 export const getMapPracticeSettings = asyncHandler(async (req, res) => {
   if (!['admin', 'teacher'].includes(req.user.role)) {
     return res.status(403).json({ success: false, message: 'Teacher access required.' });
@@ -92,14 +95,61 @@ export const getMyMapPracticeHome = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Student profile not found.' });
   }
 
-  const settings = await MapPracticeSettings.findOne({ school: req.schoolId }).lean();
-  const plans = await MapPracticePlan.find({ school: req.schoolId, student: student._id }).sort({ updatedAt: -1 }).lean();
-  const assignedSets = await MapPracticeAssignment.find({ school: req.schoolId, student: student._id, status: { $in: ['assigned', 'active'] } }).populate('set').lean();
-  const attempts = await MapPracticeAttempt.find({ school: req.schoolId, student: student._id })
-    .select('plan set status submittedAt score maxScore reviewStatus savedAt answers.question answers.response answers.isCorrect')
-    .populate('set', 'title')
-    .sort({ submittedAt: -1, savedAt: -1 })
-    .lean();
+  const [settings, plans, assignedSets, activeAttempts] = await Promise.all([
+    MapPracticeSettings.findOne({ school: req.schoolId }).lean(),
+    MapPracticePlan.find({ school: req.schoolId, student: student._id })
+      .select('title status skills updatedAt')
+      .populate('skills', 'name')
+      .sort({ updatedAt: -1 })
+      .lean(),
+    MapPracticeAssignment.find({ school: req.schoolId, student: student._id, status: { $in: ['assigned', 'active'] } })
+      .select('plan set status dueDate feedbackMode')
+      .populate('set', 'title questionCount estimatedMinutes order')
+      .lean(),
+    // Only unfinished attempts need their saved answers for the progress bars.
+    MapPracticeAttempt.find({ school: req.schoolId, student: student._id, status: 'in_progress' })
+      .select('plan set status savedAt answers.question answers.response')
+      .populate('set', 'title questionCount')
+      .sort({ savedAt: -1 })
+      .limit(ACTIVE_ATTEMPT_LIMIT)
+      .lean()
+  ]);
+
+  const assignedSetIds = assignedSets.map((item) => item.set?._id).filter(Boolean);
+  const attemptSummaryFields = 'plan set status submittedAt score maxScore reviewStatus savedAt';
+  const [assignedFinishedAttempts, recentFinishedAttempts] = await Promise.all([
+    // A set's row needs its own attempt to show Review/Continue, even when that
+    // attempt is older than the recent history window.
+    assignedSetIds.length
+      ? MapPracticeAttempt.find({
+        school: req.schoolId,
+        student: student._id,
+        set: { $in: assignedSetIds },
+        status: { $in: ['submitted', 'reviewed'] }
+      })
+        .select(attemptSummaryFields)
+        .populate('set', 'title')
+        .lean()
+      : [],
+    // The Finished list only ever renders this many rows, so the history stays bounded.
+    MapPracticeAttempt.find({
+      school: req.schoolId,
+      student: student._id,
+      status: { $in: ['submitted', 'reviewed'] }
+    })
+      .select(attemptSummaryFields)
+      .populate('set', 'title')
+      .sort({ submittedAt: -1 })
+      .limit(FINISHED_ATTEMPT_LIMIT)
+      .lean()
+  ]);
+
+  const finishedAttempts = [...new Map(
+    [...assignedFinishedAttempts, ...recentFinishedAttempts]
+      .map((item) => [String(item._id), item])
+  ).values()].sort((left, right) =>
+    new Date(right.submittedAt || 0).getTime() - new Date(left.submittedAt || 0).getTime()
+  );
 
   res.json({
     success: true,
@@ -108,7 +158,8 @@ export const getMyMapPracticeHome = asyncHandler(async (req, res) => {
       settings,
       plans,
       assignedSets,
-      attempts: attempts.map(hideMapPracticeAttemptAnswerKeys)
+      activeAttempts: activeAttempts.map(hideMapPracticeAttemptAnswerKeys),
+      attempts: finishedAttempts
     }
   });
 });

@@ -74,11 +74,16 @@ export const getMapPracticeOverview = asyncHandler(async (req, res) => {
   ]);
 
   const studentIds = students.map((student) => student._id);
-  const scopedPlans = plans.filter((plan) => studentIds.some((studentId) => String(studentId) === String(plan.student)));
+  const studentIdSet = new Set(studentIds.map(String));
+  const scopedPlans = plans.filter((plan) => studentIdSet.has(String(plan.student)));
   const plannedStudentIds = new Set(scopedPlans.map((plan) => String(plan.student)));
   const planIds = scopedPlans.map((plan) => plan._id);
   const [attempts, assignments] = await Promise.all([
-    MapPracticeAttempt.find({ school: req.schoolId, student: { $in: studentIds }, plan: { $in: planIds } }).select('student plan submittedAt status reviewStatus score maxScore answers').sort({ submittedAt: -1 }).lean(),
+    // Metrics only read the question reference and the mark, so saved responses never leave Mongo.
+    MapPracticeAttempt.find({ school: req.schoolId, student: { $in: studentIds }, plan: { $in: planIds } })
+      .select('student plan submittedAt status reviewStatus score maxScore answers.question answers.isCorrect')
+      .sort({ submittedAt: -1 })
+      .lean(),
     MapPracticeAssignment.find({ school: req.schoolId, student: { $in: studentIds }, plan: { $in: planIds }, status: { $in: ['assigned', 'active'] } }).select('student plan status dueDate set createdAt').lean()
   ]);
 
@@ -91,9 +96,25 @@ export const getMapPracticeOverview = asyncHandler(async (req, res) => {
   scopedPlans.forEach((plan) => plansByStudent.set(String(plan.student), plan));
   const assignmentsByStudent = new Map();
   assignments.forEach((assignment) => assignmentsByStudent.set(String(assignment.student), (assignmentsByStudent.get(String(assignment.student)) || 0) + 1));
+  const attemptsByStudent = new Map();
+  attempts.forEach((attempt) => {
+    const key = String(attempt.student);
+    const list = attemptsByStudent.get(key);
+    if (list) list.push(attempt);
+    else attemptsByStudent.set(key, [attempt]);
+  });
+  const lastPracticeByStudent = new Map();
+  attempts.forEach((attempt) => {
+    if (!attempt.submittedAt) return;
+    const key = String(attempt.student);
+    const current = lastPracticeByStudent.get(key);
+    if (!current || new Date(attempt.submittedAt).getTime() > new Date(current).getTime()) {
+      lastPracticeByStudent.set(key, attempt.submittedAt);
+    }
+  });
   const weekAgo = Date.now() - 7 * 86400000;
   const studentsWithMetrics = students.map((student) => {
-    const studentAttempts = attempts.filter((attempt) => String(attempt.student) === String(student._id));
+    const studentAttempts = attemptsByStudent.get(String(student._id)) || [];
     const studentAnswers = studentAttempts.flatMap((attempt) => attempt.answers.map((answer) => ({ ...answer, questionData: questionById.get(String(answer.question)), submittedAt: attempt.submittedAt })))
       .sort((first, second) => new Date(second.submittedAt || 0) - new Date(first.submittedAt || 0));
     const scoredAnswers = studentAnswers.filter((answer) => answer.isCorrect !== null).slice(0, 20);
@@ -106,7 +127,7 @@ export const getMapPracticeOverview = asyncHandler(async (req, res) => {
       if (answer.isCorrect) stat.correct += 1;
       skillStats.set(key, stat);
     });
-    const lastPractice = studentAttempts.find((attempt) => attempt.submittedAt)?.submittedAt || null;
+    const lastPractice = lastPracticeByStudent.get(String(student._id)) || null;
     const accuracy = scoredAnswers.length ? Math.round(scoredAnswers.filter((answer) => answer.isCorrect).length / scoredAnswers.length * 100) : null;
     const hasPlan = plansByStudent.has(String(student._id));
     const status = !hasPlan ? 'noPracticeFile' : !lastPractice ? 'notStarted' : Date.now() - new Date(lastPractice).getTime() > 7 * 86400000 ? 'noActivity' : accuracy !== null && accuracy < 60 ? 'needsFollowUp' : 'onTrack';
@@ -123,11 +144,16 @@ export const getMapPracticeOverview = asyncHandler(async (req, res) => {
     };
   });
 
+  const recentlyActiveStudentIds = new Set(
+    attempts
+      .filter((attempt) => attempt.submittedAt && new Date(attempt.submittedAt).getTime() >= weekAgo)
+      .map((attempt) => String(attempt.student))
+  );
   const classSummaries = classes.map((classItem) => {
     const classStudents = students.filter((student) => String(student.currentClass?._id || student.currentClass) === String(classItem._id) || (student.enrolledClasses || []).some((id) => String(id?._id || id) === String(classItem._id)));
     const classStudentIds = new Set(classStudents.map((student) => String(student._id)));
     const withPlan = classStudents.filter((student) => plannedStudentIds.has(String(student._id))).length;
-    const noRecentPractice = classStudents.filter((student) => !attempts.some((attempt) => String(attempt.student) === String(student._id) && attempt.submittedAt && Date.now() - new Date(attempt.submittedAt).getTime() <= 7 * 86400000)).length;
+    const noRecentPractice = classStudents.filter((student) => !recentlyActiveStudentIds.has(String(student._id))).length;
     return { ...classItem, studentCount: classStudents.length, withPlanCount: withPlan, needsFollowUpCount: noRecentPractice, studentIds: [...classStudentIds] };
   });
   const pendingAttempts = attempts.filter((attempt) => attempt.status === 'submitted' && attempt.reviewStatus === 'pending');
