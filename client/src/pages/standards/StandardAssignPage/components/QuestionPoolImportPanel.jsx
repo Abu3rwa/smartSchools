@@ -129,6 +129,8 @@ const QuestionPoolImportPanel = ({ context, disabled, onImport, onCancel, hideMo
                 <li>{t('standardAssign:questionImport.steps.upload')}</li>
             </ol>
 
+            <p className="text-muted">{t('standardAssign:questionImport.shortAnswerNote')}</p>
+
             <div className="form-group">
                 <label>{t('standardAssign:questionImport.promptLanguage')}</label>
                 <select

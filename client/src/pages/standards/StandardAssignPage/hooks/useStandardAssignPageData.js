@@ -327,6 +327,7 @@ const useStandardAssignPageData = (options = {}) => {
         event.preventDefault();
         setSubmitting(true);
         const title = (formData.title || '').trim();
+        const isGeneralTest = Boolean(formData.generalTest);
 
         if (!formData.subjectId) {
             toast.error(t('standardAssign:toasts.selectSubjectBeforeAssigning'));
@@ -336,6 +337,17 @@ const useStandardAssignPageData = (options = {}) => {
 
         if (!title) {
             toast.error(t('standardAssign:toasts.assignmentNameRequired'));
+            setSubmitting(false);
+            return;
+        }
+
+        if (
+            isGeneralTest &&
+            (!Array.isArray(formData.importedQuestions) || formData.importedQuestions.length === 0)
+        ) {
+            toast.error(t('standardAssign:toasts.generalTestNeedsQuestions', {
+                defaultValue: 'Import at least one question to build a general test.'
+            }));
             setSubmitting(false);
             return;
         }
@@ -392,6 +404,7 @@ const useStandardAssignPageData = (options = {}) => {
 
         const payload = {
             ...formData,
+            generalTest: isGeneralTest,
             questionPoolSource: Array.isArray(formData.importedQuestions) && formData.importedQuestions.length > 0
                 ? 'imported'
                 : 'generated',
@@ -411,7 +424,9 @@ const useStandardAssignPageData = (options = {}) => {
             semester: parseNullablePositiveInt(formData.semester) || selectedSemester || 1,
             practiceConfig: {
                 ...formData.practiceConfig,
-                sessionType: grammarOnly ? 'assessment' : formData.practiceConfig.sessionType,
+                sessionType: grammarOnly || isGeneralTest
+                    ? 'assessment'
+                    : formData.practiceConfig.sessionType,
                 questionLimit: parseNullablePositiveInt(formData.practiceConfig.questionLimit),
                 timeLimitSeconds:
                     (parseNullablePositiveInt(formData.practiceConfig.timeLimitSeconds) || 0) * 60 ||
@@ -471,12 +486,16 @@ const useStandardAssignPageData = (options = {}) => {
                             ? t('standardAssign:toasts.grammarAssessmentUpdated', {
                                 defaultValue: 'Grammar assessment updated successfully!'
                             })
-                            : t('standardAssign:toasts.assignmentUpdated'))
+                            : isGeneralTest
+                                ? t('standardAssign:toasts.generalTestUpdated')
+                                : t('standardAssign:toasts.assignmentUpdated'))
                         : (grammarOnly
                             ? t('standardAssign:toasts.grammarAssessmentCreated', {
                                 defaultValue: 'Grammar assessment created successfully!'
                             })
-                            : t('standardAssign:toasts.standardAssigned'))
+                            : isGeneralTest
+                                ? t('standardAssign:toasts.generalTestCreated')
+                                : t('standardAssign:toasts.standardAssigned'))
                 );
                 setShowAssignModal(false);
                 resetAssignModalState();
@@ -489,12 +508,16 @@ const useStandardAssignPageData = (options = {}) => {
                                 ? t('standardAssign:toasts.failedToUpdateGrammarAssessment', {
                                     defaultValue: 'Failed to update grammar assessment'
                                 })
-                                : t('standardAssign:toasts.failedToUpdateAssignment'))
+                                : isGeneralTest
+                                    ? t('standardAssign:toasts.failedToUpdateGeneralTest')
+                                    : t('standardAssign:toasts.failedToUpdateAssignment'))
                             : (grammarOnly
                                 ? t('standardAssign:toasts.failedToCreateGrammarAssessment', {
                                     defaultValue: 'Failed to create grammar assessment'
                                 })
-                                : t('standardAssign:toasts.failedToAssign')))
+                                : isGeneralTest
+                                    ? t('standardAssign:toasts.failedToCreateGeneralTest')
+                                    : t('standardAssign:toasts.failedToAssign')))
                 );
             }
         } finally {
@@ -606,6 +629,28 @@ const useStandardAssignPageData = (options = {}) => {
     const retryAssessmentGradebookLoad = () => {
         if (!assessmentGradebookAssignmentId) return;
         loadAssessmentGradebook(assessmentGradebookAssignmentId);
+    };
+
+    // A review changes the counts behind the table, so refresh it in place instead of
+    // closing the gradebook: the teacher keeps their place and the row shows the new total.
+    const refreshAssessmentGradebook = async () => {
+        if (!assessmentGradebookAssignmentId) return;
+        try {
+            const response = await api.get(
+                `/practice/assignment/${assessmentGradebookAssignmentId}/gradebook`
+            );
+            const payload = response.data.data || null;
+            setAssessmentGradebookData(payload);
+            if (payload?.assignment?.practiceConfig?.sessionType === 'assessment') {
+                await loadAssessmentStandardAverage({
+                    classId: getEntityId(payload?.assignment?.class?._id || payload?.assignment?.class),
+                    subjectId: getEntityId(payload?.assignment?.subject?._id || payload?.assignment?.subject),
+                    standardId: getEntityId(payload?.assignment?.standard?._id || payload?.assignment?.standard),
+                });
+            }
+        } catch (error) {
+            // The review already saved; keep the last good table rather than flashing an error.
+        }
     };
 
     const handleReleaseAssessmentResults = async () => {
@@ -907,6 +952,7 @@ const useStandardAssignPageData = (options = {}) => {
         handleViewAssessmentGradebook,
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
+        refreshAssessmentGradebook,
         handleReleaseAssessmentResults,
         handleScoreOverride,
         handleManageQuestionPool,

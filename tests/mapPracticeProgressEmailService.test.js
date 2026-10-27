@@ -78,3 +78,45 @@ test('progress email escapes user-provided content and avoids scores for unfinis
   assert.doesNotMatch(email.text, /score 2 of 3/i);
   assert.match(email.text, /1 of 3 questions answered/);
 });
+
+test('progress email lists at most 3 skill chips per set with a +N more marker', () => {
+  const skills = [
+    'Skill one', 'Skill two', 'Skill three', 'Skill four', 'Skill five',
+    'Skill six', 'Skill seven', 'Skill eight', 'Skill nine', 'Skill ten',
+    'Skill eleven', 'Skill twelve',
+  ];
+  const email = buildMapPracticeProgressEmail({
+    student: { firstName: 'Ava', lastName: 'Student' },
+    assignments: [{
+      _id: 'assignment-many-skills',
+      set: { _id: 'set-many-skills', title: 'Many skills', questionCount: 10 },
+    }],
+    attempts: [],
+    skillsBySet: new Map([['set-many-skills', skills]]),
+  });
+
+  assert.match(email.html, /Skill one/);
+  assert.match(email.html, /Skill two/);
+  assert.match(email.html, /Skill three/);
+  assert.match(email.html, /\+9 more/);
+  assert.doesNotMatch(email.html, /Skill four/);
+  assert.doesNotMatch(email.html, /Skill twelve/);
+  assert.match(email.text, /Skills: Skill one, Skill two, Skill three \+9 more/);
+  assert.doesNotMatch(email.text, /Skill twelve/);
+});
+
+test('progress email keeps every skill chip when a set has few skills', () => {
+  const email = buildMapPracticeProgressEmail({
+    student: { firstName: 'Ava', lastName: 'Student' },
+    assignments: [{
+      _id: 'assignment-few-skills',
+      set: { _id: 'set-few-skills', title: 'Few skills', questionCount: 2 },
+    }],
+    attempts: [],
+    skillsBySet: new Map([['set-few-skills', ['Only skill']]]),
+  });
+
+  assert.match(email.html, /Only skill/);
+  assert.doesNotMatch(email.html, /\+1 more/);
+  assert.doesNotMatch(email.text, /\+1 more/);
+});

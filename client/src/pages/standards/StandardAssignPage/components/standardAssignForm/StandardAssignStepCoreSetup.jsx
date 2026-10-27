@@ -41,9 +41,6 @@ const StandardAssignStepCoreSetup = ({
                 placeholder={t('standardAssign:form.placeholders.assignmentName')}
                 required
             />
-            <small className="text-muted">
-                {t('standardAssign:form.assignmentNameHint')}
-            </small>
         </div>
 
         <div className="form-row">
@@ -117,13 +114,6 @@ const StandardAssignStepCoreSetup = ({
                         {t('standardAssign:form.hints.selectClassForSubjects')}
                     </small>
                 )}
-                {selectedClass && classSubjects.length > 0 && (
-                    <small className="text-muted">
-                        {isTeacher
-                            ? t('standardAssign:form.hints.teacherSubjectsOnly')
-                            : t('standardAssign:form.hints.classConfiguredSubjects')}
-                    </small>
-                )}
                 {selectedClass && isTeacher && classSubjects.length === 0 && subjectOptions.length === 0 && (
                     <small className="text-danger">
                         {t('standardAssign:form.hints.noSubjectsMapped')}
@@ -134,110 +124,156 @@ const StandardAssignStepCoreSetup = ({
 
         {!grammarOnly && (
             <div className="form-group">
-                <label>{t('standardAssign:form.labels.standardRequired')}</label>
-                <div className="standard-picker" ref={standardPickerRef}>
-                    <button
-                        type="button"
-                        className="standard-picker-trigger"
-                        onClick={() => {
-                            if (!formData.classId || !formData.subjectId) return;
-                            setIsStandardMenuOpen((previous) => !previous);
-                        }}
-                        disabled={!formData.classId || !formData.subjectId}
-                        aria-haspopup="listbox"
-                        aria-expanded={isStandardMenuOpen}
-                    >
-                        <span
-                            className={`standard-picker-trigger-text ${
-                                formData.standardId ? '' : 'is-placeholder'
-                            }`}
+                <div className="assign-label-row">
+                    <label>
+                        {formData.generalTest
+                            ? t('standardAssign:form.labels.standardOptional')
+                            : t('standardAssign:form.labels.standardRequired')}
+                    </label>
+                    {!formData.generalTest && (
+                        <button
+                            type="button"
+                            className="assign-general-test-link"
+                            onClick={() => {
+                                const defaultTitle = [
+                                    t('standardAssign:form.generalTest.defaultTitle'),
+                                    selectedClass?.name
+                                ].filter(Boolean).join(' - ');
+                                setFormData({
+                                    ...formData,
+                                    generalTest: true,
+                                    standardId: '',
+                                    title: String(formData.title || '').trim()
+                                        ? formData.title
+                                        : defaultTitle,
+                                    practiceConfig: {
+                                        ...formData.practiceConfig,
+                                        sessionType: 'assessment'
+                                    }
+                                });
+                                if (!showAdvanced) setShowAdvanced(true);
+                            }}
                         >
-                            {formData.standardId
-                                ? selectedStandardLabel
-                                : t('standardAssign:form.options.selectStandard')}
-                        </span>
-                    </button>
-
-                    {isStandardMenuOpen && (
-                        <div className="standard-picker-menu" role="listbox">
-                            <div className="standard-picker-search-wrap">
-                                <input
-                                    type="text"
-                                    className="standard-picker-search"
-                                    value={standardSearch}
-                                    onChange={(event) => setStandardSearch(event.target.value)}
-                                    placeholder={t('standardAssign:form.placeholders.searchStandard', {
-                                        defaultValue: 'Search standards...'
-                                    })}
-                                    autoFocus
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Escape') {
-                                            setIsStandardMenuOpen(false);
-                                        }
-                                    }}
-                                />
-                            </div>
-
-                            <div className="standard-picker-options">
-                                {filteredStandardOptions.length === 0 ? (
-                                    <div className="standard-picker-empty">
-                                        {t('standardAssign:form.hints.noMatchingStandards', {
-                                            defaultValue: 'No standards match your search.'
-                                        })}
-                                    </div>
-                                ) : (
-                                    filteredStandardOptions.map((standard) => {
-                                        const isSelected = String(formData.standardId) === String(standard._id);
-                                        return (
-                                            <button
-                                                key={standard._id}
-                                                type="button"
-                                                role="option"
-                                                aria-selected={isSelected}
-                                                className={`standard-picker-option ${isSelected ? 'is-selected' : ''}`}
-                                                onClick={() => {
-                                                    setFormData({
-                                                        ...formData,
-                                                        standardId: standard._id,
-                                                        title: getStandardOptionLabel(standard)
-                                                    });
-                                                    setIsStandardMenuOpen(false);
-                                                }}
-                                            >
-                                                <span className="standard-picker-option-label">
-                                                    {getStandardOptionLabel(standard)}
-                                                </span>
-                                                <span className="standard-picker-option-meta">
-                                                    {getStandardDescription(standard)}
-                                                </span>
-                                            </button>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
+                            {t('standardAssign:form.generalTest.useGeneral')}
+                        </button>
                     )}
                 </div>
-                {selectedClass && (
-                    <small className="text-muted">
-                        {t('standardAssign:form.hints.showingStandardsForGrade', {
-                            grade: selectedClass.grade
-                        })}
-                        {formData.subjectId ? t('standardAssign:form.hints.andSelectedSubject') : ''}.
-                    </small>
-                )}
-                {!formData.classId || !formData.subjectId ? (
-                    <small className="text-muted assign-inline-hint">
-                        {t('standardAssign:form.hints.selectClassSubjectStandard')}
-                    </small>
-                ) : null}
-                {formData.standardId && (
-                    <small
-                        className="text-muted assign-inline-hint assign-standard-description"
-                        title={getStandardDescription(selectedStandard)}
-                    >
-                        {getStandardDescription(selectedStandard)}
-                    </small>
+                {formData.generalTest ? (
+                    <div className="assign-general-test">
+                        <div className="assign-general-test-copy">
+                            <strong>{t('standardAssign:form.generalTest.title')}</strong>
+                            <small className="text-muted">
+                                {t('standardAssign:form.generalTest.hint')}
+                            </small>
+                        </div>
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() =>
+                                setFormData({
+                                    ...formData,
+                                    generalTest: false,
+                                    standardId: ''
+                                })
+                            }
+                        >
+                            {t('standardAssign:form.generalTest.chooseStandard')}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="standard-picker" ref={standardPickerRef}>
+                            <button
+                                type="button"
+                                className="standard-picker-trigger"
+                                onClick={() => {
+                                    if (!formData.classId || !formData.subjectId) return;
+                                    setIsStandardMenuOpen((previous) => !previous);
+                                }}
+                                disabled={!formData.classId || !formData.subjectId}
+                                aria-haspopup="listbox"
+                                aria-expanded={isStandardMenuOpen}
+                            >
+                                <span
+                                    className={`standard-picker-trigger-text ${
+                                        formData.standardId ? '' : 'is-placeholder'
+                                    }`}
+                                >
+                                    {formData.standardId
+                                        ? selectedStandardLabel
+                                        : t('standardAssign:form.options.selectStandard')}
+                                </span>
+                            </button>
+
+                            {isStandardMenuOpen && (
+                                <div className="standard-picker-menu" role="listbox">
+                                    <div className="standard-picker-search-wrap">
+                                        <input
+                                            type="text"
+                                            className="standard-picker-search"
+                                            value={standardSearch}
+                                            onChange={(event) => setStandardSearch(event.target.value)}
+                                            placeholder={t('standardAssign:form.placeholders.searchStandard', {
+                                                defaultValue: 'Search standards...'
+                                            })}
+                                            autoFocus
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Escape') {
+                                                    setIsStandardMenuOpen(false);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="standard-picker-options">
+                                        {filteredStandardOptions.length === 0 ? (
+                                            <div className="standard-picker-empty">
+                                                {t('standardAssign:form.hints.noMatchingStandards', {
+                                                    defaultValue: 'No standards match your search.'
+                                                })}
+                                            </div>
+                                        ) : (
+                                            filteredStandardOptions.map((standard) => {
+                                                const isSelected = String(formData.standardId) === String(standard._id);
+                                                return (
+                                                    <button
+                                                        key={standard._id}
+                                                        type="button"
+                                                        role="option"
+                                                        aria-selected={isSelected}
+                                                        className={`standard-picker-option ${isSelected ? 'is-selected' : ''}`}
+                                                        onClick={() => {
+                                                            setFormData({
+                                                                ...formData,
+                                                                standardId: standard._id,
+                                                                title: getStandardOptionLabel(standard)
+                                                            });
+                                                            setIsStandardMenuOpen(false);
+                                                        }}
+                                                    >
+                                                        <span className="standard-picker-option-label">
+                                                            {getStandardOptionLabel(standard)}
+                                                        </span>
+                                                        <span className="standard-picker-option-meta">
+                                                            {getStandardDescription(standard)}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {formData.standardId && (
+                            <small
+                                className="text-muted assign-inline-hint assign-standard-description"
+                                title={getStandardDescription(selectedStandard)}
+                            >
+                                {getStandardDescription(selectedStandard)}
+                            </small>
+                        )}
+                    </>
                 )}
             </div>
         )}
@@ -245,7 +281,7 @@ const StandardAssignStepCoreSetup = ({
         <div className="form-row">
             <div className="form-group">
                 <label>{t('standardAssign:form.labels.assignmentModeRequired')}</label>
-                {grammarOnly ? (
+                {grammarOnly || formData.generalTest ? (
                     <input
                         type="text"
                         value={t('standardAssign:form.options.gradedAssessmentSb')}

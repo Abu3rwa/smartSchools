@@ -97,7 +97,7 @@
 }
 .map-prep-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 18px;
@@ -489,6 +489,7 @@
   background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--bg-card));
 }
 .map-status {
+  display: inline-block;
   padding: 3px 8px;
   border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border-color));
   border-radius: 999px;
@@ -496,6 +497,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: capitalize;
+  white-space: nowrap;
 }
 .map-status-needs_review {
   color: var(--warning, #a16207);
@@ -945,6 +947,183 @@
   display: block;
   color: var(--text-muted);
 }
+.map-students-table {
+  min-width: 960px;
+}
+.map-students-table th {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.map-students-table td {
+  vertical-align: middle;
+}
+.map-students-table tbody tr {
+  transition: background 0.15s ease;
+}
+.map-students-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg-secondary) 55%, var(--bg-card));
+}
+.map-students-table tbody tr:hover {
+  background: color-mix(in srgb, var(--primary) 4%, var(--bg-card));
+}
+.map-students-table .btn {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.map-student-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+.map-student-avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: hsl(var(--avatar-hue, 230) 55% 91%);
+  color: hsl(var(--avatar-hue, 230) 42% 32%);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.map-student-cell-names {
+  display: grid;
+  min-width: 0;
+}
+.map-student-cell-names strong {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-student-cell-names small {
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+.map-cell-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.map-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 260px;
+}
+.map-skill-chip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid
+    color-mix(in srgb, var(--primary) 22%, var(--border-color));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg-card));
+  color: var(--primary);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+.map-skill-chip-more {
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.map-week-cell {
+  display: grid;
+  gap: 5px;
+  min-width: 90px;
+}
+.map-week-count {
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.map-week-bar {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+.map-week-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+.map-accuracy {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.map-accuracy-low {
+  color: var(--danger, #b91c1c);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 9%, var(--bg-card));
+}
+.map-accuracy-mid {
+  color: var(--warning, #a16207);
+  background: color-mix(in srgb, var(--warning, #a16207) 11%, var(--bg-card));
+}
+.map-accuracy-high {
+  color: var(--success, #15803d);
+  background: color-mix(in srgb, var(--success, #15803d) 10%, var(--bg-card));
+}
+.map-roster-status.onTrack {
+  color: var(--success, #15803d);
+  border-color: color-mix(
+    in srgb,
+    var(--success, #15803d) 35%,
+    var(--border-color)
+  );
+  background: color-mix(in srgb, var(--success, #15803d) 6%, var(--bg-card));
+}
+.map-roster-status.needsFollowUp {
+  color: var(--warning, #a16207);
+  border-color: color-mix(
+    in srgb,
+    var(--warning, #a16207) 35%,
+    var(--border-color)
+  );
+  background: color-mix(in srgb, var(--warning, #a16207) 7%, var(--bg-card));
+}
+.map-roster-status.noActivity {
+  color: var(--danger, #b91c1c);
+  border-color: color-mix(
+    in srgb,
+    var(--danger, #b91c1c) 35%,
+    var(--border-color)
+  );
+  background: color-mix(in srgb, var(--danger, #b91c1c) 6%, var(--bg-card));
+}
+.map-roster-status.notStarted {
+  color: var(--text-muted);
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+}
+.map-roster-status.noPracticeFile {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--text-muted) 35%, var(--border-color));
+  border-style: dashed;
+  background: transparent;
+}
 .map-roster-student-detail {
   display: grid;
   gap: 16px;
@@ -1163,21 +1342,123 @@
   display: grid;
   gap: 12px;
 }
+.map-set-bulk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+}
+.map-set-bulk-select,
+.map-set-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.map-set-bulk-select-all,
+.map-set-bulk-show-hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.map-set-bulk-select-all input,
+.map-set-bulk-show-hidden input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.map-set-bulk-count {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.map-set-bulk-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.map-set-bulk-due input {
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+}
+.map-set-bulk-actions .btn {
+  white-space: nowrap;
+}
+.map-bulk-message {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.map-bulk-message.success {
+  background: #f0fdf4;
+  color: #166534;
+}
+.map-bulk-message.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
 .map-roster-set-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: 12px;
   background: var(--bg-card);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 .map-roster-set-card:hover {
   border-color: color-mix(in srgb, var(--primary) 38%, var(--border-color));
   box-shadow: 0 5px 16px rgba(15, 23, 42, 0.05);
+}
+.map-roster-set-card.is-selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 4%, var(--bg-card));
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.map-roster-set-card.is-hidden {
+  border-style: dashed;
+  background: var(--bg-secondary);
+  opacity: 0.78;
+}
+.map-roster-set-select {
+  display: flex;
+  align-items: center;
+}
+.map-roster-set-select input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.map-roster-set-select input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .map-roster-plan-actions {
   display: flex;
@@ -1248,18 +1529,16 @@
   background: var(--bg-secondary);
   color: var(--text-muted);
 }
+.map-roster-set-badges .set-status.set-hidden-badge {
+  border: 1px dashed var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
 .map-roster-set-meta {
   display: grid;
   justify-items: end;
   gap: 10px;
   min-width: 0;
-}
-.map-roster-set-assignment {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
 }
 .set-assignment-status {
   background: var(--bg-secondary);
@@ -1273,16 +1552,6 @@
   margin: 0 0 0 5px;
   color: inherit;
   font-size: inherit;
-}
-.map-roster-set-assignment label {
-  display: grid;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-.map-roster-set-assignment input,
-.map-roster-set-assignment .btn {
-  min-height: 38px;
 }
 .map-roster-set-actions {
   display: flex;
@@ -1455,6 +1724,56 @@
 .map-roster-answer-review > p {
   color: var(--text-muted);
   line-height: 1.55;
+}
+.map-roster-review-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary);
+  border-radius: 9px;
+  background: var(--bg-card);
+}
+[dir="rtl"] .map-roster-review-note {
+  border-right: 4px solid var(--primary);
+  border-left: 1px solid var(--border-color);
+}
+[dir="rtl"] .map-students-table th,
+[dir="rtl"] .map-students-table td {
+  text-align: right;
+}
+.map-roster-review-note strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+.map-roster-review-note p {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.map-roster-review-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 -6px 18px rgb(15 23 42 / 8%);
+}
+.map-roster-review-savebar > span {
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+.map-roster-review-savebar > span.has-unmarked {
+  color: #b45309;
+}
+.map-roster-review-savebar > span.all-marked {
+  color: #166534;
 }
 .map-roster-answer-item {
   display: grid;
@@ -1647,11 +1966,12 @@
     padding: 0 14px 14px;
   }
   .map-roster-set-card {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 12px;
     padding: 13px;
   }
   .map-roster-set-meta {
+    grid-column: 1 / -1;
     justify-items: stretch;
     padding-top: 11px;
     border-top: 1px solid var(--border-color);
@@ -1660,8 +1980,11 @@
     width: 100%;
     justify-content: flex-start;
   }
-  .map-roster-set-assignment {
-    justify-content: flex-start;
+  .map-set-bulk-bar {
+    position: static;
+  }
+  .map-set-bulk-actions .btn {
+    flex: 1 1 auto;
   }
   .map-roster-set-actions {
     justify-content: flex-start;
@@ -1709,6 +2032,59 @@
   border-radius: 7px;
   background: var(--bg-card);
   color: var(--text-primary);
+}
+.map-prep-topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.map-prep-topbar .map-prep-progress {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+}
+.map-prep-topbar .map-topic-card {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+}
+.map-prep-topbar .map-topic-card:hover {
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+}
+.map-prep-topbar .map-topic-card.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg-card));
+}
+.map-prep-topbar .map-topic-card strong {
+  font-size: 0.82rem;
+}
+.map-prep-topbar .map-roster-filters {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 0;
+  margin-inline-start: auto;
+}
+.map-prep-topbar .map-roster-filters label {
+  flex: 0 1 auto;
+  min-width: 130px;
+  max-width: 240px;
+}
+.map-prep-topbar .map-roster-filters select,
+.map-prep-topbar .map-roster-filters input {
+  min-height: 38px;
 }
 .map-roster-chart-grid {
   display: grid;
@@ -1901,6 +2277,10 @@
   }
   .map-prep-progress {
     margin-right: -4px;
+  }
+  .map-prep-topbar .map-roster-filters {
+    width: 100%;
+    margin-inline-start: 0;
   }
   .map-section-heading {
     flex-direction: column;

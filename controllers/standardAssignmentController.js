@@ -116,51 +116,63 @@ const normalizeRegenDifficulty = (value) => {
 };
 
 const GRAMMAR_STANDARD_CATEGORY = "grammar_assessment";
+const GENERAL_STANDARD_CATEGORY = "general_assessment";
 
-const resolveGrammarStandardCode = ({ gradeLevel, subjectId }) => {
-  const gradePart = Number.isFinite(Number(gradeLevel))
-    ? `G${Math.trunc(Number(gradeLevel))}`
-    : "GX";
+// Assignments need a Standard anchor even when the teacher is not teaching one.
+// These stay inactive so the standards library and mastery reporting ignore them.
+const resolveHiddenStandardGrade = (classDoc) => {
+  const parsedGrade = Math.trunc(Number(classDoc?.grade));
+  return Number.isFinite(parsedGrade)
+    ? Math.min(12, Math.max(1, parsedGrade))
+    : 1;
+};
+
+const buildHiddenStandardCode = ({ prefix, gradeLevel, subjectId }) => {
   const subjectPart = String(subjectId || "")
     .slice(-6)
     .toUpperCase();
-  return `GRAMMAR-${gradePart}-${subjectPart}`;
+  return `${prefix}-G${gradeLevel}-${subjectPart}`;
 };
 
-const resolveOrCreateGrammarStandard = async ({
+const resolveOrCreateHiddenStandard = async ({
   schoolId,
   subjectId,
   classDoc,
   subjectDoc,
   userId,
+  category,
+  codePrefix,
+  buildName,
+  buildDescription,
 }) => {
-  const parsedGrade = Math.trunc(Number(classDoc?.grade));
-  const gradeLevel = Number.isFinite(parsedGrade)
-    ? Math.min(12, Math.max(1, parsedGrade))
-    : 1;
-
+  const gradeLevel = resolveHiddenStandardGrade(classDoc);
   const existing = await Standard.findOne({
     school: schoolId,
     subject: subjectId,
     gradeLevel,
-    category: GRAMMAR_STANDARD_CATEGORY,
+    category,
   }).sort({ updatedAt: -1 });
 
   if (existing) return existing;
 
-  const grammarCode = resolveGrammarStandardCode({ gradeLevel, subjectId });
-  const grammarName = `Grammar Assessment (Grade ${gradeLevel})`;
-  const grammarDescription = `Internal grammar assessment mapping for ${subjectDoc?.name || "English"} grade ${gradeLevel}.`;
+  const code = buildHiddenStandardCode({
+    prefix: codePrefix,
+    gradeLevel,
+    subjectId,
+  });
 
   try {
     return await Standard.create({
       school: schoolId,
-      code: grammarCode,
-      name: grammarName,
-      description: grammarDescription,
+      code,
+      name: buildName(gradeLevel),
+      description: buildDescription({
+        gradeLevel,
+        subjectName: subjectDoc?.name || "English",
+      }),
       subject: subjectId,
       gradeLevel,
-      category: GRAMMAR_STANDARD_CATEGORY,
+      category,
       masteryThreshold: 80,
       masteryMinQuestions: 5,
       isActive: false,
@@ -170,13 +182,33 @@ const resolveOrCreateGrammarStandard = async ({
     if (error?.code === 11000) {
       const conflictResolved = await Standard.findOne({
         school: schoolId,
-        code: grammarCode,
+        code,
       });
       if (conflictResolved) return conflictResolved;
     }
     throw error;
   }
 };
+
+const resolveOrCreateGrammarStandard = (options) =>
+  resolveOrCreateHiddenStandard({
+    ...options,
+    category: GRAMMAR_STANDARD_CATEGORY,
+    codePrefix: "GRAMMAR",
+    buildName: (gradeLevel) => `Grammar Assessment (Grade ${gradeLevel})`,
+    buildDescription: ({ gradeLevel, subjectName }) =>
+      `Internal grammar assessment mapping for ${subjectName} grade ${gradeLevel}.`,
+  });
+
+const resolveOrCreateGeneralStandard = (options) =>
+  resolveOrCreateHiddenStandard({
+    ...options,
+    category: GENERAL_STANDARD_CATEGORY,
+    codePrefix: "GENERAL",
+    buildName: (gradeLevel) => `General Test (Grade ${gradeLevel})`,
+    buildDescription: ({ gradeLevel, subjectName }) =>
+      `Internal general test mapping for ${subjectName} grade ${gradeLevel}; not tied to a curriculum standard.`,
+  });
 
 /**
  * @desc    Get assignments (teacher sees own, admin sees all)
@@ -384,6 +416,7 @@ export const getAssignment = asyncHandler(async (req, res) => {
 export const createAssignment = asyncHandler(async (req, res) => {
   const {
     standardId,
+    generalTest = false,
     classId,
     subjectId,
     students,
@@ -400,6 +433,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
   } = req.body;
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const requestedSemester = normalizeSemester(req.body?.semester);
+  const generalTestEnabled = generalTest === true;
 
   let sanitizedImportedQuestions = null;
   if (
@@ -418,6 +452,19 @@ export const createAssignment = asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, message: imported.error });
     }
     sanitizedImportedQuestions = imported.questions;
+  }
+
+  // A general test has no curriculum objective to generate against, so the
+  // teacher's own questions are the whole test.
+  if (
+    generalTestEnabled &&
+    (!Array.isArray(sanitizedImportedQuestions) ||
+      sanitizedImportedQuestions.length === 0)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "General tests require at least one imported question",
+    });
   }
 
   let parsedConfig = undefined;
@@ -455,11 +502,12 @@ export const createAssignment = asyncHandler(async (req, res) => {
   const grammarAssessmentEnabled = hasGrammarLevelingEnabled(
     parsedConfig || practiceConfig || {},
   );
+  const hiddenStandardEnabled = grammarAssessmentEnabled || generalTestEnabled;
 
-  if (!classId || !subjectId || (!standardId && !grammarAssessmentEnabled)) {
+  if (!classId || !subjectId || (!standardId && !hiddenStandardEnabled)) {
     return res.status(400).json({
       success: false,
-      message: grammarAssessmentEnabled
+      message: hiddenStandardEnabled
         ? "classId and subjectId are required"
         : "standardId, classId, and subjectId are required",
     });
@@ -501,6 +549,14 @@ export const createAssignment = asyncHandler(async (req, res) => {
     standard = await Standard.findById(standardId);
   } else if (grammarAssessmentEnabled) {
     standard = await resolveOrCreateGrammarStandard({
+      schoolId: req.schoolId,
+      subjectId,
+      classDoc,
+      subjectDoc,
+      userId: req.user?._id || null,
+    });
+  } else if (generalTestEnabled) {
+    standard = await resolveOrCreateGeneralStandard({
       schoolId: req.schoolId,
       subjectId,
       classDoc,
@@ -594,19 +650,31 @@ export const createAssignment = asyncHandler(async (req, res) => {
     }
   }
 
-  const resolvedSessionType =
-    parsedConfig?.sessionType || practiceConfig?.sessionType || "practice";
+  const resolvedSessionType = generalTestEnabled
+    ? "assessment"
+    : parsedConfig?.sessionType || practiceConfig?.sessionType || "practice";
   const requiresReviewedPoolBeforeAccess = resolvedSessionType === "assessment";
+  const resolvedPracticeConfig = generalTestEnabled
+    ? { ...(parsedConfig || {}), sessionType: "assessment" }
+    : parsedConfig;
+  // Imported questions are already teacher-authored and skip AI generation, so
+  // a general test can go live without the review cycle.
+  const autoPublishImportedPool =
+    generalTestEnabled &&
+    Array.isArray(sanitizedImportedQuestions) &&
+    sanitizedImportedQuestions.length > 0;
 
   const resolvedTitle =
     normalizeTitle(req.body?.title) ||
     (grammarAssessmentEnabled
       ? `Grammar Assessment - ${classDoc?.name || `Grade ${classDoc?.grade || ""}`}`.trim()
-      : buildDefaultAssignmentTitle({
-          standard,
-          classDoc,
-          sessionType: resolvedSessionType,
-        }));
+      : generalTestEnabled
+        ? `General Test - ${classDoc?.name || `Grade ${classDoc?.grade || ""}`}`.trim()
+        : buildDefaultAssignmentTitle({
+            standard,
+            classDoc,
+            sessionType: resolvedSessionType,
+          }));
   const assignmentSemester =
     requestedSemester || resolveSemesterFromDate(dueDate || new Date());
 
@@ -626,7 +694,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
       title: resolvedTitle,
       academicYear: classDoc.academicYear || effectiveAcademicYear,
       semester: assignmentSemester,
-      practiceConfig: parsedConfig,
+      practiceConfig: resolvedPracticeConfig,
       assessmentConfig: parsedAssessmentConfig,
       preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(
         preGeneratedQuestionCount,
@@ -637,14 +705,16 @@ export const createAssignment = asyncHandler(async (req, res) => {
       notifyParents,
       notifyStudents,
       questionWorkflow: {
-        requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess,
-        status: "draft",
+        requireApprovalBeforeStudentAccess: autoPublishImportedPool
+          ? false
+          : requiresReviewedPoolBeforeAccess,
+        status: autoPublishImportedPool ? "published" : "draft",
         currentPoolVersion: 1,
       },
     });
 
   const populated = await StandardAssignment.findById(assignment._id)
-    .populate("standard", "code name description gradeLevel")
+    .populate("standard", "code name description gradeLevel category")
     .populate("class", "name grade section")
     .populate("subject", "name code")
     .populate("students", "firstName lastName studentId");
@@ -671,7 +741,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
         resolvedSessionType === "assessment"
           ? grammarAssessmentEnabled
             ? "Grammar Assessment"
-            : "Assessment"
+            : generalTestEnabled
+              ? "General Test"
+              : "Assessment"
           : "Standards Practice",
       assignmentTypeKey: "standard_assignment",
       dueDate: assignment.dueDate,
@@ -710,19 +782,26 @@ export const createAssignment = asyncHandler(async (req, res) => {
     }
   }
 
+  let responseMessage = "Standard assigned successfully";
+  if (generationError) {
+    responseMessage = grammarAssessmentEnabled
+      ? "Grammar assessment created, but question pool generation needs manual review"
+      : generalTestEnabled
+        ? "General test created, but the question pool needs manual review"
+        : "Standard assigned, but question pool generation needs manual review";
+  } else if (grammarAssessmentEnabled) {
+    responseMessage = "Grammar assessment created successfully";
+  } else if (generalTestEnabled) {
+    responseMessage = "General test created successfully";
+  }
+
   res.status(201).json({
     success: true,
-    message: generationError
-      ? grammarAssessmentEnabled
-        ? "Grammar assessment created, but question pool generation needs manual review"
-        : "Standard assigned, but question pool generation needs manual review"
-      : grammarAssessmentEnabled
-        ? "Grammar assessment created successfully"
-        : "Standard assigned successfully",
+    message: responseMessage,
     data: {
       assignment: populated,
       questionPool: {
-        status: "draft",
+        status: pool.status || "draft",
         generatedQuestionCount:
           pool.generatedQuestionCount || DEFAULT_PREGENERATED_QUESTION_COUNT,
         generationLanguages,
@@ -816,6 +895,22 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     return res
       .status(404)
       .json({ success: false, message: "Subject not found" });
+  }
+
+  if (isCoreMappingChanged && !requestedStandardId && nextStandardId) {
+    const currentStandard = await Standard.findById(nextStandardId)
+      .select("category")
+      .lean();
+    if (currentStandard?.category === GENERAL_STANDARD_CATEGORY) {
+      const generalStandard = await resolveOrCreateGeneralStandard({
+        schoolId: req.schoolId,
+        subjectId: nextSubjectId,
+        classDoc,
+        subjectDoc,
+        userId: req.user?._id || null,
+      });
+      nextStandardId = generalStandard?._id?.toString?.() || nextStandardId;
+    }
   }
 
   if (

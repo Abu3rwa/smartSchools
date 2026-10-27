@@ -45,6 +45,7 @@ export const DEFAULT_ASSESSMENT_CONFIG = {
 export const createInitialFormData = (semester = 1) => ({
     title: '',
     standardId: '',
+    generalTest: false,
     classId: '',
     subjectId: '',
     notifyParents: true,

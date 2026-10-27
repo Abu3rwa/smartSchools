@@ -152,7 +152,10 @@ const StandardAssignList = ({
                             const workflowStatus = String(assignment.questionWorkflow?.status || '').toLowerCase();
                             const dueState = getDueDateState(assignment.dueDate);
                             const dueLabel = getDueDateStateLabel(dueState);
-                            const standardDescription = getStandardDescription(assignment.standard);
+                            const isGeneralTest = assignment.standard?.category === 'general_assessment';
+                            const standardDescription = isGeneralTest
+                                ? t('standardAssign:list.generalTestDescription')
+                                : getStandardDescription(assignment.standard);
 
                             return (
                                 <tr key={assignment._id}>
@@ -175,7 +178,9 @@ const StandardAssignList = ({
                                     <td>
                                         <div className="assign-table__standard" title={standardDescription}>
                                             <span className="assign-table__standard-code">
-                                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                                                {isGeneralTest
+                                                    ? t('standardAssign:list.generalTest')
+                                                    : (formatStandardLabel(assignment.standard) || assignment.standard?.code)}
                                             </span>
                                             {/* <span className="assign-table__standard-desc">{standardDescription}</span> */}
                                         </div>

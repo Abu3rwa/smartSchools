@@ -15,6 +15,43 @@ import { withTransaction } from '../utils/withTransaction.js';
 
 const ACTIVE_ATTEMPT_LIMIT = 20;
 const FINISHED_ATTEMPT_LIMIT = 5;
+const MAX_BULK_ASSIGNMENTS = 100;
+const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
+
+const uniqueObjectIds = (values) => [
+  ...new Set(
+    (Array.isArray(values) ? values : [])
+      .map((value) => String(value || '').trim())
+      .filter((value) => OBJECT_ID_PATTERN.test(value))
+  ),
+];
+
+const parseOptionalDueDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
+const findAssignableStudent = async (req) => {
+  const student = await Student.findOne({ _id: req.body?.studentId, school: req.schoolId })
+    .select('_id currentClass enrolledClasses')
+    .lean();
+  if (!student) {
+    return { error: { status: 404, message: 'Student not found.' }, student: null };
+  }
+  if (req.user.role === 'teacher' && !(await ensureTeacherCanAccessStudent({ req, studentId: student._id }))) {
+    return {
+      error: { status: 403, message: 'You are not authorized to assign practice to this student.' },
+      student: null,
+    };
+  }
+  return { error: null, student };
+};
+
+const getPracticeFeedbackMode = async (schoolId) => {
+  const practiceSettings = await MapPracticeSettings.findOne({ school: schoolId }).select('feedbackMode').lean();
+  return practiceSettings?.feedbackMode || 'instant';
+};
 
 export const getMapPracticeSettings = asyncHandler(async (req, res) => {
   if (!['admin', 'teacher'].includes(req.user.role)) {
@@ -102,7 +139,12 @@ export const getMyMapPracticeHome = asyncHandler(async (req, res) => {
       .populate('skills', 'name')
       .sort({ updatedAt: -1 })
       .lean(),
-    MapPracticeAssignment.find({ school: req.schoolId, student: student._id, status: { $in: ['assigned', 'active'] } })
+    MapPracticeAssignment.find({
+      school: req.schoolId,
+      student: student._id,
+      status: { $in: ['assigned', 'active'] },
+      hidden: { $ne: true },
+    })
       .select('plan set status dueDate feedbackMode')
       .populate('set', 'title questionCount estimatedMinutes order')
       .lean(),
@@ -174,13 +216,8 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'studentId and setId are required.' });
   }
 
-  const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select('_id currentClass enrolledClasses').lean();
-  if (!student) {
-    return res.status(404).json({ success: false, message: 'Student not found.' });
-  }
-  if (req.user.role === 'teacher' && !(await ensureTeacherCanAccessStudent({ req, studentId: student._id }))) {
-    return res.status(403).json({ success: false, message: 'You are not authorized to assign practice to this student.' });
-  }
+  const { error, student } = await findAssignableStudent(req);
+  if (error) return res.status(error.status).json({ success: false, message: error.message });
 
   const set = await MapPracticeSet.findOne({ _id: setId, school: req.schoolId, student: student._id }).lean();
   if (!set) {
@@ -191,9 +228,10 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Practice plan not found for this set and student.' });
   }
 
-  const practiceSettings = await MapPracticeSettings.findOne({ school: req.schoolId })
-    .select('feedbackMode')
-    .lean();
+  const nextDueDate = parseOptionalDueDate(dueDate);
+  if (nextDueDate === undefined) {
+    return res.status(400).json({ success: false, message: 'Due date is not a valid date.' });
+  }
 
   const assignment = await MapPracticeAssignment.findOneAndUpdate(
     { school: req.schoolId, student: student._id, set: set._id },
@@ -204,18 +242,171 @@ export const createMapPracticeAssignment = asyncHandler(async (req, res) => {
         plan: selectedPlan._id,
         set: set._id,
         assignedBy: req.user._id,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: nextDueDate,
         status: 'assigned',
-        feedbackMode: feedbackMode || practiceSettings?.feedbackMode || 'instant',
+        feedbackMode: feedbackMode || await getPracticeFeedbackMode(req.schoolId),
         selfPractice: true,
         showTimer: false,
-        timeLimitSeconds: null
+        timeLimitSeconds: null,
+        hidden: false
       }
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
   res.status(201).json({ success: true, data: { assignment } });
+});
+
+export const createMapPracticeAssignmentsBulk = asyncHandler(async (req, res) => {
+  if (!['admin', 'teacher'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Teacher access required.' });
+  }
+
+  const setIds = uniqueObjectIds(req.body?.setIds);
+  if (!req.body?.studentId || !setIds.length) {
+    return res.status(400).json({ success: false, message: 'studentId and at least one setId are required.' });
+  }
+  if (setIds.length > MAX_BULK_ASSIGNMENTS) {
+    return res.status(400).json({ success: false, message: `Choose at most ${MAX_BULK_ASSIGNMENTS} sets at once.` });
+  }
+  const nextDueDate = parseOptionalDueDate(req.body?.dueDate);
+  if (nextDueDate === undefined) {
+    return res.status(400).json({ success: false, message: 'Due date is not a valid date.' });
+  }
+
+  const { error, student } = await findAssignableStudent(req);
+  if (error) return res.status(error.status).json({ success: false, message: error.message });
+
+  const sets = await MapPracticeSet.find({ _id: { $in: setIds }, school: req.schoolId, student: student._id })
+    .select('_id plan')
+    .lean();
+  if (sets.length !== setIds.length) {
+    return res.status(400).json({ success: false, message: 'Some selected sets no longer exist for this student.' });
+  }
+
+  const planIds = [...new Set(sets.map((set) => String(set.plan)))];
+  const plans = await MapPracticePlan.find({ _id: { $in: planIds }, school: req.schoolId, student: student._id })
+    .select('_id')
+    .lean();
+  if (plans.length !== planIds.length) {
+    return res.status(400).json({ success: false, message: 'Some selected sets belong to a plan that no longer exists.' });
+  }
+
+  const feedbackMode = await getPracticeFeedbackMode(req.schoolId);
+  const assignmentDefaults = {
+    assignedBy: req.user._id,
+    dueDate: nextDueDate,
+    status: 'assigned',
+    feedbackMode,
+    selfPractice: true,
+    showTimer: false,
+    timeLimitSeconds: null,
+    hidden: false,
+  };
+  await MapPracticeAssignment.bulkWrite(sets.map((set) => ({
+    updateOne: {
+      filter: { school: req.schoolId, student: student._id, set: set._id },
+      update: { $set: { plan: set.plan, ...assignmentDefaults } },
+      upsert: true,
+    },
+  })));
+
+  const assignments = await MapPracticeAssignment.find({
+    school: req.schoolId,
+    student: student._id,
+    set: { $in: setIds },
+  })
+    .populate('set', 'title questionCount')
+    .lean();
+
+  res.status(201).json({ success: true, data: { assignments, assignedCount: assignments.length } });
+});
+
+export const updateMapPracticeAssignmentsBulk = asyncHandler(async (req, res) => {
+  if (!['admin', 'teacher'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Teacher access required.' });
+  }
+
+  const action = String(req.body?.action || '');
+  if (!['unassign', 'hide', 'unhide', 'hide-finished'].includes(action)) {
+    return res.status(400).json({ success: false, message: 'action must be unassign, hide, unhide, or hide-finished.' });
+  }
+  if (!req.body?.studentId) {
+    return res.status(400).json({ success: false, message: 'studentId is required.' });
+  }
+
+  const { error, student } = await findAssignableStudent(req);
+  if (error) return res.status(error.status).json({ success: false, message: error.message });
+
+  const requestedSetIds = uniqueObjectIds(req.body?.setIds);
+  if (requestedSetIds.length > MAX_BULK_ASSIGNMENTS) {
+    return res.status(400).json({ success: false, message: `Choose at most ${MAX_BULK_ASSIGNMENTS} sets at once.` });
+  }
+
+  if (action === 'hide-finished') {
+    const assigned = await MapPracticeAssignment.find({
+      school: req.schoolId,
+      student: student._id,
+      status: { $in: ['assigned', 'active'] },
+      hidden: { $ne: true },
+    })
+      .select('set')
+      .lean();
+    const assignedSetIds = assigned.map((item) => String(item.set));
+    if (!assignedSetIds.length) {
+      return res.json({ success: true, data: { action, setIds: [], count: 0 } });
+    }
+    const finishedAttempts = await MapPracticeAttempt.find({
+      school: req.schoolId,
+      student: student._id,
+      set: { $in: assignedSetIds },
+      status: { $in: ['submitted', 'reviewed'] },
+    })
+      .select('set')
+      .lean();
+    const finishedSetIds = [...new Set(finishedAttempts.map((item) => String(item.set)))];
+    const result = finishedSetIds.length
+      ? await MapPracticeAssignment.updateMany(
+        { school: req.schoolId, student: student._id, set: { $in: finishedSetIds } },
+        { $set: { hidden: true } }
+      )
+      : { modifiedCount: 0 };
+    return res.json({ success: true, data: { action, setIds: finishedSetIds, count: result.modifiedCount } });
+  }
+
+  if (!requestedSetIds.length) {
+    return res.status(400).json({ success: false, message: 'setIds are required for this action.' });
+  }
+
+  const ownedSets = await MapPracticeSet.find({
+    _id: { $in: requestedSetIds },
+    school: req.schoolId,
+    student: student._id,
+  })
+    .select('_id')
+    .lean();
+  if (!ownedSets.length) {
+    return res.status(404).json({ success: false, message: 'None of the selected sets belong to this student.' });
+  }
+  const ownedSetIds = ownedSets.map((set) => String(set._id));
+
+  let count = 0;
+  if (action === 'unassign') {
+    const result = await MapPracticeAssignment.deleteMany({
+      school: req.schoolId,
+      student: student._id,
+      set: { $in: ownedSetIds },
+    });
+    count = result.deletedCount || 0;
+  } else {
+    const result = await MapPracticeAssignment.updateMany(
+      { school: req.schoolId, student: student._id, set: { $in: ownedSetIds } },
+      { $set: { hidden: action === 'hide' } }
+    );
+    count = result.modifiedCount || 0;
+  }
+
+  res.json({ success: true, data: { action, setIds: ownedSetIds, count } });
 });
 
 export const deleteMapPracticeSet = asyncHandler(async (req, res) => {

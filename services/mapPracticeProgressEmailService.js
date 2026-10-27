@@ -15,6 +15,10 @@ import {
 
 const PRODUCTION_APP_URL = 'https://smile3-8c8c5.web.app';
 
+// Sets often carry 10-20 skills; a full chip per skill buries the rest of the
+// card, so only a few representative skills are listed.
+const MAX_SKILL_CHIPS = 3;
+
 const hasResponse = (value) => {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
@@ -51,6 +55,23 @@ const progressBar = (pct, color) => {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-radius:999px;overflow:hidden"><tr>${filled}${empty}</tr></table>`;
 };
 
+const moreSkillsChip = (hiddenCount) => (
+  `<span style="display:inline-block;margin:0 4px 8px 0;padding:6px 12px;border-radius:999px;background:${COLORS.panel};border:1px solid ${COLORS.line};font-size:14px;font-weight:600;color:${COLORS.muted}">+${hiddenCount} more</span>&nbsp;`
+);
+
+const skillChips = (skills) => {
+  if (!skills.length) return '';
+  const hiddenCount = Math.max(0, skills.length - MAX_SKILL_CHIPS);
+  return `<div style="margin-top:10px">${wordChips(skills.slice(0, MAX_SKILL_CHIPS), TONES.accent)}${hiddenCount ? moreSkillsChip(hiddenCount) : ''}</div>`;
+};
+
+const skillTextLine = (skills) => {
+  if (!skills.length) return null;
+  const hiddenCount = Math.max(0, skills.length - MAX_SKILL_CHIPS);
+  const listed = skills.slice(0, MAX_SKILL_CHIPS).join(', ');
+  return `   Skills: ${listed}${hiddenCount ? ` +${hiddenCount} more` : ''}`;
+};
+
 const renderCard = (row) => {
   const status = getStatus(row);
   const style = STATUS_STYLES[status];
@@ -58,9 +79,6 @@ const renderCard = (row) => {
   const metric = row.completed
     ? `Score ${row.score} of ${row.maxScore}`
     : `${row.answered} of ${row.total} questions answered`;
-  const skills = row.skills.length
-    ? `<div style="margin-top:10px">${wordChips(row.skills, TONES.accent)}</div>`
-    : '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 0 14px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="background:#ffffff;border:1px solid ${COLORS.line};border-radius:12px">
 <tr><td style="padding:20px 22px">
@@ -68,7 +86,7 @@ const renderCard = (row) => {
     <td style="font-size:16px;line-height:1.4;font-weight:700;color:${COLORS.ink}">${escapeHtml(row.title)}</td>
     <td align="right" style="padding-left:12px;white-space:nowrap"><span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${style.tone.bg};border:1px solid ${style.tone.border};font-size:12px;font-weight:700;color:${style.tone.text}">${style.label}</span></td>
   </tr></table>
-  ${skills}
+  ${skillChips(row.skills)}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 8px"><tr>
     <td style="font-size:13px;color:${COLORS.muted}">${escapeHtml(metric)}</td>
     <td align="right" style="font-size:13px;font-weight:700;color:${style.tone.strong}">${pct}%</td>
@@ -151,7 +169,7 @@ export const buildMapPracticeProgressEmail = ({
       const status = getStatus(row);
       return [
         `${index + 1}. ${row.title} — ${STATUS_STYLES[status].label}`,
-        row.skills.length ? `   Skills: ${row.skills.join(', ')}` : null,
+        skillTextLine(row.skills),
         row.completed
           ? `   Score: ${row.score} of ${row.maxScore} (${percent(row.score, row.maxScore)}%)`
           : `   Progress: ${row.answered} of ${row.total} questions answered`,

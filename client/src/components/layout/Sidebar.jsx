@@ -101,7 +101,9 @@ const COLLAPSED_SECTIONS_KEY = "sidebar.collapsedSections";
 const readCollapsedSections = () => {
   try {
     const stored = JSON.parse(localStorage.getItem(COLLAPSED_SECTIONS_KEY));
-    return Array.isArray(stored) ? stored.filter((key) => typeof key === "string") : [];
+    return Array.isArray(stored)
+      ? stored.filter((key) => typeof key === "string")
+      : [];
   } catch {
     return [];
   }
@@ -128,8 +130,13 @@ const Sidebar = () => {
   const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const isRtl = i18n.dir() === "rtl";
-  const [searchInput, setSearchInput] = useState({ path: location.pathname, value: "" });
-  const [collapsedSections, setCollapsedSections] = useState(readCollapsedSections);
+  const [searchInput, setSearchInput] = useState({
+    path: location.pathname,
+    value: "",
+  });
+  const [collapsedSections, setCollapsedSections] = useState(
+    readCollapsedSections,
+  );
   const searchInputRef = useRef(null);
 
   // A navigation clears the filter without an extra state update
@@ -225,7 +232,8 @@ const Sidebar = () => {
 
       if (event.ctrlKey || event.metaKey) {
         // leave Ctrl/Cmd+Shift+K (browser devtools) and form fields alone
-        if (event.shiftKey || isTyping || event.key.toLowerCase() !== "k") return;
+        if (event.shiftKey || isTyping || event.key.toLowerCase() !== "k")
+          return;
         event.preventDefault();
         openSearch();
         return;
@@ -1069,7 +1077,9 @@ const Sidebar = () => {
                 >
                   <span>{t(`layout.sidebar:sections.${sectionKey}`)}</span>
                   {!searchQuery && isSectionCollapsed && (
-                    <span className="sidebar-section-count">{items.length}</span>
+                    <span className="sidebar-section-count">
+                      {items.length}
+                    </span>
                   )}
                   {!searchQuery && (
                     <HiOutlineChevronDown
@@ -1099,7 +1109,9 @@ const Sidebar = () => {
                       }
                     >
                       <item.icon className="nav-icon" size={20} />
-                      {sidebarOpen && <span className="nav-label">{label}</span>}
+                      {sidebarOpen && (
+                        <span className="nav-label">{label}</span>
+                      )}
                       {isLocked && sidebarOpen && (
                         <HiOutlineLockClosed
                           className="nav-feature-lock"

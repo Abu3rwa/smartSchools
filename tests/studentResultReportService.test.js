@@ -11,18 +11,14 @@ const report = (overrides = {}) => ({
   assignmentTitle: 'Place value and addition',
   className: 'Grade 5 Red',
   subjectName: 'Mathematics',
-  standardLabel: '5.NBT.A.1 - Place value',
   academicYear: '2025-2026',
   semester: 1,
   studentName: 'Baheej Alhaj',
   studentNumber: '10',
-  status: 'released',
-  score: 14,
-  maxScore: 20,
-  percentage: 70,
-  scale4: 2.8,
-  correctCount: 14,
-  totalAnswered: 20,
+  correctCount: 18,
+  totalAnswered: 25,
+  percentage: 72,
+  passPercent: 50,
   generatedAt: '24 Oct 2026, 09:12',
   generatedDate: '24 Oct 2026',
   attempts: [],
@@ -52,39 +48,76 @@ test('the sheet prints the school, the teacher and the marks the gradebook row h
   assert.ok(html.includes('Al-Noor Academy'));
   assert.ok(html.includes('Ms Amina Saleh'));
   assert.ok(html.includes('Grade 5 Red'));
-  assert.ok(html.includes('14/20'));
-  assert.ok(html.includes('70%'));
-  assert.ok(html.includes('2.8'));
+  assert.ok(html.includes('2025-2026'));
   assert.ok(html.includes('Semester 1'));
+  assert.ok(html.includes('Place value and addition'));
+  assert.ok(html.includes('18/25'));
+  assert.ok(html.includes('72%'));
   assert.match(html, /@page\s*{\s*size: A4 portrait;/);
 });
 
-test('the score cell reads the way the gradebook table reads it', () => {
-  const withoutStoredMax = renderStudentResultReportHtml({
+test('the sheet keeps the standard, the levels and the star rating off the paper', () => {
+  const html = renderStudentResultReportHtml({
     language: 'en',
-    report: report({ maxScore: null }),
+    report: report({ standardLabel: '5.NBT.A.1 - Place value' }),
   });
-  assert.ok(withoutStoredMax.includes('14/100'));
+  assert.ok(!html.includes('5.NBT.A.1'));
+  assert.ok(!html.includes('Correct answers'));
+  assert.ok(!html.includes('Answered'));
+  assert.ok(!html.includes('Level'));
+  assert.ok(!html.includes('★★★★'));
+});
 
-  const practiceSheet = renderStudentResultReportHtml({
+test('the total score counts the questions, not the marks', () => {
+  const html = renderStudentResultReportHtml({
+    language: 'en',
+    report: report({ correctCount: 24, totalAnswered: 25, percentage: 96 }),
+  });
+  assert.ok(html.includes('24/25'));
+  assert.ok(html.includes('96%'));
+  assert.ok(!html.includes('2.8'));
+  assert.ok(!html.includes('14/100'));
+});
+
+test('a question the student never answered still counts in the total', () => {
+  const html = renderStudentResultReportHtml({
     language: 'en',
     report: report({
-      kind: 'practice',
-      score: 7,
-      maxScore: 12,
-      correctCount: 7,
-      totalAnswered: 12,
+      correctCount: 20,
+      totalAnswered: 24,
+      totalQuestions: 25,
+      percentage: 80,
     }),
   });
-  assert.ok(practiceSheet.includes('7/12'));
+  assert.ok(html.includes('20/25'));
+  assert.ok(html.includes('80%'));
+});
+
+test('the score panel turns red when the student fails the paper', () => {
+  const failed = renderStudentResultReportHtml({
+    language: 'en',
+    report: report({ correctCount: 10, totalAnswered: 25, percentage: 40 }),
+  });
+  assert.match(failed, /class="score-panel fail"/);
+
+  const close = renderStudentResultReportHtml({
+    language: 'en',
+    report: report({ correctCount: 15, totalAnswered: 25, percentage: 60 }),
+  });
+  assert.match(close, /class="score-panel mid"/);
+
+  const strong = renderStudentResultReportHtml({
+    language: 'en',
+    report: report({ correctCount: 23, totalAnswered: 25, percentage: 92 }),
+  });
+  assert.match(strong, /class="score-panel good"/);
 });
 
 test('an option list marks the student pick and the key with the card colours', () => {
   const [row] = buildAttemptRows([mcq], 'en');
   assert.equal(row.outcome, 'incorrect');
-  assert.equal(row.difficulty, 'easy');
-  assert.equal(row.typeLabel, 'multiple choice');
-  assert.equal(row.timeLabel, '38s');
+  assert.equal(row.questionText, mcq.questionText);
+  assert.equal(row.studentAnswer, 'C. Two hundred forty-five thousand, three hundred eighty');
   const html = renderStudentResultReportHtml({
     language: 'en',
     report: report({ attempts: [mcq] }),
@@ -164,13 +197,12 @@ test('every answer kind prints words instead of stored ids', () => {
   assert.equal(rows[1].correctAnswer, 'b1: 9500 or 9,500; b2: 52');
   assert.equal(rows[2].studentAnswer, '4500 × 10: 45000');
   assert.equal(rows[3].correctAnswer, '20.35 m');
-  assert.equal(rows[3].overridden, true);
   assert.equal(rows[3].outcome, 'correct');
   assert.equal(rows[4].correctAnswer, 'A. 100 × 100, B. 1,000 × 10, D. 1,000,000 ÷ 100');
 
   const html = renderStudentResultReportHtml({ language: 'en', report: report({ attempts }) });
   assert.ok(html.includes('192,450 &gt; 192,045'));
-  assert.ok(html.includes('Teacher Override'));
+  assert.ok(!html.includes('Teacher Override'));
 });
 
 test('a short answer waiting on review is not printed as wrong', () => {
@@ -184,9 +216,16 @@ test('a short answer waiting on review is not printed as wrong', () => {
   };
   const [row] = buildAttemptRows([attempt], 'en');
   assert.equal(row.outcome, 'review');
-  assert.equal(row.outcomeLabel, 'Needs Review');
+  assert.equal(row.outcomeLabel, 'Awaiting review');
   assert.equal(row.studentAnswer, '60,000');
   assert.equal(row.correctAnswer, '3');
+
+  const html = renderStudentResultReportHtml({
+    language: 'en',
+    report: report({ attempts: [attempt] }),
+  });
+  assert.match(html, /class="q review"/);
+  assert.ok(html.includes('Awaiting review'));
 });
 
 test('teacher text is escaped before it reaches the paper', () => {
@@ -205,7 +244,8 @@ test('the Arabic sheet flips direction and keeps the same marks', () => {
   assert.match(html, /<html lang="ar" dir="rtl">/);
   assert.ok(html.includes('نتيجة اختبار الطالب'));
   assert.ok(html.includes('الدرجة الكلية'));
-  assert.ok(html.includes('14/20'));
+  assert.ok(html.includes('18/25'));
+  assert.ok(html.includes('72%'));
   assert.ok(html.includes('← الطالب'));
 });
 
@@ -213,17 +253,13 @@ test('an ungraded sheet prints dashes rather than an invented result', () => {
   const html = renderStudentResultReportHtml({
     language: 'en',
     report: report({
-      status: 'not_started',
-      score: null,
-      maxScore: null,
-      percentage: null,
-      scale4: null,
       correctCount: null,
       totalAnswered: null,
+      percentage: null,
       attempts: [],
     }),
   });
   assert.ok(html.includes('No attempts available.'));
-  assert.ok(html.includes('Not started'));
+  assert.ok(!html.includes('Not started'));
   assert.match(html, /<strong>—<\/strong>/);
 });

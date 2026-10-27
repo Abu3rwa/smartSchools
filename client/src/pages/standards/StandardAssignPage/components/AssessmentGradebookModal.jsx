@@ -339,6 +339,7 @@ const StudentAttemptDetailPanel = ({
   assignmentId,
   studentName,
   onBack,
+  onGradeChanged,
 }) => {
   const { t, i18n } = useTranslation(["standardAssign"]);
   const reportLanguage = i18n.resolvedLanguage === "ar" ? "ar" : "en";
@@ -430,6 +431,7 @@ const StudentAttemptDetailPanel = ({
             : a,
         ),
       );
+      onGradeChanged?.();
     } catch (err) {
       alert(err?.response?.data?.message || "Override failed");
     } finally {
@@ -774,6 +776,7 @@ const AssessmentGradebookModal = ({
   onRetry,
   onRelease,
   onScoreOverride,
+  onGradeChanged,
 }) => {
   const { t, i18n } = useTranslation(["standardAssign"]);
   const locale = i18n.resolvedLanguage === "ar" ? "ar" : undefined;
@@ -1114,6 +1117,7 @@ const AssessmentGradebookModal = ({
                   assignmentId={assessmentGradebookAssignmentId}
                   studentName={detailStudent.name}
                   onBack={() => setDetailStudent(null)}
+                  onGradeChanged={onGradeChanged}
                 />
               ) : (
                 <>

@@ -27,6 +27,7 @@ export const sendMapPracticeProgressEmail = asyncHandler(async (req, res) => {
     school: req.schoolId,
     student: student._id,
     status: { $in: ['assigned', 'active'] },
+    hidden: { $ne: true },
   })
     .populate('set', 'title questionCount')
     .sort({ createdAt: 1 })

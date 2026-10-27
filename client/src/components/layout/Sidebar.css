@@ -11,6 +11,7 @@
   transition: width var(--transition-normal);
   z-index: 100;
   overflow: hidden;
+  width: 200px !important;
 }
 
 /* When sidebar is inside MUI Drawer (mobile), contain it and always show full open state */
@@ -56,7 +57,10 @@
 }
 
 .sidebar.collapsed {
-  width: var(--sidebar-collapsed);
+  /* wwidth: var(--sidebar-collapsed); */
+  display: flex;
+  width: 50px !important;
+  align-items: center;
 }
 
 /* Header */
@@ -313,7 +317,9 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
-  transition: background-color var(--transition-fast), color var(--transition-fast),
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
     box-shadow var(--transition-fast);
   white-space: nowrap;
   position: relative;
@@ -337,7 +343,11 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 }
 
 .nav-item.active {
-  background: color-mix(in srgb, var(--nav-tone, var(--primary-500)) 15%, var(--bg-tertiary));
+  background: color-mix(
+    in srgb,
+    var(--nav-tone, var(--primary-500)) 15%,
+    var(--bg-tertiary)
+  );
   color: var(--text-primary);
 }
 
@@ -448,16 +458,36 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 
 /* Icon tones follow the section an item belongs to (see SECTION_TONES in Sidebar.jsx).
    AdminSidebar keeps the legacy href rules below, scoped so they cannot leak here. */
-.sidebar-nav-section.tone-blue { --nav-tone: var(--icon-blue); }
-.sidebar-nav-section.tone-cyan { --nav-tone: var(--icon-cyan); }
-.sidebar-nav-section.tone-purple { --nav-tone: var(--icon-purple); }
-.sidebar-nav-section.tone-pink { --nav-tone: var(--icon-pink); }
-.sidebar-nav-section.tone-red { --nav-tone: var(--icon-red); }
-.sidebar-nav-section.tone-teal { --nav-tone: var(--icon-teal); }
-.sidebar-nav-section.tone-orange { --nav-tone: var(--icon-orange); }
-.sidebar-nav-section.tone-green { --nav-tone: var(--icon-green); }
-.sidebar-nav-section.tone-indigo { --nav-tone: var(--icon-indigo); }
-.sidebar-nav-section.tone-amber { --nav-tone: var(--icon-amber); }
+.sidebar-nav-section.tone-blue {
+  --nav-tone: var(--icon-blue);
+}
+.sidebar-nav-section.tone-cyan {
+  --nav-tone: var(--icon-cyan);
+}
+.sidebar-nav-section.tone-purple {
+  --nav-tone: var(--icon-purple);
+}
+.sidebar-nav-section.tone-pink {
+  --nav-tone: var(--icon-pink);
+}
+.sidebar-nav-section.tone-red {
+  --nav-tone: var(--icon-red);
+}
+.sidebar-nav-section.tone-teal {
+  --nav-tone: var(--icon-teal);
+}
+.sidebar-nav-section.tone-orange {
+  --nav-tone: var(--icon-orange);
+}
+.sidebar-nav-section.tone-green {
+  --nav-tone: var(--icon-green);
+}
+.sidebar-nav-section.tone-indigo {
+  --nav-tone: var(--icon-indigo);
+}
+.sidebar-nav-section.tone-amber {
+  --nav-tone: var(--icon-amber);
+}
 
 .sidebar-nav-section .nav-icon {
   color: var(--nav-tone, var(--text-secondary));
@@ -566,7 +596,9 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   border-radius: var(--radius-md);
   background: var(--bg-input);
   color: var(--text-muted);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
   flex-shrink: 0;
 }
 

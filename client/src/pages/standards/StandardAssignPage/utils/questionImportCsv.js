@@ -30,6 +30,7 @@ const FALSE_VALUES = ['false', 'f', 'no', 'خطأ', 'خطا', 'خاطئ', 'خا�
 const PAIR_SEPARATOR = '|';
 const TERM_SEPARATOR = '::';
 const ORDER_SEPARATOR = '>';
+const VARIANT_SEPARATOR = '~';
 const MIN_MATCHING_PAIRS = 2;
 const MIN_ORDER_ITEMS = 3;
 const TYPE_ALIASES = {
@@ -270,7 +271,7 @@ const AI_RULES = [
     '4. question_type must be one of: multiple_choice, true_false, short_answer, multiple_select, matching, ordering, fill_in_blank, numeric_response.',
     '5. For multiple_choice: fill option_a to option_d with four different options and set correct_answer to A, B, C or D.',
     '6. For true_false: leave every option empty and set correct_answer to True or False.',
-    '7. For short_answer: leave every option empty and set correct_answer to one or two words that fully answer the question.',
+    '7. For short_answer: leave every option empty and set correct_answer to one word or one short sentence that completely answers the question, because the student answer is matched automatically. Put other accepted wordings after ~, for example Nile~the Nile.',
     '8. For multiple_select: fill option_a to option_f with 2 to 6 different options and set correct_answer to every correct label separated by |, for example A|C.',
     '9. For matching: leave every option and correct_answer empty and set matching_pairs to term::definition pairs separated by |, for example France::Paris|Kenya::Nairobi.',
     '10. For ordering: leave every option and correct_answer empty and set ordering_items to the steps in the correct order separated by >.',
@@ -289,6 +290,7 @@ const AI_RULES = [
 const AI_EXAMPLE_ROWS = [
     ['multiple_choice', 'Which number is a prime number?', '4', '6', '7', '9', '', '', 'C', '7 has only two factors: 1 and 7.', 'easy'],
     ['true_false', 'A triangle can have two right angles.', '', '', '', '', '', '', 'False', 'The angles of a triangle add up to 180 degrees.', 'hard'],
+    ['short_answer', 'What do we call the process by which plants make their own food?', '', '', '', '', '', '', 'Photosynthesis', 'Plants use sunlight to make food.', 'medium'],
     ['multiple_select', 'Which of these are mammals?', 'Whale', 'Shark', 'Bat', 'Eagle', '', '', 'A|C', 'Whales and bats are mammals.', 'medium'],
     ['matching', 'Match each country to its capital.', '', '', '', '', '', '', '', 'Capitals are cities.', 'easy', 'France::Paris|Kenya::Nairobi|Japan::Tokyo'],
     ['ordering', 'Put the water cycle steps in order.', '', '', '', '', '', '', '', 'Water rises, forms clouds, falls and collects.', 'medium', '', 'Evaporation>Condensation>Precipitation>Collection'],
@@ -510,10 +512,18 @@ export const parseQuestionImport = (rawText) => {
             correctAnswer = rawAnswer;
         } else {
             options = [];
-            // No accepted-answer list in the CSV template, so these are graded by
-            // the teacher unless they add accepted answers in the editor.
-            correctAnswer = rawAnswer;
+            // A short answer is matched automatically, so the key may list accepted
+            // alternatives after ~ (for example Nile~the Nile).
+            const answerVariants = rawAnswer
+                .split(VARIANT_SEPARATOR)
+                .map((answer) => answer.trim())
+                .filter(Boolean);
+            correctAnswer = answerVariants[0] || '';
             if (!correctAnswer) errors.push({ code: 'missingAnswer' });
+            if (answerVariants.length > 0) {
+                definition.acceptableAnswers = answerVariants;
+                definition.gradingMode = 'normalized_match';
+            }
         }
 
         const passageId = get(record, 'passage_id');

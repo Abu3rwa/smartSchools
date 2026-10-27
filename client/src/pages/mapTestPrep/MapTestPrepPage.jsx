@@ -19,7 +19,10 @@ import {
 import api from "../../config/api";
 import QuestionTypeGuide from "../../components/assessment/QuestionTypeGuide";
 import { getMapPracticeImportAction } from "./mapPracticeImportState";
-import { buildMapPracticeCsv, mapPracticeBlankTemplate } from "./mapPracticeTemplate";
+import {
+  buildMapPracticeCsv,
+  mapPracticeBlankTemplate,
+} from "./mapPracticeTemplate";
 import { getMatchingAnswerRows } from "../../utils/mapPracticeMatching";
 import {
   describeCorrectAnswer,
@@ -167,6 +170,18 @@ const downloadMapPracticeReport = async ({ url, params, fallbackName }) => {
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 };
 
+const studentAvatarHue = (id) =>
+  String(id || "")
+    .split("")
+    .reduce((hue, char) => (hue * 31 + char.charCodeAt(0)) % 360, 0);
+
+const studentInitials = (firstName, lastName) =>
+  `${(firstName || "").trim().charAt(0)}${(lastName || "").trim().charAt(0)}`.toUpperCase() ||
+  "?";
+
+const accuracyBand = (accuracy) =>
+  accuracy < 60 ? "low" : accuracy < 80 ? "mid" : "high";
+
 const ReviewMarkControls = ({ reviewMark, onMark }) => (
   <div className="map-roster-answer-mark-controls">
     <button
@@ -230,10 +245,13 @@ const MapTestPrepPage = () => {
   const [teacherReviewMarks, setTeacherReviewMarks] = useState({});
   const [reviewAttemptLoadingId, setReviewAttemptLoadingId] = useState("");
   const [reviewAttemptSaving, setReviewAttemptSaving] = useState(false);
-  const [rosterAssigningSetId, setRosterAssigningSetId] = useState(null);
   const [rosterDeletingSetId, setRosterDeletingSetId] = useState(null);
   const [rosterDeletingPlanId, setRosterDeletingPlanId] = useState(null);
-  const [rosterAssignmentDueDates, setRosterAssignmentDueDates] = useState({});
+  const [rosterSelectedSetIds, setRosterSelectedSetIds] = useState([]);
+  const [rosterShowHidden, setRosterShowHidden] = useState(false);
+  const [rosterBulkDueDate, setRosterBulkDueDate] = useState("");
+  const [rosterBulkAction, setRosterBulkAction] = useState("");
+  const [rosterBulkMessage, setRosterBulkMessage] = useState(null);
   const [reportStartDate, setReportStartDate] = useState("");
   const [reportEndDate, setReportEndDate] = useState("");
   const [reportExportState, setReportExportState] = useState("");
@@ -307,6 +325,11 @@ const MapTestPrepPage = () => {
     setTeacherReviewMarks({});
     setRosterStudentDetails(null);
     setRosterStudentDetailsError("");
+    setRosterSelectedSetIds([]);
+    setRosterShowHidden(false);
+    setRosterBulkDueDate("");
+    setRosterBulkAction("");
+    setRosterBulkMessage(null);
     setRosterStudentDetailsLoading(true);
     try {
       const response = await api.get(
@@ -322,6 +345,107 @@ const MapTestPrepPage = () => {
       setRosterStudentDetailsLoading(false);
     }
   };
+
+  const rosterAssignmentSetId = (assignment) =>
+    String(assignment?.set?._id || assignment?.set || "");
+
+  const rosterPlanGroups = useMemo(() => {
+    const details = rosterStudentDetails;
+    if (!details) return [];
+    const group = (items) => {
+      const byPlan = new Map();
+      (items || []).forEach((item) => {
+        const planId = String(item.plan);
+        const list = byPlan.get(planId) || [];
+        list.push(item);
+        byPlan.set(planId, list);
+      });
+      return (planId) => byPlan.get(planId) || [];
+    };
+    const setsFor = group(details.sets);
+    const skillsFor = group(details.skills);
+    const assignmentsFor = group(details.assignments);
+    const attemptsFor = group(details.attempts);
+    return (details.plans || []).map((plan) => {
+      const planId = String(plan._id);
+      return {
+        plan,
+        planId,
+        sets: setsFor(planId),
+        skills: skillsFor(planId),
+        assignments: assignmentsFor(planId),
+        attempts: attemptsFor(planId),
+      };
+    });
+  }, [rosterStudentDetails]);
+
+  const rosterActiveAssignmentBySet = useMemo(() => {
+    const bySet = new Map();
+    (rosterStudentDetails?.assignments || []).forEach((item) => {
+      const setId = rosterAssignmentSetId(item);
+      if (!bySet.has(setId) && !["closed", "draft"].includes(item.status)) {
+        bySet.set(setId, item);
+      }
+    });
+    return bySet;
+  }, [rosterStudentDetails]);
+
+  const rosterAttemptBySet = useMemo(() => {
+    const bySet = new Map();
+    (rosterStudentDetails?.attempts || []).forEach((attempt) => {
+      const setId = String(attempt.set);
+      if (!bySet.has(setId)) bySet.set(setId, attempt);
+    });
+    return bySet;
+  }, [rosterStudentDetails]);
+
+  const rosterHiddenBySet = useMemo(() => {
+    const hidden = new Map();
+    (rosterStudentDetails?.assignments || []).forEach((item) => {
+      if (item.hidden) hidden.set(rosterAssignmentSetId(item), true);
+    });
+    return hidden;
+  }, [rosterStudentDetails]);
+
+  const rosterVisibleSets = useMemo(() => {
+    const sets = rosterStudentDetails?.sets || [];
+    if (rosterShowHidden) return sets;
+    return sets.filter((set) => !rosterHiddenBySet.has(String(set._id)));
+  }, [rosterStudentDetails, rosterShowHidden, rosterHiddenBySet]);
+
+  const rosterSelectedSetIdSet = useMemo(
+    () => new Set(rosterSelectedSetIds),
+    [rosterSelectedSetIds],
+  );
+
+  const selectedVisibleSetCount = useMemo(
+    () =>
+      rosterVisibleSets.filter((set) =>
+        rosterSelectedSetIdSet.has(String(set._id)),
+      ).length,
+    [rosterVisibleSets, rosterSelectedSetIdSet],
+  );
+
+  const finishedSetCount = useMemo(() => {
+    let count = 0;
+    (rosterStudentDetails?.sets || []).forEach((set) => {
+      const setId = String(set._id);
+      if (rosterHiddenBySet.has(setId)) return;
+      const attempt = rosterAttemptBySet.get(setId);
+      if (attempt && ["submitted", "reviewed"].includes(attempt.status)) {
+        count += 1;
+      }
+    });
+    return count;
+  }, [rosterStudentDetails, rosterHiddenBySet, rosterAttemptBySet]);
+
+  const unmarkedReviewCount = useMemo(() => {
+    if (!selectedReviewAttempt) return 0;
+    return (selectedReviewAttempt.answers || []).filter((answer) => {
+      const mark = teacherReviewMarks[String(answer._id)];
+      return mark === null || mark === undefined;
+    }).length;
+  }, [selectedReviewAttempt, teacherReviewMarks]);
 
   const sendRosterProgressEmail = async () => {
     if (!selectedRosterStudent?._id) return;
@@ -452,36 +576,145 @@ const MapTestPrepPage = () => {
     }
   };
 
-  const assignRosterSet = async (plan, set) => {
-    const setId = String(set._id);
-    setRosterAssigningSetId(setId);
+  const toggleRosterSetSelected = (setId) => {
+    setRosterSelectedSetIds((current) =>
+      current.includes(setId)
+        ? current.filter((id) => id !== setId)
+        : [...current, setId],
+    );
+  };
+
+  const toggleAllRosterSets = () => {
+    const visibleIds = rosterVisibleSets.map((set) => String(set._id));
+    const allSelected =
+      visibleIds.length > 0 &&
+      visibleIds.every((id) => rosterSelectedSetIdSet.has(id));
+    setRosterSelectedSetIds(allSelected ? [] : visibleIds);
+  };
+
+  const assignRosterSetsBulk = async () => {
+    const setIds = rosterSelectedSetIds.filter((id) =>
+      rosterVisibleSets.some((set) => String(set._id) === id),
+    );
+    if (!setIds.length) return;
+    setRosterBulkAction("assign");
+    setRosterBulkMessage(null);
     setRosterStudentDetailsError("");
     try {
-      const response = await api.post("/map-test-prep/practice/assignments", {
-        studentId: selectedRosterStudent._id,
-        planId: plan._id,
-        setId: set._id,
-        dueDate: rosterAssignmentDueDates[setId] || null,
-      });
-      const assignment = response.data?.data?.assignment;
-      if (assignment) {
-        setRosterStudentDetails((current) => ({
-          ...current,
-          assignments: [
-            ...(current?.assignments || []).filter(
-              (item) => String(item.set?._id || item.set) !== setId,
-            ),
-            assignment,
-          ],
-        }));
-      }
-    } catch (requestError) {
-      setRosterStudentDetailsError(
-        requestError.response?.data?.message ||
-          t("mapTestPrep:overview.details.assignFailed"),
+      const response = await api.post(
+        "/map-test-prep/practice/assignments/bulk",
+        {
+          studentId: selectedRosterStudent._id,
+          setIds,
+          dueDate: rosterBulkDueDate || null,
+        },
       );
+      const assignments = response.data?.data?.assignments || [];
+      const assignedSetIds = new Set(
+        assignments.map((item) => rosterAssignmentSetId(item)),
+      );
+      setRosterStudentDetails((current) =>
+        current
+          ? {
+              ...current,
+              assignments: [
+                ...(current.assignments || []).filter(
+                  (item) => !assignedSetIds.has(rosterAssignmentSetId(item)),
+                ),
+                ...assignments,
+              ],
+            }
+          : current,
+      );
+      setRosterSelectedSetIds([]);
+      setRosterBulkMessage({
+        type: "success",
+        text: t("mapTestPrep:overview.details.bulkAssigned", {
+          n: assignments.length,
+        }),
+      });
+    } catch (requestError) {
+      setRosterBulkMessage({
+        type: "error",
+        text:
+          requestError.response?.data?.message ||
+          t("mapTestPrep:overview.details.bulkActionFailed"),
+      });
     } finally {
-      setRosterAssigningSetId(null);
+      setRosterBulkAction("");
+    }
+  };
+
+  const runRosterBulkAction = async (action, setIds = []) => {
+    if (action !== "hide-finished" && !setIds.length) return;
+    setRosterBulkAction(action);
+    setRosterBulkMessage(null);
+    setRosterStudentDetailsError("");
+    try {
+      const response = await api.post(
+        "/map-test-prep/practice/assignments/bulk-action",
+        {
+          studentId: selectedRosterStudent._id,
+          action,
+          setIds: action === "hide-finished" ? undefined : setIds,
+        },
+      );
+      const result = response.data?.data || {};
+      const changedSetIds = new Set((result.setIds || []).map(String));
+      const count = Number(result.count) || 0;
+      setRosterStudentDetails((current) => {
+        if (!current) return current;
+        if (action === "unassign") {
+          return {
+            ...current,
+            assignments: (current.assignments || []).filter(
+              (item) => !changedSetIds.has(rosterAssignmentSetId(item)),
+            ),
+          };
+        }
+        if (action === "hide" || action === "hide-finished") {
+          return {
+            ...current,
+            assignments: (current.assignments || []).map((item) =>
+              changedSetIds.has(rosterAssignmentSetId(item))
+                ? { ...item, hidden: true }
+                : item,
+            ),
+          };
+        }
+        return {
+          ...current,
+          assignments: (current.assignments || []).map((item) =>
+            changedSetIds.has(rosterAssignmentSetId(item))
+              ? { ...item, hidden: false }
+              : item,
+          ),
+        };
+      });
+      if (action !== "unhide") {
+        setRosterSelectedSetIds((selected) =>
+          selected.filter((id) => !changedSetIds.has(id)),
+        );
+      }
+      const messageKey = {
+        unassign: "bulkUnassigned",
+        hide: "bulkHidden",
+        unhide: "bulkUnhidden",
+        "hide-finished": "bulkHiddenFinished",
+      }[action];
+      setRosterBulkMessage({
+        type: "success",
+        text: t(`mapTestPrep:overview.details.${messageKey}`, { n: count }),
+      });
+    } catch (requestError) {
+      setRosterBulkMessage({
+        type: "error",
+        text:
+          requestError.response?.data?.message ||
+          t("mapTestPrep:overview.details.bulkActionFailed"),
+      });
+    } finally {
+      setRosterBulkAction("");
     }
   };
 
@@ -940,70 +1173,55 @@ const MapTestPrepPage = () => {
       <header className="map-prep-header">
         <div>
           <p className="map-prep-eyebrow">MAP practice</p>
+          {activeTab === "students" && (
+            <h1>
+              {selectedClass
+                ? selectedClass.name
+                : t("mapTestPrep:tabs.students")}
+            </h1>
+          )}
         </div>
+        {activeTab === "students" && selectedClass && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() =>
+              void exportPracticeReport({
+                type: "class",
+                id: selectedClass._id,
+              })
+            }
+            disabled={reportExportState !== ""}
+          >
+            {reportExportState === "class"
+              ? t("mapTestPrep:reports.exporting")
+              : t("mapTestPrep:reports.exportClass")}
+          </button>
+        )}
       </header>
 
-      <nav className="map-prep-progress" aria-label="MAP practice tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={
-              activeTab === tab.key
-                ? "map-topic-card selected"
-                : "map-topic-card"
-            }
-            onClick={() => setActiveTab(tab.key)}
-            style={{ cursor: "pointer", minWidth: 130 }}
-          >
-            <strong>{tab.label}</strong>
-          </button>
-        ))}
-      </nav>
-
-      {error && <div className="map-prep-error">{error}</div>}
-
-      {activeTab === "students" && (
-        <section className="map-prep-section">
-          <div className="map-section-heading">
-            <div>
-              <p className="map-section-kicker">
-                {t("mapTestPrep:tabs.students")}
-              </p>
-              <h2>
-                {selectedClass
-                  ? selectedClass.name
-                  : t("mapTestPrep:tabs.students")}
-              </h2>
-            </div>
-            {selectedClass && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() =>
-                  void exportPracticeReport({
-                    type: "class",
-                    id: selectedClass._id,
-                  })
-                }
-                disabled={reportExportState !== ""}
-              >
-                {reportExportState === "class"
-                  ? t("mapTestPrep:reports.exporting")
-                  : t("mapTestPrep:reports.exportClass")}
-              </button>
-            )}
-          </div>
-
-          {reportExportError && (
-            <div className="map-prep-error" role="alert">
-              {reportExportError}
-            </div>
-          )}
+      <div className="map-prep-topbar">
+        <nav className="map-prep-progress" aria-label="MAP practice tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={
+                activeTab === tab.key
+                  ? "map-topic-card selected"
+                  : "map-topic-card"
+              }
+              onClick={() => setActiveTab(tab.key)}
+            >
+              <strong>{tab.label}</strong>
+            </button>
+          ))}
+        </nav>
+        {activeTab === "students" && (
           <div className="map-roster-filters">
             <label>
-              {/* <span>{t("mapTestPrep:overview.classFilter")}</span> */}
               <select
+                aria-label={t("mapTestPrep:overview.classFilter")}
                 value={selectedClass?._id || ""}
                 onChange={(event) => {
                   const nextClass =
@@ -1025,8 +1243,8 @@ const MapTestPrepPage = () => {
               </select>
             </label>
             <label>
-              {/* <span>{t("mapTestPrep:overview.studentFilter")}</span> */}
               <select
+                aria-label={t("mapTestPrep:overview.studentFilter")}
                 value={selectedRosterStudentId}
                 onChange={(event) => {
                   const nextStudent = rosterStudents.find(
@@ -1051,7 +1269,6 @@ const MapTestPrepPage = () => {
                 ))}
               </select>
             </label>
-
             <label>
               <span>{t("mapTestPrep:reports.startDate")}</span>
               <input
@@ -1069,20 +1286,41 @@ const MapTestPrepPage = () => {
               />
             </label>
           </div>
+        )}
+      </div>
+
+      {error && <div className="map-prep-error">{error}</div>}
+
+      {activeTab === "students" && (
+        <section className="map-prep-section">
+          {reportExportError && (
+            <div className="map-prep-error" role="alert">
+              {reportExportError}
+            </div>
+          )}
           {rosterStudents.length > 0 ? (
             <>
               <div className="map-table-wrap">
-                <table>
+                <table className="map-students-table">
                   <thead>
                     <tr>
-                      <th>{t("mapTestPrep:overview.studentColumn")}</th>
-                      <th>{t("mapTestPrep:overview.planColumn")}</th>
-                      <th>{t("mapTestPrep:overview.focusSkills")}</th>
-                      <th>{t("mapTestPrep:overview.thisWeek")}</th>
-                      <th>{t("mapTestPrep:overview.accuracy")}</th>
-                      <th>{t("mapTestPrep:overview.lastPractice")}</th>
-                      <th>{t("mapTestPrep:overview.statusColumn")}</th>
-                      <th>{t("mapTestPrep:overview.actionColumn")}</th>
+                      <th scope="col">
+                        {t("mapTestPrep:overview.studentColumn")}
+                      </th>
+                      <th scope="col">
+                        {t("mapTestPrep:overview.focusSkills")}
+                      </th>
+                      <th scope="col">{t("mapTestPrep:overview.thisWeek")}</th>
+                      <th scope="col">{t("mapTestPrep:overview.accuracy")}</th>
+                      <th scope="col">
+                        {t("mapTestPrep:overview.lastPractice")}
+                      </th>
+                      <th scope="col">
+                        {t("mapTestPrep:overview.statusColumn")}
+                      </th>
+                      <th scope="col">
+                        {t("mapTestPrep:overview.actionColumn")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1094,50 +1332,105 @@ const MapTestPrepPage = () => {
                       const status =
                         metrics.status ||
                         (plan ? "notStarted" : "noPracticeFile");
+                      const hasAccuracy =
+                        metrics.accuracy !== null &&
+                        metrics.accuracy !== undefined;
+                      const finished = metrics.finishedThisWeek || 0;
+                      const assigned = metrics.assigned || 0;
+                      const focusSkills = metrics.focusSkills || [];
                       return (
                         <tr key={student._id}>
                           <td>
-                            {student.firstName} {student.lastName}
-                            <small>{student.studentId}</small>
+                            <div className="map-student-cell">
+                              <span
+                                className="map-student-avatar"
+                                style={{
+                                  "--avatar-hue": `${studentAvatarHue(
+                                    student._id,
+                                  )}deg`,
+                                }}
+                                aria-hidden="true"
+                              >
+                                {studentInitials(
+                                  student.firstName,
+                                  student.lastName,
+                                )}
+                              </span>
+                              <span className="map-student-cell-names">
+                                <strong>
+                                  {student.firstName} {student.lastName}
+                                </strong>
+                                <small>{student.studentId}</small>
+                              </span>
+                            </div>
                           </td>
                           <td>
-                            {plan?.title ||
-                              t("mapTestPrep:overview.noPracticeFile")}
-                          </td>
-                          <td>
-                            <div className="map-focus-skills">
-                              {(metrics.focusSkills || [])
-                                .slice(0, 3)
-                                .map((skill) => (
+                            {focusSkills.length ? (
+                              <div className="map-skill-chips">
+                                {focusSkills.slice(0, 3).map((skill) => (
                                   <span
                                     key={skill.code}
+                                    className="map-skill-chip"
                                     title={`${skill.accuracy}%`}
                                   >
                                     {skill.name}
                                   </span>
                                 ))}
-                              {(metrics.focusSkills || []).length > 3 && (
-                                <small>+{metrics.focusSkills.length - 3}</small>
-                              )}
-                              {!metrics.focusSkills?.length && "—"}
-                            </div>
+                                {focusSkills.length > 3 && (
+                                  <span className="map-skill-chip map-skill-chip-more">
+                                    +{focusSkills.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="map-cell-empty">—</span>
+                            )}
                           </td>
                           <td>
-                            {metrics.finishedThisWeek || 0} /{" "}
-                            {metrics.assigned || 0}
+                            {assigned > 0 ? (
+                              <div className="map-week-cell">
+                                <span className="map-week-count">
+                                  {finished} / {assigned}
+                                </span>
+                                <span
+                                  className="map-week-bar"
+                                  aria-hidden="true"
+                                >
+                                  <i
+                                    style={{
+                                      width: `${Math.min(
+                                        100,
+                                        Math.round((finished / assigned) * 100),
+                                      )}%`,
+                                    }}
+                                  />
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="map-cell-empty">0 / 0</span>
+                            )}
                           </td>
                           <td>
-                            {metrics.accuracy === null ||
-                            metrics.accuracy === undefined
-                              ? "—"
-                              : `${metrics.accuracy}%`}
+                            {hasAccuracy ? (
+                              <span
+                                className={`map-accuracy map-accuracy-${accuracyBand(
+                                  metrics.accuracy,
+                                )}`}
+                              >
+                                {metrics.accuracy}%
+                              </span>
+                            ) : (
+                              <span className="map-cell-empty">—</span>
+                            )}
                           </td>
                           <td>
-                            {metrics.lastPractice
-                              ? new Date(
-                                  metrics.lastPractice,
-                                ).toLocaleDateString()
-                              : "—"}
+                            {metrics.lastPractice ? (
+                              new Date(
+                                metrics.lastPractice,
+                              ).toLocaleDateString()
+                            ) : (
+                              <span className="map-cell-empty">—</span>
+                            )}
                           </td>
                           <td>
                             <span
@@ -1149,7 +1442,9 @@ const MapTestPrepPage = () => {
                           <td>
                             <button
                               type="button"
-                              className="btn btn-secondary"
+                              className={
+                                plan ? "btn btn-primary" : "btn btn-secondary"
+                              }
                               onClick={() => {
                                 setSelectedRosterStudentId(String(student._id));
                                 if (plan) void openRosterStudent(student);
@@ -1207,8 +1502,8 @@ const MapTestPrepPage = () => {
                         }
                       >
                         {progressEmailSending
-                          ? "Sending…"
-                          : "Email progress to student & parents"}
+                          ? t("mapTestPrep:overview.emailSending")
+                          : t("mapTestPrep:overview.emailProgress")}
                       </button>
                       <button
                         type="button"
@@ -1599,364 +1894,525 @@ const MapTestPrepPage = () => {
                               {t("mapTestPrep:overview.details.noMapHistory")}
                             </p>
                           )}
-                        {rosterDetailTab === "sets" &&
-                          (rosterStudentDetails.plans?.length ? (
-                            rosterStudentDetails.plans.map(
-                              (plan, planIndex) => {
-                                const planId = String(plan._id);
-                                const planSets = (
-                                  rosterStudentDetails.sets || []
-                                ).filter((set) => String(set.plan) === planId);
-                                const planSkills = (
-                                  rosterStudentDetails.skills || []
-                                ).filter(
-                                  (item) => String(item.plan) === planId,
-                                );
-                                const planAssignments = (
-                                  rosterStudentDetails.assignments || []
-                                ).filter(
-                                  (item) => String(item.plan) === planId,
-                                );
-                                const planAttempts = (
-                                  rosterStudentDetails.attempts || []
-                                ).filter(
-                                  (attempt) => String(attempt.plan) === planId,
-                                );
-                                return (
-                                  <details
-                                    className="map-roster-plan-detail"
-                                    key={planId}
-                                    open={planIndex === 0}
+                        {rosterDetailTab === "sets" && (
+                          <>
+                            <div
+                              className="map-set-bulk-bar"
+                              role="toolbar"
+                              aria-label={t(
+                                "mapTestPrep:overview.details.bulkToolbar",
+                              )}
+                            >
+                              <div className="map-set-bulk-select">
+                                <label className="map-set-bulk-select-all">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      rosterVisibleSets.length > 0 &&
+                                      rosterVisibleSets.every((set) =>
+                                        rosterSelectedSetIdSet.has(
+                                          String(set._id),
+                                        ),
+                                      )
+                                    }
+                                    onChange={toggleAllRosterSets}
+                                  />
+                                  <span>
+                                    {t(
+                                      "mapTestPrep:overview.details.selectAllSets",
+                                    )}
+                                  </span>
+                                </label>
+                                <span className="map-set-bulk-count">
+                                  {t(
+                                    "mapTestPrep:overview.details.selectedSets",
+                                    { n: selectedVisibleSetCount },
+                                  )}
+                                </span>
+                                {rosterHiddenBySet.size > 0 && (
+                                  <label className="map-set-bulk-show-hidden">
+                                    <input
+                                      type="checkbox"
+                                      checked={rosterShowHidden}
+                                      onChange={(event) =>
+                                        setRosterShowHidden(
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                    <span>
+                                      {t(
+                                        "mapTestPrep:overview.details.showHiddenSets",
+                                        { n: rosterHiddenBySet.size },
+                                      )}
+                                    </span>
+                                  </label>
+                                )}
+                              </div>
+                              <div className="map-set-bulk-actions">
+                                <label className="map-set-bulk-due">
+                                  <span>
+                                    {t("mapTestPrep:overview.details.dueDate")}
+                                  </span>
+                                  <input
+                                    type="date"
+                                    value={rosterBulkDueDate}
+                                    onChange={(event) =>
+                                      setRosterBulkDueDate(event.target.value)
+                                    }
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  disabled={
+                                    !selectedVisibleSetCount ||
+                                    rosterBulkAction !== ""
+                                  }
+                                  onClick={() => void assignRosterSetsBulk()}
+                                >
+                                  {rosterBulkAction === "assign"
+                                    ? t(
+                                        "mapTestPrep:overview.details.bulkAssigning",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.bulkAssign",
+                                      )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={
+                                    !selectedVisibleSetCount ||
+                                    rosterBulkAction !== ""
+                                  }
+                                  onClick={() =>
+                                    void runRosterBulkAction(
+                                      "unassign",
+                                      rosterSelectedSetIds,
+                                    )
+                                  }
+                                >
+                                  {rosterBulkAction === "unassign"
+                                    ? t(
+                                        "mapTestPrep:overview.details.bulkUnassigning",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.bulkUnassign",
+                                      )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={
+                                    !selectedVisibleSetCount ||
+                                    rosterBulkAction !== ""
+                                  }
+                                  onClick={() =>
+                                    void runRosterBulkAction(
+                                      "hide",
+                                      rosterSelectedSetIds,
+                                    )
+                                  }
+                                >
+                                  {rosterBulkAction === "hide"
+                                    ? t(
+                                        "mapTestPrep:overview.details.bulkHiding",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.bulkHide",
+                                      )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={
+                                    !selectedVisibleSetCount ||
+                                    rosterBulkAction !== ""
+                                  }
+                                  onClick={() =>
+                                    void runRosterBulkAction(
+                                      "unhide",
+                                      rosterSelectedSetIds,
+                                    )
+                                  }
+                                >
+                                  {rosterBulkAction === "unhide"
+                                    ? t(
+                                        "mapTestPrep:overview.details.bulkUnhiding",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.bulkUnhide",
+                                      )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={
+                                    !finishedSetCount || rosterBulkAction !== ""
+                                  }
+                                  onClick={() =>
+                                    void runRosterBulkAction("hide-finished")
+                                  }
+                                >
+                                  {rosterBulkAction === "hide-finished"
+                                    ? t(
+                                        "mapTestPrep:overview.details.bulkHiding",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.bulkHideFinished",
+                                        { n: finishedSetCount },
+                                      )}
+                                </button>
+                                {rosterSelectedSetIds.length > 0 && (
+                                  <button
+                                    type="button"
+                                    className="map-text-button"
+                                    disabled={rosterBulkAction !== ""}
+                                    onClick={() => setRosterSelectedSetIds([])}
                                   >
-                                    <summary className="map-roster-plan-summary">
-                                      <span className="map-roster-plan-summary-title">
-                                        <strong>{plan.title}</strong>
-                                        <span>
-                                          {plan.academicYear} ·{" "}
-                                          {t(
-                                            `mapTestPrep:overview.details.planStatus.${plan.status}`,
-                                          )}
-                                        </span>
-                                      </span>
-                                      <span className="map-roster-plan-summary-counts">
-                                        <span>
-                                          {t(
-                                            "mapTestPrep:overview.details.setCount",
-                                            { count: planSets.length },
-                                          )}
-                                        </span>
-                                        <span>
-                                          {t(
-                                            "mapTestPrep:overview.details.skillCount",
-                                            { count: planSkills.length },
-                                          )}
-                                        </span>
-                                      </span>
-                                    </summary>
-                                    <div className="map-roster-plan-content">
-                                      <div className="map-roster-plan-actions">
-                                        {plan.sourceStudentId && (
-                                          <small>
+                                    {t(
+                                      "mapTestPrep:overview.details.clearSelection",
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {rosterBulkMessage && (
+                              <p
+                                className={`map-bulk-message ${rosterBulkMessage.type}`}
+                                role="status"
+                              >
+                                {rosterBulkMessage.text}
+                              </p>
+                            )}
+                            {rosterStudentDetails.plans?.length ? (
+                              rosterPlanGroups.map(
+                                (
+                                  {
+                                    plan,
+                                    planId,
+                                    sets: planSets,
+                                    skills: planSkills,
+                                    assignments: planAssignments,
+                                    attempts: planAttempts,
+                                  },
+                                  planIndex,
+                                ) => {
+                                  return (
+                                    <details
+                                      className="map-roster-plan-detail"
+                                      key={planId}
+                                      open={planIndex === 0}
+                                    >
+                                      <summary className="map-roster-plan-summary">
+                                        <span className="map-roster-plan-summary-title">
+                                          <strong>{plan.title}</strong>
+                                          <span>
+                                            {plan.academicYear} ·{" "}
                                             {t(
-                                              "mapTestPrep:overview.details.sourceId",
-                                              { id: plan.sourceStudentId },
+                                              `mapTestPrep:overview.details.planStatus.${plan.status}`,
                                             )}
-                                          </small>
-                                        )}
-                                        {!planSets.length &&
-                                          !planSkills.length &&
-                                          !planAssignments.length &&
-                                          !planAttempts.length && (
-                                            <button
-                                              type="button"
-                                              className="btn btn-secondary map-set-delete-button"
-                                              disabled={
-                                                rosterDeletingPlanId === planId
-                                              }
-                                              onClick={() =>
-                                                void deleteRosterPlan(plan)
-                                              }
-                                            >
-                                              {rosterDeletingPlanId === planId
-                                                ? t(
-                                                    "mapTestPrep:overview.details.deletingPlan",
-                                                  )
-                                                : t(
-                                                    "mapTestPrep:overview.details.deleteEmptyPlan",
-                                                  )}
-                                            </button>
+                                          </span>
+                                        </span>
+                                        <span className="map-roster-plan-summary-counts">
+                                          <span>
+                                            {t(
+                                              "mapTestPrep:overview.details.setCount",
+                                              { count: planSets.length },
+                                            )}
+                                          </span>
+                                          <span>
+                                            {t(
+                                              "mapTestPrep:overview.details.skillCount",
+                                              { count: planSkills.length },
+                                            )}
+                                          </span>
+                                        </span>
+                                      </summary>
+                                      <div className="map-roster-plan-content">
+                                        <div className="map-roster-plan-actions">
+                                          {plan.sourceStudentId && (
+                                            <small>
+                                              {t(
+                                                "mapTestPrep:overview.details.sourceId",
+                                                { id: plan.sourceStudentId },
+                                              )}
+                                            </small>
                                           )}
-                                      </div>
-                                      <p className="map-roster-generation-note">
-                                        {t(
-                                          "mapTestPrep:overview.details.generationInfo",
-                                        )}
-                                      </p>
-                                      <section>
-                                        <h5>
+                                          {!planSets.length &&
+                                            !planSkills.length &&
+                                            !planAssignments.length &&
+                                            !planAttempts.length && (
+                                              <button
+                                                type="button"
+                                                className="btn btn-secondary map-set-delete-button"
+                                                disabled={
+                                                  rosterDeletingPlanId ===
+                                                  planId
+                                                }
+                                                onClick={() =>
+                                                  void deleteRosterPlan(plan)
+                                                }
+                                              >
+                                                {rosterDeletingPlanId === planId
+                                                  ? t(
+                                                      "mapTestPrep:overview.details.deletingPlan",
+                                                    )
+                                                  : t(
+                                                      "mapTestPrep:overview.details.deleteEmptyPlan",
+                                                    )}
+                                              </button>
+                                            )}
+                                        </div>
+                                        <p className="map-roster-generation-note">
                                           {t(
-                                            "mapTestPrep:overview.details.sets",
+                                            "mapTestPrep:overview.details.generationInfo",
                                           )}
-                                        </h5>
-                                        {planSets.length ? (
-                                          <div className="map-roster-set-list">
-                                            {planSets.map((set) => {
-                                              const setId = String(set._id);
-                                              const assignment =
-                                                planAssignments.find(
-                                                  (item) =>
-                                                    String(
-                                                      item.set?._id || item.set,
-                                                    ) === setId &&
-                                                    ![
-                                                      "closed",
-                                                      "draft",
-                                                    ].includes(item.status),
-                                                );
-                                              const attempt = planAttempts.find(
-                                                (item) =>
-                                                  String(item.set) === setId,
-                                              );
-                                              return (
-                                                <article
-                                                  className="map-roster-set-card"
-                                                  key={setId}
-                                                >
-                                                  <div className="map-roster-set-info">
-                                                    <strong>{set.title}</strong>
-                                                    <div className="map-roster-set-badges">
-                                                      <span className="set-question-count">
-                                                        {t(
-                                                          "mapTestPrep:overview.details.setQuestions",
+                                        </p>
+                                        <section>
+                                          <h5>
+                                            {t(
+                                              "mapTestPrep:overview.details.sets",
+                                            )}
+                                          </h5>
+                                          {planSets.length ? (
+                                            <div className="map-roster-set-list">
+                                              {planSets.map((set) => {
+                                                const setId = String(set._id);
+                                                const isHidden =
+                                                  rosterHiddenBySet.has(setId);
+                                                if (
+                                                  !rosterShowHidden &&
+                                                  isHidden
+                                                )
+                                                  return null;
+                                                const isSelected =
+                                                  rosterSelectedSetIdSet.has(
+                                                    setId,
+                                                  );
+                                                const assignment =
+                                                  rosterActiveAssignmentBySet.get(
+                                                    setId,
+                                                  );
+                                                const attempt =
+                                                  rosterAttemptBySet.get(setId);
+                                                return (
+                                                  <article
+                                                    className={`map-roster-set-card${isSelected ? " is-selected" : ""}${isHidden ? " is-hidden" : ""}`}
+                                                    key={setId}
+                                                  >
+                                                    <div className="map-roster-set-select">
+                                                      <input
+                                                        type="checkbox"
+                                                        id={`map-set-check-${setId}`}
+                                                        checked={isSelected}
+                                                        onChange={() =>
+                                                          toggleRosterSetSelected(
+                                                            setId,
+                                                          )
+                                                        }
+                                                        aria-label={t(
+                                                          "mapTestPrep:overview.details.selectSet",
                                                           {
-                                                            count:
-                                                              set.questionCount ||
-                                                              0,
+                                                            title: set.title,
                                                           },
                                                         )}
-                                                      </span>
-                                                      <span
-                                                        className={`set-status status-${set.status}`}
-                                                      >
-                                                        {t(
-                                                          `mapTestPrep:overview.details.setStatus.${set.status}`,
-                                                        )}
-                                                      </span>
+                                                      />
                                                     </div>
-                                                  </div>
-                                                  <div className="map-roster-set-meta">
-                                                    <div className="map-roster-set-assignment">
-                                                      {assignment ? (
-                                                        <span className="set-assignment-status assigned">
+                                                    <div className="map-roster-set-info">
+                                                      <strong>
+                                                        {set.title}
+                                                      </strong>
+                                                      <div className="map-roster-set-badges">
+                                                        <span className="set-question-count">
                                                           {t(
-                                                            "mapTestPrep:overview.details.assigned",
-                                                          )}
-                                                          {assignment.dueDate && (
-                                                            <small>
-                                                              {t(
-                                                                "mapTestPrep:overview.details.dueOn",
-                                                                {
-                                                                  date: new Date(
-                                                                    assignment.dueDate,
-                                                                  ).toLocaleDateString(),
-                                                                },
-                                                              )}
-                                                            </small>
+                                                            "mapTestPrep:overview.details.setQuestions",
+                                                            {
+                                                              count:
+                                                                set.questionCount ||
+                                                                0,
+                                                            },
                                                           )}
                                                         </span>
-                                                      ) : (
-                                                        <>
+                                                        <span
+                                                          className={`set-status status-${set.status}`}
+                                                        >
+                                                          {t(
+                                                            `mapTestPrep:overview.details.setStatus.${set.status}`,
+                                                          )}
+                                                        </span>
+                                                        {isHidden && (
+                                                          <span className="set-status set-hidden-badge">
+                                                            {t(
+                                                              "mapTestPrep:overview.details.hiddenBadge",
+                                                            )}
+                                                          </span>
+                                                        )}
+                                                        {assignment ? (
+                                                          <span className="set-assignment-status assigned">
+                                                            {t(
+                                                              "mapTestPrep:overview.details.assigned",
+                                                            )}
+                                                            {assignment.dueDate && (
+                                                              <small>
+                                                                {t(
+                                                                  "mapTestPrep:overview.details.dueOn",
+                                                                  {
+                                                                    date: new Date(
+                                                                      assignment.dueDate,
+                                                                    ).toLocaleDateString(),
+                                                                  },
+                                                                )}
+                                                              </small>
+                                                            )}
+                                                          </span>
+                                                        ) : (
                                                           <span className="set-assignment-status">
                                                             {t(
                                                               "mapTestPrep:overview.details.notAssigned",
                                                             )}
                                                           </span>
-                                                          <label>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    <div className="map-roster-set-meta">
+                                                      <div className="map-roster-set-actions">
+                                                        {attempt && (
+                                                          <div
+                                                            className={`map-roster-set-attempt status-${attempt.status}`}
+                                                          >
                                                             <span>
                                                               {t(
-                                                                "mapTestPrep:overview.details.dueDate",
+                                                                `mapTestPrep:overview.details.attempt.${attempt.status}`,
                                                               )}
                                                             </span>
-                                                            <input
-                                                              type="date"
-                                                              value={
-                                                                rosterAssignmentDueDates[
-                                                                  setId
-                                                                ] || ""
-                                                              }
-                                                              onChange={(
-                                                                event,
-                                                              ) =>
-                                                                setRosterAssignmentDueDates(
-                                                                  (
-                                                                    current,
-                                                                  ) => ({
-                                                                    ...current,
-                                                                    [setId]:
-                                                                      event
-                                                                        .target
-                                                                        .value,
-                                                                  }),
-                                                                )
-                                                              }
-                                                            />
-                                                          </label>
-                                                          <button
-                                                            type="button"
-                                                            className="btn btn-primary"
-                                                            disabled={
-                                                              rosterAssigningSetId ===
-                                                              setId
-                                                            }
-                                                            onClick={() =>
-                                                              void assignRosterSet(
-                                                                plan,
-                                                                set,
-                                                              )
-                                                            }
-                                                          >
-                                                            {rosterAssigningSetId ===
-                                                            setId
-                                                              ? t(
-                                                                  "mapTestPrep:overview.details.assigning",
-                                                                )
-                                                              : t(
-                                                                  "mapTestPrep:overview.details.assign",
-                                                                )}
-                                                          </button>
-                                                        </>
-                                                      )}
-                                                    </div>
-                                                    <div className="map-roster-set-actions">
-                                                      {attempt && (
-                                                        <div
-                                                          className={`map-roster-set-attempt status-${attempt.status}`}
-                                                        >
-                                                          <span>
-                                                            {t(
-                                                              `mapTestPrep:overview.details.attempt.${attempt.status}`,
+                                                            {attempt.maxScore && (
+                                                              <strong>
+                                                                {attempt.score}/
+                                                                {
+                                                                  attempt.maxScore
+                                                                }
+                                                              </strong>
                                                             )}
-                                                          </span>
-                                                          {attempt.maxScore && (
-                                                            <strong>
-                                                              {attempt.score}/
-                                                              {attempt.maxScore}
-                                                            </strong>
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                      {attempt &&
-                                                        [
-                                                          "submitted",
-                                                          "reviewed",
-                                                        ].includes(
-                                                          attempt.status,
-                                                        ) && (
-                                                          <button
-                                                            type="button"
-                                                            className="btn btn-secondary"
-                                                            disabled={
-                                                              reviewAttemptLoadingId ===
+                                                          </div>
+                                                        )}
+                                                        {attempt &&
+                                                          [
+                                                            "submitted",
+                                                            "reviewed",
+                                                          ].includes(
+                                                            attempt.status,
+                                                          ) && (
+                                                            <button
+                                                              type="button"
+                                                              className="btn btn-secondary"
+                                                              disabled={
+                                                                reviewAttemptLoadingId ===
+                                                                String(
+                                                                  attempt._id,
+                                                                )
+                                                              }
+                                                              onClick={() =>
+                                                                void openRosterAttempt(
+                                                                  attempt._id,
+                                                                )
+                                                              }
+                                                            >
+                                                              {reviewAttemptLoadingId ===
                                                               String(
                                                                 attempt._id,
                                                               )
-                                                            }
-                                                            onClick={() =>
-                                                              void openRosterAttempt(
-                                                                attempt._id,
-                                                              )
-                                                            }
-                                                          >
-                                                            {reviewAttemptLoadingId ===
-                                                            String(attempt._id)
-                                                              ? t(
-                                                                  "mapTestPrep:overview.details.openingReview",
-                                                                )
-                                                              : t(
-                                                                  "mapTestPrep:overview.details.openReview",
-                                                                )}
-                                                          </button>
-                                                        )}
-                                                      <button
-                                                        type="button"
-                                                        className="btn btn-secondary map-set-delete-button"
-                                                        disabled={
-                                                          rosterDeletingSetId ===
-                                                          setId
-                                                        }
-                                                        onClick={() =>
-                                                          void deleteRosterSet(
-                                                            set,
-                                                          )
-                                                        }
-                                                      >
-                                                        {rosterDeletingSetId ===
-                                                        setId
-                                                          ? t(
-                                                              "mapTestPrep:overview.details.deletingSet",
+                                                                ? t(
+                                                                    "mapTestPrep:overview.details.openingReview",
+                                                                  )
+                                                                : t(
+                                                                    "mapTestPrep:overview.details.openReview",
+                                                                  )}
+                                                            </button>
+                                                          )}
+                                                        <button
+                                                          type="button"
+                                                          className="btn btn-secondary map-set-delete-button"
+                                                          disabled={
+                                                            rosterDeletingSetId ===
+                                                            setId
+                                                          }
+                                                          onClick={() =>
+                                                            void deleteRosterSet(
+                                                              set,
                                                             )
-                                                          : t(
-                                                              "mapTestPrep:overview.details.deleteSet",
-                                                            )}
-                                                      </button>
+                                                          }
+                                                        >
+                                                          {rosterDeletingSetId ===
+                                                          setId
+                                                            ? t(
+                                                                "mapTestPrep:overview.details.deletingSet",
+                                                              )
+                                                            : t(
+                                                                "mapTestPrep:overview.details.deleteSet",
+                                                              )}
+                                                        </button>
+                                                      </div>
                                                     </div>
-                                                  </div>
-                                                </article>
-                                              );
-                                            })}
-                                          </div>
-                                        ) : (
-                                          <p>
-                                            {t(
-                                              "mapTestPrep:overview.details.noSets",
-                                            )}
-                                          </p>
-                                        )}
-                                      </section>
-                                      <section>
-                                        <h5>
-                                          {t(
-                                            "mapTestPrep:overview.details.skills",
+                                                  </article>
+                                                );
+                                              })}
+                                            </div>
+                                          ) : (
+                                            <p>
+                                              {t(
+                                                "mapTestPrep:overview.details.noSets",
+                                              )}
+                                            </p>
                                           )}
-                                        </h5>
-                                        {planSkills.length ? (
-                                          <div className="map-roster-skill-list">
-                                            {planSkills.map((item) => (
-                                              <div
-                                                className="map-roster-skill-item"
-                                                key={String(item._id)}
-                                              >
-                                                <span>
-                                                  {item.skill?.name ||
-                                                    item.skill?.code ||
-                                                    "—"}
-                                                </span>
-                                                <span
-                                                  className={`map-roster-skill-status status-${item.status}`}
-                                                >
-                                                  {t(
-                                                    `mapTestPrep:overview.details.skillStatus.${item.status}`,
-                                                  )}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p>
+                                        </section>
+                                        <section>
+                                          <h5>
                                             {t(
-                                              "mapTestPrep:overview.details.noSkills",
+                                              "mapTestPrep:overview.details.skills",
                                             )}
-                                          </p>
-                                        )}
-                                      </section>
-                                    </div>
-                                  </details>
-                                );
-                              },
-                            )
-                          ) : (
-                            <p>{t("mapTestPrep:overview.details.noPlans")}</p>
-                          ))}
+                                          </h5>
+                                          {planSkills.length ? (
+                                            <div className="map-roster-skill-list">
+                                              {planSkills.map((item) => (
+                                                <div
+                                                  className="map-roster-skill-item"
+                                                  key={String(item._id)}
+                                                >
+                                                  <span>
+                                                    {item.skill?.name ||
+                                                      item.skill?.code ||
+                                                      "—"}
+                                                  </span>
+                                                  <span
+                                                    className={`map-roster-skill-status status-${item.status}`}
+                                                  >
+                                                    {t(
+                                                      `mapTestPrep:overview.details.skillStatus.${item.status}`,
+                                                    )}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p>
+                                              {t(
+                                                "mapTestPrep:overview.details.noSkills",
+                                              )}
+                                            </p>
+                                          )}
+                                        </section>
+                                      </div>
+                                    </details>
+                                  );
+                                },
+                              )
+                            ) : (
+                              <p>{t("mapTestPrep:overview.details.noPlans")}</p>
+                            )}
+                          </>
+                        )}
                         {rosterDetailTab === "attempts" &&
                           ((rosterStudentDetails.attempts || []).length ? (
                             <ul className="map-roster-attempt-list">
@@ -2068,15 +2524,27 @@ const MapTestPrepPage = () => {
                               <div className="map-roster-plan-heading">
                                 <div>
                                   <h4>
-                                    Review:{" "}
-                                    {selectedReviewAttempt.set?.title ||
-                                      "Practice set"}
+                                    {t(
+                                      "mapTestPrep:overview.details.reviewTitle",
+                                      {
+                                        title:
+                                          selectedReviewAttempt.set?.title ||
+                                          t(
+                                            "mapTestPrep:overview.details.practiceSet",
+                                          ),
+                                      },
+                                    )}
                                   </h4>
                                   <span>
-                                    {selectedRosterStudent.firstName}{" "}
-                                    {selectedRosterStudent.lastName} ·{" "}
-                                    {selectedReviewAttempt.score ?? 0}/
-                                    {selectedReviewAttempt.maxScore ?? 0}
+                                    {t(
+                                      "mapTestPrep:overview.details.reviewStudentScore",
+                                      {
+                                        name: `${selectedRosterStudent.firstName} ${selectedRosterStudent.lastName}`,
+                                        score: selectedReviewAttempt.score ?? 0,
+                                        max:
+                                          selectedReviewAttempt.maxScore ?? 0,
+                                      },
+                                    )}
                                   </span>
                                 </div>
                                 <button
@@ -2084,13 +2552,26 @@ const MapTestPrepPage = () => {
                                   className="btn btn-ghost"
                                   onClick={() => setSelectedReviewAttempt(null)}
                                 >
-                                  Close
+                                  {t(
+                                    "mapTestPrep:overview.details.reviewClose",
+                                  )}
                                 </button>
                               </div>
-                              <p>
-                                Mark each submitted answer correct or incorrect.
-                                Unmarked answers stay in the review queue.
-                              </p>
+                              <div
+                                className="map-roster-review-note"
+                                role="note"
+                              >
+                                <strong>
+                                  {t(
+                                    "mapTestPrep:overview.details.reviewNoteTitle",
+                                  )}
+                                </strong>
+                                <p>
+                                  {t(
+                                    "mapTestPrep:overview.details.reviewNoteBody",
+                                  )}
+                                </p>
+                              </div>
                               {(selectedReviewAttempt.answers || []).map(
                                 (answer, index) => {
                                   const question =
@@ -2257,16 +2738,34 @@ const MapTestPrepPage = () => {
                                   );
                                 },
                               )}
-                              <button
-                                type="button"
-                                className="btn btn-primary"
-                                disabled={reviewAttemptSaving}
-                                onClick={() => void saveRosterAttemptReview()}
-                              >
-                                {reviewAttemptSaving
-                                  ? "Saving marks…"
-                                  : "Save marks"}
-                              </button>
+                              <div className="map-roster-review-savebar">
+                                <span
+                                  className={
+                                    unmarkedReviewCount
+                                      ? "has-unmarked"
+                                      : "all-marked"
+                                  }
+                                >
+                                  {t(
+                                    "mapTestPrep:overview.details.reviewUnmarked",
+                                    { n: unmarkedReviewCount },
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  disabled={reviewAttemptSaving}
+                                  onClick={() => void saveRosterAttemptReview()}
+                                >
+                                  {reviewAttemptSaving
+                                    ? t(
+                                        "mapTestPrep:overview.details.reviewSaving",
+                                      )
+                                    : t(
+                                        "mapTestPrep:overview.details.reviewSave",
+                                      )}
+                                </button>
+                              </div>
                             </section>
                           ) : (
                             <p className="map-roster-empty-section">

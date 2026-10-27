@@ -44,7 +44,6 @@ const StandardAssignForm = ({
         });
 
     const [currentStep, setCurrentStep] = useState(1);
-    const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [studentScope, setStudentScope] = useState(
         Array.isArray(formData.students) && formData.students.length > 0 ? 'specific' : 'whole'
     );
@@ -57,6 +56,7 @@ const StandardAssignForm = ({
         assessment: formData.practiceConfig.sessionType === 'assessment'
     });
     const standardPickerRef = useRef(null);
+    const isGeneralTest = Boolean(formData.generalTest);
 
     const selectedStudents = Array.isArray(formData.students) ? formData.students : [];
     const selectedAiLanguages = Array.isArray(formData.aiLanguages)
@@ -82,12 +82,6 @@ const StandardAssignForm = ({
         setStudentSearch('');
         setStudentScope(selectedStudents.length > 0 ? 'specific' : 'whole');
     }, [formData.classId]);
-
-    useEffect(() => {
-        if (currentStep === 3 && !showAdvanced) {
-            setShowAdvanced(true);
-        }
-    }, [currentStep, showAdvanced, setShowAdvanced]);
 
     useEffect(() => {
         if (formData.practiceConfig.sessionType === 'assessment') {
@@ -172,17 +166,18 @@ const StandardAssignForm = ({
         });
     }, [availableStandards, standardSearch, getStandardOptionLabel, getStandardDescription]);
 
+    // A general test covers the whole class and skips the audience step.
     const stepItems = [
         { id: 1, title: t('standardAssign:form.steps.coreSetup') },
         { id: 2, title: t('standardAssign:form.steps.audienceDetails') },
         { id: 3, title: t('standardAssign:form.steps.rulesRelease') }
-    ];
+    ].filter((step) => !(isGeneralTest && step.id === 2));
 
     const isStep1Valid =
         String(formData.title || '').trim().length > 0 &&
         Boolean(formData.classId) &&
         Boolean(formData.subjectId) &&
-        (grammarOnly || Boolean(formData.standardId));
+        (grammarOnly || isGeneralTest || Boolean(formData.standardId));
 
     const isStep2Valid = studentScope === 'whole' || selectedStudents.length > 0;
 
@@ -229,8 +224,11 @@ const StandardAssignForm = ({
     const canReachStep = (targetStep) => {
         if (targetStep <= 1) return true;
         if (targetStep === 2) return isStep1Valid;
-        return isStep1Valid && isStep2Valid;
+        return isStep1Valid && (isGeneralTest || isStep2Valid);
     };
+
+    const nextStep = currentStep === 1 && isGeneralTest ? 3 : currentStep + 1;
+    const previousStep = currentStep === 3 && isGeneralTest ? 1 : currentStep - 1;
 
     const importedCount = Array.isArray(formData.importedQuestions)
         ? formData.importedQuestions.length
@@ -241,8 +239,10 @@ const StandardAssignForm = ({
         return {
             subject: selectedSubjectName,
             grade: selectedClass?.grade || selectedClass?.name,
-            standardCode: standard?.code,
-            standardName: standard ? getStandardDescription(standard) : '',
+            standardCode: isGeneralTest ? '' : standard?.code,
+            standardName: isGeneralTest
+                ? t('standardAssign:form.generalTest.summaryLabel')
+                : (standard ? getStandardDescription(standard) : ''),
             count: Number(formData.preGeneratedQuestionCount) || 10
         };
     }, [
@@ -252,7 +252,9 @@ const StandardAssignForm = ({
         selectedSubjectName,
         selectedClass?.grade,
         selectedClass?.name,
-        getStandardDescription
+        getStandardDescription,
+        isGeneralTest,
+        t
     ]);
 
     const summaryItems = useMemo(() => {
@@ -323,7 +325,9 @@ const StandardAssignForm = ({
             items.splice(3, 0, {
                 key: 'standard',
                 label: t('standardAssign:form.summary.standard'),
-                value: selectedStandardLabel
+                value: isGeneralTest
+                    ? t('standardAssign:form.generalTest.summaryLabel')
+                    : selectedStandardLabel
             });
             items.push({
                 key: 'aiLanguages',
@@ -368,7 +372,8 @@ const StandardAssignForm = ({
         selectedAiLanguages,
         selectedGrammarLevels,
         locale,
-        grammarOnly
+        grammarOnly,
+        isGeneralTest
     ]);
 
     return (
@@ -401,13 +406,6 @@ const StandardAssignForm = ({
                     );
                 })}
             </div>
-
-            <StandardAssignSummaryPanel
-                t={t}
-                showSummaryModal={showSummaryModal}
-                setShowSummaryModal={setShowSummaryModal}
-                summaryItems={summaryItems}
-            />
 
             {currentStep === 1 && (
                 <StandardAssignStepCoreSetup
@@ -465,8 +463,6 @@ const StandardAssignForm = ({
                     t={t}
                     formData={formData}
                     setFormData={setFormData}
-                    showAdvanced={showAdvanced}
-                    setShowAdvanced={setShowAdvanced}
                     openPanels={openPanels}
                     togglePanel={togglePanel}
                     primaryAiLanguage={primaryAiLanguage}
@@ -483,7 +479,7 @@ const StandardAssignForm = ({
                 <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => goToStep(currentStep - 1)}
+                    onClick={() => goToStep(previousStep)}
                     disabled={currentStep === 1}
                 >
                     {t('standardAssign:actions.back')}
@@ -492,7 +488,7 @@ const StandardAssignForm = ({
                     <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() => goToStep(currentStep + 1)}
+                        onClick={() => goToStep(nextStep)}
                         disabled={(currentStep === 1 && !isStep1Valid) || (currentStep === 2 && !isStep2Valid)}
                     >
                         {t('standardAssign:actions.next')}
@@ -503,6 +499,8 @@ const StandardAssignForm = ({
                     </small>
                 )}
             </div>
+
+            <StandardAssignSummaryPanel t={t} summaryItems={summaryItems} />
         </div>
     );
 };

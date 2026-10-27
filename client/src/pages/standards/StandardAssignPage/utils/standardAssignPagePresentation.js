@@ -114,10 +114,14 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
         new Set(savedGrammarLevels.filter((level) => validGrammarLevels.includes(level)))
     );
     const grammarLevelingEnabled = Boolean(assignment?.practiceConfig?.enableGrammarLeveling);
+    const isGeneralTest = assignment?.standard?.category === 'general_assessment';
 
     return {
         title: assignment?.title || '',
-        standardId: assignment?.standard?._id || assignment?.standard || '',
+        standardId: isGeneralTest
+            ? ''
+            : assignment?.standard?._id || assignment?.standard || '',
+        generalTest: isGeneralTest,
         classId: assignment?.class?._id || assignment?.class || '',
         subjectId: assignment?.subject?._id || assignment?.subject || '',
         notifyParents: assignment?.notifyParents !== false,

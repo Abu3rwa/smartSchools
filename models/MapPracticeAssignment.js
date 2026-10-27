@@ -12,7 +12,8 @@ const mapPracticeAssignmentSchema = new mongoose.Schema({
     feedbackMode: { type: String, enum: ['instant', 'after_submit', 'after_review'], default: 'instant' },
     selfPractice: { type: Boolean, default: true },
     showTimer: { type: Boolean, default: false },
-    timeLimitSeconds: { type: Number, default: null }
+    timeLimitSeconds: { type: Number, default: null },
+    hidden: { type: Boolean, default: false }
 }, { timestamps: true });
 
 mapPracticeAssignmentSchema.index({ school: 1, student: 1, set: 1 }, { unique: true });

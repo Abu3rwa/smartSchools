@@ -9,103 +9,59 @@ const LABELS = {
   en: {
     documentTitle: 'Student Test Result',
     resultSummary: 'Result summary',
-    attempts: 'Attempt details',
+    attempts: 'Question review',
+    question: 'Question',
     student: 'Student',
     studentNumber: 'Student number',
     class: 'Class',
     subject: 'Subject',
-    standard: 'Standard',
-    assignment: 'Assignment',
     academicYear: 'Academic year',
     semester: 'Semester',
     semesterOne: 'Semester 1',
     semesterTwo: 'Semester 2',
     teacher: 'Teacher',
-    generatedAt: 'Generated at',
-    status: 'Status',
-    score: 'Total marks',
+    score: 'Total score',
     percentage: 'Percentage',
-    level: 'Level (1-4)',
-    correctAnswers: 'Correct answers',
-    answered: 'Answered',
-    studentAnswer: 'Student Answer',
-    correctAnswer: 'Correct Answer',
-    teacherMarked: 'Teacher Override',
+    studentAnswer: "Student's answer",
+    correctAnswer: 'Correct answer',
     studentPick: '← student',
     correctPick: '✓',
     noAttempts: 'No attempts available.',
     teacherSignature: 'Teacher signature',
     date: 'Date',
-    seconds: (value) => `${value}s`,
-    statuses: {
-      released: 'Released',
-      submitted: 'Submitted',
-      in_progress: 'In progress',
-      not_started: 'Not started',
-      needs_review: 'Needs Review',
-    },
-    outcome: { correct: 'Correct', incorrect: 'Incorrect' },
-    difficulties: { easy: 'easy', medium: 'medium', hard: 'hard' },
-    types: {
-      multiple_choice: 'multiple choice',
-      true_false: 'true false',
-      short_answer: 'short answer',
-      multiple_select: 'multiple select',
-      matching: 'matching',
-      ordering: 'ordering',
-      fill_in_blank: 'fill in blank',
-      numeric_response: 'numeric response',
+    outcome: {
+      correct: 'Correct',
+      incorrect: 'Needs practice',
+      review: 'Awaiting review',
     },
   },
   ar: {
     documentTitle: 'نتيجة اختبار الطالب',
     resultSummary: 'ملخص النتيجة',
-    attempts: 'تفاصيل المحاولة',
+    attempts: 'مراجعة الأسئلة',
+    question: 'السؤال',
     student: 'الطالب',
     studentNumber: 'رقم الطالب',
     class: 'الفصل',
     subject: 'المادة',
-    standard: 'المعيار',
-    assignment: 'الإسناد',
     academicYear: 'العام الدراسي',
     semester: 'الفصل الدراسي',
     semesterOne: 'الفصل الدراسي الأول',
     semesterTwo: 'الفصل الدراسي الثاني',
     teacher: 'المعلم',
-    generatedAt: 'تاريخ الإنشاء',
-    status: 'الحالة',
     score: 'الدرجة الكلية',
     percentage: 'النسبة المئوية',
-    level: 'المستوى (4-1)',
-    correctAnswers: 'الإجابات الصحيحة',
-    answered: 'تمت الإجابة',
     studentAnswer: 'إجابة الطالب',
     correctAnswer: 'الإجابة الصحيحة',
-    teacherMarked: 'تعديل المعلم',
     studentPick: '← الطالب',
     correctPick: '✓',
     noAttempts: 'لا توجد محاولات متاحة.',
     teacherSignature: 'توقيع المعلم',
     date: 'التاريخ',
-    seconds: (value) => `${value} ثانية`,
-    statuses: {
-      released: 'تم الإصدار',
-      submitted: 'تم التسليم',
-      in_progress: 'قيد التقدم',
-      not_started: 'لم يبدأ',
-      needs_review: 'يحتاج مراجعة',
-    },
-    outcome: { correct: 'صحيحة', incorrect: 'خاطئة' },
-    difficulties: { easy: 'سهل', medium: 'متوسط', hard: 'صعب' },
-    types: {
-      multiple_choice: 'اختيار من متعدد',
-      true_false: 'صح أو خطأ',
-      short_answer: 'إجابة قصيرة',
-      multiple_select: 'اختيار متعدد',
-      matching: 'توصيل',
-      ordering: 'ترتيب',
-      fill_in_blank: 'إكمال الفراغ',
-      numeric_response: 'إجابة رقمية',
+    outcome: {
+      correct: 'صحيحة',
+      incorrect: 'يحتاج إلى تدريب',
+      review: 'بانتظار المراجعة',
     },
   },
 };
@@ -241,22 +197,12 @@ export const buildAttemptRows = (attempts = [], language = 'en') => {
     const correctAnswer = formatAttemptAnswer(attempt, attempt.correctAnswer, 'correct');
     const picked = new Set(toLabels(studentResponseOf(attempt)));
     const keyed = new Set(toLabels(attempt.correctAnswer));
+    const outcome =
+      isCorrect === null || isCorrect === undefined ? 'review' : isCorrect ? 'correct' : 'incorrect';
     return {
       index: index + 1,
-      outcome: isCorrect === null || isCorrect === undefined ? 'review' : isCorrect ? 'correct' : 'incorrect',
-      outcomeLabel:
-        isCorrect === null || isCorrect === undefined
-          ? labels.statuses.needs_review
-          : isCorrect
-            ? labels.outcome.correct
-            : labels.outcome.incorrect,
-      difficulty: labels.difficulties[text(attempt.difficulty).toLowerCase()] || text(attempt.difficulty),
-      typeLabel: labels.types[attempt.questionType] || text(attempt.questionType).replace(/_/g, ' '),
-      timeLabel:
-        Number.isFinite(Number(attempt.timeSpentSeconds)) && Number(attempt.timeSpentSeconds) > 0
-          ? labels.seconds(Math.round(Number(attempt.timeSpentSeconds)))
-          : '',
-      overridden: attempt.teacherOverride?.isCorrect != null,
+      outcome,
+      outcomeLabel: labels.outcome[outcome],
       questionText: text(attempt.questionText),
       options: (Array.isArray(attempt.options) ? attempt.options : []).map((option) => ({
         label: text(option.label),
@@ -288,34 +234,54 @@ const css = () => `
   }
   .head { padding-bottom: 4mm; border-bottom: 2px solid #1f3a5f; text-align: center; }
   .head h1 { margin: 0; color: #1f3a5f; font-size: 18pt; }
-  .head p { margin: 2mm 0 0; font-size: 12pt; font-weight: 700; }
-  .meta { width: 100%; margin-top: 5mm; border-collapse: collapse; }
-  .meta th, .meta td { padding: 1.8mm; border: 1px solid #d9dee4; text-align: start; font-size: 9pt; overflow-wrap: anywhere; }
-  .meta th { width: 18%; color: #4b5563; background: #f6f8fb; font-weight: 600; }
+  .head .doc-title { margin: 1.5mm 0 0; color: #6b7280; font-size: 9pt; letter-spacing: 0.08em; }
+  .head .assignment-title { margin: 1.5mm 0 0; color: #1f3a5f; font-size: 12.5pt; font-weight: 700; }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3mm 5mm;
+    margin-top: 4mm;
+    padding: 3mm 4mm;
+    border: 1px solid #e3e8ee;
+    border-radius: 2mm;
+    background: #f8fafc;
+  }
+  .fact span { display: block; color: #6b7280; font-size: 7.5pt; }
+  .fact strong { font-size: 9pt; overflow-wrap: anywhere; }
   .section { margin-top: 6mm; }
-  .section > h2 { margin: 0 0 2mm; color: #1f3a5f; font-size: 11pt; }
-  .cards { display: flex; flex-wrap: wrap; gap: 2mm; }
-  .card { flex: 1 1 28%; padding: 2.5mm; border: 1px solid #d9dee4; border-radius: 2mm; background: #f6f8fb; }
-  .card span { display: block; color: #6b7280; font-size: 7.5pt; }
-  .card strong { font-size: 12pt; }
-  .q { margin-top: 4mm; padding: 3mm; border: 1px solid #d9dee4; border-left-width: 3mm; border-radius: 1.5mm; break-inside: avoid; }
+  .section > h2 { margin: 0 0 2.5mm; color: #1f3a5f; font-size: 11pt; }
+  .score-panel { display: flex; flex-wrap: wrap; gap: 3mm; }
+  .score-panel > div {
+    flex: 1 1 30%;
+    min-width: 45mm;
+    padding: 3mm 4mm;
+    border: 1px solid #d9dee4;
+    border-radius: 2mm;
+    background: #f6f8fb;
+  }
+  .score-panel span { display: block; color: #6b7280; font-size: 7.5pt; }
+  .score-panel strong { font-size: 13pt; }
+  .score-panel .score-main strong { font-size: 20pt; line-height: 1.1; }
+  .score-panel.fail .score-main, .score-panel.fail .score-percentage { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+  .score-panel.mid .score-main, .score-panel.mid .score-percentage { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+  .score-panel.good .score-main, .score-panel.good .score-percentage { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+  .q { margin-top: 3.5mm; padding: 3mm 3.5mm; border: 1px solid #e3e8ee; border-left-width: 2mm; border-radius: 2mm; break-inside: avoid; }
   /* The paper reuses the app's light-theme status tokens so a card means the same colour on both. */
   .q.correct { border-left-color: #059669; }
   .q.incorrect { border-left-color: #dc2626; }
   .q.review { border-left-color: #d97706; }
-  .q-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2mm; }
+  .q-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2mm; }
   .q-no { font-weight: 700; }
-  .badge { padding: 0.6mm 2mm; border-radius: 10mm; font-size: 8pt; font-weight: 700; }
+  .badge { padding: 0.6mm 2.5mm; border-radius: 10mm; font-size: 8pt; font-weight: 700; }
   .correct .badge { background: rgba(5, 150, 105, 0.12); color: #059669; }
   .incorrect .badge { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
   .review .badge { background: rgba(217, 119, 6, 0.1); color: #d97706; }
-  .q-meta { color: #6b7280; font-size: 8pt; }
-  .q-override { color: #059669; font-size: 8pt; font-weight: 700; }
-  .q-text { margin: 2mm 0 0; line-height: 1.45; }
+  .q-text { margin: 2mm 0 0; line-height: 1.45; unicode-bidi: plaintext; }
   .q-options { margin: 2mm 0 0; padding-inline-start: 6mm; list-style: none; }
-  .q-options li { padding: 0.6mm 0; }
+  .q-options li { padding: 0.6mm 0; unicode-bidi: plaintext; }
   .q-options li.pick-correct { color: #059669; font-weight: 700; }
   .q-options li.pick-wrong { color: #dc2626; font-weight: 700; }
+  .q-options li.pick-review { color: #b45309; font-weight: 700; }
   .q-options li.key { color: #059669; font-weight: 700; }
   .tag { font-weight: 400; font-style: italic; }
   .q-answer { margin: 1.6mm 0 0; font-size: 9pt; }
@@ -331,20 +297,26 @@ const css = () => `
   @media print {
     body { background: #fff; }
     .sheet { width: 100%; margin: 0; padding: 0; }
-    .card, .meta th, .badge, .q { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .facts, .score-panel > div, .badge, .q { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 `;
 
-const metaRow = (label, value) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(shown(value))}</td></tr>`;
-
-const card = (label, value) =>
-  `<div class="card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(shown(value))}</strong></div>`;
+const fact = (label, value) =>
+  `<div class="fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(shown(value))}</strong></div>`;
 
 const renderQuestion = (row, labels) => {
   const options = row.options.length
     ? `<ul class="q-options">${row.options
         .map((option) => {
-          const klass = option.isPick ? (row.outcome === 'correct' ? 'pick-correct' : 'pick-wrong') : option.isKey ? 'key' : '';
+          const klass = option.isPick
+            ? row.outcome === 'correct'
+              ? 'pick-correct'
+              : row.outcome === 'incorrect'
+                ? 'pick-wrong'
+                : 'pick-review'
+            : option.isKey
+              ? 'key'
+              : '';
           const marks = [
             option.isPick ? `<span class="tag">${escapeHtml(labels.studentPick)}</span>` : '',
             option.isKey && !option.isPick ? `<span class="tag">${escapeHtml(labels.correctPick)}</span>` : '',
@@ -353,21 +325,28 @@ const renderQuestion = (row, labels) => {
         })
         .join('')}</ul>`
     : '';
-  const meta = [row.difficulty, row.typeLabel, row.timeLabel].filter(Boolean).join(' · ');
+  const showKey = row.outcome !== 'correct';
+  const showFeedback = showKey && row.feedback;
   return `
     <article class="q ${row.outcome}">
       <div class="q-head">
-        <span class="q-no">#${row.index}</span>
+        <span class="q-no">${escapeHtml(labels.question)} ${row.index}</span>
         <span class="badge">${escapeHtml(row.outcomeLabel)}</span>
-        ${meta ? `<span class="q-meta">${escapeHtml(meta)}</span>` : ''}
-        ${row.overridden ? `<span class="q-override">&#9998; ${escapeHtml(labels.teacherMarked)}</span>` : ''}
       </div>
       <p class="q-text">${escapeHtml(row.questionText)}</p>
       ${options}
       <p class="q-answer"><span>${escapeHtml(labels.studentAnswer)}:</span> <strong>${escapeHtml(row.studentAnswer)}</strong></p>
-      <p class="q-answer key"><span>${escapeHtml(labels.correctAnswer)}:</span> <strong>${escapeHtml(row.correctAnswer)}</strong></p>
-      ${row.feedback ? `<p class="q-feedback">${escapeHtml(row.feedback)}</p>` : ''}
+      ${showKey ? `<p class="q-answer key"><span>${escapeHtml(labels.correctAnswer)}:</span> <strong>${escapeHtml(row.correctAnswer)}</strong></p>` : ''}
+      ${showFeedback ? `<p class="q-feedback">${escapeHtml(row.feedback)}</p>` : ''}
     </article>`;
+};
+
+const scoreTone = (percentage, passPercent) => {
+  const pct = Number(percentage);
+  if (percentage === null || percentage === undefined || !Number.isFinite(pct)) return 'none';
+  const pass = Number.isFinite(Number(passPercent)) ? Number(passPercent) : 50;
+  if (pct < pass) return 'fail';
+  return pct < Math.max(pass, 70) ? 'mid' : 'good';
 };
 
 export const renderStudentResultReportHtml = ({ language = 'en', report }) => {
@@ -375,40 +354,35 @@ export const renderStudentResultReportHtml = ({ language = 'en', report }) => {
   const rows = buildAttemptRows(report.attempts, language);
   const isRtl = language === 'ar';
 
-  // The sheet never restates a mark the gradebook table would not have shown for the same row.
+  // The printed score is the count of correct questions out of the questions on the paper,
+  // so a question the student never answered still counts against the total.
+  const totalQuestions = report.totalQuestions ?? report.totalAnswered;
   const scoreLabel =
-    report.kind === 'practice'
-      ? `${report.correctCount ?? 0}/${report.totalAnswered ?? 0}`
-      : report.score === null || report.score === undefined
-        ? null
-        : `${report.score}/${report.maxScore || 100}`;
+    report.correctCount === null ||
+    report.correctCount === undefined ||
+    !Number(totalQuestions)
+      ? null
+      : `${report.correctCount}/${totalQuestions}`;
+  const percentageLabel =
+    report.percentage === null || report.percentage === undefined
+      ? null
+      : `${Number(report.percentage).toFixed(1).replace(/\.0$/, '')}%`;
   const semesterLabel =
     report.semester === 1
       ? labels.semesterOne
       : report.semester === 2
         ? labels.semesterTwo
         : null;
+  const tone = scoreTone(report.percentage, report.passPercent);
 
-  const summary = [
-    card(labels.status, labels.statuses[report.status] || report.status),
-    card(labels.score, scoreLabel),
-    card(labels.percentage, report.percentage == null ? null : `${report.percentage}%`),
-    card(labels.level, report.scale4),
-    card(labels.correctAnswers, report.correctCount),
-    card(labels.answered, report.totalAnswered),
-  ].join('');
-
-  const identity = [
-    metaRow(labels.student, report.studentName),
-    metaRow(labels.studentNumber, report.studentNumber),
-    metaRow(labels.class, report.className),
-    metaRow(labels.subject, report.subjectName),
-    metaRow(labels.standard, report.standardLabel),
-    metaRow(labels.assignment, report.assignmentTitle),
-    metaRow(labels.academicYear, report.academicYear),
-    metaRow(labels.semester, semesterLabel),
-    metaRow(labels.teacher, report.teacherName),
-    metaRow(labels.generatedAt, report.generatedAt),
+  const facts = [
+    fact(labels.student, report.studentName),
+    fact(labels.studentNumber, report.studentNumber),
+    fact(labels.class, report.className),
+    fact(labels.subject, report.subjectName),
+    fact(labels.academicYear, report.academicYear),
+    fact(labels.semester, semesterLabel),
+    fact(labels.teacher, report.teacherName),
   ].join('');
 
   const body = rows.length
@@ -427,10 +401,17 @@ export const renderStudentResultReportHtml = ({ language = 'en', report }) => {
   <div class="sheet">
     <header class="head">
       <h1>${escapeHtml(shown(report.schoolName))}</h1>
-      <p>${escapeHtml(labels.documentTitle)}</p>
+      <p class="doc-title">${escapeHtml(labels.documentTitle)}</p>
+      ${report.assignmentTitle ? `<p class="assignment-title">${escapeHtml(report.assignmentTitle)}</p>` : ''}
     </header>
-    <table class="meta"><tbody>${identity}</tbody></table>
-    <section class="section"><h2>${escapeHtml(labels.resultSummary)}</h2><div class="cards">${summary}</div></section>
+    <section class="facts">${facts}</section>
+    <section class="section">
+      <h2>${escapeHtml(labels.resultSummary)}</h2>
+      <div class="score-panel ${tone}">
+        <div class="score-main"><span>${escapeHtml(labels.score)}</span><strong>${escapeHtml(shown(scoreLabel))}</strong></div>
+        <div class="score-percentage"><span>${escapeHtml(labels.percentage)}</span><strong>${escapeHtml(shown(percentageLabel))}</strong></div>
+      </div>
+    </section>
     <section class="section"><h2>${escapeHtml(labels.attempts)}</h2>${body}</section>
     <footer class="sign">
       <div><span>${escapeHtml(labels.teacherSignature)}</span><em>${escapeHtml(shown(report.teacherName))}</em></div>

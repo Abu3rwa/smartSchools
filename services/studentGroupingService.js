@@ -445,7 +445,7 @@ async function computeOverview({ classId, academicYear, subjectId, schoolId }) {
     // Resolve standards from class subjects, with assignment fallback for classes that
     // have standards assigned but no explicit class.subjects entries.
     const subjectIds = (classDoc.subjects || []).map((s) => s.subject || s);
-    const standardsQuery = {};
+    const standardsQuery = { isActive: true };
     if (subjectId) {
         standardsQuery.subject = subjectId;
     } else if (subjectIds.length > 0) {

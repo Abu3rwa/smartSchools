@@ -112,6 +112,16 @@ const normalizeIncomingQuestion = (question = {}, index = 0) => {
     }
 
     base.options = [];
+    if (questionType === 'short_answer') {
+        // A key written as Nile~the Nile opens as the model answer plus listed alternatives.
+        const variants = base.correctAnswer.split('~').map(toNonEmptyString).filter(Boolean);
+        if (variants.length > 0) base.correctAnswer = variants[0];
+        if (variants.length > 1) {
+            base.acceptableAnswersText = [...variants.slice(1), base.acceptableAnswersText]
+                .filter(Boolean)
+                .join('\n');
+        }
+    }
     return base;
 };
 
@@ -394,19 +404,30 @@ const QuestionPoolEditorModal = ({
                     })
                 };
             }
-            const acceptableAnswers = toAcceptedAnswers(
-                item.acceptableAnswersText ?? item.acceptableAnswers
-            );
+            // The model answer and the listed accepted answers both grade the attempt, so
+            // a short answer is never left waiting for review.
+            const answerVariants = [
+                ...correctAnswer.split('~'),
+                ...toAcceptedAnswers(item.acceptableAnswersText ?? item.acceptableAnswers)
+            ]
+                .map(toNonEmptyString)
+                .filter(Boolean);
+            const acceptableAnswers = [];
+            const seenAnswers = new Set();
+            answerVariants.forEach((answer) => {
+                const key = answer.toLowerCase();
+                if (seenAnswers.has(key)) return;
+                seenAnswers.add(key);
+                acceptableAnswers.push(answer);
+            });
             normalizedQuestions.push({
                 ...carriedFields,
                 questionText,
                 questionType,
                 options: [],
-                correctAnswer,
+                correctAnswer: acceptableAnswers[0],
                 ...buildPassageFields(item),
-                // Without a listed set of accepted answers the server sends the
-                // response to teacher review instead of auto-grading it.
-                gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
+                gradingMode: 'normalized_match',
                 acceptableAnswers
             });
         }

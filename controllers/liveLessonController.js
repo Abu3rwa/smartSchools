@@ -1276,7 +1276,11 @@ export const listLiveSessions = asyncHandler(async (req, res) => {
 export const endLiveSession = asyncHandler(async (req, res) => {
   const session = await findOwnedSession(req, res);
   if (!session) return;
-  if (String(session.teacherId) !== String(req.user._id)) {
+  const isOwner = String(session.teacherId) === String(req.user._id);
+  // findOwnedSession already proved staff class access; letting an admin close a lesson its
+  // teacher never came back to end is the only way a stuck session stops blocking the class.
+  const canEndOthersSession = ["admin", "department_principal"].includes(req.user.role);
+  if (!isOwner && !canEndOthersSession) {
     return res.status(403).json({ success: false, message: "Only the session owner can end this live lesson." });
   }
   if (session.status !== "live") {
@@ -1287,7 +1291,7 @@ export const endLiveSession = asyncHandler(async (req, res) => {
     {
       _id: session._id,
       school: req.schoolId,
-      teacherId: req.user._id,
+      ...(isOwner ? { teacherId: req.user._id } : {}),
       status: "live",
     },
     {

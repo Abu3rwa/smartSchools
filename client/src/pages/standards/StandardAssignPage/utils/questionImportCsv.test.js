@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { questionGuideRows } from '../../../../components/assessment/questionTypeGuideData.js';
-import { buildTemplateCsv, parseCsv, parseQuestionImport } from './questionImportCsv.js';
+import { buildAiPrompt, buildTemplateCsv, parseCsv, parseQuestionImport } from './questionImportCsv.js';
 
 const HEADER =
     'question_type,question_text,option_a,option_b,option_c,option_d,correct_answer';
@@ -50,6 +50,27 @@ test('still flags options that are truly identical', () => {
     ]);
 
     assert.deepEqual(rows[0].errors, [{ code: 'duplicateOptions' }]);
+});
+
+test('a short answer key is graded automatically, with alternatives after ~', () => {
+    const { rows } = parseRows([
+        'short_answer,Which river flows through Egypt?,,,,,Nile~the Nile',
+        'short_answer,What is the capital of France?,,,,,Paris'
+    ]);
+
+    assert.deepEqual(rows[0].errors, []);
+    assert.equal(rows[0].question.correctAnswer, 'Nile');
+    assert.deepEqual(rows[0].question.acceptableAnswers, ['Nile', 'the Nile']);
+    assert.equal(rows[0].question.gradingMode, 'normalized_match');
+    assert.deepEqual(rows[1].question.acceptableAnswers, ['Paris']);
+    assert.equal(rows[1].question.gradingMode, 'normalized_match');
+});
+
+test('the AI prompt teaches the short answer format', () => {
+    const prompt = buildAiPrompt({ count: 5, subject: 'Science', grade: '6' });
+
+    assert.match(prompt, /one word or one short sentence/);
+    assert.match(prompt, /Nile~the Nile/);
 });
 
 test('the teacher guide explains every question type the shipped template uses', () => {

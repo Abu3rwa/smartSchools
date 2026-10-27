@@ -9,6 +9,8 @@ import {
   getStudentMapPracticePlans,
   getMyMapPracticeHome,
   createMapPracticeAssignment,
+  createMapPracticeAssignmentsBulk,
+  updateMapPracticeAssignmentsBulk,
   deleteEmptyMapPracticePlan,
   deleteMapPracticeSet,
   getMapPracticeAssignmentQuestions
@@ -55,6 +57,8 @@ router.post('/import/archive-not-in-file', authorizeWithPermission(['admin', 'te
 router.get('/import/errors/:token/:fileHash', authorizeWithPermission(['admin', 'teacher'], []), downloadMapPracticeImportErrors);
 router.get('/students/:studentId/plans', authorizeWithPermission(['admin', 'teacher', 'student'], []), getStudentMapPracticePlans);
 router.post('/assignments', authorizeWithPermission(['admin', 'teacher'], []), createMapPracticeAssignment);
+router.post('/assignments/bulk', authorizeWithPermission(['admin', 'teacher'], []), createMapPracticeAssignmentsBulk);
+router.post('/assignments/bulk-action', authorizeWithPermission(['admin', 'teacher'], []), updateMapPracticeAssignmentsBulk);
 router.delete('/plans/:planId', authorizeWithPermission(['admin', 'teacher'], []), deleteEmptyMapPracticePlan);
 router.delete('/sets/:setId', authorizeWithPermission(['admin', 'teacher'], []), deleteMapPracticeSet);
 router.get('/assignments/:assignmentId/questions', authorizeWithPermission(['student', 'admin', 'teacher'], []), getMapPracticeAssignmentQuestions);

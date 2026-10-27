@@ -728,6 +728,65 @@ const upsertAssessmentGradebookProgress = async ({
   );
 };
 
+// Reviewing a pending short answer turns it into an answered attempt, so the gradebook row has
+// to be recounted or the book (and the printed sheet) keeps the pre-review total.
+const refreshAssessmentGradebookTotals = async ({
+  schoolId,
+  assignment,
+  studentId,
+}) => {
+  const assignmentId = assignment?._id || assignment;
+  const entry = await StandardsGradebookEntry.findOne({
+    school: schoolId,
+    assignment: assignmentId,
+    student: studentId,
+  })
+    .select("maxScore manualScore isManualEntry")
+    .lean();
+  if (!entry) return null;
+
+  const attempts = await PracticeAttempt.find({
+    school: schoolId,
+    student: studentId,
+    assignment: assignmentId,
+    status: "answered",
+  })
+    .select("isCorrect teacherOverride")
+    .lean();
+
+  const totalAnswered = attempts.length;
+  const correctCount = attempts.filter(
+    (attempt) =>
+      (attempt.teacherOverride?.isCorrect != null
+        ? attempt.teacherOverride.isCorrect
+        : attempt.isCorrect) === true,
+  ).length;
+  const maxScore =
+    Number(entry.maxScore) || getAssessmentConfig(assignment).maxMarks;
+  const { score, percentage } = buildAssessmentScore({
+    correctCount,
+    totalAnswered,
+    maxMarks: maxScore,
+  });
+
+  return StandardsGradebookEntry.findByIdAndUpdate(
+    entry._id,
+    {
+      $set: {
+        totalAnswered,
+        correctCount,
+        score,
+        percentage,
+        effectiveScore:
+          entry.isManualEntry && entry.manualScore != null
+            ? entry.manualScore
+            : percentageToScale4(percentage),
+      },
+    },
+    { new: true },
+  );
+};
+
 const finalizeAssessmentSessionProgress = async ({
   schoolId,
   assignment,
@@ -2965,8 +3024,42 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     }).select("firstName lastName studentId");
   }
 
+  // Both gradebooks count from the attempts themselves. A reviewed short answer turns into an
+  // answered attempt, so a cached entry would keep showing the pre-review total forever.
+  const attempts =
+    students.length > 0
+      ? await PracticeAttempt.find({
+          school: req.schoolId,
+          assignment: assignment._id,
+          student: { $in: students.map((student) => student._id) },
+          status: { $in: ["answered", "pending_review"] },
+        })
+          .select("student isCorrect teacherOverride status")
+          .lean()
+      : [];
+  const attemptsByStudent = new Map();
+  attempts.forEach((attempt) => {
+    const studentId = attempt.student.toString();
+    const totals = attemptsByStudent.get(studentId) || {
+      totalAnswered: 0,
+      correctCount: 0,
+      pendingReviewCount: 0,
+    };
+    if (attempt.status === "pending_review") {
+      totals.pendingReviewCount += 1;
+      attemptsByStudent.set(studentId, totals);
+      return;
+    }
+    totals.totalAnswered += 1;
+    const isCorrect =
+      attempt.teacherOverride?.isCorrect != null
+        ? attempt.teacherOverride.isCorrect
+        : attempt.isCorrect;
+    if (isCorrect === true) totals.correctCount += 1;
+    attemptsByStudent.set(studentId, totals);
+  });
+
   let entryByStudent = new Map();
-  let practiceAttemptsByStudent = new Map();
   if (isAssessment) {
     const entries = await StandardsGradebookEntry.find({
       school: req.schoolId,
@@ -2979,42 +3072,12 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     entryByStudent = new Map(
       entries.map((entry) => [entry.student.toString(), entry]),
     );
-  } else {
-    const attempts = await PracticeAttempt.find({
-      school: req.schoolId,
-      assignment: assignment._id,
-      student: { $in: students.map((student) => student._id) },
-      status: { $in: ["answered", "pending_review"] },
-    })
-      .select("student isCorrect teacherOverride status")
-      .lean();
-    practiceAttemptsByStudent = new Map();
-    attempts.forEach((attempt) => {
-      const studentId = attempt.student.toString();
-      const totals = practiceAttemptsByStudent.get(studentId) || {
-        totalAnswered: 0,
-        correctCount: 0,
-        pendingReviewCount: 0,
-      };
-      if (attempt.status === "pending_review") {
-        totals.pendingReviewCount += 1;
-        practiceAttemptsByStudent.set(studentId, totals);
-        return;
-      }
-      totals.totalAnswered += 1;
-      const isCorrect =
-        attempt.teacherOverride?.isCorrect != null
-          ? attempt.teacherOverride.isCorrect
-          : attempt.isCorrect;
-      if (isCorrect === true) totals.correctCount += 1;
-      practiceAttemptsByStudent.set(studentId, totals);
-    });
   }
 
   const rows = await Promise.all(
     students.map(async (student) => {
       if (!isAssessment) {
-        const attemptTotals = practiceAttemptsByStudent.get(
+        const attemptTotals = attemptsByStudent.get(
           student._id.toString(),
         ) || {
           totalAnswered: 0,
@@ -3055,20 +3118,57 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
 
       const existing = entryByStudent.get(student._id.toString());
       if (existing) {
+        const liveTotals = attemptsByStudent.get(student._id.toString()) || {
+          totalAnswered: 0,
+          correctCount: 0,
+        };
+        const maxScore =
+          Number(existing.maxScore) || getAssessmentConfig(assignment).maxMarks;
+        const { score, percentage } = buildAssessmentScore({
+          correctCount: liveTotals.correctCount,
+          totalAnswered: liveTotals.totalAnswered,
+          maxMarks: maxScore,
+        });
         const scale4 =
           existing.isManualEntry && existing.manualScore != null
             ? existing.manualScore
-            : existing.effectiveScore != null
-              ? existing.effectiveScore
-              : percentageToScale4(existing.percentage);
+            : percentageToScale4(percentage);
+        // Heal the stored row while we are here, so the SB gradebook and released results
+        // show the same reviewed counts instead of keeping the pre-review total.
+        if (
+          liveTotals.totalAnswered !== existing.totalAnswered ||
+          liveTotals.correctCount !== existing.correctCount
+        ) {
+          try {
+            await StandardsGradebookEntry.updateOne(
+              { _id: existing._id },
+              {
+                $set: {
+                  totalAnswered: liveTotals.totalAnswered,
+                  correctCount: liveTotals.correctCount,
+                  score,
+                  percentage,
+                  ...(existing.isManualEntry && existing.manualScore != null
+                    ? {}
+                    : { effectiveScore: percentageToScale4(percentage) }),
+                },
+              },
+            );
+          } catch (err) {
+            logger.error("gradebook_lazy_refresh_failed", {
+              entryId: existing._id,
+              error: err?.message || String(err),
+            });
+          }
+        }
         return {
           student: student.toObject(),
           status: existing.status,
-          totalAnswered: existing.totalAnswered,
-          correctCount: existing.correctCount,
-          score: existing.score,
-          maxScore: existing.maxScore,
-          percentage: existing.percentage,
+          totalAnswered: liveTotals.totalAnswered,
+          correctCount: liveTotals.correctCount,
+          score,
+          maxScore,
+          percentage,
           scale4,
           isManualEntry: existing.isManualEntry || false,
           submittedAt: existing.submittedAt || null,
@@ -3080,13 +3180,8 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         };
       }
 
-      const answeredCount = await PracticeAttempt.countDocuments({
-        school: req.schoolId,
-        student: student._id,
-        assignment: assignment._id,
-        status: "answered",
-        sessionType: "assessment",
-      });
+      const answeredCount =
+        attemptsByStudent.get(student._id.toString())?.totalAnswered || 0;
       return {
         student: student.toObject(),
         status: answeredCount > 0 ? "in_progress" : "not_started",
@@ -4624,22 +4719,34 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
   }
   await attempt.save();
 
+  const assignment = await StandardAssignment.findById(attempt.assignment)
+    .select("class subject standard academicYear semester assessmentConfig")
+    .lean();
+
+  try {
+    await refreshAssessmentGradebookTotals({
+      schoolId: req.schoolId,
+      assignment: assignment || attempt.assignment,
+      studentId: attempt.student,
+    });
+  } catch (err) {
+    logger.error("gradebook_refresh_after_override_failed", {
+      attemptId: attempt._id,
+      error: err?.message || String(err),
+    });
+  }
+
   // If the override changed the correctness, recalculate mastery for this student+standard
-  if (previousIsCorrect !== isCorrect) {
+  if (previousIsCorrect !== isCorrect && assignment) {
     try {
-      const assignment = await StandardAssignment.findById(attempt.assignment)
-        .select("class subject academicYear semester")
-        .lean();
-      if (assignment) {
-        await PracticeAttempt.calculateMastery(
-          attempt.student,
-          attempt.standard,
-          80,
-          5,
-          3,
-          req.schoolId,
-        );
-      }
+      await PracticeAttempt.calculateMastery(
+        attempt.student,
+        attempt.standard,
+        80,
+        5,
+        3,
+        req.schoolId,
+      );
     } catch (err) {
       logger.error("mastery_recalc_after_override_failed", {
         attemptId: attempt._id,
@@ -4801,7 +4908,7 @@ export const getStudentResultReport = asyncHandler(async (req, res) => {
     status: { $in: ["answered", "pending_review"] },
   })
     .select(
-      "questionText questionType options matchingPairs orderingItems blanks numericRule correctAnswer studentAnswer studentResponse isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode",
+      "questionText questionType options matchingPairs orderingItems blanks numericRule correctAnswer studentAnswer studentResponse isCorrect status feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode",
     )
     .sort({ attemptNumber: 1 })
     .lean();
@@ -4809,76 +4916,67 @@ export const getStudentResultReport = asyncHandler(async (req, res) => {
   const isAssessment =
     getAssignmentPracticeConfig(assignment).sessionType === "assessment";
 
-  let result;
+  // Count the attempts the teacher has actually graded, including short answers they
+  // reviewed after submission, so a reviewed paper never prints yesterday's total.
+  const gradedAttempts = attempts.filter(
+    (attempt) => attempt.status !== "pending_review",
+  );
+  const correctCount = gradedAttempts.filter(
+    (attempt) =>
+      (attempt.teacherOverride?.isCorrect != null
+        ? attempt.teacherOverride.isCorrect
+        : attempt.isCorrect) === true,
+  ).length;
+
+  // The paper's length comes from the session's question limit, never from the raw attempt
+  // rows: reloading a served question leaves an abandoned pending row behind, which used to
+  // inflate the denominator (24 correct printed as 24/27 on a 25-question paper).
+  let totalQuestions = attempts.length;
   if (isAssessment) {
-    const entry = await StandardsGradebookEntry.findOne({
+    const session = await PracticeSession.findOne({
+      school: req.schoolId,
+      student: studentId,
+      assignment: assignmentId,
+    })
+      .sort({ createdAt: -1 })
+      .select("questionLimit")
+      .lean();
+    const questionLimit = Number(session?.questionLimit);
+    if (Number.isFinite(questionLimit) && questionLimit > 0) {
+      totalQuestions = Math.max(totalQuestions, questionLimit);
+    }
+  }
+  const percentage =
+    totalQuestions > 0
+      ? Number(((correctCount / totalQuestions) * 100).toFixed(2))
+      : null;
+
+  let entry = null;
+  if (isAssessment) {
+    entry = await StandardsGradebookEntry.findOne({
       school: req.schoolId,
       assignment: assignmentId,
       student: studentId,
     })
-      .select(
-        "status totalAnswered correctCount score maxScore percentage effectiveScore manualScore isManualEntry",
-      )
+      .select("maxScore metadata")
       .lean();
-
-    if (entry) {
-      result = {
-        status: entry.status,
-        totalAnswered: entry.totalAnswered,
-        correctCount: entry.correctCount,
-        score: entry.score,
-        maxScore: entry.maxScore,
-        percentage: entry.percentage,
-        scale4:
-          entry.isManualEntry && entry.manualScore != null
-            ? entry.manualScore
-            : entry.effectiveScore != null
-              ? entry.effectiveScore
-              : percentageToScale4(entry.percentage),
-      };
-    } else {
-      const answeredCount = await PracticeAttempt.countDocuments({
-        school: req.schoolId,
-        student: studentId,
-        assignment: assignmentId,
-        status: "answered",
-        sessionType: "assessment",
-      });
-      result = {
-        status: answeredCount > 0 ? "in_progress" : "not_started",
-        totalAnswered: answeredCount,
-        correctCount: null,
-        score: null,
-        maxScore: null,
-        percentage: null,
-        scale4: null,
-      };
-    }
-  } else {
-    // Practice sessions have no gradebook row, so the sheet counts the same override-aware attempts the table does.
-    const graded = attempts.filter((attempt) => attempt.status !== "pending_review");
-    const correctCount = graded.filter(
-      (attempt) =>
-        (attempt.teacherOverride?.isCorrect != null
-          ? attempt.teacherOverride.isCorrect
-          : attempt.isCorrect) === true,
-    ).length;
-    result = {
-      status:
-        graded.length > 0 || graded.length < attempts.length
-          ? "in_progress"
-          : "not_started",
-      totalAnswered: graded.length,
-      correctCount,
-      score: correctCount,
-      maxScore: graded.length,
-      percentage:
-        graded.length > 0
-          ? Number(((correctCount / graded.length) * 100).toFixed(2))
-          : null,
-      scale4: null,
-    };
   }
+
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const maxScore = Number(entry?.maxScore) || assessmentConfig.maxMarks;
+  const passMarks = Number(
+    entry?.metadata?.passMarks ?? assessmentConfig.passMarks,
+  );
+  const passPercent =
+    maxScore > 0 ? Number(((passMarks / maxScore) * 100).toFixed(2)) : 50;
+
+  const result = {
+    totalAnswered: gradedAttempts.length,
+    totalQuestions,
+    correctCount,
+    percentage,
+    passPercent,
+  };
 
   const dateLocale = language === "ar" ? "ar-EG-u-nu-latn" : "en-GB";
   const now = new Date();

@@ -5,6 +5,7 @@ import {
     isObjectivePracticeQuestionType,
     PRACTICE_MIN_OPTIONS,
     PRACTICE_PAIR_SEPARATOR,
+    PRACTICE_VARIANT_SEPARATOR,
     resolvePracticeQuestionType
 } from '../constants/practiceQuestionTypes.js';
 import { readTypeDefinition } from './assessment/answerFormat.js';
@@ -137,22 +138,34 @@ export const sanitizeImportedQuestions = (input) => {
                 ...passageFields,
             });
         } else if (questionType === 'short_answer') {
-            const correctAnswer = str(item.correctAnswer, 500);
-            if (!correctAnswer) {
-                return { questions: [], error: `${label}: expected answer is required` };
-            }
-            const acceptableAnswers = (Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : [])
+            // The model answer and any accepted alternatives both grade the attempt, so a
+            // short answer imported from CSV is marked automatically instead of waiting for review.
+            const acceptableAnswers = [
+                ...String(item.correctAnswer ?? '').split(PRACTICE_VARIANT_SEPARATOR),
+                ...(Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : []),
+            ]
                 .map((answer) => str(answer, 500))
                 .filter(Boolean);
+            const uniqueAnswers = [];
+            const seenAnswers = new Set();
+            acceptableAnswers.forEach((answer) => {
+                const key = answer.toLowerCase();
+                if (seenAnswers.has(key)) return;
+                seenAnswers.add(key);
+                uniqueAnswers.push(answer);
+            });
+            if (uniqueAnswers.length === 0) {
+                return { questions: [], error: `${label}: expected answer is required` };
+            }
             questions.push({
                 questionText,
                 questionType,
                 options: [],
-                correctAnswer,
+                correctAnswer: uniqueAnswers[0],
                 explanation,
                 difficulty,
-                gradingMode: acceptableAnswers.length > 0 ? 'normalized_match' : 'conceptual',
-                acceptableAnswers,
+                gradingMode: 'normalized_match',
+                acceptableAnswers: uniqueAnswers,
                 ...passageFields,
             });
         } else if (isObjectivePracticeQuestionType(questionType)) {

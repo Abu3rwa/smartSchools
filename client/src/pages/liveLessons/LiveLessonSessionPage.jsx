@@ -135,6 +135,8 @@ const LiveLessonSessionPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [localAnswer, setLocalAnswer] = useState(null);
   const [endConfirm, setEndConfirm] = useState(false);
+  const [observerEndConfirm, setObserverEndConfirm] = useState(false);
+  const [observerEnding, setObserverEnding] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [timerNow, setTimerNow] = useState(Date.now());
   const presentationRef = useRef(null);
@@ -164,6 +166,9 @@ const LiveLessonSessionPage = () => {
   const sessionStatus = state?.status || session?.status;
   const isTeacher = Boolean(session?.isOwner);
   const isObserver = role === "observer" && !isTeacher;
+  const canEndObservedSession = ["admin", "department_principal"].includes(
+    user?.role,
+  );
   const isPaused = Boolean(state?.paused ?? session?.paused);
   const currentIndex =
     state?.currentSlideIndex ?? session?.currentSlideIndex ?? 0;
@@ -414,6 +419,30 @@ const LiveLessonSessionPage = () => {
     },
     [sendAction],
   );
+
+  // Observers hold no socket control, so an admin closing a lesson its teacher abandoned
+  // goes through the REST endpoint that performs the same end and broadcasts the new state.
+  const endObservedSession = async () => {
+    if (observerEnding) return;
+    setObserverEnding(true);
+    setActionError("");
+    try {
+      const response = await api.post(`/live/sessions/${sessionId}/end`);
+      const endedSession = response.data?.data?.session;
+      setSession((previous) =>
+        previous
+          ? { ...previous, status: endedSession?.status || "ended" }
+          : previous,
+      );
+      setObserverEndConfirm(false);
+    } catch (endFailure) {
+      setActionError(
+        endFailure.response?.data?.message || "Could not end this lesson.",
+      );
+    } finally {
+      setObserverEnding(false);
+    }
+  };
 
   const updateReplayAvailability = async (available) => {
     setReplayAvailabilitySaving(true);
@@ -904,6 +933,39 @@ const LiveLessonSessionPage = () => {
 
         {isTeacher || isObserver ? (
           <aside className="live-teacher-sidebar">
+            {isObserver && canEndObservedSession && sessionStatus === "live" && (
+              <div className="live-control-card">
+                <h2>Lesson control</h2>
+                <p>
+                  This lesson is still running. Ending it closes the lesson
+                  for every student and unlocks the session report.
+                </p>
+                {observerEndConfirm ? (
+                  <div className="live-end-confirm">
+                    <span>End the session for everyone?</span>
+                    <button
+                      onClick={endObservedSession}
+                      disabled={observerEnding}
+                    >
+                      {observerEnding ? "Ending…" : "End lesson"}
+                    </button>
+                    <button
+                      onClick={() => setObserverEndConfirm(false)}
+                      disabled={observerEnding}
+                    >
+                      Keep it running
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="live-session-danger full-width"
+                    onClick={() => setObserverEndConfirm(true)}
+                  >
+                    <HiOutlineStop /> End session
+                  </button>
+                )}
+              </div>
+            )}
             {isTeacher && sessionStatus !== "waiting" && (
               <div className="live-control-card">
                 <h2>Student view</h2>
