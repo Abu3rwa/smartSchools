@@ -2,6 +2,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import Student from '../models/Student.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import * as writingService from '../services/writingAssistantService.js';
+import * as writingAssessmentService from '../services/writingAssistantAssessmentService.js';
 
 const studentForRequest = async (req) => {
     const academicYear = resolveAcademicYearForRequest(req);
@@ -127,6 +128,87 @@ export const getProjectHistory = asyncHandler(async (req, res) => {
         projectId: req.params.projectId
     });
     res.json({ success: true, data: history });
+});
+
+/* Teacher: assessment and publication */
+
+export const assessDraft = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.assessDraft({
+        schoolId: req.schoolId,
+        draftId: req.params.draftId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        language: req.body?.language || req.query.language
+    });
+    res.status(201).json({ success: true, data: result });
+});
+
+export const assessAssignment = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.assessPendingBatch({
+        schoolId: req.schoolId,
+        assignmentId: req.params.assignmentId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        classId: req.body?.classId || req.query.classId,
+        limit: req.body?.limit,
+        language: req.body?.language || req.query.language
+    });
+    res.json({ success: true, data: result });
+});
+
+export const compareDraft = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.compareDrafts({
+        schoolId: req.schoolId,
+        draftId: req.params.draftId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        language: req.body?.language || req.query.language
+    });
+    res.status(201).json({ success: true, data: result });
+});
+
+export const saveAssessmentEdits = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.saveAssessmentEdits({
+        schoolId: req.schoolId,
+        assessmentId: req.params.assessmentId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        payload: req.body || {}
+    });
+    res.json({ success: true, data: result });
+});
+
+export const publishAssessment = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.publishAssessment({
+        schoolId: req.schoolId,
+        assessmentId: req.params.assessmentId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        payload: req.body || {}
+    });
+    res.json({ success: true, data: result });
+});
+
+export const overrideProjectStage = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.overrideStage({
+        schoolId: req.schoolId,
+        projectId: req.params.projectId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        payload: req.body || {}
+    });
+    res.json({ success: true, data: result });
+});
+
+export const recordNotebookReview = asyncHandler(async (req, res) => {
+    const result = await writingAssessmentService.recordNotebookReview({
+        schoolId: req.schoolId,
+        projectId: req.params.projectId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        payload: req.body || {}
+    });
+    res.json({ success: true, data: result });
 });
 
 /* ------------------------------------------------------------------ */

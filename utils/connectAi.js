@@ -7,6 +7,9 @@ const FALLBACK_MODELS = [
   "gemini-3.1-pro-preview",
 ].filter(Boolean);
 
+const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
+const OPENAI_TIMEOUT_MS = () => Number(process.env.OPENAI_TIMEOUT_MS) || 120000;
+
 const isRetryableAiError = (error) => {
   const status = Number(error?.status || error?.code);
   const apiStatus = String(error?.error?.status || "").toUpperCase();
@@ -49,7 +52,114 @@ async function fetchImageAsBase64(url) {
   return { data: buffer.toString('base64'), mimeType };
 }
 
+/**
+ * OpenAI Chat Completions provider. Kept behind an explicit option so only the
+ * callers that ask for it leave Gemini; no global switch, no silent cross-provider
+ * fallback when the key is missing or the request fails.
+ */
+async function connectOpenAi(prompt, options = {}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const modelName = options.modelName || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+
+  if (!apiKey) {
+    logger.error("OPENAI_API_KEY is not set in environment variables");
+    const error = new Error("AI Service is not configured (missing OpenAI API Key)");
+    error.status = 500;
+    throw error;
+  }
+
+  if (typeof prompt !== "string" || !prompt.trim()) {
+    const error = new Error("AI prompt must be a non-empty string");
+    error.status = 400;
+    throw error;
+  }
+
+  if (options.imageUrls?.length) {
+    const error = new Error("Image input is not supported for this AI provider");
+    error.status = 400;
+    throw error;
+  }
+
+  const baseUrl = String(process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+  const modelsToTry = [modelName, process.env.OPENAI_FALLBACK_MODEL]
+    .filter((model, index, all) => model && all.indexOf(model) === index);
+
+  let lastError = null;
+
+  for (const candidateModel of modelsToTry) {
+    let response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: candidateModel,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS()),
+      });
+    } catch (error) {
+      const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+      lastError = openAiError(timedOut ? 504 : 502, timedOut ? "Request timed out" : error?.message, candidateModel);
+      logger.warn("OpenAI request failed", { model: candidateModel, message: error?.message });
+      break;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = payload?.error?.message || `HTTP ${response.status}`;
+      logger.warn("OpenAI model attempt failed", {
+        model: candidateModel,
+        status: response.status,
+        message,
+      });
+      lastError = openAiError(response.status, message, candidateModel);
+      if (!isRetryableOpenAiStatus(response.status)) break;
+      continue;
+    }
+
+    const text = payload?.choices?.[0]?.message?.content || "";
+    if (!text.trim()) {
+      lastError = openAiError(502, "The model returned an empty reply.", candidateModel);
+      break;
+    }
+
+    const usage = payload?.usage || {};
+    return {
+      text,
+      inputtokenCount: usage.prompt_tokens || 0,
+      outputtokenCount: usage.completion_tokens || 0,
+      totalTokenCount: usage.total_tokens || 0,
+      modelName: candidateModel,
+    };
+  }
+
+  throw lastError || openAiError(502, "Unknown AI error", modelName);
+}
+
+const isRetryableOpenAiStatus = (status) => status === 429 || status >= 500;
+
+const openAiError = (status, message, modelName) => {
+  const error = new Error(`AI service request failed (${modelName}): ${message}`);
+  error.statusCode = status >= 400 && status < 600 ? status : 502;
+  error.status = status;
+  error.code = "OPENAI_UPSTREAM_ERROR";
+  return error;
+};
+
 export async function connectAi(prompt, options = {}) {
+  const provider = String(options.provider || "gemini").toLowerCase();
+  if (provider === "openai") return connectOpenAi(prompt, options);
+  if (provider !== "gemini") {
+    const error = new Error(`Unknown AI provider: ${provider}`);
+    error.status = 400;
+    throw error;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   const modelName = options.modelName || DEFAULT_MODEL_NAME;

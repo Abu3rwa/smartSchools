@@ -45,6 +45,16 @@ const StudentFormModal = ({
                                 />
                             </div>
                         </div>
+                        <div className="form-group">
+                            <label>{t('students:form.quickSchoolsName')}</label>
+                            <input
+                                type="text"
+                                value={formData.externalName || ''}
+                                onChange={(e) => setFormData({ ...formData, externalName: e.target.value })}
+                                placeholder={`${formData.firstName} ${formData.lastName}`.trim()}
+                            />
+                            <small className="form-hint">{t('students:form.quickSchoolsNameHint')}</small>
+                        </div>
                         <div className="form-row">
                             <div className="form-group">
                                 <label>{t('students:form.studentId')}</label>

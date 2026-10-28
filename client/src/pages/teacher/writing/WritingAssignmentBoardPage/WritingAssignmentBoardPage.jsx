@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { HiOutlineArrowLeft, HiOutlinePencilAlt, HiOutlineSearch } from "react-icons/hi";
+import { HiOutlineArrowLeft, HiOutlinePencilAlt, HiOutlineSearch, HiOutlineSparkles } from "react-icons/hi";
 import { stageTone } from "../../../../utils/writingWorkflow.js";
 import {
   formatDate,
@@ -7,6 +7,7 @@ import {
   sortStages,
   teacherNextStepKey,
 } from "./boardPresentation.js";
+import ReviewPanel from "./ReviewPanel.jsx";
 import { useWritingBoardData } from "./hooks/useWritingBoardData.js";
 import "../writingShared.css";
 
@@ -14,6 +15,8 @@ export default function WritingAssignmentBoardPage() {
   const { t, i18n } = useTranslation(["writing"]);
   const {
     assignment,
+    assessWaiting,
+    batchPending,
     history,
     historyLoading,
     loading,
@@ -22,6 +25,7 @@ export default function WritingAssignmentBoardPage() {
     onStage,
     openStudent,
     projectId,
+    refresh,
     rows,
     search,
     setSearch,
@@ -57,10 +61,25 @@ export default function WritingAssignmentBoardPage() {
             {assignment?.expectedLevel && <> · {assignment.expectedLevel}</>}
           </p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={onEdit}>
-          <HiOutlinePencilAlt size={16} aria-hidden="true" />
-          {t("writing:teacher.edit")}
-        </button>
+        <div className="wa-head-actions">
+          {summary?.awaitingAssessment > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={batchPending}
+              onClick={assessWaiting}
+            >
+              <HiOutlineSparkles size={16} aria-hidden="true" />
+              {batchPending
+                ? t("writing:teacher.review.assessing")
+                : t("writing:teacher.review.batch", { n: summary.awaitingAssessment })}
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={onEdit}>
+            <HiOutlinePencilAlt size={16} aria-hidden="true" />
+            {t("writing:teacher.edit")}
+          </button>
+        </div>
       </div>
 
       {summary && (
@@ -193,6 +212,7 @@ export default function WritingAssignmentBoardPage() {
                     ))}
                   </ol>
                 )}
+                <ReviewPanel history={history} onChanged={refresh} />
                 {history.drafts.length === 0 && (
                   <p className="wa-hint">{t("writing:teacher.board.noDraftsYet")}</p>
                 )}

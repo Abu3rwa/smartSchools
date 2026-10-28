@@ -555,6 +555,14 @@
     margin-bottom: var(--spacing-md);
 }
 
+.form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
 .modal>form {
     display: flex;
     flex-direction: column;

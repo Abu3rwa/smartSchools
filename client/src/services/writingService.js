@@ -30,6 +30,22 @@ export const writingService = {
     api.get(`/writing/assignments/${assignmentId}/progress`).then(unwrap),
   getProjectHistory: (projectId) => api.get(`/writing/projects/${projectId}/history`).then(unwrap),
 
+  // Teacher: assessment and publication (AI routes are rate limited server-side)
+  assessDraft: (draftId, body) =>
+    api.post(`/writing/drafts/${draftId}/assess`, body || {}).then(unwrap),
+  compareDraft: (draftId, body) =>
+    api.post(`/writing/drafts/${draftId}/compare`, body || {}).then(unwrap),
+  assessAssignment: (assignmentId, body) =>
+    api.post(`/writing/assignments/${assignmentId}/assess`, body || {}).then(unwrap),
+  saveAssessmentEdits: (assessmentId, body) =>
+    api.patch(`/writing/assessments/${assessmentId}`, body || {}).then(unwrap),
+  publishAssessment: (assessmentId, body) =>
+    api.post(`/writing/assessments/${assessmentId}/publish`, body || {}).then(unwrap),
+  overrideProjectStage: (projectId, body) =>
+    api.post(`/writing/projects/${projectId}/stage`, body || {}).then(unwrap),
+  recordNotebookReview: (projectId, body) =>
+    api.post(`/writing/projects/${projectId}/notebook`, body || {}).then(unwrap),
+
   // Student
   getMyWriting: () => api.get('/writing/my').then(unwrap),
   openProject: (assignmentId) =>

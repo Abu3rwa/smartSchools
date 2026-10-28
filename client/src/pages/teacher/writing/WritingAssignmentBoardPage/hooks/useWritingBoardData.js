@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
 
 export function useWritingBoardData() {
   const { assignmentId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation(["writing"]);
 
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,13 +16,19 @@ export function useWritingBoardData() {
   const [projectId, setProjectId] = useState("");
   const [history, setHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [batchPending, setBatchPending] = useState(false);
+  const loadedBoard = useRef(false);
+  const loadedHistory = useRef("");
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    if (!loadedBoard.current) setLoading(true);
     writingService.getBoard(assignmentId)
       .then((data) => {
-        if (active) setBoard(data);
+        if (!active) return;
+        loadedBoard.current = true;
+        setBoard(data);
       })
       .catch((error) => {
         if (active) toast.error(error?.response?.data?.message || "Could not load this writing task.");
@@ -29,18 +37,21 @@ export function useWritingBoardData() {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [assignmentId]);
+  }, [assignmentId, refreshKey]);
 
   useEffect(() => {
     if (!projectId) {
       setHistory(null);
+      loadedHistory.current = "";
       return undefined;
     }
     let active = true;
-    setHistoryLoading(true);
+    if (loadedHistory.current !== projectId) setHistoryLoading(true);
     writingService.getProjectHistory(projectId)
       .then((data) => {
-        if (active) setHistory(data);
+        if (!active) return;
+        loadedHistory.current = projectId;
+        setHistory(data);
       })
       .catch((error) => {
         if (active) toast.error(error?.response?.data?.message || "Could not load that student.");
@@ -49,7 +60,7 @@ export function useWritingBoardData() {
         if (active) setHistoryLoading(false);
       });
     return () => { active = false; };
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   const rows = useMemo(() => {
     const all = board?.rows || [];
@@ -67,14 +78,41 @@ export function useWritingBoardData() {
   }, [board]);
 
   const openStudent = useCallback((id) => setProjectId(id || ""), []);
+  const refresh = useCallback(() => setRefreshKey((current) => current + 1), []);
+
+  const assessWaiting = useCallback(async () => {
+    setBatchPending(true);
+    try {
+      const result = await writingService.assessAssignment(assignmentId, { limit: 5 });
+      if (!result?.attempted) {
+        toast(t("writing:teacher.review.batchEmpty"));
+      } else {
+        toast.success(t("writing:teacher.review.batchDone", {
+          assessed: result.assessed,
+          failed: result.failed,
+          remaining: result.remaining,
+        }));
+      }
+      refresh();
+      return result;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || t("writing:teacher.review.failed"));
+      return null;
+    } finally {
+      setBatchPending(false);
+    }
+  }, [assignmentId, refresh, t]);
 
   return {
     assignment: board?.assignment || null,
+    assessWaiting,
+    batchPending,
     history,
     historyLoading,
     loading,
     openStudent,
     projectId,
+    refresh,
     rows,
     search,
     setSearch,

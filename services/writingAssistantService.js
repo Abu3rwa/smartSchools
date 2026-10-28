@@ -31,7 +31,8 @@ import {
     stageAfterSubmit,
     studentNextAction,
     summarizeBoard,
-    validateSubmission
+    validateSubmission,
+    workingSectionsFor
 } from './writingAssistantLogic.js';
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -531,6 +532,14 @@ export const submitDraft = async ({ schoolId, projectId, studentId, payload = {}
     project.latestDraft = draft._id;
     project.stage = stageAfterSubmit();
     project.status = 'in_progress';
+    // The next revision must start from exactly what was sent, including edits
+    // made inside the submit sheet before the autosave timer fired.
+    project.autosave = {
+        title: draft.title,
+        sections: draftSections.map(({ key, index, text }) => ({ key, index, text })),
+        updatedAt: new Date()
+    };
+    project.wordCount = draft.totalWords;
     project.lastEditedAt = new Date();
     await project.save();
 
@@ -725,9 +734,13 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
     const published = assessments;
     const latestPublished = publishedForDraft(published, project.latestDraft?._id) || published[0] || null;
     const goal = (assignment.goals || []).find((row) => sameId(row.student, studentId))?.text || '';
-    const working = project.autosave?.sections?.length
-        ? project.autosave.sections
-        : buildWorkingSections(assignment);
+    const hasAutosave = Boolean(project.autosave?.sections?.length);
+    const working = workingSectionsFor({
+        autosave: project.autosave,
+        draft: project.latestDraft,
+        assignment
+    });
+    const workingTitle = hasAutosave ? project.autosave?.title || '' : project.latestDraft?.title || '';
 
     return {
         project: {
@@ -738,7 +751,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
             wordCount: project.wordCount,
             notebook: project.notebook?.state || 'not_requested',
             autosave: {
-                title: project.autosave?.title || '',
+                title: workingTitle,
                 sections: working,
                 savedAt: project.autosave?.updatedAt || null
             },
@@ -811,7 +824,8 @@ export const getStudentFeed = async ({ schoolId, studentId, academicYear = null 
         ? await WritingAssessment.find({
             school: schoolId,
             project: { $in: projects.map((row) => row._id) },
-            kind: 'comparison'
+            kind: 'comparison',
+            'publish.state': 'published'
         }).select('project').lean()
         : [];
     const hasComparisonByProject = new Set(compared.map((row) => String(row.project)));
@@ -901,6 +915,7 @@ export const getProjectHistory = async ({ schoolId, projectId }) => {
         WritingAssignment.findOne({ school: schoolId, _id: project.assignment }).lean(),
         WritingDraft.find({ school: schoolId, project: project._id }).sort({ number: 1 }).lean(),
         WritingAssessment.find({ school: schoolId, project: project._id })
+            .select('-aiOriginal')
             .sort({ createdAt: -1 })
             .lean()
     ]);

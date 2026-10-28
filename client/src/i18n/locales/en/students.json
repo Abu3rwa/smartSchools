@@ -112,6 +112,8 @@
     "studentInformation": "Student Information",
     "firstName": "First Name *",
     "lastName": "Last Name *",
+    "quickSchoolsName": "QuickSchools Full Name",
+    "quickSchoolsNameHint": "Optional. Exact name used in QuickSchools gradebook imports. Leave empty to use the first and last name.",
     "studentId": "Student ID *",
     "email": "Email",
     "dateOfBirth": "Date of Birth *",

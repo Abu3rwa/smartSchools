@@ -15,6 +15,7 @@ const read = (relative) => readFile(new URL(relative, import.meta.url), 'utf8');
 const SERVICE = '../services/writingAssistantService.js';
 const CONTROLLER = '../controllers/writingController.js';
 const ROUTES = '../routes/writingRoutes.js';
+const ASSESSMENT = '../services/writingAssistantAssessmentService.js';
 
 const STUDENT_HANDLERS = [
     'myWriting',
@@ -100,6 +101,59 @@ test('teacher routes stay behind the staff guard', async () => {
 test('the writing service exports the student-facing functions', async () => {
     const module = await import(SERVICE);
     for (const name of ALLOWED_SERVICE_CALLS) {
+        assert.equal(typeof module[name], 'function', `${name} must be exported`);
+    }
+});
+
+test('teacher assessment lives in its own service and is the only AI entry point', async () => {
+    const assessment = await read(ASSESSMENT);
+    assert.ok(assessment.includes('connectAi'), 'the assessment service must call the AI');
+    assert.ok(
+        assessment.includes('writingAssistantPrompts'),
+        'the assessment service owns prompt building'
+    );
+
+    const controller = await read(CONTROLLER);
+    const teacherSection = controller.slice(0, controller.indexOf('export const myWriting'));
+    const calls = [...new Set(
+        [...teacherSection.matchAll(/writingAssessmentService\.([A-Za-z0-9_]+)/g)].map((m) => m[1])
+    )];
+    for (const name of [
+        'assessDraft',
+        'assessPendingBatch',
+        'compareDrafts',
+        'saveAssessmentEdits',
+        'publishAssessment',
+        'overrideStage',
+        'recordNotebookReview'
+    ]) {
+        assert.ok(calls.includes(name), `${name} must be reachable from the teacher block`);
+    }
+});
+
+test('the student read path exposes published feedback only', async () => {
+    const source = await read(SERVICE);
+    assert.ok(
+        source.includes("'publish.state': 'published'"),
+        'getStudentProject must filter to published assessments'
+    );
+    assert.ok(
+        source.includes("select('-aiOriginal')"),
+        'the teacher history must not ship the AI original back down'
+    );
+});
+
+test('the assessment service exports every workflow entry point', async () => {
+    const module = await import(ASSESSMENT);
+    for (const name of [
+        'assessDraft',
+        'assessPendingBatch',
+        'compareDrafts',
+        'saveAssessmentEdits',
+        'publishAssessment',
+        'overrideStage',
+        'recordNotebookReview'
+    ]) {
         assert.equal(typeof module[name], 'function', `${name} must be exported`);
     }
 });

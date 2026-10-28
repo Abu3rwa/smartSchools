@@ -148,13 +148,23 @@ export function useWritingWorkspaceData() {
   }, [projectId, t]);
 
   const latestDraft = data.drafts[data.drafts.length - 1] || null;
+  // A published comparison sits in the same list as feedback; they are different views.
   const feedback = useMemo(
-    () => data.feedback.find((row) => latestDraft && row.draftId === latestDraft.id) || null,
+    () => data.feedback.find((row) => (
+      latestDraft && row.draftId === latestDraft.id && row.kind !== "comparison"
+    )) || null,
+    [data.feedback, latestDraft],
+  );
+  const comparison = useMemo(
+    () => data.feedback.find((row) => (
+      latestDraft && row.draftId === latestDraft.id && row.kind === "comparison"
+    )) || null,
     [data.feedback, latestDraft],
   );
 
   return {
     addSlot,
+    comparison,
     data,
     editSection,
     editTitle,

@@ -93,6 +93,7 @@ const StudentsPage = () => {
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
+        externalName: '',
         studentId: '',
         email: '',
         dateOfBirth: '',
@@ -276,6 +277,7 @@ const StudentsPage = () => {
         setFormData({
             firstName: student.firstName || '',
             lastName: student.lastName || '',
+            externalName: student.externalName || '',
             studentId: student.studentId || '',
             email: student.email || '',
             dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
@@ -309,6 +311,7 @@ const StudentsPage = () => {
         setFormData({
             firstName: '',
             lastName: '',
+            externalName: '',
             studentId: '',
             email: '',
             dateOfBirth: '',

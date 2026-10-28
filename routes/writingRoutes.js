@@ -2,8 +2,12 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { requireFeature } from '../middleware/featureGate.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 import {
+    assessAssignment,
+    assessDraft,
     autosaveProject,
+    compareDraft,
     createAssignment,
     deactivateAssignment,
     getAssignment,
@@ -17,6 +21,10 @@ import {
     myProject,
     myProjectById,
     myWriting,
+    overrideProjectStage,
+    publishAssessment,
+    recordNotebookReview,
+    saveAssessmentEdits,
     saveAsTemplate,
     submitProject,
     updateAssignment
@@ -46,6 +54,15 @@ router.post('/templates/:templateId/instantiate', staff, instantiateTemplate);
 router.get('/assignments/:assignmentId/board', staff, getBoard);
 router.get('/assignments/:assignmentId/progress', staff, getProgress);
 router.get('/projects/:projectId/history', staff, getProjectHistory);
+
+/* Teacher: assessment, review and publication (the AI ones are rate limited) */
+router.post('/assignments/:assignmentId/assess', staff, aiFeatureRateLimiter, assessAssignment);
+router.post('/drafts/:draftId/assess', staff, aiFeatureRateLimiter, assessDraft);
+router.post('/drafts/:draftId/compare', staff, aiFeatureRateLimiter, compareDraft);
+router.patch('/assessments/:assessmentId', staff, saveAssessmentEdits);
+router.post('/assessments/:assessmentId/publish', staff, publishAssessment);
+router.post('/projects/:projectId/stage', staff, overrideProjectStage);
+router.post('/projects/:projectId/notebook', staff, recordNotebookReview);
 
 /*
  * Student. These routes read published feedback only and never reach the AI

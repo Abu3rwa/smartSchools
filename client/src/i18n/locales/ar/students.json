@@ -112,6 +112,8 @@
     "studentInformation": "معلومات الطالب",
     "firstName": "الاسم الأول *",
     "lastName": "اسم العائلة *",
+    "quickSchoolsName": "الاسم الكامل في QuickSchools",
+    "quickSchoolsNameHint": "اختياري. الاسم الدقيق المستخدم عند تصدير درجات QuickSchools. اتركه فارغًا لاستخدام الاسم الأول واسم العائلة.",
     "studentId": "رقم الطالب *",
     "email": "البريد الإلكتروني",
     "dateOfBirth": "تاريخ الميلاد *",

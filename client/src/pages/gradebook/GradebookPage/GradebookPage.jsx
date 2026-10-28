@@ -19,6 +19,7 @@ import AddGradesModal from './components/AddGradesModal';
 import AIReportModal from './components/AIReportModal';
 import ReteachTaskModal from './components/ReteachTaskModal';
 import DailyClassworkEmailModal from './components/DailyClassworkEmailModal';
+import QuickSchoolsExportModal from './components/QuickSchoolsExportModal';
 import {
     getEmailLanguagePreference,
     saveEmailLanguagePreference
@@ -59,6 +60,7 @@ const GradebookPage = ({
 
     const [viewMode, setViewMode] = useState('table');
     const [showDailyClassworkModal, setShowDailyClassworkModal] = useState(false);
+    const [showQuickSchoolsModal, setShowQuickSchoolsModal] = useState(false);
     const [summaryLanguage, setSummaryLanguage] = useState(() => {
         return getEmailLanguagePreference(user?._id || user?.id);
     });
@@ -256,6 +258,10 @@ const GradebookPage = ({
         return false;
     };
 
+    const selectedSubjectRecord = availableSubjects.find(
+        (subject) => String(subject._id) === String(selectedSubject)
+    ) || null;
+
     const handleExportGradebook = () => {
         const csv = buildGradebookCsv({
             students,
@@ -308,6 +314,7 @@ const GradebookPage = ({
                 onSubjectFilterChange={onSubjectFilterChange}
                 onClassChange={onClassChange}
                 onExportGradebook={handleExportGradebook}
+                onOpenQuickSchools={() => setShowQuickSchoolsModal(true)}
                 hasGrades={grades.length > 0}
             />
 
@@ -403,6 +410,21 @@ const GradebookPage = ({
                 sending={notificationSending}
                 onClose={() => setShowDailyClassworkModal(false)}
                 onSend={handleSendDailyClasswork}
+            />
+
+            <QuickSchoolsExportModal
+                open={showQuickSchoolsModal}
+                onClose={() => setShowQuickSchoolsModal(false)}
+                classId={classId}
+                className={currentClass?.name}
+                classGrade={currentClass?.grade}
+                academicYear={academicYear}
+                subjectId={selectedSubject}
+                subjectName={selectedSubjectRecord?.name || ''}
+                subjectCode={selectedSubjectRecord?.code || ''}
+                selectedSemester={selectedSemester}
+                categoryMaxMarks={categoryMaxMarks}
+                grades={grades}
             />
 
         </div>

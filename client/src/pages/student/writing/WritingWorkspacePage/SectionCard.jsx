@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { HiOutlinePlus, HiOutlineTrash } from "react-icons/hi";
 import { countWords } from "../../../../utils/writingWorkflow.js";
 
-function FeedbackForSection({ note }) {
+export function FeedbackForSection({ note }) {
   const { t } = useTranslation(["writing"]);
 
   return (

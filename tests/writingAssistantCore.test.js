@@ -16,7 +16,8 @@ import {
     stageAfterSubmit,
     studentNextAction,
     summarizeBoard,
-    validateSubmission
+    validateSubmission,
+    workingSectionsFor
 } from '../services/writingAssistantLogic.js';
 import {
     decideRecommendation,
@@ -111,6 +112,34 @@ test('buildWorkingSections seeds every section, with repeats at their minimum', 
     ]);
     assert.equal(slots[1].label, 'Body paragraph 1');
     assert.equal(slots[2].label, 'Body paragraph 2');
+});
+
+test('a revision starts from what the student sent when no autosave exists', () => {
+    const draft = {
+        sections: [
+            { key: 'introduction', index: 0, text: 'Opening line.', label: 'Introduction', words: 2 },
+            { key: 'body', index: 0, text: 'First reason.' }
+        ]
+    };
+    const rows = workingSectionsFor({ draft, assignment: essay() });
+
+    assert.deepEqual(rows, [
+        { key: 'introduction', index: 0, text: 'Opening line.' },
+        { key: 'body', index: 0, text: 'First reason.' }
+    ]);
+});
+
+test('newer autosaved work wins over the last sent draft', () => {
+    const autosave = { sections: [{ key: 'introduction', index: 0, text: 'Half-rewritten intro.' }] };
+    const draft = { sections: [{ key: 'introduction', index: 0, text: 'What was sent.' }] };
+
+    assert.deepEqual(workingSectionsFor({ autosave, draft, assignment: essay() }), autosave.sections);
+});
+
+test('with no autosave and no draft the blank structure is used', () => {
+    const rows = workingSectionsFor({ assignment: essay() });
+    assert.equal(rows.length, buildWorkingSections(essay()).length);
+    assert.ok(rows.every((row) => row.text === ''));
 });
 
 test('configSnapshotFor keeps only what a draft must be judged against', () => {
@@ -247,6 +276,12 @@ test('unknown section keys cannot be smuggled into a submission', () => {
 test('submissions always land in submitted and wait for the teacher', () => {
     assert.equal(stageAfterSubmit(), 'submitted');
     assert.equal(stageAfterPublish(), 'feedback_published');
+});
+
+test('a published comparison lands where its recommendation points', () => {
+    assert.equal(stageAfterPublish('feedback'), 'feedback_published');
+    assert.equal(stageAfterPublish('comparison', 'revise'), 'compared');
+    assert.equal(stageAfterPublish('comparison', 'notebook'), 'ready_for_notebook');
 });
 
 test('a student can start, keep writing, and revise after published feedback', () => {
@@ -579,4 +614,19 @@ test('decideRecommendation holds the AI to the rubric numbers', () => {
     });
     assert.equal(decision.path, 'revise');
     assert.equal(decision.ratio, 0.2);
+});
+
+test('decideRecommendation counts unresolved comparison criteria even with a high score', () => {
+    const decision = decideRecommendation({
+        normalized: {
+            scores: [{ key: 'ideas', score: 4, maxScore: 5 }],
+            criteriaUnresolved: ['Organisation', 'Conventions'],
+            newIssues: [],
+            recommendation: { path: 'notebook', reason: 'Much better.' }
+        },
+        assignment: essay(),
+        draftNumber: 2
+    });
+    assert.equal(decision.ratio, 0.8);
+    assert.equal(decision.path, 'revise');
 });

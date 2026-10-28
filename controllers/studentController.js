@@ -560,7 +560,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
     }
 
     const allowedFields = [
-        'firstName', 'lastName', 'dateOfBirth', 'email', 'gender', 'department', 'currentClass',
+        'firstName', 'lastName', 'externalName', 'dateOfBirth', 'email', 'gender', 'department', 'currentClass',
         'academicYear', 'enrollmentDate', 'parentInfo', 'address', 'medicalInfo',
         'previousSchool', 'studentEmail', 'reportPreferences', 'status', 'notes', 'spelling'
     ];

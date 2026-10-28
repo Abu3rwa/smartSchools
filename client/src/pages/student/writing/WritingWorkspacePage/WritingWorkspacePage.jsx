@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HiOutlineArrowLeft, HiOutlineCheckCircle } from "react-icons/hi";
+import ComparisonCard from "./ComparisonCard.jsx";
+import DraftEssayView from "./DraftEssayView.jsx";
 import SectionCard from "./SectionCard.jsx";
 import { noteForSlot } from "./sectionFeedback.js";
 import SubmitSheet from "./SubmitSheet.jsx";
@@ -13,6 +15,7 @@ export default function WritingWorkspacePage() {
   const { t, i18n } = useTranslation(["writing"]);
   const {
     addSlot,
+    comparison,
     data,
     editSection,
     editTitle,
@@ -32,9 +35,17 @@ export default function WritingWorkspacePage() {
   } = useWritingWorkspaceData();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState("write");
 
   const { assignment, project, tracker } = data;
   const readiness = useMemo(() => draftReadiness({ assignment, sections: working }), [assignment, working]);
+
+  // A locked draft opens as the essay it is; the writing view comes back the moment it can be edited.
+  const effectiveView = view === "write" && readOnly ? (latestDraft?.id || "write") : view;
+  const viewedDraft = data.drafts.find((draft) => draft.id === effectiveView) || null;
+  const viewedAssessment = viewedDraft
+    ? data.feedback.find((row) => row.draftId === viewedDraft.id && row.kind !== "comparison") || null
+    : null;
 
   if (loading) {
     return (
@@ -110,6 +121,31 @@ export default function WritingWorkspacePage() {
         ))}
       </ol>
 
+      {data.drafts.length > 0 && (
+        <nav className="ws-views" aria-label={t("writing:student.draftViewsAria")}>
+          {!readOnly && (
+            <button
+              type="button"
+              className={`ws-view${!viewedDraft ? " is-active" : ""}`}
+              onClick={() => setView("write")}
+            >
+              {t("writing:student.writeTab")}
+            </button>
+          )}
+          {data.drafts.map((draft) => (
+            <button
+              key={draft.id}
+              type="button"
+              className={`ws-view${viewedDraft?.id === draft.id ? " is-active" : ""}`}
+              onClick={() => setView(draft.id)}
+            >
+              {t("writing:student.draftTab", { n: draft.number })}
+              <span>{t("writing:student.words", { n: draft.totalWords || 0 })}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
       {assignment.instructions && <p className="ws-instructions">{assignment.instructions}</p>}
 
       {project.stage === "submitted" || project.stage === "feedback_ready" ? (
@@ -133,67 +169,97 @@ export default function WritingWorkspacePage() {
         </p>
       ) : null}
 
+      {!readOnly && latestDraft && (
+        <div className="ws-notice is-action is-revision">
+          <span>{t("writing:student.revisingNotice", { n: project.draftCount + 1 })}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView(latestDraft.id)}>
+            {t("writing:student.readPrevious", { n: latestDraft.number })}
+          </button>
+        </div>
+      )}
+
+      {comparison && (
+        <ComparisonCard
+          comparison={comparison}
+          fromNumber={data.drafts.find((draft) => draft.id === comparison.previousDraftId)?.number
+            || Math.max(1, (data.drafts.find((draft) => draft.id === comparison.draftId)?.number || 1) - 1)}
+          toNumber={data.drafts.find((draft) => draft.id === comparison.draftId)?.number
+            || Math.max(1, project.draftCount)}
+        />
+      )}
+
       <div className="ws-body">
         <main className="ws-main">
-          <label className="ws-field">
-            <span>{t("writing:student.pieceTitle")}</span>
-            <input
-              type="text"
-              value={title}
-              readOnly={readOnly}
-              onChange={(event) => editTitle(event.target.value)}
-              placeholder={assignment.topic || t("writing:student.pieceTitlePlaceholder")}
+          {viewedDraft ? (
+            <DraftEssayView
+              assessment={viewedAssessment}
+              assignment={assignment}
+              draft={viewedDraft}
+              locale={i18n.language}
             />
-          </label>
+          ) : (
+            <>
+              <label className="ws-field">
+                <span>{t("writing:student.pieceTitle")}</span>
+                <input
+                  type="text"
+                  value={title}
+                  readOnly={readOnly}
+                  onChange={(event) => editTitle(event.target.value)}
+                  placeholder={assignment.topic || t("writing:student.pieceTitlePlaceholder")}
+                />
+              </label>
 
-          {assignment.sections.map((definition) => {
-            const rows = rowsFor(definition.key);
-            if (rows.length === 0) {
-              return (
-                <div className="ws-section ws-section-empty" key={definition.key}>
-                  <h3>{definition.label}</h3>
-                  <p className="ws-section-help">{definition.instructions}</p>
-                  {!readOnly && (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => addSlot(definition)}>
-                      {t("writing:student.addField", { label: definition.label })}
-                    </button>
-                  )}
-                </div>
-              );
-            }
-            const minCount = definition.required ? (definition.repeatable ? Number(definition.minCount) || 1 : 1) : 0;
-            return rows.map((section) => (
-              <SectionCard
-                key={`${section.key}:${section.index}`}
-                canAdd={!readOnly && definition.repeatable
-                  && rows.length < Math.max(Number(definition.maxCount) || 1, 1)}
-                canRemove={!readOnly && rows.length > minCount}
-                definition={{
-                  ...definition,
-                  label: definition.repeatable && rows.length > 1
-                    ? `${definition.label} ${Number(section.index) + 1}`
-                    : definition.label,
-                }}
-                note={noteForSlot(feedback, section)}
-                onChange={(key, index, text) => editSection(`${key}:${index}`, text)}
-                onAdd={() => addSlot(definition)}
-                onRemove={() => removeSlot(`${section.key}:${section.index}`)}
-                readOnly={readOnly}
-                section={section}
-              />
-            ));
-          })}
-
-          {latestDraft && (
-            <p className="ws-draft-note">
-              {t("writing:student.draftLocked", {
-                n: latestDraft.number,
-                words: latestDraft.totalWords || 0,
-                when: new Date(latestDraft.submittedAt).toLocaleDateString(i18n.language, {
-                  day: "2-digit", month: "short",
-                }),
+              {assignment.sections.map((definition) => {
+                const rows = rowsFor(definition.key);
+                if (rows.length === 0) {
+                  return (
+                    <div className="ws-section ws-section-empty" key={definition.key}>
+                      <h3>{definition.label}</h3>
+                      <p className="ws-section-help">{definition.instructions}</p>
+                      {!readOnly && (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => addSlot(definition)}>
+                          {t("writing:student.addField", { label: definition.label })}
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+                const minCount = definition.required ? (definition.repeatable ? Number(definition.minCount) || 1 : 1) : 0;
+                return rows.map((section) => (
+                  <SectionCard
+                    key={`${section.key}:${section.index}`}
+                    canAdd={!readOnly && definition.repeatable
+                      && rows.length < Math.max(Number(definition.maxCount) || 1, 1)}
+                    canRemove={!readOnly && rows.length > minCount}
+                    definition={{
+                      ...definition,
+                      label: definition.repeatable && rows.length > 1
+                        ? `${definition.label} ${Number(section.index) + 1}`
+                        : definition.label,
+                    }}
+                    note={noteForSlot(feedback, section)}
+                    onChange={(key, index, text) => editSection(`${key}:${index}`, text)}
+                    onAdd={() => addSlot(definition)}
+                    onRemove={() => removeSlot(`${section.key}:${section.index}`)}
+                    readOnly={readOnly}
+                    section={section}
+                  />
+                ));
               })}
-            </p>
+
+              {latestDraft && (
+                <p className="ws-draft-note">
+                  {t("writing:student.draftLocked", {
+                    n: latestDraft.number,
+                    words: latestDraft.totalWords || 0,
+                    when: new Date(latestDraft.submittedAt).toLocaleDateString(i18n.language, {
+                      day: "2-digit", month: "short",
+                    }),
+                  })}
+                </p>
+              )}
+            </>
           )}
         </main>
 
@@ -202,8 +268,8 @@ export default function WritingWorkspacePage() {
 
       <footer className="ws-bar">
         <div className="ws-bar-stats">
-          <strong>{t("writing:student.words", { n: readiness.totalWords })}</strong>
-          {((Number(assignment.minWords) || 0) > 0 || (Number(assignment.maxWords) || 0) > 0) && (
+          <strong>{t("writing:student.words", { n: viewedDraft ? viewedDraft.totalWords || 0 : readiness.totalWords })}</strong>
+          {!viewedDraft && ((Number(assignment.minWords) || 0) > 0 || (Number(assignment.maxWords) || 0) > 0) && (
             <span className="ws-bar-range">
               {t("writing:student.needs", {
                 min: Number(assignment.minWords) || 0,
@@ -211,16 +277,18 @@ export default function WritingWorkspacePage() {
               })}
             </span>
           )}
-          <span className={`ws-bar-required${stillToWrite ? " is-missing" : ""}`}>
-            {stillToWrite
-              ? t("writing:student.missingSections", { labels: stillToWrite })
-              : t("writing:student.allSectionsDone")}
-          </span>
+          {!viewedDraft && (
+            <span className={`ws-bar-required${stillToWrite ? " is-missing" : ""}`}>
+              {stillToWrite
+                ? t("writing:student.missingSections", { labels: stillToWrite })
+                : t("writing:student.allSectionsDone")}
+            </span>
+          )}
         </div>
         <button
           type="button"
           className="btn btn-primary"
-          disabled={readOnly || blocked || busy}
+          disabled={readOnly || blocked || busy || Boolean(viewedDraft)}
           title={blocked ? project.canSubmit?.reason : undefined}
           onClick={() => setSheetOpen(true)}
         >

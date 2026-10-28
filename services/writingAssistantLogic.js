@@ -45,6 +45,23 @@ export const buildWorkingSections = (assignment) => {
     return slots;
 };
 
+/**
+ * Where an editable working copy comes from: the student's own autosave, else
+ * the last sent draft (a revision starts from what the teacher read), else the
+ * assignment's empty structure.
+ */
+export const workingSectionsFor = ({ autosave, draft, assignment } = {}) => {
+    if (Array.isArray(autosave?.sections) && autosave.sections.length) return autosave.sections;
+    if (Array.isArray(draft?.sections) && draft.sections.length) {
+        return draft.sections.map((row) => ({
+            key: row?.key || '',
+            index: Number(row?.index) || 0,
+            text: String(row?.text || '')
+        }));
+    }
+    return buildWorkingSections(assignment);
+};
+
 const definitionFor = (assignment, key) => (assignment?.sections || []).find(
     (definition) => definition.key === key
 );
@@ -226,7 +243,22 @@ export const stageAfterSubmit = () => 'submitted';
 
 export const stageAfterAssessment = () => 'feedback_ready';
 
-export const stageAfterPublish = () => 'feedback_published';
+/** A comparison and a first-draft feedback note do not land the student in the same place. */
+export const stageAfterPublish = (kind = 'feedback', path = 'revise') => {
+    if (kind !== 'comparison') return 'feedback_published';
+    return path === 'notebook' ? 'ready_for_notebook' : 'compared';
+};
+
+/** Project status follows the published recommendation until a teacher overrides it. */
+export const statusAfterPublish = (path) => (
+    path === 'notebook' ? 'ready_for_final' : 'needs_revision'
+);
+
+/** Stages a publication may move the student out of. */
+export const PUBLISHABLE_FROM = {
+    feedback: ['submitted', 'feedback_ready'],
+    comparison: ['submitted', 'feedback_ready', 'feedback_published', 'revising', 'compared']
+};
 
 /**
  * Teachers can lock a stage. While a lock exists, automatic transitions are refused

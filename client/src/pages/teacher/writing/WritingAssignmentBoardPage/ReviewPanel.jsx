@@ -1,0 +1,547 @@
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
+import {
+  HiOutlineBadgeCheck,
+  HiOutlineCheckCircle,
+  HiOutlineRefresh,
+  HiOutlineSparkles,
+} from "react-icons/hi";
+import writingService from "../../../../services/writingService.js";
+import {
+  formFromAssessment,
+  latestForDraft,
+  payloadFromForm,
+} from "./assessmentPresentation.js";
+import { formatDateTime } from "./boardPresentation.js";
+
+const pendingLabel = (pending, key) => pending === key;
+
+export default function ReviewPanel({ history, onChanged }) {
+  const { t, i18n } = useTranslation(["writing"]);
+  const project = history?.project || null;
+  const drafts = history?.drafts || [];
+  const latestDraft = drafts[drafts.length - 1] || null;
+  const feedback = latestForDraft(history?.assessments, latestDraft?._id, "feedback");
+  const comparison = latestForDraft(history?.assessments, latestDraft?._id, "comparison");
+
+  const [form, setForm] = useState(() => formFromAssessment(feedback));
+  const [comparisonForm, setComparisonForm] = useState(() => formFromAssessment(comparison));
+  const [note, setNote] = useState("");
+  const [finalScore, setFinalScore] = useState("");
+  const [pending, setPending] = useState("");
+
+  const feedbackStamp = feedback ? `${feedback._id}:${feedback.aiStatus}:${feedback.teacherEdits?.at || ""}` : "";
+  const comparisonStamp = comparison ? `${comparison._id}:${comparison.aiStatus}:${comparison.teacherEdits?.at || ""}` : "";
+
+  useEffect(() => {
+    setForm(formFromAssessment(feedback));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedbackStamp]);
+
+  useEffect(() => {
+    setComparisonForm(formFromAssessment(comparison));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparisonStamp]);
+
+  if (!project || !latestDraft) return null;
+
+  const run = async (key, action, successMessage) => {
+    setPending(key);
+    try {
+      await action();
+      await onChanged();
+      if (successMessage) toast.success(successMessage);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || t("writing:teacher.review.failed"));
+    } finally {
+      setPending("");
+    }
+  };
+
+  const updateForm = (patch) => setForm((current) => ({ ...current, ...patch }));
+  const updateSection = (index, patch) => setForm((current) => ({
+    ...current,
+    sections: current.sections.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, ...patch } : row
+    )),
+  }));
+  const updateScore = (index, patch) => setForm((current) => ({
+    ...current,
+    scores: current.scores.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, ...patch } : row
+    )),
+  }));
+  const updateComparison = (patch) => setComparisonForm((current) => ({
+    ...current,
+    comparison: { ...current.comparison, ...patch },
+  }));
+
+  const assess = () => run("assess", () => writingService.assessDraft(latestDraft._id), t("writing:teacher.review.assessedToast"));
+  const compare = () => run("compare", () => writingService.compareDraft(latestDraft._id), t("writing:teacher.review.comparedToast"));
+  const saveFeedback = (assessment) => run("save", () => writingService.saveAssessmentEdits(
+    assessment._id,
+    payloadFromForm(form),
+  ), t("writing:teacher.review.savedToast"));
+  const publishFeedback = (assessment) => run("publish", () => writingService.publishAssessment(
+    assessment._id,
+    payloadFromForm(form),
+  ), t("writing:teacher.review.publishedToast"));
+
+  const saveComparison = (assessment) => run("saveCompare", () => writingService.saveAssessmentEdits(
+    assessment._id,
+    payloadFromForm(comparisonForm),
+  ), t("writing:teacher.review.savedToast"));
+  const publishComparison = (assessment) => run("publishCompare", () => writingService.publishAssessment(
+    assessment._id,
+    payloadFromForm(comparisonForm),
+  ), t("writing:teacher.review.publishedToast"));
+
+  const moveStage = (stage) => run("stage", () => writingService.overrideProjectStage(
+    project.id || project._id,
+    { stage },
+  ), t("writing:teacher.review.stageMoved"));
+  const unlockStage = () => run("unlock", () => writingService.overrideProjectStage(
+    project.id || project._id,
+    { locked: false },
+  ), t("writing:teacher.review.stageMoved"));
+
+  const notebook = (state) => run("notebook", () => writingService.recordNotebookReview(
+    project.id || project._id,
+    {
+      state,
+      note,
+      finalScore: finalScore === "" ? undefined : Number(finalScore),
+    },
+  ), t("writing:teacher.review.notebookSaved"));
+
+  const feedbackEditable = feedback?.aiStatus === "done" && feedback.publish?.state !== "published";
+  const comparisonEditable = comparison?.aiStatus === "done" && comparison.publish?.state !== "published";
+  const lockedTo = project.teacherOverride?.stageLockedTo || "";
+  const totalPoints = (history?.assignment?.rubric || []).reduce(
+    (sum, row) => sum + (Number(row.maxScore) || 0),
+    0,
+  );
+
+  return (
+    <section className="wa-review">
+      <header className="wa-review-head">
+        <h3>{t("writing:teacher.review.title")}</h3>
+        {feedback?.publish?.state === "published" && (
+          <span className="wa-badge is-published">
+            <HiOutlineBadgeCheck size={15} aria-hidden="true" />
+            {t("writing:teacher.review.publishedOn", {
+              when: formatDateTime(feedback.publish.publishedAt, i18n.language),
+            })}
+          </span>
+        )}
+      </header>
+
+      {!feedback && (
+        <div className="wa-review-empty">
+          <p>{t("writing:teacher.review.noFeedbackYet")}</p>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={Boolean(pending)}
+            onClick={assess}
+          >
+            <HiOutlineSparkles size={16} aria-hidden="true" />
+            {pendingLabel(pending, "assess") ? t("writing:teacher.review.assessing") : t("writing:teacher.review.assess")}
+          </button>
+        </div>
+      )}
+
+      {feedback?.aiStatus === "running" && (
+        <p className="wa-hint" aria-live="polite">{t("writing:teacher.review.assessing")}</p>
+      )}
+
+      {feedback?.aiStatus === "failed" && (
+        <div className="wa-review-failed">
+          <p>{t("writing:teacher.review.aiFailed", { error: feedback.aiError || "" })}</p>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={assess}>
+            <HiOutlineRefresh size={15} aria-hidden="true" />
+            {t("writing:teacher.review.retryAssess")}
+          </button>
+        </div>
+      )}
+
+      {feedback?.aiStatus === "done" && form && (
+        <div className="wa-review-block">
+          <div className="wa-review-block-head">
+            <h4>{t("writing:teacher.review.draftFeedback", { n: latestDraft.number })}</h4>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={Boolean(pending)}
+              onClick={assess}
+            >
+              {t("writing:teacher.review.reassess")}
+            </button>
+          </div>
+
+          <label className="wa-field">
+            <span>{t("writing:teacher.review.summary")}</span>
+            <textarea
+              rows={3}
+              value={form.summary}
+              readOnly={!feedbackEditable}
+              onChange={(event) => updateForm({ summary: event.target.value })}
+            />
+          </label>
+
+          <div className="wa-review-priorities">
+            <span className="wa-field-label">{t("writing:teacher.review.nextPriorities")}</span>
+            {form.priorities.map((value, index) => (
+              <input
+                key={index}
+                type="text"
+                value={value}
+                readOnly={!feedbackEditable}
+                aria-label={t("writing:teacher.review.priority", { n: index + 1 })}
+                onChange={(event) => updateForm({
+                  priorities: form.priorities.map((row, rowIndex) => (
+                    rowIndex === index ? event.target.value : row
+                  )),
+                })}
+              />
+            ))}
+          </div>
+
+          <div className="wa-review-scores">
+            <span className="wa-field-label">{t("writing:teacher.review.scoresTitle")}</span>
+            {form.scores.map((row, index) => (
+              <div className="wa-review-score" key={row.key}>
+                <span>{row.label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={row.maxScore || 0}
+                  value={row.score}
+                  readOnly={!feedbackEditable}
+                  aria-label={`${row.label} — ${t("writing:teacher.review.scoresTitle")}`}
+                  onChange={(event) => updateScore(index, { score: event.target.value })}
+                />
+                <em>{t("writing:teacher.review.scoreOf", { n: row.score, max: row.maxScore || 0 })}</em>
+              </div>
+            ))}
+          </div>
+
+          <div className="wa-review-sections">
+            <span className="wa-field-label">{t("writing:teacher.review.sectionsTitle")}</span>
+            {form.sections.map((row, index) => (
+              <details className="wa-review-section" key={`${row.key}:${row.index}`}>
+                <summary>
+                  <span>{row.label}</span>
+                  <em>{t("writing:teacher.review.scoreOf", { n: row.score, max: row.maxScore || 0 })}</em>
+                </summary>
+                <label className="wa-field">
+                  <span>{t("writing:teacher.review.strengths")}</span>
+                  <textarea
+                    rows={2}
+                    value={row.strengthsText}
+                    readOnly={!feedbackEditable}
+                    onChange={(event) => updateSection(index, { strengthsText: event.target.value })}
+                  />
+                </label>
+                <label className="wa-field">
+                  <span>{t("writing:teacher.review.improvements")}</span>
+                  <textarea
+                    rows={2}
+                    value={row.improvementsText}
+                    readOnly={!feedbackEditable}
+                    onChange={(event) => updateSection(index, { improvementsText: event.target.value })}
+                  />
+                </label>
+                <div className="wa-review-pair">
+                  <label className="wa-field">
+                    <span>{t("writing:teacher.review.evidence")}</span>
+                    <input
+                      type="text"
+                      value={row.evidence}
+                      readOnly={!feedbackEditable}
+                      onChange={(event) => updateSection(index, { evidence: event.target.value })}
+                    />
+                  </label>
+                  <label className="wa-field">
+                    <span>{t("writing:teacher.review.nextStep")}</span>
+                    <input
+                      type="text"
+                      value={row.nextStep}
+                      readOnly={!feedbackEditable}
+                      onChange={(event) => updateSection(index, { nextStep: event.target.value })}
+                    />
+                  </label>
+                </div>
+                <label className="wa-field">
+                  <span>{t("writing:teacher.review.why")}</span>
+                  <input
+                    type="text"
+                    value={row.why}
+                    readOnly={!feedbackEditable}
+                    onChange={(event) => updateSection(index, { why: event.target.value })}
+                  />
+                </label>
+              </details>
+            ))}
+          </div>
+
+          <div className="wa-review-pair">
+            <label className="wa-field">
+              <span>{t("writing:teacher.review.recommendation")}</span>
+              <select
+                value={form.path}
+                disabled={!feedbackEditable}
+                onChange={(event) => updateForm({ path: event.target.value })}
+              >
+                <option value="revise">{t("writing:teacher.review.revise")}</option>
+                <option value="notebook">{t("writing:teacher.review.notebook")}</option>
+              </select>
+            </label>
+            <label className="wa-field">
+              <span>{t("writing:teacher.review.reason")}</span>
+              <input
+                type="text"
+                value={form.reason}
+                readOnly={!feedbackEditable}
+                onChange={(event) => updateForm({ reason: event.target.value })}
+              />
+            </label>
+          </div>
+
+          {feedbackEditable && (
+            <div className="wa-review-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={Boolean(pending)}
+                onClick={() => saveFeedback(feedback)}
+              >
+                {pendingLabel(pending, "save") ? t("writing:teacher.review.saving") : t("writing:teacher.review.save")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={Boolean(pending)}
+                onClick={() => publishFeedback(feedback)}
+              >
+                {pendingLabel(pending, "publish") ? t("writing:teacher.review.publishing") : t("writing:teacher.review.publish")}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {feedback?.aiStatus === "done" && Number(latestDraft.number) >= 2 && (
+        <div className="wa-review-block">
+          {!comparison && (
+            <div className="wa-review-empty">
+              <p>{t("writing:teacher.review.compareHint", { from: latestDraft.number - 1, to: latestDraft.number })}</p>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={compare}>
+                {pendingLabel(pending, "compare") ? t("writing:teacher.review.comparing") : t("writing:teacher.review.compare")}
+              </button>
+            </div>
+          )}
+
+          {comparison?.aiStatus === "running" && (
+            <p className="wa-hint" aria-live="polite">{t("writing:teacher.review.comparing")}</p>
+          )}
+
+          {comparison?.aiStatus === "failed" && (
+            <div className="wa-review-failed">
+              <p>{t("writing:teacher.review.aiFailed", { error: comparison.aiError || "" })}</p>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={compare}>
+                <HiOutlineRefresh size={15} aria-hidden="true" />
+                {t("writing:teacher.review.retryCompare")}
+              </button>
+            </div>
+          )}
+
+          {comparison?.aiStatus === "done" && comparisonForm && (
+            <>
+              <div className="wa-review-block-head">
+                <h4>
+                  {t("writing:teacher.review.comparisonTitle", {
+                    from: latestDraft.number - 1,
+                    to: latestDraft.number,
+                  })}
+                </h4>
+                {comparison.publish?.state === "published" && (
+                  <span className="wa-badge is-published">
+                    <HiOutlineBadgeCheck size={15} aria-hidden="true" />
+                    {t("writing:teacher.review.published")}
+                  </span>
+                )}
+              </div>
+
+              <p className="wa-hint">
+                {t("writing:teacher.review.wordChange", { n: comparisonForm.comparison.wordDelta })}
+              </p>
+
+              <label className="wa-field">
+                <span>{t("writing:teacher.review.comparisonEncouragement")}</span>
+                <textarea
+                  rows={2}
+                  value={comparisonForm.comparison.encouragement}
+                  readOnly={!comparisonEditable}
+                  onChange={(event) => updateComparison({ encouragement: event.target.value })}
+                />
+              </label>
+
+              <label className="wa-field">
+                <span>{t("writing:teacher.review.improved")}</span>
+                <textarea
+                  rows={2}
+                  value={comparisonForm.comparison.improvedText}
+                  readOnly={!comparisonEditable}
+                  onChange={(event) => updateComparison({ improvedText: event.target.value })}
+                />
+              </label>
+              <label className="wa-field">
+                <span>{t("writing:teacher.review.unresolved")}</span>
+                <textarea
+                  rows={2}
+                  value={comparisonForm.comparison.unresolvedText}
+                  readOnly={!comparisonEditable}
+                  onChange={(event) => updateComparison({ unresolvedText: event.target.value })}
+                />
+              </label>
+              <label className="wa-field">
+                <span>{t("writing:teacher.review.newIssues")}</span>
+                <textarea
+                  rows={2}
+                  value={comparisonForm.comparison.newIssuesText}
+                  readOnly={!comparisonEditable}
+                  onChange={(event) => updateComparison({ newIssuesText: event.target.value })}
+                />
+              </label>
+
+              <div className="wa-review-sections">
+                <span className="wa-field-label">{t("writing:teacher.review.changedSections")}</span>
+                {comparisonForm.comparison.changedBySection.map((row, index) => (
+                  <div className="wa-review-change" key={`${row.key}:${row.index}:${row.kind}`}>
+                    <span>{row.label}</span>
+                    <textarea
+                      rows={2}
+                      value={row.summary}
+                      readOnly={!comparisonEditable}
+                      aria-label={row.label}
+                      onChange={(event) => updateComparison({
+                        changedBySection: comparisonForm.comparison.changedBySection.map((item, itemIndex) => (
+                          itemIndex === index ? { ...item, summary: event.target.value } : item
+                        )),
+                      })}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {comparisonForm.comparison.feedbackApplied.length > 0 && (
+                <div className="wa-review-applied">
+                  <span className="wa-field-label">{t("writing:teacher.review.feedbackApplied")}</span>
+                  {comparisonForm.comparison.feedbackApplied.map((row, index) => (
+                    <label className="wa-review-check" key={`${row.key}:${row.index}`}>
+                      <input
+                        type="checkbox"
+                        checked={row.applied}
+                        disabled={!comparisonEditable}
+                        onChange={(event) => updateComparison({
+                          feedbackApplied: comparisonForm.comparison.feedbackApplied.map((item, itemIndex) => (
+                            itemIndex === index ? { ...item, applied: event.target.checked } : item
+                          )),
+                        })}
+                      />
+                      <span>{row.note || row.key}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {comparisonEditable && (
+                <div className="wa-review-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={Boolean(pending)}
+                    onClick={() => saveComparison(comparison)}
+                  >
+                    {pendingLabel(pending, "saveCompare") ? t("writing:teacher.review.saving") : t("writing:teacher.review.save")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={Boolean(pending)}
+                    onClick={() => publishComparison(comparison)}
+                  >
+                    {pendingLabel(pending, "publishCompare") ? t("writing:teacher.review.publishing") : t("writing:teacher.review.publish")}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {((feedback?.publish?.state === "published" && project.stage !== "completed") || lockedTo) && (
+        <div className="wa-review-block">
+          <div className="wa-review-block-head">
+            <h4>{t("writing:teacher.review.nextStage")}</h4>
+            {lockedTo && (
+              <button type="button" className="btn btn-ghost btn-sm" disabled={Boolean(pending)} onClick={unlockStage}>
+                {t("writing:teacher.review.unlock")}
+              </button>
+            )}
+          </div>
+          {lockedTo && (
+            <p className="wa-hint">
+              {t("writing:teacher.review.locked", { stage: t(`writing:teacher.stages.${lockedTo}`) })}
+            </p>
+          )}
+          {project.stage !== "completed" && (
+            <div className="wa-review-actions">
+              {project.stage !== "revising" && (
+                <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={() => moveStage("revising")}>
+                  {t("writing:teacher.review.moveRevising")}
+                </button>
+              )}
+              {project.stage !== "ready_for_notebook" && (
+                <button type="button" className="btn btn-primary btn-sm" disabled={Boolean(pending)} onClick={() => moveStage("ready_for_notebook")}>
+                  {t("writing:teacher.review.moveNotebook")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {project.stage === "awaiting_notebook_check" && (
+        <div className="wa-review-block">
+          <h4>{t("writing:teacher.review.notebookTitle")}</h4>
+          <label className="wa-field">
+            <span>{t("writing:teacher.review.notebookNote")}</span>
+            <textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
+          </label>
+          <label className="wa-field">
+            <span>{t("writing:teacher.review.notebookScore")}</span>
+            <input
+              type="number"
+              min="0"
+              max={totalPoints || undefined}
+              value={finalScore}
+              onChange={(event) => setFinalScore(event.target.value)}
+            />
+          </label>
+          <div className="wa-review-actions">
+            <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={() => notebook("revision_required")}>
+              {t("writing:teacher.review.needsRevision")}
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={Boolean(pending)} onClick={() => notebook("checked")}>
+              <HiOutlineCheckCircle size={16} aria-hidden="true" />
+              {pendingLabel(pending, "notebook") ? t("writing:teacher.review.saving") : t("writing:teacher.review.markChecked")}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

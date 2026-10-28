@@ -25,6 +25,13 @@ const studentSchema = new mongoose.Schema({
         required: [true, 'Last name is required'], 
         trim: true
     },
+    // Full name exactly as it is spelled in QuickSchools. Used only when exporting
+    // the gradebook for import there, where names must match character for character.
+    externalName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
     dateOfBirth: {
         type: Date,
         required: [true, 'Date of birth is required']

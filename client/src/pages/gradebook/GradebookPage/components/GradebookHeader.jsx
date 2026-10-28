@@ -6,6 +6,7 @@ import {
     HiOutlineBookOpen,
     HiOutlineChatAlt2,
     HiOutlineClipboardList,
+    HiOutlineDocumentDownload,
     HiOutlineDotsHorizontal,
     HiOutlineDownload,
     HiOutlinePaperAirplane,
@@ -53,6 +54,7 @@ const GradebookHeader = ({
     onSubjectFilterChange,
     onClassChange,
     onExportGradebook,
+    onOpenQuickSchools,
     hasGrades = false
 }) => {
     const { t } = useTranslation(['gradebook']);
@@ -185,6 +187,15 @@ const GradebookHeader = ({
             label: t('gradebook:header.advancedReports'),
             to: '/portal/reports/generator'
         },
+        ...(onOpenQuickSchools
+            ? [{
+                id: 'quickSchools',
+                icon: HiOutlineDocumentDownload,
+                label: t('gradebook:header.quickSchoolsExport'),
+                onSelect: onOpenQuickSchools,
+                disabled: !hasStudents
+            }]
+            : []),
         ...(viewMode === 'table' && onExportGradebook
             ? [{
                 id: 'export',

@@ -115,6 +115,11 @@ const writingAssessmentSchema = new mongoose.Schema(
 writingAssessmentSchema.index({ school: 1, draft: 1, kind: 1, createdAt: -1 });
 writingAssessmentSchema.index({ school: 1, project: 1, kind: 1 });
 writingAssessmentSchema.index({ school: 1, assignment: 1, 'publish.state': 1 });
+// Two teachers clicking Assess must not spend the AI twice on the same draft.
+writingAssessmentSchema.index(
+  { school: 1, draft: 1, kind: 1 },
+  { unique: true, partialFilterExpression: { aiStatus: { $in: ['pending', 'running'] } } }
+);
 writingAssessmentSchema.plugin(tenantIsolationPlugin);
 
 const WritingAssessment = mongoose.model('WritingAssessment', writingAssessmentSchema);

@@ -428,13 +428,14 @@ export const normalizeComparison = ({
 /** The teacher-visible recommendation, held to the numbers. */
 export const decideRecommendation = ({ normalized, assignment, draftNumber }) => {
     const ratio = rubricRatio({ scores: normalized.scores || [] });
+    const comparison = normalized.comparison || {
+        criteriaUnresolved: normalized.criteriaUnresolved || [],
+        newIssues: normalized.newIssues || []
+    };
     const decision = guardRecommendation({
         aiPath: normalized.recommendation?.path,
         assessment: {
-            comparison: {
-                criteriaUnresolved: normalized.criteriaUnresolved || [],
-                newIssues: normalized.newIssues || []
-            },
+            comparison,
             scores: normalized.scores || []
         },
         assignment,
