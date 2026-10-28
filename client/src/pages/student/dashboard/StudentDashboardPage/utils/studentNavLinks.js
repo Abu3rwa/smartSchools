@@ -69,6 +69,13 @@ export const studentNavLinks = [
     section: "practice",
   },
   {
+    path: "/portal/writing",
+    icon: HiOutlinePencil,
+    labelKey: "myWriting",
+    feature: "writingAssistant",
+    section: "practice",
+  },
+  {
     path: "/portal/plp",
     icon: HiOutlineSparkles,
     labelKey: "plp",

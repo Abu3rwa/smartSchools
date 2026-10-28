@@ -12,6 +12,7 @@ import logger from "../utils/logger.js";
 import { isAllowedRequestOrigin } from "../utils/requestOrigins.js";
 import { staffClassQuery } from "../helpers/liveLessonAccess.js";
 import { resumeLiveSessionPause } from "../services/liveSessionTime.js";
+import { generateChargesForSession } from "../services/sessionBillingService.js";
 import {
   appendLiveEvent,
   applyStaffExtras,
@@ -598,6 +599,12 @@ const handleAction = async (socket, message) => {
     }
     resetCursorSpotlight(session._id);
     await appendLiveEvent(session, "session:ended", { role: "teacher", userId: socket.__liveUserId });
+    void generateChargesForSession(session._id, session.school).catch((error) => {
+      logger.error("live_session_billing_failed", {
+        error: error?.message || String(error),
+        sessionId: String(session._id),
+      });
+    });
   } else {
     return fail(socket, requestId, "VALIDATION", "Unknown lesson action.");
   }

@@ -1,3 +1,5 @@
+import { resolveCategoryMaxMarks } from './gradebookDefaults.js';
+
 export const getAvailableSubjects = ({ currentClass, subjects }) => {
     const classSubjects = currentClass?.subjects
         ? currentClass.subjects.map((item) => item.subject).filter(Boolean)
@@ -108,20 +110,12 @@ export const normalizeCategory = (value) => {
     return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();
 };
 
-// The scale a category is marked on. Recorded marks win, because that is what the
-// teacher actually entered; the school's configured default is the fallback for a
-// category whose grades all arrived without a usable maximum.
-const resolveCategoryScale = ({ tallies, categoryMaxMarks, category }) => {
-    const counts = tallies[category];
-    if (counts && counts.size > 0) {
-        const [topMax, topCount] = [...counts.entries()].sort(
-            (a, b) => b[1] - a[1] || b[0] - a[0]
-        )[0];
-        if (topCount > 0) return topMax;
-    }
-    const configured = Number(categoryMaxMarks?.[String(category).toLowerCase()]);
-    return Number.isFinite(configured) && configured > 0 ? configured : 10;
-};
+// A category average stays on the category's own scale: the school's configured
+// maximum when it set one, otherwise the app default. It is never taken from the
+// recorded maximums, because one category can hold a 4-word spelling test and a
+// 20-question quiz, so no single recorded maximum describes the average.
+const resolveCategoryScale = ({ categoryMaxMarks, category }) =>
+    resolveCategoryMaxMarks(category, categoryMaxMarks);
 
 export const processGradebookData = ({
     students = [],
@@ -130,7 +124,6 @@ export const processGradebookData = ({
     categoryMaxMarks = {}
 }) => {
     const categories = new Set();
-    const maxMarksTallies = {};
     const data = {};
 
     students.forEach((student) => {
@@ -160,13 +153,6 @@ export const processGradebookData = ({
             data[studentId].categories[category] = { total: 0, count: 0, percentageTotal: 0 };
         }
 
-        if (!maxMarksTallies[category]) maxMarksTallies[category] = new Map();
-        const enteredMax = Number(grade.maxMarks);
-        if (Number.isFinite(enteredMax) && enteredMax > 0) {
-            const tally = maxMarksTallies[category];
-            tally.set(enteredMax, (tally.get(enteredMax) || 0) + 1);
-        }
-
         const percentage = (grade.marks / grade.maxMarks) * 100;
         data[studentId].categories[category].total += grade.marks;
         data[studentId].categories[category].count += 1;
@@ -178,11 +164,7 @@ export const processGradebookData = ({
 
     const categoryScales = {};
     Array.from(categories).forEach((category) => {
-        categoryScales[category] = resolveCategoryScale({
-            tallies: maxMarksTallies,
-            categoryMaxMarks,
-            category
-        });
+        categoryScales[category] = resolveCategoryScale({ categoryMaxMarks, category });
     });
 
     return {

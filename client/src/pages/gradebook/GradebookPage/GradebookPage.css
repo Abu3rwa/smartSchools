@@ -1185,6 +1185,36 @@ html:lang(ar) .gradebook-menu__label {
   color: var(--primary);
 }
 
+.gradebook-table .gradebook-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding-inline-end: 6px;
+}
+
+.gradebook-table .gradebook-header-cell > button:first-child {
+  flex: 0 1 auto;
+  width: auto;
+  padding: var(--spacing-md) var(--spacing-sm);
+}
+
+.gradebook-table .sortable-header .gradebook-copy-remarks {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.gradebook-table .sortable-header .gradebook-copy-remarks:hover {
+  color: var(--primary);
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+}
+
 .gradebook-table__date {
   font-variant-numeric: tabular-nums;
 }

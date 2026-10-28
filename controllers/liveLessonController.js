@@ -16,6 +16,7 @@ import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { parseLiveLessonCsv, serializeLiveLessonCsv } from "../services/liveLessonCsvService.js";
 import { assertLiveLessonHtmlSafe } from "../services/liveLessonHtmlSafety.js";
+import { generateChargesForSession } from "../services/sessionBillingService.js";
 import {
   appendLiveEvent,
   formatRoster,
@@ -525,52 +526,73 @@ export const exportLiveLessonCsv = asyncHandler(async (req, res) => {
   return res.send(`\uFEFF${csv}`);
 });
 
+const liveLessonLibraryMatch = (req, { applyFilters = true } = {}) => {
+  const match = {
+    school: new mongoose.Types.ObjectId(String(req.schoolId)),
+    ownerId: new mongoose.Types.ObjectId(String(req.user._id)),
+  };
+  if (!applyFilters) return match;
+  if (validId(req.query.classId || "")) {
+    match.classId = new mongoose.Types.ObjectId(String(req.query.classId));
+  }
+  if (validId(req.query.subjectId || "")) {
+    match.subjectId = new mongoose.Types.ObjectId(String(req.query.subjectId));
+  }
+  if (req.query.includeDone === "false") match.isDone = { $ne: true };
+  return match;
+};
+
 export const listLiveLessons = asyncHandler(async (req, res) => {
-  // The library grid pages and filters on the client, so no limit means "the whole
-  // library" exactly as before; callers that want a bounded page can ask for one.
+  // The library is paged in the database. A teacher with hundreds of lessons should
+  // never download the whole library just to look at the first page of it.
+  const match = liveLessonLibraryMatch(req);
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(500, Math.max(1, requestedLimit))
-    : null;
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const pipeline = [
-    {
-      $match: {
-        school: new mongoose.Types.ObjectId(String(req.schoolId)),
-        ownerId: new mongoose.Types.ObjectId(String(req.user._id)),
+    : 25;
+  const requestedPage = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+
+  const total = await LiveLesson.countDocuments(match);
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const page = Math.min(requestedPage, pages);
+  const filtered = Boolean(match.classId || match.subjectId || match.isDone);
+  const [rows, libraryTotal] = await Promise.all([
+    LiveLesson.aggregate([
+      { $match: match },
+      { $sort: { updatedAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      {
+        $project: {
+          title: 1,
+          description: 1,
+          subject: 1,
+          subjectId: 1,
+          classId: 1,
+          academicYear: 1,
+          grade: 1,
+          language: 1,
+          isDone: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          slideCount: { $size: { $ifNull: ["$slides", []] } },
+        },
       },
-    },
-    { $sort: { updatedAt: -1 } },
-    {
-      $project: {
-        title: 1,
-        description: 1,
-        subject: 1,
-        subjectId: 1,
-        classId: 1,
-        academicYear: 1,
-        grade: 1,
-        language: 1,
-        isDone: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        slideCount: { $size: { $ifNull: ["$slides", []] } },
-      },
-    },
-  ];
-  if (limit) pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
-  const rows = await LiveLesson.aggregate(pipeline);
+    ]),
+    filtered
+      ? LiveLesson.countDocuments(liveLessonLibraryMatch(req, { applyFilters: false }))
+      : total,
+  ]);
 
   const classIds = [...new Set(rows.map((row) => String(row.classId || "")).filter(Boolean))];
   const subjectIds = [...new Set(rows.map((row) => String(row.subjectId || "")).filter(Boolean))];
-  const [classes, subjects, total] = await Promise.all([
+  const [classes, subjects] = await Promise.all([
     classIds.length
       ? Class.find({ _id: { $in: classIds }, school: req.schoolId }).select("name academicYear").lean()
       : [],
     subjectIds.length
       ? Subject.find({ _id: { $in: subjectIds }, school: req.schoolId }).select("name").lean()
       : [],
-    LiveLesson.countDocuments({ school: req.schoolId, ownerId: req.user._id }),
   ]);
   const classNames = new Map(classes.map((doc) => [String(doc._id), doc.name]));
   const classYears = new Map(classes.map((doc) => [String(doc._id), doc.academicYear || null]));
@@ -591,9 +613,22 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
     success: true,
     data: {
       lessons,
-      pagination: limit
-        ? { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
-        : { page: 1, limit: total, total, pages: 1 },
+      pagination: { page, limit, total, pages, libraryTotal },
+    },
+  });
+});
+
+export const listLiveLessonSelection = asyncHandler(async (req, res) => {
+  // "Select all filtered lessons" and bulk actions only need ids and titles. Fetching
+  // them stays an explicit teacher action, so opening the library never does this.
+  const rows = await LiveLesson.find(liveLessonLibraryMatch(req))
+    .select("title")
+    .sort({ updatedAt: -1 })
+    .lean();
+  return res.json({
+    success: true,
+    data: {
+      lessons: rows.map((row) => ({ _id: String(row._id), title: row.title || "" })),
     },
   });
 });
@@ -1313,6 +1348,12 @@ export const endLiveSession = asyncHandler(async (req, res) => {
   await appendLiveEvent(endedSession, "session:ended", {
     role: req.user.role,
     userId: req.user._id,
+  });
+  void generateChargesForSession(endedSession._id, req.schoolId).catch((error) => {
+    logger.error("live_session_billing_failed", {
+      error: error?.message || String(error),
+      sessionId: String(endedSession._id),
+    });
   });
   await broadcastLiveSessionState(endedSession);
   return res.json({ success: true, data: { session: endedSession } });

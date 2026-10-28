@@ -1,7 +1,8 @@
 import { Fragment, memo, useMemo, useState } from 'react';
-import { HiOutlineChartBar, HiOutlineChevronRight, HiOutlinePlus, HiOutlineRefresh, HiOutlineSearch, HiOutlineSparkles, HiOutlineUsers, HiOutlineX } from 'react-icons/hi';
+import { HiOutlineChartBar, HiOutlineChevronRight, HiOutlineClipboardCopy, HiOutlinePlus, HiOutlineRefresh, HiOutlineSearch, HiOutlineSparkles, HiOutlineUsers, HiOutlineX } from 'react-icons/hi';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import {
     getClassCategoryAverage,
     getClassOverallAverage,
@@ -11,6 +12,7 @@ import {
     getStudentOverallAverage,
     normalizeCategory
 } from '../utils/gradebookPresentation';
+import { buildNegativeRemarksText } from '../utils/gradebookRemarks';
 
 const NAME_SORT = '__name';
 const OVERALL_SORT = '__overall';
@@ -38,7 +40,7 @@ const GradebookTable = ({
     onAddGrades,
     onRetry
 }) => {
-    const { t } = useTranslation(['gradebook']);
+    const { t, i18n } = useTranslation(['gradebook']);
     const [query, setQuery] = useState('');
     const [sortKey, setSortKey] = useState(NAME_SORT);
     const [sortDirection, setSortDirection] = useState('asc');
@@ -60,6 +62,35 @@ const GradebookTable = ({
         }
         return map;
     }, [grades, selectedCategoryFilter]);
+
+    const negativeRemarksByCategory = useMemo(() => {
+        const labels = new Map();
+        const text = new Map();
+        for (const category of dynamicCategories) {
+            const categoryLabel = t(`gradebook:categories.${category}`, { defaultValue: category });
+            labels.set(category, categoryLabel);
+            const clipboardText = buildNegativeRemarksText({
+                students,
+                gradesByStudent: assessmentsByStudent,
+                category,
+                title: t('gradebook:table.negativeRemarksTitle', { category: categoryLabel }),
+                locale: i18n.resolvedLanguage || i18n.language
+            });
+            if (clipboardText) text.set(category, clipboardText);
+        }
+        return { labels, text };
+    }, [assessmentsByStudent, dynamicCategories, i18n.language, i18n.resolvedLanguage, students, t]);
+
+    const copyNegativeRemarks = async (category) => {
+        const text = negativeRemarksByCategory.text.get(category);
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success(t('gradebook:table.negativeRemarksCopied'));
+        } catch {
+            toast.error(t('gradebook:table.negativeRemarksCopyFailed'));
+        }
+    };
 
     const ungradedStudents = useMemo(
         () => students.filter((student) => !processedData[student._id]?.overallCount),
@@ -296,16 +327,33 @@ const GradebookTable = ({
                     <thead>
                         <tr>
                             {renderSortableHeader(NAME_SORT, t('gradebook:table.columns.student'))}
-                            {dynamicCategories.map((category) => (
-                                <th key={category} scope="col" className="sortable-header text-center" aria-sort={sortState(category)}>
-                                    <button type="button" onClick={() => applySort(category)}>
-                                        {t('gradebook:table.columns.categoryAvg', {
-                                            category: t(`gradebook:categories.${category}`, { defaultValue: category }),
-                                            max: categoryScales[category] || 10
-                                        })}
-                                    </button>
-                                </th>
-                            ))}
+                            {dynamicCategories.map((category) => {
+                                const categoryLabel = negativeRemarksByCategory.labels.get(category) || category;
+                                const hasNegativeRemarks = negativeRemarksByCategory.text.has(category);
+                                return (
+                                    <th key={category} scope="col" className="sortable-header text-center" aria-sort={sortState(category)}>
+                                        <div className="gradebook-header-cell">
+                                            <button type="button" onClick={() => applySort(category)}>
+                                                {t('gradebook:table.columns.categoryAvg', {
+                                                    category: categoryLabel,
+                                                    max: categoryScales[category] || 10
+                                                })}
+                                            </button>
+                                            {hasNegativeRemarks && (
+                                                <button
+                                                    type="button"
+                                                    className="gradebook-copy-remarks"
+                                                    onClick={() => copyNegativeRemarks(category)}
+                                                    title={t('gradebook:table.copyNegativeRemarks', { category: categoryLabel })}
+                                                    aria-label={t('gradebook:table.copyNegativeRemarks', { category: categoryLabel })}
+                                                >
+                                                    <HiOutlineClipboardCopy size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </th>
+                                );
+                            })}
                             {renderSortableHeader(OVERALL_SORT, t('gradebook:table.columns.overallAvg'), true)}
                         </tr>
                     </thead>

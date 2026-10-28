@@ -29,6 +29,7 @@ import {
   joinLiveSession,
   listAvailableLiveSessions,
   listLiveLessons,
+  listLiveLessonSelection,
   listLiveLessonFolders,
   listLiveSessions,
   previewLiveLessonCsv,
@@ -87,6 +88,7 @@ router.post("/lessons/preview", authorize("teacher", "admin", "department_princi
 router.post("/lessons/import", authorize("teacher", "admin", "department_principal"), importLiveLessonCsv);
 router.post("/lessons", authorize("teacher", "admin", "department_principal"), createLiveLesson);
 router.get("/lessons", authorize("teacher", "admin", "department_principal"), listLiveLessons);
+router.get("/lessons/selection", authorize("teacher", "admin", "department_principal"), listLiveLessonSelection);
 router.get("/lessons/:id/export.csv", authorize("teacher", "admin", "department_principal"), exportLiveLessonCsv);
 router.get("/lessons/folders", authorize("teacher", "admin", "department_principal"), listLiveLessonFolders);
 router.post("/lessons/folders", authorize("teacher", "admin", "department_principal"), createLiveLessonFolder);

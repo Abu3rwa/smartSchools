@@ -103,7 +103,7 @@
 .logo-text {
   font-size: 1.0625rem;
   font-weight: 700;
-  background: var(--accent-gradient);
+  background: var(--brand-text-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

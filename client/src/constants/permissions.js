@@ -158,6 +158,8 @@ export const PERMISSIONS = {
     VIEW_FINANCE_REPORTS: 'view_finance_reports',
     EXPORT_FINANCE_DATA: 'export_finance_data',
     VIEW_STUDENT_FINANCE: 'view_student_finance',
+    LOG_SESSION_MINUTES: 'log_session_minutes',
+    EMAIL_FINANCE_STATEMENTS: 'email_finance_statements',
 
     // HR & Staff Management
     VIEW_STAFF_PROFILES: 'view_staff_profiles',

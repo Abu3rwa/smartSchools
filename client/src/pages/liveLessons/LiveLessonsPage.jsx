@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -284,6 +285,18 @@ const LiveLessonsPage = () => {
   const [savingMarkDraftSetting, setSavingMarkDraftSetting] = useState(false);
   const [lessonListState, setLessonListState] = useState(defaultListState);
   const [sessionListState, setSessionListState] = useState(defaultListState);
+  const [lessonPagination, setLessonPagination] = useState({
+    page: 1,
+    limit: 25,
+    total: 0,
+    pages: 1,
+    libraryTotal: 0,
+  });
+  const [lessonLoading, setLessonLoading] = useState(false);
+  const lessonRequestRef = useRef(0);
+  const [lessonSummaries, setLessonSummaries] = useState({});
+  const [selectingAllLessons, setSelectingAllLessons] = useState(false);
+  const [filteredSelectionActive, setFilteredSelectionActive] = useState(false);
   const [sessionPagination, setSessionPagination] = useState({
     page: 1,
     limit: 25,
@@ -321,9 +334,53 @@ const LiveLessonsPage = () => {
     }
   };
 
-  const closeLessonActions = (event) => {
-    event.currentTarget.closest("details")?.removeAttribute("open");
+  const [lessonActionMenu, setLessonActionMenu] = useState(null);
+  const lessonActionMenuRef = useRef(null);
+
+  // The row lives inside a horizontally scrolling table, which would clip an
+  // absolutely positioned panel, so the menu is portaled and anchored to the button.
+  const toggleLessonActionMenu = (event, lesson) => {
+    if (lessonActionMenu?.lessonId === String(lesson._id)) {
+      setLessonActionMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const estimatedHeight = 280;
+    const openUpward = rect.bottom + 8 + estimatedHeight > window.innerHeight;
+    setLessonActionMenu({
+      lessonId: String(lesson._id),
+      lesson,
+      top: openUpward ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
   };
+
+  useEffect(() => {
+    if (!lessonActionMenu) return undefined;
+    const close = () => setLessonActionMenu(null);
+    const handlePointerDown = (event) => {
+      if (lessonActionMenuRef.current?.contains(event.target)) return;
+      if (event.target.closest?.(".live-lesson-actions-trigger")) return;
+      close();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    const handleScroll = (event) => {
+      if (lessonActionMenuRef.current?.contains(event.target)) return;
+      close();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [lessonActionMenu]);
 
   const copyAiPrompt = async () => {
     try {
@@ -338,16 +395,72 @@ const LiveLessonsPage = () => {
     }
   };
 
+  // The library is paged and filtered by the server, so a teacher with a large
+  // library downloads one page instead of every lesson they ever wrote.
+  const loadLessons = useCallback(async () => {
+    const requestId = lessonRequestRef.current + 1;
+    lessonRequestRef.current = requestId;
+    setLessonLoading(true);
+    try {
+      const response = await api.get("/live/lessons", {
+        params: {
+          page: lessonListState.page,
+          limit: lessonListState.pageSize,
+          includeDone: lessonListState.showDone ? "true" : "false",
+          ...(lessonListState.classId
+            ? { classId: lessonListState.classId }
+            : {}),
+          ...(lessonListState.subject
+            ? { subjectId: lessonListState.subject }
+            : {}),
+        },
+      });
+      if (lessonRequestRef.current !== requestId) return;
+      const data = response.data?.data || {};
+      const rows = data.lessons || [];
+      const pagination = data.pagination || {};
+      setLessons(rows);
+      setLessonPagination({
+        page: pagination.page || 1,
+        limit: pagination.limit || lessonListState.pageSize,
+        total: pagination.total || 0,
+        pages: Math.max(1, pagination.pages || 1),
+        libraryTotal: pagination.libraryTotal || 0,
+      });
+      setLessonSummaries((current) => {
+        const next = { ...current };
+        for (const row of rows) {
+          next[String(row._id)] = {
+            _id: String(row._id),
+            title: row.title || "",
+          };
+        }
+        return next;
+      });
+    } catch (requestError) {
+      if (lessonRequestRef.current !== requestId) return;
+      setError(
+        requestError.response?.data?.message || "Could not load live lessons.",
+      );
+    } finally {
+      if (lessonRequestRef.current === requestId) setLessonLoading(false);
+    }
+  }, [
+    lessonListState.classId,
+    lessonListState.page,
+    lessonListState.pageSize,
+    lessonListState.showDone,
+    lessonListState.subject,
+  ]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [lessonResponse, settingsResponse, folderResponse] = await Promise.all([
-        api.get("/live/lessons"),
+      const [settingsResponse, folderResponse] = await Promise.all([
         api.get("/live/settings"),
         api.get("/live/lessons/folders"),
       ]);
-      setLessons(lessonResponse.data?.data?.lessons || []);
       setFolders(folderResponse.data?.data?.folders || []);
       setFoldersLoaded(true);
       setAiHtmlReviewEnabled(
@@ -364,6 +477,10 @@ const LiveLessonsPage = () => {
       setLoading(false);
     }
   }, []);
+
+  const reloadLibrary = useCallback(async () => {
+    await Promise.all([loadData(), loadLessons()]);
+  }, [loadData, loadLessons]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -567,6 +684,28 @@ const LiveLessonsPage = () => {
       return validFolder ? current : { ...current, folderId: "", page: 1 };
     });
   }, [preferencesLoaded, classesLoaded, subjectsLoaded, foldersLoaded, classes, subjects, folders]);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    loadLessons();
+  }, [loadLessons, preferencesLoaded]);
+
+  useEffect(() => {
+    if (lessonListState.page > lessonPagination.pages) {
+      setLessonListState((current) => ({
+        ...current,
+        page: lessonPagination.pages,
+      }));
+    }
+  }, [lessonListState.page, lessonPagination.pages]);
+
+  useEffect(() => {
+    setFilteredSelectionActive(false);
+  }, [
+    lessonListState.classId,
+    lessonListState.showDone,
+    lessonListState.subject,
+  ]);
 
   useEffect(() => {
     if (
@@ -842,7 +981,7 @@ const LiveLessonsPage = () => {
         await api.post("/live/lessons", lessonData);
       }
       closeEditor(true);
-      await loadData();
+      await reloadLibrary();
     } catch (requestError) {
       setErrors(
         requestError.response?.data?.errors || [
@@ -874,7 +1013,7 @@ const LiveLessonsPage = () => {
       setSelectedLessonIds((current) =>
         current.filter((id) => String(id) !== String(lessonId)),
       );
-      await loadData();
+      await reloadLibrary();
     } catch (requestError) {
       setError(
         requestError.response?.data?.message || "Could not delete lesson.",
@@ -914,7 +1053,7 @@ const LiveLessonsPage = () => {
       setNotice(
         `${deletedIds.length} lesson${deletedIds.length === 1 ? "" : "s"} deleted.${failures.length ? ` ${failures.length} could not be deleted: ${failures.map((failure) => failure.message).join("; ")}` : ""}`,
       );
-      await loadData();
+      await reloadLibrary();
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
@@ -925,7 +1064,7 @@ const LiveLessonsPage = () => {
         setSelectedLessonIds((current) =>
           current.filter((id) => !deletedSet.has(String(id))),
         );
-        await loadData();
+        await reloadLibrary();
       }
     } finally {
       setBulkDeletingLessons(false);
@@ -977,7 +1116,7 @@ const LiveLessonsPage = () => {
   const respondToShare = async (invitationId, action) => {
     try {
       await api.post(`/live/shares/${invitationId}/${action}`);
-      await Promise.all([loadShares(), loadData()]);
+      await Promise.all([loadShares(), reloadLibrary()]);
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
@@ -1023,7 +1162,7 @@ const LiveLessonsPage = () => {
       setNotice(
         `${completedIds.length} invitation${completedIds.length === 1 ? "" : "s"} ${action === "accept" ? "accepted" : "declined"}.${failures.length ? ` ${failures.length} could not be processed: ${failures.map((failure) => failure.message).join("; ")}` : ""}`,
       );
-      await Promise.all([loadShares(), loadData()]);
+      await Promise.all([loadShares(), reloadLibrary()]);
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
@@ -1034,7 +1173,7 @@ const LiveLessonsPage = () => {
         setSelectedIncomingShareIds((current) =>
           current.filter((id) => !completedSet.has(String(id))),
         );
-        await Promise.all([loadShares(), loadData()]);
+        await Promise.all([loadShares(), reloadLibrary()]);
       }
     } finally {
       setBulkRespondingToShares(false);
@@ -1204,11 +1343,9 @@ const LiveLessonsPage = () => {
     try {
       const isDone = !lesson.isDone;
       await api.patch(`/live/lessons/${lesson._id}/done`, { isDone });
-      setLessons((current) =>
-        current.map((item) =>
-          String(item._id) === String(lesson._id) ? { ...item, isDone } : item,
-        ),
-      );
+      // With "Show done lessons" off the row has to leave this page; the server
+      // owns the filter and the count, so ask it for the corrected page.
+      await loadLessons();
       setNotice(`“${lesson.title}” marked as ${isDone ? "done" : "not done"}.`);
     } catch (requestError) {
       setError(
@@ -1558,46 +1695,59 @@ const LiveLessonsPage = () => {
     ? folders.find((folder) => String(folder._id) === lessonListState.folderId)
     : null;
   const folderLessonIds = new Set(folders.flatMap((folder) => (folder.lessonIds || []).map(String)));
-  const filteredLessons = [...lessons]
-    .filter(
-      (lesson) =>
-        (!SHOW_LESSON_FOLDERS ||
-          (lessonListState.folderId === "__unfiled__"
-            ? !folderLessonIds.has(String(lesson._id))
-            : activeFolder
-              ? activeFolder.lessonIds.some((id) => String(id) === String(lesson._id))
-              : true)) &&
-        (lessonListState.showDone || !lesson.isDone) &&
-        (!lessonListState.subject ||
-          String(lesson.subjectId?._id || lesson.subjectId || "") ===
-            lessonListState.subject) &&
-        (!lessonListState.classId ||
-          String(lesson.classId?._id || lesson.classId || "") ===
-            lessonListState.classId),
-    )
-    .sort((left, right) => {
-      if (activeFolder) {
-        const leftIndex = activeFolder.lessonIds.findIndex((id) => String(id) === String(left._id));
-        const rightIndex = activeFolder.lessonIds.findIndex((id) => String(id) === String(right._id));
-        return leftIndex - rightIndex;
-      }
-      return new Date(right.updatedAt || 0).getTime() -
-        new Date(left.updatedAt || 0).getTime() ||
-        String(left.title || "").localeCompare(String(right.title || ""));
-    });
-  const lessonPages = Math.max(
-    1,
-    Math.ceil(filteredLessons.length / lessonListState.pageSize),
-  );
-  const lessonPage = Math.min(lessonListState.page, lessonPages);
-  const visibleLessons = filteredLessons.slice(
-    (lessonPage - 1) * lessonListState.pageSize,
-    lessonPage * lessonListState.pageSize,
-  );
+  // The server applies the filters, the sort, and the page slice, so these rows are
+  // already exactly what this page of the library shows.
+  const visibleLessons = lessons;
+  const lessonTotal = lessonPagination.total;
+  const libraryTotal = lessonPagination.libraryTotal || lessonPagination.total;
+  const lessonPages = Math.max(1, lessonPagination.pages);
+  const lessonPage = Math.min(lessonPagination.page, lessonPages);
   const updateLessonList = (changes) =>
     setLessonListState((current) => ({ ...current, ...changes }));
   const updateSessionList = (changes) =>
     setSessionListState((current) => ({ ...current, ...changes }));
+  const toggleAllFilteredLessons = async () => {
+    if (filteredSelectionActive) {
+      setSelectedLessonIds([]);
+      setFilteredSelectionActive(false);
+      return;
+    }
+    if (selectingAllLessons) return;
+    setSelectingAllLessons(true);
+    try {
+      const response = await api.get("/live/lessons/selection", {
+        params: {
+          includeDone: lessonListState.showDone ? "true" : "false",
+          ...(lessonListState.classId
+            ? { classId: lessonListState.classId }
+            : {}),
+          ...(lessonListState.subject
+            ? { subjectId: lessonListState.subject }
+            : {}),
+        },
+      });
+      const rows = response.data?.data?.lessons || [];
+      setSelectedLessonIds(rows.map((row) => String(row._id)));
+      setLessonSummaries((current) => {
+        const next = { ...current };
+        for (const row of rows) {
+          next[String(row._id)] = {
+            _id: String(row._id),
+            title: row.title || "",
+          };
+        }
+        return next;
+      });
+      setFilteredSelectionActive(true);
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Could not select all filtered lessons.",
+      );
+    } finally {
+      setSelectingAllLessons(false);
+    }
+  };
   const showRange = (page, pageSize, count) =>
     count
       ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} of ${count}`
@@ -1653,7 +1803,7 @@ const LiveLessonsPage = () => {
           className={tab === "lessons" ? "active" : ""}
           onClick={() => setTab("lessons")}
         >
-          My lessons <span>{lessons.length}</span>
+          My lessons <span>{libraryTotal}</span>
         </button>
         <button
           className={tab === "sessions" ? "active" : ""}
@@ -1742,7 +1892,7 @@ const LiveLessonsPage = () => {
             </section>
           )}
         </>
-      ) : loading ? (
+      ) : loading || (tab === "lessons" && lessonLoading && !lessonPagination.total) ? (
         <div className="live-loading">Loading live lessons…</div>
       ) : tab === "lessons" ? (
         <>
@@ -1765,8 +1915,12 @@ const LiveLessonsPage = () => {
                       className="live-secondary-button"
                       onClick={() => {
                         setShareLessons(
-                          lessons.filter((lesson) =>
-                            selectedLessonIds.includes(String(lesson._id)),
+                          selectedLessonIds.map(
+                            (id) =>
+                              lessonSummaries[String(id)] || {
+                                _id: id,
+                                title: "",
+                              },
                           ),
                         );
                         setShareRecipient("");
@@ -1787,39 +1941,19 @@ const LiveLessonsPage = () => {
                     </button>
                   </>
                 )}
-              {["teacher", "admin"].includes(user?.role) &&
-                filteredLessons.length > 0 && (
-                  <button
-                    className="live-text-button"
-                    onClick={() =>
-                      setSelectedLessonIds((current) =>
-                        filteredLessons.every((lesson) =>
-                          current.includes(String(lesson._id)),
-                        )
-                          ? current.filter(
-                              (id) =>
-                                !filteredLessons.some(
-                                  (lesson) => String(lesson._id) === String(id),
-                                ),
-                            )
-                          : [
-                              ...new Set([
-                                ...current,
-                                ...filteredLessons.map((lesson) =>
-                                  String(lesson._id),
-                                ),
-                              ]),
-                            ],
-                      )
-                    }
-                  >
-                    {filteredLessons.every((lesson) =>
-                      selectedLessonIds.includes(String(lesson._id)),
-                    )
-                      ? "Clear all filtered selections"
-                      : `Select all filtered lessons (${filteredLessons.length})`}
-                  </button>
-                )}
+              {["teacher", "admin"].includes(user?.role) && lessonTotal > 0 && (
+                <button
+                  className="live-text-button"
+                  onClick={toggleAllFilteredLessons}
+                  disabled={selectingAllLessons}
+                >
+                  {filteredSelectionActive
+                    ? "Clear all filtered selections"
+                    : selectingAllLessons
+                      ? "Selecting lessons…"
+                      : `Select all filtered lessons (${lessonTotal})`}
+                </button>
+              )}
               <button
                 className="live-primary-button"
                 onClick={openImportEditor}
@@ -2006,7 +2140,7 @@ const LiveLessonsPage = () => {
                 )}
               </section>
             )}
-          {lessons.length === 0 ? (
+          {libraryTotal === 0 && !lessonLoading ? (
             <div className="live-empty-state">
               <div className="live-empty-icon">
                 <HiOutlinePresentationChartBar size={32} />
@@ -2047,7 +2181,7 @@ const LiveLessonsPage = () => {
                     aria-current={!lessonListState.folderId ? "page" : undefined}
                   >
                     <span>All lessons</span>
-                    <small>{lessons.length}</small>
+                    <small>{libraryTotal}</small>
                   </button>
                   <button
                     className={`live-folder-select ${lessonListState.folderId === "__unfiled__" ? "active" : ""}`}
@@ -2296,74 +2430,16 @@ const LiveLessonsPage = () => {
                           >
                             Schedule
                           </button>
-                          <details className="live-lesson-actions-menu">
-                            <summary aria-label={`More actions for ${lesson.title}`}>
-                              <HiOutlineEllipsisVertical />
-                              <span>More</span>
-                            </summary>
-                            <div className="live-lesson-actions-menu-items">
-                              <button
-                                className="live-secondary-button"
-                                onClick={(event) => {
-                                  closeLessonActions(event);
-                                  openLessonEditor(lesson._id);
-                                }}
-                              >
-                                <HiOutlinePencilSquare /> Edit
-                              </button>
-                              <button
-                                className="live-secondary-button"
-                                onClick={(event) => {
-                                  closeLessonActions(event);
-                                  void exportLesson(lesson);
-                                }}
-                                disabled={Boolean(exportingLessonId)}
-                              >
-                                <HiOutlineArrowDownTray />
-                                {exportingLessonId === String(lesson._id) ? "Exporting…" : "Export CSV"}
-                              </button>
-                              {["teacher", "admin"].includes(user?.role) && (
-                                <button
-                                  className="live-secondary-button"
-                                  onClick={(event) => {
-                                    closeLessonActions(event);
-                                    setShareLessons([lesson]);
-                                    setShareRecipient("");
-                                  }}
-                                >
-                                  <HiOutlineShare /> Share
-                                </button>
-                              )}
-                              <button
-                                className="live-secondary-button"
-                                onClick={(event) => {
-                                  closeLessonActions(event);
-                                  setLessonDone(lesson);
-                                }}
-                              >
-                                <HiOutlineCheck />{" "}
-                                {lesson.isDone ? "Mark not done" : "Mark done"}
-                              </button>
-                              <button
-                                className="live-secondary-button"
-                                onClick={(event) => {
-                                  closeLessonActions(event);
-                                  void openMoveDialog(lesson);
-                                }}
-                              >
-                                <HiOutlineCalendarDays /> Move to another year
-                              </button>
-                              <button
-                                className="live-delete-session"
-                                onClick={(event) => {
-                                  closeLessonActions(event);
-                                  deleteLesson(lesson._id);
-                                }}
-                              >
-                                <HiOutlineTrash /> Delete
-                              </button>
-                            </div>
-                          </details>
+                          <button
+                            className="live-lesson-actions-trigger"
+                            aria-haspopup="menu"
+                            aria-expanded={lessonActionMenu?.lessonId === String(lesson._id)}
+                            aria-label={`More actions for ${lesson.title}`}
+                            onClick={(event) => toggleLessonActionMenu(event, lesson)}
+                          >
+                            <HiOutlineEllipsisVertical />
+                            <span>More</span>
+                          </button>
                           {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
                             <summary>Organize</summary>
                             <div className="live-lesson-organize-content">
@@ -2427,13 +2503,88 @@ const LiveLessonsPage = () => {
                   </p>
                 )}
               </div>
+              {lessonActionMenu && (() => {
+                const { lesson } = lessonActionMenu;
+                const run = (action) => {
+                  setLessonActionMenu(null);
+                  action(lesson);
+                };
+                return createPortal(
+                  <div
+                    ref={lessonActionMenuRef}
+                    className="live-lesson-action-menu"
+                    role="menu"
+                    aria-label={`Actions for ${lesson.title}`}
+                    style={{
+                      top: lessonActionMenu.top,
+                      right: lessonActionMenu.right,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => run((item) => openLessonEditor(item._id))}
+                    >
+                      <HiOutlinePencilSquare /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={Boolean(exportingLessonId)}
+                      onClick={() => run((item) => void exportLesson(item))}
+                    >
+                      <HiOutlineArrowDownTray />
+                      {exportingLessonId === String(lesson._id)
+                        ? "Exporting…"
+                        : "Export CSV"}
+                    </button>
+                    {["teacher", "admin"].includes(user?.role) && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => run((item) => {
+                          setShareLessons([item]);
+                          setShareRecipient("");
+                        })}
+                      >
+                        <HiOutlineShare /> Share
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => run(setLessonDone)}
+                    >
+                      <HiOutlineCheck />
+                      {lesson.isDone ? "Mark not done" : "Mark done"}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => run((item) => void openMoveDialog(item))}
+                    >
+                      <HiOutlineCalendarDays /> Move to another year
+                    </button>
+                    <div className="live-lesson-action-menu-sep" role="separator" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="is-danger"
+                      onClick={() => run((item) => deleteLesson(item._id))}
+                    >
+                      <HiOutlineTrash /> Delete
+                    </button>
+                  </div>,
+                  document.body,
+                );
+              })()}
               <div className="live-list-pagination">
                 <span>
                   Showing{" "}
                   {showRange(
                     lessonPage,
                     lessonListState.pageSize,
-                    filteredLessons.length,
+                    lessonTotal,
                   )}
                 </span>
                 <label>
@@ -2455,7 +2606,7 @@ const LiveLessonsPage = () => {
                   </select>
                 </label>
                 <button
-                  disabled={lessonPage <= 1}
+                  disabled={lessonLoading || lessonPage <= 1}
                   onClick={() => updateLessonList({ page: lessonPage - 1 })}
                 >
                   Previous
@@ -2464,7 +2615,7 @@ const LiveLessonsPage = () => {
                   Page {lessonPage} of {lessonPages}
                 </span>
                 <button
-                  disabled={lessonPage >= lessonPages}
+                  disabled={lessonLoading || lessonPage >= lessonPages}
                   onClick={() => updateLessonList({ page: lessonPage + 1 })}
                 >
                   Next

@@ -87,6 +87,8 @@ const LiveLessonReviewPage = ({ mode }) => {
   const user = useSelector(selectUser);
   const [report, setReport] = useState(null);
   const [replay, setReplay] = useState(null);
+  const [reportTab, setReportTab] = useState("overview");
+  const [visitedReportTabs, setVisitedReportTabs] = useState({});
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -136,6 +138,11 @@ const LiveLessonReviewPage = ({ mode }) => {
   }, [sessionId, mode]);
 
   useEffect(() => {
+    setReportTab("overview");
+    setVisitedReportTabs({});
+  }, [sessionId, mode]);
+
+  useEffect(() => {
     if (mode !== "report" || report?.session?.status !== "live") return undefined;
     let active = true;
     const timer = window.setInterval(() => {
@@ -154,7 +161,7 @@ const LiveLessonReviewPage = ({ mode }) => {
   }, [mode, report?.session?.status, sessionId]);
 
   useEffect(() => {
-    if (mode !== "report" || report?.session?.status !== "ended") return undefined;
+    if (mode !== "report" || report?.session?.status !== "ended" || !visitedReportTabs.gradebook) return undefined;
     let active = true;
     api.get(`/live/sessions/${sessionId}/gradebook-preview`)
       .then((response) => {
@@ -175,10 +182,10 @@ const LiveLessonReviewPage = ({ mode }) => {
         if (active) setGradeError(requestError.response?.data?.message || "Could not load gradebook options for this session.");
       });
     return () => { active = false; };
-  }, [mode, report?.session?.status, report?.session?.subject, report?.session?.subjectId, sessionId]);
+  }, [mode, report?.session?.status, report?.session?.subject, report?.session?.subjectId, sessionId, visitedReportTabs.gradebook]);
 
   useEffect(() => {
-    if (mode !== "report" || report?.session?.status !== "ended" || !gradeSubjectId) {
+    if (mode !== "report" || report?.session?.status !== "ended" || !visitedReportTabs.gradebook || !gradeSubjectId) {
       setGradePreview(null);
       return undefined;
     }
@@ -204,11 +211,12 @@ const LiveLessonReviewPage = ({ mode }) => {
         if (active) setGradeLoading(false);
       });
     return () => { active = false; };
-  }, [mode, report?.session?.status, gradeSubjectId, gradeMaxMarks, behaviorDeductionPerIncident, sessionId]);
+  }, [mode, report?.session?.status, gradeSubjectId, gradeMaxMarks, behaviorDeductionPerIncident, sessionId, visitedReportTabs.gradebook]);
 
   useEffect(() => {
     const classId = report?.session?.class?._id || report?.session?.class;
-    if (mode !== "report" || report?.session?.status !== "ended" || !classId || !performanceRange.from || !performanceRange.to) {
+    if (mode !== "report" || report?.session?.status !== "ended" || !visitedReportTabs.trends
+      || !classId || !performanceRange.from || !performanceRange.to) {
       setPerformance(null);
       setPerformanceLoading(false);
       return undefined;
@@ -236,7 +244,7 @@ const LiveLessonReviewPage = ({ mode }) => {
         if (active) setPerformanceLoading(false);
       });
     return () => { active = false; };
-  }, [mode, report?.session?.status, report?.session?.class, performanceRange.from, performanceRange.to]);
+  }, [mode, report?.session?.status, report?.session?.class, performanceRange.from, performanceRange.to, visitedReportTabs.trends]);
 
   const refreshReport = async () => {
     const response = await api.get(`/live/sessions/${sessionId}/report`);
@@ -292,10 +300,54 @@ const LiveLessonReviewPage = ({ mode }) => {
     ? gradeSubjects.filter((subject) => subject._id === report.session.subjectId)
     : gradeSubjects;
 
+  const perQuestion = report?.perQuestion || [];
+  const perStudent = report?.perStudent || [];
+  const rosterCount = report?.summary?.rosterCount || 0;
+  const joinedCount = report?.summary?.joinedCount || 0;
+  const presentedQuestionCount = report?.summary?.presentedQuestionCount || 0;
+  const attendanceRate = rosterCount ? Math.round((joinedCount / rosterCount) * 100) : 0;
+  const participatingStudents = perStudent.filter((student) => student.answered > 0).length;
+  const answerCompletionRate = rosterCount && presentedQuestionCount
+    ? Math.round(((report?.summary?.submittedAnswers || 0) / (rosterCount * presentedQuestionCount)) * 100)
+    : 0;
+  // Accuracy needs a verdict behind it: answers waiting for a mark are left out of both sides.
+  const markedVerdicts = perQuestion.reduce(
+    (total, question) => total + Math.max(0, (question.answered || 0) - (question.pending || 0)),
+    0,
+  );
+  const earnedCredit = perQuestion.reduce(
+    (total, question) => total
+      + (question.percentCorrect || 0) * Math.max(0, (question.answered || 0) - (question.pending || 0)),
+    0,
+  );
+  const markedAccuracyRate = markedVerdicts ? Math.round(earnedCredit / markedVerdicts) : null;
+  const questionsAwaitingMarks = perQuestion.filter((question) => question.pending > 0).length;
+  const totalAwayMinutes = Math.round(
+    perStudent.reduce((total, student) => total + (student.totalAwaySeconds || 0), 0) / 60,
+  );
+  const reportTabs = [
+    { id: "overview", label: "Overview" },
+    { id: "questions", label: "Questions", count: perQuestion.length },
+    { id: "students", label: "Students", count: perStudent.length },
+    ...(report?.session?.status === "ended"
+      ? [
+        { id: "trends", label: "Class trends" },
+        { id: "gradebook", label: "Grades" },
+      ]
+      : []),
+  ];
+  // Each heavy panel loads the first time it is opened and then keeps its state, so switching tabs
+  // never throws away unsaved marking or grade edits.
+  const openReportTab = (tab) => {
+    setReportTab(tab);
+    if (tab === "overview" || tab === "questions" || tab === "students") return;
+    setVisitedReportTabs((current) => (current[tab] ? current : { ...current, [tab]: true }));
+  };
+
   useEffect(() => {
     const classId = report?.session?.class?._id || report?.session?.class;
-    if (mode !== "report" || report?.session?.status !== "ended" || !classId
-      || !performanceRange.from || !performanceRange.to || !engagementStudentId) {
+    if (mode !== "report" || report?.session?.status !== "ended" || !visitedReportTabs.trends
+      || !classId || !performanceRange.from || !performanceRange.to || !engagementStudentId) {
       setPerformanceStudentTrend([]);
       setPerformanceStudentTrendLoading(false);
       return undefined;
@@ -324,7 +376,7 @@ const LiveLessonReviewPage = ({ mode }) => {
         if (active) setPerformanceStudentTrendLoading(false);
       });
     return () => { active = false; };
-  }, [mode, report?.session?.status, report?.session?.class, performanceRange.from, performanceRange.to, engagementStudentId]);
+  }, [mode, report?.session?.status, report?.session?.class, performanceRange.from, performanceRange.to, engagementStudentId, visitedReportTabs.trends]);
 
   const setPerformancePeriod = (preset) => {
     setPerformancePreset(preset);
@@ -481,7 +533,7 @@ const LiveLessonReviewPage = ({ mode }) => {
       </header>
       {mode === "report" ? (
         <div className="live-report-layout">
-          <section className="live-review-card live-report-class-section">
+          <section className="live-review-card live-report-class-section live-report-hero">
             <div className="live-report-heading">
               <div>
                 <span className="live-report-kicker">{report.session.status === "live" ? "SESSION IN PROGRESS" : "SESSION REPORT"}</span>
@@ -501,14 +553,99 @@ const LiveLessonReviewPage = ({ mode }) => {
             </div>
             {exportError && <p className="live-report-export-error" role="alert">{exportError}</p>}
             <div className="live-report-summary">
-              <div><strong>{report.summary?.rosterCount || 0}</strong><span>Students</span></div>
-              <div><strong>{report.summary?.joinedCount || 0}</strong><span>Joined</span></div>
+              <div><strong>{rosterCount}</strong><span>Students</span></div>
+              <div><strong>{joinedCount}</strong><span>Joined · {attendanceRate}%</span></div>
               <div><strong>{report.summary?.questionCount || 0}</strong><span>Questions</span></div>
               <div><strong>{report.summary?.submittedAnswers || 0}</strong><span>Answers submitted</span></div>
+              <div className={report.summary?.awaitingMarks ? "live-report-summary-alert" : ""}>
+                <strong>{report.summary?.awaitingMarks || 0}</strong><span>To mark</span>
+              </div>
             </div>
           </section>
+          <nav className="live-report-tabs no-print" aria-label="Report sections">
+            {reportTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`live-report-tab${reportTab === tab.id ? " active" : ""}`}
+                aria-current={reportTab === tab.id ? "page" : undefined}
+                onClick={() => openReportTab(tab.id)}
+              >
+                {tab.label}
+                {tab.count != null && <span>{tab.count}</span>}
+              </button>
+            ))}
+          </nav>
+          <div className="live-report-panel" role="region" aria-label="Overview" hidden={reportTab !== "overview"}>
+            <section className="live-review-card live-report-overview">
+              <div className="live-report-section-heading">
+                <div><h2>Lesson at a glance</h2><p>Participation and marking status for this session.</p></div>
+              </div>
+              <div className="live-report-overview-grid">
+                <div className="live-report-overview-panel">
+                  <h3>Participation</h3>
+                  <dl className="live-report-figures">
+                    <div><dt>Joined the lesson</dt><dd>{joinedCount} of {rosterCount}<span>{attendanceRate}%</span></dd></div>
+                    <div>
+                      <dt>Answered at least once</dt>
+                      <dd>{participatingStudents} of {rosterCount}<span>{rosterCount ? Math.round((participatingStudents / rosterCount) * 100) : 0}%</span></dd>
+                    </div>
+                    <div>
+                      <dt>Answers submitted</dt>
+                      <dd>{report.summary?.submittedAnswers || 0} of {rosterCount * presentedQuestionCount}<span>{answerCompletionRate}%</span></dd>
+                    </div>
+                    <div><dt>Time away across the class</dt><dd>{totalAwayMinutes} min</dd></div>
+                  </dl>
+                </div>
+                <div className="live-report-overview-panel">
+                  <h3>Marking status</h3>
+                  <p className="live-report-overview-note">
+                    {report.summary?.awaitingMarks
+                      ? `${report.summary.awaitingMarks} submitted ${report.summary.awaitingMarks === 1 ? "answer still needs" : "answers still need"} a mark across ${questionsAwaitingMarks} ${questionsAwaitingMarks === 1 ? "question" : "questions"}. A written answer is never counted as wrong while it waits.`
+                      : "Every submitted answer has a verdict."}
+                  </p>
+                  <dl className="live-report-figures">
+                    <div><dt>Answers to mark</dt><dd>{report.summary?.awaitingMarks || 0}</dd></div>
+                    <div><dt>Accuracy of marked answers</dt><dd>{markedAccuracyRate == null ? "—" : `${markedAccuracyRate}%`}</dd></div>
+                    <div><dt>Questions presented</dt><dd>{presentedQuestionCount} of {report.summary?.questionCount || 0}</dd></div>
+                  </dl>
+                  <div className="live-report-overview-actions no-print">
+                    {report.summary?.awaitingMarks > 0 && (
+                      <button className="live-session-primary" onClick={() => openReportTab("questions")}>Mark answers</button>
+                    )}
+                    <button className="live-session-secondary" onClick={() => openReportTab("students")}>Open student reports</button>
+                  </div>
+                </div>
+              </div>
+              <div className="live-report-section-heading live-report-overview-subheading">
+                <div><h3>Question results</h3><p>How the class answered each check for understanding.</p></div>
+                {perQuestion.length > 0 && (
+                  <button className="live-session-secondary no-print" onClick={() => openReportTab("questions")}>Open question details</button>
+                )}
+              </div>
+              {perQuestion.length ? (
+                <div className="live-report-table-wrap"><table className="live-report-compact-table">
+                  <thead><tr><th>#</th><th>Question</th><th>Answered</th><th>Correct</th><th>To mark</th><th>Accuracy</th></tr></thead>
+                  <tbody>{perQuestion.map((question, index) => {
+                    const marked = Math.max(0, question.answered - question.pending);
+                    return (
+                      <tr key={question.slideId}>
+                        <td>{index + 1}</td>
+                        <td>{question.title && <strong>{question.title}: </strong>}{question.prompt}</td>
+                        <td>{question.answered} of {rosterCount}</td>
+                        <td>{question.correct}</td>
+                        <td>{question.pending}</td>
+                        <td>{marked ? `${question.percentCorrect}%` : "—"}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table></div>
+              ) : <p>No question slides were included.</p>}
+            </section>
+          </div>
           {report.session.status === "ended" && (
-            <section className="live-review-card live-report-performance">
+            <div className="live-report-panel" role="region" aria-label="Class trends" hidden={reportTab !== "trends"}>
+              <section className="live-review-card live-report-performance">
               <div className="live-report-section-heading">
                 <div><h2>Class performance &amp; engagement</h2><p>Track attendance, participation, and accuracy across completed live lessons.</p></div>
                 <div className="live-report-export-actions no-print">
@@ -639,205 +776,196 @@ const LiveLessonReviewPage = ({ mode }) => {
                   {performanceStudentIds.length > 150 && <p className="live-report-export-error">Batch PDF exports are limited to 150 students. Deselect some students.</p>}
                 </>
               ) : <p className="live-performance-status">Choose a date range to view this class report.</p>}
-            </section>
-          )}
-          <section className="live-review-card live-report-class-section">
-            <div className="live-report-section-heading">
-              <div><h2>Question results</h2><p>See how the class responded to each check for understanding.</p></div>
-              <span className="live-report-count">{(report.perQuestion || []).length} questions</span>
+              </section>
             </div>
-            {(report.perQuestion || []).length ? (
-              <div className="live-report-question-grid">
-                {report.perQuestion.map((question, index) => {
-                  const marked = question.answered - question.pending;
-                  return (
-                    <article className="live-question-result" key={question.slideId}>
-                      <div className="live-question-result-heading">
-                        <span className="live-question-number">
-                          Question {index + 1} · {liveQuestionKindLabel(question.kind)}
-                        </span>
-                        <span className={`live-question-state ${question.closed ? "closed" : question.opened ? "opened" : ""}`}>
-                          {question.closed
-                            ? "Closed"
-                            : question.awaiting
-                              ? "Waiting for answers"
-                              : question.pending
-                                ? "Some answers to mark"
-                                : question.opened ? "Answered" : "Not opened"}
-                        </span>
-                      </div>
-                      {question.title && <span className="live-question-title">{question.title}</span>}
-                      <h3>{question.prompt}</h3>
-                      <div className="live-question-metrics">
-                        <div><strong>{question.answered}</strong><span>Answered</span></div>
-                        <div><strong>{question.correct}</strong><span>Correct</span></div>
-                        <div><strong>{question.partial + question.wrong}</strong><span>Not correct</span></div>
-                        <div><strong>{question.pending}</strong><span>To mark</span></div>
-                        <div>
-                          <strong>{question.closed ? question.unanswered : question.opened ? question.awaiting : "—"}</strong>
-                          <span>{question.closed ? "Unanswered" : "Not answered yet"}</span>
-                        </div>
-                      </div>
-                      {marked > 0 && (
-                        <div className="live-question-accuracy" aria-label={`${question.percentCorrect}% of the marked answers earned full credit`}>
-                          <span style={{ width: `${question.percentCorrect}%` }} />
-                        </div>
-                      )}
-                      {(question.options || []).length ? (
-                        <div className="live-question-options">
-                          {question.options.map((option) => {
-                            const count = question.perOption?.[option.id] || 0;
-                            const percentage = question.answered ? Math.round((count / question.answered) * 100) : 0;
-                            return (
-                              <div className={`live-question-option${option.correct ? " correct" : ""}`} key={option.id}>
-                                <div><span>{option.text}{option.correct && <b>Correct answer</b>}</span><strong>{count}</strong></div>
-                                <span className="live-option-bar"><i style={{ width: `${percentage}%` }} /></span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : question.key && (
-                        <p className="live-question-key"><strong>Answer key</strong><span>{question.key}</span></p>
-                      )}
-                      {(question.levels || []).length > 0 && (
-                        <div className="live-question-levels">
-                          {question.levels.map((level) => (
-                            <div className="live-question-level" key={level.level}>
-                              <strong>{level.level}</strong>
-                              <span>{level.answered} answered</span>
-                              <span>{level.pending ? `${level.pending} to mark` : "all marked"}</span>
-                              <span>{level.percentCorrect}% of marked</span>
+          )}
+          <div className="live-report-panel" role="region" aria-label="Questions" hidden={reportTab !== "questions"}>
+              <section className="live-review-card live-report-class-section">
+                <div className="live-report-section-heading">
+                  <div><h2>Question results</h2><p>See how the class responded to each check for understanding.</p></div>
+                  <span className="live-report-count">{perQuestion.length} questions</span>
+                </div>
+                {perQuestion.length ? (
+                  <div className="live-report-question-grid">
+                    {perQuestion.map((question, index) => {
+                      const marked = question.answered - question.pending;
+                      return (
+                        <article className="live-question-result" key={question.slideId}>
+                          <div className="live-question-result-heading">
+                            <span className="live-question-number">
+                              Question {index + 1} · {liveQuestionKindLabel(question.kind)}
+                            </span>
+                            <span className={`live-question-state ${question.closed ? "closed" : question.opened ? "opened" : ""}`}>
+                              {question.closed
+                                ? "Closed"
+                                : question.awaiting
+                                  ? "Waiting for answers"
+                                  : question.pending
+                                    ? "Some answers to mark"
+                                    : question.opened ? "Answered" : "Not opened"}
+                            </span>
+                          </div>
+                          {question.title && <span className="live-question-title">{question.title}</span>}
+                          <h3>{question.prompt}</h3>
+                          <div className="live-question-metrics">
+                            <div><strong>{question.answered}</strong><span>Answered</span></div>
+                            <div><strong>{question.correct}</strong><span>Correct</span></div>
+                            <div><strong>{question.partial + question.wrong}</strong><span>Not correct</span></div>
+                            <div><strong>{question.pending}</strong><span>To mark</span></div>
+                            <div>
+                              <strong>{question.closed ? question.unanswered : question.opened ? question.awaiting : "—"}</strong>
+                              <span>{question.closed ? "Unanswered" : "Not answered yet"}</span>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="live-question-result-footer">
-                        <span>
-                          {marked
-                            ? `${question.percentCorrect}% correct${question.pending ? ` of ${marked} marked` : ""}`
-                            : question.pending ? "Waiting to be marked" : "No answers yet"}
-                        </span>
-                        <span>{question.answered} of {report.summary?.rosterCount || 0} responses</span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : <p>No question slides were included.</p>}
-          </section>
-          {(report.perQuestion || []).some((question) => question.answers?.length) && (
-            <section className="live-review-card live-report-class-section">
-              <div className="live-report-section-heading">
-                <div>
-                  <h2>Mark the answers</h2>
-                  <p>
-                    A written answer has no key, so it stays in the queue until you mark it. Leaving a mark
-                    empty sends the answer back to the queue instead of scoring it zero, and nothing reaches
-                    the student until you share it.
-                  </p>
-                </div>
-                <span className="live-report-count">{report.summary?.awaitingMarks || 0} to mark</span>
-              </div>
-              <LiveSessionMarkSheet sessionId={sessionId} questions={report.perQuestion} onSaved={refreshReport} />
-            </section>
-          )}
-          <section className="live-review-card live-report-class-section">
-            <div className="live-report-section-heading">
-              <div><h2>Student participation</h2><p>Select a student to view their individual answers below.</p></div>
-              <div className="live-report-export-actions no-print">
-                <span className="live-report-count">{(report.perStudent || []).length} students</span>
-                <button className="live-session-secondary" onClick={() => downloadSessionPdf(selectedStudentIds)} disabled={!selectedStudentIds.length || selectedStudentIds.length > 150 || reportExporting}>
-                  <HiOutlineArrowDownTray /> Download selected PDF ({selectedStudentIds.length})
-                </button>
-              </div>
+                          </div>
+                          {marked > 0 && (
+                            <div className="live-question-accuracy" aria-label={`${question.percentCorrect}% of the marked answers earned full credit`}>
+                              <span style={{ width: `${question.percentCorrect}%` }} />
+                            </div>
+                          )}
+                          {(question.options || []).length ? (
+                            <div className="live-question-options">
+                              {question.options.map((option) => {
+                                const count = question.perOption?.[option.id] || 0;
+                                const percentage = question.answered ? Math.round((count / question.answered) * 100) : 0;
+                                return (
+                                  <div className={`live-question-option${option.correct ? " correct" : ""}`} key={option.id}>
+                                    <div><span>{option.text}{option.correct && <b>Correct answer</b>}</span><strong>{count}</strong></div>
+                                    <span className="live-option-bar"><i style={{ width: `${percentage}%` }} /></span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : question.key && (
+                            <p className="live-question-key"><strong>Answer key</strong><span>{question.key}</span></p>
+                          )}
+                          {(question.levels || []).length > 0 && (
+                            <div className="live-question-levels">
+                              {question.levels.map((level) => (
+                                <div className="live-question-level" key={level.level}>
+                                  <strong>{level.level}</strong>
+                                  <span>{level.answered} answered</span>
+                                  <span>{level.pending ? `${level.pending} to mark` : "all marked"}</span>
+                                  <span>{level.percentCorrect}% of marked</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="live-question-result-footer">
+                            <span>
+                              {marked
+                                ? `${question.percentCorrect}% correct${question.pending ? ` of ${marked} marked` : ""}`
+                                : question.pending ? "Waiting to be marked" : "No answers yet"}
+                            </span>
+                            <span>{question.answered} of {rosterCount} responses</span>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : <p>No question slides were included.</p>}
+              </section>
+              {perQuestion.some((question) => question.answers?.length) && (
+                <section className="live-review-card live-report-class-section">
+                  <div className="live-report-section-heading">
+                    <div>
+                      <h2>Mark the answers</h2>
+                      <p>
+                        A written answer has no key, so it stays in the queue until you mark it. Leaving a mark
+                        empty sends the answer back to the queue instead of scoring it zero, and nothing reaches
+                        the student until you share it.
+                      </p>
+                    </div>
+                    <span className="live-report-count">{report.summary?.awaitingMarks || 0} to mark</span>
+                  </div>
+                  <LiveSessionMarkSheet sessionId={sessionId} questions={report.perQuestion} onSaved={refreshReport} />
+                </section>
+              )}
             </div>
-            {selectedStudentIds.length > 150 && <p className="live-report-export-error">Batch PDF exports are limited to 150 students. Deselect some students.</p>}
-            <div className="live-report-table-wrap"><table><thead><tr><th>Select</th><th>Student</th><th>Answered</th><th>Correct</th><th>Wrong</th><th>To mark</th><th>Score</th><th>Away</th></tr></thead><tbody>
-              {(report.perStudent || []).map((student) => <tr key={student.studentId} className="live-report-student-row" data-student-id={student.studentId}><td><input aria-label={`Select ${student.name} session report`} type="checkbox" checked={selectedStudentIds.includes(student.studentId)} onChange={() => toggleSessionStudent(student.studentId)} /></td><td><button className="live-report-student-link no-print" onClick={() => setReportStudentId(student.studentId)}>{student.name}</button></td><td>{student.answered}</td><td>{student.correct}</td><td>{student.wrong}</td><td>{student.toMark}</td><td>{student.scorePercent}%</td><td>{student.totalAwaySeconds}s</td></tr>)}
-            </tbody></table></div>
-          </section>
-          <section className="live-review-card live-report-student-section">
-            <div className="live-report-heading">
-              <div>
-                <h2>Individual student report</h2>
-                <p>Review submitted answers and response times for one student.</p>
-                <label className="no-print">Student
-                  <select value={selectedReportStudent?.studentId || ""} onChange={(event) => setReportStudentId(event.target.value)}>
-                    {(report.perStudent || []).map((student) => <option key={student.studentId} value={student.studentId}>{student.name}</option>)}
-                  </select>
-                </label>
-              </div>
-              <div className="live-report-export-actions no-print">
-                <button className="live-session-primary" onClick={() => selectedReportStudent && downloadSessionPdf([selectedReportStudent.studentId])} disabled={!selectedReportStudent || reportExporting}>
-                  <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download student PDF"}
-                </button>
-              </div>
-            </div>
-            {selectedReportStudent ? (
-              <>
-                <div className="live-student-report-summary">
-                  <span>{selectedReportStudent.joined ? `Joined ${selectedReportStudent.joinedAt ? new Date(selectedReportStudent.joinedAt).toLocaleTimeString() : ""}` : "Did not join"}</span>
-                  <span><strong>{selectedReportStudent.answered}</strong> answered</span>
-                  <span><strong>{selectedReportStudent.correct}</strong> correct</span>
-                  <span><strong>{selectedReportStudent.wrong}</strong> incorrect</span>
-                  <span><strong>{selectedReportStudent.toMark}</strong> to mark</span>
-                  <span><strong>{selectedReportStudent.coveragePercent}%</strong> coverage</span>
-                  <span><strong>{selectedReportStudent.totalAwaySeconds}s</strong> away</span>
+          <div className="live-report-panel" role="region" aria-label="Students" hidden={reportTab !== "students"}>
+              <section className="live-review-card live-report-class-section">
+                <div className="live-report-section-heading">
+                  <div><h2>Student participation</h2><p>Choose a student to open their answers below.</p></div>
+                  <div className="live-report-export-actions no-print">
+                    <span className="live-report-count">{perStudent.length} students</span>
+                    <button className="live-session-secondary" onClick={() => downloadSessionPdf(selectedStudentIds)} disabled={!selectedStudentIds.length || selectedStudentIds.length > 150 || reportExporting}>
+                      <HiOutlineArrowDownTray /> Download selected PDF ({selectedStudentIds.length})
+                    </button>
+                  </div>
                 </div>
-                <div className="live-report-table-wrap">
-                  <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Mark</th><th>Shared</th><th>Submitted</th><th>Response time</th></tr></thead>
-                    <tbody>{selectedReportStudent.answerDetails.map((answer) => <tr key={answer.slideId}>
-                      <td>{answer.questionNumber}</td>
-                      <td>
-                        {answer.title && <strong>{answer.title}: </strong>}{answer.prompt}
-                        {answer.level && <em className="live-answer-level">{answer.level}</em>}
-                      </td>
-                      <td>{answer.selectedAnswer || "—"}</td>
-                      <td>{answer.correctAnswer}</td>
-                      <td>{answerResultLabel(answer)}</td>
-                      <td>{answerMarksLabel(answer)}</td>
-                      <td>{answer.released ? "Yes" : "No"}</td>
-                      <td>{answer.submittedAt ? new Date(answer.submittedAt).toLocaleTimeString() : "—"}</td>
-                      <td>{answer.latencyMs != null ? `${(answer.latencyMs / 1000).toFixed(1)}s` : "—"}</td>
-                    </tr>)}</tbody>
-                  </table>
-                </div>
-                <details className="live-report-presence-details">
-                  <summary>Lesson tab visibility events <span>{selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length}</span></summary>
-                  <p className="live-report-caveat">These are browser visibility signals only. They do not establish why a student left the lesson tab or indicate misconduct.</p>
-                  {selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length ? (
-                    <ul className="live-report-presence-list">
-                      {selectedReportStudent.presenceEvents
-                        .filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible")
-                        .map((event, index) => <li key={`${event.at}-${index}`}>{event.reason === "visibility_hidden" ? "Lesson tab became hidden" : "Lesson tab became visible"} · {new Date(event.at).toLocaleString()}</li>)}
-                    </ul>
-                  ) : <p>No lesson tab visibility events were recorded.</p>}
-                </details>
-              </>
-            ) : <p>No students were included in this session roster.</p>}
-          </section>
-          <section className="live-review-card live-report-class-section">
-            <div className="live-report-section-heading">
-              <div><h2>All student answers</h2><p>Expanded details for the full class. Open a student to review their responses.</p></div>
-              <span className="live-report-count">{(report.perStudent || []).length} students</span>
-            </div>
-            {(report.perStudent || []).map((student) => (
-              <details className="live-report-answer-group" key={student.studentId}>
-                <summary><span>{student.name}</span><small>{student.answered}/{report.summary?.questionCount || 0} answered · {student.correct} correct · {student.toMark} to mark · {student.scorePercent}%</small></summary>
-                <div className="live-report-table-wrap"><table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Mark</th><th>Submitted</th></tr></thead><tbody>
-                  {student.answerDetails.map((answer) => <tr key={answer.slideId}><td>{answer.questionNumber}</td><td>{answer.prompt}{answer.level && <em className="live-answer-level">{answer.level}</em>}</td><td>{answer.selectedAnswer || "—"}</td><td>{answer.correctAnswer}</td><td>{answerResultLabel(answer)}</td><td>{answerMarksLabel(answer)}</td><td>{answer.submittedAt ? new Date(answer.submittedAt).toLocaleTimeString() : "—"}</td></tr>)}
+                {selectedStudentIds.length > 150 && <p className="live-report-export-error">Batch PDF exports are limited to 150 students. Deselect some students.</p>}
+                <div className="live-report-table-wrap"><table><thead><tr><th>Select</th><th>Student</th><th>Answered</th><th>Correct</th><th>Wrong</th><th>To mark</th><th>Score</th><th>Away</th></tr></thead><tbody>
+                  {perStudent.map((student) => (
+                    <tr key={student.studentId} className={`live-report-student-row${selectedReportStudent?.studentId === student.studentId ? " selected" : ""}`}>
+                      <td><input aria-label={`Select ${student.name} session report`} type="checkbox" checked={selectedStudentIds.includes(student.studentId)} onChange={() => toggleSessionStudent(student.studentId)} /></td>
+                      <td><button className="live-report-student-link" aria-pressed={selectedReportStudent?.studentId === student.studentId} onClick={() => setReportStudentId(student.studentId)}>{student.name}</button></td>
+                      <td>{student.answered}</td><td>{student.correct}</td><td>{student.wrong}</td><td>{student.toMark}</td><td>{student.scorePercent}%</td><td>{student.totalAwaySeconds}s</td>
+                    </tr>
+                  ))}
                 </tbody></table></div>
-                {student.presenceEvents.some((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible") && (
-                  <ul className="live-report-presence-list">
-                    {student.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible")
-                      .map((event, index) => <li key={`${event.at}-${index}`}>{event.reason === "visibility_hidden" ? "Tab hidden" : "Tab visible"} · {new Date(event.at).toLocaleString()}</li>)}
-                  </ul>
-                )}
-              </details>
-            ))}
-          </section>
+              </section>
+              <section className="live-review-card live-report-student-section">
+                <div className="live-report-heading">
+                  <div>
+                    <h2>Student report</h2>
+                    <p>Every question, the student’s answer, and the mark behind it.</p>
+                    <label className="no-print">Student
+                      <select value={selectedReportStudent?.studentId || ""} onChange={(event) => setReportStudentId(event.target.value)}>
+                        {perStudent.map((student) => <option key={student.studentId} value={student.studentId}>{student.name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="live-report-export-actions no-print">
+                    <button className="live-session-primary" onClick={() => selectedReportStudent && downloadSessionPdf([selectedReportStudent.studentId])} disabled={!selectedReportStudent || reportExporting}>
+                      <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download student PDF"}
+                    </button>
+                  </div>
+                </div>
+                {selectedReportStudent ? (
+                  <>
+                    <div className="live-student-report-summary">
+                      <span>{selectedReportStudent.joined ? `Joined ${selectedReportStudent.joinedAt ? new Date(selectedReportStudent.joinedAt).toLocaleTimeString() : ""}` : "Did not join"}</span>
+                      <span><strong>{selectedReportStudent.answered}</strong> answered</span>
+                      <span><strong>{selectedReportStudent.correct}</strong> correct</span>
+                      <span><strong>{selectedReportStudent.wrong}</strong> incorrect</span>
+                      <span><strong>{selectedReportStudent.toMark}</strong> to mark</span>
+                      <span><strong>{selectedReportStudent.coveragePercent}%</strong> coverage</span>
+                      <span><strong>{selectedReportStudent.totalAwaySeconds}s</strong> away</span>
+                    </div>
+                    <div className="live-report-table-wrap">
+                      <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Mark</th><th>Shared</th><th>Submitted</th></tr></thead>
+                        <tbody>{selectedReportStudent.answerDetails.map((answer) => <tr key={answer.slideId}>
+                          <td>{answer.questionNumber}</td>
+                          <td>
+                            {answer.title && <strong>{answer.title}: </strong>}{answer.prompt}
+                            {answer.level && <em className="live-answer-level">{answer.level}</em>}
+                          </td>
+                          <td>{answer.selectedAnswer || "—"}</td>
+                          <td>{answer.correctAnswer}</td>
+                          <td>{answerResultLabel(answer)}</td>
+                          <td>{answerMarksLabel(answer)}</td>
+                          <td>{answer.released ? "Yes" : "No"}</td>
+                          <td>{answer.submittedAt ? new Date(answer.submittedAt).toLocaleTimeString() : "—"}</td>
+                        </tr>)}</tbody>
+                      </table>
+                    </div>
+                    <details className="live-report-presence-details">
+                      <summary>Lesson tab visibility events <span>{selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length}</span></summary>
+                      <p className="live-report-caveat">These are browser visibility signals only. They do not establish why a student left the lesson tab or indicate misconduct.</p>
+                      {selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length ? (
+                        <ul className="live-report-presence-list">
+                          {selectedReportStudent.presenceEvents
+                            .filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible")
+                            .map((event, index) => <li key={`${event.at}-${index}`}>{event.reason === "visibility_hidden" ? "Lesson tab became hidden" : "Lesson tab became visible"} · {new Date(event.at).toLocaleString()}</li>)}
+                        </ul>
+                      ) : <p>No lesson tab visibility events were recorded.</p>}
+                    </details>
+                  </>
+                ) : <p>No students were included in this session roster.</p>}
+              </section>
+            </div>
           {report.session.status === "ended" && (
-            <section className="live-review-card live-session-gradebook no-print">
+            <div className="live-report-panel" role="region" aria-label="Grades" hidden={reportTab !== "gradebook"}>
+              <section className="live-review-card live-session-gradebook no-print">
               <div className="live-report-heading">
                 <div>
                   <h2>Add session results to classwork gradebook</h2>
@@ -896,7 +1024,8 @@ const LiveLessonReviewPage = ({ mode }) => {
                 </>
               )}
               {!availableGradeSubjects.length && !gradeLoading && <p className="live-gradebook-status">{report.session.subjectId ? "The session’s recorded subject is no longer assigned to this class. Ask an administrator to review the class subject assignment." : "No class subjects are available for this session. Assign a subject to the class before adding grades."}</p>}
-            </section>
+              </section>
+            </div>
           )}
         </div>
       ) : (

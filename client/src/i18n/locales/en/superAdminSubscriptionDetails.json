@@ -125,7 +125,8 @@
       "customReports": "Custom Reports",
       "apiAccess": "API Access",
       "prioritySupport": "Priority Support",
-      "customBranding": "Custom Branding"
+      "customBranding": "Custom Branding",
+      "liveSessionBilling": "Live Session Billing"
     }
   },
   "modal": {

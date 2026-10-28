@@ -98,6 +98,12 @@ export const FEATURES = {
         description: 'Enable reading support tools including simplified passages and comprehension workflows.',
         plans: ['professional', 'enterprise']
     },
+    writingAssistant: {
+        key: 'writingAssistant',
+        label: 'Writing Assistant',
+        description: 'Guide students through drafts, revisions and notebook checks with rubric-based feedback.',
+        plans: ['professional', 'enterprise']
+    },
     revisionPlanning: {
         key: 'revisionPlanning',
         label: 'Revision Planning',
@@ -169,6 +175,12 @@ export const FEATURES = {
         label: 'MAP Test Prep',
         description: 'Use MAP PDF results to build teacher-reviewed preparation plans and practice rounds.',
         plans: ['professional', 'enterprise']
+    },
+    liveSessionBilling: {
+        key: 'liveSessionBilling',
+        label: 'Live Session Billing',
+        description: 'Charge live lesson time by the minute against a per-student balance. Enabled per school by the platform team.',
+        plans: []
     }
 };
 

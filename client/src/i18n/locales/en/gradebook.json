@@ -81,7 +81,11 @@
     "showAssessments": "Show assessments for {{name}}",
     "noAssessments": "No assessments recorded for this student this month.",
     "untitledAssessment": "Untitled",
-    "noMatches": "No students match this filter."
+    "noMatches": "No students match this filter.",
+    "copyNegativeRemarks": "Copy negative remarks for {{category}}",
+    "negativeRemarksTitle": "{{category}} — negative remarks",
+    "negativeRemarksCopied": "Negative remarks copied",
+    "negativeRemarksCopyFailed": "Could not copy remarks. Check clipboard permissions and try again."
   },
   "addModal": {
     "title": "Add Grades",

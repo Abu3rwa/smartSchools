@@ -251,6 +251,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
             items: [
                 { key: 'apiAccess', label: t('superAdminSubscriptionDetails:features.items.apiAccess'), icon: HiOutlineCloud },
                 { key: 'prioritySupport', label: t('superAdminSubscriptionDetails:features.items.prioritySupport'), icon: HiOutlineShieldCheck },
+                { key: 'liveSessionBilling', label: t('superAdminSubscriptionDetails:features.items.liveSessionBilling'), icon: HiOutlineCurrencyDollar },
                 { key: 'customBranding', label: t('superAdminSubscriptionDetails:features.items.customBranding'), icon: HiOutlineSparkles }
             ]
         }

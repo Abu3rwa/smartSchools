@@ -81,7 +81,11 @@
     "showAssessments": "عرض تقييمات {{name}}",
     "noAssessments": "لا توجد تقييمات مسجلة لهذا الطالب في هذا الشهر.",
     "untitledAssessment": "بدون عنوان",
-    "noMatches": "لا يوجد طلاب مطابقون لهذه التصفية."
+    "noMatches": "لا يوجد طلاب مطابقون لهذه التصفية.",
+    "copyNegativeRemarks": "نسخ الملاحظات السلبية لـ{{category}}",
+    "negativeRemarksTitle": "{{category}} — الملاحظات السلبية",
+    "negativeRemarksCopied": "تم نسخ الملاحظات السلبية",
+    "negativeRemarksCopyFailed": "تعذّر نسخ الملاحظات. تحقّق من أذونات الحافظة وحاول مرة أخرى."
   },
   "addModal": {
     "title": "إضافة درجات",

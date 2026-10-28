@@ -1,0 +1,70 @@
+.wf-page {
+  --wf-teal: var(--primary, #0d9488);
+  --wf-ink: var(--text-primary, #0f172a);
+  --wf-muted: var(--text-muted, #64748b);
+  --wf-line: var(--border-color, rgba(0, 0, 0, 0.08));
+  --wf-surface: var(--bg-card, #ffffff);
+  --wf-surface-2: var(--bg-secondary, #f8fafc);
+  --wf-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--wf-ink);
+  max-width: 860px;
+}
+
+.wf-head h1 { margin: 0; font-size: 1.4rem; }
+.wf-sub { margin: 4px 0 0; color: var(--wf-muted); font-size: 0.9rem; }
+.wf-loading { padding: 40px 0; display: flex; justify-content: center; }
+
+.wf-empty {
+  background: var(--wf-surface);
+  border: 1px dashed var(--wf-line);
+  border-radius: 14px;
+  padding: 34px 20px;
+  text-align: center;
+  color: var(--wf-muted);
+}
+.wf-empty h2 { margin: 10px 0 4px; color: var(--wf-ink); font-size: 1.05rem; }
+.wf-empty p { margin: 0; }
+
+.wf-card {
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -18px rgba(15, 23, 42, 0.35);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wf-card header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.wf-card h2 { margin: 0; font-size: 1.05rem; }
+.wf-meta { margin: 3px 0 0; font-size: 0.82rem; color: var(--wf-muted); }
+.wf-topic { margin: 0; font-size: 0.85rem; color: var(--wf-muted); max-width: 40ch; }
+
+.wf-tracker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wf-step {
+  font-size: 0.74rem;
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--wf-surface-2);
+  border: 1px solid var(--wf-line);
+  color: var(--wf-muted);
+}
+.wf-step.is-done { background: color-mix(in srgb, #16a34a 12%, transparent); color: var(--wf-ink); }
+.wf-step.is-current { background: var(--wf-soft); border-color: var(--wf-teal); color: var(--wf-teal); font-weight: 600; }
+
+.wf-counts { margin: 0; font-size: 0.82rem; color: var(--wf-muted); }
+.wf-card-foot { display: flex; align-items: center; gap: 10px; }
+.wf-waiting { margin: 0; font-size: 0.86rem; color: var(--wf-muted); font-style: italic; }

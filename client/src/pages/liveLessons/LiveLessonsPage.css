@@ -757,10 +757,7 @@
   border-radius: 8px;
   font-size: 0.76rem;
 }
-.live-lesson-actions-menu {
-  flex: 1 0 100%;
-}
-.live-lesson-actions-menu summary {
+.live-lesson-actions-trigger {
   display: inline-flex;
   min-height: 35px;
   align-items: center;
@@ -773,30 +770,77 @@
   cursor: pointer;
   font-size: 0.76rem;
   font-weight: 700;
-  list-style: none;
 }
-.live-lesson-actions-menu summary::-webkit-details-marker {
-  display: none;
-}
-.live-lesson-actions-menu summary:hover {
+.live-lesson-actions-trigger:hover {
   background: #f4f7f8;
 }
-.live-lesson-actions-menu-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding-top: 0.35rem;
+.live-lesson-actions-trigger[aria-expanded="true"] {
+  border-color: #167b78;
+  color: #167775;
 }
-.live-lesson-actions-menu-items .live-delete-session {
-  min-height: 35px;
-  padding: 0.4rem 0.55rem;
-  border-radius: 8px;
-  font-size: 0.76rem;
-}
-.live-lesson-actions-menu summary:focus-visible,
-.live-lesson-actions-menu-items button:focus-visible {
+.live-lesson-actions-trigger:focus-visible,
+.live-lesson-action-menu button:focus-visible {
   outline: 2px solid #167b78;
   outline-offset: 2px;
+}
+.live-lesson-action-menu {
+  position: fixed;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  min-width: 224px;
+  max-height: min(70vh, 340px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-lg);
+  animation: liveLessonMenuIn 0.14s ease;
+}
+.live-lesson-action-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: start;
+  white-space: nowrap;
+}
+.live-lesson-action-menu button:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+.live-lesson-action-menu button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.live-lesson-action-menu button.is-danger {
+  color: var(--status-error);
+}
+.live-lesson-action-menu button.is-danger:hover:not(:disabled) {
+  background: var(--status-error-bg);
+}
+.live-lesson-action-menu svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.live-lesson-action-menu-sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border-color);
+}
+@keyframes liveLessonMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .live-list-pagination {
   display: flex;
@@ -1467,7 +1511,7 @@
   .live-safety-setting,
   .live-folder-organizer,
   .live-lesson-organize-content,
-  .live-lesson-actions-menu summary,
+  .live-lesson-actions-trigger,
   .live-list-empty,
   .live-list-pagination
 ) {
@@ -1536,7 +1580,7 @@
   color: var(--text-secondary);
 }
 
-[data-theme="dark"] .live-lesson-actions-menu summary {
+[data-theme="dark"] .live-lesson-actions-trigger {
   background: var(--bg-input);
   border-color: var(--border-color);
 }

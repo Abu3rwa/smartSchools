@@ -165,6 +165,8 @@ export const PERMISSIONS = {
     VIEW_FINANCE_REPORTS: 'view_finance_reports',
     EXPORT_FINANCE_DATA: 'export_finance_data',
     VIEW_STUDENT_FINANCE: 'view_student_finance',
+    LOG_SESSION_MINUTES: 'log_session_minutes',
+    EMAIL_FINANCE_STATEMENTS: 'email_finance_statements',
 
     // HR & Staff Management
     VIEW_STAFF_PROFILES: 'view_staff_profiles',
@@ -748,6 +750,16 @@ export const PERMISSION_DEFINITIONS = {
         description: 'View a specific student balance and statement',
         category: 'finance'
     },
+    [PERMISSIONS.LOG_SESSION_MINUTES]: {
+        label: 'Log Lesson Minutes',
+        description: 'Record lesson time for sessions held outside the platform',
+        category: 'finance'
+    },
+    [PERMISSIONS.EMAIL_FINANCE_STATEMENTS]: {
+        label: 'Email Finance Statements',
+        description: 'Email lesson account statements to students and their families',
+        category: 'finance'
+    },
     // HR & Staff Management
     [PERMISSIONS.VIEW_STAFF_PROFILES]: {
         label: 'View Staff Profiles',
@@ -923,6 +935,7 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.VIEW_ASSESSMENT_POOL,
         PERMISSIONS.CREATE_ASSESSMENT_FROM_POOL,
         PERMISSIONS.VIEW_STUDENT_FINANCE,
+        PERMISSIONS.LOG_SESSION_MINUTES,
         PERMISSIONS.VIEW_OWN_HR_PROFILE,
         PERMISSIONS.REQUEST_LEAVE,
         PERMISSIONS.VIEW_LEAVE_CALENDAR,

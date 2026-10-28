@@ -128,6 +128,11 @@ const ReadingTextsListPage = lazy(() => import("./pages/teacher/reading/ReadingT
 const ReadingAssignmentsPage = lazy(() => import("./pages/teacher/reading/ReadingAssignmentsPage"));
 const ReadingUploadPage = lazy(() => import("./pages/teacher/reading/ReadingUploadPage"));
 const ReadingViewPage = lazy(() => import("./pages/student/reading/ReadingViewPage"));
+const WritingFeedPage = lazy(() => import("./pages/student/writing/WritingFeedPage"));
+const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingWorkspacePage"));
+const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
+const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
+const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
 const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
 const SubRequestsList = lazy(() => import("./pages/substitutions/SubRequestsList"));
 const SubRequestDetail = lazy(() => import("./pages/substitutions/SubRequestDetail"));
@@ -157,6 +162,10 @@ const InvoiceDetailPage = lazy(() => import("./pages/finance/InvoiceDetailPage")
 const InvoiceGeneratorPage = lazy(() => import("./pages/finance/InvoiceGeneratorPage"));
 const PaymentsPage = lazy(() => import("./pages/finance/PaymentsPage"));
 const FinanceReportsPage = lazy(() => import("./pages/finance/FinanceReportsPage"));
+const SessionBillingPage = lazy(() => import("./pages/finance/SessionBillingPage"));
+const SessionBillingSettingsPage = lazy(() => import("./pages/finance/SessionBillingSettingsPage"));
+const LogLessonTimePage = lazy(() => import("./pages/finance/LogLessonTimePage"));
+const FamilyLessonAccountPage = lazy(() => import("./pages/family/FamilyLessonAccountPage"));
 
 const HRDashboardPage = lazy(() => import("./pages/hr/HRDashboardPage"));
 const StaffDirectoryPage = lazy(() => import("./pages/hr/StaffDirectoryPage"));
@@ -1390,6 +1399,68 @@ function App() {
                 </RoleRoute>
               }
             />
+            {/* Writing Assistant: student feed and workspace */}
+            <Route
+              path="writing"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingFeedPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="writing/project/:projectId"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingWorkspacePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            {/* Writing Assistant: teacher builds tasks and follows the drafts */}
+            <Route
+              path="writing/assignments"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAssignmentsPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="writing/new"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAssignmentBuilderPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="writing/assignments/:assignmentId"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAssignmentBoardPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="writing/assignments/:assignmentId/edit"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAssignmentBuilderPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
             {/* Finance & Fee Management */}
             <Route
               path="finance"
@@ -1452,6 +1523,74 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal"]} permissions={["view_finance_reports"]}>
                   <FinanceReportsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/session-billing/settings"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["manage_fee_structures"]}>
+                  <FeatureGate
+                    feature="liveSessionBilling"
+                    fallback={
+                      <div className="finance-page">
+                        <div className="finance-empty">Session billing is not enabled for this school.</div>
+                      </div>
+                    }
+                  >
+                    <SessionBillingSettingsPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/session-billing"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["view_finance_reports"]}>
+                  <FeatureGate
+                    feature="liveSessionBilling"
+                    fallback={
+                      <div className="finance-page">
+                        <div className="finance-empty">Session billing is not enabled for this school.</div>
+                      </div>
+                    }
+                  >
+                    <SessionBillingPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="log-lesson-time"
+              element={
+                <RoleRoute roles={["admin", "teacher"]} permissions={["log_session_minutes"]}>
+                  <FeatureGate
+                    feature="liveSessionBilling"
+                    fallback={
+                      <div className="finance-page">
+                        <div className="finance-empty">Lesson time logging is not enabled for this school.</div>
+                      </div>
+                    }
+                  >
+                    <LogLessonTimePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="lesson-account"
+              element={
+                <RoleRoute roles={["student", "parent"]}>
+                  <FeatureGate
+                    feature="liveSessionBilling"
+                    fallback={
+                      <div className="finance-page">
+                        <div className="finance-empty">Lesson accounts are not available for this school yet.</div>
+                      </div>
+                    }
+                  >
+                    <FamilyLessonAccountPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
