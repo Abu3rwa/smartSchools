@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{headline}}</title>
+</head>
+<body dir="rtl" style="margin:0;padding:0;background-color:#f8fafc;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;padding:8px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" dir="rtl" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #cdeae6;border-radius:14px;overflow:hidden;font-family:Tajawal,Montserrat,system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;text-align:right;">
+
+        <tr>
+          <td align="right" style="background-color:{{headerColor}};padding:22px 24px;">
+            <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#ffffff;opacity:.85;">{{schoolLabel}}</p>
+            <h1 style="margin:0;font-size:22px;line-height:1.4;font-weight:800;color:#ffffff;">{{headline}}</h1>
+          </td>
+        </tr>
+
+        <tr>
+          <td align="right" style="padding:20px 24px 4px;">
+            <p style="margin:0 0 6px;font-size:15px;color:#0f172a;">{{greeting}}</p>
+            <p style="margin:0 0 16px;font-size:15px;line-height:1.8;color:#334155;">{{intro}}</p>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdfa;border:1px solid #cdeae6;border-radius:12px;">
+              <tr>
+                <td align="right" style="padding:14px 16px;">
+                  <p style="margin:0;font-size:12px;font-weight:700;color:#0f766e;">{{balanceLabel}}</p>
+                  <p dir="ltr" style="margin:4px 0 0;font-size:26px;font-weight:800;color:{{balanceColor}};text-align:right;">{{balance}}</p>
+                  <p style="margin:6px 0 0;font-size:13px;color:#64748b;">{{balanceMeta}}</p>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:16px 0 0;font-size:15px;line-height:1.8;color:#334155;">{{nextStep}}</p>
+
+            {{!buttonHtml}}
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px 24px 20px;border-top:1px solid #e2e8f0;text-align:center;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;">{{footer}}</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

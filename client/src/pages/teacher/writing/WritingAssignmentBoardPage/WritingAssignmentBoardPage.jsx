@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { HiOutlineArrowLeft, HiOutlinePencilAlt, HiOutlineSearch, HiOutlineSparkles } from "react-icons/hi";
 import { stageTone } from "../../../../utils/writingWorkflow.js";
@@ -8,6 +9,7 @@ import {
   teacherNextStepKey,
 } from "./boardPresentation.js";
 import ReviewPanel from "./ReviewPanel.jsx";
+import CreditChip from "../components/CreditChip.jsx";
 import { useWritingBoardData } from "./hooks/useWritingBoardData.js";
 import "../writingShared.css";
 
@@ -17,6 +19,8 @@ export default function WritingAssignmentBoardPage() {
     assignment,
     assessWaiting,
     batchPending,
+    credit,
+    emailDelivery,
     history,
     historyLoading,
     loading,
@@ -33,6 +37,21 @@ export default function WritingAssignmentBoardPage() {
     stagesPresent,
     summary,
   } = useWritingBoardData();
+
+  // The review dialog owns the screen: Escape closes it and the page behind it stays put.
+  useEffect(() => {
+    if (!projectId) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") openStudent("");
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openStudent, projectId]);
 
   if (loading) {
     return (
@@ -62,6 +81,7 @@ export default function WritingAssignmentBoardPage() {
           </p>
         </div>
         <div className="wa-head-actions">
+          <CreditChip credit={credit} />
           {summary?.awaitingAssessment > 0 && (
             <button
               type="button"
@@ -185,57 +205,80 @@ export default function WritingAssignmentBoardPage() {
           </table>
         </div>
 
-        {projectId && (
-          <aside className="wa-drawer" aria-live="polite">
-            <div className="wa-drawer-head">
-              <h2>{history?.project?.student?.name || t("writing:teacher.board.loading")}</h2>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => openStudent("")}>
+      </div>
+
+      {projectId && (
+        <div className="wa-modal-backdrop" onClick={() => openStudent("")}>
+          <div
+            className="wa-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wa-review-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="wa-modal-head">
+              <div className="wa-modal-id">
+                <h2 id="wa-review-title">
+                  {history?.project?.student?.name || t("writing:teacher.board.loading")}
+                </h2>
+                {history && (
+                  <p className="wa-sub">
+                    {t("writing:teacher.board.draftsIn", { n: history.drafts.length })}
+                    {" · "}
+                    {t(`writing:teacher.stages.${history.project.stage}`)}
+                  </p>
+                )}
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => openStudent("")} autoFocus>
                 {t("writing:teacher.board.closePanel")}
               </button>
-            </div>
+            </header>
 
-            {historyLoading && <div className="wa-loading"><div className="spinner" /></div>}
+            {historyLoading && (
+              <div className="wa-modal-loading"><div className="spinner" /></div>
+            )}
 
             {!historyLoading && history && (
-              <>
-                <p className="wa-sub">
-                  {t("writing:teacher.board.draftsIn", { n: history.drafts.length })}
-                  {" · "}
-                  {t(`writing:teacher.stages.${history.project.stage}`)}
-                </p>
-                {history.tracker?.length > 0 && (
-                  <ol className="wa-tracker">
-                    {history.tracker.map((step) => (
-                      <li key={step.key} className={`wa-tracker-step is-${step.state}`}>
-                        {t(`writing:student.tracker.${step.key}`)}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                <ReviewPanel history={history} onChanged={refresh} />
-                {history.drafts.length === 0 && (
-                  <p className="wa-hint">{t("writing:teacher.board.noDraftsYet")}</p>
-                )}
-                {history.drafts.map((draft) => (
-                  <section className="wa-draft" key={draft._id}>
-                    <header>
-                      <h3>{t("writing:teacher.board.draftNumber", { n: draft.number })}</h3>
-                      <span>{t("writing:teacher.board.words", { n: draft.totalWords || 0 })}</span>
-                    </header>
-                    <p className="wa-draft-time">{formatDateTime(draft.submittedAt, i18n.language)}</p>
-                    {(draft.sections || []).map((section) => (
-                      <div className="wa-draft-section" key={`${section.key}-${section.index}`}>
-                        <h4>{labelFor(section)}</h4>
-                        <p>{String(section.text || "").trim() || t("writing:teacher.board.emptySection")}</p>
-                      </div>
-                    ))}
-                  </section>
-                ))}
-              </>
+              <div className="wa-modal-body">
+                <div className="wa-modal-main">
+                  {history.tracker?.length > 0 && (
+                    <ol className="wa-tracker" aria-label={t("writing:student.progressAria")}>
+                      {history.tracker.map((step) => (
+                        <li key={step.key} className={`wa-tracker-step is-${step.state}`}>
+                          {t(`writing:student.tracker.${step.key}`)}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <ReviewPanel history={history} onChanged={refresh} emailDelivery={emailDelivery} />
+                </div>
+
+                <aside className="wa-modal-side" aria-label={t("writing:teacher.board.draftsPanel")}>
+                  <h3 className="wa-modal-side-title">{t("writing:teacher.board.draftsPanel")}</h3>
+                  {history.drafts.length === 0 && (
+                    <p className="wa-hint">{t("writing:teacher.board.noDraftsYet")}</p>
+                  )}
+                  {history.drafts.map((draft) => (
+                    <section className="wa-draft" key={draft._id}>
+                      <header>
+                        <h4>{t("writing:teacher.board.draftNumber", { n: draft.number })}</h4>
+                        <span>{t("writing:teacher.board.words", { n: draft.totalWords || 0 })}</span>
+                      </header>
+                      <p className="wa-draft-time">{formatDateTime(draft.submittedAt, i18n.language)}</p>
+                      {(draft.sections || []).map((section) => (
+                        <div className="wa-draft-section" key={`${section.key}-${section.index}`}>
+                          <h5>{labelFor(section)}</h5>
+                          <p>{String(section.text || "").trim() || t("writing:teacher.board.emptySection")}</p>
+                        </div>
+                      ))}
+                    </section>
+                  ))}
+                </aside>
+              </div>
             )}
-          </aside>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

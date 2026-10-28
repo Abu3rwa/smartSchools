@@ -680,6 +680,14 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/ai-credit",
+      icon: HiOutlineCreditCard,
+      labelKey: "aiCreditDashboard",
+      roles: ["admin"],
+      feature: "writingAssistant",
+      section: "admin",
+    },
+    {
       path: "/portal/school-settings",
       icon: HiOutlineBuildingOffice,
       labelKey: "schoolSettings",

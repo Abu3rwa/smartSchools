@@ -1,0 +1,91 @@
+{
+  "title": "AI Credit",
+  "subtitle": "You pay the provider directly. Each AI request is billed to the user at provider cost plus your markup.",
+  "loadFailed": "Couldn't load AI credit data.",
+  "retry": "Retry",
+  "rates": "{{model}} · USD per million tokens: input {{input}}, cached input {{cached}}, output {{output}}. Costs are calculated from reported tokens and configured rates, not an imported provider invoice.",
+  "stats": {
+    "markup": "Markup on provider cost",
+    "charged": "Charged this month",
+    "provider": "Provider cost this month",
+    "profit": "Gross profit this month"
+  },
+  "settings": {
+    "title": "Markup",
+    "subtitle": "One platform-wide percentage. Only you can change it.",
+    "current": "Current: {{value}}%",
+    "label": "Markup percentage",
+    "save": "Save markup",
+    "saved": "Markup saved. New requests use it from now on.",
+    "saveFailed": "Couldn't save the markup.",
+    "invalid": "Enter a markup between 0 and {{max}} percent.",
+    "example": "At {{markup}}%, a request that costs you {{base}} is billed {{total}}.",
+    "applyNote": "Changes apply only to requests charged after you save. Every earlier row keeps the percentage and amount it ran under."
+  },
+  "schools": {
+    "loadFailed": "Couldn't load the school credit list.",
+    "title": "Schools",
+    "subtitle": "You fund each school. Every top-up splits into equal shares for the staff and a reserve the school admin controls.",
+    "columns": {
+      "school": "School",
+      "reserve": "Reserve",
+      "allocated": "With staff",
+      "spent": "Spent this month",
+      "staff": "Staff",
+      "actions": "Details"
+    },
+    "loading": "Loading schools…",
+    "open": "Open",
+    "fundTitle": "Add credit to {{school}}",
+    "amount": "Amount (USD)",
+    "reservePercent": "Reserve share",
+    "note": "Note",
+    "notePlaceholder": "For example: October top-up",
+    "submitFund": "Add credit",
+    "fundHelp": "Your amount splits into equal shares for every active teacher and school admin, and the rest stays in the school reserve. The school admin moves reserve credit to people and can take unspent credit back.",
+    "staffTitle": "Staff balances",
+    "staffColumns": {
+      "name": "Name",
+      "balance": "Balance",
+      "school": "From school",
+      "spent": "Spent this month"
+    },
+    "grantAmount": "Amount (USD)",
+    "grant": "Grant",
+    "staffEmpty": "No teachers or school admins in this school yet.",
+    "funded": "Credit added and shared with the school staff.",
+    "fundFailed": "Couldn't add credit to this school.",
+    "fundInvalid": "Enter an amount between $0.01 and $1,000 and a reserve share between 0 and 100.",
+    "granted": "Credit added to the person's own balance. It stays with them and the school cannot take it back.",
+    "grantFailed": "Couldn't grant credit to this person."
+  },
+  "requests": {
+    "title": "School requests",
+    "subtitle": "School admins ask here when their reserve runs low. You decide each one.",
+    "school": "School",
+    "requester": "Asked by",
+    "amount": "Amount (USD)",
+    "decision": "Decision",
+    "approve": "Approve",
+    "decline": "Decline",
+    "approved": "Request approved and the school was funded.",
+    "declined": "Request declined.",
+    "failed": "Couldn't answer this request."
+  },
+  "history": {
+    "title": "Recent AI requests",
+    "subtitle": "This month: {{requests}} requests, {{tokens}} tokens. Amounts below are per request.",
+    "date": "Date",
+    "school": "School",
+    "account": "Account",
+    "tokens": "Tokens",
+    "provider": "Provider cost",
+    "markup": "Markup",
+    "charged": "Charged",
+    "profit": "Profit",
+    "empty": "No AI requests have been charged yet.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{pages}}"
+  }
+}

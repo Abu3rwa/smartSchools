@@ -134,6 +134,7 @@ api.interceptors.response.use(
     const originalRequest = error.config || {};
     const status = error.response?.status;
     const requestUrl = String(originalRequest.url || "");
+    const silent = Boolean(originalRequest.skipErrorToast);
 
     // Ignore canceled requests and telemetry requests to avoid noisy UX.
     if (
@@ -218,42 +219,45 @@ api.interceptors.response.use(
       window.location.href = "/login";
     }
 
-    // FE-003: Provide user feedback for common error categories
-    if (status === 403) {
-      showRateLimitedErrorToast(
-        "permission-403",
-        "You do not have permission to perform this action.",
-        TOAST_COOLDOWN_MS.permission,
-        "permission-403",
-      );
-    } else if (status === 429) {
-      showRateLimitedErrorToast(
-        "rate-limit-429",
-        "Too many requests. Please wait a moment and try again.",
-        TOAST_COOLDOWN_MS.rateLimit,
-        "rate-limit-429",
-      );
-    } else if (status >= 500) {
-      showRateLimitedErrorToast(
-        "server-5xx",
-        "Server error. Please try again later.",
-        TOAST_COOLDOWN_MS.server,
-        "server-5xx",
-      );
-    } else if (error.code === "ECONNABORTED") {
-      showRateLimitedErrorToast(
-        "timeout",
-        "Request timed out. Please check your connection and try again.",
-        TOAST_COOLDOWN_MS.timeout,
-        "timeout",
-      );
-    } else if (!error.response) {
-      showRateLimitedErrorToast(
-        "network-offline",
-        "Unable to reach the school server. Please try again in a moment.",
-        TOAST_COOLDOWN_MS.network,
-        "network-offline",
-      );
+    // FE-003: Provide user feedback for common error categories. Deliberately
+    // silent for callers that handle the failure themselves (e.g. retries).
+    if (!silent) {
+      if (status === 403) {
+        showRateLimitedErrorToast(
+          "permission-403",
+          "You do not have permission to perform this action.",
+          TOAST_COOLDOWN_MS.permission,
+          "permission-403",
+        );
+      } else if (status === 429) {
+        showRateLimitedErrorToast(
+          "rate-limit-429",
+          "Too many requests. Please wait a moment and try again.",
+          TOAST_COOLDOWN_MS.rateLimit,
+          "rate-limit-429",
+        );
+      } else if (status >= 500) {
+        showRateLimitedErrorToast(
+          "server-5xx",
+          "Server error. Please try again later.",
+          TOAST_COOLDOWN_MS.server,
+          "server-5xx",
+        );
+      } else if (error.code === "ECONNABORTED") {
+        showRateLimitedErrorToast(
+          "timeout",
+          "Request timed out. Please check your connection and try again.",
+          TOAST_COOLDOWN_MS.timeout,
+          "timeout",
+        );
+      } else if (!error.response) {
+        showRateLimitedErrorToast(
+          "network-offline",
+          "Unable to reach the school server. Please try again in a moment.",
+          TOAST_COOLDOWN_MS.network,
+          "network-offline",
+        );
+      }
     }
 
     return Promise.reject(error);

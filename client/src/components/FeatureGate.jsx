@@ -20,7 +20,7 @@ const FeatureGate = ({ feature, children, fallback, showUpgradePrompt = false })
     if (loading) return null;
 
     if (hasFeature) return children;
-    if (!known && showUpgradePrompt) return <PlanCheckPrompt feature={feature} />;
+    if (!known && showUpgradePrompt) return <PlanCheckPrompt />;
     if (hasCustomFallback) return fallback;
     if (showUpgradePrompt) return <UpgradePrompt feature={feature} />;
 

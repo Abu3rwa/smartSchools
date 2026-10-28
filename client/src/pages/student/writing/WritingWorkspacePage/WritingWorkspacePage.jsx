@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { HiOutlineArrowLeft, HiOutlineCheckCircle } from "react-icons/hi";
 import ComparisonCard from "./ComparisonCard.jsx";
 import DraftEssayView from "./DraftEssayView.jsx";
+import FeedbackCard from "./FeedbackCard.jsx";
 import SectionCard from "./SectionCard.jsx";
 import { noteForSlot } from "./sectionFeedback.js";
 import SubmitSheet from "./SubmitSheet.jsx";
@@ -35,7 +37,14 @@ export default function WritingWorkspacePage() {
   } = useWritingWorkspaceData();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState("write");
+  // null follows a deep link ("?draft=2" from My Writing) until the student picks a tab.
+  const [picked, setPicked] = useState(null);
+  const [searchParams] = useSearchParams();
+  const linkedNumber = Number(searchParams.get("draft")) || 0;
+  const linkedDraft = linkedNumber
+    ? data.drafts.find((draft) => draft.number === linkedNumber) || null
+    : null;
+  const view = picked ?? (linkedDraft ? linkedDraft.id : "write");
 
   const { assignment, project, tracker } = data;
   const readiness = useMemo(() => draftReadiness({ assignment, sections: working }), [assignment, working]);
@@ -127,7 +136,7 @@ export default function WritingWorkspacePage() {
             <button
               type="button"
               className={`ws-view${!viewedDraft ? " is-active" : ""}`}
-              onClick={() => setView("write")}
+              onClick={() => setPicked("write")}
             >
               {t("writing:student.writeTab")}
             </button>
@@ -137,7 +146,7 @@ export default function WritingWorkspacePage() {
               key={draft.id}
               type="button"
               className={`ws-view${viewedDraft?.id === draft.id ? " is-active" : ""}`}
-              onClick={() => setView(draft.id)}
+              onClick={() => setPicked(draft.id)}
             >
               {t("writing:student.draftTab", { n: draft.number })}
               <span>{t("writing:student.words", { n: draft.totalWords || 0 })}</span>
@@ -169,13 +178,14 @@ export default function WritingWorkspacePage() {
         </p>
       ) : null}
 
-      {!readOnly && latestDraft && (
-        <div className="ws-notice is-action is-revision">
-          <span>{t("writing:student.revisingNotice", { n: project.draftCount + 1 })}</span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView(latestDraft.id)}>
-            {t("writing:student.readPrevious", { n: latestDraft.number })}
-          </button>
-        </div>
+      {/* Reading an older draft shows its own notes; the card would talk about a different draft. */}
+      {(!viewedDraft || viewedDraft.id === latestDraft?.id) && (
+        <FeedbackCard
+          draftNumber={latestDraft?.number || 1}
+          feedback={feedback}
+          onReadDraft={latestDraft ? () => setPicked(latestDraft.id) : null}
+          revising={!readOnly && Boolean(latestDraft) && !viewedDraft}
+        />
       )}
 
       {comparison && (
@@ -263,7 +273,7 @@ export default function WritingWorkspacePage() {
           )}
         </main>
 
-        <SupportsRail assignment={assignment} feedback={feedback} goal={assignment.goal} />
+        <SupportsRail assignment={assignment} goal={assignment.goal} />
       </div>
 
       <footer className="ws-bar">

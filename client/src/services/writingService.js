@@ -41,10 +41,34 @@ export const writingService = {
     api.patch(`/writing/assessments/${assessmentId}`, body || {}).then(unwrap),
   publishAssessment: (assessmentId, body) =>
     api.post(`/writing/assessments/${assessmentId}/publish`, body || {}).then(unwrap),
+  previewFeedbackEmail: (assessmentId, notify) =>
+    api.post(`/writing/assessments/${assessmentId}/email-preview`, { notify }).then(unwrap),
+  resendFeedbackEmail: (assessmentId, notify) =>
+    api.post(`/writing/assessments/${assessmentId}/resend-email`, { notify }).then(unwrap),
   overrideProjectStage: (projectId, body) =>
     api.post(`/writing/projects/${projectId}/stage`, body || {}).then(unwrap),
   recordNotebookReview: (projectId, body) =>
     api.post(`/writing/projects/${projectId}/notebook`, body || {}).then(unwrap),
+
+  // Teacher: prepaid AI credit
+  getCredit: () => api.get('/writing/credit').then(unwrap),
+  getCreditHistory: (params) => api.get('/writing/credit/history', { params }).then(unwrap),
+  requestCredit: (body) => api.post('/writing/credit/requests', body).then(unwrap),
+  cancelCreditRequest: (requestId) =>
+    api.post(`/writing/credit/requests/${requestId}/cancel`).then(unwrap),
+
+  // Admin: credit for every teacher
+  listCreditAccounts: () => api.get('/writing/credit/accounts').then(unwrap),
+  getTeacherCreditHistory: (userId, params) =>
+    api.get(`/writing/credit/accounts/${userId}/history`, { params }).then(unwrap),
+  allocateCredit: (userId, body) =>
+    api.post(`/writing/credit/accounts/${userId}/allocate`, body).then(unwrap),
+  reclaimCredit: (userId, body) =>
+    api.post(`/writing/credit/accounts/${userId}/reclaim`, body).then(unwrap),
+  updateCreditSettings: (userId, body) =>
+    api.patch(`/writing/credit/accounts/${userId}`, body).then(unwrap),
+  decideCreditRequest: (requestId, body) =>
+    api.post(`/writing/credit/requests/${requestId}/decide`, body).then(unwrap),
 
   // Student
   getMyWriting: () => api.get('/writing/my').then(unwrap),

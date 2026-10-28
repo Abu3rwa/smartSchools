@@ -58,6 +58,7 @@ test('openai provider posts the prompt and returns usage and the model used', as
     assert.equal(calls[0].init.headers.Authorization, 'Bearer sk-test');
     const body = JSON.parse(calls[0].init.body);
     assert.equal(body.model, 'gpt-test-mini');
+    assert.equal(body.service_tier, 'default');
     assert.deepEqual(body.messages, [{ role: 'user', content: 'Write JSON.' }]);
 
     assert.equal(reply.text, '{"ok":true}');
@@ -65,6 +66,27 @@ test('openai provider posts the prompt and returns usage and the model used', as
     assert.equal(reply.inputtokenCount, 120);
     assert.equal(reply.outputtokenCount, 40);
     assert.equal(reply.totalTokenCount, 160);
+});
+
+test('openai returns cached usage and the actual model snapshot without double-counting reasoning', async (t) => {
+    withOpenAiEnv(t);
+    t.mock.method(globalThis, 'fetch', async () => jsonResponse({
+        ...openAiReply(),
+        model: 'gpt-5.4-mini-2026-03-17',
+        usage: {
+            prompt_tokens: 1200,
+            prompt_tokens_details: { cached_tokens: 1024 },
+            completion_tokens: 300,
+            completion_tokens_details: { reasoning_tokens: 200 },
+            total_tokens: 1500
+        }
+    }));
+    const reply = await connectAi('Write JSON.', { provider: 'openai' });
+    assert.equal(reply.modelName, 'gpt-5.4-mini-2026-03-17');
+    assert.equal(reply.inputtokenCount, 1200);
+    assert.equal(reply.cachedInputtokenCount, 1024);
+    assert.equal(reply.outputtokenCount, 300);
+    assert.equal(reply.totalTokenCount, 1500);
 });
 
 test('a rate-limited call surfaces the upstream status on the error', async (t) => {

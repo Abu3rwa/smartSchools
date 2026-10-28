@@ -3,6 +3,8 @@ import Student from '../models/Student.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import * as writingService from '../services/writingAssistantService.js';
 import * as writingAssessmentService from '../services/writingAssistantAssessmentService.js';
+import { emailChannels, previewPublishedFeedbackEmail, resendPublishedFeedbackEmail } from '../services/writingFeedbackEmailService.js';
+import { getCreditBadge } from '../services/aiCreditService.js';
 
 const studentForRequest = async (req) => {
     const academicYear = resolveAcademicYearForRequest(req);
@@ -106,12 +108,15 @@ export const instantiateTemplate = asyncHandler(async (req, res) => {
 });
 
 export const getBoard = asyncHandler(async (req, res) => {
-    const board = await writingService.getTeacherBoard({
-        schoolId: req.schoolId,
-        assignmentId: req.params.assignmentId,
-        classId: req.query.classId
-    });
-    res.json({ success: true, data: board });
+    const [board, credit] = await Promise.all([
+        writingService.getTeacherBoard({
+            schoolId: req.schoolId,
+            assignmentId: req.params.assignmentId,
+            classId: req.query.classId
+        }),
+        getCreditBadge({ schoolId: req.schoolId, userId: req.user._id })
+    ]);
+    res.json({ success: true, data: { ...board, emailDelivery: emailChannels(), credit } });
 });
 
 export const getProgress = asyncHandler(async (req, res) => {
@@ -185,6 +190,29 @@ export const publishAssessment = asyncHandler(async (req, res) => {
         userId: req.user._id,
         isAdmin: isAdminUser(req.user),
         payload: req.body || {}
+    });
+    res.json({ success: true, data: result });
+});
+
+export const previewFeedbackEmail = asyncHandler(async (req, res) => {
+    const result = await previewPublishedFeedbackEmail({
+        schoolId: req.schoolId,
+        assessmentId: req.params.assessmentId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        notify: req.body?.notify
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data: result });
+});
+
+export const resendFeedbackEmail = asyncHandler(async (req, res) => {
+    const result = await resendPublishedFeedbackEmail({
+        schoolId: req.schoolId,
+        assessmentId: req.params.assessmentId,
+        userId: req.user._id,
+        isAdmin: isAdminUser(req.user),
+        notify: req.body?.notify
     });
     res.json({ success: true, data: result });
 });

@@ -133,6 +133,8 @@ const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingW
 const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
+const WritingCreditPage = lazy(() => import("./pages/teacher/writing/WritingCreditPage"));
+const AiCreditDashboardPage = lazy(() => import("./pages/teacher/writing/WritingCreditPage/AdminCreditView.jsx"));
 const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
 const SubRequestsList = lazy(() => import("./pages/substitutions/SubRequestsList"));
 const SubRequestDetail = lazy(() => import("./pages/substitutions/SubRequestDetail"));
@@ -142,6 +144,7 @@ const SuperAdminSchoolsPage = lazy(() => import("./pages/superAdmin/SuperAdminSc
 const SuperAdminSchoolDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSchoolDetailsPage"));
 const SuperAdminUsersPage = lazy(() => import("./pages/superAdmin/SuperAdminUsersPage"));
 const SuperAdminSettingsPage = lazy(() => import("./pages/superAdmin/SuperAdminSettingsPage"));
+const SuperAdminAiCreditPage = lazy(() => import("./pages/superAdmin/SuperAdminAiCreditPage/SuperAdminAiCreditPage.jsx"));
 const SuperAdminSubscriptionsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionsPage"));
 const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionDetailsPage"));
 const SuperAdminAnalyticsPage = lazy(() => import("./pages/superAdmin/SuperAdminAnalyticsPage/SuperAdminAnalyticsPage"));
@@ -1420,7 +1423,27 @@ function App() {
                 </RoleRoute>
               }
             />
+            <Route
+              path="ai-credit"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <AiCreditDashboardPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
             {/* Writing Assistant: teacher builds tasks and follows the drafts */}
+            <Route
+              path="writing/credit"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingCreditPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
             <Route
               path="writing/assignments"
               element={
@@ -1773,6 +1796,7 @@ function App() {
             <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
             <Route path="landing" element={<SuperAdminLandingPageEditor />} />
             <Route path="settings" element={<SuperAdminSettingsPage />} />
+            <Route path="ai-credit" element={<SuperAdminAiCreditPage />} />
             <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
             <Route
               path="subscriptions/:id"

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
+import { creditErrorMessage, isCreditError } from "../../../../../utils/writingCredit.js";
 
 export function useWritingBoardData() {
   const { assignmentId } = useParams();
@@ -84,19 +85,21 @@ export function useWritingBoardData() {
     setBatchPending(true);
     try {
       const result = await writingService.assessAssignment(assignmentId, { limit: 5 });
-      if (!result?.attempted) {
+      if (!result?.attempted && !result?.creditStopped) {
         toast(t("writing:teacher.review.batchEmpty"));
-      } else {
+      } else if (result?.attempted) {
         toast.success(t("writing:teacher.review.batchDone", {
           assessed: result.assessed,
           failed: result.failed,
           remaining: result.remaining,
         }));
       }
+      if (result?.creditStopped) toast.error(t("writing:credit.batchStopped"));
       refresh();
       return result;
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:teacher.review.failed"));
+      toast.error(creditErrorMessage(error, t) || error?.response?.data?.message || t("writing:teacher.review.failed"));
+      if (isCreditError(error)) refresh();
       return null;
     } finally {
       setBatchPending(false);
@@ -107,6 +110,8 @@ export function useWritingBoardData() {
     assignment: board?.assignment || null,
     assessWaiting,
     batchPending,
+    credit: board?.credit || null,
+    emailDelivery: board?.emailDelivery || null,
     history,
     historyLoading,
     loading,

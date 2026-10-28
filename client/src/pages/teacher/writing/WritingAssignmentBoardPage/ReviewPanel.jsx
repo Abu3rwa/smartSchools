@@ -8,16 +8,18 @@ import {
   HiOutlineSparkles,
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
+import { creditErrorMessage, isCreditError } from "../../../../utils/writingCredit.js";
 import {
   formFromAssessment,
   latestForDraft,
   payloadFromForm,
 } from "./assessmentPresentation.js";
 import { formatDateTime } from "./boardPresentation.js";
+import FeedbackEmailResend from "./FeedbackEmailResend.jsx";
 
 const pendingLabel = (pending, key) => pending === key;
 
-export default function ReviewPanel({ history, onChanged }) {
+export default function ReviewPanel({ history, onChanged, emailDelivery }) {
   const { t, i18n } = useTranslation(["writing"]);
   const project = history?.project || null;
   const drafts = history?.drafts || [];
@@ -30,6 +32,11 @@ export default function ReviewPanel({ history, onChanged }) {
   const [note, setNote] = useState("");
   const [finalScore, setFinalScore] = useState("");
   const [pending, setPending] = useState("");
+  const [notify, setNotify] = useState({ student: true, parents: true });
+  const emailRecipients = {
+    student: Boolean(emailDelivery?.students && notify.student),
+    parents: Boolean(emailDelivery?.parents && notify.parents),
+  };
 
   const feedbackStamp = feedback ? `${feedback._id}:${feedback.aiStatus}:${feedback.teacherEdits?.at || ""}` : "";
   const comparisonStamp = comparison ? `${comparison._id}:${comparison.aiStatus}:${comparison.teacherEdits?.at || ""}` : "";
@@ -53,7 +60,8 @@ export default function ReviewPanel({ history, onChanged }) {
       await onChanged();
       if (successMessage) toast.success(successMessage);
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:teacher.review.failed"));
+      toast.error(creditErrorMessage(error, t) || error?.response?.data?.message || t("writing:teacher.review.failed"));
+      if (isCreditError(error) || key === "assess" || key === "compare") onChanged();
     } finally {
       setPending("");
     }
@@ -85,7 +93,7 @@ export default function ReviewPanel({ history, onChanged }) {
   ), t("writing:teacher.review.savedToast"));
   const publishFeedback = (assessment) => run("publish", () => writingService.publishAssessment(
     assessment._id,
-    payloadFromForm(form),
+    { ...payloadFromForm(form), notify: emailRecipients },
   ), t("writing:teacher.review.publishedToast"));
 
   const saveComparison = (assessment) => run("saveCompare", () => writingService.saveAssessmentEdits(
@@ -136,6 +144,13 @@ export default function ReviewPanel({ history, onChanged }) {
           </span>
         )}
       </header>
+
+      <FeedbackEmailResend
+        key={project.id || project._id}
+        history={history}
+        emailDelivery={emailDelivery}
+        disabled={Boolean(pending)}
+      />
 
       {!feedback && (
         <div className="wa-review-empty">
@@ -308,6 +323,36 @@ export default function ReviewPanel({ history, onChanged }) {
               />
             </label>
           </div>
+
+          {feedbackEditable && (
+            <div className="wa-review-notify">
+              <span className="wa-review-notify-label">{t("writing:teacher.review.emailLabel")}</span>
+              <label className="wa-review-check">
+                <input
+                  type="checkbox"
+                  checked={emailRecipients.student}
+                  disabled={!emailDelivery?.students || Boolean(pending)}
+                  onChange={(event) => setNotify((current) => ({ ...current, student: event.target.checked }))}
+                />
+                <span>{t("writing:teacher.review.emailStudent")}</span>
+              </label>
+              <label className="wa-review-check">
+                <input
+                  type="checkbox"
+                  checked={emailRecipients.parents}
+                  disabled={!emailDelivery?.parents || Boolean(pending)}
+                  onChange={(event) => setNotify((current) => ({ ...current, parents: event.target.checked }))}
+                />
+                <span>{t("writing:teacher.review.emailParents")}</span>
+              </label>
+              {(!emailDelivery?.students || !emailDelivery?.parents) && (
+                <p className="wa-review-notify-hint">{t("writing:teacher.review.resend.disabled")}</p>
+              )}
+              {(emailDelivery?.students || emailDelivery?.parents) && (
+                <p className="wa-review-notify-hint">{t("writing:teacher.review.emailHint")}</p>
+              )}
+            </div>
+          )}
 
           {feedbackEditable && (
             <div className="wa-review-actions">

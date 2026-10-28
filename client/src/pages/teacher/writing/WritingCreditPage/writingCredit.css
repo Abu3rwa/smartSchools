@@ -1,0 +1,189 @@
+.wa-credit-page {
+  --wa-amber: #b45309;
+  --wa-green: #15803d;
+}
+
+.wa-credit-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.wa-credit-panel,
+.wa-credit-balance {
+  background: var(--wa-surface);
+  border: 1px solid var(--wa-line);
+  border-radius: var(--wa-radius);
+  box-shadow: var(--wa-shadow);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wa-credit-panel h2,
+.wa-credit-panel h3 { margin: 0; font-size: 1rem; }
+
+.wa-credit-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.wa-credit-balance { border-top: 4px solid var(--wa-teal); }
+.wa-credit-balance.is-low { border-top-color: var(--wa-amber); }
+.wa-credit-balance.is-empty,
+.wa-credit-balance.is-paused { border-top-color: var(--wa-rose); }
+
+.wa-credit-balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.wa-credit-label {
+  display: block;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--wa-muted);
+}
+
+.wa-credit-amount {
+  display: block;
+  font-size: 2.1rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-credit-help { margin: 0; font-size: 0.86rem; color: var(--wa-muted); line-height: 1.5; }
+
+.wa-credit-state,
+.wa-credit-status,
+.wa-credit-kind,
+.wa-credit-flag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wa-credit-state { background: var(--wa-soft); color: var(--wa-teal); }
+.wa-credit-state.is-low { background: color-mix(in srgb, var(--wa-amber, #b45309) 12%, transparent); color: var(--wa-amber, #b45309); }
+.wa-credit-state.is-empty,
+.wa-credit-state.is-paused { background: color-mix(in srgb, var(--wa-rose) 10%, transparent); color: var(--wa-rose); }
+
+.wa-credit-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.wa-credit-facts > div {
+  background: var(--wa-surface-2);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.wa-credit-facts dt { font-size: 0.72rem; color: var(--wa-muted); }
+.wa-credit-facts dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.wa-credit-form { display: flex; flex-direction: column; gap: 10px; }
+.wa-credit-form .wa-field input,
+.wa-credit-form .wa-field textarea { min-width: 0; width: 100%; }
+
+.wa-credit-quote {
+  display: block;
+  margin: 0;
+  padding: 6px 10px;
+  border-inline-start: 3px solid var(--wa-line);
+  background: var(--wa-surface-2);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
+.wa-credit-requests h3 { margin: 4px 0 8px; font-size: 0.86rem; }
+.wa-credit-requests ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.wa-credit-requests li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 0.84rem;
+  border-top: 1px solid var(--wa-line);
+  padding-top: 8px;
+}
+.wa-credit-requests li .wa-credit-quote { flex-basis: 100%; }
+
+.wa-credit-status { background: var(--wa-surface-2); color: var(--wa-muted); }
+.wa-credit-status.is-pending { background: color-mix(in srgb, var(--wa-amber, #b45309) 12%, transparent); color: var(--wa-amber, #b45309); }
+.wa-credit-status.is-approved { background: color-mix(in srgb, var(--wa-green, #15803d) 12%, transparent); color: var(--wa-green, #15803d); }
+.wa-credit-status.is-declined { background: color-mix(in srgb, var(--wa-rose) 10%, transparent); color: var(--wa-rose); }
+
+.wa-credit-table tbody tr { cursor: default; }
+.wa-credit-table td,
+.wa-credit-teachers td { vertical-align: middle; }
+.wa-credit-kind { background: var(--wa-soft); color: var(--wa-teal); margin-inline-end: 6px; }
+.wa-credit-kind.is-comparison { background: color-mix(in srgb, #6366f1 12%, transparent); color: #4f46e5; }
+.wa-credit-kind.is-grant { background: color-mix(in srgb, var(--wa-green, #15803d) 12%, transparent); color: var(--wa-green, #15803d); }
+.wa-credit-kind.is-allocation { background: color-mix(in srgb, var(--wa-teal) 14%, transparent); color: var(--wa-teal); }
+.wa-credit-kind.is-reclaim { background: var(--wa-surface-2); color: var(--wa-muted); }
+.wa-credit-kind.is-adjustment { background: var(--wa-surface-2); color: var(--wa-muted); }
+.wa-credit-flag {
+  background: transparent;
+  border: 1px solid var(--wa-line);
+  color: var(--wa-muted);
+  margin-inline-end: 6px;
+}
+.wa-credit-details { display: block; margin-top: 4px; font-size: 0.78rem; color: var(--wa-muted); }
+.wa-credit-table .is-debit { color: var(--wa-ink); }
+.wa-credit-table .is-credit { color: var(--wa-green, #15803d); font-weight: 600; }
+
+.wa-credit-pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: var(--wa-muted);
+}
+
+.wa-credit-waiting { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.wa-credit-waiting li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  padding: 12px;
+  background: var(--wa-surface-2);
+  border-radius: 12px;
+}
+.wa-credit-waiting-who { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; min-width: 0; }
+.wa-credit-amount-field input { min-width: 0; width: 110px; }
+.wa-credit-waiting .wa-grow input { min-width: 0; width: 100%; }
+.wa-credit-waiting-actions { display: flex; gap: 8px; }
+
+.wa-credit-status-cell { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.wa-credit-modal { width: min(980px, 100%); }
+.wa-credit-modal-body {
+  padding: 16px 22px 22px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wa-credit-modal .wa-credit-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+@media (max-width: 860px) {
+  .wa-credit-top,
+  .wa-credit-modal .wa-credit-top { grid-template-columns: minmax(0, 1fr); }
+}

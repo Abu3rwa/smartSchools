@@ -65,8 +65,12 @@ const renderCriteria = (snapshot) => (snapshot.sections || [])
     .join('\n');
 
 const guardrailBlock = (snapshot, aiConstraints) => `Rules you must follow:
-- Writing is a process. Teach and guide; never rewrite. Do not supply replacement sentences, model paragraphs, or answers the student has not attempted.
+- Writing is a process. Teach and guide; never rewrite the student's sentences or paragraphs. Word-level spelling corrections are allowed. Do not supply replacement sentences, model paragraphs, or answers the student has not attempted.
 - Every improvement must quote the student's own words as evidence, and say why that matters for this assignment.
+- Check spelling even when it is not a separate rubric criterion. For a clear misspelling whose intended word is clear from context, quote the exact word from the draft and give its correct spelling (original → correction). Example only, if present in the draft: "becues" → "because". Briefly explain how the correction helps the reader.
+- If the intended word is unclear, quote it and ask the student to check and rewrite the word they meant. Do not guess or offer speculative replacements. Do not stop at vague comments such as "hard to read" or "check your spelling".
+- Do not invent spelling errors or flag valid spelling variants or names. If no spelling errors are evident, do not add a spelling problem. Keep quoted words and spelling corrections in the draft's language, even when the feedback language differs.
+- Spelling guidance must accompany, not replace, feedback on ideas and organisation. Deduct marks only where the supplied rubric covers spelling; do not change unrelated scores for spelling mistakes.
 - Judge only what the assignment asks for. A student must not be marked down for a technique that was never required at their level.
 - Do not treat longer text or more complicated sentences as automatically better. Reward clarity, support, and cohesion.
 - Keep wording a ${snapshot.expectedLevel || 'school-age'} student can act on. No assessment jargon.
@@ -100,6 +104,7 @@ ${renderDraftForPrompt(draft)}
 >>>
 
 ${guardrailBlock(snapshot, aiConstraints)}
+Put spelling corrections or clarification requests in the relevant section's "improvements", alongside content feedback. Keep each item under 260 characters and use at most 6 improvements per section; select useful examples rather than a long error list.
 Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}.
 
 JSON shape:
@@ -174,6 +179,7 @@ ${renderDraftForPrompt(currentDraft)}
 ${guardrailBlock(snapshot, aiConstraints)}
 Be specific and encouraging. Say which requested feedback was actually applied and which was not.
 Name any new problem the revision introduced. Do not count a synonym swap as an improvement.
+Report corrected spellings in "changedBySection", quoting the old and corrected words. Only flag spelling problems still present in the current draft: give corrections or clarification requests in that section's summary and, when a priority, in "overall.nextPriorities". Use "newIssues" only for errors newly introduced in this revision. Do not report a corrected old misspelling as a current problem.
 Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}.
 
 JSON shape:

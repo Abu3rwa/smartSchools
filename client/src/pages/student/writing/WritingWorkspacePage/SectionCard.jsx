@@ -4,6 +4,8 @@ import { countWords } from "../../../../utils/writingWorkflow.js";
 
 export function FeedbackForSection({ note }) {
   const { t } = useTranslation(["writing"]);
+  // One thing to try per part: the teacher's next step, or the first improvement if none was set.
+  const action = note.nextStep || (note.improvements || []).join(" · ");
 
   return (
     <div className="ws-feedback-block">
@@ -13,16 +15,13 @@ export function FeedbackForSection({ note }) {
           {t("writing:student.workedWell")}: {note.strengths.join(" · ")}
         </p>
       )}
-      {note.improvements?.length > 0 && (
-        <p className="ws-feedback-line">
-          {t("writing:student.tryThis")}: {note.improvements.join(" · ")}
+      {action && (
+        <p className="ws-feedback-line is-action">
+          {t("writing:student.tryThis")}: {action}
         </p>
       )}
       {note.evidence && <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>}
-      {note.why && <p className="ws-feedback-line">{note.why}</p>}
-      {note.nextStep && (
-        <p className="ws-feedback-next">{t("writing:student.nextStep")}: {note.nextStep}</p>
-      )}
+      {note.why && <p className="ws-feedback-why">{note.why}</p>}
     </div>
   );
 }

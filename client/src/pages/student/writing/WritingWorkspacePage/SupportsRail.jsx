@@ -28,8 +28,8 @@ const Lines = ({ items }) => (
   </ul>
 );
 
-/** The side rail a student leans on while writing: help, then the feedback they already have. */
-export default function SupportsRail({ assignment, feedback, goal }) {
+/** The side rail a student leans on while writing. Feedback lives above the piece, not here. */
+export default function SupportsRail({ assignment, goal }) {
   const { t } = useTranslation(["writing"]);
   const [hidden, setHidden] = useState(false);
   const supports = assignment?.supports || {};
@@ -56,17 +56,6 @@ export default function SupportsRail({ assignment, feedback, goal }) {
           <p className="ws-rail-title">{t("writing:student.yourGoal")}</p>
           <p className="ws-goal">{goal}</p>
         </div>
-      )}
-
-      {feedback && (
-        <Block defaultOpen title={t("writing:student.feedbackTitle")}>
-          {feedback.overall?.summary && <p className="ws-goal">{feedback.overall.summary}</p>}
-          {feedback.overall?.nextPriorities?.length > 0 && (
-            <p className="ws-feedback-next">
-              {t("writing:student.nextStep")}: {feedback.overall.nextPriorities.join(" · ")}
-            </p>
-          )}
-        </Block>
       )}
 
       {supports.wordBank?.length > 0 && (

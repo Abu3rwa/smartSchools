@@ -66,9 +66,9 @@
     "requiresPlan": "{{feature}} requires {{plan}}.",
     "upgrade": "Upgrade"
   },
-  "planCheck": {
-    "title": "Can't confirm {{feature}} right now",
-    "body": "We couldn't reach your school's plan information, so this page may still be available. Check the connection and try again.",
+  "pageLoad": {
+    "title": "Couldn't load this page",
+    "body": "The connection dropped before this page could load. Check your connection and try again.",
     "retry": "Try again"
   }
 }

@@ -29,17 +29,11 @@ const COPY = {
         minutes: 'Billable minutes',
         remaining: 'Minutes remaining',
         date: 'Date',
-        description: 'Description',
         time: 'Time',
         rate: 'Rate',
         amount: 'Amount',
         running: 'Balance',
         empty: 'No lesson time or payments were recorded in this period.',
-        paidLabel: 'Payment',
-        lesson: 'Lesson',
-        refund: 'Refund',
-        adjustment: 'Adjustment',
-        voided: 'Voided',
         amountReceived: 'Amount received',
         method: 'Payment method',
         reference: 'Reference',
@@ -62,17 +56,11 @@ const COPY = {
         minutes: 'الدقائق المحتسبة',
         remaining: 'الدقائق المتبقية',
         date: 'التاريخ',
-        description: 'البيان',
         time: 'الوقت',
         rate: 'السعر',
         amount: 'المبلغ',
         running: 'الرصيد',
         empty: 'لم يُسجَّل أي وقت دروس أو مدفوعات في هذه الفترة.',
-        paidLabel: 'دفعة',
-        lesson: 'درس',
-        refund: 'استرداد',
-        adjustment: 'تسوية',
-        voided: 'ملغى',
         amountReceived: 'المبلغ المستلم',
         method: 'طريقة الدفع',
         reference: 'المرجع',
@@ -240,14 +228,6 @@ export const renderStatementDocument = async (schoolId, studentId, query = {}) =
         else if (entry.kind === 'refund') paid -= Number(entry.amount) || 0;
     }
 
-    const kindLabel = (entry) => {
-        if (entry.status === 'void') return copy.voided;
-        if (entry.kind === 'payment') return copy.paidLabel;
-        if (entry.kind === 'refund') return copy.refund;
-        if (entry.kind === 'adjustment') return copy.adjustment;
-        return entry.sessionTitle || copy.lesson;
-    };
-
     const body = `
     <section class="facts">
         ${detailFact(copy.student, studentName)}
@@ -266,7 +246,6 @@ export const renderStatementDocument = async (schoolId, studentId, query = {}) =
             <thead>
                 <tr>
                     <th>${escapeHtml(copy.date)}</th>
-                    <th>${escapeHtml(copy.description)}</th>
                     <th class="num">${escapeHtml(copy.time)}</th>
                     <th class="num">${escapeHtml(copy.rate)}</th>
                     <th class="num">${escapeHtml(copy.amount)}</th>
@@ -284,7 +263,6 @@ export const renderStatementDocument = async (schoolId, studentId, query = {}) =
                                 : formatMoney(entry.amount, currency);
                     return `<tr class="${entry.status === 'void' ? 'void' : ''}">
                         <td>${escapeHtml(formatDate(entry.occurredAt, language))}</td>
-                        <td>${escapeHtml(kindLabel(entry))}${entry.reference ? ` · ${escapeHtml(entry.reference)}` : ''}</td>
                         <td class="num">${entry.minutes ? escapeHtml(`${Math.round(entry.minutes)} min`) : '—'}</td>
                         <td class="num">${entry.hourlyRate ? escapeHtml(formatMoney(entry.hourlyRate, currency)) : '—'}</td>
                         <td class="num">${escapeHtml(signed)}</td>

@@ -97,6 +97,7 @@ async function connectOpenAi(prompt, options = {}) {
         },
         body: JSON.stringify({
           model: candidateModel,
+          service_tier: "default",
           messages: [{ role: "user", content: prompt }],
         }),
         signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS()),
@@ -132,9 +133,10 @@ async function connectOpenAi(prompt, options = {}) {
     return {
       text,
       inputtokenCount: usage.prompt_tokens || 0,
+      cachedInputtokenCount: usage.prompt_tokens_details?.cached_tokens || 0,
       outputtokenCount: usage.completion_tokens || 0,
       totalTokenCount: usage.total_tokens || 0,
-      modelName: candidateModel,
+      modelName: payload.model || candidateModel,
     };
   }
 

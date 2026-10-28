@@ -6,17 +6,30 @@
   --wf-surface: var(--bg-card, #ffffff);
   --wf-surface-2: var(--bg-secondary, #f8fafc);
   --wf-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --wf-amber: #b45309;
+  --wf-indigo: #4338ca;
+  --wf-green: #15803d;
 
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   color: var(--wf-ink);
-  max-width: 860px;
+  max-width: 1080px;
 }
 
 .wf-head h1 { margin: 0; font-size: 1.4rem; }
 .wf-sub { margin: 4px 0 0; color: var(--wf-muted); font-size: 0.9rem; }
-.wf-loading { padding: 40px 0; display: flex; justify-content: center; }
+
+/* The page is a column, so both axes have to be centred explicitly. */
+.wf-loading {
+  min-height: 55vh;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  color: var(--wf-muted);
+  font-size: 0.9rem;
+}
+.wf-loading p { margin: 0; }
 
 .wf-empty {
   background: var(--wf-surface);
@@ -29,42 +42,173 @@
 .wf-empty h2 { margin: 10px 0 4px; color: var(--wf-ink); font-size: 1.05rem; }
 .wf-empty p { margin: 0; }
 
-.wf-card {
+.wf-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.wf-stat {
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-line);
+  border-inline-start: 3px solid var(--wf-line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wf-stat.is-open { border-inline-start-color: var(--wf-teal); }
+.wf-stat.is-awaitingTeacher { border-inline-start-color: var(--wf-amber); }
+.wf-stat.is-ready { border-inline-start-color: var(--wf-indigo); }
+.wf-stat.is-completed { border-inline-start-color: var(--wf-green); }
+
+.wf-stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.wf-stat-label { font-size: 0.76rem; color: var(--wf-muted); }
+
+.wf-table-card {
   background: var(--wf-surface);
   border: 1px solid var(--wf-line);
   border-radius: 14px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -18px rgba(15, 23, 42, 0.35);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
 }
 
-.wf-card header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
-.wf-card h2 { margin: 0; font-size: 1.05rem; }
-.wf-meta { margin: 3px 0 0; font-size: 0.82rem; color: var(--wf-muted); }
-.wf-topic { margin: 0; font-size: 0.85rem; color: var(--wf-muted); max-width: 40ch; }
-
-.wf-tracker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.wf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
 }
 
-.wf-step {
-  font-size: 0.74rem;
-  border-radius: 8px;
-  padding: 4px 9px;
+.wf-table th,
+.wf-table td {
+  text-align: start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wf-line);
+  vertical-align: top;
+}
+
+.wf-table thead th {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wf-muted);
   background: var(--wf-surface-2);
-  border: 1px solid var(--wf-line);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wf-table tbody tr:last-child td { border-bottom: 0; }
+.wf-table tbody tr:hover { background: color-mix(in srgb, var(--primary, #0d9488) 4%, transparent); }
+.wf-table tbody tr.is-waiting { background: color-mix(in srgb, var(--text-muted, #64748b) 3%, transparent); }
+
+.wf-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+.wf-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.78rem;
   color: var(--wf-muted);
 }
-.wf-step.is-done { background: color-mix(in srgb, #16a34a 12%, transparent); color: var(--wf-ink); }
-.wf-step.is-current { background: var(--wf-soft); border-color: var(--wf-teal); color: var(--wf-teal); font-weight: 600; }
+.wf-topic {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--wf-muted);
+  max-width: 44ch;
+  overflow-wrap: anywhere;
+}
+.wf-strong { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wf-dash { color: var(--wf-muted); }
 
-.wf-counts { margin: 0; font-size: 0.82rem; color: var(--wf-muted); }
-.wf-card-foot { display: flex; align-items: center; gap: 10px; }
-.wf-waiting { margin: 0; font-size: 0.86rem; color: var(--wf-muted); font-style: italic; }
+.wf-progress { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+
+.wf-progress-bar {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+  margin-bottom: 2px;
+}
+.wf-progress-seg {
+  flex: 1 1 0;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--wf-line);
+}
+.wf-progress-seg.is-done { background: var(--wf-teal); }
+.wf-progress-seg.is-current { background: color-mix(in srgb, var(--primary, #0d9488) 45%, #ffffff); }
+
+.wf-progress-label { font-size: 0.82rem; font-weight: 600; line-height: 1.35; }
+
+.wf-drafts { display: flex; flex-wrap: wrap; gap: 6px; }
+.wf-draft-link {
+  font-size: 0.76rem;
+  border: 1px solid var(--wf-line);
+  background: var(--wf-surface-2);
+  color: var(--wf-ink);
+  border-radius: 999px;
+  padding: 3px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.wf-draft-link:hover { border-color: var(--wf-teal); color: var(--wf-teal); }
+
+.wf-col-num { text-align: end; }
+.wf-col-next { width: 1%; white-space: nowrap; }
+
+.wf-waiting {
+  font-size: 0.8rem;
+  color: var(--wf-muted);
+  font-style: italic;
+  display: inline-block;
+  max-width: 24ch;
+}
+.wf-waiting.is-done {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--wf-green);
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* Narrow screens: the same rows read as stacked blocks, labels above each value. */
+@media (max-width: 900px) {
+  .wf-table thead { display: none; }
+  .wf-table,
+  .wf-table tbody,
+  .wf-table tr,
+  .wf-table td { display: block; width: 100%; }
+
+  .wf-table tbody tr {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .wf-table tbody tr + tr { border-top: 1px solid var(--wf-line); }
+  .wf-table td { padding: 0; border-bottom: 0; }
+  .wf-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--wf-muted);
+    font-weight: 700;
+  }
+  .wf-col-num { text-align: start; }
+  .wf-col-next { width: auto; white-space: normal; }
+  .wf-col-next .btn { width: 100%; justify-content: center; }
+  .wf-waiting { max-width: none; }
+}

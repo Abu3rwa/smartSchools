@@ -32,6 +32,8 @@ import {
     stageAfterPublish,
     statusAfterPublish
 } from './writingAssistantLogic.js';
+import { notifyFeedbackPublished } from './writingFeedbackEmailService.js';
+import { assertCanSpend, chargeUsage, isCreditError } from './aiCreditService.js';
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
@@ -125,7 +127,7 @@ const isDuplicateKey = (error) => Number(error?.code) === 11000;
  * One assessment per draft per kind may be in flight. A failed attempt is reused
  * so a retry never leaves two competing rows; a finished one is never overwritten.
  */
-const claimAssessment = async ({ schoolId, project, draft, kind, previousDraft, userId }) => {
+const claimAssessment = async ({ schoolId, project, draft, kind, previousDraft, userId, language = 'en' }) => {
     const inFlight = await WritingAssessment.findOne({
         school: schoolId,
         draft: draft._id,
@@ -150,6 +152,7 @@ const claimAssessment = async ({ schoolId, project, draft, kind, previousDraft, 
                 $set: {
                     aiStatus: 'running',
                     aiError: '',
+                    language,
                     requestedBy: userId,
                     ...(previousDraft?._id ? { previousDraft: previousDraft._id } : {})
                 },
@@ -172,6 +175,7 @@ const claimAssessment = async ({ schoolId, project, draft, kind, previousDraft, 
             draft: draft._id,
             previousDraft: previousDraft?._id,
             kind,
+            language,
             aiStatus: 'running',
             attempts: 1,
             requestedBy: userId
@@ -252,7 +256,24 @@ const writingAiOptions = () => {
     return modelName ? { provider, modelName } : { provider };
 };
 
-const runFeedback = async ({ context, language }) => {
+const chargeFor = ({ billing, context, reply, feature, outcome }) => chargeUsage({
+    schoolId: billing.schoolId,
+    userId: billing.userId,
+    reply,
+    feature,
+    outcome,
+    refs: {
+        assignment: context.assignment?._id,
+        project: context.project?._id,
+        draft: context.draft?._id,
+        student: context.draft?.student,
+        assignmentTitle: context.assignment?.title,
+        studentName: context.studentName,
+        draftNumber: context.draft?.number
+    }
+});
+
+const runFeedback = async ({ context, language, billing }) => {
     const { draft, assignment, studentName, goal } = context;
     const snapshot = snapshotFor(draft, assignment);
     const prompt = buildFeedbackPrompt({
@@ -267,6 +288,13 @@ const runFeedback = async ({ context, language }) => {
     const reply = await connectAi(prompt, writingAiOptions());
     const parsed = extractJsonObject(reply.text);
     const normalized = normalizeFeedback({ parsed, draft, snapshot });
+    await chargeFor({
+        billing,
+        context,
+        reply,
+        feature: 'writing_feedback',
+        outcome: normalized.ok ? 'done' : 'unusable'
+    });
     if (!normalized.ok) throw upstream(normalized.error);
 
     const decision = decideRecommendation({
@@ -294,7 +322,7 @@ const runFeedback = async ({ context, language }) => {
     };
 };
 
-const runComparison = async ({ context, previousDraft, previousAssessment, language }) => {
+const runComparison = async ({ context, previousDraft, previousAssessment, language, billing }) => {
     const { draft, assignment, studentName, goal } = context;
     const snapshot = snapshotFor(draft, assignment);
     const prompt = buildComparisonPrompt({
@@ -316,6 +344,13 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         currentDraft: draft,
         previousAssessment,
         snapshot
+    });
+    await chargeFor({
+        billing,
+        context,
+        reply,
+        feature: 'writing_comparison',
+        outcome: normalized.ok ? 'done' : 'unusable'
     });
     if (!normalized.ok) throw upstream(normalized.error);
 
@@ -388,17 +423,23 @@ export const assessDraft = async ({
         throw badRequest('Only the newest submitted draft can be assessed.');
     }
 
+    await assertCanSpend({ schoolId, userId });
     const resolvedLanguage = await resolveLanguage({ schoolId, requestedLanguage: language });
     const assessment = await claimAssessment({
         schoolId,
         project,
         draft,
         kind: 'feedback',
-        userId
+        userId,
+        language: resolvedLanguage
     });
 
     try {
-        const result = await runFeedback({ context, language: resolvedLanguage });
+        const result = await runFeedback({
+            context,
+            language: resolvedLanguage,
+            billing: { schoolId, userId }
+        });
         assessment.set({
             ...result.fields,
             aiStatus: 'done',
@@ -465,6 +506,7 @@ export const compareDrafts = async ({
         aiStatus: 'done'
     }).sort({ createdAt: -1 }).lean();
 
+    await assertCanSpend({ schoolId, userId });
     const resolvedLanguage = await resolveLanguage({ schoolId, requestedLanguage: language });
     const assessment = await claimAssessment({
         schoolId,
@@ -472,7 +514,8 @@ export const compareDrafts = async ({
         draft,
         kind: 'comparison',
         previousDraft,
-        userId
+        userId,
+        language: resolvedLanguage
     });
 
     try {
@@ -480,7 +523,8 @@ export const compareDrafts = async ({
             context,
             previousDraft,
             previousAssessment,
-            language: resolvedLanguage
+            language: resolvedLanguage,
+            billing: { schoolId, userId }
         });
         assessment.set({
             ...result.fields,
@@ -529,6 +573,7 @@ export const assessPendingBatch = async ({
     const assignment = await WritingAssignment.findOne({ school: schoolId, _id: id }).lean();
     if (!assignment) throw notFound('Writing task not found.');
     assertOwner(assignment, userId, isAdmin);
+    await assertCanSpend({ schoolId, userId });
 
     const cap = Math.min(Math.max(Number(limit) || 5, 1), 10);
     const filter = { school: schoolId, assignment: assignment._id, stage: 'submitted' };
@@ -542,6 +587,7 @@ export const assessPendingBatch = async ({
 
     const resolvedLanguage = await resolveLanguage({ schoolId, requestedLanguage: language });
     const outcomes = [];
+    let creditStopped = false;
 
     // Sequential on purpose: one rate-limit budget and no malformed fan-out.
     for (const project of waiting) {
@@ -570,6 +616,10 @@ export const assessPendingBatch = async ({
                 recommendation: result.assessment.recommendation?.path || ''
             });
         } catch (error) {
+            if (isCreditError(error)) {
+                creditStopped = true;
+                break;
+            }
             outcomes.push({
                 projectId: String(project._id),
                 studentId: String(project.student),
@@ -589,6 +639,7 @@ export const assessPendingBatch = async ({
         assessed: outcomes.filter((row) => row.ok).length,
         failed: outcomes.filter((row) => !row.ok).length,
         remaining,
+        creditStopped,
         outcomes
     };
 };
@@ -863,6 +914,24 @@ export const publishAssessment = async ({
         assessment.save(),
         project.save()
     ]);
+
+    // The family email is a courtesy, not part of the publish contract: it runs
+    // detached and can never turn a successful publish into an error.
+    void (async () => {
+        try {
+            const draft = await WritingDraft.findOne({ school: schoolId, _id: assessment.draft }).lean();
+            await notifyFeedbackPublished({
+                schoolId,
+                project: project.toObject(),
+                assignment,
+                draft,
+                assessment,
+                notify: payload.notify
+            });
+        } catch (error) {
+            logger.warn('writing_feedback_email_dispatch_failed', { error: error?.message });
+        }
+    })();
 
     return {
         assessment: summarizeAssessment(assessment),

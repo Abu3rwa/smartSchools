@@ -10,6 +10,7 @@ import {
     bulkDeleteStudents,
     getStudentsByClass,
     bulkEnrollStudents,
+    cleanupClassLists,
     enrollStudent,
     importStudents,
     transferStudent,
@@ -82,6 +83,7 @@ router.route('/:id')
     .put(authorize('admin'), validationRules.mongoId, validate, updateStudent)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteStudent);
 router.post('/bulk-enroll', authorize('admin'), validationRules.bulkEnrollStudents, validate, bulkEnrollStudents);
+router.post('/cleanup-class-lists', authorize('admin'), cleanupClassLists);
 router.post('/:id/create-login', authorize('admin'), validationRules.mongoId, validationRules.createStudentLogin, validate, createStudentLogin);
 router.post('/:id/send-login-invite', authorize('admin'), validationRules.mongoId, validationRules.createStudentLogin, validate, sendStudentLoginInvite);
 router.post('/:id/reset-password', authorize('admin'), validationRules.mongoId, validate, resetStudentPassword);

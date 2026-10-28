@@ -15,7 +15,17 @@
   color: var(--ws-ink);
 }
 
-.ws-loading { padding: 40px 0; display: flex; justify-content: center; }
+/* The page is a column, so the main axis is vertical: centre on both axes. */
+.ws-loading {
+  padding: 40px 0;
+  min-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  color: var(--ws-muted);
+}
 
 .ws-head {
   display: flex;
@@ -125,7 +135,6 @@
 }
 .ws-notice.is-done { background: color-mix(in srgb, #16a34a 12%, transparent); }
 .ws-notice.is-action { justify-content: space-between; flex-wrap: wrap; }
-.ws-notice.is-revision { background: var(--ws-soft); }
 
 .ws-body {
   display: grid;
@@ -222,6 +231,7 @@
 .ws-feedback-label { margin: 0; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ws-teal); }
 .ws-feedback-line { margin: 0; font-size: 0.85rem; line-height: 1.5; }
 .ws-feedback-line.is-good { color: #15803d; }
+.ws-feedback-line.is-action { font-weight: 600; }
 .ws-feedback-quote {
   margin: 0;
   padding: 6px 12px;
@@ -230,7 +240,83 @@
   font-size: 0.85rem;
   font-style: italic;
 }
-.ws-feedback-next { margin: 0; font-size: 0.85rem; font-weight: 600; }
+.ws-feedback-why { margin: 0; font-size: 0.8rem; line-height: 1.5; color: var(--ws-muted); }
+
+/* The feedback for the draft just sent, read before the next draft is written. */
+.ws-feedback-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--ws-teal) 32%, var(--ws-line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ws-teal) 8%, var(--ws-surface)),
+    var(--ws-surface) 65%
+  );
+}
+.ws-feedback-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ws-feedback-card-head h2 { margin: 0; font-size: 1.05rem; }
+.ws-feedback-card-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ws-teal);
+  background: var(--ws-soft);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.ws-feedback-card-summary { margin: 0; font-size: 0.92rem; line-height: 1.6; }
+.ws-feedback-card-sub {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ws-muted);
+}
+.ws-feedback-card-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ws-priority;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ws-feedback-card-list li {
+  counter-increment: ws-priority;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.ws-feedback-card-list li::before {
+  content: counter(ws-priority);
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ws-teal);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.ws-feedback-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ws-line);
+  font-size: 0.85rem;
+  color: var(--ws-muted);
+}
 
 .ws-rail {
   background: var(--ws-surface);

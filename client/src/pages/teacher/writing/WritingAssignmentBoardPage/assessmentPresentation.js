@@ -14,6 +14,17 @@ export const latestForDraft = (assessments, draftId, kind) => (
   ) || null
 );
 
+export const publishedFeedbackForEmail = (assessments = []) => {
+  const drafts = new Set();
+  return assessments.filter((row) => {
+    if (row.kind !== "feedback" || row.aiStatus !== "done" || row.publish?.state !== "published") return false;
+    const draft = String(row.draft);
+    if (drafts.has(draft)) return false;
+    drafts.add(draft);
+    return true;
+  });
+};
+
 export const formFromAssessment = (assessment) => {
   if (!assessment) return null;
   const overall = assessment.overall || {};

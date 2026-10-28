@@ -5,6 +5,7 @@ import School from '../models/School.js';
 import StudentPromotionDecision from '../models/StudentPromotionDecision.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
+import { enrolledClassesAfterMove, findStaleSameGradeEnrollments, removeStaleSameGradeEnrollments } from '../helpers/classMoves.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
 import { resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
@@ -573,7 +574,13 @@ export const updateStudent = asyncHandler(async (req, res) => {
 
     // Sync enrolledClasses when currentClass is changed via update
     if (updates.currentClass) {
-        updates.$addToSet = { enrolledClasses: updates.currentClass };
+        const nextClasses = await enrolledClassesAfterMove({
+            schoolId: req.schoolId,
+            student,
+            toClass: updates.currentClass
+        });
+        if (nextClasses) updates.enrolledClasses = nextClasses;
+        else updates.$addToSet = { enrolledClasses: updates.currentClass };
     }
 
     const nextLegacyEmail = updates.email !== undefined ? updates.email : student.email;
@@ -854,6 +861,36 @@ export const getStudentsByClass = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    List class lists that still carry a class the student left; clears them when asked
+ * @route   POST /api/students/cleanup-class-lists
+ * @access  Private (Admin)
+ */
+export const cleanupClassLists = asyncHandler(async (req, res) => {
+    const apply = parseBooleanParam(req.body?.apply);
+    const rows = await findStaleSameGradeEnrollments({ schoolId: req.schoolId });
+
+    let changed = 0;
+    if (apply) {
+        for (const row of rows) {
+            const didRemove = await removeStaleSameGradeEnrollments({
+                schoolId: req.schoolId,
+                studentId: row.studentId,
+                classIds: row.stale.map((item) => item.id)
+            });
+            if (didRemove) changed += 1;
+        }
+    }
+
+    res.json({
+        success: true,
+        message: apply
+            ? `${changed} student(s) had a class removed from their class list`
+            : `${rows.length} student(s) carry a class they no longer belong to`,
+        data: { apply, count: rows.length, changed, students: rows }
+    });
+});
+
+/**
  * @desc    Bulk enroll students to a class
  * @route   POST /api/students/bulk-enroll
  * @access  Private (Admin)
@@ -940,7 +977,13 @@ export const enrollStudent = asyncHandler(async (req, res) => {
             }
         };
     }
-    updates.$addToSet = { enrolledClasses: newClass._id };
+    const nextClasses = await enrolledClassesAfterMove({
+        schoolId: req.schoolId,
+        student,
+        toClass: newClass._id
+    });
+    if (nextClasses) updates.enrolledClasses = nextClasses;
+    else updates.$addToSet = { enrolledClasses: newClass._id };
     const updated = await Student.findByIdAndUpdate(
         req.params.id,
         updates,
@@ -1175,7 +1218,13 @@ export const decideStudentPromotion = asyncHandler(async (req, res) => {
             }
         }
 
-        updates.$addToSet = { enrolledClasses: destinationClass._id };
+        const nextClasses = await enrolledClassesAfterMove({
+            schoolId: req.schoolId,
+            student,
+            toClass: destinationClass._id
+        });
+        if (nextClasses) updates.enrolledClasses = nextClasses;
+        else updates.$addToSet = { enrolledClasses: destinationClass._id };
 
         const decisionNote = String(note || '').trim();
         if (decisionNote) {
@@ -1956,6 +2005,12 @@ export const transferStudent = asyncHandler(async (req, res) => {
         });
     }
 
+    const nextClasses = await enrolledClassesAfterMove({
+        schoolId: req.schoolId,
+        student,
+        toClass: targetClass._id
+    });
+
     try {
         await ensureClassCapacity({
             schoolId: req.schoolId,
@@ -1973,6 +2028,7 @@ export const transferStudent = asyncHandler(async (req, res) => {
     const existingNotes = String(student.notes || '').trim();
     const historyEntry = appendClassHistoryEntry(student);
 
+    if (nextClasses) student.enrolledClasses = nextClasses;
     student.currentClass = targetClass._id;
     student.academicYear = targetClass.academicYear || student.academicYear;
     student.department = targetClass.department || student.department || null;

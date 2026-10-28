@@ -5,6 +5,7 @@ import {
   joinLines,
   latestForDraft,
   payloadFromForm,
+  publishedFeedbackForEmail,
   splitLines,
 } from './assessmentPresentation.js';
 
@@ -106,4 +107,18 @@ test('line helpers ignore blanks', () => {
   assert.deepEqual(splitLines(' one\n\n two \n'), ['one', 'two']);
   assert.equal(joinLines(['one', 'two']), 'one\ntwo');
   assert.equal(joinLines(undefined), '');
+});
+
+test('resend offers the newest published feedback per draft, never private reassessments or comparisons', () => {
+  const published = { kind: 'feedback', aiStatus: 'done', publish: { state: 'published' } };
+  const rows = [
+    { ...published, _id: 'private', draft: 'd2', publish: { state: 'draft' } },
+    { ...published, _id: 'comparison', draft: 'd2', kind: 'comparison' },
+    { ...published, _id: 'running', draft: 'd2', aiStatus: 'running' },
+    { ...published, _id: 'latest', draft: 'd2' },
+    { ...published, _id: 'older', draft: 'd2' },
+    { ...published, _id: 'first-draft', draft: 'd1' },
+  ];
+  assert.deepEqual(publishedFeedbackForEmail(rows).map((row) => row._id), ['latest', 'first-draft']);
+  assert.deepEqual(publishedFeedbackForEmail(), []);
 });

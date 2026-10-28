@@ -13,18 +13,35 @@ const listFrom = (payload) => {
 export function useWritingAssignmentsData() {
   const navigate = useNavigate();
 
-  const [assignments, setAssignments] = useState([]);
+  const [result, setResult] = useState({ key: "", rows: [], failed: false });
   const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [classId, setClassId] = useState("");
+  const [credit, setCredit] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [retryKey, setRetryKey] = useState(0);
+  const requestKey = JSON.stringify([classId, search, retryKey]);
+  const loading = result.key !== requestKey;
+
+  useEffect(() => {
+    let active = true;
+    writingService.getCredit()
+      .then((summary) => { if (active) setCredit(summary); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Server-backed search: one request per pause, not per keystroke.
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput.trim()), 400);
+    if (searchInput.trim() === search) return undefined;
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   useEffect(() => {
     let active = true;
@@ -40,26 +57,26 @@ export function useWritingAssignmentsData() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     writingService.listAssignments({
       classId: classId || undefined,
       search: search || undefined,
     })
       .then((rows) => {
-        if (active) setAssignments(Array.isArray(rows) ? rows : []);
+        if (active) setResult({ key: requestKey, rows: Array.isArray(rows) ? rows : [], failed: false });
       })
-      .catch((error) => {
-        if (active) {
-          toast.error(error?.response?.data?.message || "Could not load writing tasks.");
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+      .catch(() => {
+        if (active) setResult({ key: requestKey, rows: [], failed: true });
       });
     return () => { active = false; };
-  }, [classId, search]);
+  }, [classId, search, requestKey]);
 
-  const visible = useMemo(() => assignments.filter((row) => row.isActive !== false), [assignments]);
+  const visible = useMemo(
+    () => loading ? [] : result.rows.filter((row) => row.isActive !== false),
+    [loading, result.rows],
+  );
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totals = useMemo(() => visible.reduce((acc, row) => ({
     assignments: acc.assignments + 1,
@@ -82,9 +99,12 @@ export function useWritingAssignmentsData() {
   const deactivate = useCallback(async (assignmentId) => {
     try {
       await writingService.deactivateAssignment(assignmentId);
-      setAssignments((current) => current.map((row) => (
-        row._id === assignmentId ? { ...row, isActive: false } : row
-      )));
+      setResult((current) => ({
+        ...current,
+        rows: current.rows.map((row) => (
+          row._id === assignmentId ? { ...row, isActive: false } : row
+        )),
+      }));
       return true;
     } catch (error) {
       toast.error(error?.response?.data?.message || "Could not close that writing task.");
@@ -93,15 +113,24 @@ export function useWritingAssignmentsData() {
   }, []);
 
   return {
-    assignments: visible,
+    assignments: paginated,
     classes,
     classId,
+    credit,
     loading,
+    failed: !loading && result.failed,
     searchInput,
     totals,
+    page: currentPage,
+    pageSize,
+    totalItems: visible.length,
+    totalPages,
     classNameFor,
-    onSearch: setSearchInput,
-    onClass: setClassId,
+    onSearch: (value) => { setSearchInput(value); setPage(1); },
+    onClass: (value) => { setClassId(value); setPage(1); },
+    onPage: setPage,
+    onPageSize: (value) => { setPageSize(value); setPage(1); },
+    retry: () => setRetryKey((key) => key + 1),
     openAssignment: (assignmentId) => navigate(`/portal/writing/assignments/${assignmentId}`),
     editAssignment: (assignmentId) => navigate(`/portal/writing/assignments/${assignmentId}/edit`),
     newAssignment: () => navigate("/portal/writing/new"),

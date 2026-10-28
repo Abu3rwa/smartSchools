@@ -20,6 +20,8 @@ import {
     workingSectionsFor
 } from '../services/writingAssistantLogic.js';
 import {
+    buildComparisonPrompt,
+    buildFeedbackPrompt,
     decideRecommendation,
     extractJsonObject,
     normalizeComparison,
@@ -481,6 +483,96 @@ test('renderDraftForPrompt labels sections and marks empty ones', () => {
     });
     assert.match(rendered, /Introduction \(draft 1, 3 words\)/);
     assert.match(rendered, /\[empty\]/);
+});
+
+for (const language of ['en', 'ar']) {
+    for (const kind of ['feedback', 'comparison']) {
+        test(`${kind} prompt requires actionable, evidence-based spelling guidance in ${language}`, () => {
+            const snapshot = configSnapshotFor(essay());
+            snapshot.rubric = snapshot.rubric.filter((row) => row.key === 'ideas');
+            const previousDraft = {
+                number: 1,
+                sections: [{ key: 'introduction', index: 0, text: 'I like uniforms becues ih vaer.' }]
+            };
+            const currentDraft = {
+                number: 2,
+                sections: [{ key: 'introduction', index: 0, text: 'I like uniforms because ih vaer.' }]
+            };
+            const prompt = kind === 'feedback'
+                ? buildFeedbackPrompt({ snapshot, draft: previousDraft, language })
+                : buildComparisonPrompt({ snapshot, previousDraft, currentDraft, language });
+
+            assert.match(prompt, /Word-level spelling corrections are allowed/);
+            assert.match(prompt, /Check spelling even when it is not a separate rubric criterion/);
+            assert.match(prompt, /quote the exact word from the draft and give its correct spelling/);
+            assert.match(prompt, /"becues" → "because"/);
+            assert.match(prompt, /If the intended word is unclear.*ask the student to check and rewrite the word they meant.*Do not guess/);
+            assert.match(prompt, /Do not invent spelling errors or flag valid spelling variants or names/);
+            assert.match(prompt, /If no spelling errors are evident, do not add a spelling problem/);
+            assert.match(prompt, /Spelling guidance must accompany, not replace, feedback on ideas and organisation/);
+            assert.match(prompt, /Deduct marks only where the supplied rubric covers spelling/);
+            assert.match(prompt, /Keep quoted words and spelling corrections in the draft's language/);
+            assert.match(prompt, new RegExp(`Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}`));
+            assert.ok(prompt.includes(previousDraft.sections[0].text));
+            if (kind === 'feedback') {
+                assert.match(prompt, /Put spelling corrections or clarification requests in the relevant section's "improvements"/);
+            } else {
+                assert.match(prompt, /Report corrected spellings in "changedBySection"/);
+                assert.match(prompt, /Only flag spelling problems still present in the current draft/);
+                assert.match(prompt, /Do not report a corrected old misspelling as a current problem/);
+                assert.ok(prompt.includes(currentDraft.sections[0].text));
+            }
+        });
+    }
+}
+
+for (const language of ['en', 'ar']) {
+    test(`normalizeFeedback preserves spelling corrections alongside content guidance in ${language}`, () => {
+        const draft = {
+            number: 1,
+            sections: [{ key: 'introduction', index: 0, text: 'I like uniforms becues ih vaer.' }]
+        };
+        const improvements = language === 'ar'
+            ? ['أضف سببين لرأيك في الزي المدرسي.', 'صحّح "becues" إلى "because" حتى يفهم القارئ السبب.', 'راجع "ih" و"vaer" واكتب الكلمتين اللتين تقصدهما.']
+            : ['Name two reasons for your opinion on uniforms.', 'Change "becues" to "because" so the reader understands your reason.', 'Check "ih" and "vaer" and rewrite the words you meant.'];
+        const result = normalizeFeedback({
+            draft,
+            snapshot: configSnapshotFor(essay()),
+            parsed: { sections: [{ key: 'introduction', index: 0, evidence: 'becues', improvements }] }
+        });
+
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.sections[0].improvements, improvements);
+        assert.equal(result.sections[0].evidence, 'becues');
+    });
+}
+
+test('normalizeComparison preserves corrected and unresolved spellings in their existing fields', () => {
+    const previousDraft = {
+        number: 1,
+        sections: [{ key: 'introduction', index: 0, text: 'I like uniforms becues ih vaer.' }]
+    };
+    const currentDraft = {
+        number: 2,
+        sections: [{ key: 'introduction', index: 0, text: 'I like uniforms because ih vaer.' }]
+    };
+    const summary = 'You corrected "becues" to "because", making your reason easier to read.';
+    const priority = 'Check "ih" and "vaer" and rewrite the words you meant.';
+    const result = normalizeComparison({
+        previousDraft,
+        currentDraft,
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            changedBySection: [{ key: 'introduction', index: 0, summary, meaningful: true }],
+            newIssues: [],
+            overall: { nextPriorities: [priority] }
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.changedBySection[0].summary, summary);
+    assert.deepEqual(result.overall.nextPriorities, [priority]);
+    assert.deepEqual(result.newIssues, []);
 });
 
 test('normalizeFeedback keeps real evidence and drops invented quotes', () => {

@@ -2,15 +2,35 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import api from '../../config/api';
 import { logout } from './authSlice';
 
+const RETRY_DELAYS_MS = [1200, 4000];
+
+const sleep = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+});
+
+// Only failures that can heal on their own are retried. Auth and validation
+// errors would fail again on the next attempt.
+const isRetryable = (error) => {
+    if (error?.code === 'ERR_CANCELED' || error?.code === 'ECONNABORTED') return false;
+    if (!error?.response) return true;
+    return error.response.status >= 500;
+};
+
 export const fetchSchoolFeatures = createAsyncThunk(
     'schoolFeatures/fetchSchoolFeatures',
     async (_, { rejectWithValue }) => {
-        try {
-            const response = await api.get('/schools/me/features');
-            return response.data.data;
-        } catch (error) {
-            return rejectWithValue(error.response?.data?.message || 'Failed to fetch school features');
+        let lastError = null;
+        for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+            try {
+                const response = await api.get('/schools/me/features', { skipErrorToast: true });
+                return response.data.data;
+            } catch (error) {
+                lastError = error;
+                if (!isRetryable(error) || attempt === RETRY_DELAYS_MS.length) break;
+                await sleep(RETRY_DELAYS_MS[attempt]);
+            }
         }
+        return rejectWithValue(lastError?.response?.data?.message || 'Failed to fetch school features');
     }
 );
 

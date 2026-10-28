@@ -53,6 +53,9 @@ const writingAssessmentSchema = new mongoose.Schema(
     draft: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingDraft', required: true },
     previousDraft: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingDraft' },
     kind: { type: String, enum: ['feedback', 'comparison'], default: 'feedback' },
+    // The language the feedback text itself was written in. A family email must
+    // not dress English sentences in Arabic chrome, so it follows this.
+    language: { type: String, enum: ['en', 'ar'], default: 'en' },
     aiStatus: {
       type: String,
       enum: ['pending', 'running', 'done', 'failed'],
