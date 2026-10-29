@@ -553,6 +553,30 @@ test('credit history preserves old uncharged entries and exposes model, cached t
     assert.equal(history.rows[2].markupPercent, 50);
 });
 
+test('credit history clamps pageSize and pages against it', async (context) => {
+    const calls = [];
+    const recordingQuery = {
+        sort: () => recordingQuery,
+        skip: (value) => { calls.push(['skip', value]); return recordingQuery; },
+        limit: (value) => { calls.push(['limit', value]); return recordingQuery; },
+        lean: async () => []
+    };
+    context.mock.method(AiCreditEntry, 'find', () => recordingQuery);
+    context.mock.method(AiCreditEntry, 'countDocuments', async () => 120);
+
+    const big = await listCreditHistory({ schoolId, userId, page: 3, pageSize: 10000 });
+    assert.deepEqual(calls, [['skip', 50], ['limit', 25]], 'invalid pageSize falls back to 25');
+    assert.equal(big.pageSize, 25);
+    assert.equal(big.pages, 5);
+
+    calls.length = 0;
+    const sized = await listCreditHistory({ schoolId, userId, page: 2, pageSize: 50 });
+    assert.deepEqual(calls, [['skip', 50], ['limit', 50]]);
+    assert.equal(sized.pageSize, 50);
+    assert.equal(sized.pages, 3);
+    assert.equal(sized.total, 120);
+});
+
 test('platform overview reports markup, provider cost, charged price and profit', async (context) => {
     markupSetting = { markupPercent: 100 };
     const query = chain([{

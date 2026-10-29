@@ -42,7 +42,8 @@ export default function MyCreditPage() {
   }, [refreshKey, t]);
 
   const loadHistory = useCallback(
-    (page, type) => aiCreditService.getHistory({ page, type: type || undefined }),
+    (page, type, pageSize) =>
+      aiCreditService.getHistory({ page, type: type || undefined, pageSize }),
     [],
   );
 

@@ -126,7 +126,8 @@
       "apiAccess": "الوصول إلى API",
       "prioritySupport": "دعم ذو أولوية",
       "customBranding": "هوية مرئية مخصصة",
-      "liveSessionBilling": "فوترة الجلسات المباشرة"
+      "liveSessionBilling": "فوترة الجلسات المباشرة",
+      "spellingAnalysis": "تحليل الإملاء"
     }
   },
   "modal": {

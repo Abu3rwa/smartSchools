@@ -14,7 +14,8 @@ export const getMyCreditHistory = asyncHandler(async (req, res) => {
         schoolId: req.schoolId,
         userId: req.user._id,
         page: req.query.page,
-        type: req.query.type
+        type: req.query.type,
+        pageSize: req.query.pageSize
     });
     res.json({ success: true, data: history });
 });
@@ -55,7 +56,8 @@ export const getTeacherCreditHistory = asyncHandler(async (req, res) => {
         schoolId: req.schoolId,
         userId: req.params.userId,
         page: req.query.page,
-        type: req.query.type
+        type: req.query.type,
+        pageSize: req.query.pageSize
     });
     res.json({ success: true, data: history });
 });

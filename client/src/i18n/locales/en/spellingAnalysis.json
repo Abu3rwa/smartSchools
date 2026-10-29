@@ -1,0 +1,146 @@
+{
+  "title": "Spelling analysis",
+  "subtitle": "AI-assisted spelling diagnostics for one student, grade-level rankings, class comparisons and family support drafts.",
+  "period": {
+    "label": "Period",
+    "allTime": "All time"
+  },
+  "grade": {
+    "label": "Grade",
+    "empty": "No grades with spelling data"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "view": "View",
+    "analyze": "Analyze",
+    "rerun": "Analyze again",
+    "runMissing": "Run pending ({{value}})",
+    "close": "Close",
+    "cancel": "Cancel"
+  },
+  "common": {
+    "dash": "—"
+  },
+  "run": {
+    "creditNote": "One student analysis = one AI credit request",
+    "cached": "Nothing changed — the saved analysis was reused",
+    "nothingToRun": "No students are waiting for an analysis",
+    "progress": "{{done}} of {{total}}",
+    "running": "Working…"
+  },
+  "students": {
+    "title": "Analyze students",
+    "hint": "Rates are computed from the recorded sessions; the AI only classifies misspellings and writes the explanation.",
+    "empty": "No completed spelling sessions for this grade in the selected period.",
+    "columns": {
+      "student": "Student",
+      "class": "Class",
+      "words": "Words",
+      "status": "Status",
+      "actions": "Actions"
+    }
+  },
+  "status": {
+    "not-analyzed": "Not analyzed",
+    "ready": "Ready",
+    "stale": "Needs refresh",
+    "failed": "Failed"
+  },
+  "ranking": {
+    "title": "Grade ranking",
+    "hint": "A student is ranked at {{value}} answered words or more. Ranking stays inside one grade.",
+    "empty": "No saved analysis yet.",
+    "top": "Top 10",
+    "bottom": "Bottom 10",
+    "unranked": "Below minimum words: {{value}}",
+    "accuracy": "{{value}}% accuracy",
+    "recovery": "{{value}}% recovery"
+  },
+  "classes": {
+    "title": "Class comparison",
+    "hint": "Results are grouped by class and academic year only; sessions without a class are left out.",
+    "empty": "No results are tied to a class yet.",
+    "columns": {
+      "class": "Class",
+      "year": "Academic year",
+      "students": "Students",
+      "accuracy": "Accuracy",
+      "recovery": "Recovery"
+    }
+  },
+  "grades": {
+    "title": "School overview",
+    "recovery": "{{value}}% recovery"
+  },
+  "narrative": {
+    "action": "Explain this comparison",
+    "loading": "Writing…"
+  },
+  "analysis": {
+    "title": "Student analysis",
+    "notAnalyzed": "This student has not been analyzed for the selected period.",
+    "failed": "The analysis failed. The numbers were saved, so you can try again.",
+    "accuracy": "Accuracy",
+    "recovery": "Recovery",
+    "flagged": "Flagged words",
+    "resolved": "Resolved",
+    "practiceMastered": "Mastered in practice",
+    "overdue": "Overdue",
+    "recurrence": "Words missed again",
+    "avgDays": "Avg. days to recovery",
+    "monthsChart": "Accuracy and recovery by month",
+    "errorTypes": "Misspelling types",
+    "categories": "Weakest categories",
+    "strengths": "Strengths",
+    "gaps": "Gaps",
+    "recommendation": "Recommendation for the class",
+    "columns": {
+      "category": "Category",
+      "words": "Words",
+      "misses": "Misses",
+      "accuracy": "Accuracy"
+    }
+  },
+  "errorTypes": {
+    "omission": "Missing letter",
+    "insertion": "Extra letter",
+    "substitution": "Wrong letter",
+    "transposition": "Swapped letters",
+    "phonetic": "Phonetic spelling",
+    "vowel": "Vowel confusion",
+    "silent-letter": "Silent letter",
+    "doubling": "Doubled letter",
+    "ending": "Word ending",
+    "homophone": "Sound-alike word",
+    "other": "Other"
+  },
+  "draft": {
+    "title": "Parent support draft",
+    "hint": "Never sent automatically. An admin or the student's teacher reviews it and presses send.",
+    "language": "Language",
+    "langEn": "English",
+    "langAr": "Arabic",
+    "noParents": "No parent email addresses are on file for this student.",
+    "generate": "Draft the email",
+    "generating": "Writing…",
+    "regenerate": "Draft again",
+    "subject": "Subject",
+    "body": "Message",
+    "recipients": "Parents on file: {{value}}",
+    "sentOn": "Sent {{date}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "send": "Send to parents",
+    "sending": "Sending…",
+    "confirmSend": "Confirm send",
+    "sentToast": "Email sent",
+    "saved": "Draft saved"
+  },
+  "errors": {
+    "load": "Could not load the analysis.",
+    "run": "The analysis could not be completed.",
+    "explain": "The comparison could not be written.",
+    "draft": "The draft could not be created.",
+    "send": "The email could not be sent."
+  }
+}

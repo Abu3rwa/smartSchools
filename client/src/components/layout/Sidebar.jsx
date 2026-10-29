@@ -687,6 +687,14 @@ const Sidebar = () => {
       section: "admin",
     },
     {
+      path: "/portal/spelling-analysis",
+      icon: HiOutlineSparkles,
+      labelKey: "spellingAnalysis",
+      roles: ["admin"],
+      feature: "spellingAnalysis",
+      section: "assessment",
+    },
+    {
       path: "/portal/school-settings",
       icon: HiOutlineBuildingOffice,
       labelKey: "schoolSettings",

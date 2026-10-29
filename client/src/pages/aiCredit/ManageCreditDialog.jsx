@@ -39,7 +39,8 @@ export default function ManageCreditDialog({ teacher, reserveCents = 0, onClose,
   }, [onClose]);
 
   const loadHistory = useCallback(
-    (page, type) => aiCreditService.getAccountHistory(userId, { page, type: type || undefined }),
+    (page, type, pageSize) =>
+      aiCreditService.getAccountHistory(userId, { page, type: type || undefined, pageSize }),
     [userId],
   );
 

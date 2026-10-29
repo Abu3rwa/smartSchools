@@ -106,7 +106,9 @@
     "loadFailed": "تعذّر تحميل السجل.",
     "previous": "السابق",
     "next": "التالي",
-    "page": "صفحة {{page}} من {{pages}}"
+    "page": "صفحة {{page}} من {{pages}}",
+    "showing": "عرض {{from}}–{{to}} من {{total}}",
+    "rowsPerPage": "صفوف لكل صفحة"
   },
   "admin": {
     "eyebrow": "الإدارة",

@@ -21,6 +21,7 @@ const STAFF_ROLES = ['teacher', 'admin'];
 // Standard gpt-5.4-mini rates verified at https://developers.openai.com/api/docs/pricing on 2026-10-28.
 const MINI_RATES = OPENAI_MINI_RATES;
 const HISTORY_PAGE_SIZE = 25;
+const HISTORY_PAGE_SIZES = [10, 25, 50, 100];
 const MARKUP_KEY = 'default';
 
 const objectId = (value) => (mongoose.isValidObjectId(value) ? new mongoose.Types.ObjectId(String(value)) : null);
@@ -541,16 +542,18 @@ export const getCreditBadge = async ({ schoolId, userId }) => {
     };
 };
 
-export const listCreditHistory = async ({ schoolId, userId, page = 1, type = '' }) => {
+export const listCreditHistory = async ({ schoolId, userId, page = 1, type = '', pageSize }) => {
     const filter = { school: schoolId, user: objectId(userId) };
     if (['usage', 'grant', 'adjustment', 'allocation', 'reclaim'].includes(type)) filter.type = type;
     const requestedPage = Number(page);
     const current = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const requestedSize = Number(pageSize);
+    const size = HISTORY_PAGE_SIZES.includes(requestedSize) ? requestedSize : HISTORY_PAGE_SIZE;
     const [rows, total] = await Promise.all([
         AiCreditEntry.find(filter)
             .sort({ createdAt: -1 })
-            .skip((current - 1) * HISTORY_PAGE_SIZE)
-            .limit(HISTORY_PAGE_SIZE)
+            .skip((current - 1) * size)
+            .limit(size)
             .lean(),
         AiCreditEntry.countDocuments(filter)
     ]);
@@ -558,8 +561,8 @@ export const listCreditHistory = async ({ schoolId, userId, page = 1, type = '' 
         rows: rows.map(shapeEntry),
         total,
         page: current,
-        pages: Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE)),
-        pageSize: HISTORY_PAGE_SIZE
+        pages: Math.max(1, Math.ceil(total / size)),
+        pageSize: size
     };
 };
 

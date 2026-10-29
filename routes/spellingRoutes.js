@@ -56,8 +56,20 @@ import {
 } from '../controllers/wordAudioController.js';
 import { approvePassage, cancelPassageSend, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
 import { updateStudentSpellingPlacement } from '../controllers/spellingStudentController.js';
+import {
+    createParentDraft,
+    explainCohort,
+    getCohort,
+    getStudentAnalysis,
+    listAnalysisStudents,
+    runStudentAnalysis,
+    sendParentDraft,
+    updateParentDraft
+} from '../controllers/spellingAnalysisController.js';
+import { requireFeature } from '../middleware/featureGate.js';
 
 const router = express.Router();
+const requireSpellingAnalysis = requireFeature('spellingAnalysis');
 const wordAudioImportUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024, files: 1 },
@@ -124,5 +136,15 @@ router.use('/reports', authorize('admin', 'department_principal', 'teacher'));
 router.get('/reports/student/:studentId/docx', studentSpellingDocx);
 router.get('/reports/class/:classId/docx', classSpellingDocx);
 router.get('/dashboard', authorize('admin', 'department_principal', 'teacher'), spellingDashboard);
+
+// Spelling Analysis — platform-enabled, admin-run, metered per student.
+router.get('/analysis/students', authorize('admin'), requireSpellingAnalysis, listAnalysisStudents);
+router.get('/analysis/students/:studentId', authorize('admin'), requireSpellingAnalysis, getStudentAnalysis);
+router.post('/analysis/students/:studentId/run', authorize('admin'), requireSpellingAnalysis, express.json(), runStudentAnalysis);
+router.get('/analysis/cohort', authorize('admin'), requireSpellingAnalysis, getCohort);
+router.post('/analysis/cohort/narrative', authorize('admin'), requireSpellingAnalysis, express.json(), explainCohort);
+router.post('/analysis/students/:studentId/parent-draft', authorize('admin'), requireSpellingAnalysis, express.json(), createParentDraft);
+router.patch('/analysis/parent-drafts/:draftId', authorize('admin'), requireSpellingAnalysis, express.json(), updateParentDraft);
+router.post('/analysis/parent-drafts/:draftId/send', authorize('admin', 'teacher'), requireSpellingAnalysis, express.json(), sendParentDraft);
 
 export default router;

@@ -126,7 +126,8 @@
       "apiAccess": "API Access",
       "prioritySupport": "Priority Support",
       "customBranding": "Custom Branding",
-      "liveSessionBilling": "Live Session Billing"
+      "liveSessionBilling": "Live Session Billing",
+      "spellingAnalysis": "Spelling Analysis"
     }
   },
   "modal": {

@@ -147,13 +147,50 @@
 .wa-credit-table .is-debit { color: var(--wa-ink); }
 .wa-credit-table .is-credit { color: var(--wa-green, #15803d); font-weight: 600; }
 
+.wa-credit-table-card { max-height: min(62vh, 620px); }
+.wa-credit-table-card.is-loading { opacity: 0.6; }
+.wa-credit-table { min-width: 760px; }
+.wa-credit-table thead th { z-index: 1; }
+.wa-credit-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--wa-surface-2) 60%, transparent); }
+.wa-credit-table tbody tr:hover { background: var(--wa-soft); }
+.wa-credit-table .wa-cell-number { white-space: nowrap; }
+.wa-credit-what { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.wa-credit-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wa-credit-badges .wa-credit-kind,
+.wa-credit-badges .wa-credit-flag { margin-inline-end: 0; }
+.wa-credit-what .wa-credit-details { margin-top: 0; }
+.wa-credit-model {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--wa-muted);
+}
+
 .wa-credit-pager {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wa-line);
   font-size: 0.82rem;
   color: var(--wa-muted);
+}
+.wa-credit-pager-count { font-variant-numeric: tabular-nums; }
+.wa-credit-pager-size { display: inline-flex; align-items: center; gap: 6px; }
+.wa-credit-pager-size select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--wa-line);
+  border-radius: 8px;
+  background: var(--wa-surface);
+  color: var(--wa-ink);
+}
+.wa-credit-pager-nav { display: inline-flex; align-items: center; gap: 8px; }
+.wa-credit-pager-page { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .wa-credit-pager { justify-content: center; }
 }
 
 .wa-credit-waiting { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }

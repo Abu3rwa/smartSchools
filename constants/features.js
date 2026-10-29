@@ -181,6 +181,12 @@ export const FEATURES = {
         label: 'Live Session Billing',
         description: 'Charge live lesson time by the minute against a per-student balance. Enabled per school by the platform team.',
         plans: []
+    },
+    spellingAnalysis: {
+        key: 'spellingAnalysis',
+        label: 'Spelling Analysis',
+        description: 'AI spelling diagnostics, grade-level rankings and parent-support drafts. Enabled per school by the platform team; every run is metered against AI credit.',
+        plans: []
     }
 };
 
