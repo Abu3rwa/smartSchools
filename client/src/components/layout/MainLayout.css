@@ -77,6 +77,15 @@
     /* max-width: var(--content-max-width); */
     margin: 0 auto;
     width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* The banner is an in-flow child of .page-content; keep it on its own row
+   above the page instead of beside it. */
+.page-content > .subscription-expired-banner {
+    flex: 0 0 100%;
 }
 
 /* Mobile: MUI handles drawer, so no margin needed */
