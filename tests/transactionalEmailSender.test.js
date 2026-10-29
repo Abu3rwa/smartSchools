@@ -5,15 +5,53 @@ import gmailOAuthService from '../services/gmailOAuthService.js';
 import notificationService from '../services/notificationService.js';
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 
-test('an explicit Gmail sender never falls back to an admin or SMTP', async () => {
+const reauthError = () => Object.assign(
+    new Error('Google authorization is required'),
+    { code: 'GMAIL_REAUTH_REQUIRED', statusCode: 401 }
+);
+
+test('an explicit sender that cannot send falls back to the school Gmail', async () => {
+    const originalSendEmail = gmailOAuthService.sendEmail;
+    const originalHasValidTokens = gmailOAuthService.hasValidTokens;
+    const originalFind = User.find;
+    const senderIds = [];
+    gmailOAuthService.sendEmail = async (senderId) => {
+        senderIds.push(senderId);
+        if (senderId === 'teacher-id') throw reauthError();
+        return { messageId: 'admin-message', threadId: 'admin-thread' };
+    };
+    gmailOAuthService.hasValidTokens = async () => true;
+    User.find = () => ({
+        select: () => ({
+            setOptions: () => ({ lean: async () => [{ _id: 'admin-id' }] })
+        })
+    });
+
+    try {
+        const result = await sendTransactionalEmail({
+            to: 'student@example.test',
+            subject: 'Practice task',
+            text: 'A practice task is ready.',
+            schoolId: 'school-id',
+            preferredUserId: 'teacher-id',
+            allowAdminFallback: true,
+            allowSmtp: true
+        });
+        assert.equal(result.channel, 'admin_gmail_fallback');
+        assert.deepEqual(senderIds, ['teacher-id', 'admin-id']);
+    } finally {
+        gmailOAuthService.sendEmail = originalSendEmail;
+        gmailOAuthService.hasValidTokens = originalHasValidTokens;
+        User.find = originalFind;
+    }
+});
+
+test('a caller that forbids alternates still reports the sender failure', async () => {
     const originalSendEmail = gmailOAuthService.sendEmail;
     const senderIds = [];
     gmailOAuthService.sendEmail = async (senderId) => {
         senderIds.push(senderId);
-        const error = new Error('Google authorization is required');
-        error.code = 'GMAIL_REAUTH_REQUIRED';
-        error.statusCode = 401;
-        throw error;
+        throw reauthError();
     };
 
     try {
@@ -24,8 +62,8 @@ test('an explicit Gmail sender never falls back to an admin or SMTP', async () =
                 text: 'A practice task is ready.',
                 schoolId: 'school-id',
                 preferredUserId: 'teacher-id',
-                allowAdminFallback: true,
-                allowSmtp: true
+                allowAdminFallback: false,
+                allowSmtp: false
             }),
             (error) => error.code === 'GMAIL_REAUTH_REQUIRED'
         );

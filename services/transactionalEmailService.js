@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import gmailOAuthService from './gmailOAuthService.js';
 import { getPlatformBranding } from './platformBrandingService.js';
+import logger from '../utils/logger.js';
 
 const normalizeRecipientList = (value) => {
     if (Array.isArray(value)) {
@@ -58,7 +59,10 @@ export const sendTransactionalEmail = async ({
     // Omitted rather than blanked, so a sender never receives an empty Cc header.
     if (ccEmail) mailOptions.cc = ccEmail;
 
-    // An explicit sender is authoritative: never send their mail through an admin or SMTP account.
+    // An explicit sender goes first: their own mailbox, then the school's
+    // connected Gmail, then SMTP. Callers that forbid alternates keep passing
+    // allowAdminFallback/allowSmtp false.
+    let preferredError = null;
     if (preferredUserId) {
         const senderId = preferredUserId.toString();
         try {
@@ -70,7 +74,12 @@ export const sendTransactionalEmail = async ({
             };
         } catch (error) {
             if (!error.code) error.code = 'GMAIL_SEND_FAILED';
-            throw error;
+            preferredError = error;
+            logger.warn('preferred_sender_gmail_failed', {
+                userId: senderId,
+                code: error.code,
+                message: error?.message
+            });
         }
     }
 
@@ -106,6 +115,7 @@ export const sendTransactionalEmail = async ({
     // SMTP is retained for legacy transactional callers, but individual features
     // can disable it when delivery must use an approved OAuth sender.
     if (!allowSmtp) {
+        if (preferredError) throw preferredError;
         const error = new Error(preferredUserId
             ? 'The connected Google account could not send this email. No alternate sender was used.'
             : 'A Google account must be connected before this email can be sent.');
@@ -126,6 +136,7 @@ export const sendTransactionalEmail = async ({
         return { channel: 'smtp_fallback' };
     }
 
+    if (preferredError) throw preferredError;
     throw new Error('No configured email transport available');
 };
 

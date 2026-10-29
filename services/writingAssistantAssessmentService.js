@@ -921,6 +921,7 @@ export const publishAssessment = async ({
             const draft = await WritingDraft.findOne({ school: schoolId, _id: assessment.draft }).lean();
             await notifyFeedbackPublished({
                 schoolId,
+                userId,
                 project: project.toObject(),
                 assignment,
                 draft,

@@ -938,14 +938,9 @@ export const googleCallback = asyncHandler(async (req, res) => {
             await user.save();
         }
 
-        // Step 7: Store Gmail tokens on the user (encrypted at rest)
-        user.gmailTokens = {
-            email: googleUser.email,
-            accessToken: encryptSecret(tokens.access_token),
-            refreshToken: encryptSecret(tokens.refresh_token),
-            expiryDate: new Date(tokens.expiry_date),
-            isActive: true
-        };
+        // Step 7: Store Gmail tokens on the user (encrypted at rest). The model
+        // helper keeps the previous refresh token when Google omits a new one.
+        await user.updateGmailTokens(tokens, googleUser.email);
         user.mustChangePassword = false;
         user.lastLogin = new Date();
         await user.save();

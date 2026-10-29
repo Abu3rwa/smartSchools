@@ -592,12 +592,17 @@ const prepareFeedbackDelivery = async ({
   return messages.length ? { messages, missing } : { skipped: "empty" };
 };
 
-const sendFeedbackDelivery = async ({ messages, missing }, schoolId) => {
+const sendFeedbackDelivery = async ({ messages, missing }, schoolId, senderUserId = null) => {
   const results = [];
   for (const { recipients, message } of messages) {
     for (const email of recipients) {
       try {
-        await sendTransactionalEmail({ to: email, ...message, schoolId });
+        await sendTransactionalEmail({
+          to: email,
+          ...message,
+          schoolId,
+          preferredUserId: senderUserId,
+        });
         results.push({ email, status: "sent" });
       } catch (error) {
         logger.warn("writing_feedback_email_failed", {
@@ -615,7 +620,7 @@ export const notifyFeedbackPublished = async (context) => {
   try {
     const prepared = await prepareFeedbackDelivery(context);
     if (prepared.skipped) return prepared;
-    return await sendFeedbackDelivery(prepared, context.schoolId);
+    return await sendFeedbackDelivery(prepared, context.schoolId, context.userId);
   } catch (error) {
     logger.error("writing_feedback_email_error", { error: error?.message });
     return { skipped: "error" };
@@ -765,6 +770,7 @@ export const resendPublishedFeedbackEmail = async (context) => {
   const { results, missing } = await sendFeedbackDelivery(
     prepared,
     context.schoolId,
+    context.userId,
   );
   return {
     sent: results.filter((row) => row.status === "sent").length,
