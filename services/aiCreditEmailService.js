@@ -19,16 +19,16 @@ export const formatUsd = (cents) => `$${(Math.max(0, Number(cents) || 0) / 100).
 const COPY = {
     en: {
         low: {
-            subject: 'Your AI writing credit is running low',
+            subject: 'Your AI credit is running low',
             headline: 'Your AI credit is running low',
-            intro: 'You have used most of the credit for AI writing feedback. It keeps working until the balance reaches zero.',
-            next: 'To keep giving AI feedback without a break, ask for more credit now. Your school admin reviews each request.'
+            intro: 'You have used most of your AI credit. AI features keep working until the balance reaches zero.',
+            next: 'To keep using AI without a break, ask for more credit now. Your school admin reviews each request.'
         },
         empty: {
-            subject: 'Your AI writing credit has run out',
+            subject: 'Your AI credit has run out',
             headline: 'Your AI credit has run out',
-            intro: 'Your credit for AI writing feedback is used up, so the Assess and Compare buttons are paused for now.',
-            next: 'Ask for more credit and the buttons start working again as soon as your school admin approves it. You can still review, edit and publish feedback you already have.'
+            intro: 'Your AI credit is used up, so AI features are paused for now.',
+            next: 'Ask for more credit and AI starts working again as soon as your school admin approves it. Everything that does not use AI keeps working.'
         },
         greeting: 'Hi {name},',
         greetingNoName: 'Hello,',
@@ -40,16 +40,16 @@ const COPY = {
     },
     ar: {
         low: {
-            subject: 'رصيد الذكاء الاصطناعي للكتابة يوشك على النفاد',
+            subject: 'رصيد الذكاء الاصطناعي يوشك على النفاد',
             headline: 'رصيدك يوشك على النفاد',
-            intro: 'لقد استخدمت معظم رصيد ملاحظات الكتابة بالذكاء الاصطناعي. يستمر العمل حتى يصل الرصيد إلى الصفر.',
-            next: 'لتواصل تقديم الملاحظات دون انقطاع، اطلب رصيدًا إضافيًا الآن. يراجع مسؤول المدرسة كل طلب.'
+            intro: 'لقد استخدمت معظم رصيد الذكاء الاصطناعي. تستمر ميزات الذكاء الاصطناعي بالعمل حتى يصل الرصيد إلى الصفر.',
+            next: 'لتواصل استخدام الذكاء الاصطناعي دون انقطاع، اطلب رصيدًا إضافيًا الآن. يراجع مسؤول المدرسة كل طلب.'
         },
         empty: {
-            subject: 'نفد رصيد الذكاء الاصطناعي للكتابة',
+            subject: 'نفد رصيد الذكاء الاصطناعي',
             headline: 'نفد رصيدك',
-            intro: 'نفد رصيد ملاحظات الكتابة بالذكاء الاصطناعي، لذلك توقفت أزرار التقييم والمقارنة مؤقتًا.',
-            next: 'اطلب رصيدًا إضافيًا وستعود الأزرار للعمل فور موافقة مسؤول المدرسة. ما زال بإمكانك مراجعة الملاحظات الموجودة وتعديلها ونشرها.'
+            intro: 'نفد رصيد الذكاء الاصطناعي، لذلك توقفت ميزات الذكاء الاصطناعي مؤقتًا.',
+            next: 'اطلب رصيدًا إضافيًا وستعود ميزات الذكاء الاصطناعي للعمل فور موافقة مسؤول المدرسة. كل ما لا يعتمد على الذكاء الاصطناعي يستمر بالعمل.'
         },
         greeting: 'مرحبًا {name}،',
         greetingNoName: 'مرحبًا،',
@@ -150,7 +150,7 @@ export const notifyCreditAlert = async ({
             schoolName: school?.name,
             balanceCents,
             lowBalanceCents,
-            url: base ? `${base}/portal/writing/credit` : ''
+            url: base ? `${base}/portal/ai-credit/me` : ''
         });
 
         await sendTransactionalEmail({

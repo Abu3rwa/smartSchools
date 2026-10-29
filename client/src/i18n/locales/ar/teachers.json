@@ -10,12 +10,22 @@
     "planFull": "تم الوصول إلى الحد الأقصى للمعلمين في خطتك الحالية."
   },
   "filters": {
-    "searchPlaceholder": "ابحث عن المعلمين..."
+    "searchPlaceholder": "ابحث عن المعلمين...",
+    "clearSearch": "مسح البحث",
+    "status": {
+      "active": "نشط",
+      "inactive": "موقوف",
+      "all": "الكل"
+    }
   },
   "table": {
     "selectAll": "تحديد كل المعلمين",
     "selectTeacher": "تحديد المعلم",
     "noSubjects": "لا توجد مواد",
+    "totalCount": "الإجمالي: {{value}}",
+    "status": {
+      "deactivated": "موقوف"
+    },
     "columns": {
       "name": "الاسم",
       "email": "البريد الإلكتروني",
@@ -82,7 +92,7 @@
     "classTeacherBadge": "معلم الفصل"
   },
   "confirm": {
-    "deleteTeacher": "هل أنت متأكد من حذف {{name}}؟",
+    "deleteTeacher": "سيؤدي هذا إلى حذف {{name}} وحذف حساب الدخول نهائيًا. يعود رصيد الذكاء الاصطناعي غير المستخدم إلى احتياطي المدرسة. لا يمكن التراجع عن هذا الإجراء.",
     "removeAssignment": "هل أنت متأكد من إزالة توزيع هذا الفصل؟"
   },
   "invite": {

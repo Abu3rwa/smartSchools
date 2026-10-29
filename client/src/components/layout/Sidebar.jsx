@@ -684,7 +684,6 @@ const Sidebar = () => {
       icon: HiOutlineCreditCard,
       labelKey: "aiCreditDashboard",
       roles: ["admin"],
-      feature: "writingAssistant",
       section: "admin",
     },
     {

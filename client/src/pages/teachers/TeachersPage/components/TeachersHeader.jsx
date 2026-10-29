@@ -16,53 +16,67 @@ const TeachersHeader = ({
 }) => {
     const { t } = useTranslation(['teachers']);
 
+    const templateNote = templateMeta
+        ? (templateMeta.hasActiveTemplate
+            ? `Sample template ${templateMeta.activeTemplate?.version || 'v1'} updated ${templateMeta.activeTemplate?.updatedAt ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
+            : 'Sample template uses fallback from import schema')
+        : null;
+
     return (
-        <div className="page-header">
-            <div>
-                <h1>{t('teachers:page.title')}</h1>
-                <p className="text-muted">{t('teachers:page.subtitle')}</p>
-                {templateMeta && (
-                    <p className="text-muted" style={{ marginTop: 6, fontSize: '0.82rem' }}>
-                        {templateMeta.hasActiveTemplate
-                            ? `Sample template ${templateMeta.activeTemplate?.version || 'v1'} updated ${templateMeta.activeTemplate?.updatedAt ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
-                            : 'Sample template uses fallback from import schema'}
-                    </p>
+        <div className="teachers-header">
+            <div className="teachers-header-main">
+                <h1 className="teachers-header-title">{t('teachers:page.title')}</h1>
+                <p className="teachers-header-subtitle">{t('teachers:page.subtitle')}</p>
+                {templateNote && (
+                    <p className="teachers-header-context">{templateNote}</p>
                 )}
             </div>
             {canManageTeachers && (
-                <div className="header-actions">
+                <div className="teachers-header-actions">
                     <button
-                        className="btn btn-outline"
-                        onClick={onBulkSendInvites}
-                        disabled={selectedCount === 0 || bulkInviteLoading}
-                        title={selectedCount === 0 ? t('teachers:actions.selectTeachersFirst') : ''}
+                        type="button"
+                        className="teachers-action teachers-action--secondary"
+                        onClick={onDownloadTemplate}
                     >
-                        <HiOutlineMail size={20} />
-                        {bulkInviteLoading
-                            ? t('teachers:actions.sendingInvites')
-                            : t('teachers:actions.sendInvitesForSelected', { count: selectedCount })}
+                        <HiOutlineDownload size={18} />
+                        <span>Download Sample CSV</span>
                     </button>
                     <button
-                        className="btn btn-outline"
+                        type="button"
+                        className="teachers-action teachers-action--secondary"
                         onClick={onImportTeachers}
                         disabled={importDisabled}
                         title={importDisabled ? capacityTitle : ''}
                     >
-                        <HiOutlineUpload size={20} />
-                        {t('teachers:actions.importCsv')}
-                    </button>
-                    <button className="btn btn-outline" onClick={onDownloadTemplate}>
-                        <HiOutlineDownload size={20} />
-                        Download Sample CSV
+                        <HiOutlineUpload size={18} />
+                        <span>{t('teachers:actions.importCsv')}</span>
                     </button>
                     <button
-                        className="btn btn-primary"
+                        type="button"
+                        className="teachers-action teachers-action--secondary"
+                        onClick={onBulkSendInvites}
+                        disabled={selectedCount === 0 || bulkInviteLoading}
+                        title={selectedCount === 0 ? t('teachers:actions.selectTeachersFirst') : ''}
+                    >
+                        <HiOutlineMail size={18} />
+                        <span>
+                            {bulkInviteLoading
+                                ? t('teachers:actions.sendingInvites')
+                                : t('teachers:actions.sendInvitesForSelected', { count: selectedCount })}
+                        </span>
+                        {selectedCount > 0 && !bulkInviteLoading && (
+                            <span className="teachers-action-count">{selectedCount}</span>
+                        )}
+                    </button>
+                    <button
+                        type="button"
+                        className="teachers-action teachers-action--primary"
                         onClick={onCreateTeacher}
                         disabled={createDisabled}
                         title={createDisabled ? capacityTitle : ''}
                     >
-                        <HiOutlinePlus size={20} />
-                        {t('teachers:actions.addTeacher')}
+                        <HiOutlinePlus size={18} />
+                        <span>{t('teachers:actions.addTeacher')}</span>
                     </button>
                 </div>
             )}

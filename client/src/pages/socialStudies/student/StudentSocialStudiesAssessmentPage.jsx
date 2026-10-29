@@ -204,7 +204,7 @@ export default function StudentSocialStudiesAssessmentPage() {
                             {q.questionType === 'short_answer' && (
                                 <div style={{ paddingLeft: 42 }}>
                                     <textarea
-                                        style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }}
+                                        style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'vertical', minHeight: 120, boxSizing: 'border-box' }}
                                         value={selected || ''}
                                         onChange={e => handleAnswer(qId, e.target.value)}
                                         placeholder="Type your answer here…"

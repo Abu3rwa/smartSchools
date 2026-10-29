@@ -9,6 +9,8 @@ import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+import { withTransaction } from '../utils/withTransaction.js';
+import { returnCreditOnTeacherDeletion } from '../services/aiCreditService.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 import {
     deliverLoginInvite,
@@ -529,12 +531,12 @@ export const updateTeacher = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Delete teacher
+ * @desc    Delete teacher permanently; unspent AI credit returns to the school reserve
  * @route   DELETE /api/teachers/:id
  * @access  Private (Admin)
  */
 export const deleteTeacher = asyncHandler(async (req, res) => {
-    const teacher = await Teacher.findOne({ _id: req.params.id, isActive: true });
+    const teacher = await Teacher.findOne({ _id: req.params.id });
 
     if (!teacher) {
         return res.status(404).json({
@@ -551,31 +553,43 @@ export const deleteTeacher = asyncHandler(async (req, res) => {
         });
     }
 
-    await Promise.all([
-        Teacher.updateOne(
-            { _id: teacher._id },
-            {
-                $set: {
-                    isActive: false,
-                    assignedClasses: []
-                }
-            }
-        ),
-        User.findByIdAndUpdate(teacher.user, { isActive: false }).setOptions({ skipTenantFilter: true }),
-        TeacherPeriodAssignment.deleteMany({ teacher: teacher.user }),
-        Class.updateMany(
-            { classTeacher: teacher._id },
-            { $unset: { classTeacher: 1 } }
-        ),
-        Class.updateMany(
-            { 'subjects.teacher': teacher._id },
-            { $pull: { subjects: { teacher: teacher._id } } }
-        )
-    ]);
+    if (String(teacher.user) === String(req.user._id)) {
+        return res.status(400).json({
+            success: false,
+            message: 'You cannot delete your own account.'
+        });
+    }
+
+    const schoolId = teacher.school || req.schoolId;
+    const { returnedCents } = await withTransaction(async (session) => {
+        const credit = await returnCreditOnTeacherDeletion({
+            schoolId,
+            userId: teacher.user,
+            adminId: req.user._id,
+            session
+        });
+        await Promise.all([
+            Teacher.deleteOne({ _id: teacher._id, school: schoolId }).session(session),
+            User.deleteOne({ _id: teacher.user, school: schoolId })
+                .setOptions({ skipTenantFilter: true })
+                .session(session),
+            TeacherPeriodAssignment.deleteMany({ teacher: teacher.user, school: schoolId }).session(session),
+            Class.updateMany(
+                { school: schoolId, classTeacher: teacher._id },
+                { $unset: { classTeacher: 1 } }
+            ).session(session),
+            Class.updateMany(
+                { school: schoolId, 'subjects.teacher': teacher._id },
+                { $pull: { subjects: { teacher: teacher._id } } }
+            ).session(session)
+        ]);
+        return credit;
+    });
 
     res.json({
         success: true,
-        message: 'Teacher deleted successfully'
+        message: 'Teacher deleted successfully',
+        data: { returnedCreditCents: returnedCents }
     });
 });
 

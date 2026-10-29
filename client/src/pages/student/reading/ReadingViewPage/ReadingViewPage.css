@@ -371,7 +371,7 @@
   background: var(--bg-input);
   color: var(--text-primary);
   resize: vertical;
-  min-height: 76px;
+  min-height: 110px;
 }
 
 .thinking-answer:focus {

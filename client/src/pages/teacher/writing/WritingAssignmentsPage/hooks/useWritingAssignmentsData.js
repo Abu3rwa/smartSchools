@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
+import aiCreditService from "../../../../../services/aiCreditService.js";
 import classService from "../../../../../services/classService.js";
 
 const listFrom = (payload) => {
@@ -27,7 +28,7 @@ export function useWritingAssignmentsData() {
 
   useEffect(() => {
     let active = true;
-    writingService.getCredit()
+    aiCreditService.getSummary()
       .then((summary) => { if (active) setCredit(summary); })
       .catch(() => {});
     return () => { active = false; };

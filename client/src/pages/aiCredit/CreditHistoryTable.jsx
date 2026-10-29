@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { formatBalance, formatCents, formatTokens, formatUsd } from "../../../../utils/writingCredit.js";
+import { formatBalance, formatCents, formatTokens, formatUsd } from "../../utils/aiCredit.js";
 
 const FILTERS = ["", "usage", "grant", "allocation", "reclaim"];
 
-const typeKey = (row) => {
-  if (row.type === "usage") return row.feature === "writing_comparison" ? "comparison" : "feedback";
-  if (row.type === "grant") return "grant";
-  if (row.type === "allocation") return "allocation";
-  if (row.type === "reclaim") return "reclaim";
+const kindFor = (row) => {
+  if (row.type === "usage") return "usage";
+  if (["grant", "allocation", "reclaim"].includes(row.type)) return row.type;
   return "adjustment";
 };
 
+const featureLabel = (row, t) =>
+  t(`aiCredit:history.features.${row.feature || "general"}`, {
+    defaultValue: t("aiCredit:history.features.general"),
+  });
+
 export default function CreditHistoryTable({ load }) {
-  const { t, i18n } = useTranslation(["writing"]);
+  const { t, i18n } = useTranslation(["aiCredit"]);
   const locale = i18n.language;
   const [type, setType] = useState("");
   const [page, setPage] = useState(1);
@@ -31,7 +34,7 @@ export default function CreditHistoryTable({ load }) {
       .catch((error) => {
         if (!active) return;
         setResult({ key: requestKey, data: null, failed: true });
-        toast.error(error?.response?.data?.message || t("writing:credit.history.loadFailed"));
+        toast.error(error?.response?.data?.message || t("aiCredit:history.loadFailed"));
       });
     return () => { active = false; };
   }, [load, page, type, requestKey, t]);
@@ -50,10 +53,10 @@ export default function CreditHistoryTable({ load }) {
     <section className="wa-credit-panel">
       <header className="wa-credit-panel-head">
         <div>
-          <h2>{t("writing:credit.history.title")}</h2>
-          <p className="wa-hint">{t("writing:credit.history.subtitle")}</p>
+          <h2>{t("aiCredit:history.title")}</h2>
+          <p className="wa-hint">{t("aiCredit:history.subtitle")}</p>
         </div>
-        <div className="wa-chip-row" role="group" aria-label={t("writing:credit.history.filter")}>
+        <div className="wa-chip-row" role="group" aria-label={t("aiCredit:history.filter")}>
           {FILTERS.map((value) => (
             <button
               key={value || "all"}
@@ -61,7 +64,7 @@ export default function CreditHistoryTable({ load }) {
               className={`wa-chip-button${type === value ? " is-active" : ""}`}
               onClick={() => chooseType(value)}
             >
-              {t(`writing:credit.history.filters.${value || "all"}`)}
+              {t(`aiCredit:history.filters.${value || "all"}`)}
             </button>
           ))}
         </div>
@@ -71,13 +74,13 @@ export default function CreditHistoryTable({ load }) {
         <table className="wa-table wa-credit-table">
           <thead>
             <tr>
-              <th>{t("writing:credit.history.date")}</th>
-              <th>{t("writing:credit.history.what")}</th>
-              <th className="wa-cell-number">{t("writing:credit.history.tokensIn")}</th>
-              <th className="wa-cell-number">{t("writing:credit.history.tokensOut")}</th>
-              <th className="wa-cell-number">{t("writing:credit.history.tokensTotal")}</th>
-              <th className="wa-cell-number">{t("writing:credit.history.amount")}</th>
-              <th className="wa-cell-number">{t("writing:credit.history.balance")}</th>
+              <th>{t("aiCredit:history.date")}</th>
+              <th>{t("aiCredit:history.what")}</th>
+              <th className="wa-cell-number">{t("aiCredit:history.tokensIn")}</th>
+              <th className="wa-cell-number">{t("aiCredit:history.tokensOut")}</th>
+              <th className="wa-cell-number">{t("aiCredit:history.tokensTotal")}</th>
+              <th className="wa-cell-number">{t("aiCredit:history.amount")}</th>
+              <th className="wa-cell-number">{t("aiCredit:history.balance")}</th>
             </tr>
           </thead>
           <tbody>
@@ -87,33 +90,37 @@ export default function CreditHistoryTable({ load }) {
             {!loading && rows.length === 0 && (
               <tr><td colSpan={7} className="wa-table-empty">
                 {result.failed ? <>
-                  <p>{t("writing:credit.history.loadFailed")}</p>
+                  <p>{t("aiCredit:history.loadFailed")}</p>
                   <button type="button" className="btn btn-secondary" onClick={() => setRetryKey((key) => key + 1)}>
-                    {t("writing:credit.retry")}
+                    {t("aiCredit:retry")}
                   </button>
-                </> : t("writing:credit.history.empty")}
+                </> : t("aiCredit:history.empty")}
               </td></tr>
             )}
             {rows.map((row) => {
-              const kind = typeKey(row);
+              const kind = kindFor(row);
               const isUsage = row.type === "usage";
               const details = isUsage
                 ? [
                   row.studentName,
                   row.assignmentTitle,
-                  row.draftNumber ? t("writing:credit.history.draft", { n: row.draftNumber }) : "",
+                  row.draftNumber ? t("aiCredit:history.draft", { n: row.draftNumber }) : "",
                 ].filter(Boolean).join(" · ")
                 : row.note;
               return (
                 <tr key={row.id}>
                   <td className="wa-cell-date">{formatDate(row.createdAt)}</td>
                   <td>
-                    <span className={`wa-credit-kind is-${kind}`}>{t(`writing:credit.history.kinds.${kind}`)}</span>
+                    <span className={`wa-credit-kind is-${kind}`}>
+                      {isUsage ? featureLabel(row, t) : t(`aiCredit:history.kinds.${kind}`)}
+                    </span>
                     {row.outcome === "unusable" && (
-                      <span className="wa-credit-flag">{t("writing:credit.history.unusable")}</span>
+                      <span className="wa-credit-flag">{t("aiCredit:history.unusable")}</span>
                     )}
                     {isUsage && !row.charged && (
-                      <span className="wa-credit-flag">{t("writing:credit.history.notCharged")}</span>
+                      <span className="wa-credit-flag">
+                        {t(row.unpriced ? "aiCredit:history.unpriced" : "aiCredit:history.notCharged")}
+                      </span>
                     )}
                     {details && <span className="wa-credit-details" dir="auto">{details}</span>}
                     {isUsage && row.model && <span className="wa-credit-details" dir="ltr">{row.model}</span>}
@@ -122,7 +129,7 @@ export default function CreditHistoryTable({ load }) {
                     {isUsage ? formatTokens(row.inputTokens, locale) : "—"}
                     {isUsage && row.cachedInputTokens > 0 && (
                       <span className="wa-credit-details">
-                        {t("writing:credit.history.cached", { n: formatTokens(row.cachedInputTokens, locale) })}
+                        {t("aiCredit:history.cached", { n: formatTokens(row.cachedInputTokens, locale) })}
                       </span>
                     )}
                   </td>
@@ -151,16 +158,16 @@ export default function CreditHistoryTable({ load }) {
             disabled={page <= 1 || loading}
             onClick={() => setPage((current) => current - 1)}
           >
-            {t("writing:credit.history.previous")}
+            {t("aiCredit:history.previous")}
           </button>
-          <span>{t("writing:credit.history.page", { page: data.page, pages: data.pages })}</span>
+          <span>{t("aiCredit:history.page", { page: data.page, pages: data.pages })}</span>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             disabled={page >= data.pages || loading}
             onClick={() => setPage((current) => current + 1)}
           >
-            {t("writing:credit.history.next")}
+            {t("aiCredit:history.next")}
           </button>
         </div>
       )}

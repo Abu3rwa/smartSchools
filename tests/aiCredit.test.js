@@ -32,6 +32,7 @@ import {
     parseMarkupPercent,
     parseReservePercent,
     reclaimCredit,
+    returnCreditOnTeacherDeletion,
     splitTopUp,
     tokenCounts,
     updatePlatformMarkup
@@ -781,6 +782,83 @@ test('reclaim moves credit from the teacher back to the pool', async (context) =
         ['user', 'reclaim', -200],
         ['school', 'reclaim', 200]
     ]);
+});
+
+test('deleting a teacher returns unspent credit to the reserve and closes their pending request', async (context) => {
+    const entries = [];
+    let deletions = 0;
+    context.mock.method(AiCreditRequest, 'updateMany', async (filter, update, options) => {
+        assert.equal(options.session, session);
+        assert.equal(String(filter.school), String(schoolId));
+        assert.equal(String(filter.user), String(userId));
+        assert.equal(filter.status, 'pending');
+        assert.equal(update.$set.status, 'cancelled');
+        return { modifiedCount: 1 };
+    });
+    context.mock.method(AiCreditAccount, 'updateOne', async (filter) => {
+        assert.equal(filter.user, null);
+        assert.equal(filter.kind, 'school');
+        return { modifiedCount: 1 };
+    });
+    context.mock.method(AiCreditAccount, 'findOne', (filter) => {
+        assert.equal(String(filter.school), String(schoolId));
+        assert.equal(String(filter.user), String(userId));
+        return chain({ _id: 'account', balanceCents: 450 });
+    });
+    context.mock.method(AiCreditAccount, 'findOneAndUpdate', (filter, update, options) => {
+        assert.equal(options.session, session);
+        assert.equal(filter.user, null);
+        assert.equal(update.$inc.balanceCents, 450);
+        return chain({ _id: 'pool', balanceCents: 1450 });
+    });
+    context.mock.method(AiCreditAccount, 'deleteOne', async (filter, options) => {
+        assert.equal(options.session, session);
+        assert.equal(String(filter.school), String(schoolId));
+        assert.equal(filter._id, 'account');
+        deletions += 1;
+        return { deletedCount: 1 };
+    });
+    context.mock.method(AiCreditEntry, 'create', async (rows, options) => {
+        assertCreateAllowed(rows, options);
+        rows.forEach((entry) => entries.push(entry));
+        return rows.map((entry) => ({ toObject: () => entry }));
+    });
+    const result = await returnCreditOnTeacherDeletion({ schoolId, userId, adminId: userId });
+    assert.deepEqual(result, { returnedCents: 450 });
+    assert.equal(deletions, 1);
+    assert.deepEqual(entries.map((entry) => [entry.accountType, entry.type, entry.amountCents]), [
+        ['user', 'reclaim', -450],
+        ['school', 'reclaim', 450]
+    ]);
+    assert.match(entries[0].note, /teacher deleted/i);
+    assert.equal(entries[1].balanceAfterCents, 1450);
+});
+
+test('deleting a teacher with nothing left writes no ledger row but still closes requests', async (context) => {
+    let created = 0;
+    context.mock.method(AiCreditRequest, 'updateMany', async () => ({ modifiedCount: 0 }));
+    context.mock.method(AiCreditAccount, 'findOne', () => chain({ _id: 'account', balanceCents: 0 }));
+    context.mock.method(AiCreditAccount, 'deleteOne', async () => ({ deletedCount: 1 }));
+    context.mock.method(AiCreditEntry, 'create', async (rows) => {
+        created += rows.length;
+        return rows;
+    });
+    const result = await returnCreditOnTeacherDeletion({ schoolId, userId, adminId: userId });
+    assert.deepEqual(result, { returnedCents: 0 });
+    assert.equal(created, 0);
+});
+
+test('deleting a teacher without an account returns nothing and deletes nothing', async (context) => {
+    let deletions = 0;
+    context.mock.method(AiCreditRequest, 'updateMany', async () => ({ modifiedCount: 0 }));
+    context.mock.method(AiCreditAccount, 'findOne', () => chain(null));
+    context.mock.method(AiCreditAccount, 'deleteOne', async () => {
+        deletions += 1;
+        return { deletedCount: 0 };
+    });
+    const result = await returnCreditOnTeacherDeletion({ schoolId, userId, adminId: userId });
+    assert.deepEqual(result, { returnedCents: 0 });
+    assert.equal(deletions, 0);
 });
 
 test('failed ledger write rejects approval inside the transaction', async (context) => {

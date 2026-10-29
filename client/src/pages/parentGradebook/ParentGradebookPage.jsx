@@ -215,8 +215,8 @@ const ParentGradebookPage = () => {
                                     </div>
 
                                     {expandedSubjects[subj.subject] && (
-                                        <div style={{ padding: '12px 20px' }}>
-                                            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                                        <div style={{ padding: '12px 20px', overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', minWidth: 520, fontSize: 13, borderCollapse: 'collapse' }}>
                                                 <thead>
                                                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                                                         <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>Date</th>

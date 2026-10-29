@@ -10,7 +10,7 @@ import {
   formatBalance,
   formatCents,
   formatUsd,
-} from './writingCredit.js';
+} from './aiCredit.js';
 
 test('dollar input becomes whole cents and junk is rejected', () => {
   assert.equal(dollarsToCents('5'), 500);
@@ -52,27 +52,25 @@ test('creditState picks the one label the teacher sees', () => {
 test('credit refusals translate by code, other errors fall through', () => {
   const t = (key) => key;
   const error = (code) => ({ response: { data: { code } } });
-  assert.equal(creditErrorMessage(error('AI_CREDIT_REQUIRED'), t), 'writing:credit.errors.required');
-  assert.equal(creditErrorMessage(error('AI_CREDIT_PAUSED'), t), 'writing:credit.errors.paused');
-  assert.equal(creditErrorMessage(error('AI_CREDIT_PRICING_REQUIRED'), t), 'writing:credit.errors.pricing');
+  assert.equal(creditErrorMessage(error('AI_CREDIT_REQUIRED'), t), 'aiCredit:errors.required');
+  assert.equal(creditErrorMessage(error('AI_CREDIT_PAUSED'), t), 'aiCredit:errors.paused');
+  assert.equal(creditErrorMessage(error('AI_CREDIT_PRICING_REQUIRED'), t), 'aiCredit:errors.pricing');
   assert.equal(creditErrorMessage(error('OTHER'), t), '');
 });
 
-test('credit routes keep administration separate from the teacher account', () => {
+test('credit routes live outside the Writing feature gate', () => {
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
   for (const [path, roles, page] of [
-    ['ai-credit', '["admin"]', 'AiCreditDashboardPage'],
-    ['writing/credit', '["teacher", "admin"]', 'WritingCreditPage'],
+    ['ai-credit', '["admin"]', 'AiCreditAdminPage'],
+    ['ai-credit/me', '["teacher", "admin"]', 'MyAiCreditPage'],
   ]) {
     const route = app.match(new RegExp(`<Route\\s+path="${path}"[\\s\\S]*?</RoleRoute>`))?.[0];
     assert.ok(route, `Missing route: ${path}`);
     assert.ok(route.includes(`<RoleRoute roles={${roles}}>`));
-    assert.ok(route.includes('<FeatureGate feature="writingAssistant" showUpgradePrompt>'));
     assert.ok(route.includes(`<${page} />`));
+    assert.doesNotMatch(route, /FeatureGate feature="writingAssistant"/);
   }
-  const teacherPage = readFileSync(new URL('../pages/teacher/writing/WritingCreditPage/WritingCreditPage.jsx', import.meta.url), 'utf8');
-  assert.match(teacherPage, /return <TeacherCreditView\s*\/>/);
-  assert.doesNotMatch(teacherPage, /AdminCreditView/);
+  assert.match(app, /path="writing\/credit" element=\{<Navigate to="\/portal\/ai-credit\/me" replace \/>\}/);
 });
 
 test('only admins have the AI credit dashboard sidebar entry', () => {
@@ -82,7 +80,7 @@ test('only admins have the AI credit dashboard sidebar entry', () => {
   assert.match(entry, /roles: \["admin"\]/);
   assert.match(entry, /section: "admin"/);
   assert.match(entry, /labelKey: "aiCreditDashboard"/);
-  assert.match(entry, /feature: "writingAssistant"/);
+  assert.doesNotMatch(entry, /feature: "writingAssistant"/);
   assert.doesNotMatch(sidebar, /path: "\/portal\/writing\/credit"/);
 });
 
@@ -99,10 +97,21 @@ test('only the platform sidebar reaches the markup page', () => {
 test('both languages label the admin dashboard distinctly', () => {
   for (const language of ['en', 'ar']) {
     const sidebar = JSON.parse(readFileSync(new URL(`../i18n/locales/${language}/layout.sidebar.json`, import.meta.url), 'utf8'));
-    const writing = JSON.parse(readFileSync(new URL(`../i18n/locales/${language}/writing.json`, import.meta.url), 'utf8'));
+    const copy = JSON.parse(readFileSync(new URL(`../i18n/locales/${language}/aiCredit.json`, import.meta.url), 'utf8'));
     assert.ok(sidebar.items.aiCreditDashboard);
-    assert.equal(sidebar.items.aiCreditDashboard, writing.credit.admin.title);
-    assert.equal(sidebar.sections.admin, writing.credit.admin.eyebrow);
-    assert.notEqual(writing.credit.title, writing.credit.admin.title);
+    assert.equal(sidebar.items.aiCreditDashboard, copy.admin.title);
+    assert.equal(sidebar.sections.admin, copy.admin.eyebrow);
+    assert.notEqual(copy.title, copy.admin.title);
   }
+});
+
+test('every metered feature has a label in both languages', () => {
+  const read = (language) => JSON.parse(readFileSync(
+    new URL(`../i18n/locales/${language}/aiCredit.json`, import.meta.url),
+    'utf8'
+  )).history.features;
+  const en = read('en');
+  const ar = read('ar');
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(ar).sort());
+  assert.ok(en.general && ar.general);
 });

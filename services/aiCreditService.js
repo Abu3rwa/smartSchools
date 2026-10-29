@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { OPENAI_MINI_RATES, ratesForModel } from '../config/aiPricing.js';
 import AiCreditAccount from '../models/AiCreditAccount.js';
 import AiCreditEntry from '../models/AiCreditEntry.js';
 import AiCreditRequest from '../models/AiCreditRequest.js';
@@ -18,7 +19,7 @@ export const DEFAULT_RESERVE_PERCENT = 30;
 const POOL_KIND = 'school';
 const STAFF_ROLES = ['teacher', 'admin'];
 // Standard gpt-5.4-mini rates verified at https://developers.openai.com/api/docs/pricing on 2026-10-28.
-const MINI_RATES = { inputPerMillionCents: 75, cachedInputPerMillionCents: 7.5, outputPerMillionCents: 450 };
+const MINI_RATES = OPENAI_MINI_RATES;
 const HISTORY_PAGE_SIZE = 25;
 const MARKUP_KEY = 'default';
 
@@ -136,6 +137,9 @@ export const splitTopUp = ({ amountCents = 0, staffCount = 0, reservePercent = D
 const CREDIT_ROLES = ['teacher', 'admin', 'super_admin'];
 const canHoldCredit = (user) => CREDIT_ROLES.includes(user?.role) || (user?.roles || []).includes('teacher');
 
+/** Roles whose AI use is paid from an account. Other roles are metered but not charged. */
+export const isBillableRole = ({ role, roles = [] } = {}) => CREDIT_ROLES.includes(role) || roles.includes('teacher');
+
 /** Read the platform markup. A malformed stored value blocks AI instead of guessing a price. */
 export const getMarkupPercent = async () => {
     const setting = await AiCreditSetting.findOne({ key: MARKUP_KEY }).select('markupPercent').lean();
@@ -152,7 +156,8 @@ export const getMarkupPercent = async () => {
 /* Gate and charge                                                     */
 /* ------------------------------------------------------------------ */
 
-export const assertCanSpend = async ({ schoolId, userId, env = process.env }) => {
+/** Balance and pause check used by every metered AI call. No pricing knowledge. */
+export const assertHasCredit = async ({ schoolId, userId }) => {
     const account = await AiCreditAccount.findOne({ school: schoolId, user: userId })
         .select('balanceCents paused')
         .lean();
@@ -168,12 +173,18 @@ export const assertCanSpend = async ({ schoolId, userId, env = process.env }) =>
             { statusCode: 402, code: 'AI_CREDIT_REQUIRED' }
         );
     }
+    return { balanceCents: account.balanceCents };
+};
+
+/** Writing's stricter gate: the balance, the markup and a verified price for its model. */
+export const assertCanSpend = async ({ schoolId, userId, env = process.env }) => {
+    const balance = await assertHasCredit({ schoolId, userId });
     creditRates(env);
     if (String(env.WRITING_AI_PROVIDER || 'openai').toLowerCase() === 'openai' && env.OPENAI_FALLBACK_MODEL) {
         creditRates(env, env.OPENAI_FALLBACK_MODEL);
     }
     await getMarkupPercent();
-    return { balanceCents: account.balanceCents };
+    return balance;
 };
 
 export const isCreditError = (error) => ['AI_CREDIT_REQUIRED', 'AI_CREDIT_PAUSED', 'AI_CREDIT_PRICING_REQUIRED'].includes(error?.code);
@@ -189,10 +200,11 @@ export const chargeUsage = async ({
     feature = '',
     outcome = 'done',
     refs = {},
-    env = process.env
+    env = process.env,
+    rates: explicitRates
 }) => {
     try {
-        const rates = creditRates(env, reply.modelName);
+        const rates = explicitRates || creditRates(env, reply.modelName);
         const tokens = tokenCounts(reply);
         const providerCostCents = costCents(tokens, rates);
         const markupPercent = await getMarkupPercent();
@@ -220,7 +232,7 @@ export const chargeUsage = async ({
             draftNumber: refs.draftNumber
         };
 
-        const { account, source } = await mongoose.connection.transaction(async (session) => {
+        const { account, source, entryId } = await mongoose.connection.transaction(async (session) => {
             // School-allocated credit is spent first so a platform grant stays as
             // the teacher's own buffer; each guarded update keeps the split honest
             // even when two requests finish at the same time.
@@ -265,14 +277,14 @@ export const chargeUsage = async ({
                 paidFrom = 'grant';
             }
             if (!updated) throw new Error('AI credit account missing during charge.');
-            await AiCreditEntry.create([{
+            const [entry] = await AiCreditEntry.create([{
                 ...base,
                 source: paidFrom,
                 amountCents: -chargedCents,
                 charged: true,
                 balanceAfterCents: roundCents(updated.balanceCents)
             }], { session });
-            return { account: updated, source: paidFrom };
+            return { account: updated, source: paidFrom, entryId: String(entry._id) };
         });
 
         const balanceCents = roundCents(account.balanceCents);
@@ -297,6 +309,7 @@ export const chargeUsage = async ({
         }
         return {
             charged: true,
+            entryId,
             costCents: chargedCents,
             providerCostCents,
             chargedCents,
@@ -312,6 +325,106 @@ export const chargeUsage = async ({
             error: error?.message
         });
         return { charged: false, error: true };
+    }
+};
+
+const usageRowBase = ({ schoolId, userId, reply, feature, outcome, refs }) => {
+    const tokens = tokenCounts(reply);
+    return {
+        school: schoolId,
+        user: userId,
+        type: 'usage',
+        feature,
+        outcome,
+        model: String(reply.modelName || ''),
+        ...tokens,
+        assignment: refs.assignment,
+        project: refs.project,
+        draft: refs.draft,
+        student: refs.student,
+        assignmentTitle: String(refs.assignmentTitle || '').slice(0, 200),
+        studentName: String(refs.studentName || '').slice(0, 120),
+        draftNumber: refs.draftNumber
+    };
+};
+
+/**
+ * Ledger row for AI that nobody is charged for: a role without a credit account,
+ * or a model with no configured price. Never throws; the AI reply already exists.
+ */
+export const recordUnbilledUsage = async ({
+    schoolId,
+    userId,
+    reply = {},
+    feature = '',
+    outcome = 'done',
+    refs = {},
+    rates = null
+}) => {
+    try {
+        const base = usageRowBase({ schoolId, userId, reply, feature, outcome, refs });
+        const providerCostCents = rates ? costCents(base, rates) : 0;
+        const row = await AiCreditEntry.create([{
+            ...base,
+            amountCents: 0,
+            costCents: providerCostCents,
+            chargedCents: 0,
+            profitCents: rates ? roundCents(-providerCostCents) : 0,
+            markupPercent: null,
+            rates: rates || undefined,
+            unpriced: !rates,
+            charged: false,
+            balanceAfterCents: null
+        }]);
+        return { charged: false, entryId: String(row[0]?._id || ''), providerCostCents };
+    } catch (error) {
+        logger.warn('ai_credit_unbilled_row_failed', {
+            schoolId: String(schoolId),
+            userId: String(userId),
+            feature,
+            error: error?.message
+        });
+        return { charged: false, entryId: '' };
+    }
+};
+
+/**
+ * One entry point for metered AI: price it, then bill it or record it as unbilled.
+ * Unbilled covers three cases: a role that cannot hold credit, a model with no
+ * price, and a charge that failed after the reply was already produced.
+ */
+export const recordUsage = async ({
+    schoolId,
+    userId,
+    reply = {},
+    feature = '',
+    outcome = 'done',
+    refs = {},
+    billable = true,
+    env = process.env
+}) => {
+    const rates = ratesForModel(reply.modelName, env);
+    if (!billable || !userId) {
+        return recordUnbilledUsage({ schoolId, userId, reply, feature, outcome, refs, rates });
+    }
+    if (!rates) {
+        return recordUnbilledUsage({ schoolId, userId, reply, feature, outcome, refs, rates: null });
+    }
+    const charged = await chargeUsage({ schoolId, userId, reply, feature, outcome, refs, env, rates });
+    return charged?.charged
+        ? charged
+        : recordUnbilledUsage({ schoolId, userId, reply, feature, outcome, refs, rates });
+};
+
+/** Writing marks a row unusable after parsing; the charge itself already happened. */
+export const markUsageOutcome = async ({ entryId, outcome }) => {
+    if (!objectId(entryId) || !['done', 'unusable'].includes(outcome)) return false;
+    try {
+        await AiCreditEntry.updateOne({ _id: entryId, type: 'usage' }, { $set: { outcome } });
+        return true;
+    } catch (error) {
+        logger.warn('ai_credit_outcome_failed', { entryId: String(entryId), error: error?.message });
+        return false;
     }
 };
 
@@ -366,6 +479,7 @@ const shapeEntry = (row) => ({
     markupPercent: row.markupPercent ?? null,
     profitCents: roundCents(row.profitCents || 0),
     charged: row.charged !== false,
+    unpriced: Boolean(row.unpriced),
     balanceAfterCents: row.balanceAfterCents == null ? null : roundCents(row.balanceAfterCents),
     feature: row.feature || '',
     outcome: row.outcome || '',
@@ -903,6 +1017,72 @@ export const reclaimCredit = async ({ schoolId, userId, amountCents, note = '', 
     });
 };
 
+/**
+ * A deleted teacher's unspent credit goes back to the school reserve, whatever
+ * funded it. Their pending request is closed and the account row is removed;
+ * usage history rows stay for the school's audit trail.
+ */
+export const returnCreditOnTeacherDeletion = async ({ schoolId, userId, adminId, session = null }) => {
+    const user = objectId(userId);
+    if (!user) throw notFound('Credit user not found.');
+    return withTransaction(session, async (txn) => {
+        await AiCreditRequest.updateMany(
+            { school: schoolId, user, status: 'pending' },
+            {
+                $set: {
+                    status: 'cancelled',
+                    decidedBy: adminId,
+                    decidedAt: new Date(),
+                    decisionNote: 'Teacher deleted'
+                }
+            },
+            { session: txn }
+        );
+
+        const account = await AiCreditAccount.findOne({ school: schoolId, user }).session(txn).lean();
+        const returnedCents = roundCents(Math.max(0, Number(account?.balanceCents) || 0));
+        if (returnedCents > 0) {
+            await ensurePoolAccount(schoolId, txn);
+            const pool = await AiCreditAccount.findOneAndUpdate(
+                { school: schoolId, user: null, kind: POOL_KIND },
+                { $inc: { balanceCents: returnedCents } },
+                { new: true, session: txn }
+            ).lean();
+            const note = 'Returned to the school reserve: teacher deleted';
+            await AiCreditEntry.create([
+                {
+                    school: schoolId,
+                    user,
+                    accountType: 'user',
+                    type: 'reclaim',
+                    amountCents: -returnedCents,
+                    costCents: 0,
+                    charged: true,
+                    balanceAfterCents: 0,
+                    note,
+                    createdBy: adminId
+                },
+                {
+                    school: schoolId,
+                    user: null,
+                    accountType: 'school',
+                    type: 'reclaim',
+                    amountCents: returnedCents,
+                    costCents: 0,
+                    charged: true,
+                    balanceAfterCents: roundCents(pool.balanceCents),
+                    note,
+                    createdBy: adminId
+                }
+            ], { session: txn, ordered: true });
+        }
+        if (account) {
+            await AiCreditAccount.deleteOne({ _id: account._id, school: schoolId }, { session: txn });
+        }
+        return { returnedCents };
+    });
+};
+
 /* ------------------------------------------------------------------ */
 /* Platform (super admin)                                              */
 /* ------------------------------------------------------------------ */
@@ -921,7 +1101,7 @@ export const getPlatformCreditOverview = async ({ page = 1 } = {}) => {
     const [markupPercent, month, rows, total] = await Promise.all([
         getMarkupPercent(),
         AiCreditEntry.aggregate([
-            { $match: { type: 'usage', charged: { $ne: false }, createdAt: { $gte: startOfMonth() } } },
+            { $match: { type: 'usage', createdAt: { $gte: startOfMonth() } } },
             {
                 $group: {
                     _id: null,
@@ -933,14 +1113,14 @@ export const getPlatformCreditOverview = async ({ page = 1 } = {}) => {
                 }
             }
         ]),
-        AiCreditEntry.find({ type: 'usage', charged: { $ne: false } })
+        AiCreditEntry.find({ type: 'usage' })
             .sort({ createdAt: -1 })
             .skip((current - 1) * HISTORY_PAGE_SIZE)
             .limit(HISTORY_PAGE_SIZE)
             .populate('school', 'name')
             .populate('user', 'firstName lastName email')
             .lean(),
-        AiCreditEntry.countDocuments({ type: 'usage', charged: { $ne: false } })
+        AiCreditEntry.countDocuments({ type: 'usage' })
     ]);
     const totals = month[0] || {};
     return {

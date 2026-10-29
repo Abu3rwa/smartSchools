@@ -15,7 +15,7 @@ import {
     formatCents,
     formatTokens,
     formatUsd,
-} from '../../../utils/writingCredit.js';
+} from '../../../utils/aiCredit.js';
 import '../../../components/superAdmin/SuperAdminBase.css';
 import './SuperAdminAiCreditPage.css';
 
@@ -34,7 +34,7 @@ const StatCard = ({ icon: Icon, variant, value, label }) => (
 );
 
 const SuperAdminAiCreditPage = () => {
-    const { t, i18n } = useTranslation(['superAdminAiCredit']);
+    const { t, i18n } = useTranslation(['superAdminAiCredit', 'aiCredit']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en-US';
     const [page, setPage] = useState(1);
     const [reloadKey, setReloadKey] = useState(0);
@@ -531,6 +531,7 @@ const SuperAdminAiCreditPage = () => {
                                         <th>{t('superAdminAiCredit:history.date')}</th>
                                         <th>{t('superAdminAiCredit:history.school')}</th>
                                         <th>{t('superAdminAiCredit:history.account')}</th>
+                                        <th>{t('superAdminAiCredit:history.feature')}</th>
                                         <th>{t('superAdminAiCredit:history.tokens')}</th>
                                         <th>{t('superAdminAiCredit:history.provider')}</th>
                                         <th>{t('superAdminAiCredit:history.markup')}</th>
@@ -541,7 +542,7 @@ const SuperAdminAiCreditPage = () => {
                                 <tbody>
                                     {data.rows.length === 0 && (
                                         <tr>
-                                            <td colSpan={8} className="admin-empty-text">
+                                            <td colSpan={9} className="admin-empty-text">
                                                 {t('superAdminAiCredit:history.empty')}
                                             </td>
                                         </tr>
@@ -556,10 +557,24 @@ const SuperAdminAiCreditPage = () => {
                                                     <span className="ai-credit-email">{row.userEmail}</span>
                                                 )}
                                             </td>
+                                            <td>
+                                                {t(`aiCredit:history.features.${row.feature || 'general'}`, {
+                                                    defaultValue: t('aiCredit:history.features.general')
+                                                })}
+                                            </td>
                                             <td>{formatTokens(row.totalTokens, locale)}</td>
                                             <td dir="ltr">{formatCents(row.costCents, locale)}</td>
                                             <td>{row.markupPercent == null ? '—' : `${row.markupPercent}%`}</td>
-                                            <td dir="ltr">{formatCents(row.chargedCents, locale)}</td>
+                                            <td dir="ltr">
+                                                {formatCents(row.chargedCents, locale)}
+                                                {!row.charged && (
+                                                    <span className="ai-credit-email">
+                                                        {t(row.unpriced
+                                                            ? 'superAdminAiCredit:history.unpriced'
+                                                            : 'superAdminAiCredit:history.notCharged')}
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td dir="ltr">
                                                 {row.markupPercent == null ? '—' : formatCents(row.profitCents, locale)}
                                             </td>

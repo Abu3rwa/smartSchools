@@ -1,5 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
 import logger from "./logger.js";
+import { getAiUsageContext } from "./aiUsageContext.js";
+
+/** True when this call belongs to a user request that must be billed. */
+const isMetered = (options) =>
+  options.usage !== false && (Boolean(options.usage) || Boolean(getAiUsageContext()));
+
+/** Block a billable call with no credit before any provider is contacted. */
+const gateAiCredit = async (options) => {
+  if (!isMetered(options)) return;
+  const { assertAiCredit } = await import("../services/aiUsageMeter.js");
+  await assertAiCredit(options);
+};
+
+/** Record the finished reply on the credit ledger. Never breaks the AI answer. */
+const meterReply = async (reply, options) => {
+  if (!isMetered(options)) return reply;
+  try {
+    const { meterAiCall } = await import("../services/aiUsageMeter.js");
+    const usage = await meterAiCall({ options, reply });
+    return usage ? { ...reply, usage } : reply;
+  } catch (error) {
+    logger.warn("ai_usage_meter_failed", { error: error?.message });
+    return reply;
+  }
+};
 
 const DEFAULT_MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const FALLBACK_MODELS = [
@@ -154,8 +179,10 @@ const openAiError = (status, message, modelName) => {
 };
 
 export async function connectAi(prompt, options = {}) {
+  await gateAiCredit(options);
+
   const provider = String(options.provider || "gemini").toLowerCase();
-  if (provider === "openai") return connectOpenAi(prompt, options);
+  if (provider === "openai") return meterReply(await connectOpenAi(prompt, options), options);
   if (provider !== "gemini") {
     const error = new Error(`Unknown AI provider: ${provider}`);
     error.status = 400;
@@ -215,13 +242,13 @@ export async function connectAi(prompt, options = {}) {
             ? response.text()
             : response?.text || "";
 
-        return {
+        return meterReply({
           text,
           inputtokenCount: usage.promptTokenCount || 0,
           outputtokenCount: usage.candidatesTokenCount || 0,
           totalTokenCount: usage.totalTokenCount || 0,
           modelName: candidateModel,
-        };
+        }, options);
       } catch (candidateError) {
         lastError = candidateError;
         logger.warn("AI model attempt failed", {

@@ -4,8 +4,7 @@ import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { aiFeatureRateLimiter, emailSendRateLimiter } from '../middleware/rateLimiters.js';
 import {
-    assessAssignment,
-    assessDraft,
+    assessAssignment,    assessDraft,
     autosaveProject,
     compareDraft,
     createAssignment,
@@ -31,18 +30,6 @@ import {
     submitProject,
     updateAssignment
 } from '../controllers/writingController.js';
-import {
-    allocateCredit,
-    cancelCreditRequest,
-    decideCreditRequest,
-    getMyCredit,
-    getMyCreditHistory,
-    getTeacherCreditHistory,
-    listCreditAccounts,
-    reclaimCredit,
-    requestCredit,
-    updateCreditSettings
-} from '../controllers/aiCreditController.js';
 
 const router = express.Router();
 
@@ -80,20 +67,6 @@ router.post('/assessments/:assessmentId/email-preview', staff, previewFeedbackEm
 router.post('/assessments/:assessmentId/resend-email', staff, emailSendRateLimiter, resendFeedbackEmail);
 router.post('/projects/:projectId/stage', staff, overrideProjectStage);
 router.post('/projects/:projectId/notebook', staff, recordNotebookReview);
-
-/* Teacher: prepaid AI credit (the school pool funds it; AI runs debit it) */
-router.get('/credit', staff, getMyCredit);
-router.get('/credit/history', staff, getMyCreditHistory);
-router.post('/credit/requests', staff, requestCredit);
-router.post('/credit/requests/:requestId/cancel', staff, cancelCreditRequest);
-
-/* School admin: read usage, move reserve credit, answer teacher requests */
-router.get('/credit/accounts', admin, listCreditAccounts);
-router.get('/credit/accounts/:userId/history', admin, getTeacherCreditHistory);
-router.post('/credit/accounts/:userId/allocate', admin, allocateCredit);
-router.post('/credit/accounts/:userId/reclaim', admin, reclaimCredit);
-router.patch('/credit/accounts/:userId', admin, updateCreditSettings);
-router.post('/credit/requests/:requestId/decide', admin, decideCreditRequest);
 
 /*
  * Student. These routes read published feedback only and never reach the AI

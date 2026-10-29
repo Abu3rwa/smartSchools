@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
-import { creditErrorMessage, isCreditError } from "../../../../../utils/writingCredit.js";
+import { creditErrorMessage, isCreditError } from "../../../../../utils/aiCredit.js";
 
 export function useWritingBoardData() {
   const { assignmentId } = useParams();
@@ -94,7 +94,7 @@ export function useWritingBoardData() {
           remaining: result.remaining,
         }));
       }
-      if (result?.creditStopped) toast.error(t("writing:credit.batchStopped"));
+      if (result?.creditStopped) toast.error(t("writing:common.batchStopped"));
       refresh();
       return result;
     } catch (error) {

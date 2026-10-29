@@ -308,7 +308,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                                             <span>{t('assignments:googleForms.prompt')}</span>
                                             <textarea
                                                 required
-                                                rows={2}
+                                                rows={3}
                                                 maxLength={1000}
                                                 value={question.title || ''}
                                                 onChange={(event) => updateQuestion(index, { title: event.target.value })}

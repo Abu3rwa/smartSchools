@@ -1,5 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { HiOutlinePlus, HiOutlineTrash } from "react-icons/hi";
+import {
+  HiOutlineChat,
+  HiOutlineCheckCircle,
+  HiOutlineLightBulb,
+  HiOutlinePlus,
+  HiOutlineTrash,
+} from "react-icons/hi";
 import { countWords } from "../../../../utils/writingWorkflow.js";
 
 export function FeedbackForSection({ note }) {
@@ -9,15 +15,20 @@ export function FeedbackForSection({ note }) {
 
   return (
     <div className="ws-feedback-block">
-      <p className="ws-feedback-label">{t("writing:student.feedbackOnThisPart")}</p>
+      <p className="ws-feedback-label">
+        <HiOutlineChat size={15} aria-hidden="true" />
+        {t("writing:student.feedbackOnThisPart")}
+      </p>
       {note.strengths?.length > 0 && (
         <p className="ws-feedback-line is-good">
-          {t("writing:student.workedWell")}: {note.strengths.join(" · ")}
+          <HiOutlineCheckCircle size={16} aria-hidden="true" />
+          <span>{t("writing:student.workedWell")}: {note.strengths.join(" · ")}</span>
         </p>
       )}
       {action && (
         <p className="ws-feedback-line is-action">
-          {t("writing:student.tryThis")}: {action}
+          <HiOutlineLightBulb size={16} aria-hidden="true" />
+          <span>{t("writing:student.tryThis")}: {action}</span>
         </p>
       )}
       {note.evidence && <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>}

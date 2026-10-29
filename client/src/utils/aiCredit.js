@@ -48,8 +48,8 @@ export const isCreditError = (error) => CREDIT_ERROR_CODES.includes(error?.respo
 /** Translated message for a credit refusal, or "" when the error is something else. */
 export const creditErrorMessage = (error, t) => {
   const code = error?.response?.data?.code;
-  if (code === "AI_CREDIT_PAUSED") return t("writing:credit.errors.paused");
-  if (code === "AI_CREDIT_REQUIRED") return t("writing:credit.errors.required");
-  if (code === "AI_CREDIT_PRICING_REQUIRED") return t("writing:credit.errors.pricing");
+  if (code === "AI_CREDIT_PAUSED") return t("aiCredit:errors.paused");
+  if (code === "AI_CREDIT_REQUIRED") return t("aiCredit:errors.required");
+  if (code === "AI_CREDIT_PRICING_REQUIRED") return t("aiCredit:errors.pricing");
   return "";
 };

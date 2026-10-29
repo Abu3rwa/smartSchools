@@ -139,6 +139,53 @@ test('the email carries three priorities at most and no scores', () => {
     assert.equal(message.text.includes('7'), false);
 });
 
+test('feedback by part reaches the email without scores or the draft quote', () => {
+    const message = build({
+        assessment: {
+            ...assessment,
+            sections: [
+                {
+                    key: 'body-1', index: 1, label: 'Body paragraph',
+                    strengths: ['You give one clear reason.'],
+                    improvements: ['Do not repeat the same idea later.'],
+                    evidence: 'recess helps students focus.',
+                    nextStep: 'Keep one reason plus one example.',
+                    why: 'The body should prove each reason.',
+                    score: 4, maxScore: 4
+                },
+                { key: 'intro', index: 0, label: '', strengths: [], improvements: [], evidence: '', nextStep: '', why: '' }
+            ]
+        }
+    });
+    assert.match(message.html, /Feedback by part/);
+    assert.match(message.html, /Body paragraph/);
+    assert.match(message.html, /You give one clear reason\./);
+    assert.match(message.html, /Do not repeat the same idea later\./);
+    assert.match(message.html, /Keep one reason plus one example\./);
+    assert.match(message.html, /The body should prove each reason\./);
+    // the blank second section contributes nothing and is dropped
+    assert.equal((message.html.match(/Body paragraph/g) || []).length, 1);
+    // the student's own quoted draft text and the per-part marks stay out
+    assert.equal(message.html.includes('recess helps students focus.'), false);
+    assert.equal(/score|rubric/i.test(message.text), false);
+    assert.match(message.text, /Feedback by part/);
+    assert.match(message.text, /Body paragraph/);
+});
+
+test('section feedback alone is enough to send an email', () => {
+    const message = build({
+        assessment: {
+            kind: 'feedback',
+            language: 'en',
+            overall: { summary: '', nextPriorities: [] },
+            sections: [{ key: 'b', label: 'Body paragraph', strengths: ['Clear reason.'], improvements: [], nextStep: '', why: '' }]
+        }
+    });
+    assert.ok(message);
+    assert.match(message.html, /Body paragraph/);
+    assert.match(message.html, /Clear reason\./);
+});
+
 test('a parent email attributes the student-directed words instead of rewriting them', () => {
     const message = build({ role: 'parent' });
     assert.match(message.html, /Areen&#39;s feedback on draft 2 is ready/);

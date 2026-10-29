@@ -97,9 +97,16 @@ const TeachersTable = ({
                                         <div className="teacher-avatar">{getTeacherInitials(teacher)}</div>
                                         <div>
                                             <span>{getTeacherFullName(teacher)}</span>
-                                            {teacher.employeeId && (
-                                                <div className="invite-meta">{teacher.employeeId}</div>
-                                            )}
+                                            <div className="teacher-name-meta">
+                                                {teacher.employeeId && (
+                                                    <span className="invite-meta">{teacher.employeeId}</span>
+                                                )}
+                                                {teacher.isActive === false && (
+                                                    <span className="teachers-badge teachers-badge--inactive">
+                                                        {t('teachers:table.status.deactivated')}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -199,8 +206,10 @@ const TeachersTable = ({
                 </tbody>
             </table>
             {teachers.length === 0 && (
-                <div className="empty-state">
-                    <p>{t('teachers:empty.noTeachers')}</p>
+                <div className="teachers-empty">
+                    <HiOutlineUserGroup size={40} />
+                    <p className="teachers-empty-title">{t('teachers:empty.noTeachers')}</p>
+                    <p className="teachers-empty-hint">{t('teachers:page.subtitle')}</p>
                 </div>
             )}
         </div>

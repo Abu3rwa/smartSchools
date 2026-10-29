@@ -33,7 +33,7 @@ import {
     statusAfterPublish
 } from './writingAssistantLogic.js';
 import { notifyFeedbackPublished } from './writingFeedbackEmailService.js';
-import { assertCanSpend, chargeUsage, isCreditError } from './aiCreditService.js';
+import { assertCanSpend, isCreditError, markUsageOutcome } from './aiCreditService.js';
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
@@ -256,20 +256,27 @@ const writingAiOptions = () => {
     return modelName ? { provider, modelName } : { provider };
 };
 
-const chargeFor = ({ billing, context, reply, feature, outcome }) => chargeUsage({
-    schoolId: billing.schoolId,
-    userId: billing.userId,
-    reply,
-    feature,
-    outcome,
-    refs: {
-        assignment: context.assignment?._id,
-        project: context.project?._id,
-        draft: context.draft?._id,
-        student: context.draft?.student,
-        assignmentTitle: context.assignment?.title,
-        studentName: context.studentName,
-        draftNumber: context.draft?.number
+/**
+ * Billing identity for one writing AI call. The credit gateway in connectAi reads
+ * this, writes the ledger row and hands back its id, so an unusable reply can be
+ * marked afterwards without a second charge.
+ */
+const aiOptions = ({ billing, context, feature }) => ({
+    ...writingAiOptions(),
+    usage: {
+        schoolId: billing.schoolId,
+        userId: billing.userId,
+        feature,
+        billable: true,
+        refs: {
+            assignment: context.assignment?._id,
+            project: context.project?._id,
+            draft: context.draft?._id,
+            student: context.draft?.student,
+            assignmentTitle: context.assignment?.title,
+            studentName: context.studentName,
+            draftNumber: context.draft?.number
+        }
     }
 });
 
@@ -285,17 +292,13 @@ const runFeedback = async ({ context, language, billing }) => {
         language
     });
 
-    const reply = await connectAi(prompt, writingAiOptions());
+    const reply = await connectAi(prompt, aiOptions({ billing, context, feature: 'writing_feedback' }));
     const parsed = extractJsonObject(reply.text);
     const normalized = normalizeFeedback({ parsed, draft, snapshot });
-    await chargeFor({
-        billing,
-        context,
-        reply,
-        feature: 'writing_feedback',
-        outcome: normalized.ok ? 'done' : 'unusable'
-    });
-    if (!normalized.ok) throw upstream(normalized.error);
+    if (!normalized.ok) {
+        await markUsageOutcome({ entryId: reply.usage?.entryId, outcome: 'unusable' });
+        throw upstream(normalized.error);
+    }
 
     const decision = decideRecommendation({
         normalized,
@@ -336,7 +339,7 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         language
     });
 
-    const reply = await connectAi(prompt, writingAiOptions());
+    const reply = await connectAi(prompt, aiOptions({ billing, context, feature: 'writing_comparison' }));
     const parsed = extractJsonObject(reply.text);
     const normalized = normalizeComparison({
         parsed,
@@ -345,14 +348,10 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         previousAssessment,
         snapshot
     });
-    await chargeFor({
-        billing,
-        context,
-        reply,
-        feature: 'writing_comparison',
-        outcome: normalized.ok ? 'done' : 'unusable'
-    });
-    if (!normalized.ok) throw upstream(normalized.error);
+    if (!normalized.ok) {
+        await markUsageOutcome({ entryId: reply.usage?.entryId, outcome: 'unusable' });
+        throw upstream(normalized.error);
+    }
 
     const decision = decideRecommendation({
         normalized,

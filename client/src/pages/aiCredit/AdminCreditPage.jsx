@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { HiOutlineSearch } from "react-icons/hi";
-import writingService from "../../../../services/writingService.js";
+import aiCreditService from "../../services/aiCreditService.js";
 import {
   centsToDollarsInput,
   creditState,
@@ -11,15 +11,15 @@ import {
   formatBalance,
   formatCents,
   formatUsd,
-} from "../../../../utils/writingCredit.js";
+} from "../../utils/aiCredit.js";
 import ManageCreditDialog from "./ManageCreditDialog.jsx";
-import "../writingShared.css";
-import "./writingCredit.css";
+import "../teacher/writing/writingShared.css";
+import "./aiCredit.css";
 
 const MAX_CENTS = 100000;
 
-export default function AdminCreditView() {
-  const { t, i18n } = useTranslation(["writing"]);
+export default function AdminCreditPage() {
+  const { t, i18n } = useTranslation(["aiCredit"]);
   const locale = i18n.language;
   const [refreshKey, setRefreshKey] = useState(0);
   const [loaded, setLoaded] = useState({ key: -1, data: null });
@@ -34,12 +34,12 @@ export default function AdminCreditView() {
 
   useEffect(() => {
     let active = true;
-    writingService.listCreditAccounts()
+    aiCreditService.listAccounts()
       .then((data) => { if (active) setLoaded({ key: refreshKey, data }); })
       .catch((error) => {
         if (!active) return;
         setLoaded((current) => ({ key: refreshKey, data: current.data }));
-        toast.error(error?.response?.data?.message || t("writing:credit.loadFailed"));
+        toast.error(error?.response?.data?.message || t("aiCredit:loadFailed"));
       });
     return () => { active = false; };
   }, [refreshKey, t]);
@@ -59,9 +59,9 @@ export default function AdminCreditView() {
       <div className="wa-page wa-loading" aria-live="polite">
         {refreshing ? <div className="spinner" /> : (
           <div className="wa-empty">
-            <p>{t("writing:credit.loadFailed")}</p>
+            <p>{t("aiCredit:loadFailed")}</p>
             <button type="button" className="btn btn-secondary" onClick={() => setRefreshKey((key) => key + 1)}>
-              {t("writing:credit.retry")}
+              {t("aiCredit:retry")}
             </button>
           </div>
         )}
@@ -79,17 +79,17 @@ export default function AdminCreditView() {
     event.preventDefault();
     const cents = dollarsToCents(topUpAmount);
     if (!Number.isFinite(cents) || cents < 1 || cents > MAX_CENTS) {
-      toast.error(t("writing:credit.admin.dialog.invalid"));
+      toast.error(t("aiCredit:admin.dialog.invalid"));
       return;
     }
     setTopUpBusy(true);
     try {
-      await writingService.requestCredit({ amountCents: cents, note: topUpNote.trim(), target: "pool" });
-      toast.success(t("writing:credit.admin.topUp.sent"));
+      await aiCreditService.requestCredit({ amountCents: cents, note: topUpNote.trim(), target: "pool" });
+      toast.success(t("aiCredit:admin.topUp.sent"));
       setTopUpNote("");
       refresh();
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:credit.admin.topUp.failed"));
+      toast.error(error?.response?.data?.message || t("aiCredit:admin.topUp.failed"));
     } finally {
       setTopUpBusy(false);
     }
@@ -99,11 +99,11 @@ export default function AdminCreditView() {
     if (!data?.poolRequest) return;
     setTopUpBusy(true);
     try {
-      await writingService.cancelCreditRequest(data.poolRequest.id);
-      toast.success(t("writing:credit.admin.topUp.cancelled"));
+      await aiCreditService.cancelRequest(data.poolRequest.id);
+      toast.success(t("aiCredit:admin.topUp.cancelled"));
       refresh();
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:credit.admin.topUp.failed"));
+      toast.error(error?.response?.data?.message || t("aiCredit:admin.topUp.failed"));
     } finally {
       setTopUpBusy(false);
     }
@@ -114,18 +114,18 @@ export default function AdminCreditView() {
     if (approve) {
       const cents = dollarsToCents(amounts[request.id] ?? centsToDollarsInput(request.amountCents));
       if (!Number.isFinite(cents) || cents < 1 || cents > MAX_CENTS) {
-        toast.error(t("writing:credit.admin.dialog.invalid"));
+        toast.error(t("aiCredit:admin.dialog.invalid"));
         return;
       }
       body.amountCents = cents;
     }
     setBusyId(request.id);
     try {
-      await writingService.decideCreditRequest(request.id, body);
-      toast.success(t(approve ? "writing:credit.admin.approved" : "writing:credit.admin.declined"));
+      await aiCreditService.decideRequest(request.id, body);
+      toast.success(t(approve ? "aiCredit:admin.approved" : "aiCredit:admin.declined"));
       refresh();
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:credit.admin.decideFailed"));
+      toast.error(error?.response?.data?.message || t("aiCredit:admin.decideFailed"));
     } finally {
       setBusyId("");
     }
@@ -135,56 +135,45 @@ export default function AdminCreditView() {
     <div className="wa-page wa-credit-page">
       <div className="wa-head">
         <div>
-          <p className="wa-eyebrow">{t("writing:credit.admin.eyebrow")}</p>
-          <h1>{t("writing:credit.admin.title")}</h1>
-          <p className="wa-sub">{t("writing:credit.adminSubtitle")}</p>
+          <p className="wa-eyebrow">{t("aiCredit:admin.eyebrow")}</p>
+          <h1>{t("aiCredit:admin.title")}</h1>
+          <p className="wa-sub">{t("aiCredit:adminSubtitle")}</p>
         </div>
-        <Link to="/portal/writing/credit" className="btn btn-secondary btn-sm">
-          {t("writing:credit.myCredit")}
+        <Link to="/portal/ai-credit/me" className="btn btn-secondary btn-sm">
+          {t("aiCredit:myCredit")}
         </Link>
       </div>
 
       <div className="wa-stats">
         <div className="wa-stat">
           <span className="wa-stat-value">{formatBalance(data.pool.balanceCents, locale)}</span>
-          <span className="wa-stat-label">{t("writing:credit.admin.stats.reserve")}</span>
+          <span className="wa-stat-label">{t("aiCredit:admin.stats.reserve")}</span>
         </div>
         <div className="wa-stat">
           <span className="wa-stat-value">{formatBalance(data.pool.allocatedCents, locale)}</span>
-          <span className="wa-stat-label">{t("writing:credit.admin.stats.allocated")}</span>
+          <span className="wa-stat-label">{t("aiCredit:admin.stats.allocated")}</span>
         </div>
         <div className="wa-stat">
           <span className="wa-stat-value">{formatUsd(data.totals.spentThisMonthCents, locale)}</span>
-          <span className="wa-stat-label">{t("writing:credit.admin.stats.spentThisMonth")}</span>
+          <span className="wa-stat-label">{t("aiCredit:admin.stats.spentThisMonth")}</span>
         </div>
         <div className="wa-stat">
           <span className="wa-stat-value">{data.pending.length}</span>
-          <span className="wa-stat-label">{t("writing:credit.admin.stats.waiting")}</span>
+          <span className="wa-stat-label">{t("aiCredit:admin.stats.waiting")}</span>
         </div>
       </div>
-
-      <p className="wa-hint">
-        {t("writing:credit.rates", {
-          model: data.rates?.model,
-          input: formatUsd(data.rates?.inputPerMillionCents, locale, 4),
-          cached: formatUsd(data.rates?.cachedInputPerMillionCents, locale, 4),
-          output: formatUsd(data.rates?.outputPerMillionCents, locale, 4),
-        })}
-        {" "}
-        {t("writing:credit.admin.chargingNote")}
-      </p>
 
       <section className="wa-credit-panel">
         <header className="wa-credit-panel-head">
           <div>
-            <h2>{t("writing:credit.admin.topUp.title")}</h2>
-            <p className="wa-hint">{t("writing:credit.admin.topUp.body")}</p>
+            <h2>{t("aiCredit:admin.topUp.title")}</h2>
+            <p className="wa-hint">{t("aiCredit:admin.topUp.body")}</p>
           </div>
         </header>
         {data.poolRequest ? (
           <div className="wa-credit-form">
             <p className="wa-credit-help">
-              {t("writing:credit.admin.topUp.pendingBody", {
+              {t("aiCredit:admin.topUp.pendingBody", {
                 amount: formatUsd(data.poolRequest.amountCents, locale),
                 date: formatDate(data.poolRequest.createdAt),
               })}
@@ -192,7 +181,7 @@ export default function AdminCreditView() {
             {data.poolRequest.note && <p className="wa-credit-quote" dir="auto">{data.poolRequest.note}</p>}
             <div>
               <button type="button" className="btn btn-secondary" disabled={topUpBusy || refreshing} onClick={cancelTopUp}>
-                {t("writing:credit.admin.topUp.cancel")}
+                {t("aiCredit:admin.topUp.cancel")}
               </button>
             </div>
           </div>
@@ -200,7 +189,7 @@ export default function AdminCreditView() {
           <form className="wa-credit-form" onSubmit={sendTopUp}>
             <div className="wa-credit-top">
               <label className="wa-field">
-                <span>{t("writing:credit.admin.topUp.amount")}</span>
+                <span>{t("aiCredit:admin.topUp.amount")}</span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -209,20 +198,20 @@ export default function AdminCreditView() {
                 />
               </label>
               <label className="wa-field wa-grow">
-                <span>{t("writing:credit.admin.topUp.note")}</span>
+                <span>{t("aiCredit:admin.topUp.note")}</span>
                 <input
                   type="text"
                   maxLength={500}
                   value={topUpNote}
-                  placeholder={t("writing:credit.admin.topUp.notePlaceholder")}
+                  placeholder={t("aiCredit:admin.topUp.notePlaceholder")}
                   onChange={(event) => setTopUpNote(event.target.value)}
                 />
               </label>
             </div>
-            <p className="wa-hint">{t("writing:credit.admin.topUp.help")}</p>
+            <p className="wa-hint">{t("aiCredit:admin.topUp.help")}</p>
             <div>
               <button type="submit" className="btn btn-primary" disabled={topUpBusy || refreshing}>
-                {t("writing:credit.admin.topUp.send")}
+                {t("aiCredit:admin.topUp.send")}
               </button>
             </div>
           </form>
@@ -233,9 +222,9 @@ export default function AdminCreditView() {
         <section className="wa-credit-panel">
           <header className="wa-credit-panel-head">
             <div>
-              <h2>{t("writing:credit.admin.waitingTitle")}</h2>
-              <p className="wa-hint">{t("writing:credit.admin.waitingBody")}</p>
-              <p className="wa-hint">{t("writing:credit.amountHelp")}</p>
+              <h2>{t("aiCredit:admin.waitingTitle")}</h2>
+              <p className="wa-hint">{t("aiCredit:admin.waitingBody")}</p>
+              <p className="wa-hint">{t("aiCredit:amountHelp")}</p>
             </div>
           </header>
           <ul className="wa-credit-waiting">
@@ -244,7 +233,7 @@ export default function AdminCreditView() {
                 <div className="wa-credit-waiting-who">
                   <strong>{request.teacherName}</strong>
                   <span className="wa-hint">
-                    {t("writing:credit.admin.requested", {
+                    {t("aiCredit:admin.requested", {
                       amount: formatUsd(request.amountCents, locale),
                       date: formatDate(request.createdAt),
                     })}
@@ -252,7 +241,7 @@ export default function AdminCreditView() {
                   {request.note && <span className="wa-credit-quote" dir="auto">{request.note}</span>}
                 </div>
                 <label className="wa-field wa-credit-amount-field">
-                  <span>{t("writing:credit.admin.grantAmount")}</span>
+                  <span>{t("aiCredit:admin.grantAmount")}</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -261,12 +250,12 @@ export default function AdminCreditView() {
                   />
                 </label>
                 <label className="wa-field wa-grow">
-                  <span>{t("writing:credit.admin.decisionNote")}</span>
+                  <span>{t("aiCredit:admin.decisionNote")}</span>
                   <input
                     type="text"
                     maxLength={500}
                     value={notes[request.id] || ""}
-                    placeholder={t("writing:credit.admin.decisionNotePlaceholder")}
+                    placeholder={t("aiCredit:admin.decisionNotePlaceholder")}
                     onChange={(event) => setNotes((current) => ({ ...current, [request.id]: event.target.value }))}
                   />
                 </label>
@@ -277,7 +266,7 @@ export default function AdminCreditView() {
                     disabled={Boolean(busyId) || refreshing}
                     onClick={() => decide(request, true)}
                   >
-                    {t("writing:credit.admin.approve")}
+                    {t("aiCredit:admin.approve")}
                   </button>
                   <button
                     type="button"
@@ -285,7 +274,7 @@ export default function AdminCreditView() {
                     disabled={Boolean(busyId) || refreshing}
                     onClick={() => decide(request, false)}
                   >
-                    {t("writing:credit.admin.decline")}
+                    {t("aiCredit:admin.decline")}
                   </button>
                 </div>
               </li>
@@ -297,16 +286,16 @@ export default function AdminCreditView() {
       <section className="wa-credit-panel">
         <header className="wa-credit-panel-head">
           <div>
-            <h2>{t("writing:credit.admin.teachersTitle")}</h2>
-            <p className="wa-hint">{t("writing:credit.admin.teachersBody")}</p>
+            <h2>{t("aiCredit:admin.teachersTitle")}</h2>
+            <p className="wa-hint">{t("aiCredit:admin.teachersBody")}</p>
           </div>
           <div className="wa-search">
             <HiOutlineSearch size={16} aria-hidden="true" />
             <input
               type="search"
               value={search}
-              placeholder={t("writing:credit.admin.search")}
-              aria-label={t("writing:credit.admin.search")}
+              placeholder={t("aiCredit:admin.search")}
+              aria-label={t("aiCredit:admin.search")}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
@@ -316,20 +305,20 @@ export default function AdminCreditView() {
           <table className="wa-table wa-credit-teachers">
             <thead>
               <tr>
-                <th>{t("writing:credit.admin.columns.teacher")}</th>
-                <th className="wa-cell-number">{t("writing:credit.admin.columns.balance")}</th>
-                <th className="wa-cell-number">{t("writing:credit.admin.columns.schoolShare")}</th>
-                <th>{t("writing:credit.admin.columns.thisMonth")}</th>
-                <th className="wa-cell-number">{t("writing:credit.admin.columns.warning")}</th>
-                <th>{t("writing:credit.admin.columns.status")}</th>
-                <th aria-label={t("writing:credit.admin.manage")} />
+                <th>{t("aiCredit:admin.columns.teacher")}</th>
+                <th className="wa-cell-number">{t("aiCredit:admin.columns.balance")}</th>
+                <th className="wa-cell-number">{t("aiCredit:admin.columns.schoolShare")}</th>
+                <th>{t("aiCredit:admin.columns.thisMonth")}</th>
+                <th className="wa-cell-number">{t("aiCredit:admin.columns.warning")}</th>
+                <th>{t("aiCredit:admin.columns.status")}</th>
+                <th aria-label={t("aiCredit:admin.manage")} />
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 && (
                 <tr>
                   <td colSpan={7} className="wa-table-empty">
-                    {rows.length === 0 ? t("writing:credit.admin.noTeachers") : t("writing:credit.admin.noMatch")}
+                    {rows.length === 0 ? t("aiCredit:admin.noTeachers") : t("aiCredit:admin.noMatch")}
                   </td>
                 </tr>
               )}
@@ -344,7 +333,7 @@ export default function AdminCreditView() {
                     <td className="wa-cell-number">{formatBalance(row.balanceCents, locale)}</td>
                     <td className="wa-cell-number">{formatBalance(row.schoolCents, locale)}</td>
                     <td>
-                      {t("writing:credit.admin.monthCell", {
+                      {t("aiCredit:admin.monthCell", {
                         cost: formatCents(row.thisMonth.costCents, locale),
                         n: row.thisMonth.requests,
                       })}
@@ -352,11 +341,11 @@ export default function AdminCreditView() {
                     <td className="wa-cell-number">{formatUsd(row.lowBalanceCents, locale)}</td>
                     <td>
                       <div className="wa-credit-status-cell">
-                        <span className={`wa-credit-state is-${state}`}>{t(`writing:credit.states.${state}`)}</span>
+                        <span className={`wa-credit-state is-${state}`}>{t(`aiCredit:states.${state}`)}</span>
                         {row.pendingRequest && (
-                          <span className="wa-credit-status is-pending">{t("writing:credit.admin.waitingChip")}</span>
+                          <span className="wa-credit-status is-pending">{t("aiCredit:admin.waitingChip")}</span>
                         )}
-                        {!row.active && <span className="wa-credit-flag">{t("writing:credit.admin.inactive")}</span>}
+                        {!row.active && <span className="wa-credit-flag">{t("aiCredit:admin.inactive")}</span>}
                       </div>
                     </td>
                     <td className="wa-cell-number">
@@ -368,7 +357,7 @@ export default function AdminCreditView() {
                           setManageId(row.userId);
                         }}
                       >
-                        {t("writing:credit.admin.manage")}
+                        {t("aiCredit:admin.manage")}
                       </button>
                     </td>
                   </tr>

@@ -55,6 +55,11 @@ const COPY = {
         parentQuoteLabel: 'The message {{firstName}} received',
         studentListLabel: 'Do these next',
         parentListLabel: 'Next steps the teacher asked for',
+        sectionsLabel: 'Feedback by part',
+        workedLabel: 'What worked',
+        improveLabel: 'What to improve',
+        nextStepLabel: 'One next step',
+        whyLabel: 'Why this matters',
         studentButton: 'Open my writing',
         parentButton: 'See the feedback',
         statusSteps: ['Sent', 'Feedback', 'Revising', 'Notebook', 'Done'],
@@ -77,6 +82,11 @@ const COPY = {
         parentQuoteLabel: 'الرسالة التي وصلت إلى {{firstName}}',
         studentListLabel: 'افعل هذا بعد ذلك',
         parentListLabel: 'الخطوات التالية التي طلبها المعلم',
+        sectionsLabel: 'ملاحظات على كل جزء',
+        workedLabel: 'ما نجح',
+        improveLabel: 'ما يحتاج تحسينًا',
+        nextStepLabel: 'الخطوة التالية',
+        whyLabel: 'لماذا هذا مهم',
         studentButton: 'عرض كتابتي',
         parentButton: 'عرض الملاحظات',
         statusSteps: ['أُرسلت', 'الملاحظات', 'المراجعة', 'الكراس', 'انتهى'],
@@ -209,6 +219,56 @@ const prioritiesHtml = (priorities, language) => {
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`;
 };
 
+// Per-part coaching the teacher wrote for each section. Scores and the quoted
+// draft text stay out on purpose — the email never carries the student's own words.
+const normalizeSections = (sections) => (Array.isArray(sections) ? sections : [])
+    .map((section) => ({
+        label: String(section?.label || '').trim(),
+        strengths: (section?.strengths || []).map((item) => String(item || '').trim()).filter(Boolean),
+        improvements: (section?.improvements || []).map((item) => String(item || '').trim()).filter(Boolean),
+        nextStep: String(section?.nextStep || '').trim(),
+        why: String(section?.why || '').trim()
+    }))
+    .filter((section) => section.label || section.strengths.length || section.improvements.length
+        || section.nextStep || section.why);
+
+const sectionFieldHtml = (label, value, language) => (
+    `<p style="margin:8px 0 0;font-size:13px;line-height:${language === 'ar' ? '1.7' : '1.5'};color:#334155;">`
+    + `<span style="font-weight:700;color:#0f766e;">${escapeHtml(label)}:</span> ${escapeHtml(value)}</p>`
+);
+
+const sectionListHtml = (label, items, language) => {
+    if (!items.length) return '';
+    const tag = language === 'ar' ? 'padding-right' : 'padding-left';
+    const list = items.map((item) => `<li style="margin:0 0 3px;">${escapeHtml(item)}</li>`).join('');
+    return [
+        `<p style="margin:8px 0 0;font-size:11px;font-weight:700;color:#0f766e;${language === 'ar' ? '' : 'letter-spacing:.6px;text-transform:uppercase;'}">${escapeHtml(label)}</p>`,
+        `<ul style="margin:3px 0 0;${tag}:18px;font-size:13px;line-height:${language === 'ar' ? '1.7' : '1.5'};color:#334155;">${list}</ul>`
+    ].join('');
+};
+
+const sectionsHtml = (sections, language, copy) => {
+    if (!sections.length) return '';
+    const cards = sections.map((section) => {
+        const body = [
+            section.label
+                ? `<p dir="auto" style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">${escapeHtml(section.label)}</p>`
+                : '',
+            sectionListHtml(copy.workedLabel, section.strengths, language),
+            sectionListHtml(copy.improveLabel, section.improvements, language),
+            section.nextStep ? sectionFieldHtml(copy.nextStepLabel, section.nextStep, language) : '',
+            section.why ? sectionFieldHtml(copy.whyLabel, section.why, language) : ''
+        ].join('');
+        return [
+            '<tr>',
+            `<td style="padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;background-color:#ffffff;">${body}</td>`,
+            '</tr>'
+        ].join('');
+    }).join('');
+
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:0 8px;">${cards}</table>`;
+};
+
 const buttonHtml = ({ url, label }) => {
     if (!url) return '';
     return [
@@ -265,8 +325,9 @@ export const buildFeedbackEmail = ({
         .map((item) => String(item || '').trim())
         .filter(Boolean)
         .slice(0, 3);
+    const sections = normalizeSections(assessment.sections);
 
-    if (!summary && priorities.length === 0) return null;
+    if (!summary && priorities.length === 0 && sections.length === 0) return null;
 
     const typeLabel = TYPE_LABELS[lang][assignment.writingType] || TYPE_LABELS[lang].custom;
     const topic = String(assignment.topic || assignment.title || '').trim();
@@ -296,6 +357,7 @@ export const buildFeedbackEmail = ({
         statusHtml: statusHtml({ language: lang, stage: project.stage, nextDraft: resend ? null : nextDraft }),
         summaryBlock: summary ? labelHtml(fill(isParent ? copy.parentQuoteLabel : copy.studentQuoteLabel, values), lang) + summaryHtml({ summary, language: lang }) : '',
         prioritiesBlock: priorities.length ? labelHtml(fill(isParent ? copy.parentListLabel : copy.studentListLabel, values), lang) + prioritiesHtml(priorities, lang) : '',
+        sectionsBlock: sections.length ? labelHtml(copy.sectionsLabel, lang) + sectionsHtml(sections, lang, copy) : '',
         buttonHtml: buttonHtml({
             url,
             label: isParent ? copy.parentButton : copy.studentButton
@@ -319,6 +381,17 @@ export const buildFeedbackEmail = ({
         summary ? `\n${fill(isParent ? copy.parentQuoteLabel : copy.studentQuoteLabel, values)}\n${summary}` : '',
         priorities.length
             ? `\n${fill(isParent ? copy.parentListLabel : copy.studentListLabel, values)}\n${priorities.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
+            : '',
+        sections.length
+            ? `\n${copy.sectionsLabel}\n${sections.map((section) => {
+                const lines = [];
+                if (section.label) lines.push(`- ${section.label}`);
+                section.strengths.forEach((item) => lines.push(`    ${copy.workedLabel}: ${item}`));
+                section.improvements.forEach((item) => lines.push(`    ${copy.improveLabel}: ${item}`));
+                if (section.nextStep) lines.push(`    ${copy.nextStepLabel}: ${section.nextStep}`);
+                if (section.why) lines.push(`    ${copy.whyLabel}: ${section.why}`);
+                return lines.join('\n');
+            }).join('\n')}`
             : '',
         url ? `\n${url}` : '',
         '',

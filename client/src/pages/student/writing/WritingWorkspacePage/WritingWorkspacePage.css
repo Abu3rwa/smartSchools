@@ -221,25 +221,63 @@
 .ws-remove { color: var(--ws-rose); }
 .ws-draft-note { margin: 0; font-size: 0.8rem; color: var(--ws-muted); font-style: italic; }
 
+/* Teacher feedback for this exact part, shown right under the student's text area
+   so it reads as a separate, colour-coded note — never as part of their own writing. */
 .ws-feedback-block {
-  border-top: 1px dashed var(--ws-line);
-  padding-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--ws-teal) 28%, var(--ws-line));
+  border-inline-start: 4px solid var(--ws-teal);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ws-teal) 6%, var(--ws-surface));
 }
-.ws-feedback-label { margin: 0; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ws-teal); }
-.ws-feedback-line { margin: 0; font-size: 0.85rem; line-height: 1.5; }
-.ws-feedback-line.is-good { color: #15803d; }
-.ws-feedback-line.is-action { font-weight: 600; }
+.ws-feedback-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ws-teal);
+}
+.ws-feedback-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.ws-feedback-line svg { flex: 0 0 auto; margin-top: 2px; }
+.ws-feedback-line.is-good {
+  color: var(--success-700, #047857);
+  background: color-mix(in srgb, var(--success-500, #10b981) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success-500, #10b981) 32%, transparent);
+}
+.ws-feedback-line.is-action {
+  color: var(--warning-700, #b45309);
+  background: color-mix(in srgb, var(--warning-500, #f59e0b) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-500, #f59e0b) 36%, transparent);
+  font-weight: 600;
+}
 .ws-feedback-quote {
   margin: 0;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-inline-start: 3px solid var(--ws-teal);
-  background: var(--ws-surface-2);
+  background: color-mix(in srgb, var(--ws-teal) 8%, var(--ws-surface-2));
+  border-radius: 0 8px 8px 0;
   font-size: 0.85rem;
   font-style: italic;
+  line-height: 1.6;
+  color: var(--ws-ink);
 }
+[dir="rtl"] .ws-feedback-quote { border-radius: 8px 0 0 8px; }
 .ws-feedback-why { margin: 0; font-size: 0.8rem; line-height: 1.5; color: var(--ws-muted); }
 
 /* The feedback for the draft just sent, read before the next draft is written. */

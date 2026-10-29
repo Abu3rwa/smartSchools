@@ -10,12 +10,22 @@
     "planFull": "Teacher limit reached for your current plan."
   },
   "filters": {
-    "searchPlaceholder": "Search teachers..."
+    "searchPlaceholder": "Search teachers...",
+    "clearSearch": "Clear search",
+    "status": {
+      "active": "Active",
+      "inactive": "Deactivated",
+      "all": "All"
+    }
   },
   "table": {
     "selectAll": "Select all teachers",
     "selectTeacher": "Select teacher",
     "noSubjects": "No subjects",
+    "totalCount": "Total: {{value}}",
+    "status": {
+      "deactivated": "Deactivated"
+    },
     "columns": {
       "name": "Name",
       "email": "Email",
@@ -82,7 +92,7 @@
     "classTeacherBadge": "Class Teacher"
   },
   "confirm": {
-    "deleteTeacher": "Are you sure you want to delete {{name}}?",
+    "deleteTeacher": "This permanently deletes {{name}} and their login. Their unspent AI credit goes back to the school reserve. This cannot be undone.",
     "removeAssignment": "Are you sure you want to remove this class assignment?"
   },
   "invite": {

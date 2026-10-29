@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { runInTenantContext } from './tenantIsolation.js';
+import { runInAiUsageContext, featureFromPath } from '../utils/aiUsageContext.js';
 import logger from '../utils/logger.js';
 import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
 import { isValidAcademicYear, resolveSchoolAcademicYear } from '../utils/academicYear.js';
@@ -127,8 +128,17 @@ export const protect = async (req, res, next) => {
         // Run the rest of the request in tenant context so ALL Mongoose queries are
         // automatically scoped to this user's school. Prevents an admin of one school
         // from seeing another school's data (Student, Class, Grade, etc.).
+        // The AI usage context rides along so every AI call made while handling this
+        // request is billed to the same user under the feature that triggered it.
         if (req.user.role !== 'super_admin' && req.schoolId) {
-            return runInTenantContext(req.schoolId, next);
+            const aiUsage = {
+                schoolId: req.schoolId,
+                userId: req.user._id,
+                role: req.user.role,
+                roles: req.user.roles || [],
+                feature: featureFromPath(req.originalUrl)
+            };
+            return runInTenantContext(req.schoolId, () => runInAiUsageContext(aiUsage, next));
         }
         next();
     } catch (error) {

@@ -68,6 +68,7 @@ const TeachersPage = () => {
     const [templateMeta, setTemplateMeta] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+    const [statusFilter, setStatusFilter] = useState('active');
 
     const {
         searchTerm,
@@ -94,11 +95,19 @@ const TeachersPage = () => {
         updateAssignmentField
     } = useTeachersPageState(teachers);
 
-    const teachersQueryParams = useMemo(() => ({
-        page: currentPage,
-        limit: pageSize,
-        search: searchTerm.trim() || undefined
-    }), [currentPage, pageSize, searchTerm]);
+    const teachersQueryParams = useMemo(() => {
+        const statusParams = statusFilter === 'inactive'
+            ? { isActive: 'false' }
+            : statusFilter === 'all'
+                ? { includeInactive: 'true' }
+                : {};
+        return {
+            page: currentPage,
+            limit: pageSize,
+            search: searchTerm.trim() || undefined,
+            ...statusParams
+        };
+    }, [currentPage, pageSize, searchTerm, statusFilter]);
 
     const totalItems = Number.isFinite(Number(pagination?.total))
         ? Number(pagination.total)
@@ -179,7 +188,7 @@ const TeachersPage = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, statusFilter]);
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -601,37 +610,44 @@ const TeachersPage = () => {
             <TeachersFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
+                totalItems={totalItems}
+                statusFilter={statusFilter}
+                onStatusChange={setStatusFilter}
             />
 
-            <TeachersTable
-                loading={loading}
-                teachers={teachers}
-                canManageTeachers={canManageTeachers}
-                selectedTeacherIds={selectedTeacherIds}
-                isAllTeachersSelected={
-                    teachers.length > 0
-                    && teachers.every((teacher) => selectedTeacherIds.has(teacher._id))
-                }
-                toggleSelectAllTeachers={toggleSelectAllTeachers}
-                toggleSelectTeacher={toggleSelectTeacher}
-                onView={(teacher) => navigate(`/portal/teachers/${teacher._id}`)}
-                onEdit={handleEditTeacher}
-                onAssign={handleOpenAssignModal}
-                onDelete={handleDeleteTeacher}
-                onSendInvite={handleSendTeacherInvite}
-                sendingInviteTeacherId={sendingInviteTeacherId}
-            />
-            <TablePagination
-                page={currentPage}
-                pageSize={pageSize}
-                totalItems={totalItems}
-                totalPages={totalPages}
-                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
-                onPageSizeChange={(nextSize) => {
-                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
-                    setCurrentPage(1);
-                }}
-            />
+            <div className="teachers-panel">
+                <TeachersTable
+                    loading={loading}
+                    teachers={teachers}
+                    canManageTeachers={canManageTeachers}
+                    selectedTeacherIds={selectedTeacherIds}
+                    isAllTeachersSelected={
+                        teachers.length > 0
+                        && teachers.every((teacher) => selectedTeacherIds.has(teacher._id))
+                    }
+                    toggleSelectAllTeachers={toggleSelectAllTeachers}
+                    toggleSelectTeacher={toggleSelectTeacher}
+                    onView={(teacher) => navigate(`/portal/teachers/${teacher._id}`)}
+                    onEdit={handleEditTeacher}
+                    onAssign={handleOpenAssignModal}
+                    onDelete={handleDeleteTeacher}
+                    onSendInvite={handleSendTeacherInvite}
+                    sendingInviteTeacherId={sendingInviteTeacherId}
+                />
+                {!loading && teachers.length > 0 && (
+                    <TablePagination
+                        page={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        totalPages={totalPages}
+                        onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                        onPageSizeChange={(nextSize) => {
+                            setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
+                            setCurrentPage(1);
+                        }}
+                    />
+                )}
+            </div>
 
             <TeacherFormModal
                 open={showModal}

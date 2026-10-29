@@ -133,8 +133,8 @@ const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingW
 const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
-const WritingCreditPage = lazy(() => import("./pages/teacher/writing/WritingCreditPage"));
-const AiCreditDashboardPage = lazy(() => import("./pages/teacher/writing/WritingCreditPage/AdminCreditView.jsx"));
+const MyAiCreditPage = lazy(() => import("./pages/aiCredit/MyCreditPage.jsx"));
+const AiCreditAdminPage = lazy(() => import("./pages/aiCredit/AdminCreditPage.jsx"));
 const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
 const SubRequestsList = lazy(() => import("./pages/substitutions/SubRequestsList"));
 const SubRequestDetail = lazy(() => import("./pages/substitutions/SubRequestDetail"));
@@ -1427,23 +1427,20 @@ function App() {
               path="ai-credit"
               element={
                 <RoleRoute roles={["admin"]}>
-                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
-                    <AiCreditDashboardPage />
-                  </FeatureGate>
+                  <AiCreditAdminPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="ai-credit/me"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <MyAiCreditPage />
                 </RoleRoute>
               }
             />
             {/* Writing Assistant: teacher builds tasks and follows the drafts */}
-            <Route
-              path="writing/credit"
-              element={
-                <RoleRoute roles={["teacher", "admin"]}>
-                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
-                    <WritingCreditPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
+            <Route path="writing/credit" element={<Navigate to="/portal/ai-credit/me" replace />} />
             <Route
               path="writing/assignments"
               element={

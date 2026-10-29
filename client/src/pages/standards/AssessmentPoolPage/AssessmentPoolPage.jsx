@@ -252,54 +252,56 @@ const AssessmentPoolPage = ({ embedded }) => {
         </div>
       ) : (
         <>
-          <table className="pool-table">
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.size === questions.length && questions.length > 0}
-                    onChange={toggleSelectAll}
-                  />
-                </th>
-                <th>Question</th>
-                <th>Type</th>
-                <th>Difficulty</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {questions.map((q) => (
-                <tr key={q._id}>
-                  <td>
+          <div className="pool-table-wrap">
+            <table className="pool-table">
+              <thead>
+                <tr>
+                  <th>
                     <input
                       type="checkbox"
-                      checked={selectedIds.has(q._id)}
-                      onChange={() => toggleSelect(q._id)}
+                      checked={selectedIds.size === questions.length && questions.length > 0}
+                      onChange={toggleSelectAll}
                     />
-                  </td>
-                  <td>
-                    <div className="question-preview">{q.questionText}</div>
-                  </td>
-                  <td>
-                    <span className="type-badge">
-                      {q.questionType?.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`difficulty-badge ${q.difficulty || 'medium'}`}>
-                      {q.difficulty || 'medium'}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-secondary" onClick={() => handlePreview(q)}>
-                      Preview
-                    </button>
-                  </td>
+                  </th>
+                  <th>Question</th>
+                  <th>Type</th>
+                  <th>Difficulty</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {questions.map((q) => (
+                  <tr key={q._id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(q._id)}
+                        onChange={() => toggleSelect(q._id)}
+                      />
+                    </td>
+                    <td>
+                      <div className="question-preview">{q.questionText}</div>
+                    </td>
+                    <td>
+                      <span className="type-badge">
+                        {q.questionType?.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`difficulty-badge ${q.difficulty || 'medium'}`}>
+                        {q.difficulty || 'medium'}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="btn-secondary" onClick={() => handlePreview(q)}>
+                        Preview
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <TablePagination
             page={pagination?.page || page}

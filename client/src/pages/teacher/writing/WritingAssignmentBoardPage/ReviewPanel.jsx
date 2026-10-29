@@ -8,7 +8,7 @@ import {
   HiOutlineSparkles,
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
-import { creditErrorMessage, isCreditError } from "../../../../utils/writingCredit.js";
+import { creditErrorMessage, isCreditError } from "../../../../utils/aiCredit.js";
 import {
   formFromAssessment,
   latestForDraft,
@@ -198,7 +198,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
           <label className="wa-field">
             <span>{t("writing:teacher.review.summary")}</span>
             <textarea
-              rows={3}
+              rows={6}
               value={form.summary}
               readOnly={!feedbackEditable}
               onChange={(event) => updateForm({ summary: event.target.value })}
@@ -253,7 +253,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.strengths")}</span>
                   <textarea
-                    rows={2}
+                    rows={4}
                     value={row.strengthsText}
                     readOnly={!feedbackEditable}
                     onChange={(event) => updateSection(index, { strengthsText: event.target.value })}
@@ -262,7 +262,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.improvements")}</span>
                   <textarea
-                    rows={2}
+                    rows={4}
                     value={row.improvementsText}
                     readOnly={!feedbackEditable}
                     onChange={(event) => updateSection(index, { improvementsText: event.target.value })}
@@ -271,8 +271,8 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                 <div className="wa-review-pair">
                   <label className="wa-field">
                     <span>{t("writing:teacher.review.evidence")}</span>
-                    <input
-                      type="text"
+                    <textarea
+                      rows={3}
                       value={row.evidence}
                       readOnly={!feedbackEditable}
                       onChange={(event) => updateSection(index, { evidence: event.target.value })}
@@ -280,8 +280,8 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                   </label>
                   <label className="wa-field">
                     <span>{t("writing:teacher.review.nextStep")}</span>
-                    <input
-                      type="text"
+                    <textarea
+                      rows={3}
                       value={row.nextStep}
                       readOnly={!feedbackEditable}
                       onChange={(event) => updateSection(index, { nextStep: event.target.value })}
@@ -290,8 +290,8 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                 </div>
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.why")}</span>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={3}
                     value={row.why}
                     readOnly={!feedbackEditable}
                     onChange={(event) => updateSection(index, { why: event.target.value })}
@@ -426,7 +426,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               <label className="wa-field">
                 <span>{t("writing:teacher.review.comparisonEncouragement")}</span>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={comparisonForm.comparison.encouragement}
                   readOnly={!comparisonEditable}
                   onChange={(event) => updateComparison({ encouragement: event.target.value })}
@@ -436,7 +436,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               <label className="wa-field">
                 <span>{t("writing:teacher.review.improved")}</span>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={comparisonForm.comparison.improvedText}
                   readOnly={!comparisonEditable}
                   onChange={(event) => updateComparison({ improvedText: event.target.value })}
@@ -445,7 +445,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               <label className="wa-field">
                 <span>{t("writing:teacher.review.unresolved")}</span>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={comparisonForm.comparison.unresolvedText}
                   readOnly={!comparisonEditable}
                   onChange={(event) => updateComparison({ unresolvedText: event.target.value })}
@@ -454,7 +454,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               <label className="wa-field">
                 <span>{t("writing:teacher.review.newIssues")}</span>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={comparisonForm.comparison.newIssuesText}
                   readOnly={!comparisonEditable}
                   onChange={(event) => updateComparison({ newIssuesText: event.target.value })}
@@ -467,7 +467,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                   <div className="wa-review-change" key={`${row.key}:${row.index}:${row.kind}`}>
                     <span>{row.label}</span>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={row.summary}
                       readOnly={!comparisonEditable}
                       aria-label={row.label}
@@ -564,7 +564,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
           <h4>{t("writing:teacher.review.notebookTitle")}</h4>
           <label className="wa-field">
             <span>{t("writing:teacher.review.notebookNote")}</span>
-            <textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
+            <textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
           <label className="wa-field">
             <span>{t("writing:teacher.review.notebookScore")}</span>

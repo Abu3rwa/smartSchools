@@ -24,6 +24,8 @@ const aiCreditEntrySchema = new mongoose.Schema(
     profitCents: { type: Number },
     markupPercent: { type: Number },
     charged: { type: Boolean, default: true },
+    // True when the model itself has no configured price, so the row carries no cost.
+    unpriced: { type: Boolean, default: false },
     balanceAfterCents: { type: Number },
 
     feature: { type: String, trim: true, default: '' },

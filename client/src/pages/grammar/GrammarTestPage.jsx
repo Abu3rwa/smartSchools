@@ -946,7 +946,7 @@ const GrammarTestPage = () => {
                                                     <div className="form-group">
                                                         <label>Question</label>
                                                         <textarea
-                                                            rows={2}
+                                                            rows={3}
                                                             value={q.questionText || ''}
                                                             onChange={e => updateQuestion(idx, 'questionText', e.target.value)}
                                                         />

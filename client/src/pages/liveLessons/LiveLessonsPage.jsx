@@ -3692,7 +3692,7 @@ const LiveLessonsPage = () => {
                 <label className="live-edit-field">
                   Description
                   <textarea
-                    rows={2}
+                    rows={4}
                     value={form.description || ""}
                     onChange={(event) =>
                       setForm((previous) => ({
@@ -3905,7 +3905,7 @@ const LiveLessonsPage = () => {
                           <label className="live-edit-field">
                             Teacher notes
                             <textarea
-                              rows={2}
+                              rows={4}
                               value={activeSlide.speakerNotes || ""}
                               onChange={(event) =>
                                 updateSlide(selectedSlideIndex, {

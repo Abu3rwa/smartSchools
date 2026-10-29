@@ -706,7 +706,7 @@
   width: 100%;
   min-width: 0;
 }
-.wa-review textarea { resize: vertical; }
+.wa-review textarea { resize: vertical; min-height: 4rem; line-height: 1.45; }
 .wa-review input[readonly],
 .wa-review textarea[readonly] { background: var(--wa-surface-2); color: var(--wa-muted); }
 .wa-review .wa-field { min-width: 0; }
