@@ -149,6 +149,7 @@ export const draftParentEmail = async ({
     metrics = {},
     analysis = {},
     language = 'en',
+    teacherName = '',
     billing,
     context = {}
 }) => {
@@ -171,6 +172,9 @@ RULES:
 - No percentages, scores, marks, or dates.
 - No mention of apps, websites, or software; only simple at-home practice ideas.
 - Ask the family for one or two concrete things they can do.
+${teacherName
+        ? `- End with a sign-off line using exactly this name and nothing else: ${teacherName}. Never invent a different name or title.`
+        : '- Do not add any signature or sign-off line, and never use a placeholder such as [Your Name].'}
 - Write in ${languageLabel} (${language}).`;
 
     const reply = await connectAi(prompt, usageFor({ billing, context, feature: 'spelling_parent_draft' }));

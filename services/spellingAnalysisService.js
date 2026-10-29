@@ -6,6 +6,7 @@ import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingWord from '../models/SpellingWord.js';
 import Student from '../models/Student.js';
+import User from '../models/User.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
 import * as ai from './spellingAnalysisAIService.js';
 import {
@@ -343,12 +344,18 @@ export const createParentDraft = async ({ schoolId, studentId, window, language 
         throw httpError('No parent email addresses are on file for this student', 422, 'SPELLING_ANALYSIS_NO_PARENTS');
     }
 
+    const author = userId
+        ? await User.findById(userId).select('firstName lastName').lean()
+        : null;
+    const teacherName = [author?.firstName, author?.lastName].filter(Boolean).join(' ').trim();
+
     const result = await ai.draftParentEmail({
         studentFirstName: student.firstName || '',
         grade: analysis.grade || '',
         metrics: analysis.metrics || {},
         analysis,
         language,
+        teacherName,
         billing: { schoolId, userId },
         context: { studentId, studentName: analysis.studentName, periodKey: period.key }
     });
