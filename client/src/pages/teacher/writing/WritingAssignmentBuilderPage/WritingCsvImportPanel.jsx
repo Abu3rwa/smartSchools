@@ -107,7 +107,6 @@ export default function WritingCsvImportPanel({ onApplied }) {
               max: parsed.maxWords || t("writing:teacher.builder.previewNoMax"),
             })
             : t("writing:teacher.builder.csv.noLength")}</span>
-          <span>{t("writing:teacher.builder.csv.drafts", { n: parsed.workflow.maxDrafts })}</span>
           <button type="button" className="btn btn-primary btn-sm" onClick={apply}>
             {t("writing:teacher.builder.csv.apply")}
           </button>

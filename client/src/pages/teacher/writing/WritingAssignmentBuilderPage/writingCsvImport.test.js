@@ -41,7 +41,6 @@ test('the template file the teacher downloads parses back', () => {
   assert.deepEqual(parsed.rubric.map((row) => row.maxScore), [5, 5, 4]);
   assert.deepEqual(parsed.rubric[2].appliesToSections, ['introduction', 'conclusion']);
   assert.deepEqual(parsed.rubric[0].appliesToSections, ['*']);
-  assert.equal(parsed.workflow.maxDrafts, 3);
   assert.equal(parsed.workflow.teacherPublishesFeedback, true);
   assert.equal(parsed.supports.wordBank.length, 3);
 });
@@ -66,6 +65,16 @@ test('a column this import does not read is refused rather than ignored', () => 
   rows[0] = `${rows[0]},marks_out`;
   rows[1] = `${rows[1]},20`;
   assert.throws(() => parseWritingCsv(rows.join('\r\n')), /marks_out/);
+});
+
+test('an older file with a max_drafts column is refused with the reason and the fix', () => {
+  const rows = csv([sectionRow()]).split('\r\n');
+  rows[0] = `${rows[0]},max_drafts`;
+  rows[1] = `${rows[1]},4`;
+  assert.throws(
+    () => parseWritingCsv(rows.join('\r\n')),
+    /max_drafts column, which is no longer used.*Delete that column/,
+  );
 });
 
 test('a second row cannot quietly change the task', () => {
@@ -142,7 +151,7 @@ test('an unquoted comma is explained, not just counted', () => {
     .replace('"First of all, next"', 'First of all, next');
   assert.throws(
     () => parseWritingCsv(broken),
-    /Row 2: has 34 values, but the header row has 33\..*wrap.*quote marks/s,
+    /Row 2: has 33 values, but the header row has 32\..*wrap.*quote marks/s,
   );
 });
 

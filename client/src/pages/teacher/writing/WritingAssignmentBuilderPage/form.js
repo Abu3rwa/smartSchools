@@ -27,6 +27,8 @@ export const emptyForm = () => ({
   writingType: "essay",
   topic: "",
   classId: "",
+  audienceMode: "class",
+  studentIds: [],
   dueDate: "",
   minWords: 0,
   maxWords: 0,
@@ -53,6 +55,8 @@ export const formFromAssignment = (assignment) => {
     writingType: assignment.writingType || "essay",
     topic: assignment.topic || "",
     classId: assignment.class ? String(assignment.class) : "",
+    audienceMode: assignment.audienceMode === "selected" ? "selected" : "class",
+    studentIds: (assignment.students || []).map((row) => String(row?._id || row)),
     dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : "",
     minWords: num(assignment.minWords),
     maxWords: num(assignment.maxWords),
@@ -147,10 +151,11 @@ export const studentViewPreview = (form) => {
     minWords: num(form.minWords),
     maxWords: num(form.maxWords),
     totalPoints: totalRubricPoints(form.rubric),
+    audienceMode: form.audienceMode === "selected" ? "selected" : "class",
+    audienceCount: (form.studentIds || []).length,
     supports: Object.entries(form.supports || {})
       .filter(([key, value]) => !["modelText", "plannerPrompt"].includes(key) && Array.isArray(value) && value.length)
       .map(([key, value]) => ({ key, items: value.length })),
-    drafts: num(form.workflow?.maxDrafts, 1) || 1,
     publishesFeedback: form.workflow?.teacherPublishesFeedback !== false,
     notebookCheck: form.workflow?.requireNotebookCheck !== false,
   };
@@ -170,6 +175,9 @@ export const validateForm = (form) => {
   const errors = {};
   if (!String(form.title || "").trim()) errors.title = "title";
   if (!form.classId) errors.classId = "class";
+  if (form.audienceMode === "selected" && !(form.studentIds || []).length) {
+    errors.studentIds = "students";
+  }
 
   const sections = (form.sections || []).map((row) => ({
     ...normalizeSectionRow(row),
@@ -197,13 +205,16 @@ export const buildPayload = (form) => ({
   writingType: form.writingType,
   topic: String(form.topic || "").trim(),
   classId: form.classId || undefined,
+  audienceMode: form.audienceMode === "selected" ? "selected" : "class",
+  studentIds: form.audienceMode === "selected" ? (form.studentIds || []) : undefined,
   dueDate: form.dueDate || undefined,
   minWords: num(form.minWords),
   maxWords: num(form.maxWords),
   expectedLevel: String(form.expectedLevel || "").trim(),
   goals: (form.goals || [])
     .map((row) => ({ student: row.student, text: String(row.text || "").trim() }))
-    .filter((row) => row.student && row.text),
+    .filter((row) => row.student && row.text)
+    .filter((row) => form.audienceMode !== "selected" || (form.studentIds || []).includes(row.student)),
   sections: (form.sections || []).map((row) => {
     const normalized = normalizeSectionRow(row);
     return {

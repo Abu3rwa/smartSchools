@@ -189,19 +189,48 @@
   color: var(--tt-muted);
 }
 
-/* ---- Chat layout ---- */
-.tt-page--chat { max-width: 1300px; }
+/* ---- Chat layout ----
+   One screen tall: the conversation scrolls inside its own column, the composer
+   stays put at the bottom, and the lesson rail runs the full height beside it. */
+.tt-page--chat {
+  max-width: 1300px;
+  height: calc(100dvh - var(--header-height, 56px) - 4rem);
+  min-height: 420px;
+  gap: 10px;
+}
+
+/* A slim bar so the writing area gets the screen, not the page furniture.
+   On wide screens the chat owns the whole column and the bar is hidden; the
+   subject, credits and change-subject control move into the lesson rail. */
+.tt-head--mini {
+  flex: none;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--tt-line);
+  border-radius: 12px;
+  background: var(--tt-surface);
+}
+.tt-head--mini .tt-back { margin-bottom: 0; flex: none; }
+.tt-head--mini .tt-head-main { flex: 1; min-width: 0; }
+.tt-head--mini h1 { font-size: 1.08rem; }
+.tt-head--mini .tt-chip { padding: 5px 11px; font-size: 0.86rem; }
+
+@media (min-width: 901px) {
+  .tt-page--chat > .tt-head { display: none; }
+}
 
 .tt-body {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 284px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 14px;
+  align-items: stretch;
 }
 
 .tt-side {
-  position: sticky;
-  top: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -209,8 +238,34 @@
   border: 1px solid var(--tt-line);
   border-radius: 14px;
   background: var(--tt-surface);
-  max-height: calc(100vh - 200px);
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
+}
+
+/* Mobile-only furniture: the lessons rail becomes a drawer. */
+.tt-rail-toggle,
+.tt-rail-backdrop,
+.tt-rail-close,
+.tt-side-drawer-head { display: none; }
+
+/* Subject, credits and the way back live beside the chat, so nothing sits
+   above or below the conversation and its input. */
+.tt-side-subject {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--tt-line);
+}
+.tt-side-subject h1 { margin: 0; font-size: 1.05rem; line-height: 1.3; }
+.tt-side-subject .tt-back { margin-bottom: 2px; }
+.tt-side-subject .tt-chip { align-self: flex-start; padding: 5px 11px; font-size: 0.86rem; }
+.tt-side-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--tt-muted);
 }
 
 .tt-side-head {
@@ -356,14 +411,16 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .tt-thread {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: 420px;
-  max-height: calc(100vh - 300px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 22px;
   border: 1px solid var(--tt-line);
@@ -448,11 +505,17 @@
 }
 .tt-prompts button:hover { border-color: var(--tt-teal); color: var(--tt-teal); }
 
+@keyframes tt-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .tt-msg {
   display: flex;
   flex-direction: column;
   gap: 4px;
   max-width: min(74ch, 86%);
+  animation: tt-rise 0.25s ease both;
 }
 .tt-msg.is-student { align-self: flex-end; align-items: flex-end; }
 .tt-msg.is-tutor {
@@ -486,6 +549,14 @@
 }
 .tt-msg.is-student .tt-msg-body { align-items: flex-end; }
 
+.tt-msg-by {
+  padding-inline: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--tt-teal) 72%, #0f172a);
+}
+
 .tt-stage {
   display: inline-flex;
   align-items: center;
@@ -510,17 +581,18 @@
 .tt-bubble p + p { margin-top: 10px; }
 
 .tt-msg.is-student .tt-bubble {
-  background: var(--tt-teal);
+  background: linear-gradient(135deg, #0f766e 0%, #0d5f56 55%, #064e3b 100%);
   color: #ffffff;
   font-weight: 500;
   border-end-end-radius: 6px;
-  box-shadow: 0 10px 22px -18px rgba(13, 148, 136, 0.9);
+  box-shadow: 0 10px 20px -16px rgba(6, 78, 59, 0.6);
 }
+.tt-msg.is-student .tt-bubble p { color: #ffffff; }
 .tt-msg.is-tutor .tt-bubble {
   background: var(--tt-surface);
   border: 1px solid var(--tt-line);
   border-end-start-radius: 6px;
-  box-shadow: 0 12px 26px -24px rgba(15, 23, 42, 0.65);
+  box-shadow: 0 10px 22px -20px rgba(15, 23, 42, 0.6);
 }
 
 .tt-source {
@@ -650,6 +722,7 @@
 
 /* ---- Notices and composer ---- */
 .tt-error {
+  flex: none;
   margin: 0;
   padding: 11px 15px;
   border-radius: 11px;
@@ -679,13 +752,33 @@
 
 .tt-composer {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 12px;
+  flex: none;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px 12px;
   border: 1px solid var(--tt-line);
   border-radius: 16px;
   background: var(--tt-surface);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* The tutor is waiting on a try: the input says so before the student types. */
+.tt-composer.is-turn { border-color: color-mix(in srgb, var(--primary, #0d9488) 42%, transparent); }
+.tt-composer-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding-inline: 2px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--tt-teal);
+}
+.tt-composer-cue.is-muted { color: var(--tt-muted); font-weight: 500; }
+.tt-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
 }
 .tt-composer:focus-within {
   border-color: color-mix(in srgb, var(--primary, #0d9488) 45%, transparent);
@@ -701,33 +794,101 @@
   font-size: 1.05rem;
   line-height: 1.6;
   padding: 7px 9px;
-  max-height: 160px;
+  max-height: 132px;
+  overflow-y: auto;
 }
 .tt-composer textarea:focus { outline: none; }
 .tt-composer textarea:disabled { color: var(--tt-muted); }
 .tt-composer .btn { flex: none; }
 
-.tt-footnote {
-  margin: -4px 0 0;
-  font-size: 0.84rem;
-  color: var(--tt-muted);
-  text-align: center;
-}
-
 @media (max-width: 900px) {
-  .tt-body { grid-template-columns: minmax(0, 1fr); }
-  .tt-side {
-    position: static;
-    max-height: none;
-    order: 2;
+  /* Same full-height workspace as desktop: the thread scrolls, the composer
+     stays pinned under it. Lessons move into a drawer off the end side. */
+  .tt-page--chat {
+    height: calc(100dvh - var(--header-height, 56px) - 2rem);
+    min-height: 0;
   }
-  .tt-chat { order: 1; }
+  .tt-body { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .tt-chat { order: 1; height: 100%; }
   .tt-thread {
+    min-height: 0;
     max-height: none;
-    min-height: 320px;
     padding: 14px;
     border-radius: 16px;
   }
+
+  .tt-rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border: 1px solid var(--tt-line);
+    border-radius: 999px;
+    background: var(--tt-surface-2);
+    color: var(--tt-ink);
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tt-rail-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    border: 0;
+    background: rgba(15, 23, 42, 0.42);
+  }
+
+  .tt-side {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 70;
+    width: min(86vw, 340px);
+    height: auto;
+    padding: 16px;
+    border: 0;
+    border-inline-start: 1px solid var(--tt-line);
+    border-radius: 0;
+    box-shadow: -18px 0 40px -30px rgba(15, 23, 42, 0.5);
+    transform: translateX(105%);
+    transition: transform 0.22s ease;
+    order: 2;
+  }
+  [dir="rtl"] .tt-side { transform: translateX(-105%); }
+  .tt-side.is-open,
+  [dir="rtl"] .tt-side.is-open { transform: translateX(0); }
+
+  .tt-side-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tt-side-drawer-head h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .tt-rail-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--tt-line);
+    border-radius: 10px;
+    background: var(--tt-surface-2);
+    color: var(--tt-ink);
+    cursor: pointer;
+  }
+
+  .tt-side-subject { display: none; }
+  .tt-head--mini { flex-wrap: wrap; }
+  .tt-head--mini .tt-head-main { flex: 1 1 100%; order: 3; }
   .tt-msg,
   .tt-msg.is-tutor { max-width: 96%; }
   .tt-avatar { display: none; }

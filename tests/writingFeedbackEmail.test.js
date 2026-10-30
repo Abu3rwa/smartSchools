@@ -29,7 +29,7 @@ const assignment = {
     topic: 'Should our school have a longer recess?',
     writingType: 'essay',
     dueDate: new Date('2026-11-12T00:00:00.000Z'),
-    workflow: { maxDrafts: 3 }
+    workflow: { requireNotebookCheck: true }
 };
 
 const assessment = {
@@ -124,7 +124,7 @@ test('a student email names the draft, the next step and the piece', () => {
     assert.match(message.html, /Do these next/);
     assert.match(message.html, /Open my writing/);
     assert.match(message.html, /Al Noor School · Writing/);
-    assert.match(message.html, /Draft 2 of 3 · 168 words/);
+    assert.match(message.html, /Draft 2 · 168 words/);
     assert.match(message.html, /due 12 Nov/);
     assert.match(message.text, /^Hello Areen,/);
     assert.match(message.text, /1\. Add one example\./);

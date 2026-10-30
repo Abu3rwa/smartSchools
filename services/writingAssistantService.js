@@ -10,6 +10,7 @@ import WritingAssignment from '../models/WritingAssignment.js';
 import WritingProject from '../models/WritingProject.js';
 import WritingDraft from '../models/WritingDraft.js';
 import WritingAssessment from '../models/WritingAssessment.js';
+import SpellingAnalysis from '../models/SpellingAnalysis.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 
@@ -24,6 +25,7 @@ import {
     buildDraftSections,
     buildTracker,
     buildWorkingSections,
+    buildWritingProfile,
     canMoveTo,
     canStudentSubmit,
     configSnapshotFor,
@@ -117,7 +119,6 @@ const normalizeSupports = (input = {}) => ({
 
 const normalizeWorkflow = (input = {}) => ({
     teacherPublishesFeedback: input.teacherPublishesFeedback !== false,
-    maxDrafts: Math.min(Math.max(Number(input.maxDrafts) || 4, 1), 20),
     requireNotebookCheck: input.requireNotebookCheck !== false,
     autoSuggestNextStep: input.autoSuggestNextStep !== false
 });
@@ -146,16 +147,39 @@ const assertVisibleToTeacher = (assignment, userId, isAdmin) => {
     throw forbidden('Only the teacher who created this writing task or a school admin can change it.');
 };
 
+const uniqueIds = (values = []) => [...new Set(values.map(objectId).filter(Boolean))];
+
+/** A goal may only name a student the task is actually assigned to. */
+const assertGoalsInAudience = (goals, students) => {
+    const allowed = new Set((students || []).map((id) => String(id)));
+    if (goals.some((goal) => !allowed.has(String(goal.student)))) {
+        throw badRequest('A learning goal names a student who is not part of this task.');
+    }
+};
+
+/**
+ * One task belongs to one class. "Selected students" is a subset of that class,
+ * never a mix of classes; the roster comes from the class, not from the request.
+ */
 const resolveAudience = async ({ schoolId, classId, studentIds, academicYear }) => {
-    if (studentIds?.length) {
-        const query = {
+    const ids = uniqueIds(studentIds || []);
+    if (ids.length) {
+        if (!classId) throw badRequest('Choose a class before selecting students.');
+        const classQuery = { _id: classId, school: schoolId };
+        if (academicYear) classQuery.academicYear = academicYear;
+        const classDoc = await Class.findOne(classQuery).select('_id').lean();
+        if (!classDoc) throw notFound(academicYear ? `Class not found in ${academicYear}` : 'Class not found');
+        const found = await Student.find({
             school: schoolId,
-            _id: { $in: studentIds.map(objectId).filter(Boolean) },
-            status: 'active'
-        };
-        if (academicYear) query.academicYear = academicYear;
-        const found = await Student.find(query).select('_id').lean();
-        return { classId: classId || null, students: found.map((row) => row._id) };
+            _id: { $in: ids },
+            currentClass: classId,
+            status: 'active',
+            ...(academicYear ? { academicYear } : {})
+        }).select('_id').lean();
+        if (found.length !== ids.length) {
+            throw badRequest('Some selected students are not active in this class.');
+        }
+        return { classId, students: found.map((row) => row._id) };
     }
     if (classId) {
         const classQuery = { _id: classId, school: schoolId };
@@ -172,6 +196,13 @@ const resolveAudience = async ({ schoolId, classId, studentIds, academicYear }) 
     }
     throw badRequest('Choose a class or at least one student.');
 };
+
+export const audienceModeFor = (payload = {}) => (
+    payload.audienceMode === 'selected'
+    || (payload.audienceMode === undefined && Array.isArray(payload.studentIds) && payload.studentIds.length)
+        ? 'selected'
+        : 'class'
+);
 
 export const createAssignment = async ({
     schoolId,
@@ -199,6 +230,7 @@ export const createAssignment = async ({
             text: String(row?.text || '').trim().slice(0, 500)
         }))
         .filter((row) => row.student && row.text);
+    assertGoalsInAudience(goals, audience.students);
 
     const assignment = await WritingAssignment.create({
         school: schoolId,
@@ -210,6 +242,7 @@ export const createAssignment = async ({
         assignedBy: userId,
         class: audience.classId || undefined,
         students: audience.students,
+        audienceMode: audienceModeFor(payload),
         dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
         isActive: payload.isActive !== false,
         isTemplate: payload.isTemplate === true,
@@ -266,21 +299,31 @@ export const updateAssignment = async ({
         assignment.sections = structure.sections;
         assignment.rubric = structure.rubric;
     }
-    if (payload.studentIds || payload.classId || payload.class) {
+    const wantsAudienceChange = payload.studentIds !== undefined
+        || payload.classId !== undefined
+        || payload.class !== undefined
+        || payload.audienceMode !== undefined;
+    if (wantsAudienceChange) {
+        const mode = audienceModeFor(payload);
         const audience = await resolveAudience({
             schoolId,
-            classId: objectId(payload.classId || payload.class),
-            studentIds: payload.studentIds,
+            classId: objectId(payload.classId || payload.class) || (assignment.class ? String(assignment.class) : null),
+            studentIds: mode === 'selected'
+                ? (payload.studentIds !== undefined ? payload.studentIds : assignment.students.map((row) => String(row)))
+                : [],
             academicYear: assignment.academicYear
         });
         if (!audience.students.length) throw badRequest('No students matched that class.');
         assignment.class = audience.classId || undefined;
         assignment.students = audience.students;
+        assignment.audienceMode = mode;
     }
     if (payload.goals !== undefined) {
-        assignment.goals = (Array.isArray(payload.goals) ? payload.goals : [])
+        const goals = (Array.isArray(payload.goals) ? payload.goals : [])
             .map((row) => ({ student: objectId(row?.student), text: String(row?.text || '').trim().slice(0, 500) }))
             .filter((row) => row.student && row.text);
+        assertGoalsInAudience(goals, assignment.students);
+        assignment.goals = goals;
     }
 
     await assignment.save();
@@ -727,7 +770,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
         project: project._id,
         'publish.state': 'published'
     })
-        .select('draft previousDraft kind sections overall scores tasks totalScore comparison recommendation publish publishedAt')
+        .select('draft previousDraft kind sections overall scores tasks spellingTargets spellingWins totalScore comparison recommendation publish publishedAt')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -793,6 +836,8 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
             overall: assessment.overall,
             scores: assessment.scores,
             tasks: assessment.tasks,
+            spellingTargets: assessment.spellingTargets,
+            spellingWins: assessment.spellingWins,
             totalScore: assessment.totalScore,
             comparison: assessment.comparison,
             recommendation: assessment.recommendation
@@ -861,7 +906,6 @@ export const getStudentFeed = async ({ schoolId, studentId, academicYear = null 
             wordCount: project.wordCount || 0,
             minWords: assignment.minWords,
             maxWords: assignment.maxWords,
-            maxDrafts: assignment.workflow?.maxDrafts || 4,
             nextAction: action,
             notebook: project.notebook?.state || 'not_requested',
             lastEditedAt: project.lastEditedAt || null,
@@ -913,12 +957,22 @@ export const getProjectHistory = async ({ schoolId, projectId }) => {
         .lean();
     if (!project) throw notFound('Writing project not found.');
 
-    const [assignment, drafts, assessments] = await Promise.all([
+    const studentId = project.student?._id || project.student;
+    const [assignment, drafts, assessments, profileAssessments, spelling] = await Promise.all([
         WritingAssignment.findOne({ school: schoolId, _id: project.assignment }).lean(),
         WritingDraft.find({ school: schoolId, project: project._id }).sort({ number: 1 }).lean(),
         WritingAssessment.find({ school: schoolId, project: project._id })
             .select('-aiOriginal')
             .sort({ createdAt: -1 })
+            .lean(),
+        WritingAssessment.find({ school: schoolId, student: studentId, aiStatus: 'done' })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('draft scores')
+            .lean(),
+        SpellingAnalysis.findOne({ school: schoolId, student: studentId, status: 'ready' })
+            .sort({ updatedAt: -1 })
+            .select('grade metrics.attempts metrics.accuracy')
             .lean()
     ]);
 
@@ -932,6 +986,7 @@ export const getProjectHistory = async ({ schoolId, projectId }) => {
                 code: project.student?.studentId || ''
             }
         },
+        differentiation: buildWritingProfile({ assessments: profileAssessments, spelling }),
         assignment,
         drafts,
         assessments,

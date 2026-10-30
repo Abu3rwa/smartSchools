@@ -12,6 +12,26 @@ const workingSectionSchema = new mongoose.Schema(
 );
 
 /**
+ * One revision task followed across drafts. `stalled` means the same task was
+ * checked and not done on two comparisons in a row; the teacher sees it and the
+ * next feedback changes its approach instead of repeating itself.
+ */
+const revisionLedgerSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    text: { type: String, trim: true, default: '' },
+    introducedDraft: { type: Number, min: 0 },
+    lastCheckedDraft: { type: Number, min: 0 },
+    resolvedDraft: { type: Number, min: 0 },
+    checks: { type: Number, min: 0, default: 0 },
+    unresolvedStreak: { type: Number, min: 0, default: 0 },
+    status: { type: String, enum: ['open', 'resolved', 'stalled', 'dropped'], default: 'open' },
+    note: { type: String, trim: true, default: '' }
+  },
+  { _id: false }
+);
+
+/**
  * One student's work on one writing assignment. Holds the live autosave;
  * submitted versions live in WritingDraft so nothing typed after a submission
  * can damage the version the teacher assessed.
@@ -32,6 +52,7 @@ const writingProjectSchema = new mongoose.Schema(
     draftCount: { type: Number, default: 0, min: 0 },
     latestDraft: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingDraft' },
     latestAssessment: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingAssessment' },
+    revisionLedger: { type: [revisionLedgerSchema], default: [] },
     autosave: {
       title: { type: String, trim: true, default: '' },
       sections: { type: [workingSectionSchema], default: [] },

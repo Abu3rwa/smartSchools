@@ -6,6 +6,7 @@ import {
   HiOutlineCheckCircle,
   HiOutlineRefresh,
   HiOutlineSparkles,
+  HiOutlineX,
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
 import { creditErrorMessage, isCreditError } from "../../../../utils/aiCredit.js";
@@ -93,6 +94,10 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
   const updateComparison = (patch) => setComparisonForm((current) => ({
     ...current,
     comparison: { ...current.comparison, ...patch },
+  }));
+  const dropTarget = (word) => setForm((current) => ({
+    ...current,
+    spellingTargets: (current.spellingTargets || []).filter((row) => row.word !== word),
   }));
 
   const assess = () => run("assess", () => writingService.assessDraft(latestDraft._id), t("writing:teacher.review.assessedToast"));
@@ -205,6 +210,23 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
         </div>
       )}
 
+      {history?.differentiation && (
+        <p className="wa-differentiation">
+          <span className="wa-differentiation-label">{t("writing:teacher.review.differentiation")}</span>
+          <span>{t(`writing:teacher.review.tier.${history.differentiation.tier}`)}</span>
+          {history.differentiation.spellingGrade && (
+            <span>{t("writing:teacher.review.spellingGrade", { grade: history.differentiation.spellingGrade })}</span>
+          )}
+          {history.differentiation.spellingAccuracy !== null && (
+            <span>
+              {t("writing:teacher.review.spellingAccuracy", {
+                n: Math.round(history.differentiation.spellingAccuracy),
+              })}
+            </span>
+          )}
+        </p>
+      )}
+
       {feedback?.aiStatus === "done" && form && (
         <div className="wa-review-block">
           <div className="wa-review-block-head">
@@ -246,6 +268,31 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               />
             ))}
           </div>
+
+          {(form.spellingTargets || []).length > 0 && (
+            <div className="wa-review-spelling">
+              <span className="wa-field-label">{t("writing:teacher.review.spellingTargets")}</span>
+              <div className="wa-spelling-chips">
+                {form.spellingTargets.map((row) => (
+                  <span className="wa-spelling-chip" key={row.word}>
+                    {row.word}
+                    {row.grade ? <em>{row.grade}</em> : null}
+                    {feedbackEditable && (
+                      <button
+                        type="button"
+                        className="wa-spelling-remove"
+                        aria-label={t("writing:teacher.review.spellingRemove", { word: row.word })}
+                        onClick={() => dropTarget(row.word)}
+                      >
+                        <HiOutlineX size={12} aria-hidden="true" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              <p className="wa-hint">{t("writing:teacher.review.spellingTargetsHint")}</p>
+            </div>
+          )}
 
           <div className="wa-review-scores">
             <span className="wa-field-label">{t("writing:teacher.review.scoresTitle")}</span>
@@ -356,6 +403,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               />
             </label>
           </div>
+          <p className="wa-hint">{t("writing:teacher.review.recommendationHint")}</p>
 
           {feedbackEditable && (
             <div className="wa-review-notify">
@@ -546,6 +594,34 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                   ))}
                 </div>
               )}
+
+              {(comparisonForm.spellingWins || []).length > 0 && (
+                <div className="wa-review-applied">
+                  <span className="wa-field-label">{t("writing:teacher.review.spellingWins")}</span>
+                  <div className="wa-spelling-chips">
+                    {comparisonForm.spellingWins.map((word) => (
+                      <span className="wa-spelling-chip is-win" key={word}>{word}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(project?.revisionLedger)
+                && project.revisionLedger.some((row) => row.status !== "dropped") && (
+                  <div className="wa-review-applied wa-ledger">
+                    <span className="wa-field-label">{t("writing:teacher.review.ledgerTitle")}</span>
+                    {project.revisionLedger
+                      .filter((row) => row.status !== "dropped")
+                      .map((row) => (
+                        <div className={`wa-ledger-row is-${row.status}`} key={row.id}>
+                          <span className="wa-ledger-task">{row.text}</span>
+                          <span className="wa-ledger-state">
+                            {t(`writing:teacher.review.ledger.${row.status}`, { n: row.unresolvedStreak || 0 })}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
 
               {comparisonForm.comparison.feedbackApplied.length > 0 && (
                 <div className="wa-review-applied">

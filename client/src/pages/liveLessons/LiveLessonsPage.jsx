@@ -7,9 +7,14 @@ import {
   HiOutlineArrowUpTray,
   HiOutlineCalendarDays,
   HiOutlineCheck,
+  HiOutlineChevronLeft,
+  HiOutlineChevronRight,
   HiOutlineClipboardDocument,
+  HiOutlineClock,
+  HiOutlineCog6Tooth,
   HiOutlineEllipsisVertical,
   HiOutlineEye,
+  HiOutlineFunnel,
   HiOutlinePencilSquare,
   HiOutlinePlay,
   HiOutlinePlus,
@@ -17,6 +22,7 @@ import {
   HiOutlineShare,
   HiOutlineStop,
   HiOutlineTrash,
+  HiOutlineXMark,
 } from "react-icons/hi2";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
@@ -285,6 +291,7 @@ const LiveLessonsPage = () => {
   const [savingMarkDraftSetting, setSavingMarkDraftSetting] = useState(false);
   const [lessonListState, setLessonListState] = useState(defaultListState);
   const [sessionListState, setSessionListState] = useState(defaultListState);
+  const [sessionSearchInput, setSessionSearchInput] = useState("");
   const [lessonPagination, setLessonPagination] = useState({
     page: 1,
     limit: 25,
@@ -530,8 +537,23 @@ const LiveLessonsPage = () => {
     const saved = readListPreferences(preferencesKey);
     setLessonListState(saved.lessons);
     setSessionListState(saved.sessions);
+    setSessionSearchInput(saved.sessions.search || "");
     setPreferencesLoaded(true);
   }, [preferencesKey]);
+
+  // The list state drives the request, so the search box waits for a pause
+  // before it lands there. Typing a word costs one request, not one per letter.
+  useEffect(() => {
+    if (!preferencesLoaded) return undefined;
+    const timer = window.setTimeout(() => {
+      setSessionListState((current) =>
+        current.search === sessionSearchInput
+          ? current
+          : { ...current, search: sessionSearchInput, page: 1 },
+      );
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [sessionSearchInput, preferencesLoaded]);
 
   useEffect(() => {
     if (preferencesLoaded) {
@@ -1702,6 +1724,17 @@ const LiveLessonsPage = () => {
   const libraryTotal = lessonPagination.libraryTotal || lessonPagination.total;
   const lessonPages = Math.max(1, lessonPagination.pages);
   const lessonPage = Math.min(lessonPagination.page, lessonPages);
+  const lessonFiltersActive = Boolean(
+    lessonListState.classId || lessonListState.subject || lessonListState.showDone,
+  );
+  const sessionFiltersActive = Boolean(
+    sessionListState.search ||
+      sessionListState.classId ||
+      sessionListState.subject ||
+      sessionListState.status ||
+      sessionListState.dateFrom ||
+      sessionListState.dateTo,
+  );
   const updateLessonList = (changes) =>
     setLessonListState((current) => ({ ...current, ...changes }));
   const updateSessionList = (changes) =>
@@ -1796,30 +1829,136 @@ const LiveLessonsPage = () => {
       </div>
     ));
 
+  const liveTabs = [
+    {
+      key: "lessons",
+      label: "My lessons",
+      Icon: HiOutlinePresentationChartBar,
+      badge: libraryTotal,
+    },
+    {
+      key: "sessions",
+      label: "Session history",
+      Icon: HiOutlineClock,
+      badge: sessionPagination.total,
+    },
+    ...(user?.role === "admin"
+      ? [
+          {
+            key: "settings",
+            label: "School settings",
+            Icon: HiOutlineCog6Tooth,
+            badge: 0,
+          },
+        ]
+      : []),
+  ];
+  const liveTabRefs = useRef([]);
+  const focusLiveTab = (index) => {
+    const next = liveTabs[index];
+    if (!next) return;
+    setTab(next.key);
+    liveTabRefs.current[index]?.focus();
+  };
+  const onLiveTabKeyDown = (event, index) => {
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusLiveTab(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusLiveTab(liveTabs.length - 1);
+      return;
+    }
+    const rtl = document.documentElement.getAttribute("dir") === "rtl";
+    const step =
+      event.key === "ArrowRight"
+        ? rtl
+          ? -1
+          : 1
+        : event.key === "ArrowLeft"
+          ? rtl
+            ? 1
+            : -1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    focusLiveTab((index + step + liveTabs.length) % liveTabs.length);
+  };
+
   return (
     <div className="live-lessons-page">
-      <nav className="live-lessons-tabs" aria-label="Live lesson sections">
-        <button
-          className={tab === "lessons" ? "active" : ""}
-          onClick={() => setTab("lessons")}
+      <header className="live-page-head">
+        <h1>Live lessons</h1>
+        <span className="live-page-chip">
+          <HiOutlinePresentationChartBar size={16} aria-hidden="true" />
+          {libraryTotal} {libraryTotal === 1 ? "lesson" : "lessons"} in your
+          library
+        </span>
+      </header>
+
+      <div className="live-topbar">
+        <nav
+          className="live-lessons-tabs"
+          role="tablist"
+          aria-label="Live lesson sections"
         >
-          My lessons <span>{libraryTotal}</span>
-        </button>
-        <button
-          className={tab === "sessions" ? "active" : ""}
-          onClick={() => setTab("sessions")}
-        >
-          Session history <span>{sessionPagination.total}</span>
-        </button>
-        {user?.role === "admin" && (
-          <button
-            className={tab === "settings" ? "active" : ""}
-            onClick={() => setTab("settings")}
-          >
-            School settings
-          </button>
-        )}
-      </nav>
+          {liveTabs.map(({ key, label, Icon, badge }, index) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`live-tab-${key}`}
+                ref={(node) => {
+                  liveTabRefs.current[index] = node;
+                }}
+                aria-selected={active}
+                aria-controls="live-lessons-panel"
+                tabIndex={active ? 0 : -1}
+                className={active ? "active" : ""}
+                onClick={() => setTab(key)}
+                onKeyDown={(event) => onLiveTabKeyDown(event, index)}
+              >
+                <Icon size={17} aria-hidden="true" />
+                <span className="live-tab-label">{label}</span>
+                {badge > 0 && <span className="live-tab-count">{badge}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="live-topbar-actions">
+          {tab === "lessons" && (
+            <>
+              <button className="live-secondary-button" onClick={copyAiPrompt}>
+                {promptCopied ? (
+                  <HiOutlineCheck />
+                ) : (
+                  <HiOutlineClipboardDocument />
+                )}
+                {promptCopied ? "Copied to clipboard" : "Copy AI prompt + sample"}
+              </button>
+              <button className="live-primary-button" onClick={openImportEditor}>
+                <HiOutlineArrowUpTray /> Import CSV lesson
+              </button>
+            </>
+          )}
+          {tab === "sessions" && ["teacher", "admin"].includes(user?.role) && (
+            <button
+              className="live-delete-session"
+              onClick={deleteFinishedSessions}
+              disabled={deletingFinishedSessions}
+            >
+              <HiOutlineTrash />
+              {deletingFinishedSessions
+                ? "Deleting finished sessions…"
+                : "Delete all finished sessions"}
+            </button>
+          )}
+        </div>
+      </div>
 
       {error && (
         <div className="live-error-banner" role="alert">
@@ -1833,1084 +1972,1162 @@ const LiveLessonsPage = () => {
           <button onClick={() => setNotice("")}>Dismiss</button>
         </div>
       )}
-      {tab === "settings" ? (
-        <>
-          {user?.role === "admin" && (
-            <section className="live-safety-setting">
-              <div>
-                <strong>AI HTML safety review</strong>
-                <p>
-                  When enabled, AI reviews HTML and scripts before saving. When
-                  disabled, CSS animation still works but slides containing
-                  JavaScript are rejected. Approved scripts run in an isolated,
-                  network-restricted sandbox.
-                </p>
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={aiHtmlReviewEnabled}
-                  disabled={savingHtmlReviewSetting}
-                  onChange={(event) =>
-                    updateAiHtmlReviewSetting(event.target.checked)
-                  }
-                />
-                {savingHtmlReviewSetting
-                  ? "Saving…"
-                  : aiHtmlReviewEnabled
-                    ? "Enabled"
-                    : "Disabled"}
-              </label>
-            </section>
-          )}
-          {user?.role === "admin" && (
-            <section className="live-safety-setting">
-              <div>
-                <strong>Suggested marks for approval</strong>
-                <p>
-                  When enabled, a teacher marking a live session can ask for a
-                  first mark and comment on the written answers that are waiting.
-                  Nothing is saved or shared until the teacher approves it, and
-                  turning this off leaves the mark sheet exactly as it was.
-                </p>
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={markDraftEnabled}
-                  disabled={savingMarkDraftSetting}
-                  onChange={(event) =>
-                    updateMarkDraftSetting(event.target.checked)
-                  }
-                />
-                {savingMarkDraftSetting
-                  ? "Saving…"
-                  : markDraftEnabled
-                    ? "Enabled"
-                    : "Disabled"}
-              </label>
-            </section>
-          )}
-        </>
-      ) : loading || (tab === "lessons" && lessonLoading && !lessonPagination.total) ? (
-        <div className="live-loading">Loading live lessons…</div>
-      ) : tab === "lessons" ? (
-        <>
-          <div className="live-lessons-actions">
-            <div className="live-session-actions">
-              <button className="live-text-button" onClick={copyAiPrompt}>
-                {promptCopied ? (
-                  <HiOutlineCheck />
-                ) : (
-                  <HiOutlineClipboardDocument />
-                )}
-                {promptCopied
-                  ? "Copied to clipboard"
-                  : "Copy AI prompt + sample"}
-              </button>
-              {["teacher", "admin"].includes(user?.role) &&
-                selectedLessonIds.length > 0 && (
-                  <>
-                    <button
-                      className="live-secondary-button"
-                      onClick={() => {
-                        setShareLessons(
-                          selectedLessonIds.map(
-                            (id) =>
-                              lessonSummaries[String(id)] || {
-                                _id: id,
-                                title: "",
-                              },
-                          ),
-                        );
-                        setShareRecipient("");
-                      }}
-                    >
-                      <HiOutlineShare /> Share selected (
-                      {selectedLessonIds.length})
-                    </button>
-                    <button
-                      className="live-delete-session"
-                      onClick={deleteSelectedLessons}
-                      disabled={bulkDeletingLessons}
-                    >
-                      <HiOutlineTrash />{" "}
-                      {bulkDeletingLessons
-                        ? "Deleting…"
-                        : `Delete selected (${selectedLessonIds.length})`}
-                    </button>
-                  </>
-                )}
-              {["teacher", "admin"].includes(user?.role) && lessonTotal > 0 && (
-                <button
-                  className="live-text-button"
-                  onClick={toggleAllFilteredLessons}
-                  disabled={selectingAllLessons}
-                >
-                  {filteredSelectionActive
-                    ? "Clear all filtered selections"
-                    : selectingAllLessons
-                      ? "Selecting lessons…"
-                      : `Select all filtered lessons (${lessonTotal})`}
-                </button>
-              )}
-              <button
-                className="live-primary-button"
-                onClick={openImportEditor}
-              >
-                <HiOutlineArrowUpTray /> Import CSV lesson
-              </button>
-            </div>
+      <div
+        className="live-tab-panel"
+        role="tabpanel"
+        id="live-lessons-panel"
+        aria-labelledby={`live-tab-${tab}`}
+        tabIndex={0}
+      >
+        {tab === "settings" ? (
+          <>
+            {user?.role === "admin" && (
+              <section className="live-safety-setting">
+                <div>
+                  <strong>AI HTML safety review</strong>
+                  <p>
+                    When enabled, AI reviews HTML and scripts before saving. When
+                    disabled, CSS animation still works but slides containing
+                    JavaScript are rejected. Approved scripts run in an isolated,
+                    network-restricted sandbox.
+                  </p>
+                </div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={aiHtmlReviewEnabled}
+                    disabled={savingHtmlReviewSetting}
+                    onChange={(event) =>
+                      updateAiHtmlReviewSetting(event.target.checked)
+                    }
+                  />
+                  {savingHtmlReviewSetting
+                    ? "Saving…"
+                    : aiHtmlReviewEnabled
+                      ? "Enabled"
+                      : "Disabled"}
+                </label>
+              </section>
+            )}
+            {user?.role === "admin" && (
+              <section className="live-safety-setting">
+                <div>
+                  <strong>Suggested marks for approval</strong>
+                  <p>
+                    When enabled, a teacher marking a live session can ask for a
+                    first mark and comment on the written answers that are waiting.
+                    Nothing is saved or shared until the teacher approves it, and
+                    turning this off leaves the mark sheet exactly as it was.
+                  </p>
+                </div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={markDraftEnabled}
+                    disabled={savingMarkDraftSetting}
+                    onChange={(event) =>
+                      updateMarkDraftSetting(event.target.checked)
+                    }
+                  />
+                  {savingMarkDraftSetting
+                    ? "Saving…"
+                    : markDraftEnabled
+                      ? "Enabled"
+                      : "Disabled"}
+                </label>
+              </section>
+            )}
+          </>
+        ) : loading || (tab === "lessons" && lessonLoading && !lessonPagination.total) ? (
+          <div className="live-loading" role="status">
+            <span className="live-spinner" aria-hidden="true" />
+            Loading live lessons…
           </div>
-          {["teacher", "admin"].includes(user?.role) &&
-            (incomingShares.length > 0 || outgoingShares.length > 0) && (
-              <section
-                className="live-share-invitations"
-                aria-label="Lesson sharing invitations"
-              >
-                {incomingShares.length > 0 && (
-                  <div>
-                    <div className="live-share-bulk-heading">
-                      <h2>Lessons shared with you</h2>
-                      <label>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all incoming lesson invitations"
-                          checked={
-                            incomingShares.length > 0 &&
-                            incomingShares.every((invitation) =>
-                              selectedIncomingShareIds.includes(
+        ) : tab === "lessons" ? (
+          <>
+            {["teacher", "admin"].includes(user?.role) &&
+              selectedLessonIds.length > 0 && (
+                <div className="live-selection-bar" role="status">
+                  <span className="live-selection-count">
+                    {selectedLessonIds.length} selected
+                  </span>
+                  <button
+                    className="live-secondary-button"
+                    onClick={() => {
+                      setShareLessons(
+                        selectedLessonIds.map(
+                          (id) =>
+                            lessonSummaries[String(id)] || {
+                              _id: id,
+                              title: "",
+                            },
+                        ),
+                      );
+                      setShareRecipient("");
+                    }}
+                  >
+                    <HiOutlineShare /> Share
+                  </button>
+                  <button
+                    className="live-delete-session"
+                    onClick={deleteSelectedLessons}
+                    disabled={bulkDeletingLessons}
+                  >
+                    <HiOutlineTrash />
+                    {bulkDeletingLessons ? "Deleting…" : "Delete"}
+                  </button>
+                  <button
+                    type="button"
+                    className="live-icon-button"
+                    aria-label="Clear selection"
+                    title="Clear selection"
+                    onClick={() => {
+                      setSelectedLessonIds([]);
+                      setFilteredSelectionActive(false);
+                    }}
+                  >
+                    <HiOutlineXMark />
+                  </button>
+                </div>
+              )}
+            {["teacher", "admin"].includes(user?.role) &&
+              (incomingShares.length > 0 || outgoingShares.length > 0) && (
+                <section
+                  className="live-share-invitations"
+                  aria-label="Lesson sharing invitations"
+                >
+                  {incomingShares.length > 0 && (
+                    <div>
+                      <div className="live-share-bulk-heading">
+                        <h2>Lessons shared with you</h2>
+                        <label>
+                          <input
+                            type="checkbox"
+                            aria-label="Select all incoming lesson invitations"
+                            checked={
+                              incomingShares.length > 0 &&
+                              incomingShares.every((invitation) =>
+                                selectedIncomingShareIds.includes(
+                                  String(invitation._id),
+                                ),
+                              )
+                            }
+                            onChange={(event) =>
+                              setSelectedIncomingShareIds(
+                                event.target.checked
+                                  ? incomingShares.map((invitation) =>
+                                      String(invitation._id),
+                                    )
+                                  : [],
+                              )
+                            }
+                          />
+                          Select all
+                        </label>
+                      </div>
+                      <div className="live-share-bulk-actions">
+                        <button
+                          className="live-primary-button"
+                          disabled={bulkRespondingToShares}
+                          onClick={() =>
+                            respondToSelectedShares(
+                              "accept",
+                              incomingShares.map((invitation) =>
                                 String(invitation._id),
                               ),
                             )
                           }
-                          onChange={(event) =>
-                            setSelectedIncomingShareIds(
-                              event.target.checked
-                                ? incomingShares.map((invitation) =>
-                                    String(invitation._id),
-                                  )
-                                : [],
+                        >
+                          {bulkRespondingToShares ? "Processing…" : "Accept all"}
+                        </button>
+                        <button
+                          className="live-secondary-button"
+                          disabled={bulkRespondingToShares}
+                          onClick={() =>
+                            respondToSelectedShares(
+                              "decline",
+                              incomingShares.map((invitation) =>
+                                String(invitation._id),
+                              ),
                             )
                           }
-                        />
-                        Select all
-                      </label>
-                    </div>
-                    <div className="live-share-bulk-actions">
-                      <button
-                        className="live-primary-button"
-                        disabled={bulkRespondingToShares}
-                        onClick={() =>
-                          respondToSelectedShares(
-                            "accept",
-                            incomingShares.map((invitation) =>
-                              String(invitation._id),
-                            ),
-                          )
-                        }
-                      >
-                        {bulkRespondingToShares ? "Processing…" : "Accept all"}
-                      </button>
-                      <button
-                        className="live-secondary-button"
-                        disabled={bulkRespondingToShares}
-                        onClick={() =>
-                          respondToSelectedShares(
-                            "decline",
-                            incomingShares.map((invitation) =>
-                              String(invitation._id),
-                            ),
-                          )
-                        }
-                      >
-                        Decline all
-                      </button>
-                      {selectedIncomingShareIds.length > 0 && (
-                        <>
-                          <button
-                            className="live-primary-button"
-                            disabled={bulkRespondingToShares}
-                            onClick={() => respondToSelectedShares("accept")}
-                          >
-                            Accept selected ({selectedIncomingShareIds.length})
-                          </button>
-                          <button
-                            className="live-secondary-button"
-                            disabled={bulkRespondingToShares}
-                            onClick={() => respondToSelectedShares("decline")}
-                          >
-                            Decline selected ({selectedIncomingShareIds.length})
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    <ul>
-                      {incomingShares.map((invitation) => (
-                        <li key={invitation._id}>
-                          <input
-                            type="checkbox"
-                            aria-label={`Select invitation for ${invitation.lesson?.title || "shared lesson"}`}
-                            checked={selectedIncomingShareIds.includes(
-                              String(invitation._id),
-                            )}
-                            disabled={bulkRespondingToShares}
-                            onChange={(event) =>
-                              setSelectedIncomingShareIds((current) =>
-                                event.target.checked
-                                  ? [
-                                      ...new Set([
-                                        ...current,
-                                        String(invitation._id),
-                                      ]),
-                                    ]
-                                  : current.filter(
-                                      (id) =>
-                                        String(id) !== String(invitation._id),
-                                    ),
-                              )
-                            }
-                          />
-                          <div>
-                            <strong>
-                              {invitation.lesson?.title || "Shared lesson"}
-                            </strong>
-                            <span>
-                              From{" "}
-                              {[
-                                invitation.sender?.firstName,
-                                invitation.sender?.lastName,
-                              ]
-                                .filter(Boolean)
-                                .join(" ") || "a teacher"}
-                              {invitation.lesson?.subject
-                                ? ` · ${invitation.lesson.subject}`
-                                : ""}
-                            </span>
-                          </div>
-                          <div className="live-share-actions">
+                        >
+                          Decline all
+                        </button>
+                        {selectedIncomingShareIds.length > 0 && (
+                          <>
                             <button
                               className="live-primary-button"
                               disabled={bulkRespondingToShares}
-                              onClick={() =>
-                                respondToShare(invitation._id, "accept")
-                              }
+                              onClick={() => respondToSelectedShares("accept")}
                             >
-                              Accept and add
+                              Accept selected ({selectedIncomingShareIds.length})
                             </button>
                             <button
                               className="live-secondary-button"
                               disabled={bulkRespondingToShares}
-                              onClick={() =>
-                                respondToShare(invitation._id, "decline")
-                              }
+                              onClick={() => respondToSelectedShares("decline")}
                             >
-                              Decline
+                              Decline selected ({selectedIncomingShareIds.length})
                             </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {outgoingShares.length > 0 && (
-                  <div>
-                    <h2>Pending shares</h2>
-                    <ul>
-                      {outgoingShares.map((invitation) => (
-                        <li key={invitation._id}>
-                          <div>
-                            <strong>
-                              {invitation.lesson?.title || "Shared lesson"}
-                            </strong>
-                            <span>
-                              Shared with {getTeacherName(invitation.recipient)}
-                            </span>
-                          </div>
-                          <button
-                            className="live-delete-session"
-                            onClick={() => revokeShare(invitation._id)}
-                          >
-                            Revoke
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </section>
-            )}
-          {libraryTotal === 0 && !lessonLoading ? (
-            <div className="live-empty-state">
-              <div className="live-empty-icon">
-                <HiOutlinePresentationChartBar size={32} />
-              </div>
-              <h2>Start with a lesson you already teach</h2>
-              <p>
-                Import a CSV to create opening, teaching, example, question,
-                activity, and exit-ticket slides. No AI generation required.
-              </p>
-              <button
-                className="live-primary-button"
-                onClick={openImportEditor}
-              >
-                <HiOutlinePlus /> Import your first lesson
-              </button>
-              <button className="live-text-button" onClick={downloadTemplate}>
-                <HiOutlineArrowDownTray /> Download the sample lesson CSV
-              </button>
-            </div>
-          ) : (
-            <>
-              {SHOW_LESSON_FOLDERS && (
-              <section className="live-folder-organizer" aria-label="Organize lessons">
-                <nav className="live-folder-navigation" aria-label="Lesson folders">
-                  <div className="live-folder-navigation-heading">
-                    <span>Folders</span>
-                    <button
-                      className="live-folder-create-button"
-                      disabled={folderSaving}
-                      onClick={() => createFolder()}
-                    >
-                      <HiOutlinePlus /> New
-                    </button>
-                  </div>
-                  <button
-                    className={`live-folder-select ${!lessonListState.folderId ? "active" : ""}`}
-                    onClick={() => updateLessonList({ folderId: "", page: 1 })}
-                    aria-current={!lessonListState.folderId ? "page" : undefined}
-                  >
-                    <span>All lessons</span>
-                    <small>{libraryTotal}</small>
-                  </button>
-                  <button
-                    className={`live-folder-select ${lessonListState.folderId === "__unfiled__" ? "active" : ""}`}
-                    onClick={() => updateLessonList({ folderId: "__unfiled__", page: 1 })}
-                    aria-current={lessonListState.folderId === "__unfiled__" ? "page" : undefined}
-                  >
-                    <span>Unfiled</span>
-                    <small>{lessons.filter((lesson) => !folderLessonIds.has(String(lesson._id))).length}</small>
-                  </button>
-                  <div className="live-folder-tree">{renderFolderTree()}</div>
-                </nav>
-                <div className="live-folder-management">
-                  <div className="live-folder-management-heading">
-                    <div>
-                      <span className="live-folder-eyebrow">
-                        {activeFolder ? "SELECTED FOLDER" : "LESSON LIBRARY"}
-                      </span>
-                      <h2>{activeFolder?.name || "All lessons"}</h2>
-                    </div>
-                  </div>
-                  <div className="live-folder-management-actions">
-                    {activeFolder && (
-                      <>
-                        <button
-                          className="live-secondary-button"
-                          disabled={folderSaving}
-                          onClick={() => createFolder(String(activeFolder._id))}
-                        ><HiOutlinePlus /> Add subfolder</button>
-                        <button
-                          className="live-secondary-button"
-                          disabled={folderSaving}
-                          onClick={() => renameFolder(activeFolder)}
-                        ><HiOutlinePencilSquare /> Rename folder</button>
-                        <button
-                          className="live-delete-session"
-                          disabled={folderSaving}
-                          onClick={() => deleteFolder(activeFolder)}
-                        ><HiOutlineTrash /> Delete empty</button>
-                      </>
-                    )}
-                  </div>
-                  <p className="live-folder-helper">
-                    {activeFolder
-                      ? "Lessons can appear in multiple folders. Assignments and session history stay unchanged."
-                      : "Create folders for units, weeks, or topics. Add lessons as shortcuts without changing the originals."}
-                  </p>
-                </div>
-              </section>
-              )}
-              <div className="live-list-filters" aria-label="Filter lessons">
-                <span className="live-list-filters-heading">Filter lessons</span>
-                <label>
-                  Assigned class
-                  <select
-                    value={lessonListState.classId}
-                    onChange={(event) =>
-                      updateLessonList({
-                        classId: event.target.value,
-                        subject: "",
-                        page: 1,
-                      })
-                    }
-                  >
-                    <option value="">All classes</option>
-                    {classes.map((classItem) => (
-                      <option key={classItem._id} value={classItem._id}>
-                        {classItem.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Subject
-                  <select
-                    value={lessonListState.subject}
-                    onChange={(event) =>
-                      updateLessonList({ subject: event.target.value, page: 1 })
-                    }
-                  >
-                    <option value="">All subjects</option>
-                    {lessonSubjects.map((subject) => (
-                      <option key={subject._id} value={subject._id}>
-                        {subject.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="live-checkbox-filter">
-                  <input
-                    type="checkbox"
-                    checked={lessonListState.showDone}
-                    onChange={(event) =>
-                      updateLessonList({
-                        showDone: event.target.checked,
-                        page: 1,
-                      })
-                    }
-                  />
-                  Show done lessons
-                </label>
-                <button
-                  className="live-text-button"
-                  onClick={() => updateLessonList({ ...defaultListState })}
-                >
-                  Clear filters
-                </button>
-              </div>
-              <div className="live-list-table-wrap">
-                <table className="live-list-table">
-                  <thead>
-                    <tr>
-                      <th>
-                        {["teacher", "admin"].includes(user?.role) && (
-                          <input
-                            type="checkbox"
-                            aria-label="Select all lessons on this page"
-                            checked={
-                              visibleLessons.length > 0 &&
-                              visibleLessons.every((lesson) =>
-                                selectedLessonIds.includes(String(lesson._id)),
-                              )
-                            }
-                            onChange={(event) =>
-                              setSelectedLessonIds((current) => {
-                                const visibleIds = new Set(
-                                  visibleLessons.map((lesson) =>
-                                    String(lesson._id),
-                                  ),
-                                );
-                                return event.target.checked
-                                  ? [...new Set([...current, ...visibleIds])]
-                                  : current.filter(
-                                      (id) => !visibleIds.has(String(id)),
-                                    );
-                              })
-                            }
-                          />
+                          </>
                         )}
-                      </th>
-                      <th>Lesson</th>
-                      <th>Status</th>
-                      <th>Subject</th>
-                      <th>Slides</th>
-                      <th>Updated</th>
-                      <th>Assigned class</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleLessons.map((lesson) => (
-                      <tr key={lesson._id}>
-                        <td>
-                          {["teacher", "admin"].includes(user?.role) && (
+                      </div>
+                      <ul>
+                        {incomingShares.map((invitation) => (
+                          <li key={invitation._id}>
                             <input
                               type="checkbox"
-                              aria-label={`Select ${lesson.title} for bulk actions`}
-                              checked={selectedLessonIds.includes(
-                                String(lesson._id),
+                              aria-label={`Select invitation for ${invitation.lesson?.title || "shared lesson"}`}
+                              checked={selectedIncomingShareIds.includes(
+                                String(invitation._id),
                               )}
+                              disabled={bulkRespondingToShares}
                               onChange={(event) =>
-                                setSelectedLessonIds((current) =>
+                                setSelectedIncomingShareIds((current) =>
                                   event.target.checked
                                     ? [
                                         ...new Set([
                                           ...current,
-                                          String(lesson._id),
+                                          String(invitation._id),
                                         ]),
                                       ]
                                     : current.filter(
                                         (id) =>
-                                          String(id) !== String(lesson._id),
+                                          String(id) !== String(invitation._id),
                                       ),
                                 )
                               }
                             />
-                          )}
-                        </td>
-                        <td>
-                          <strong>{lesson.title}</strong>
-                          {lesson.description && (
-                            <small>{lesson.description}</small>
-                          )}
-                        </td>
-                        <td>
-                          {lesson.isDone ? (
-                            <span className="live-lesson-done-pill">Done</span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td>
-                          {lesson.subjectId?.name || lesson.subject || "—"}
-                          {!lesson.classId && (
-                            <small>Not linked to a class</small>
-                          )}
-                        </td>
-                        <td>{lesson.slideCount ?? lesson.slides?.length ?? 0}</td>
-                        <td>
-                          {lesson.updatedAt
-                            ? new Date(lesson.updatedAt).toLocaleDateString()
-                            : "—"}
-                        </td>
-                        <td>
-                          <select
-                            aria-label={`Class to launch ${lesson.title} with`}
-                            value={getSessionClassId(lesson)}
-                            onChange={(event) =>
-                              setLessonClasses((previous) => ({
-                                ...previous,
-                                [lesson._id]: event.target.value,
-                              }))
-                            }
-                            disabled={!classes.length}
-                          >
-                            {!classes.length && (
-                              <option value="">No available classes</option>
-                            )}
-                            {classes.map((classItem) => (
-                              <option key={classItem._id} value={classItem._id}>
-                                {classItem.name}
-                              </option>
-                            ))}
-                          </select>
-                          {lesson.academicYear && (
-                            <small>{lesson.academicYear}</small>
-                          )}
-                        </td>
-                        <td className="live-list-row-actions">
-                          <button
-                            className="live-secondary-button"
-                            onClick={() => void openLessonPreview(lesson._id)}
-                          >
-                            <HiOutlineEye /> Preview
-                          </button>
-                          <button
-                            className="live-primary-button"
-                            onClick={() => openSessionDialog(lesson, false)}
-                            disabled={!getSessionClassId(lesson)}
-                          >
-                            <HiOutlinePlay /> Start
-                          </button>
-                          <button
-                            className="live-secondary-button"
-                            onClick={() => openSessionDialog(lesson, true)}
-                            disabled={!getSessionClassId(lesson)}
-                          >
-                            Schedule
-                          </button>
-                          <button
-                            className="live-lesson-actions-trigger"
-                            aria-haspopup="menu"
-                            aria-expanded={lessonActionMenu?.lessonId === String(lesson._id)}
-                            aria-label={`More actions for ${lesson.title}`}
-                            onClick={(event) => toggleLessonActionMenu(event, lesson)}
-                          >
-                            <HiOutlineEllipsisVertical />
-                            <span>More</span>
-                          </button>
-                          {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
-                            <summary>Organize</summary>
-                            <div className="live-lesson-organize-content">
-                              <label>
-                                Add shortcut to
-                                <select
-                                  value={shortcutTargets[lesson._id] || ""}
-                                  onChange={(event) =>
-                                    setShortcutTargets((current) => ({
-                                      ...current,
-                                      [lesson._id]: event.target.value,
-                                    }))
-                                  }
-                                >
-                                  <option value="">Choose a folder</option>
-                                  {folders.map((folder) => (
-                                    <option
-                                      key={folder._id}
-                                      value={folder._id}
-                                      disabled={folder.lessonIds.some((id) => String(id) === String(lesson._id))}
-                                    >
-                                      {folderPaths.get(String(folder._id)) || folder.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                            <div>
+                              <strong>
+                                {invitation.lesson?.title || "Shared lesson"}
+                              </strong>
+                              <span>
+                                From{" "}
+                                {[
+                                  invitation.sender?.firstName,
+                                  invitation.sender?.lastName,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ") || "a teacher"}
+                                {invitation.lesson?.subject
+                                  ? ` · ${invitation.lesson.subject}`
+                                  : ""}
+                              </span>
+                            </div>
+                            <div className="live-share-actions">
+                              <button
+                                className="live-primary-button"
+                                disabled={bulkRespondingToShares}
+                                onClick={() =>
+                                  respondToShare(invitation._id, "accept")
+                                }
+                              >
+                                Accept and add
+                              </button>
                               <button
                                 className="live-secondary-button"
-                                disabled={folderSaving || !shortcutTargets[lesson._id]}
-                                onClick={() => addLessonShortcut(lesson, shortcutTargets[lesson._id])}
-                              >Add shortcut</button>
-                              {activeFolder && (
-                                <>
-                                  <button
-                                    className="live-secondary-button"
-                                    disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) <= 0}
-                                    onClick={() => reorderFolderLessons(activeFolder, lesson._id, -1)}
-                                  >Move lesson up</button>
-                                  <button
-                                    className="live-secondary-button"
-                                    disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) === activeFolder.lessonIds.length - 1}
-                                    onClick={() => reorderFolderLessons(activeFolder, lesson._id, 1)}
-                                  >Move lesson down</button>
-                                  <button
-                                    className="live-delete-session"
-                                    disabled={folderSaving}
-                                    onClick={() => removeLessonShortcut(lesson, activeFolder)}
-                                  >Remove from this folder</button>
-                                </>
-                              )}
+                                disabled={bulkRespondingToShares}
+                                onClick={() =>
+                                  respondToShare(invitation._id, "decline")
+                                }
+                              >
+                                Decline
+                              </button>
                             </div>
-                          </details>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!visibleLessons.length && (
-                  <p className="live-list-empty">
-                    No lessons match these filters.
-                  </p>
-                )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {outgoingShares.length > 0 && (
+                    <div>
+                      <h2>Pending shares</h2>
+                      <ul>
+                        {outgoingShares.map((invitation) => (
+                          <li key={invitation._id}>
+                            <div>
+                              <strong>
+                                {invitation.lesson?.title || "Shared lesson"}
+                              </strong>
+                              <span>
+                                Shared with {getTeacherName(invitation.recipient)}
+                              </span>
+                            </div>
+                            <button
+                              className="live-delete-session"
+                              onClick={() => revokeShare(invitation._id)}
+                            >
+                              Revoke
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+              )}
+            {libraryTotal === 0 && !lessonLoading ? (
+              <div className="live-empty-state">
+                <div className="live-empty-icon">
+                  <HiOutlinePresentationChartBar size={32} />
+                </div>
+                <h2>Start with a lesson you already teach</h2>
+                <p>
+                  Import a CSV to create opening, teaching, example, question,
+                  activity, and exit-ticket slides. No AI generation required.
+                </p>
+                <button
+                  className="live-primary-button"
+                  onClick={openImportEditor}
+                >
+                  <HiOutlinePlus /> Import your first lesson
+                </button>
+                <button className="live-text-button" onClick={downloadTemplate}>
+                  <HiOutlineArrowDownTray /> Download the sample lesson CSV
+                </button>
               </div>
-              {lessonActionMenu && (() => {
-                const { lesson } = lessonActionMenu;
-                const run = (action) => {
-                  setLessonActionMenu(null);
-                  action(lesson);
-                };
-                return createPortal(
-                  <div
-                    ref={lessonActionMenuRef}
-                    className="live-lesson-action-menu"
-                    role="menu"
-                    aria-label={`Actions for ${lesson.title}`}
-                    style={{
-                      top: lessonActionMenu.top,
-                      right: lessonActionMenu.right,
-                    }}
+            ) : (
+              <>
+                {SHOW_LESSON_FOLDERS && (
+                <section className="live-folder-organizer" aria-label="Organize lessons">
+                  <nav className="live-folder-navigation" aria-label="Lesson folders">
+                    <div className="live-folder-navigation-heading">
+                      <span>Folders</span>
+                      <button
+                        className="live-folder-create-button"
+                        disabled={folderSaving}
+                        onClick={() => createFolder()}
+                      >
+                        <HiOutlinePlus /> New
+                      </button>
+                    </div>
+                    <button
+                      className={`live-folder-select ${!lessonListState.folderId ? "active" : ""}`}
+                      onClick={() => updateLessonList({ folderId: "", page: 1 })}
+                      aria-current={!lessonListState.folderId ? "page" : undefined}
+                    >
+                      <span>All lessons</span>
+                      <small>{libraryTotal}</small>
+                    </button>
+                    <button
+                      className={`live-folder-select ${lessonListState.folderId === "__unfiled__" ? "active" : ""}`}
+                      onClick={() => updateLessonList({ folderId: "__unfiled__", page: 1 })}
+                      aria-current={lessonListState.folderId === "__unfiled__" ? "page" : undefined}
+                    >
+                      <span>Unfiled</span>
+                      <small>{lessons.filter((lesson) => !folderLessonIds.has(String(lesson._id))).length}</small>
+                    </button>
+                    <div className="live-folder-tree">{renderFolderTree()}</div>
+                  </nav>
+                  <div className="live-folder-management">
+                    <div className="live-folder-management-heading">
+                      <div>
+                        <span className="live-folder-eyebrow">
+                          {activeFolder ? "SELECTED FOLDER" : "LESSON LIBRARY"}
+                        </span>
+                        <h2>{activeFolder?.name || "All lessons"}</h2>
+                      </div>
+                    </div>
+                    <div className="live-folder-management-actions">
+                      {activeFolder && (
+                        <>
+                          <button
+                            className="live-secondary-button"
+                            disabled={folderSaving}
+                            onClick={() => createFolder(String(activeFolder._id))}
+                          ><HiOutlinePlus /> Add subfolder</button>
+                          <button
+                            className="live-secondary-button"
+                            disabled={folderSaving}
+                            onClick={() => renameFolder(activeFolder)}
+                          ><HiOutlinePencilSquare /> Rename folder</button>
+                          <button
+                            className="live-delete-session"
+                            disabled={folderSaving}
+                            onClick={() => deleteFolder(activeFolder)}
+                          ><HiOutlineTrash /> Delete empty</button>
+                        </>
+                      )}
+                    </div>
+                    <p className="live-folder-helper">
+                      {activeFolder
+                        ? "Lessons can appear in multiple folders. Assignments and session history stay unchanged."
+                        : "Create folders for units, weeks, or topics. Add lessons as shortcuts without changing the originals."}
+                    </p>
+                  </div>
+                </section>
+                )}
+                <div className="live-list-filters" aria-label="Filter lessons">
+                  <span className="live-list-filters-heading">
+                    <HiOutlineFunnel size={15} aria-hidden="true" />
+                    Filter lessons
+                  </span>
+                  <label>
+                    Assigned class
+                    <select
+                      value={lessonListState.classId}
+                      onChange={(event) =>
+                        updateLessonList({
+                          classId: event.target.value,
+                          subject: "",
+                          page: 1,
+                        })
+                      }
+                    >
+                      <option value="">All classes</option>
+                      {classes.map((classItem) => (
+                        <option key={classItem._id} value={classItem._id}>
+                          {classItem.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Subject
+                    <select
+                      value={lessonListState.subject}
+                      onChange={(event) =>
+                        updateLessonList({ subject: event.target.value, page: 1 })
+                      }
+                    >
+                      <option value="">All subjects</option>
+                      {lessonSubjects.map((subject) => (
+                        <option key={subject._id} value={subject._id}>
+                          {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="live-checkbox-filter">
+                    <input
+                      type="checkbox"
+                      checked={lessonListState.showDone}
+                      onChange={(event) =>
+                        updateLessonList({
+                          showDone: event.target.checked,
+                          page: 1,
+                        })
+                      }
+                    />
+                    Show done lessons
+                  </label>
+                  {["teacher", "admin"].includes(user?.role) && lessonTotal > 0 && (
+                    <button
+                      className="live-text-button live-select-all"
+                      onClick={toggleAllFilteredLessons}
+                      disabled={selectingAllLessons}
+                    >
+                      {filteredSelectionActive ? (
+                        <HiOutlineXMark />
+                      ) : (
+                        <HiOutlineCheck />
+                      )}
+                      {filteredSelectionActive
+                        ? "Clear all filtered selections"
+                        : selectingAllLessons
+                          ? "Selecting lessons…"
+                          : `Select all filtered (${lessonTotal})`}
+                    </button>
+                  )}
+                  <button
+                    className="live-text-button"
+                    onClick={() => updateLessonList({ ...defaultListState })}
+                    disabled={!lessonFiltersActive}
+                    title={
+                      lessonFiltersActive
+                        ? "Clear the class, subject and done filters"
+                        : "No filters are set"
+                    }
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => run((item) => openLessonEditor(item._id))}
+                    Clear filters
+                  </button>
+                </div>
+                <div className="live-list-table-wrap">
+                  <table className="live-list-table has-select">
+                    <thead>
+                      <tr>
+                        <th>
+                          {["teacher", "admin"].includes(user?.role) && (
+                            <input
+                              type="checkbox"
+                              aria-label="Select all lessons on this page"
+                              checked={
+                                visibleLessons.length > 0 &&
+                                visibleLessons.every((lesson) =>
+                                  selectedLessonIds.includes(String(lesson._id)),
+                                )
+                              }
+                              onChange={(event) =>
+                                setSelectedLessonIds((current) => {
+                                  const visibleIds = new Set(
+                                    visibleLessons.map((lesson) =>
+                                      String(lesson._id),
+                                    ),
+                                  );
+                                  return event.target.checked
+                                    ? [...new Set([...current, ...visibleIds])]
+                                    : current.filter(
+                                        (id) => !visibleIds.has(String(id)),
+                                      );
+                                })
+                              }
+                            />
+                          )}
+                        </th>
+                        <th>Lesson</th>
+                        <th>Status</th>
+                        <th>Subject</th>
+                        <th>Slides</th>
+                        <th>Updated</th>
+                        <th>Assigned class</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleLessons.map((lesson) => (
+                        <tr
+                          key={lesson._id}
+                          className={
+                            selectedLessonIds.includes(String(lesson._id))
+                              ? "is-selected"
+                              : ""
+                          }
+                        >
+                          <td>
+                            {["teacher", "admin"].includes(user?.role) && (
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${lesson.title} for bulk actions`}
+                                checked={selectedLessonIds.includes(
+                                  String(lesson._id),
+                                )}
+                                onChange={(event) =>
+                                  setSelectedLessonIds((current) =>
+                                    event.target.checked
+                                      ? [
+                                          ...new Set([
+                                            ...current,
+                                            String(lesson._id),
+                                          ]),
+                                        ]
+                                      : current.filter(
+                                          (id) =>
+                                            String(id) !== String(lesson._id),
+                                        ),
+                                  )
+                                }
+                              />
+                            )}
+                          </td>
+                          <td>
+                            <strong>{lesson.title}</strong>
+                            {lesson.description && (
+                              <small>{lesson.description}</small>
+                            )}
+                          </td>
+                          <td>
+                            {lesson.isDone ? (
+                              <span className="live-lesson-done-pill">Done</span>
+                            ) : (
+                              <span className="live-cell-empty">—</span>
+                            )}
+                          </td>
+                          <td>
+                            {lesson.subjectId?.name || lesson.subject || "—"}
+                            {!lesson.classId && (
+                              <small>Not linked to a class</small>
+                            )}
+                          </td>
+                          <td className="live-cell-number">
+                            {lesson.slideCount ?? lesson.slides?.length ?? 0}
+                          </td>
+                          <td>
+                            {lesson.updatedAt
+                              ? new Date(lesson.updatedAt).toLocaleDateString()
+                              : "—"}
+                          </td>
+                          <td>
+                            <select
+                              aria-label={`Class to launch ${lesson.title} with`}
+                              value={getSessionClassId(lesson)}
+                              onChange={(event) =>
+                                setLessonClasses((previous) => ({
+                                  ...previous,
+                                  [lesson._id]: event.target.value,
+                                }))
+                              }
+                              disabled={!classes.length}
+                            >
+                              {!classes.length && (
+                                <option value="">No available classes</option>
+                              )}
+                              {classes.map((classItem) => (
+                                <option key={classItem._id} value={classItem._id}>
+                                  {classItem.name}
+                                </option>
+                              ))}
+                            </select>
+                            {lesson.academicYear && (
+                              <small>{lesson.academicYear}</small>
+                            )}
+                          </td>
+                          <td className="live-list-row-actions">
+                            <button
+                              className="live-secondary-button"
+                              onClick={() => void openLessonPreview(lesson._id)}
+                            >
+                              <HiOutlineEye /> Preview
+                            </button>
+                            <button
+                              className="live-primary-button"
+                              onClick={() => openSessionDialog(lesson, false)}
+                              disabled={!getSessionClassId(lesson)}
+                            >
+                              <HiOutlinePlay /> Start
+                            </button>
+                            <button
+                              className="live-secondary-button"
+                              onClick={() => openSessionDialog(lesson, true)}
+                              disabled={!getSessionClassId(lesson)}
+                            >
+                              Schedule
+                            </button>
+                            <button
+                              className="live-lesson-actions-trigger"
+                              aria-haspopup="menu"
+                              aria-expanded={lessonActionMenu?.lessonId === String(lesson._id)}
+                              aria-label={`More actions for ${lesson.title}`}
+                              onClick={(event) => toggleLessonActionMenu(event, lesson)}
+                            >
+                              <HiOutlineEllipsisVertical />
+                              <span>More</span>
+                            </button>
+                            {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
+                              <summary>Organize</summary>
+                              <div className="live-lesson-organize-content">
+                                <label>
+                                  Add shortcut to
+                                  <select
+                                    value={shortcutTargets[lesson._id] || ""}
+                                    onChange={(event) =>
+                                      setShortcutTargets((current) => ({
+                                        ...current,
+                                        [lesson._id]: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Choose a folder</option>
+                                    {folders.map((folder) => (
+                                      <option
+                                        key={folder._id}
+                                        value={folder._id}
+                                        disabled={folder.lessonIds.some((id) => String(id) === String(lesson._id))}
+                                      >
+                                        {folderPaths.get(String(folder._id)) || folder.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <button
+                                  className="live-secondary-button"
+                                  disabled={folderSaving || !shortcutTargets[lesson._id]}
+                                  onClick={() => addLessonShortcut(lesson, shortcutTargets[lesson._id])}
+                                >Add shortcut</button>
+                                {activeFolder && (
+                                  <>
+                                    <button
+                                      className="live-secondary-button"
+                                      disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) <= 0}
+                                      onClick={() => reorderFolderLessons(activeFolder, lesson._id, -1)}
+                                    >Move lesson up</button>
+                                    <button
+                                      className="live-secondary-button"
+                                      disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) === activeFolder.lessonIds.length - 1}
+                                      onClick={() => reorderFolderLessons(activeFolder, lesson._id, 1)}
+                                    >Move lesson down</button>
+                                    <button
+                                      className="live-delete-session"
+                                      disabled={folderSaving}
+                                      onClick={() => removeLessonShortcut(lesson, activeFolder)}
+                                    >Remove from this folder</button>
+                                  </>
+                                )}
+                              </div>
+                            </details>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!visibleLessons.length && !lessonLoading && (
+                    <div className="live-list-empty">
+                      <HiOutlineFunnel size={22} aria-hidden="true" />
+                      {lessonFiltersActive ? (
+                        <>
+                          <p>No lessons match these filters.</p>
+                          <button
+                            className="live-secondary-button"
+                            onClick={() =>
+                              updateLessonList({ ...defaultListState })
+                            }
+                          >
+                            Clear filters
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p>
+                            Every lesson in your library is marked done, so
+                            there is nothing left to launch.
+                          </p>
+                          <button
+                            className="live-secondary-button"
+                            onClick={() =>
+                              updateLessonList({ showDone: true, page: 1 })
+                            }
+                          >
+                            Show done lessons
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {lessonActionMenu && (() => {
+                  const { lesson } = lessonActionMenu;
+                  const run = (action) => {
+                    setLessonActionMenu(null);
+                    action(lesson);
+                  };
+                  return createPortal(
+                    <div
+                      ref={lessonActionMenuRef}
+                      className="live-lesson-action-menu"
+                      role="menu"
+                      aria-label={`Actions for ${lesson.title}`}
+                      style={{
+                        top: lessonActionMenu.top,
+                        right: lessonActionMenu.right,
+                      }}
                     >
-                      <HiOutlinePencilSquare /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={Boolean(exportingLessonId)}
-                      onClick={() => run((item) => void exportLesson(item))}
-                    >
-                      <HiOutlineArrowDownTray />
-                      {exportingLessonId === String(lesson._id)
-                        ? "Exporting…"
-                        : "Export CSV"}
-                    </button>
-                    {["teacher", "admin"].includes(user?.role) && (
                       <button
                         type="button"
                         role="menuitem"
-                        onClick={() => run((item) => {
-                          setShareLessons([item]);
-                          setShareRecipient("");
-                        })}
+                        onClick={() => run((item) => openLessonEditor(item._id))}
                       >
-                        <HiOutlineShare /> Share
+                        <HiOutlinePencilSquare /> Edit
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => run(setLessonDone)}
-                    >
-                      <HiOutlineCheck />
-                      {lesson.isDone ? "Mark not done" : "Mark done"}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => run((item) => void openMoveDialog(item))}
-                    >
-                      <HiOutlineCalendarDays /> Move to another year
-                    </button>
-                    <div className="live-lesson-action-menu-sep" role="separator" />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="is-danger"
-                      onClick={() => run((item) => deleteLesson(item._id))}
-                    >
-                      <HiOutlineTrash /> Delete
-                    </button>
-                  </div>,
-                  document.body,
-                );
-              })()}
-              <div className="live-list-pagination">
-                <span>
-                  Showing{" "}
-                  {showRange(
-                    lessonPage,
-                    lessonListState.pageSize,
-                    lessonTotal,
-                  )}
-                </span>
-                <label>
-                  Rows
-                  <select
-                    value={lessonListState.pageSize}
-                    onChange={(event) =>
-                      updateLessonList({
-                        pageSize: Number(event.target.value),
-                        page: 1,
-                      })
-                    }
-                  >
-                    {[10, 25, 50].map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  disabled={lessonLoading || lessonPage <= 1}
-                  onClick={() => updateLessonList({ page: lessonPage - 1 })}
-                >
-                  Previous
-                </button>
-                <span>
-                  Page {lessonPage} of {lessonPages}
-                </span>
-                <button
-                  disabled={lessonLoading || lessonPage >= lessonPages}
-                  onClick={() => updateLessonList({ page: lessonPage + 1 })}
-                >
-                  Next
-                </button>
-              </div>
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="live-list-filters">
-            <label>
-              Search sessions
-              <input
-                type="search"
-                value={sessionListState.search}
-                placeholder="Lesson, class, subject, or code"
-                onChange={(event) =>
-                  updateSessionList({ search: event.target.value, page: 1 })
-                }
-              />
-            </label>
-            <label>
-              Class
-              <select
-                value={sessionListState.classId}
-                onChange={(event) =>
-                  updateSessionList({
-                    classId: event.target.value,
-                    subject: "",
-                    page: 1,
-                  })
-                }
-              >
-                <option value="">All classes</option>
-                {classes.map((classItem) => (
-                  <option key={classItem._id} value={classItem._id}>
-                    {classItem.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Subject
-              <select
-                value={sessionListState.subject}
-                onChange={(event) =>
-                  updateSessionList({ subject: event.target.value, page: 1 })
-                }
-              >
-                <option value="">All subjects</option>
-                <option value="__unknown__">Unknown / not set</option>
-                {sessionSubjects.map((subject) => (
-                  <option key={subject._id} value={subject._id}>
-                    {subject.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Status
-              <select
-                value={sessionListState.status}
-                onChange={(event) =>
-                  updateSessionList({ status: event.target.value, page: 1 })
-                }
-              >
-                <option value="">All statuses</option>
-                <option value="waiting">Waiting</option>
-                <option value="live">Live</option>
-                <option value="ended">Ended</option>
-              </select>
-            </label>
-            <label>
-              From date
-              <input
-                type="date"
-                value={sessionListState.dateFrom}
-                onChange={(event) =>
-                  updateSessionList({ dateFrom: event.target.value, page: 1 })
-                }
-              />
-            </label>
-            <label>
-              To date
-              <input
-                type="date"
-                value={sessionListState.dateTo}
-                onChange={(event) =>
-                  updateSessionList({ dateTo: event.target.value, page: 1 })
-                }
-              />
-            </label>
-            <button
-              className="live-text-button"
-              onClick={() => updateSessionList({ ...defaultListState })}
-            >
-              Clear filters
-            </button>
-            {["teacher", "admin"].includes(user?.role) && (
-              <button
-                className="live-delete-session"
-                onClick={deleteFinishedSessions}
-                disabled={deletingFinishedSessions}
-              >
-                <HiOutlineTrash />{" "}
-                {deletingFinishedSessions
-                  ? "Deleting finished sessions…"
-                  : "Delete all finished sessions"}
-              </button>
-            )}
-          </div>
-          <div className="live-list-table-wrap">
-            <table className="live-list-table">
-              <thead>
-                <tr>
-                  <th>Session</th>
-                  <th>Class</th>
-                  <th>Subject</th>
-                  <th>Date</th>
-                  <th>Duration</th>
-                  <th>Timer</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((session) => (
-                  <tr key={session._id}>
-                    <td>
-                      <strong>
-                        {session.lessonSnapshot?.title || "Live lesson"}
-                      </strong>
-                    </td>
-                    <td>
-                      {classesById.get(
-                        String(session.classId?._id || session.classId),
-                      )?.name ||
-                        session.classId?.name ||
-                        "Class"}
-                    </td>
-                    <td>
-                      {session.lessonSnapshot?.subject || "Unknown / not set"}
-                    </td>
-                    <td>
-                      {getSessionDisplayDate(session)
-                        ? new Date(
-                            getSessionDisplayDate(session),
-                          ).toLocaleString()
-                        : "—"}
-                    </td>
-                    <td>{formatSessionDuration(session)}</td>
-                    <td>
-                      {session.timerDurationMinutes > 0
-                        ? `${session.timerDurationMinutes} min`
-                        : "—"}
-                      {session.scheduledAt && session.status === "waiting" && (
-                        <small>
-                          Scheduled{" "}
-                          {new Date(session.scheduledAt).toLocaleString()}
-                        </small>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={Boolean(exportingLessonId)}
+                        onClick={() => run((item) => void exportLesson(item))}
+                      >
+                        <HiOutlineArrowDownTray />
+                        {exportingLessonId === String(lesson._id)
+                          ? "Exporting…"
+                          : "Export CSV"}
+                      </button>
+                      {["teacher", "admin"].includes(user?.role) && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => run((item) => {
+                            setShareLessons([item]);
+                            setShareRecipient("");
+                          })}
+                        >
+                          <HiOutlineShare /> Share
+                        </button>
                       )}
-                    </td>
-                    <td>
-                      <span className={`live-status-pill ${session.status}`}>
-                        {session.status}
-                      </span>
-                    </td>
-                    <td className="live-list-row-actions">
-                      {session.status !== "ended" && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => run(setLessonDone)}
+                      >
+                        <HiOutlineCheck />
+                        {lesson.isDone ? "Mark not done" : "Mark done"}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => run((item) => void openMoveDialog(item))}
+                      >
+                        <HiOutlineCalendarDays /> Move to another year
+                      </button>
+                      <div className="live-lesson-action-menu-sep" role="separator" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="is-danger"
+                        onClick={() => run((item) => deleteLesson(item._id))}
+                      >
+                        <HiOutlineTrash /> Delete
+                      </button>
+                    </div>,
+                    document.body,
+                  );
+                })()}
+                <div className="live-list-pagination">
+                  <span>
+                    Showing{" "}
+                    {showRange(
+                      lessonPage,
+                      lessonListState.pageSize,
+                      lessonTotal,
+                    )}
+                  </span>
+                  <label>
+                    Rows
+                    <select
+                      value={lessonListState.pageSize}
+                      onChange={(event) =>
+                        updateLessonList({
+                          pageSize: Number(event.target.value),
+                          page: 1,
+                        })
+                      }
+                    >
+                      {[10, 25, 50].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    disabled={lessonLoading || lessonPage <= 1}
+                    onClick={() => updateLessonList({ page: lessonPage - 1 })}
+                    aria-label="Previous page of lessons"
+                  >
+                    <HiOutlineChevronLeft aria-hidden="true" />
+                    Previous
+                  </button>
+                  <span aria-live="polite">
+                    Page {lessonPage} of {lessonPages}
+                  </span>
+                  <button
+                    disabled={lessonLoading || lessonPage >= lessonPages}
+                    onClick={() => updateLessonList({ page: lessonPage + 1 })}
+                    aria-label="Next page of lessons"
+                  >
+                    Next
+                    <HiOutlineChevronRight aria-hidden="true" />
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="live-list-filters is-grid">
+              <span className="live-list-filters-heading">
+                <HiOutlineFunnel size={15} aria-hidden="true" />
+                Filter sessions
+              </span>
+              <label>
+                Search sessions
+                <input
+                  type="search"
+                  value={sessionSearchInput}
+                  placeholder="Lesson, class, subject, or code"
+                  onChange={(event) => setSessionSearchInput(event.target.value)}
+                />
+              </label>
+              <label>
+                Class
+                <select
+                  value={sessionListState.classId}
+                  onChange={(event) =>
+                    updateSessionList({
+                      classId: event.target.value,
+                      subject: "",
+                      page: 1,
+                    })
+                  }
+                >
+                  <option value="">All classes</option>
+                  {classes.map((classItem) => (
+                    <option key={classItem._id} value={classItem._id}>
+                      {classItem.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Subject
+                <select
+                  value={sessionListState.subject}
+                  onChange={(event) =>
+                    updateSessionList({ subject: event.target.value, page: 1 })
+                  }
+                >
+                  <option value="">All subjects</option>
+                  <option value="__unknown__">Unknown / not set</option>
+                  {sessionSubjects.map((subject) => (
+                    <option key={subject._id} value={subject._id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Status
+                <select
+                  value={sessionListState.status}
+                  onChange={(event) =>
+                    updateSessionList({ status: event.target.value, page: 1 })
+                  }
+                >
+                  <option value="">All statuses</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="live">Live</option>
+                  <option value="ended">Ended</option>
+                </select>
+              </label>
+              <label>
+                From date
+                <input
+                  type="date"
+                  value={sessionListState.dateFrom}
+                  onChange={(event) =>
+                    updateSessionList({ dateFrom: event.target.value, page: 1 })
+                  }
+                />
+              </label>
+              <label>
+                To date
+                <input
+                  type="date"
+                  value={sessionListState.dateTo}
+                  onChange={(event) =>
+                    updateSessionList({ dateTo: event.target.value, page: 1 })
+                  }
+                />
+              </label>
+              <button
+                className="live-text-button"
+                onClick={() => {
+                  setSessionSearchInput("");
+                  updateSessionList({ ...defaultListState });
+                }}
+                disabled={!sessionFiltersActive}
+                title={
+                  sessionFiltersActive
+                    ? "Clear the search, class, subject, status and date filters"
+                    : "No filters are set"
+                }
+              >
+                Clear filters
+              </button>
+            </div>
+            <div className="live-list-table-wrap">
+              <table className="live-list-table">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>Class</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                    <th>Duration</th>
+                    <th>Timer</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((session) => (
+                    <tr key={session._id}>
+                      <td>
+                        <strong>
+                          {session.lessonSnapshot?.title || "Live lesson"}
+                        </strong>
+                      </td>
+                      <td>
+                        {classesById.get(
+                          String(session.classId?._id || session.classId),
+                        )?.name ||
+                          session.classId?.name ||
+                          "Class"}
+                      </td>
+                      <td>
+                        {session.lessonSnapshot?.subject || "Unknown / not set"}
+                      </td>
+                      <td>
+                        {getSessionDisplayDate(session)
+                          ? new Date(
+                              getSessionDisplayDate(session),
+                            ).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td>{formatSessionDuration(session)}</td>
+                      <td>
+                        {session.timerDurationMinutes > 0
+                          ? `${session.timerDurationMinutes} min`
+                          : "—"}
+                        {session.scheduledAt && session.status === "waiting" && (
+                          <small>
+                            Scheduled{" "}
+                            {new Date(session.scheduledAt).toLocaleString()}
+                          </small>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`live-status-pill ${session.status}`}>
+                          {session.status}
+                        </span>
+                      </td>
+                      <td className="live-list-row-actions">
+                        {session.status !== "ended" && (
+                          <button
+                            className="live-secondary-button"
+                            onClick={() =>
+                              navigate(
+                                `/portal/live-lessons/sessions/${session._id}`,
+                              )
+                            }
+                          >
+                            {session.status === "waiting"
+                              ? "Open / start"
+                              : "Open session"}
+                          </button>
+                        )}
+                        {session.status === "live" &&
+                          String(session.teacherId) ===
+                            String(user?._id || user?.id) && (
+                            <button
+                              className="live-delete-session"
+                              onClick={() => endSession(session)}
+                              disabled={Boolean(endingSessionId)}
+                            >
+                              <HiOutlineStop />{" "}
+                              {endingSessionId === String(session._id)
+                                ? "Ending…"
+                                : "End session"}
+                            </button>
+                          )}
                         <button
                           className="live-secondary-button"
                           onClick={() =>
                             navigate(
-                              `/portal/live-lessons/sessions/${session._id}`,
+                              `/portal/live-lessons/sessions/${session._id}/report`,
                             )
                           }
                         >
-                          {session.status === "waiting"
-                            ? "Open / start"
-                            : "Open session"}
+                          Report
                         </button>
-                      )}
-                      {session.status === "live" &&
-                        String(session.teacherId) ===
-                          String(user?._id || user?.id) && (
-                          <button
-                            className="live-delete-session"
-                            onClick={() => endSession(session)}
-                            disabled={Boolean(endingSessionId)}
-                          >
-                            <HiOutlineStop />{" "}
-                            {endingSessionId === String(session._id)
-                              ? "Ending…"
-                              : "End session"}
-                          </button>
-                        )}
+                        <button
+                          className="live-secondary-button"
+                          onClick={() =>
+                            navigate(
+                              `/portal/live-lessons/sessions/${session._id}/replay`,
+                            )
+                          }
+                        >
+                          Replay
+                        </button>
+                        <button
+                          className="live-delete-session"
+                          onClick={() => deleteSession(session)}
+                          disabled={session.status === "live"}
+                          title={
+                            session.status === "live"
+                              ? "End the live session before deleting its history."
+                              : "Delete this session history"
+                          }
+                        >
+                          <HiOutlineTrash /> Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!sessions.length && (
+                <div className="live-list-empty">
+                  <HiOutlineClock size={22} aria-hidden="true" />
+                  {sessionFiltersActive ? (
+                    <>
+                      <p>No sessions match these filters.</p>
                       <button
                         className="live-secondary-button"
-                        onClick={() =>
-                          navigate(
-                            `/portal/live-lessons/sessions/${session._id}/report`,
-                          )
-                        }
+                        onClick={() => {
+                          setSessionSearchInput("");
+                          updateSessionList({ ...defaultListState });
+                        }}
                       >
-                        Report
+                        Clear filters
                       </button>
-                      <button
-                        className="live-secondary-button"
-                        onClick={() =>
-                          navigate(
-                            `/portal/live-lessons/sessions/${session._id}/replay`,
-                          )
-                        }
-                      >
-                        Replay
-                      </button>
-                      <button
-                        className="live-delete-session"
-                        onClick={() => deleteSession(session)}
-                        disabled={session.status === "live"}
-                        title={
-                          session.status === "live"
-                            ? "End the live session before deleting its history."
-                            : "Delete this session history"
-                        }
-                      >
-                        <HiOutlineTrash /> Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!sessions.length && (
-              <p className="live-list-empty">
-                {sessionPagination.total
-                  ? "No sessions match these filters."
-                  : "No sessions yet. Start a live lesson to see sessions and reports here."}
-              </p>
-            )}
-          </div>
-          <div className="live-list-pagination">
-            <span>
-              Showing{" "}
-              {showRange(
-                sessionPagination.page || sessionListState.page,
-                sessionListState.pageSize,
-                sessionPagination.total,
+                    </>
+                  ) : (
+                    <p>
+                      No sessions yet. Start a live lesson to see sessions and
+                      reports here.
+                    </p>
+                  )}
+                </div>
               )}
-            </span>
-            <label>
-              Rows
-              <select
-                value={sessionListState.pageSize}
-                onChange={(event) =>
-                  updateSessionList({
-                    pageSize: Number(event.target.value),
-                    page: 1,
-                  })
+            </div>
+            <div className="live-list-pagination">
+              <span>
+                Showing{" "}
+                {showRange(
+                  sessionPagination.page || sessionListState.page,
+                  sessionListState.pageSize,
+                  sessionPagination.total,
+                )}
+              </span>
+              <label>
+                Rows
+                <select
+                  value={sessionListState.pageSize}
+                  onChange={(event) =>
+                    updateSessionList({
+                      pageSize: Number(event.target.value),
+                      page: 1,
+                    })
+                  }
+                >
+                  {[10, 25, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                disabled={sessionListState.page <= 1}
+                onClick={() =>
+                  updateSessionList({ page: sessionListState.page - 1 })
                 }
+                aria-label="Previous page of sessions"
               >
-                {[10, 25, 50].map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              disabled={sessionListState.page <= 1}
-              onClick={() =>
-                updateSessionList({ page: sessionListState.page - 1 })
-              }
-            >
-              Previous
-            </button>
-            <span>
-              Page {sessionPagination.pages ? sessionListState.page : 0} of{" "}
-              {sessionPagination.pages || 0}
-            </span>
-            <button
-              disabled={
-                !sessionPagination.pages ||
-                sessionListState.page >= sessionPagination.pages
-              }
-              onClick={() =>
-                updateSessionList({ page: sessionListState.page + 1 })
-              }
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
+                <HiOutlineChevronLeft aria-hidden="true" />
+                Previous
+              </button>
+              <span aria-live="polite">
+                Page {sessionPagination.pages ? sessionListState.page : 0} of{" "}
+                {sessionPagination.pages || 0}
+              </span>
+              <button
+                disabled={
+                  !sessionPagination.pages ||
+                  sessionListState.page >= sessionPagination.pages
+                }
+                onClick={() =>
+                  updateSessionList({ page: sessionListState.page + 1 })
+                }
+                aria-label="Next page of sessions"
+              >
+                Next
+                <HiOutlineChevronRight aria-hidden="true" />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
       {(previewLoading || previewLesson || previewError) && (
         <div

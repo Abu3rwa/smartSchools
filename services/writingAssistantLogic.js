@@ -284,13 +284,6 @@ export const canStudentSubmit = ({ project, assignment }) => {
     if (!SUBMITTABLE_STAGES.includes(project.stage)) {
         return { allowed: false, reason: 'This draft is with your teacher right now.' };
     }
-    const maxDrafts = Number(assignment?.workflow?.maxDrafts) || 4;
-    if ((Number(project.draftCount) || 0) >= maxDrafts) {
-        return {
-            allowed: false,
-            reason: `This assignment allows ${maxDrafts} drafts. Ask your teacher if you need another.`
-        };
-    }
     return { allowed: true, reason: '' };
 };
 
@@ -373,6 +366,149 @@ export const tasksForCheckback = (assessment) => {
     return stored.length ? stored : tasksFromPriorities(assessment?.overall?.nextPriorities);
 };
 
+/**
+ * The running record of a student's tasks across drafts. Ids are positional, so
+ * a task with the same words keeps its history, and a reworded slot starts over.
+ * A task that survives two comparisons is flagged as stalled for the teacher.
+ * The ledger never moves a student: only the teacher publishes a path.
+ */
+export const mergeRevisionLedger = ({
+    ledger = [],
+    tasks = [],
+    taskResults = [],
+    draftNumber = 1
+}) => {
+    const results = new Map((taskResults || []).map((row) => [String(row.id), row]));
+    const known = new Map((ledger || []).filter((row) => row?.id).map((row) => [row.id, row]));
+    const next = [];
+    const asked = new Set();
+
+    for (const task of tasks || []) {
+        if (!task?.id || !task?.text) continue;
+        asked.add(task.id);
+        const before = known.get(task.id);
+        const result = results.get(task.id);
+        const reworded = Boolean(before && before.text && before.text !== task.text);
+        const base = !before || reworded
+            ? {
+                id: task.id,
+                text: task.text,
+                introducedDraft: draftNumber,
+                checks: 0,
+                unresolvedStreak: 0,
+                status: 'open'
+            }
+            : { ...before, text: task.text };
+
+        if (!result) {
+            next.push({ ...base, status: 'open' });
+            continue;
+        }
+
+        const applied = result.applied === true;
+        const streak = applied ? 0 : (Number(base.unresolvedStreak) || 0) + 1;
+        next.push({
+            ...base,
+            checks: (Number(base.checks) || 0) + 1,
+            unresolvedStreak: streak,
+            lastCheckedDraft: draftNumber,
+            status: applied ? 'resolved' : (streak >= 2 ? 'stalled' : 'open'),
+            ...(applied ? { resolvedDraft: draftNumber } : {}),
+            ...(result.note ? { note: result.note } : {})
+        });
+    }
+
+    // A task the teacher stopped asking for is not a failure. Closing the entry
+    // keeps an old stall from blocking the notebook forever.
+    for (const row of known.values()) {
+        if (asked.has(row.id)) continue;
+        next.push(row.status === 'resolved' ? row : { ...row, status: 'dropped' });
+    }
+
+    return next;
+};
+
+export const stalledTasksFrom = (ledger = []) => (ledger || []).filter(
+    (row) => row?.status === 'stalled'
+);
+
+export const ledgerSummary = (ledger = []) => (ledger || []).reduce(
+    (sum, row) => {
+        if (Object.hasOwn(sum, row?.status)) sum[row.status] += 1;
+        return sum;
+    },
+    { open: 0, resolved: 0, stalled: 0, dropped: 0 }
+);
+
+/* ------------------------------------------------------------------ */
+/* Spelling word targets                                               */
+/* ------------------------------------------------------------------ */
+
+// Words are matched whole and case-insensitively; contractions stay one token.
+const SPELLING_TOKEN = /[a-z0-9]+(?:['’][a-z]+)*/g;
+
+export const textTokens = (value) => String(value || '').toLowerCase().match(SPELLING_TOKEN) || [];
+
+/**
+ * Words the assignment already gives the student. Suggesting one back would be
+ * busywork, so title, topic, instructions, word bank and model text are excluded.
+ */
+export const assignmentOwnedTokens = (assignment = {}) => new Set(textTokens([
+    assignment?.title,
+    assignment?.topic,
+    assignment?.instructions,
+    (assignment?.supports?.wordBank || []).join(' '),
+    assignment?.supports?.modelText
+].join(' ')));
+
+/**
+ * Turn the AI's choices into at most three usable targets. Anything that is not
+ * on the student's own missed-word list is dropped, as is a word already used in
+ * the draft or one the assignment itself supplied. An empty list is a fine result.
+ */
+export const selectSpellingTargets = ({
+    suggestions = [],
+    candidates = [],
+    assignment = {},
+    draftText = ''
+} = {}) => {
+    const allowed = new Map(
+        (candidates || [])
+            .map((row) => [String(row?.word || '').trim().toLowerCase(), row])
+            .filter(([word]) => word)
+    );
+    const owned = assignmentOwnedTokens(assignment);
+    const used = new Set(textTokens(draftText));
+    const seen = new Set();
+    const picked = [];
+
+    for (const raw of suggestions || []) {
+        const key = String(raw?.word ?? raw ?? '').trim().toLowerCase();
+        if (!key || seen.has(key) || used.has(key) || owned.has(key)) continue;
+        const candidate = allowed.get(key);
+        if (!candidate) continue;
+        seen.add(key);
+        picked.push({
+            word: candidate.word,
+            grade: candidate.grade || '',
+            week: Number(candidate.week) || 0
+        });
+        if (picked.length === 3) break;
+    }
+    return picked;
+};
+
+/**
+ * A win is a fact, not a model claim: a target appears in the draft as the same
+ * whole word. The server computes this from the text, never the AI.
+ */
+export const verifiedSpellingWins = ({ targets = [], draftText = '' } = {}) => {
+    const used = new Set(textTokens(draftText));
+    return (targets || [])
+        .filter((row) => row?.word && used.has(String(row.word).toLowerCase()))
+        .map((row) => ({ word: row.word }));
+};
+
 /* ------------------------------------------------------------------ */
 /* Recommendation                                                      */
 /* ------------------------------------------------------------------ */
@@ -384,30 +520,75 @@ export const rubricRatio = ({ scores = [] }) => {
     return earned / max;
 };
 
+/* ------------------------------------------------------------------ */
+/* Differentiation profile                                             */
+/* ------------------------------------------------------------------ */
+
+export const WRITING_TIERS = ['emerging', 'developing', 'secure'];
+
+/**
+ * How much support this student needs, from their own marked drafts rather than
+ * from a grade label. The newest three marked drafts decide it so one weak piece
+ * does not follow a student around.
+ */
+export const writingTierFrom = ({ assessments = [] } = {}) => {
+    const seen = new Set();
+    const ratios = [];
+    for (const row of assessments || []) {
+        if (row?.aiStatus && row.aiStatus !== 'done') continue;
+        const draft = String(row?.draft || '');
+        if (draft && seen.has(draft)) continue;
+        if (draft) seen.add(draft);
+        const ratio = rubricRatio({ scores: row?.scores || [] });
+        if (ratio !== null && Number.isFinite(ratio)) ratios.push(ratio);
+        if (ratios.length === 3) break;
+    }
+    if (!ratios.length) return 'unknown';
+    const average = ratios.reduce((sum, value) => sum + value, 0) / ratios.length;
+    if (average >= 0.8) return 'secure';
+    if (average >= 0.55) return 'developing';
+    return 'emerging';
+};
+
+/** Spelling grade and accuracy, used only to pitch spelling corrections. */
+export const spellingProfileFrom = (analysis) => {
+    const grade = String(analysis?.grade || '');
+    const metrics = analysis?.metrics || {};
+    const hasAttempts = Number(metrics.attempts) > 0;
+    const accuracy = hasAttempts ? Number(metrics.accuracy) : NaN;
+    return {
+        grade,
+        accuracy: Number.isFinite(accuracy) ? accuracy : null
+    };
+};
+
+export const buildWritingProfile = ({ assessments = [], spelling = null } = {}) => {
+    const { grade, accuracy } = spellingProfileFrom(spelling);
+    return {
+        tier: writingTierFrom({ assessments }),
+        spellingGrade: grade,
+        spellingAccuracy: accuracy
+    };
+};
+
 /**
  * The AI proposes a path; this decides whether the numbers support it.
  * A student with unresolved criteria and a low rubric ratio is never sent
- * straight to the notebook because the model was generous.
+ * straight to the notebook because the model was generous. A draft count never
+ * decides anything: only the teacher publishes the piece as ready.
  */
-export const guardRecommendation = ({
-    aiPath,
-    assessment,
-    assignment,
-    draftNumber
-}) => {
+export const guardRecommendation = ({ aiPath, assessment, stalled = 0 }) => {
     const unresolved = (assessment?.comparison?.criteriaUnresolved || []).length;
     const newIssues = (assessment?.comparison?.newIssues || []).length;
     const ratio = rubricRatio({ scores: assessment?.scores || [] });
-    const maxDrafts = Number(assignment?.workflow?.maxDrafts) || 4;
-    const outOfDrafts = Number(draftNumber) >= maxDrafts;
 
-    if (outOfDrafts) {
-        return {
-            path: 'notebook',
-            reason: `This assignment allows ${maxDrafts} drafts, so it is time to write the final copy.`
-        };
-    }
     if (aiPath === 'notebook') {
+        if (stalled > 0) {
+            return {
+                path: 'revise',
+                reason: 'A task from an earlier round is still not done, so another draft is the better next step.'
+            };
+        }
         const weak = (ratio !== null && ratio < 0.7) || unresolved >= 2 || newIssues >= 2;
         if (weak) {
             return {
@@ -468,40 +649,37 @@ export const summarizeBoard = (projects = []) => {
 };
 
 /**
- * The student's progress tracker, trimmed to what the configuration actually uses.
- * A single-draft task never shows a compare step; a task that ends at the notebook
- * check always shows it.
+ * The student's progress tracker. Revising is a repeatable stage: there is no
+ * fixed number of drafts, so the tracker never promises a "second and final"
+ * draft. The teacher alone marks the piece ready for the notebook.
  */
 export const buildTracker = ({ assignment, project, hasComparison }) => {
-    const maxDrafts = Number(assignment?.workflow?.maxDrafts) || 4;
     const requireNotebook = assignment?.workflow?.requireNotebookCheck !== false;
-    const draftNumber = Number(project?.draftCount) || 0;
 
     const steps = [];
-    const push = (key, label) => steps.push({ key, label });
+    const push = (key, label) => {
+        steps.push({ key, label });
+        return steps.length - 1;
+    };
 
-    push('draft_1', 'First draft');
-    push('feedback_1', 'First-draft feedback');
-    if (maxDrafts >= 2) {
-        push('draft_2', 'Second draft');
-        if (maxDrafts >= 3 || hasComparison) push('compare', 'Compare drafts');
-    }
-    push('next_step', maxDrafts >= 2 ? 'Revise or prepare notebook' : 'Prepare notebook');
-    if (requireNotebook) push('notebook_check', 'Teacher checks notebook');
+    const draftIndex = push('draft_1', 'My draft');
+    const feedbackIndex = push('feedback_1', 'Teacher feedback');
+    const reviseIndex = push('draft_2', 'Revise');
+    const compareIndex = hasComparison ? push('compare', 'Compare drafts') : null;
+    const readyIndex = push('next_step', 'Ready to finish');
+    const notebookIndex = requireNotebook ? push('notebook_check', 'Teacher checks the notebook') : null;
     push('completed', 'Done');
 
+    const stage = project?.stage || 'not_started';
     const currentIndex = (() => {
-        const stage = project?.stage || 'not_started';
-        if (stage === 'not_started' || stage === 'drafting') return 0;
-        if (stage === 'submitted') return draftNumber <= 1 ? 0 : Math.max(0, steps.findIndex((step) => step.key === 'draft_2'));
-        if (stage === 'feedback_ready') return draftNumber <= 1 ? 1 : 0;
-        if (stage === 'feedback_published') return draftNumber <= 1 ? 1 : 2;
-        if (stage === 'revising') return 2;
-        if (stage === 'compared') return hasComparison ? 3 : 2;
-        if (stage === 'ready_for_notebook') return steps.findIndex((step) => step.key === 'next_step');
-        if (stage === 'awaiting_notebook_check') return requireNotebook ? steps.length - 2 : steps.length - 1;
+        if (stage === 'not_started' || stage === 'drafting') return draftIndex;
+        if (stage === 'submitted' || stage === 'feedback_ready') return feedbackIndex;
+        if (stage === 'feedback_published' || stage === 'revising') return reviseIndex;
+        if (stage === 'compared') return compareIndex ?? reviseIndex;
+        if (stage === 'ready_for_notebook') return readyIndex;
+        if (stage === 'awaiting_notebook_check') return notebookIndex ?? steps.length - 1;
         if (stage === 'completed') return steps.length;
-        return 0;
+        return draftIndex;
     })();
 
     return steps.map((step, index) => ({

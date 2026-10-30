@@ -29,6 +29,17 @@ export default function FeedbackCard({ draftNumber, feedback, onReadDraft, revis
           </ol>
         </>
       )}
+      {(feedback.spellingTargets || []).length > 0 && (
+        <>
+          <h3 className="ws-feedback-card-sub">{t("writing:student.spellingTargetsTitle")}</h3>
+          <p className="ws-feedback-card-note">{t("writing:student.spellingTargetsHint")}</p>
+          <div className="ws-spelling-chips">
+            {feedback.spellingTargets.map((row) => (
+              <span className="ws-spelling-chip" key={row.word}>{row.word}</span>
+            ))}
+          </div>
+        </>
+      )}
       {revising && onReadDraft && (
         <div className="ws-feedback-card-foot">
           <span>{t("writing:student.revisingHint", { n: draftNumber + 1 })}</span>

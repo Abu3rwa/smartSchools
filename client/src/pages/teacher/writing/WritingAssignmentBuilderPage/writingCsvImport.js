@@ -19,7 +19,7 @@ const LIST = '|';
 
 const SHARED_COLUMNS = [
   'title', 'writing_type', 'instructions', 'topic', 'due_date', 'min_words', 'max_words',
-  'expected_level', 'max_drafts', 'publish_feedback_first', 'require_notebook_check',
+  'expected_level', 'publish_feedback_first', 'require_notebook_check',
   'feedback_limits', 'word_bank', 'transitions', 'sentence_starters', 'guiding_questions',
   'planner_prompt', 'model_text',
 ];
@@ -230,6 +230,9 @@ export const parseWritingCsv = (csvText) => {
 
   const headers = rows[0].map(normalizeHeader);
   if (new Set(headers).size !== headers.length) throw new Error('The CSV has the same column name twice.');
+  if (headers.includes('max_drafts')) {
+    throw new Error('The CSV has a max_drafts column, which is no longer used. Students keep revising until you publish the feedback that marks the work ready. Delete that column and import again.');
+  }
   const unknown = headers.filter((header) => header && !KNOWN_COLUMNS.has(header));
   if (unknown.length) {
     throw new Error(`The CSV has column${unknown.length > 1 ? 's' : ''} this import does not know: ${unknown.join(', ')}.`);
@@ -291,7 +294,6 @@ export const parseWritingCsv = (csvText) => {
     },
     workflow: {
       teacherPublishesFeedback: yesOrNo(head.publish_feedback_first, 'publish_feedback_first', 'The first row', true),
-      maxDrafts: wholeNumber(head.max_drafts, { min: 1, max: 20, column: 'max_drafts', where: 'The first row' }) || 4,
       requireNotebookCheck: yesOrNo(head.require_notebook_check, 'require_notebook_check', 'The first row', true),
       autoSuggestNextStep: true,
     },
@@ -321,7 +323,7 @@ export const formPatchFromCsv = (parsed) => ({
 
 export const WRITING_CSV_HEADERS = [
   'title', 'writing_type', 'instructions', 'topic', 'due_date', 'min_words', 'max_words',
-  'expected_level', 'max_drafts', 'publish_feedback_first', 'require_notebook_check',
+  'expected_level', 'publish_feedback_first', 'require_notebook_check',
   'feedback_limits', 'word_bank', 'transitions', 'sentence_starters', 'guiding_questions',
   'planner_prompt', 'model_text',
   'section_order', 'section_name', 'section_kind', 'section_required', 'section_repeatable',
@@ -344,7 +346,6 @@ export const buildWritingCsvTemplate = () => {
     min_words: '120',
     max_words: '250',
     expected_level: 'Grade 6',
-    max_drafts: '3',
     publish_feedback_first: 'yes',
     require_notebook_check: 'yes',
     feedback_limits: 'Never rewrite the student sentences. Point at one line.',

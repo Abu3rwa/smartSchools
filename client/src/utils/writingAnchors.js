@@ -41,13 +41,13 @@ export const anchorSegments = (text, quote, mark = 1) => {
 };
 
 /**
- * Paragraphs in reading order with their comment number. Only a quote really
- * present in the paragraph earns a number, so a badge always points at text.
- * `notes` are the published section rows, matched by key and index; a note whose
- * slot no longer lines up is still placed under the paragraph that holds its
- * quote, because a comment marked "under this line" has to sit under that line.
+ * Each note dropped onto at most one paragraph: the slot it names, then the
+ * paragraph holding its quote, then a section that appears only once. The order
+ * matters — a real quote beats a loose key, an exact slot beats both. Notes no
+ * paragraph can take come back so the caller still shows them: published feedback
+ * never disappears just because the text moved.
  */
-export const anchorEssay = (paragraphs, notes) => {
+const placeNotes = (paragraphs, notes) => {
   const pool = (notes || []).filter(Boolean).map((note) => ({ note, used: false }));
   const claim = (entry) => {
     entry.used = true;
@@ -74,6 +74,33 @@ export const anchorEssay = (paragraphs, notes) => {
     if (match) row.note = claim(match);
   }
 
+  // A part written once: the index in the note is wrong but the key cannot be.
+  const seenPerKey = new Map();
+  for (const { paragraph } of placed) {
+    seenPerKey.set(paragraph.key, (seenPerKey.get(paragraph.key) || 0) + 1);
+  }
+  for (const row of placed) {
+    if (row.note || seenPerKey.get(row.paragraph.key) !== 1) continue;
+    const match = pool.find(
+      (entry) => !entry.used && entry.note.key === row.paragraph.key,
+    );
+    if (match) row.note = claim(match);
+  }
+
+  const loose = pool.filter((entry) => !entry.used).map((entry) => entry.note);
+  return { placed, loose };
+};
+
+/**
+ * Paragraphs in reading order with their comment number. Only a quote really
+ * present in the paragraph earns a number, so a badge always points at text.
+ * `notes` are the published section rows, matched by key and index; a note whose
+ * slot no longer lines up is still placed under the paragraph that holds its
+ * quote, because a comment marked "under this line" has to sit under that line.
+ */
+export const anchorEssay = (paragraphs, notes) => {
+  const { placed } = placeNotes(paragraphs, notes);
+
   let numbered = 0;
   return placed.map(({ paragraph, note }) => {
     const segments = anchorSegments(paragraph.text, note?.evidence, numbered + 1);
@@ -82,3 +109,6 @@ export const anchorEssay = (paragraphs, notes) => {
     return { ...paragraph, note, segments, number: anchored ? numbered : 0 };
   });
 };
+
+/** Published notes that no paragraph could hold, shown apart from the essay. */
+export const unplacedNotes = (paragraphs, notes) => placeNotes(paragraphs, notes).loose;

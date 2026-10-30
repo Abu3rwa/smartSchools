@@ -10,6 +10,8 @@ import WritingAssignment from '../models/WritingAssignment.js';
 import WritingProject from '../models/WritingProject.js';
 import WritingDraft from '../models/WritingDraft.js';
 import WritingAssessment from '../models/WritingAssessment.js';
+import SpellingAnalysis from '../models/SpellingAnalysis.js';
+import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import Student from '../models/Student.js';
 import School from '../models/School.js';
 
@@ -27,13 +29,17 @@ import {
 } from './writingAssistantPrompts.js';
 import {
     PUBLISHABLE_FROM,
+    buildWritingProfile,
     canMoveTo,
     configSnapshotFor,
+    mergeRevisionLedger,
     staleRunCutoff,
+    stalledTasksFrom,
     stageAfterAssessment,
     stageAfterPublish,
     statusAfterPublish,
-    tasksFromPriorities
+    tasksFromPriorities,
+    verifiedSpellingWins
 } from './writingAssistantLogic.js';
 import { notifyFeedbackPublished } from './writingFeedbackEmailService.js';
 import { assertCanSpend, isCreditError, markUsageOutcome } from './aiCreditService.js';
@@ -87,6 +93,33 @@ const resolveLanguage = async ({ schoolId, requestedLanguage }) => {
 /* Loading                                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Spelling words the student actually saw on the previous draft: only published
+ * suggestions count, because a win must be a word the student was given.
+ * Spelling records are read, never written, from this module.
+ */
+const loadPriorSpellingTargets = async ({ schoolId, draft }) => {
+    if (Number(draft?.number) < 2) return [];
+    const previousDraft = await WritingDraft.findOne({
+        school: schoolId,
+        project: draft.project,
+        number: Number(draft.number) - 1
+    }).select('_id').lean();
+    if (!previousDraft) return [];
+    const previous = await WritingAssessment.findOne({
+        school: schoolId,
+        draft: previousDraft._id,
+        aiStatus: 'done',
+        'publish.state': 'published',
+        'spellingTargets.0': { $exists: true }
+    }).sort({ createdAt: -1 }).select('spellingTargets').lean();
+    return previous?.spellingTargets || [];
+};
+
+const draftTextOf = (draft) => (draft?.sections || [])
+    .map((section) => section?.text || '')
+    .join(' ');
+
 const loadDraftContext = async ({ schoolId, draftId }) => {
     const id = objectId(draftId);
     if (!id) throw notFound('Draft not found.');
@@ -94,23 +127,52 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
     const draft = await WritingDraft.findOne({ school: schoolId, _id: id });
     if (!draft) throw notFound('Draft not found.');
 
-    const [project, assignment, student] = await Promise.all([
+    const [project, assignment, student, recentAssessments, spelling, spellingItems] = await Promise.all([
         WritingProject.findOne({ school: schoolId, _id: draft.project }),
         WritingAssignment.findOne({ school: schoolId, _id: draft.assignment }).lean(),
         Student.findOne({ school: schoolId, _id: draft.student })
             .select('firstName lastName')
+            .lean(),
+        // Enough marked drafts to see the student's current need, not the whole history.
+        WritingAssessment.find({ school: schoolId, student: draft.student, aiStatus: 'done' })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('draft scores')
+            .lean(),
+        SpellingAnalysis.findOne({ school: schoolId, student: draft.student, status: 'ready' })
+            .sort({ updatedAt: -1 })
+            .select('grade metrics.attempts metrics.accuracy')
+            .lean(),
+        // Only words still waiting on the student; resolved words are not targets.
+        SpellingRetestItem.find({
+            school: schoolId,
+            student: draft.student,
+            status: { $in: ['pending', 'practice-mastered'] }
+        })
+            .sort({ flaggedAt: -1 })
+            .limit(40)
+            .select('wordSnapshot grade week')
             .lean()
     ]);
 
     if (!project) throw notFound('Writing project not found.');
     if (!assignment) throw notFound('Writing task not found.');
 
+    const priorSpellingTargets = await loadPriorSpellingTargets({ schoolId, draft });
+
     return {
         draft,
         project,
         assignment,
         studentName: `${student?.firstName || ''} ${student?.lastName || ''}`.trim(),
-        goal: (assignment.goals || []).find((row) => sameId(row.student, draft.student))?.text || ''
+        goal: (assignment.goals || []).find((row) => sameId(row.student, draft.student))?.text || '',
+        profile: buildWritingProfile({ assessments: recentAssessments, spelling }),
+        spellingCandidates: spellingItems.map((row) => ({
+            word: row.wordSnapshot,
+            grade: row.grade,
+            week: row.week
+        })),
+        priorSpellingTargets
     };
 };
 
@@ -290,7 +352,7 @@ const WRITING_AI = {
  * marked afterwards without a second charge.
  */
 const aiOptions = ({ billing, context, feature }) => ({
-    ...writingAiOptions(),
+    ...WRITING_AI,
     usage: {
         schoolId: billing.schoolId,
         userId: billing.userId,
@@ -309,29 +371,50 @@ const aiOptions = ({ billing, context, feature }) => ({
 });
 
 const runFeedback = async ({ context, language, billing }) => {
-    const { draft, assignment, studentName, goal } = context;
+    const {
+        draft,
+        project,
+        assignment,
+        studentName,
+        goal,
+        profile,
+        spellingCandidates,
+        priorSpellingTargets
+    } = context;
     const snapshot = snapshotFor(draft, assignment);
+    const stalledTasks = stalledTasksFrom(project?.revisionLedger || []);
     const prompt = buildFeedbackPrompt({
         snapshot,
         draft,
         studentName,
         goal,
         aiConstraints: assignment.aiConstraints || '',
+        stalledTasks,
+        profile,
+        spellingCandidates,
         language
     });
 
     const reply = await connectAi(prompt, aiOptions({ billing, context, feature: 'writing_feedback' }));
     const parsed = extractJsonObject(reply.text);
-    const normalized = normalizeFeedback({ parsed, draft, snapshot });
+    const normalized = normalizeFeedback({
+        parsed,
+        draft,
+        snapshot,
+        assignment,
+        spellingCandidates
+    });
     if (!normalized.ok) {
         await markUsageOutcome({ entryId: reply.usage?.entryId, outcome: 'unusable' });
         throw upstream(normalized.error);
     }
 
-    const decision = decideRecommendation({
-        normalized,
-        assignment,
-        draftNumber: draft.number
+    normalized.stalledTasks = stalledTasks;
+    const decision = decideRecommendation({ normalized });
+    const revisionLedger = mergeRevisionLedger({
+        ledger: project?.revisionLedger || [],
+        tasks: normalized.tasks,
+        draftNumber: Number(draft.number) || 1
     });
 
     const fields = {
@@ -339,6 +422,13 @@ const runFeedback = async ({ context, language, billing }) => {
         overall: normalized.overall,
         scores: normalized.scores,
         tasks: normalized.tasks,
+        spellingTargets: normalized.spellingTargets,
+        // Only words from an already-published round count as a win, and only
+        // when the word is really in this draft.
+        spellingWins: verifiedSpellingWins({
+            targets: priorSpellingTargets,
+            draftText: draftTextOf(draft)
+        }),
         totalScore: normalized.totalScore,
         recommendation: { path: decision.path, reason: decision.reason }
     };
@@ -347,12 +437,22 @@ const runFeedback = async ({ context, language, billing }) => {
     return {
         modelName: reply.modelName,
         fields: filled,
-        original: filled
+        original: filled,
+        revisionLedger
     };
 };
 
 const runComparison = async ({ context, previousDraft, previousAssessment, language, billing }) => {
-    const { draft, assignment, studentName, goal } = context;
+    const {
+        draft,
+        project,
+        assignment,
+        studentName,
+        goal,
+        profile,
+        spellingCandidates,
+        priorSpellingTargets
+    } = context;
     const snapshot = snapshotFor(draft, assignment);
     const prompt = buildComparisonPrompt({
         snapshot,
@@ -362,6 +462,8 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         studentName,
         goal,
         aiConstraints: assignment.aiConstraints || '',
+        profile,
+        spellingCandidates,
         language
     });
 
@@ -372,18 +474,18 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         previousDraft,
         currentDraft: draft,
         previousAssessment,
-        snapshot
+        snapshot,
+        ledger: project?.revisionLedger || [],
+        assignment,
+        spellingCandidates,
+        priorSpellingTargets
     });
     if (!normalized.ok) {
         await markUsageOutcome({ entryId: reply.usage?.entryId, outcome: 'unusable' });
         throw upstream(normalized.error);
     }
 
-    const decision = decideRecommendation({
-        normalized,
-        assignment,
-        draftNumber: draft.number
-    });
+    const decision = decideRecommendation({ normalized });
 
     const fields = {
         comparison: {
@@ -401,12 +503,19 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
         tasks: normalized.tasks,
         overall: normalized.overall,
         scores: normalized.scores,
+        spellingTargets: normalized.spellingTargets,
+        spellingWins: normalized.spellingWins,
         totalScore: normalized.scores.reduce((sum, row) => sum + (Number(row.score) || 0), 0),
         recommendation: { path: decision.path, reason: decision.reason }
     };
 
     const filled = fillStudentTokensDeep(fields, studentName);
-    return { modelName: reply.modelName, fields: filled, original: filled };
+    return {
+        modelName: reply.modelName,
+        fields: filled,
+        original: filled,
+        revisionLedger: normalized.revisionLedger
+    };
 };
 
 /* ------------------------------------------------------------------ */
@@ -479,6 +588,7 @@ export const assessDraft = async ({
             aiOriginal: result.original
         });
         await assessment.save();
+        project.revisionLedger = result.revisionLedger || project.revisionLedger;
     } catch (error) {
         await failAssessment(assessment, error);
         throw upstream('The draft could not be assessed. Try again in a moment.');
@@ -565,6 +675,7 @@ export const compareDrafts = async ({
             aiOriginal: result.original
         });
         await assessment.save();
+        project.revisionLedger = result.revisionLedger || project.revisionLedger;
     } catch (error) {
         await failAssessment(assessment, error);
         throw upstream('The drafts could not be compared. Try again in a moment.');
@@ -689,6 +800,7 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
             overall: plain(assessment.overall),
             scores: (assessment.scores || []).map(plain),
             tasks: (assessment.tasks || []).map(plain),
+            spellingTargets: (assessment.spellingTargets || []).map(plain),
             totalScore: assessment.totalScore,
             comparison: plain(assessment.comparison),
             recommendation: plain(assessment.recommendation)
@@ -784,6 +896,22 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
             (sum, row) => sum + (Number(row.score) || 0),
             0
         );
+    }
+
+    // A teacher may drop a suggested word but never add one: the only words that
+    // can reach a student are the ones the server already approved.
+    if (Array.isArray(payload.spellingTargets)) {
+        const keep = new Set(
+            payload.spellingTargets
+                .map((row) => String(row?.word ?? row ?? '').trim().toLowerCase())
+                .filter(Boolean)
+        );
+        const before = assessment.spellingTargets || [];
+        const value = before.filter((row) => keep.has(String(row.word).toLowerCase()));
+        if (value.length !== before.length) {
+            assessment.spellingTargets = value;
+            mark('spellingTargets');
+        }
     }
 
     if (payload.recommendation && typeof payload.recommendation === 'object') {

@@ -117,8 +117,10 @@ export default function WritingAssignmentBuilderPage() {
                   : t("writing:teacher.builder.previewNoLength")}</dd>
               </div>
               <div>
-                <dt>{t("writing:teacher.builder.previewDrafts")}</dt>
-                <dd>{t("writing:teacher.builder.previewDraftValue", { n: preview.drafts })}</dd>
+                <dt>{t("writing:teacher.builder.previewAudience")}</dt>
+                <dd>{preview.audienceMode === "selected"
+                  ? t("writing:teacher.builder.previewAudienceSelected", { n: preview.audienceCount })
+                  : t("writing:teacher.builder.previewAudienceClass")}</dd>
               </div>
               <div>
                 <dt>{t("writing:teacher.builder.previewPoints")}</dt>

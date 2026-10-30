@@ -8,7 +8,6 @@
   "noSubjects": "No lessons are published for your grade yet. The school office adds them.",
   "lessonCount": "Lessons: {{n}}",
   "changeSubject": "Change subject",
-  "scopeLine": "Grade {{grade}} · answers use only this subject's lessons and standards",
   "lessonsTitle": "Lessons",
   "loadingLessons": "Loading lessons…",
   "noLessons": "This subject has no lessons yet.",
@@ -30,6 +29,8 @@
     "wallet_paused": "Your tutor questions are paused. Speak to your teacher or the school office."
   },
   "chatTitle": "Tutor conversation",
+  "you": "You",
+  "closeLessons": "Close lessons",
   "hello": {
     "title": "Let's work on {{subject}}",
     "body": "Tell me what you already know and I will help you get there. I use your grade's lessons only, and I help you work it out instead of handing you the answer.",
@@ -71,9 +72,11 @@
     "tryReply": "Tell me what you already think…",
     "hintReply": "Try again with the hint…",
     "send": "Send",
+    "sendTry": "Send my try",
     "sending": "Sending…",
-    "noCredit": "No tutor questions left in your balance.",
-    "footnote": "Each question uses one of your questions. Your balance carries into the next term."
+    "turnPrompt": "Your turn — try the next step.",
+    "turnHint": "Your turn — use the hint.",
+    "noCredit": "No tutor questions left in your balance."
   },
   "errors": {
     "load": "Could not open the tutor.",

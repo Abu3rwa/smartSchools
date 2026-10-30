@@ -7,11 +7,14 @@ import {
   HiOutlineChatAlt2,
   HiOutlineChevronRight,
   HiOutlineClock,
+  HiOutlineLightBulb,
   HiOutlineLightningBolt,
   HiOutlineLockClosed,
+  HiOutlineMenu,
   HiOutlinePause,
   HiOutlineRefresh,
-  HiOutlineSparkles
+  HiOutlineSparkles,
+  HiOutlineX
 } from 'react-icons/hi';
 import { useTutorPage } from './useTutorPage.js';
 import './TutorPage.css';
@@ -59,7 +62,9 @@ export default function TutorPage() {
 
   const [draft, setDraft] = useState('');
   const [lessonId, setLessonId] = useState(null);
+  const [railOpen, setRailOpen] = useState(false);
   const [answers, setAnswers] = useState({});
+  const pickLesson = (id) => { setLessonId(id); setRailOpen(false); };
   const threadRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -89,6 +94,17 @@ export default function TutorPage() {
     : waitingOnStudent
       ? t(`tutor:composer.${waitingOnStudent === 'hint' ? 'hintReply' : 'tryReply'}`)
       : t('tutor:composer.placeholder', { subject: subject?.name || '' });
+
+  // While the tutor waits on a try, the composer says so and the button names the act.
+  const turnCue = asking ? '' : waitingOnStudent;
+
+  // The box grows with the answer up to about five lines, then scrolls.
+  useEffect(() => {
+    const element = inputRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(element.scrollHeight, 132)}px`;
+  }, [draft]);
 
   const send = async () => {
     const text = draft.trim();
@@ -207,104 +223,40 @@ export default function TutorPage() {
   /* Step 2 — one subject: lessons on the side, conversation in the middle. */
   return (
     <div className="tt-page tt-page--chat">
-      <header className="tt-head">
+      <header className="tt-head tt-head--mini">
+        <button
+          type="button"
+          className="tt-back"
+          onClick={() => { chooseSubject(''); setLessonId(null); }}
+        >
+          <HiOutlineArrowLeft size={15} aria-hidden="true" />
+          {t('tutor:changeSubject')}
+        </button>
         <div className="tt-head-main">
-          <button
-            type="button"
-            className="tt-back"
-            onClick={() => { chooseSubject(''); setLessonId(null); }}
-          >
-            <HiOutlineArrowLeft size={15} aria-hidden="true" />
-            {t('tutor:changeSubject')}
-          </button>
           <h1>{subject?.name || t('tutor:title')}</h1>
-          <p className="tt-sub">
-            {t('tutor:scopeLine', { grade: home.grade })}
-            {home.className ? ` · ${home.className}` : ''}
-          </p>
         </div>
         <span className={`tt-chip${credits === 0 ? ' is-empty' : credits <= 3 ? ' is-low' : ''}`}>
           <HiOutlineLightningBolt size={15} aria-hidden="true" />
           {t('tutor:credits.left', { n: credits })}
         </span>
+        <button type="button" className="tt-rail-toggle" onClick={() => setRailOpen(true)}>
+          <HiOutlineMenu size={16} aria-hidden="true" />
+          {t('tutor:lessonsTitle')}
+        </button>
       </header>
 
-      {home.access?.allowed === false && (
-        <div className="tt-blocked tt-blocked--inline">
-          <AccessIcon size={22} aria-hidden="true" />
-          <div>
-            <strong>{t('tutor:blocked.title')}</strong>
-            <p>{t(`tutor:blocked.${home.access.reason}`, { defaultValue: t('tutor:blocked.default') })}</p>
-          </div>
-        </div>
-      )}
-
       <div className="tt-body">
-        <aside className="tt-side" aria-label={t('tutor:lessonsTitle')}>
-          <div className="tt-side-head">
-            <h2>{t('tutor:lessonsTitle')}</h2>
-            <button
-              type="button"
-              className={`tt-all-lessons${lessonId ? '' : ' is-active'}`}
-              onClick={() => setLessonId(null)}
-            >
-              {t('tutor:allLessons')}
-            </button>
-          </div>
-          {subjectLoading && <p className="tt-muted">{t('tutor:loadingLessons')}</p>}
-          {!subjectLoading && home.outline?.length === 0 && (
-            <p className="tt-muted">{t('tutor:noLessons')}</p>
-          )}
-          <div className="tt-outline">
-            {(home.outline || []).map((unit) => (
-              <div key={`${unit.unitNumber ?? 'flat'}`} className="tt-unit">
-                {unit.unitNumber != null && (
-                  <p className="tt-unit-title">
-                    <span>{t('tutor:unit', { n: unit.unitNumber })}</span>
-                    {unit.unitTitle}
-                  </p>
-                )}
-                {unit.lessons.map((lesson) => (
-                  <LessonRow key={lesson.id} lesson={lesson} active={lessonId === lesson.id} onPick={setLessonId} />
-                ))}
-                {unit.chapters.map((chapter) => (
-                  <div key={`${unit.unitNumber}-${chapter.chapterNumber}`} className="tt-chapter">
-                    <p className="tt-chapter-title">
-                      <span>{t('tutor:chapter', { n: chapter.chapterNumber })}</span>
-                      {chapter.chapterTitle}
-                    </p>
-                    {chapter.lessons.map((lesson) => (
-                      <LessonRow key={lesson.id} lesson={lesson} active={lessonId === lesson.id} onPick={setLessonId} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {home.practiceEnabled && allowed && (
-            <button type="button" className="tt-practice-btn" onClick={openPractice} disabled={practiceBusy || credits === 0}>
-              <HiOutlineLightningBolt size={16} aria-hidden="true" />
-              {t('tutor:practice.start')}
-            </button>
-          )}
-          {practiceSets.length > 0 && (
-            <div className="tt-practice-history">
-              <h3>{t('tutor:practice.history')}</h3>
-              {practiceSets.slice(0, 4).map((set) => (
-                <p key={set.id}>
-                  <HiOutlineBadgeCheck size={13} aria-hidden="true" />
-                  {set.status === 'submitted'
-                    ? t('tutor:practice.scoreLine', { score: set.score, total: set.total })
-                    : t('tutor:practice.openSet')}
-                </p>
-              ))}
-            </div>
-          )}
-        </aside>
-
         <section className="tt-chat" aria-label={t('tutor:chatTitle')}>
           <div className="tt-thread" ref={threadRef}>
+            {home.access?.allowed === false && (
+              <div className="tt-blocked tt-blocked--inline">
+                <AccessIcon size={22} aria-hidden="true" />
+                <div>
+                  <strong>{t('tutor:blocked.title')}</strong>
+                  <p>{t(`tutor:blocked.${home.access.reason}`, { defaultValue: t('tutor:blocked.default') })}</p>
+                </div>
+              </div>
+            )}
             {messages.length === 0 && !practice && (
               <div className="tt-hello">
                 <span className="tt-hello-icon" aria-hidden="true"><HiOutlineChatAlt2 size={22} /></span>
@@ -331,6 +283,7 @@ export default function TutorPage() {
                   <span className="tt-avatar" aria-hidden="true"><HiOutlineSparkles size={18} /></span>
                 )}
                 <div className="tt-msg-body">
+                  {message.role === 'student' && <span className="tt-msg-by">{t('tutor:you')}</span>}
                   {message.role === 'tutor' && message.stage && message.stage !== 'answer' && (
                     <span className={`tt-stage is-${message.stage}`}>{t(`tutor:stage.${message.stage}`)}</span>
                   )}
@@ -432,38 +385,147 @@ export default function TutorPage() {
 
           {error && <p className="tt-error" role="alert">{error}</p>}
 
-          {credits === 0 && (
-            <p className="tt-notice" role="status">
-              <HiOutlineClock size={15} aria-hidden="true" />
-              {t('tutor:credits.usedAll')}
-            </p>
-          )}
-          {credits > 0 && credits <= 3 && (
-            <p className="tt-notice is-soft" role="status">
-              {t('tutor:credits.low', { n: credits })}
-            </p>
-          )}
-
           {allowed && (
-            <div className="tt-composer">
-              <textarea
-                ref={inputRef}
-                value={draft}
-                rows={2}
-                maxLength={1500}
-                placeholder={placeholder}
-                disabled={credits === 0 || asking}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={onKeyDown}
-                aria-label={placeholder}
-              />
-              <button type="button" className="btn btn-primary btn-sm" onClick={send} disabled={!canAsk || !draft.trim()}>
-                {asking ? t('tutor:composer.sending') : t('tutor:composer.send')}
-              </button>
+            <div className={`tt-composer${turnCue ? ' is-turn' : ''}`}>
+              {credits === 0 ? (
+                <p className="tt-composer-cue is-muted">
+                  <HiOutlineClock size={14} aria-hidden="true" />
+                  {t('tutor:composer.noCredit')}
+                </p>
+              ) : turnCue ? (
+                <p className="tt-composer-cue">
+                  <HiOutlineLightBulb size={14} aria-hidden="true" />
+                  {t(turnCue === 'hint' ? 'tutor:composer.turnHint' : 'tutor:composer.turnPrompt')}
+                </p>
+              ) : null}
+              <div className="tt-composer-row">
+                <textarea
+                  ref={inputRef}
+                  value={draft}
+                  rows={2}
+                  maxLength={1500}
+                  placeholder={placeholder}
+                  disabled={credits === 0 || asking}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={onKeyDown}
+                  aria-label={placeholder}
+                />
+                <button type="button" className="btn btn-primary btn-sm" onClick={send} disabled={!canAsk || !draft.trim()}>
+                  {asking
+                    ? t('tutor:composer.sending')
+                    : turnCue
+                      ? t('tutor:composer.sendTry')
+                      : t('tutor:composer.send')}
+                </button>
+              </div>
             </div>
           )}
-          <p className="tt-footnote">{t('tutor:composer.footnote')}</p>
         </section>
+
+        {railOpen && (
+          <button
+            type="button"
+            className="tt-rail-backdrop"
+            aria-label={t('tutor:closeLessons')}
+            onClick={() => setRailOpen(false)}
+          />
+        )}
+        <aside className={`tt-side${railOpen ? ' is-open' : ''}`} aria-label={t('tutor:lessonsTitle')}>
+          <div className="tt-side-drawer-head">
+            <h2>{t('tutor:lessonsTitle')}</h2>
+            <button
+              type="button"
+              className="tt-rail-close"
+              aria-label={t('tutor:closeLessons')}
+              onClick={() => setRailOpen(false)}
+            >
+              <HiOutlineX size={18} aria-hidden="true" />
+            </button>
+          </div>
+          <div className="tt-side-subject">
+            <button
+              type="button"
+              className="tt-back"
+              onClick={() => { chooseSubject(''); setLessonId(null); }}
+            >
+              <HiOutlineArrowLeft size={15} aria-hidden="true" />
+              {t('tutor:changeSubject')}
+            </button>
+            <h1>{subject?.name || t('tutor:title')}</h1>
+            <span className={`tt-chip${credits === 0 ? ' is-empty' : credits <= 3 ? ' is-low' : ''}`}>
+              <HiOutlineLightningBolt size={15} aria-hidden="true" />
+              {t('tutor:credits.left', { n: credits })}
+            </span>
+            {(credits === 0 || credits <= 3) && (
+              <p className="tt-side-note">
+                {credits === 0
+                  ? t('tutor:credits.usedAll')
+                  : t('tutor:credits.low', { n: credits })}
+              </p>
+            )}
+          </div>
+
+          <div className="tt-side-head">
+            <h2>{t('tutor:lessonsTitle')}</h2>
+            <button
+              type="button"
+              className={`tt-all-lessons${lessonId ? '' : ' is-active'}`}
+              onClick={() => setLessonId(null)}
+            >
+              {t('tutor:allLessons')}
+            </button>
+          </div>
+          {subjectLoading && <p className="tt-muted">{t('tutor:loadingLessons')}</p>}
+          {!subjectLoading && home.outline?.length === 0 && (
+            <p className="tt-muted">{t('tutor:noLessons')}</p>
+          )}
+          <div className="tt-outline">
+            {(home.outline || []).map((unit) => (
+              <div key={`${unit.unitNumber ?? 'flat'}`} className="tt-unit">
+                {unit.unitNumber != null && (
+                  <p className="tt-unit-title">
+                    <span>{t('tutor:unit', { n: unit.unitNumber })}</span>
+                    {unit.unitTitle}
+                  </p>
+                )}
+                {unit.lessons.map((lesson) => (
+                  <LessonRow key={lesson.id} lesson={lesson} active={lessonId === lesson.id} onPick={pickLesson} />
+                ))}
+                {unit.chapters.map((chapter) => (
+                  <div key={`${unit.unitNumber}-${chapter.chapterNumber}`} className="tt-chapter">
+                    <p className="tt-chapter-title">
+                      <span>{t('tutor:chapter', { n: chapter.chapterNumber })}</span>
+                      {chapter.chapterTitle}
+                    </p>
+                    {chapter.lessons.map((lesson) => (
+                      <LessonRow key={lesson.id} lesson={lesson} active={lessonId === lesson.id} onPick={pickLesson} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {home.practiceEnabled && allowed && (
+            <button type="button" className="tt-practice-btn" onClick={openPractice} disabled={practiceBusy || credits === 0}>
+              <HiOutlineLightningBolt size={16} aria-hidden="true" />
+              {t('tutor:practice.start')}
+            </button>
+          )}
+          {practiceSets.length > 0 && (
+            <div className="tt-practice-history">
+              <h3>{t('tutor:practice.history')}</h3>
+              {practiceSets.slice(0, 4).map((set) => (
+                <p key={set.id}>
+                  <HiOutlineBadgeCheck size={13} aria-hidden="true" />
+                  {set.status === 'submitted'
+                    ? t('tutor:practice.scoreLine', { score: set.score, total: set.total })
+                    : t('tutor:practice.openSet')}
+                </p>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );

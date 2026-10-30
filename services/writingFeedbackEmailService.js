@@ -87,7 +87,7 @@ const COPY = {
     statusSteps: ["Sent", "Feedback", "Revising", "Notebook", "Done"],
     statusLabel: "Where the piece is now",
     statusNow: "Now: writing draft {{n}}",
-    meta: "Draft {{n}} of {{max}} · {{words}} words",
+    meta: "Draft {{n}} · {{words}} words",
     due: " · due {{date}}",
     footer: "{{schoolName}}",
   },
@@ -128,7 +128,7 @@ const COPY = {
     statusSteps: ["أُرسلت", "الملاحظات", "المراجعة", "الكراس", "انتهى"],
     statusLabel: "أين وصلت المسودة",
     statusNow: "الآن: كتابة المسودة {{n}}",
-    meta: "المسودة {{n}} من {{max}} · {{words}} كلمة",
+    meta: "المسودة {{n}} · {{words}} كلمة",
     due: " · التسليم {{date}}",
     footer: "{{schoolName}}",
   },
@@ -432,7 +432,6 @@ export const buildFeedbackEmail = ({
   const typeLabel =
     TYPE_LABELS[lang][assignment.writingType] || TYPE_LABELS[lang].custom;
   const topic = String(assignment.topic || assignment.title || "").trim();
-  const maxDrafts = Number(assignment.workflow?.maxDrafts) || 4;
   const words =
     Number(
       draft?.totalWords ??
@@ -480,7 +479,7 @@ export const buildFeedbackEmail = ({
       intro: fill(intro, values),
       typeLabel,
       pieceTitle: iso(topic) || typeLabel,
-      pieceMeta: `${fill(copy.meta, { n: draftNumber, max: maxDrafts, words })}${due ? fill(copy.due, { date: due }) : ""}`,
+      pieceMeta: `${fill(copy.meta, { n: draftNumber, words })}${due ? fill(copy.due, { date: due }) : ""}`,
       statusLabel: copy.statusLabel,
       footer: fill(copy.footer, { schoolName }),
       statusHtml: statusHtml({
@@ -538,7 +537,7 @@ export const buildFeedbackEmail = ({
     "",
     fill(intro, values),
     "",
-    `${fill(copy.meta, { n: draftNumber, max: maxDrafts, words })}${due ? fill(copy.due, { date: due }) : ""}`,
+    `${fill(copy.meta, { n: draftNumber, words })}${due ? fill(copy.due, { date: due }) : ""}`,
     summary
       ? `\n${fill(isParent ? copy.parentQuoteLabel : copy.studentQuoteLabel, values)}\n${summary}`
       : "",

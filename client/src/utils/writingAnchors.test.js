@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { anchorEssay, anchorSegments } from "./writingAnchors.js";
+import { anchorEssay, anchorSegments, unplacedNotes } from "./writingAnchors.js";
 
 test("anchorSegments highlights the exact quote and keeps the rest plain", () => {
   const text = "Inside, the bread sellers shouted over the diesel engines and it was loud.";
@@ -89,4 +89,57 @@ test("a note whose slot does not line up still sits under the line it quotes", (
   assert.equal(rows[2].note, null);
   // Each note is used once, however many paragraphs contain its words.
   assert.equal(rows.filter((row) => row.note).length, 2);
+});
+
+test("unplacedNotes keeps every note no paragraph could take", () => {
+  const paragraphs = [
+    { key: "body", index: 0, text: "Recess gives students a break from lessons." },
+    { key: "body", index: 1, text: "Some students need freetime to relax with friends." },
+  ];
+  const notes = [
+    { key: "body", index: 0, evidence: "a break from lessons" },
+    { key: "body", index: 5, evidence: "" },
+    { key: "conclusion", index: 0, evidence: "words the student never wrote" },
+  ];
+
+  const loose = unplacedNotes(paragraphs, notes);
+  assert.deepEqual(loose, [notes[1], notes[2]]);
+  // The placed note never shows up twice.
+  assert.equal(unplacedNotes(paragraphs, notes).includes(notes[0]), false);
+});
+
+test("a note for a part written once lands on it even when its index drifted", () => {
+  const paragraphs = [
+    { key: "opening", index: 0, text: "Recess helps students." },
+    { key: "ending", index: 0, text: "So recess should be longer." },
+  ];
+  // A legacy run numbered parts from 1 and kept no quote.
+  const notes = [
+    { key: "opening", index: 1, evidence: "" },
+    { key: "ending", index: 1, evidence: "" },
+  ];
+  const rows = anchorEssay(paragraphs, notes);
+
+  assert.equal(rows[0].note, notes[0]);
+  assert.equal(rows[1].note, notes[1]);
+  assert.equal(rows[0].number, 0);
+  assert.deepEqual(unplacedNotes(paragraphs, notes), []);
+});
+
+test("unplacedNotes treats notes as leftovers only once, matching anchorEssay", () => {
+  const paragraphs = [
+    { key: "body", index: 0, text: "Recess gives students a break from lessons." },
+    { key: "body", index: 1, text: "Some students need freetime to relax with friends." },
+  ];
+  const notes = [
+    { key: "body", index: 0, evidence: "a break from lessons" },
+    { key: "body", index: 0, evidence: "need freetime to relax" },
+    { key: "body", index: 2, evidence: "a break from lessons" },
+  ];
+
+  // Paragraph 0 takes the first note by slot, paragraph 1 takes the second by
+  // quote, so only the note about a part that no longer exists is left over.
+  assert.deepEqual(unplacedNotes(paragraphs, notes), [notes[2]]);
+  assert.deepEqual(unplacedNotes(paragraphs, []), []);
+  assert.deepEqual(unplacedNotes([], notes), notes);
 });

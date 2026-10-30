@@ -103,6 +103,17 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         </div>
       )}
 
+      {(comparison.spellingWins || []).length > 0 && (
+        <div className="ws-compare-wins">
+          <h4>{t("writing:student.spellingWinsTitle")}</h4>
+          <div className="ws-spelling-chips">
+            {comparison.spellingWins.map((row) => (
+              <span className="ws-spelling-chip is-win" key={row.word}>{row.word}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {(detail.feedbackApplied || []).length > 0 && (
         <div className="ws-compare-applied">
           <h4>{t("writing:student.comparisonApplied")}</h4>

@@ -54,6 +54,52 @@ test('a task cannot be published without a title, a class, or something to mark'
   assert.equal(validateForm({ ...base, title: 'Opinion essay', classId: 'c1' }).ok, true);
 });
 
+test('selected students need at least one name', () => {
+  const base = { ...emptyForm(), title: 'Opinion essay', classId: 'c1', audienceMode: 'selected' };
+  assert.equal(validateForm(base).errors.studentIds, 'students');
+  assert.equal(validateForm({ ...base, studentIds: ['s1'] }).ok, true);
+});
+
+test('the class mode sends no student list and the selected mode sends only ticked students', () => {
+  const base = { ...emptyForm(), title: 'Opinion essay', classId: 'c1' };
+  const whole = buildPayload(base);
+  assert.equal(whole.audienceMode, 'class');
+  assert.equal(whole.studentIds, undefined);
+  const some = buildPayload({ ...base, audienceMode: 'selected', studentIds: ['s1', 's2'] });
+  assert.equal(some.audienceMode, 'selected');
+  assert.deepEqual(some.studentIds, ['s1', 's2']);
+});
+
+test('a goal for a student outside the selection never reaches the server', () => {
+  const form = {
+    ...emptyForm(),
+    title: 'Opinion essay',
+    classId: 'c1',
+    audienceMode: 'selected',
+    studentIds: ['s1'],
+    goals: [
+      { student: 's1', text: 'Add a second reason.' },
+      { student: 's2', text: 'Vary sentence openings.' },
+    ],
+  };
+  assert.deepEqual(buildPayload(form).goals, [{ student: 's1', text: 'Add a second reason.' }]);
+});
+
+test('a task saved for selected students reloads with the same selection', () => {
+  const saved = {
+    ...emptyForm(),
+    _id: 'a1',
+    title: 'Opinion essay',
+    class: 'c1',
+    audienceMode: 'selected',
+    students: ['s1', 's2'],
+  };
+  const form = formFromAssignment(saved);
+  assert.equal(form.audienceMode, 'selected');
+  assert.deepEqual(form.studentIds, ['s1', 's2']);
+  assert.equal(formFromAssignment({ ...saved, audienceMode: undefined }).audienceMode, 'class');
+});
+
 test('two parts that would share a stored key are refused', () => {
   const form = {
     ...emptyForm(),
@@ -112,7 +158,7 @@ test('the review panel counts the boxes the student actually gets', () => {
   assert.equal(preview.requiredCount, 3);
   assert.equal(preview.writingSlots, 4);
   assert.equal(preview.totalPoints, 18);
-  assert.equal(preview.drafts, form.workflow.maxDrafts);
+  assert.equal(preview.audienceMode, form.audienceMode);
 });
 
 test('an assignment saved on the server reloads into the editor unchanged', () => {
@@ -129,13 +175,14 @@ test('an assignment saved on the server reloads into the editor unchanged', () =
     sections: [{ key: 'body', label: 'Body', kind: 'body', required: true, repeatable: true, minCount: 2, maxCount: 4, minWords: 20, criteria: ['One detail'] }],
     supports: { wordBank: ['because'], transitions: [], sentenceStarters: [], guidingQuestions: [], modelText: '', plannerPrompt: '' },
     rubric: [{ key: 'ideas', label: 'Ideas', description: '', maxScore: 5, appliesToSections: ['*'] }],
-    workflow: { teacherPublishesFeedback: true, maxDrafts: 3, requireNotebookCheck: false, autoSuggestNextStep: true },
+    workflow: { teacherPublishesFeedback: true, requireNotebookCheck: false, autoSuggestNextStep: true },
   };
   const form = formFromAssignment(saved);
   assert.equal(form.classId, 'c1');
   assert.equal(form.dueDate, '2026-11-04');
   assert.deepEqual(form.goals, [{ student: 's1', text: 'Add a second reason.' }]);
   assert.equal(form.sections[0].maxCount, 4);
-  assert.equal(form.workflow.maxDrafts, 3);
+  assert.equal(form.workflow.requireNotebookCheck, false);
+  assert.equal("maxDrafts" in form.workflow, false);
   assert.equal(buildPayload(form).rubric[0].maxScore, 5);
 });

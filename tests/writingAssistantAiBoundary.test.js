@@ -143,6 +143,24 @@ test('the student read path exposes published feedback only', async () => {
     );
 });
 
+test('every writing AI call is pinned to OpenAI', async () => {
+    const assessment = await read(ASSESSMENT);
+    const calls = assessment.match(/connectAi\([^;]*;/g) || [];
+    assert.ok(calls.length >= 2, 'feedback and comparison must both call the AI');
+    assert.ok(
+        assessment.includes("provider: 'openai'"),
+        'the writing AI provider must be hard-coded to OpenAI'
+    );
+    assert.equal(
+        assessment.includes('WRITING_AI_PROVIDER'),
+        false,
+        'the provider must not be configurable by environment'
+    );
+    for (const call of calls) {
+        assert.match(call, /aiOptions\(\{/, 'every call must build its options through aiOptions');
+    }
+});
+
 test('the assessment service exports every workflow entry point', async () => {
     const module = await import(ASSESSMENT);
     for (const name of [

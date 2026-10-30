@@ -57,6 +57,16 @@ const taskResultSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/** A missed spelling word the AI suggested reusing, filtered to this topic. */
+const spellingTargetSchema = new mongoose.Schema(
+  {
+    word: { type: String, required: true, trim: true },
+    grade: { type: String, trim: true, default: '' },
+    week: { type: Number, default: null }
+  },
+  { _id: false }
+);
+
 /**
  * AI output for one draft version, plus the teacher's edits.
  * `kind: 'feedback'` assesses a draft. `kind: 'comparison'` assesses what changed
@@ -108,6 +118,12 @@ const writingAssessmentSchema = new mongoose.Schema(
     totalScore: { type: Number, default: 0 },
     // The priorities as keyed tasks, so a comparison can report each one.
     tasks: { type: [revisionTaskSchema], default: [] },
+    // Missed words from the student's spelling list that fit this topic. The
+    // server picks them from a fixed candidate list; the model only proposes.
+    spellingTargets: { type: [spellingTargetSchema], default: [] },
+    // Words from a published earlier round that are really in this draft.
+    // Read from the text, never taken from a model claim.
+    spellingWins: { type: [{ word: { type: String, trim: true } }], default: [] },
     comparison: {
       changedBySection: { type: [changedSectionSchema], default: [] },
       criteriaImproved: [{ type: String, trim: true }],

@@ -12,7 +12,14 @@ import {
     configSnapshotFor,
     countWords,
     guardRecommendation,
+    ledgerSummary,
+    mergeRevisionLedger,
     sectionTotalWords,
+    selectSpellingTargets,
+    spellingProfileFrom,
+    stalledTasksFrom,
+    verifiedSpellingWins,
+    writingTierFrom,
     stageAfterPublish,
     stageAfterSubmit,
     staleRunCutoff,
@@ -45,7 +52,7 @@ const essay = () => ({
     maxWords: 300,
     sections: presetSections('essay'),
     rubric: presetRubric(),
-    workflow: { teacherPublishesFeedback: true, maxDrafts: 4, requireNotebookCheck: true }
+    workflow: { teacherPublishesFeedback: true, requireNotebookCheck: true }
 });
 
 const filled = () => [
@@ -304,13 +311,12 @@ test('a student cannot submit while a draft is with the teacher or the notebook 
     }
 });
 
-test('the draft limit stops further submissions', () => {
+test('a student can keep sending drafts; no count ever stops the loop', () => {
     const gate = canStudentSubmit({
-        project: { stage: 'feedback_published', draftCount: 4 },
+        project: { stage: 'feedback_published', draftCount: 14 },
         assignment: essay()
     });
-    assert.equal(gate.allowed, false);
-    assert.match(gate.reason, /4 drafts/);
+    assert.equal(gate.allowed, true);
 });
 
 test('a teacher stage lock blocks automatic movement but not the locked stage', () => {
@@ -371,24 +377,33 @@ test('summarizeBoard groups students by what the teacher must do', () => {
     assert.equal(summary.completed, 1);
 });
 
-test('the tracker drops steps the configuration does not use', () => {
-    const single = buildTracker({
-        assignment: { workflow: { maxDrafts: 1, requireNotebookCheck: false } },
+test('the tracker shows a repeatable revise step and no fixed second draft', () => {
+    const withoutNotebook = buildTracker({
+        assignment: { workflow: { requireNotebookCheck: false } },
         project: { stage: 'not_started', draftCount: 0 },
         hasComparison: false
     });
-    assert.deepEqual(single.map((step) => step.key), ['draft_1', 'feedback_1', 'next_step', 'completed']);
+    assert.deepEqual(withoutNotebook.map((step) => step.key), [
+        'draft_1', 'feedback_1', 'draft_2', 'next_step', 'completed'
+    ]);
 
     const full = buildTracker({
-        assignment: { workflow: { maxDrafts: 4, requireNotebookCheck: true } },
+        assignment: { workflow: { requireNotebookCheck: true } },
         project: { stage: 'not_started', draftCount: 0 },
         hasComparison: false
     });
     assert.deepEqual(full.map((step) => step.key), [
-        'draft_1', 'feedback_1', 'draft_2', 'compare', 'next_step', 'notebook_check', 'completed'
+        'draft_1', 'feedback_1', 'draft_2', 'next_step', 'notebook_check', 'completed'
     ]);
     assert.equal(full[0].state, 'current');
     assert.equal(full[1].state, 'upcoming');
+
+    const compared = buildTracker({
+        assignment: { workflow: { requireNotebookCheck: true } },
+        project: { stage: 'compared', draftCount: 7 },
+        hasComparison: true
+    });
+    assert.equal(compared.find((step) => step.key === 'compare').state, 'current');
 });
 
 /* ------------------------------------------------------------------ */
@@ -435,9 +450,7 @@ test('a generous AI notebook recommendation is overruled while the rubric has ga
                 { key: 'ideas', score: 2, maxScore: 5 },
                 { key: 'organisation', score: 1, maxScore: 5 }
             ]
-        },
-        assignment: essay(),
-        draftNumber: 2
+        }
     });
     assert.equal(decision.path, 'revise');
 });
@@ -448,22 +461,158 @@ test('a strong rubric with nothing unresolved can go to the notebook', () => {
         assessment: {
             comparison: { criteriaUnresolved: [], newIssues: [] },
             scores: [{ key: 'ideas', score: 5, maxScore: 5 }]
-        },
-        assignment: essay(),
-        draftNumber: 2
+        }
     });
     assert.equal(decision.path, 'notebook');
 });
 
-test('running out of allowed drafts sends the student to the notebook', () => {
+test('the draft count is not an input to the recommendation anymore', () => {
     const decision = guardRecommendation({
         aiPath: 'revise',
         assessment: { comparison: { criteriaUnresolved: ['Conventions'], newIssues: [] }, scores: [] },
-        assignment: essay(),
+        draftNumber: 12,
+        assignment: essay()
+    });
+    assert.equal(decision.path, 'revise');
+    assert.equal(/drafts/.test(decision.reason), false);
+});
+
+/* ------------------------------------------------------------------ */
+/* Revision task ledger                                                */
+/* ------------------------------------------------------------------ */
+
+const ledgerTask = (id, text) => ({ id, text });
+
+test('the ledger follows one task from open to resolved across drafts', () => {
+    let ledger = mergeRevisionLedger({
+        ledger: [],
+        tasks: [ledgerTask('t1', 'Add an example.')],
+        draftNumber: 2
+    });
+    assert.equal(ledger[0].status, 'open');
+    assert.equal(ledger[0].introducedDraft, 2);
+    assert.equal(ledger[0].unresolvedStreak, 0);
+
+    ledger = mergeRevisionLedger({
+        ledger,
+        tasks: [ledgerTask('t1', 'Add an example.')],
+        taskResults: [{ id: 't1', applied: true, note: 'Added "for example".' }],
+        draftNumber: 3
+    });
+    assert.equal(ledger[0].status, 'resolved');
+    assert.equal(ledger[0].resolvedDraft, 3);
+    assert.equal(ledger[0].checks, 1);
+    assert.equal(ledger[0].unresolvedStreak, 0);
+});
+
+test('a task that survives two comparisons is flagged as stalled for the teacher', () => {
+    let ledger = [{ id: 't1', text: 'Add an example.', introducedDraft: 2, checks: 0, unresolvedStreak: 0, status: 'open' }];
+    for (const draftNumber of [3, 4]) {
+        ledger = mergeRevisionLedger({
+            ledger,
+            tasks: [ledgerTask('t1', 'Add an example.')],
+            taskResults: [{ id: 't1', applied: false }],
+            draftNumber
+        });
+    }
+    assert.equal(ledger[0].status, 'stalled');
+    assert.equal(ledger[0].unresolvedStreak, 2);
+    assert.deepEqual(stalledTasksFrom(ledger).map((row) => row.id), ['t1']);
+});
+
+test('rewording a task starts a fresh entry instead of inheriting a stall', () => {
+    const ledger = mergeRevisionLedger({
+        ledger: [{ id: 't1', text: 'Add an example.', unresolvedStreak: 2, status: 'stalled' }],
+        tasks: [ledgerTask('t1', 'Add one sentence that names the source.')],
+        taskResults: [{ id: 't1', applied: false }],
         draftNumber: 4
     });
-    assert.equal(decision.path, 'notebook');
-    assert.match(decision.reason, /allows 4 drafts/);
+    assert.equal(ledger[0].status, 'open');
+    assert.equal(ledger[0].introducedDraft, 4);
+    assert.equal(ledger[0].unresolvedStreak, 1);
+});
+
+test('a task the teacher stopped asking for is dropped, not left stalling', () => {
+    const ledger = mergeRevisionLedger({
+        ledger: [{ id: 't2', text: 'Join paragraphs.', unresolvedStreak: 2, status: 'stalled' }],
+        tasks: [ledgerTask('t1', 'Add an example.')],
+        draftNumber: 5
+    });
+    assert.equal(ledger.find((row) => row.id === 't2').status, 'dropped');
+    assert.deepEqual(ledgerSummary(ledger), { open: 1, resolved: 0, stalled: 0, dropped: 1 });
+});
+
+test('a stalled task blocks the notebook even when the rubric looks strong', () => {
+    const decision = guardRecommendation({
+        aiPath: 'notebook',
+        assessment: {
+            comparison: { criteriaUnresolved: [], newIssues: [] },
+            scores: [{ key: 'ideas', score: 5, maxScore: 5 }]
+        },
+        stalled: 1
+    });
+    assert.equal(decision.path, 'revise');
+    assert.match(decision.reason, /earlier round/);
+});
+
+test('feedback on a draft with a stalled task changes its approach', () => {
+    const prompt = buildFeedbackPrompt({
+        snapshot: configSnapshotFor(essay()),
+        draft: { number: 4, sections: filled() },
+        stalledTasks: [{ id: 't1', text: 'Add an example.' }],
+        language: 'en'
+    });
+    assert.match(prompt, /survived two revisions/);
+    assert.match(prompt, /- Add an example\./);
+});
+
+/* ------------------------------------------------------------------ */
+/* Differentiation profile                                             */
+/* ------------------------------------------------------------------ */
+
+const marked = (draft, earned, max = 10) => ({
+    draft,
+    aiStatus: 'done',
+    scores: [{ key: 'ideas', score: earned, maxScore: max }]
+});
+
+test('the writing tier comes from the newest marked drafts, not one weak piece', () => {
+    assert.equal(writingTierFrom({ assessments: [] }), 'unknown');
+    assert.equal(writingTierFrom({ assessments: [marked('d1', 9), marked('d2', 8)] }), 'secure');
+    assert.equal(writingTierFrom({ assessments: [marked('d1', 6), marked('d2', 6)] }), 'developing');
+    assert.equal(writingTierFrom({ assessments: [marked('d1', 3)] }), 'emerging');
+    // Older pieces fall outside the newest three and stop following the student.
+    const improved = [marked('d4', 9), marked('d3', 9), marked('d2', 9), marked('d1', 1)];
+    assert.equal(writingTierFrom({ assessments: improved }), 'secure');
+});
+
+test('one draft counted once, even when feedback and comparison both marked it', () => {
+    const assessments = [marked('d2', 2), { ...marked('d2', 10), kind: 'comparison' }, marked('d1', 10)];
+    assert.equal(writingTierFrom({ assessments }), 'developing');
+});
+
+test('spelling profile ignores an untouched analysis instead of reporting 0%', () => {
+    assert.deepEqual(
+        spellingProfileFrom({ grade: 'G3', metrics: { attempts: 0, accuracy: 0 } }),
+        { grade: 'G3', accuracy: null }
+    );
+    assert.deepEqual(
+        spellingProfileFrom({ grade: 'G3', metrics: { attempts: 20, accuracy: 64.4 } }),
+        { grade: 'G3', accuracy: 64.4 }
+    );
+});
+
+test('the profile steers the prompt but may never be named to the student', () => {
+    const prompt = buildFeedbackPrompt({
+        snapshot: configSnapshotFor(essay()),
+        draft: { number: 2, sections: filled() },
+        profile: { tier: 'emerging', spellingGrade: 'G3', spellingAccuracy: 64 },
+        language: 'en'
+    });
+    assert.match(prompt, /still building control/);
+    assert.match(prompt, /G3 level/);
+    assert.match(prompt, /about 64%/);
+    assert.match(prompt, /never name, label, quote or hint at a level/);
 });
 
 /* ------------------------------------------------------------------ */
@@ -732,6 +881,33 @@ test('normalizeComparison reports added and removed sections even if the model i
     assert.equal(result.wordDelta, 7);
 });
 
+test('normalizeComparison advances the ledger and exposes stalled tasks', () => {
+    const snapshot = configSnapshotFor(essay());
+    const result = normalizeComparison({
+        previousDraft: { number: 3, sections: [{ key: 'body', index: 0, text: 'A reason.' }] },
+        currentDraft: { number: 4, sections: [{ key: 'body', index: 0, text: 'A reason with an example.' }] },
+        previousAssessment: { tasks: [{ id: 't1', text: 'Add an example.' }] },
+        snapshot,
+        ledger: [{
+            id: 't1',
+            text: 'Add an example.',
+            introducedDraft: 2,
+            checks: 1,
+            unresolvedStreak: 1,
+            status: 'open'
+        }],
+        parsed: {
+            taskResults: [{ id: 't1', applied: false }],
+            scores: [],
+            recommendation: { path: 'notebook', reason: 'Looks ready.' }
+        }
+    });
+
+    assert.equal(result.revisionLedger[0].status, 'stalled');
+    assert.equal(result.revisionLedger[0].lastCheckedDraft, 4);
+    assert.deepEqual(result.stalledTasks.map((row) => row.id), ['t1']);
+});
+
 test('decideRecommendation holds the AI to the rubric numbers', () => {
     const decision = decideRecommendation({
         normalized: {
@@ -885,4 +1061,140 @@ test('an interrupted run is retryable far sooner than it would block the draft',
     assert.equal(now - staleRunCutoff(now).getTime(), STALE_RUN_MS);
     // Two model attempts at a two-minute cap each must both be able to finish first.
     assert.ok(STALE_RUN_MS > 2 * 2 * 60 * 1000);
+});
+
+/* ------------------------------------------------------------------ */
+/* Spelling targets and verified wins                                  */
+/* ------------------------------------------------------------------ */
+
+const candidates = [
+    { word: 'because', grade: 'G4', week: 3 },
+    { word: 'concentrate', grade: 'G4', week: 5 },
+    { word: 'uniform', grade: 'G3', week: 2 },
+    { word: 'judged', grade: 'G4', week: 4 },
+    { word: 'morning', grade: 'G3', week: 1 }
+];
+
+test('spelling targets keep only words the student actually missed', () => {
+    const picked = selectSpellingTargets({
+        suggestions: ['because', 'elephant', { word: 'Judged' }, 'because'],
+        candidates,
+        assignment: essay(),
+        draftText: 'I think uniforms are fair.'
+    });
+    assert.deepEqual(picked, [
+        { word: 'because', grade: 'G4', week: 3 },
+        { word: 'judged', grade: 'G4', week: 4 }
+    ]);
+});
+
+test('a word the draft already uses, or the assignment already gave, is never suggested', () => {
+    const picked = selectSpellingTargets({
+        suggestions: ['uniform', 'because', 'morning', 'concentrate'],
+        candidates,
+        assignment: {
+            ...essay(),
+            supports: { wordBank: ['uniform'], modelText: 'Every morning I concentrate.' }
+        },
+        draftText: 'School uniforms are fair.'
+    });
+    // The three words the assignment and the draft already contain are gone.
+    assert.deepEqual(picked, [{ word: 'because', grade: 'G4', week: 3 }]);
+});
+
+test('no suggestion at all is a normal result, and three is the ceiling', () => {
+    assert.deepEqual(selectSpellingTargets({ candidates }), []);
+    const picked = selectSpellingTargets({
+        suggestions: candidates.map((row) => row.word),
+        candidates,
+        assignment: essay(),
+        draftText: ''
+    });
+    assert.equal(picked.length, 3);
+});
+
+test('a win is the whole word in the draft, never a longer word that contains it', () => {
+    const targets = [{ word: 'because' }, { word: 'judged' }];
+    const wins = verifiedSpellingWins({
+        targets,
+        draftText: 'BECAUSE everyone looks the same, nobody is judged, becauseness aside.'
+    });
+    assert.deepEqual(wins, [{ word: 'because' }, { word: 'judged' }]);
+    assert.deepEqual(
+        verifiedSpellingWins({ targets, draftText: 'Nobody is becauses or judgedly.' }),
+        []
+    );
+});
+
+test('the prompt lists the missed words and never lets the model claim a win', () => {
+    const prompt = buildFeedbackPrompt({
+        snapshot: configSnapshotFor(essay()),
+        draft: { number: 1, sections: filled() },
+        spellingCandidates: candidates,
+        language: 'en'
+    });
+    assert.match(prompt, /the only words allowed as targets/);
+    assert.match(prompt, /- because \(G4, week 3\)/);
+    assert.match(prompt, /return 0 to 3 exact words copied from the missed-word list/);
+    assert.match(prompt, /Never claim or hint that the student used one of these words/);
+    assert.match(prompt, /"spellingTargets"/);
+});
+
+test('with no missed words the prompt asks for an empty target list', () => {
+    const prompt = buildComparisonPrompt({
+        snapshot: configSnapshotFor(essay()),
+        previousDraft: { number: 1, sections: filled() },
+        currentDraft: { number: 2, sections: filled() },
+        language: 'en'
+    });
+    assert.match(prompt, /Return "spellingTargets": \[\] because no missed-word list was supplied/);
+});
+
+test('feedback keeps the approved targets the server chose, not the reply text', () => {
+    const result = normalizeFeedback({
+        draft: { number: 1, sections: [{ key: 'introduction', index: 0, text: 'I think uniforms are fair.' }] },
+        snapshot: configSnapshotFor(essay()),
+        assignment: essay(),
+        spellingCandidates: candidates,
+        parsed: {
+            sections: [{ key: 'introduction', index: 0, strengths: ['Clear opinion.'] }],
+            overall: { summary: 'A good start.' },
+            spellingTargets: ['because', 'elephant']
+        }
+    });
+    assert.deepEqual(result.spellingTargets, [{ word: 'because', grade: 'G4', week: 3 }]);
+});
+
+test('wins count only published words from the round before, found in this draft', () => {
+    const result = normalizeComparison({
+        previousDraft: { number: 1, sections: filled() },
+        currentDraft: {
+            number: 2,
+            sections: [{ key: 'introduction', index: 0, text: 'Because uniforms are fair, nobody is judged.' }]
+        },
+        previousAssessment: {
+            publish: { state: 'published' },
+            spellingTargets: [{ word: 'because' }, { word: 'morning' }]
+        },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            changedBySection: [{ key: 'introduction', index: 0, summary: 'A reason appeared.', meaningful: true }],
+            spellingTargets: ['judged']
+        }
+    });
+    assert.deepEqual(result.spellingWins, [{ word: 'because' }]);
+    assert.deepEqual(result.spellingTargets, []);
+    assert.deepEqual(
+        normalizeComparison({
+            previousDraft: { number: 1, sections: filled() },
+            currentDraft: {
+                number: 2,
+                sections: [{ key: 'introduction', index: 0, text: 'Because uniforms are fair.' }]
+            },
+            previousAssessment: { publish: { state: 'draft' }, spellingTargets: [{ word: 'because' }] },
+            snapshot: configSnapshotFor(essay()),
+            parsed: { changedBySection: [] }
+        }).spellingWins,
+        []
+    );
 });

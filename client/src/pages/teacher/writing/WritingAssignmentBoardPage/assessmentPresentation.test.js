@@ -140,3 +140,26 @@ test('resend offers the newest published feedback per draft, never private reass
   assert.deepEqual(publishedFeedbackForEmail(rows).map((row) => row._id), ['latest', 'first-draft']);
   assert.deepEqual(publishedFeedbackForEmail(), []);
 });
+
+test('spelling targets survive the form round trip and a removal reaches the payload', () => {
+  const form = formFromAssessment({
+    ...assessment,
+    spellingTargets: [
+      { word: 'because', grade: 'G4', week: 3 },
+      { word: 'judged', grade: 'G4', week: 4 },
+    ],
+    spellingWins: [{ word: 'because' }],
+  });
+
+  assert.deepEqual(form.spellingTargets.map((row) => row.word), ['because', 'judged']);
+  assert.deepEqual(form.spellingWins, ['because']);
+
+  form.spellingTargets = form.spellingTargets.filter((row) => row.word !== 'judged');
+  const payload = payloadFromForm(form);
+  assert.deepEqual(payload.spellingTargets, [{ word: 'because' }]);
+});
+
+test('an assessment from before spelling targets existed sends an empty list, not null', () => {
+  const payload = payloadFromForm(formFromAssessment(assessment));
+  assert.deepEqual(payload.spellingTargets, []);
+});

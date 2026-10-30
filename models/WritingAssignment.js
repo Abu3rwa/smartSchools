@@ -44,7 +44,6 @@ const supportsSchema = new mongoose.Schema(
 const workflowSchema = new mongoose.Schema(
   {
     teacherPublishesFeedback: { type: Boolean, default: true },
-    maxDrafts: { type: Number, default: 4, min: 1, max: 20 },
     requireNotebookCheck: { type: Boolean, default: true },
     autoSuggestNextStep: { type: Boolean, default: true }
   },
@@ -67,6 +66,9 @@ const writingAssignmentSchema = new mongoose.Schema(
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
+    // "class" means every student on the roster; "selected" means a subset of
+    // that class. Missing on older documents, which were always whole-class.
+    audienceMode: { type: String, enum: ['class', 'selected'], default: 'class' },
     dueDate: { type: Date },
     isActive: { type: Boolean, default: true },
     isTemplate: { type: Boolean, default: false },

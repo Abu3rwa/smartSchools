@@ -124,7 +124,7 @@ export default function WritingFeedPage() {
 
                       <td data-label={columns.drafts} className="wf-col-num">
                         <span className="wf-strong">
-                          {t("writing:student.draftCount", { n: card.draftCount, max: card.maxDrafts })}
+                          {t("writing:student.draftCount", { n: card.draftCount })}
                         </span>
                         {card.wordCount > 0 && (
                           <span className="wf-meta">{t("writing:student.words", { n: card.wordCount })}</span>

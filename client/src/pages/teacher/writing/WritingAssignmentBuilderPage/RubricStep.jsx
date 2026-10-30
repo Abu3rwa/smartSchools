@@ -132,14 +132,8 @@ export default function RubricStep({ errors, form, update }) {
           <span>{t("writing:teacher.builder.autoNextStep")}</span>
         </label>
         <div className="wa-field">
-          <span>{t("writing:teacher.builder.maxDrafts")}</span>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={form.workflow.maxDrafts}
-            onChange={(event) => update({ workflow: { ...form.workflow, maxDrafts: event.target.value } })}
-          />
+          <span>{t("writing:teacher.builder.draftsTitle")}</span>
+          <p className="wa-hint">{t("writing:teacher.builder.draftsHint")}</p>
         </div>
       </div>
     </div>

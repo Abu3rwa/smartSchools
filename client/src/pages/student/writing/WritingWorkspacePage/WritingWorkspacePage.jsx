@@ -55,6 +55,10 @@ export default function WritingWorkspacePage() {
   const viewedAssessment = viewedDraft
     ? data.feedback.find((row) => row.draftId === viewedDraft.id && row.kind !== "comparison") || null
     : null;
+  // The comparison that ends at the draft being read, so the tab and the card agree.
+  const shownComparison = viewedDraft
+    ? data.feedback.find((row) => row.draftId === viewedDraft.id && row.kind === "comparison") || null
+    : comparison;
 
   if (loading) {
     return (
@@ -178,22 +182,20 @@ export default function WritingWorkspacePage() {
         </p>
       ) : null}
 
-      {/* Reading an older draft shows its own notes; the card would talk about a different draft. */}
-      {(!viewedDraft || viewedDraft.id === latestDraft?.id) && (
-        <FeedbackCard
-          draftNumber={latestDraft?.number || 1}
-          feedback={feedback}
-          onReadDraft={latestDraft ? () => setPicked(latestDraft.id) : null}
-          revising={!readOnly && Boolean(latestDraft) && !viewedDraft}
-        />
-      )}
+      {/* Reading a draft shows that draft's own feedback, never the newest draft's. */}
+      <FeedbackCard
+        draftNumber={viewedDraft?.number || latestDraft?.number || 1}
+        feedback={viewedDraft ? viewedAssessment : feedback}
+        onReadDraft={!viewedDraft && latestDraft ? () => setPicked(latestDraft.id) : null}
+        revising={!readOnly && Boolean(latestDraft) && !viewedDraft}
+      />
 
-      {comparison && (
+      {shownComparison && (
         <ComparisonCard
-          comparison={comparison}
-          fromNumber={data.drafts.find((draft) => draft.id === comparison.previousDraftId)?.number
-            || Math.max(1, (data.drafts.find((draft) => draft.id === comparison.draftId)?.number || 1) - 1)}
-          toNumber={data.drafts.find((draft) => draft.id === comparison.draftId)?.number
+          comparison={shownComparison}
+          fromNumber={data.drafts.find((draft) => draft.id === shownComparison.previousDraftId)?.number
+            || Math.max(1, (data.drafts.find((draft) => draft.id === shownComparison.draftId)?.number || 1) - 1)}
+          toNumber={data.drafts.find((draft) => draft.id === shownComparison.draftId)?.number
             || Math.max(1, project.draftCount)}
         />
       )}

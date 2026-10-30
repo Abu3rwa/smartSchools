@@ -7,9 +7,13 @@ import {
     countWords,
     draftDiffSummary,
     guardRecommendation,
+    mergeRevisionLedger,
     rubricRatio,
+    selectSpellingTargets,
+    stalledTasksFrom,
     tasksForCheckback,
-    tasksFromPriorities
+    tasksFromPriorities,
+    verifiedSpellingWins
 } from './writingAssistantLogic.js';
 import {
     CONTENT_RULES,
@@ -77,6 +81,40 @@ const renderCriteria = (snapshot) => (snapshot.sections || [])
     .map((section) => `- ${section.key}: ${section.label}${(section.criteria || []).length ? ` (${section.criteria.join('; ')})` : ''}`)
     .join('\n');
 
+/**
+ * What the AI may know about a student's current need, and the lines it may not
+ * cross with it: the profile steers the explanation, never the student-facing text.
+ */
+const profileBlock = (profile) => {
+    if (!profile) return '';
+    const pitch = {
+        emerging: 'This student is still building control. Give one clear improvement at a time, in plain words, with a short example.',
+        developing: 'This student can work on two linked improvements at once. Explain each with one concrete example.',
+        secure: 'This student is ready for precise, ambitious suggestions that stretch the piece.'
+    }[profile.tier];
+    const spelling = [];
+    if (profile.spellingGrade) spelling.push(`their weekly spelling list is at ${profile.spellingGrade} level`);
+    if (Number.isFinite(profile.spellingAccuracy)) {
+        spelling.push(`recent spelling accuracy is about ${Math.round(profile.spellingAccuracy)}%`);
+    }
+    if (!pitch && !spelling.length) return '';
+    return `\nHow to pitch this feedback (use it only to choose what to say; never name, label, quote or hint at a level, tier, grade or accuracy figure to the student):\n${pitch ? `- ${pitch}\n` : ''}${spelling.length ? `- Spelling context: ${spelling.join(', ')}. Pick corrections the student can act on at that level.\n` : ''}`;
+};
+
+const draftText = (draft) => (draft?.sections || []).map((section) => section?.text || '').join(' ');
+
+const spellingBlock = (candidates = []) => {
+    if (!candidates.length) return '';
+    const rows = candidates
+        .map((row) => `- ${clean(row.word, 60)}${row.grade ? ` (${row.grade}` : ''}${row.grade && row.week ? `, week ${row.week}` : ''}${row.grade ? ')' : ''}`)
+        .join('\n');
+    return `\nSpelling words this student recently missed (the only words allowed as targets):\n${rows}\n`;
+};
+
+const spellingTargetRule = (hasCandidates) => (hasCandidates
+    ? '- In "spellingTargets", return 0 to 3 exact words copied from the missed-word list, choosing only words that genuinely fit this assignment\'s topic. An empty list is normal: never force a word, translate it or invent one. Never claim or hint that the student used one of these words; whether they did is checked outside your reply.\n'
+    : '- Return "spellingTargets": [] because no missed-word list was supplied.\n');
+
 const guardrailBlock = (snapshot, aiConstraints) => `Rules you must follow:
 - Writing is a process. Teach and guide; never rewrite the student's sentences or paragraphs. Word-level spelling corrections are allowed. Do not supply replacement sentences, model paragraphs, or answers the student has not attempted.
 - Every improvement must quote the student's own words as evidence, and say why that matters for this assignment.
@@ -96,16 +134,24 @@ export const buildFeedbackPrompt = ({
     studentName = '',
     goal = '',
     aiConstraints = '',
+    stalledTasks = [],
+    profile = null,
+    spellingCandidates = [],
     language = 'en'
-}) => `You are a writing teacher giving feedback on one submitted draft.
+}) => {
+    const stalledBlock = stalledTasks.length
+        ? `\nTasks that have survived two revisions without being done:\n${stalledTasks.map((task) => `- ${clean(task.text, 260)}`).join('\n')}\nDo not repeat the same instruction in the same words. Break each one into the smallest next step, point at one line, and say plainly what is still missing.\n`
+        : '';
+
+    return `You are a writing teacher giving feedback on one submitted draft.
 
 Assignment: ${clean(snapshot.title, 200)} (${snapshot.writingType})
 Topic: ${clean(snapshot.topic, 300)}
 Instructions given to the student: ${clean(snapshot.instructions, 1200) || 'None.'}
 Length target: ${snapshot.minWords || 0}-${snapshot.maxWords || 0} words
 Expected level: ${clean(snapshot.expectedLevel, 200) || 'Not stated'}
-The draft was written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal for this student: ${clean(goal, 400)}` : ''}
-Draft number: ${draft.number}
+The draft was written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal for this student: ${clean(goal, 400)}` : ''}${profileBlock(profile)}${spellingBlock(spellingCandidates)}
+Draft number: ${draft.number}${stalledBlock}
 Structure required:
 ${renderCriteria(snapshot)}
 Rubric:
@@ -120,7 +166,7 @@ ${guardrailBlock(snapshot, aiConstraints)}
 ${PRIVACY_RULES}
 
 ${CONTENT_RULES}
-Put spelling corrections or clarification requests in the relevant section's "improvements", alongside content feedback. Keep each item under 260 characters and use at most 6 improvements per section; select useful examples rather than a long error list.
+${spellingTargetRule(spellingCandidates.length > 0)}Put spelling corrections or clarification requests in the relevant section's "improvements", alongside content feedback. Keep each item under 260 characters and use at most 6 improvements per section; select useful examples rather than a long error list.
 Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}.
 
 JSON shape:
@@ -149,11 +195,13 @@ JSON shape:
   "scores": [
     { "key": "<one of the rubric keys listed above>", "score": <number>, "explanation": "<why>", "evidence": "<a short quote from the student's own writing>" }
   ],
+  "spellingTargets": ["<0 to 3 exact words from the missed-word list, only if they fit this topic>"],
   "recommendation": { "path": "revise", "reason": "<one sentence>" }
 }
 
 Give one "sections" entry for every section the student wrote, including empty ones. Use only the section keys listed above.
 Every rubric score needs "evidence": the exact short phrase from the draft the score is based on. Copy it word for word. If no single phrase shows that criterion, leave "evidence" empty rather than inventing one.`;
+};
 
 export const buildComparisonPrompt = ({
     snapshot,
@@ -163,6 +211,8 @@ export const buildComparisonPrompt = ({
     studentName = '',
     goal = '',
     aiConstraints = '',
+    profile = null,
+    spellingCandidates = [],
     language = 'en'
 }) => {
     const priorFeedback = (previousAssessment?.sections || [])
@@ -179,7 +229,7 @@ export const buildComparisonPrompt = ({
 Assignment: ${clean(snapshot.title, 200)} (${snapshot.writingType})
 Expected level: ${clean(snapshot.expectedLevel, 200) || 'Not stated'}
 Length target: ${snapshot.minWords || 0}-${snapshot.maxWords || 0} words
-The drafts were written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal: ${clean(goal, 400)}` : ''}
+The drafts were written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal: ${clean(goal, 400)}` : ''}${profileBlock(profile)}${spellingBlock(spellingCandidates)}
 Structure required:
 ${renderCriteria(snapshot)}
 Rubric:
@@ -202,7 +252,7 @@ ${guardrailBlock(snapshot, aiConstraints)}
 ${PRIVACY_RULES}
 
 ${CONTENT_RULES}
-Be specific and encouraging. Say which requested feedback was actually applied and which was not.
+${spellingTargetRule(spellingCandidates.length > 0)}Be specific and encouraging. Say which requested feedback was actually applied and which was not.
 Report one "taskResults" entry for every task id listed above, even one the student ignored. Quote the new words that show a task was done; when it was not done, say what is still missing. Use the id exactly as given.
 Name any new problem the revision introduced. Do not count a synonym swap as an improvement.
 Report corrected spellings in "changedBySection", quoting the old and corrected words. Only flag spelling problems still present in the current draft: give corrections or clarification requests in that section's summary and, when a priority, in "overall.nextPriorities". Use "newIssues" only for errors newly introduced in this revision. Do not report a corrected old misspelling as a current problem.
@@ -225,6 +275,7 @@ JSON shape:
   "encouragement": "<one or two sentences the student should read first>",
   "overall": { "summary": "<how the piece as a whole moved>", "nextPriorities": ["<up to 3>"] },
   "scores": [ { "key": "<one of the rubric keys listed above>", "score": <number>, "explanation": "<change since the last draft>", "evidence": "<a short quote from the current draft>" } ],
+  "spellingTargets": ["<0 to 3 exact words from the missed-word list, only if they fit this topic>"],
   "recommendation": { "path": "revise" | "notebook", "reason": "<one sentence>" }
 }`;
 };
@@ -335,7 +386,13 @@ const freeSlot = ({ draft, key, requested, taken }) => {
     return free.includes(requested) ? requested : free[0];
 };
 
-export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
+export const normalizeFeedback = ({
+    parsed,
+    draft,
+    snapshot,
+    assignment = {},
+    spellingCandidates = []
+}) => {
     if (!parsed) {
         return { ok: false, error: 'The AI reply could not be read as JSON.' };
     }
@@ -395,6 +452,12 @@ export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
         overall,
         scores,
         tasks: tasksFromPriorities(overall.nextPriorities),
+        spellingTargets: selectSpellingTargets({
+            suggestions: parsed?.spellingTargets,
+            candidates: spellingCandidates,
+            assignment,
+            draftText: draftText(draft)
+        }),
         totalScore: scores.reduce((sum, row) => sum + row.score, 0),
         recommendation: {
             path: parsed?.recommendation?.path === 'notebook' ? 'notebook' : 'revise',
@@ -408,7 +471,13 @@ export const normalizeComparison = ({
     previousDraft,
     currentDraft,
     previousAssessment,
-    snapshot
+    snapshot,
+    ledger = [],
+    assignment = {},
+    spellingCandidates = [],
+    // The words the student was actually shown for the previous draft, whatever
+    // kind of assessment published them. Falls back to that draft's feedback.
+    priorSpellingTargets = null
 }) => {
     if (!parsed) {
         return { ok: false, error: 'The AI reply could not be read as JSON.' };
@@ -486,13 +555,37 @@ export const normalizeComparison = ({
         });
 
     const overallSource = parsed.overall || {};
+    const taskResults = normalizeTaskResults(parsed.taskResults, tasks);
+    const revisionLedger = mergeRevisionLedger({
+        ledger,
+        tasks,
+        taskResults,
+        draftNumber: Number(currentDraft?.number) || 1
+    });
     return {
         ok: true,
         alignment,
         summary,
         changedBySection,
         tasks,
-        taskResults: normalizeTaskResults(parsed.taskResults, tasks),
+        taskResults,
+        revisionLedger,
+        stalledTasks: stalledTasksFrom(revisionLedger),
+        spellingTargets: selectSpellingTargets({
+            suggestions: parsed?.spellingTargets,
+            candidates: spellingCandidates,
+            assignment,
+            draftText: draftText(currentDraft)
+        }),
+        // A used word is a fact read from the draft, never a model claim.
+        spellingWins: verifiedSpellingWins({
+            targets: Array.isArray(priorSpellingTargets)
+                ? priorSpellingTargets
+                : (previousAssessment?.publish?.state === 'published'
+                    ? previousAssessment?.spellingTargets || []
+                    : []),
+            draftText: draftText(currentDraft)
+        }),
         criteriaImproved: stringList(parsed.criteriaImproved, 8),
         criteriaUnresolved: stringList(parsed.criteriaUnresolved, 8),
         feedbackApplied,
@@ -515,7 +608,7 @@ export const normalizeComparison = ({
 };
 
 /** The teacher-visible recommendation, held to the numbers. */
-export const decideRecommendation = ({ normalized, assignment, draftNumber }) => {
+export const decideRecommendation = ({ normalized }) => {
     const ratio = rubricRatio({ scores: normalized.scores || [] });
     const comparison = normalized.comparison || {
         criteriaUnresolved: normalized.criteriaUnresolved || [],
@@ -527,8 +620,7 @@ export const decideRecommendation = ({ normalized, assignment, draftNumber }) =>
             comparison,
             scores: normalized.scores || []
         },
-        assignment,
-        draftNumber
+        stalled: (normalized.stalledTasks || []).length
     });
     return { ...decision, ratio };
 };

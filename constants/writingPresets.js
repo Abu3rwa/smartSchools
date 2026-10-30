@@ -237,7 +237,6 @@ export const RUBRIC_PRESETS = {
 
 export const DEFAULT_WORKFLOW = {
     teacherPublishesFeedback: true,
-    maxDrafts: 4,
     requireNotebookCheck: true,
     autoSuggestNextStep: true
 };

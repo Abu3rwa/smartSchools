@@ -70,6 +70,12 @@ export const formFromAssessment = (assessment) => {
     })),
     path: assessment.recommendation?.path === "notebook" ? "notebook" : "revise",
     reason: assessment.recommendation?.reason || "",
+    spellingTargets: (assessment.spellingTargets || []).map((row) => ({
+      word: row.word || "",
+      grade: row.grade || "",
+      week: Number(row.week) || 0,
+    })),
+    spellingWins: (assessment.spellingWins || []).map((row) => row.word).filter(Boolean),
     comparison: {
       encouragement: comparison.encouragement || "",
       improvedText: joinLines(comparison.criteriaImproved),
@@ -134,6 +140,8 @@ export const payloadFromForm = (form) => {
       path: form.path,
       reason: form.reason,
     },
+    // The server keeps only the words it already approved; this list can shrink.
+    spellingTargets: (form.spellingTargets || []).map((row) => ({ word: row.word })),
     comparison: {
       encouragement: form.comparison?.encouragement || "",
       criteriaImproved: splitLines(form.comparison?.improvedText),

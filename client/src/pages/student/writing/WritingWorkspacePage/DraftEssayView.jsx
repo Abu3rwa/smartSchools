@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { essayParagraphs } from "./draftEssay.js";
 import { FeedbackForSection } from "./SectionCard.jsx";
-import { anchorEssay } from "../../../../utils/writingAnchors.js";
+import { anchorEssay, unplacedNotes } from "../../../../utils/writingAnchors.js";
 
 /**
  * The student's sent draft as they wrote it: one piece, paragraph by paragraph.
@@ -13,6 +13,8 @@ export default function DraftEssayView({ assessment, assignment, draft, locale }
   const { t } = useTranslation(["writing"]);
   const paragraphs = essayParagraphs({ assignment, sections: draft.sections });
   const rows = anchorEssay(paragraphs, assessment?.sections);
+  // Published notes whose part no longer lines up still have to reach the student.
+  const loose = unplacedNotes(paragraphs, assessment?.sections);
   const when = draft.submittedAt
     ? new Date(draft.submittedAt).toLocaleDateString(locale, { day: "2-digit", month: "short" })
     : "";
@@ -48,6 +50,15 @@ export default function DraftEssayView({ assessment, assignment, draft, locale }
           </div>
         );
       })}
+
+      {loose.length > 0 && (
+        <section className="ws-essay-loose">
+          <h3>{t("writing:student.draftNotesTitle")}</h3>
+          {loose.map((note, index) => (
+            <FeedbackForSection key={`${note.key}:${note.index}:${index}`} note={note} />
+          ))}
+        </section>
+      )}
     </article>
   );
 }
