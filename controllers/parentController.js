@@ -20,6 +20,7 @@ import {
     getParentSettings,
     updateParentSettings,
     markAllParentUpdatesAsRead,
+    markParentUpdateAsRead,
     getParentUpdates,
     getParentUpdateById
 } from '../services/parentDashboardService.js';
@@ -114,7 +115,8 @@ export const getParentDashboardController = asyncHandler(async (req, res) => {
         schoolId: req.schoolId,
         parentUser: req.user,
         academicYear,
-        dateFilter
+        dateFilter,
+        school: req.school
     });
 
     res.status(200).json({
@@ -186,6 +188,33 @@ export const markAllParentUpdatesAsReadController = asyncHandler(async (req, res
         parentUser: req.user,
         academicYear
     });
+
+    res.status(200).json({
+        success: true,
+        data
+    });
+});
+
+/**
+ * @desc    Mark one parent update as read
+ * @route   PATCH /api/parent/updates/:id/read
+ * @access  Private (parent)
+ */
+export const markParentUpdateAsReadController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+    const data = await markParentUpdateAsRead({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        updateId: req.params.id
+    });
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            message: 'Update not found'
+        });
+    }
 
     res.status(200).json({
         success: true,

@@ -1,4 +1,5 @@
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES } from './aiPromptSafety.js';
 
 const parseJson = (value) => {
     const raw = String(value || '').trim();
@@ -38,6 +39,9 @@ Hard rules:
 - Never produce skills or questions about reading a score report, interpreting RIT scores, percentiles, growth data, or charts. Those are meta-skills about the report itself and are strictly forbidden.
 - The MAP evidence below (RIT score, percentile, goal areas) only tells you which "${subjectName}" academic skills the student is weak or strong in. Use it only to choose which "${subjectName}" skills to target.
 - Use only the evidence below. Separate observed evidence from recommendations. Do not diagnose students and do not predict an official MAP score.
+
+${CONTENT_RULES}
+
 Return valid JSON only.
 Evidence:
 ${JSON.stringify(payload)}`;

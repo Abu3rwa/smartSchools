@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import api from '../../config/api';
 import PlpEmailConsentControl from '../plp/PlpEmailConsentControl';
 import './ParentPlpReportPage.css';
@@ -27,10 +27,23 @@ const ParentPlpReportPage = () => {
         return () => { active = false; };
     }, [childId]);
 
+    const reportNav = (
+        <nav className="report-nav">
+            <Link to="/portal/dashboard">Back to dashboard</Link>
+            <Link to={`/portal/parent-gradebook?child=${childId}`}>Grades and report cards</Link>
+        </nav>
+    );
+
     if (loading) return <div className="parent-plp-report report-state">Loading report...</div>;
-    if (error) return <div className="parent-plp-report report-state report-error">{error}</div>;
+    if (error) return (
+        <div className="parent-plp-report report-state report-error">
+            <p>{error}</p>
+            <Link to="/portal/dashboard">Back to dashboard</Link>
+        </div>
+    );
     if (!report) return (
         <main className="parent-plp-report">
+            {reportNav}
             <div className="report-state">No report available.</div>
             <PlpEmailConsentControl studentId={childId} />
         </main>
@@ -42,6 +55,7 @@ const ParentPlpReportPage = () => {
 
     return (
         <main className="parent-plp-report">
+            {reportNav}
             <header className="report-heading">
                 <p className="report-kicker">Personal Learning Portfolio</p>
                 <h1>Student Development Report</h1>

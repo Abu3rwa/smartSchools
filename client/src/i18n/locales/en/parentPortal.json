@@ -1,0 +1,131 @@
+{
+  "actions": {
+    "grades": "Grades",
+    "letters": "Weekly letters",
+    "report": "Character report",
+    "support": "Support plan"
+  },
+  "child": {
+    "actionsLabel": "Links for {{name}}",
+    "attendance": "Attendance",
+    "latestUpdate": "Latest update",
+    "noAttendance": "No records yet",
+    "noClass": "Class not set yet",
+    "noUpdates": "No updates from the school yet.",
+    "pending": "Requests",
+    "pendingNone": "Nothing pending",
+    "pendingOpen": "Awaiting school review"
+  },
+  "children": {
+    "emptyBody": "Make sure the email on your account matches the parent email on the student record, or ask the school office to link your account.",
+    "emptyTitle": "No children linked yet",
+    "title": "My children",
+    "viewOnly": "View only"
+  },
+  "gradebook": {
+    "allTerms": "All terms",
+    "assessments": "Assessments",
+    "back": "Back to dashboard",
+    "comparison": "Subject comparison",
+    "fullYear": "Full year",
+    "loadFailed": "We could not load the grades.",
+    "loading": "Loading grades...",
+    "noGrades": "No grades have been recorded for this term yet.",
+    "noProgress": "There is not enough data to compare the two terms yet.",
+    "noReports": "No report cards have been published yet.",
+    "overall": "Overall average",
+    "published": "Published",
+    "recent": "Recent assessments",
+    "reportCard": "Report card",
+    "subjects": "Subjects",
+    "subtitle": "A read-only view of {{name}}'s assessments and report cards.",
+    "table": {
+      "assessment": "Assessment",
+      "category": "Category",
+      "date": "Date",
+      "percent": "Score",
+      "score": "Marks",
+      "subject": "Subject"
+    },
+    "tabs": {
+      "grades": "Grades",
+      "progress": "Progress",
+      "reports": "Report cards"
+    },
+    "term": "Term",
+    "term1": "Term 1",
+    "term2": "Term 2",
+    "title": "Grades and progress"
+  },
+  "greeting": {
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "morning": "Good morning",
+    "parent": "Parent"
+  },
+  "header": {
+    "eyebrow": "Parent portal",
+    "subtitle": "Everything about your children in one place. You can view their records and act only for your own children."
+  },
+  "links": {
+    "grades": "Grades and progress",
+    "newsletters": "Weekly letters",
+    "requests": "Attendance requests",
+    "support": "Support plan",
+    "timetable": "Timetable",
+    "title": "Quick links"
+  },
+  "states": {
+    "error": "We could not load the parent dashboard.",
+    "loading": "Loading your children...",
+    "refresh": "Refresh",
+    "retry": "Try again"
+  },
+  "summary": {
+    "attendance": "Average attendance",
+    "children": "Children",
+    "label": "Family summary",
+    "pending": "Pending requests",
+    "unread": "Unread updates"
+  },
+  "timetable": {
+    "back": "Back to dashboard",
+    "empty": "No lessons this week",
+    "emptyBody": "Try another week, or check again once the school updates the timetable.",
+    "loadFailed": "We could not load the timetable.",
+    "loading": "Loading the timetable...",
+    "nextWeek": "Next week",
+    "noClass": "No class assigned yet",
+    "noClassBody": "The timetable will appear once the school assigns a class.",
+    "previousWeek": "Previous week",
+    "subtitle": "{{name}}'s lessons for the selected week.",
+    "thisWeek": "This week",
+    "title": "Timetable",
+    "today": "Today"
+  },
+  "updates": {
+    "empty": "Nothing new from the school yet.",
+    "schoolUpdate": "School update",
+    "title": "Recent updates",
+    "unread": "Unread",
+    "viewAll": "View all"
+  },
+  "updatesPage": {
+    "allChildren": "All children",
+    "back": "Back to dashboard",
+    "detailFailed": "We could not load this update.",
+    "empty": "Nothing new from the school yet.",
+    "footerNote": "You only see updates about children linked to your account.",
+    "loadFailed": "We could not load your updates.",
+    "loading": "Loading updates...",
+    "loadingDetail": "Loading the full update...",
+    "loadingMore": "Loading more...",
+    "loadMore": "Load more",
+    "markAllRead": "Mark all as read",
+    "noUnread": "You are all caught up.",
+    "subtitle": "Notes, letters and announcements the school shared about your children.",
+    "title": "Updates",
+    "unread": "Unread",
+    "unreadOnly": "Unread only"
+  }
+}

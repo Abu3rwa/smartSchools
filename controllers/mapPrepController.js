@@ -615,7 +615,13 @@ export const gradeMapQuizWithAi = asyncHandler(async (req, res) => {
     const quiz = await MapPrepQuiz.findOne({ _id: req.params.quizId, school: req.schoolId, status: 'closed' }).lean();
     if (!quiz || !(await ensureTeacherClassAccess(req, (await MapPrepPlan.findById(quiz.plan).select('class').lean())?.class))) return res.status(404).json({ success: false, message: 'Quiz not found' });
     const attempts = await MapPrepAttempt.find({ school: req.schoolId, quiz: quiz._id, status: 'submitted' }).lean();
-    const pending = attempts.flatMap((attempt) => attempt.answers.filter((answer) => answer.gradingStatus === 'pending_teacher_review').map((answer) => ({ ...answer, student: attempt.student, attemptId: attempt._id })));
+    const pending = attempts.flatMap((attempt) => attempt.answers
+        .filter((answer) => answer.gradingStatus === 'pending_teacher_review')
+        .map((answer) => {
+            const rest = { ...answer, attemptId: attempt._id };
+            delete rest.student;
+            return rest;
+        }));
     const suggestions = await mapPrepAiService.suggestShortAnswerGrades({ quizId: quiz._id, pendingAnswers: pending });
     await Promise.all(attempts.map(async (attempt) => {
         const matching = (suggestions.suggestions || []).filter((suggestion) => String(suggestion.attemptId) === String(attempt._id));

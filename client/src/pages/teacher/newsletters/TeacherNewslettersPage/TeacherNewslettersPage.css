@@ -1,3 +1,6 @@
+/* Weekly newsletters — teacher screen.
+   Same design language as the per-child panel: white cards, hairline borders,
+   14px radius, uppercase micro-labels, pill tabs. */
 .teacher-newsletters-page {
   padding: 18px;
 }
@@ -7,162 +10,334 @@
 }
 
 .tn-header h2 {
-  margin: 0 0 6px 0;
+  margin: 0 0 6px;
 }
 
 .tn-header p {
-  margin: 0 0 16px 0;
+  margin: 0 0 16px;
+  max-width: 720px;
   color: var(--text-secondary);
+  line-height: 1.55;
 }
 
+/* ── Mode tabs ─────────────────────────────────────────── */
+.tn-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-card);
+}
+
+.tn-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tn-tab:hover {
+  color: var(--text-primary);
+}
+
+.tn-tab.is-active {
+  background: rgba(20, 184, 166, 0.14);
+  color: var(--text-accent);
+}
+
+/* ── Toolbar ───────────────────────────────────────────── */
+.tn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.tn-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tn-toolbar-field > span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tn-toolbar-field input,
+.tn-toolbar-field select {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  min-width: 190px;
+}
+
+.tn-toolbar-field input:focus,
+.tn-toolbar-field select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.tn-week-range {
+  margin-inline-start: auto;
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.12);
+  color: var(--text-accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Layout ────────────────────────────────────────────── */
 .tn-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
 }
 
+.tn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
 @media (min-width: 1000px) {
   .tn-grid {
-    grid-template-columns: 1.1fr 1fr 1fr;
+    grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.25fr);
     align-items: start;
   }
 }
 
+/* ── Cards ─────────────────────────────────────────────── */
 .tn-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
 }
 
 .tn-card h3 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tn-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tn-card-head h3 {
+  margin: 0;
+}
+
+/* ── Fields ────────────────────────────────────────────── */
+.tn-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
 }
 
 .tn-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 12px;
+  min-width: 0;
 }
 
-.tn-field label {
-  font-size: 12px;
-  color: var(--text-secondary);
+.tn-field > span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .tn-field input,
 .tn-field select,
 .tn-field textarea {
+  width: 100%;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: inherit;
   background: var(--bg-input);
   color: var(--text-primary);
 }
 
+.tn-field input:focus,
+.tn-field select:focus,
+.tn-field textarea:focus,
+.tn-editor:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
 .tn-field textarea {
-  min-height: 80px;
+  min-height: 76px;
   resize: vertical;
 }
 
 .tn-subtext {
+  margin: 0 0 12px;
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
+/* ── Actions ───────────────────────────────────────────── */
 .tn-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 6px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .tn-btn {
-  padding: 0.65rem 0.9rem;
-  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-primary);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.tn-btn:hover:not(:disabled) {
+  border-color: var(--border-color-hover);
+  color: var(--text-primary);
 }
 
 .tn-btn.primary {
   background: var(--accent-gradient);
   border-color: transparent;
   color: #fff;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .tn-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-.tn-status {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-secondary);
+/* ── Status ────────────────────────────────────────────── */
+.tn-status-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--badge-draft-bg);
+  color: var(--badge-draft-text);
+}
+
+.tn-status-chip.is-submitted {
+  background: var(--badge-review-bg);
+  color: var(--badge-review-text);
+}
+
+.tn-status-chip.is-approved {
+  background: var(--badge-approved-bg);
+  color: var(--badge-approved-text);
+}
+
+.tn-status-chip.is-rejected {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-text);
 }
 
 .tn-muted {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 13px;
+  padding: 6px 0;
 }
 
+/* ── Lesson plan list ──────────────────────────────────── */
 .tn-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  max-height: 380px;
-  overflow: auto;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
   padding-right: 4px;
 }
 
 .tn-list-item {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 16px 1fr auto;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 9px 11px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tn-list-item:hover {
+  border-color: var(--border-color-hover);
 }
 
 .tn-list-item input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
+  margin: 0;
   accent-color: var(--primary-500);
   cursor: pointer;
 }
 
-.tn-list-title {
-  font-size: 13px;
-}
-
 .tn-list-date {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
-.tn-preview {
-  white-space: pre-wrap;
-  line-height: 1.55;
-  font-size: 14px;
-  color: var(--text-primary);
-  margin-top: 10px;
-}
-
+/* ── Editor ────────────────────────────────────────────── */
 .tn-editor {
   width: 100%;
-  min-height: 150px;
+  min-height: 260px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  padding: 12px 13px;
+  font-size: 13px;
+  line-height: 1.65;
+  font-family: inherit;
   background: var(--bg-input);
   color: var(--text-primary);
   resize: vertical;
@@ -170,11 +345,13 @@
 
 .tn-review-notes {
   margin-top: 12px;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warning-50);
+  border: 1px solid var(--warning-200);
+  color: var(--warning-800);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 @media (max-width: 899px) {
@@ -183,17 +360,20 @@
   }
 
   .tn-card {
-    padding: 12px;
+    padding: 14px;
   }
 
-  .tn-btn {
+  .tn-actions .tn-btn {
     flex: 1 1 100%;
-    width: 100%;
+  }
+
+  .tn-week-range {
+    margin-inline-start: 0;
   }
 
   .tn-list-item {
-    grid-template-columns: 18px 1fr;
-    gap: 6px 10px;
+    grid-template-columns: 16px 1fr;
+    gap: 4px 10px;
   }
 
   .tn-list-date {
@@ -201,6 +381,6 @@
   }
 
   .tn-editor {
-    min-height: 130px;
+    min-height: 200px;
   }
 }

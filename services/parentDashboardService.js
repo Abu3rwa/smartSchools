@@ -12,6 +12,8 @@ import PlpEvidence from '../models/PlpEvidence.js';
 import PlpGoal from '../models/PlpGoal.js';
 import PlpTask from '../models/PlpTask.js';
 import { DEFAULT_WEEK_WORKING_DAYS, normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
+import { isValidAcademicYear } from '../utils/academicYear.js';
+import { buildAcademicYearDateFilter } from '../helpers/academicYearScope.js';
 import { normalizePeriod } from './sbrService.js';
 
 const PARENT_EMAIL_FIELDS = [
@@ -164,24 +166,41 @@ const loadRecentAlertsForStudent = async ({ schoolId, parentUser, studentId }) =
     return notifications.map(mapRecentAlert);
 };
 
+const findStudentsForParentEmail = ({ schoolId, emailFilter, academicYear }) => Student.find({
+    school: schoolId,
+    ...(academicYear ? { academicYear } : {}),
+    ...emailFilter
+})
+    .populate('currentClass', 'name grade section')
+    .sort(academicYear
+        ? { firstName: 1, lastName: 1 }
+        : { academicYear: -1, firstName: 1, lastName: 1 })
+    .lean();
+
 export const getParentLinkedStudents = async ({ schoolId, parentUser, academicYear }) => {
     const emailFilter = buildParentEmailFilter(parentUser?.email);
     if (!emailFilter) return [];
 
-    return Student.find({
-        school: schoolId,
-        academicYear,
-        ...emailFilter
-    })
-        .populate('currentClass', 'name grade section')
-        .sort({ firstName: 1, lastName: 1 })
-        .lean();
+    const students = await findStudentsForParentEmail({ schoolId, emailFilter, academicYear });
+    if (students.length > 0 || !academicYear) return students;
+
+    // Parents have no year selector and their cached header can lag the school year,
+    // while a student record keeps the year label it was created under. The link is
+    // the parent email, so fall back to the newest year the family has a record in
+    // instead of reporting that no child is linked.
+    const years = await Student.distinct('academicYear', { school: schoolId, ...emailFilter });
+    const newestYear = years
+        .filter((year) => isValidAcademicYear(year))
+        .sort()
+        .reverse()[0];
+    if (!newestYear) return [];
+
+    return findStudentsForParentEmail({ schoolId, emailFilter, academicYear: newestYear });
 };
 
 export const getParentLinkedStudentById = async ({
     schoolId,
     parentUser,
-    academicYear,
     childId
 }) => {
     const emailFilter = buildParentEmailFilter(parentUser?.email);
@@ -190,7 +209,6 @@ export const getParentLinkedStudentById = async ({
     return Student.findOne({
         _id: childId,
         school: schoolId,
-        academicYear,
         ...emailFilter
     })
         .populate('currentClass', 'name grade section')
@@ -210,22 +228,41 @@ export const getParentChildren = async ({ schoolId, parentUser, academicYear }) 
     const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
     return students.map((student) => ({
         ...mapStudentCore(student),
-        academicYear
+        academicYear: student.academicYear || academicYear
     }));
 };
 
+const loadPlpRecordsForYear = (schoolId, studentId, academicYear) => PlpStudentRecord.find({
+    school: schoolId,
+    student: studentId,
+    academicYear
+})
+    .select('_id class cycle month theme status')
+    .populate('class', 'name grade section')
+    .populate('cycle', 'title cycleCode status')
+    .lean();
+
 export const getParentChildPlpReport = async ({ schoolId, parentUser, academicYear, childId }) => {
-    const student = await getParentLinkedStudentById({ schoolId, parentUser, academicYear, childId });
+    const student = await getParentLinkedStudentById({ schoolId, parentUser, childId });
     if (!student) return null;
 
-    const records = await PlpStudentRecord.find({ school: schoolId, student: student._id, academicYear })
-        .select('_id class cycle month theme status')
-        .populate('class', 'name grade section')
-        .populate('cycle', 'title cycleCode status')
-        .lean();
+    // The parent header year can lag the student's records, so an empty year
+    // falls back to the newest year this child actually has portfolio data in.
+    let resolvedYear = academicYear;
+    let records = await loadPlpRecordsForYear(schoolId, student._id, resolvedYear);
+    if (records.length === 0) {
+        const newestRecord = await PlpStudentRecord.findOne({ school: schoolId, student: student._id })
+            .select('academicYear')
+            .sort({ academicYear: -1, updatedAt: -1 })
+            .lean();
+        if (newestRecord?.academicYear && newestRecord.academicYear !== resolvedYear) {
+            resolvedYear = newestRecord.academicYear;
+            records = await loadPlpRecordsForYear(schoolId, student._id, resolvedYear);
+        }
+    }
     const recordIds = records.map((record) => record._id);
     if (recordIds.length === 0) {
-        return { student: mapStudentCore(student), academicYear, traits: [], teacherFeedback: [], academicEffort: [], support: [] };
+        return { student: mapStudentCore(student), academicYear: resolvedYear, traits: [], teacherFeedback: [], academicEffort: [], support: [] };
     }
 
     const [evidence, goals, tasks] = await Promise.all([
@@ -280,7 +317,7 @@ export const getParentChildPlpReport = async ({ schoolId, parentUser, academicYe
 
     return {
         student: mapStudentCore(student),
-        academicYear,
+        academicYear: resolvedYear,
         className: student.currentClass?.name || records[0]?.class?.name || '',
         traits: Array.from(traitGroups.values()),
         teacherFeedback: characterGoals.filter((goal) => goal.teacherComment).map((goal) => ({ title: goal.title, comment: goal.teacherComment })),
@@ -315,8 +352,16 @@ const buildChildSummary = async ({ schoolId, parentUser, student, dateFilter }) 
     };
 };
 
-export const getParentDashboard = async ({ schoolId, parentUser, academicYear, dateFilter }) => {
+export const getParentDashboard = async ({ schoolId, parentUser, academicYear, dateFilter, school = null }) => {
     const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    // A child found by the year fallback still has attendance records stamped
+    // under their own year, so summarise each child against that year.
+    const dateFilterForChild = (student) => {
+        if (!student.academicYear || !school || student.academicYear === academicYear) {
+            return dateFilter;
+        }
+        return buildAcademicYearDateFilter(student.academicYear, school) || dateFilter;
+    };
     const childIds = students.map((student) => student._id.toString());
     const parentNotificationFilter = buildParentNotificationFilter(parentUser);
     const unreadNotificationsPromise = childIds.length === 0
@@ -336,7 +381,7 @@ export const getParentDashboard = async ({ schoolId, parentUser, academicYear, d
                 schoolId,
                 parentUser,
                 student,
-                dateFilter
+                dateFilter: dateFilterForChild(student)
             }))
         ),
         AttendanceRequest.countDocuments({
@@ -594,6 +639,37 @@ export const markAllParentUpdatesAsRead = async ({
     return {
         updated: result.modifiedCount || 0
     };
+};
+
+export const markParentUpdateAsRead = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    updateId
+}) => {
+    const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    const childIds = students.map((student) => student._id.toString());
+    if (childIds.length === 0) return null;
+
+    const notification = await Notification.findOneAndUpdate({
+        _id: updateId,
+        school: schoolId,
+        $and: [
+            buildParentNotificationFilter(parentUser),
+            buildParentUpdateVisibilityClause({ childIds })
+        ]
+    }, {
+        $set: {
+            readAt: new Date(),
+            status: 'read'
+        }
+    }, {
+        new: true,
+        projection: { _id: 1, readAt: 1 }
+    }).lean();
+
+    if (!notification) return null;
+    return { updated: 1, readAt: notification.readAt };
 };
 
 const parsePositiveIntOrDefault = (value, fallback) => {

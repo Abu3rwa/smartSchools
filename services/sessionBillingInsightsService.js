@@ -11,6 +11,15 @@ import {
     listIssues,
     listPackagePurchases
 } from './sessionBillingService.js';
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    correctivePrompt,
+    createStudentRefs,
+    fillStudentTokens,
+    inspectGeneratedText,
+    stripFlaggedFormulas
+} from './aiPromptSafety.js';
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
@@ -237,6 +246,11 @@ export const generateBillingNarrative = async (schoolId, query = {}) => {
         return { ...fallback, source: 'rules', analysis };
     }
 
+    const refs = createStudentRefs(analysis.duplicates, {
+        keyOf: (row) => row.studentId,
+        labelOf: (row) => row.student
+    });
+
     const facts = {
         period: analysis.range,
         currency: analysis.currency,
@@ -245,14 +259,14 @@ export const generateBillingNarrative = async (schoolId, query = {}) => {
         openIssues: analysis.openIssues,
         eligibleReminders: analysis.eligibleReminders,
         duplicateGroups: analysis.duplicates.map((row) => ({
-            student: row.student,
+            student: refs.refFor(row.studentId) || 'a student',
             count: row.count,
             amount: row.amount,
             day: row.day
         })),
         signals: analysis.insights.map((insight) => ({
             title: insight.title,
-            detail: insight.detail,
+            detail: refs.scrubText(insight.detail),
             metric: insight.metric
         }))
     };
@@ -263,19 +277,22 @@ export const generateBillingNarrative = async (schoolId, query = {}) => {
             prompt: `You are writing a short internal finance briefing for a school's lesson-billing administrator.
 
 Use ONLY the facts in the JSON below. Do not invent money amounts, names, dates, causes, or actions that are not present. Do not give legal, tax, or accounting advice. Do not claim that anything has been sent, charged, refunded, or fixed. The administrator will decide and act.
+Students appear only as short labels (S1, S2 …); refer to them exactly by those labels and never invent a name.
 
 Return one JSON object with:
 - "summary": 2 to 3 plain sentences describing the current billing position and the single most important thing to look at.
 - "priorities": an array of at most 3 objects, each with "title" (short), "why" (one sentence tied to a fact), and "action" (a short next step for staff).
 
+${PRIVACY_RULES}
+
 Facts:
 ${JSON.stringify(facts)}`
         });
-        const summary = String(parsed?.summary || '').trim().slice(0, 700);
+        const summary = refs.restore(String(parsed?.summary || '').trim().slice(0, 700));
         const priorities = Array.isArray(parsed?.priorities)
             ? parsed.priorities.slice(0, 3).map((row) => ({
-                title: String(row?.title || '').trim().slice(0, 140),
-                why: String(row?.why || '').trim().slice(0, 300),
+                title: refs.restore(String(row?.title || '').trim().slice(0, 140)),
+                why: refs.restore(String(row?.why || '').trim().slice(0, 300)),
                 action: String(row?.action || '').trim().slice(0, 160)
             })).filter((row) => row.title && row.why)
             : [];
@@ -302,20 +319,44 @@ export const generateMessageDraft = async (schoolId, studentId, query = {}) => {
         : `We wanted to gently remind you that ${candidate.name}'s lesson account currently shows ${moneyLabel(candidate.owed, currency)} due. We are happy to help arrange payment.`;
 
     try {
-        const { parsed } = await aiService.generateStructuredJson({
-            modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.GEMINI_MODEL || undefined,
-            prompt: `Write one short opening sentence for a school lesson-account payment reminder.
+        const prompt = `Write one short opening sentence for a school lesson-account payment reminder.
 
-Facts: student name "${candidate.name}", outstanding amount ${moneyLabel(candidate.owed, currency)}, ${candidate.daysSinceActivity ?? 'unknown'} days since the last account activity.
+Facts: the account belongs to the student {{student}}, outstanding amount ${moneyLabel(candidate.owed, currency)}, ${candidate.daysSinceActivity ?? 'unknown'} days since the last account activity.
 Language: ${language === 'ar' ? 'Arabic' : 'English'}.
 Tone: ${tone}.
-Rules: plain, respectful, no threats, no legal language, no promises of discounts, no invented payment methods, one sentence only, under 40 words.
 
-Return one JSON object: { "opening": "..." }`
-        });
-        const opening = String(parsed?.opening || '').trim().slice(0, 400);
+${CONTENT_RULES}
+
+Rules: plain, respectful, no threats, no legal language, no promises of discounts, no invented payment methods, no shame, no religious phrasing, mention nobody but the account holder, one sentence only, under 40 words. Where the student's name belongs write {{student}} exactly and never invent a name.
+
+Return one JSON object: { "opening": "..." }`;
+
+        const write = async (currentPrompt) => {
+            const { parsed } = await aiService.generateStructuredJson({
+                modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.GEMINI_MODEL || undefined,
+                prompt: currentPrompt
+            });
+            return String(parsed?.opening || '').trim().slice(0, 400);
+        };
+
+        let opening = await write(prompt);
         if (!opening) throw new Error('Empty draft');
-        return { opening, source: 'ai', language, tone };
+
+        const inspection = inspectGeneratedText(opening, { allowToken: true });
+        if (!inspection.ok) {
+            opening = await write(correctivePrompt(prompt, inspection.problems));
+            if (!opening) throw new Error('Empty draft');
+            if (!inspectGeneratedText(opening, { allowToken: true }).ok) {
+                opening = stripFlaggedFormulas(opening);
+            }
+        }
+
+        return {
+            opening: fillStudentTokens(opening, candidate.name),
+            source: 'ai',
+            language,
+            tone
+        };
     } catch {
         return { opening: fallback, source: 'rules', language, tone };
     }

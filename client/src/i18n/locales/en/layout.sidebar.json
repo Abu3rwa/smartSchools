@@ -105,7 +105,10 @@
     "plpSupervisor": "Supervisor View",
     "plpConfig": "PLP Config",
     "plpSupervisorAssignments": "Supervisor Assignments",
-    "settings": "Settings"
+    "settings": "Settings",
+    "studentSupport": "Student support",
+    "parentUpdates": "Updates",
+    "parentTimetable": "Timetable"
   },
   "studentDashboard": {
     "groups": {

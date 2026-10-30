@@ -12,10 +12,7 @@ import {
   selectAppName,
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
-import {
-  fetchSubPendingCountThunk,
-  selectPendingCount,
-} from "../../store/slices/substitutionsSlice";
+import { fetchSubPendingCountThunk } from "../../store/slices/substitutionsSlice";
 import { PERMISSIONS } from "../../constants/permissions";
 import {
   HiOutlineHome,
@@ -128,7 +125,6 @@ const Sidebar = () => {
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
   const schoolFeatures = useSelector(selectSchoolFeatures);
-  const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const isRtl = i18n.dir() === "rtl";
   const [searchInput, setSearchInput] = useState({
@@ -384,6 +380,36 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
+      path: "/portal/parent-gradebook",
+      icon: HiOutlineAcademicCap,
+      labelKey: "myGrades",
+      roles: ["parent"],
+      feature: "parentGradebook",
+      section: "assessment",
+    },
+    {
+      path: "/portal/sbr/reports",
+      icon: HiOutlineDocumentChartBar,
+      labelKey: "sbrReports",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.VIEW_SBR_REPORTS],
+      section: "assessment",
+    },
+    {
+      path: "/portal/attendance-requests",
+      icon: HiOutlineInboxArrowDown,
+      labelKey: "attendanceRequests",
+      roles: ["parent"],
+      section: "operations",
+    },
+    {
+      path: "/portal/parent/timetable",
+      icon: HiOutlineCalendarDays,
+      labelKey: "parentTimetable",
+      roles: ["parent"],
+      section: "operations",
+    },
+    {
       path: "/portal/map-test-prep",
       icon: HiOutlineAcademicCap,
       labelKey: "mapTestPrep",
@@ -533,14 +559,6 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
-      path: "/portal/worksheets",
-      icon: HiOutlineDocumentCheck,
-      labelKey: "worksheetChecker",
-      roles: ["admin"],
-      feature: "worksheetChecker",
-      section: "teaching",
-    },
-    {
       path: "/portal/newsletters/admin",
       icon: HiOutlineDocumentCheck,
       labelKey: "newslettersReview",
@@ -554,6 +572,13 @@ const Sidebar = () => {
       labelKey: "newsletters",
       roles: ["parent"],
       feature: "newsletterCommunication",
+      section: "communication",
+    },
+    {
+      path: "/portal/parent/updates",
+      icon: HiOutlineMegaphone,
+      labelKey: "parentUpdates",
+      roles: ["parent"],
       section: "communication",
     },
     {
@@ -639,6 +664,20 @@ const Sidebar = () => {
       labelKey: "behaviorManagement",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [PERMISSIONS.MANAGE_BEHAVIOR, PERMISSIONS.VIEW_BEHAVIOR],
+      section: "support",
+    },
+    {
+      path: "/portal/support",
+      icon: HiOutlineLifebuoy,
+      labelKey: "studentSupport",
+      roles: ["admin", "teacher"],
+      section: "support",
+    },
+    {
+      path: "/portal/parent/support",
+      icon: HiOutlineLifebuoy,
+      labelKey: "studentSupport",
+      roles: ["parent"],
       section: "support",
     },
     {

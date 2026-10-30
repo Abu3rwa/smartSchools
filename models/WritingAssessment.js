@@ -39,6 +39,24 @@ const feedbackAppliedSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/** One revision task, keyed so the next draft can be checked against it. */
+const revisionTaskSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    text: { type: String, trim: true, default: '' }
+  },
+  { _id: false }
+);
+
+const taskResultSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    applied: { type: Boolean, default: false },
+    note: { type: String, trim: true, default: '' }
+  },
+  { _id: false }
+);
+
 /**
  * AI output for one draft version, plus the teacher's edits.
  * `kind: 'feedback'` assesses a draft. `kind: 'comparison'` assesses what changed
@@ -82,15 +100,20 @@ const writingAssessmentSchema = new mongoose.Schema(
         label: { type: String, trim: true },
         score: { type: Number, min: 0, max: 1000 },
         maxScore: { type: Number, min: 0, max: 1000 },
-        explanation: { type: String, trim: true, default: '' }
+        explanation: { type: String, trim: true, default: '' },
+        // One quote from the draft this criterion was judged on.
+        evidence: { type: String, trim: true, default: '' }
       }
     ],
     totalScore: { type: Number, default: 0 },
+    // The priorities as keyed tasks, so a comparison can report each one.
+    tasks: { type: [revisionTaskSchema], default: [] },
     comparison: {
       changedBySection: { type: [changedSectionSchema], default: [] },
       criteriaImproved: [{ type: String, trim: true }],
       criteriaUnresolved: [{ type: String, trim: true }],
       feedbackApplied: { type: [feedbackAppliedSchema], default: [] },
+      taskResults: { type: [taskResultSchema], default: [] },
       newIssues: [{ type: String, trim: true }],
       wordDelta: { type: Number, default: 0 },
       encouragement: { type: String, trim: true, default: '' }

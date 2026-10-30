@@ -46,6 +46,14 @@ const newsletterIssueSchema = new mongoose.Schema(
       index: true,
     },
 
+    // "class" = one shared class update, "child" = one letter per student.
+    mode: {
+      type: String,
+      enum: ["class", "child"],
+      default: "class",
+      index: true,
+    },
+
     // Subjects the admin chose to exclude from the combined email.
     excludedSubjectIds: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Subject", default: [] },
@@ -61,6 +69,15 @@ const newsletterIssueSchema = new mongoose.Schema(
       familiesEmailedCount: { type: Number, default: 0 },
       recipientEmailsCount: { type: Number, default: 0 },
       successCount: { type: Number, default: 0 },
+      failureCount: { type: Number, default: 0 },
+    },
+
+    // Per-child letters are sent separately from the class email.
+    childLettersSentAt: { type: Date, default: null },
+    childLetterStats: {
+      lettersCount: { type: Number, default: 0 },
+      sentCount: { type: Number, default: 0 },
+      skippedCount: { type: Number, default: 0 },
       failureCount: { type: Number, default: 0 },
     },
 

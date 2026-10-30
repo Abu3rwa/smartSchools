@@ -6,6 +6,19 @@
   box-sizing: border-box;
 }
 
+.pn-back {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pn-back:hover {
+  color: var(--text-accent);
+}
+
 .pn-header h2 {
   margin: 0 0 6px 0;
 }
@@ -17,6 +30,32 @@
 
 .pn-filters {
   margin-bottom: 14px;
+}
+
+/* ── Tabs ─────────────────────────────────────────────── */
+.pn-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pn-tab {
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pn-tab.active {
+  background: var(--bg-card);
+  border-color: var(--primary-500);
+  color: var(--text-accent);
 }
 
 .pn-field {
@@ -129,6 +168,45 @@
   line-height: 1.5;
   font-size: 14px;
   overflow-wrap: anywhere;
+}
+
+/* ── Per-child letters ────────────────────────────────── */
+.pn-letter-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pn-letter-head h3 {
+  margin: 0;
+}
+
+.pn-btn {
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pn-btn:hover {
+  border-color: var(--primary-500);
+  color: var(--text-accent);
+}
+
+.pn-letter-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: #f1f5f9;
 }
 
 @media (max-width: 899px) {

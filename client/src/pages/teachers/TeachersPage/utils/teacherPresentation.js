@@ -29,3 +29,13 @@ export const mapTeacherToFormData = (teacher) => ({
     qualification: teacher?.qualification || '',
     subjects: teacher?.subjects?.map((subject) => subject._id) || []
 });
+
+export const sortAssignments = (assignedClasses) => [...(assignedClasses || [])].sort((a, b) => {
+    const yearA = a.class?.academicYear || '';
+    const yearB = b.class?.academicYear || '';
+    if (yearA !== yearB) return yearB.localeCompare(yearA);
+    const classA = a.class?.name || '';
+    const classB = b.class?.name || '';
+    if (classA !== classB) return classA.localeCompare(classB);
+    return (a.subject?.name || '').localeCompare(b.subject?.name || '');
+});

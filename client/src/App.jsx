@@ -81,6 +81,11 @@ const AssignmentsPage = lazy(() => import("./pages/assignments/AssignmentsPage")
 const AdminNewslettersPage = lazy(() => import("./pages/admin/newsletters/AdminNewslettersPage"));
 const NewsletterTemplatesPage = lazy(() => import("./pages/admin/newsletters/NewsletterTemplatesPage"));
 const ParentNewslettersPage = lazy(() => import("./pages/parent/newsletters/ParentNewslettersPage"));
+const ParentSupportPage = lazy(() => import("./pages/parent/support/ParentSupportPage/ParentSupportPage"));
+const ParentUpdatesPage = lazy(() => import("./pages/parent/updates/ParentUpdatesPage/ParentUpdatesPage"));
+const ParentTimetablePage = lazy(() => import("./pages/parent/timetable/ParentTimetablePage/ParentTimetablePage"));
+const SupportHubPage = lazy(() => import("./pages/teacher/support/SupportHubPage/SupportHubPage"));
+const SupportAccessPage = lazy(() => import("./pages/supportAccess/SupportAccessPage/SupportAccessPage"));
 const SBRConfigPage = lazy(() => import("./pages/sbr/SBRConfigPage"));
 const SBRGenerationPage = lazy(() => import("./pages/sbr/SBRGenerationPage"));
 const SBRParentReportsPage = lazy(() => import("./pages/sbr/SBRParentReportsPage"));
@@ -155,9 +160,6 @@ const LiveLessonsPage = lazy(() => import("./pages/liveLessons/LiveLessonsPage")
 const LiveLessonSessionPage = lazy(() => import("./pages/liveLessons/LiveLessonSessionPage"));
 const LiveLessonJoinPage = lazy(() => import("./pages/liveLessons/LiveLessonJoinPage"));
 const LiveLessonReviewPage = lazy(() => import("./pages/liveLessons/LiveLessonReviewPage"));
-const WorksheetListPage = lazy(() => import("./pages/worksheets/WorksheetListPage/WorksheetListPage"));
-const WorksheetCreatePage = lazy(() => import("./pages/worksheets/WorksheetCreatePage/WorksheetCreatePage"));
-const WorksheetDetailPage = lazy(() => import("./pages/worksheets/WorksheetDetailPage/WorksheetDetailPage"));
 const FinanceDashboardPage = lazy(() => import("./pages/finance/FinanceDashboardPage"));
 const FeeStructuresPage = lazy(() => import("./pages/finance/FeeStructuresPage"));
 const DiscountsPage = lazy(() => import("./pages/finance/DiscountsPage"));
@@ -408,6 +410,7 @@ function App() {
           />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/substitutions/respond" element={<SubstitutionRespond />} />
+          <Route path="/support-access" element={<SupportAccessPage />} />
 
           {/* Protected Routes */}
           <Route
@@ -847,6 +850,38 @@ function App() {
                   <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
                     <ParentNewslettersPage />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="parent/support"
+              element={
+                <RoleRoute roles={["parent"]}>
+                  <ParentSupportPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="parent/updates"
+              element={
+                <RoleRoute roles={["parent"]}>
+                  <ParentUpdatesPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="parent/timetable"
+              element={
+                <RoleRoute roles={["parent"]}>
+                  <ParentTimetablePage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="support"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <SupportHubPage />
                 </RoleRoute>
               }
             />
@@ -1299,37 +1334,6 @@ function App() {
                 />
               </>
             )}
-            {/* Worksheet Checker */}
-            <Route
-              path="worksheets"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
-                    <WorksheetListPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="worksheets/new"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
-                    <WorksheetCreatePage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="worksheets/:id"
-              element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
-                    <WorksheetDetailPage />
-                  </FeatureGate>
-                </RoleRoute>
-              }
-            />
             {/* Revision Plans */}
             <Route
               path="revision"

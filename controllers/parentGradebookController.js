@@ -1,10 +1,28 @@
+import { isValidObjectId } from 'mongoose';
 import Grade from '../models/Grade.js';
 import Student from '../models/Student.js';
 import TraditionalReportCard from '../models/TraditionalReportCard.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
 import { getActiveGradingScale } from '../services/gradingScaleEngine.js';
-import { getFormulas, computeFormulaForStudent } from '../services/formulaEngine.js';
+import { getParentLinkedStudentById } from '../services/parentDashboardService.js';
+
+// Parents are linked to a child by the contact email stored on the student
+// record, the same rule the rest of the parent portal uses. Admins may open
+// any student in their own school for support purposes.
+const loadAuthorizedChild = async (req, studentId) => {
+    if (!isValidObjectId(studentId)) return null;
+    if (req.user.role === 'admin') {
+        return Student.findOne({ _id: studentId, school: req.schoolId })
+            .populate('currentClass', 'name grade section')
+            .lean();
+    }
+    return getParentLinkedStudentById({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        childId: studentId
+    });
+};
 
 /**
  * GET /api/parent/grades/:studentId
@@ -15,14 +33,8 @@ export const getParentGrades = asyncHandler(async (req, res) => {
     const { academicYear, semester, subject } = req.query;
     const year = resolveRequestedAcademicYear(academicYear, req.school);
 
-    // Verify parent has access to this student
-    const student = await Student.findById(studentId).lean();
+    const student = await loadAuthorizedChild(req, studentId);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
-
-    const parentIds = (student.parents || []).map(p => (p.user || p).toString());
-    if (!parentIds.includes(req.user._id.toString()) && req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Not authorized to view this student' });
-    }
 
     const gradeFilter = { school: req.schoolId, student: studentId, academicYear: year };
     if (semester) gradeFilter.semester = Number(semester);
@@ -65,8 +77,9 @@ export const getParentGrades = asyncHandler(async (req, res) => {
         totalGrades: data.grades.length
     }));
 
-    const overallAvg = grades.length > 0
-        ? Math.round((grades.reduce((s, g) => s + (g.maxMarks > 0 ? (g.marks / g.maxMarks) * 100 : 0), 0) / grades.filter(g => g.maxMarks > 0).length) * 100) / 100
+    const scoredGrades = grades.filter((g) => Number(g.maxMarks) > 0);
+    const overallAvg = scoredGrades.length > 0
+        ? Math.round((scoredGrades.reduce((s, g) => s + (g.marks / g.maxMarks) * 100, 0) / scoredGrades.length) * 100) / 100
         : 0;
 
     res.json({
@@ -90,13 +103,8 @@ export const getParentProgress = asyncHandler(async (req, res) => {
     const { academicYear } = req.query;
     const year = resolveRequestedAcademicYear(academicYear, req.school);
 
-    const student = await Student.findById(studentId).lean();
+    const student = await loadAuthorizedChild(req, studentId);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
-
-    const parentIds = (student.parents || []).map(p => (p.user || p).toString());
-    if (!parentIds.includes(req.user._id.toString()) && req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
 
     const grades = await Grade.find({
         school: req.schoolId,
@@ -164,13 +172,8 @@ export const getParentReportCards = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const { academicYear } = req.query;
 
-    const student = await Student.findById(studentId).lean();
+    const student = await loadAuthorizedChild(req, studentId);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
-
-    const parentIds = (student.parents || []).map(p => (p.user || p).toString());
-    if (!parentIds.includes(req.user._id.toString()) && req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
 
     const filter = { school: req.schoolId, student: studentId, status: 'published' };
     if (academicYear) filter.academicYear = academicYear;

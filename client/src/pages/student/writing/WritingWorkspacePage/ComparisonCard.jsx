@@ -9,6 +9,11 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
 
   const wordDelta = Number(detail.wordDelta) || 0;
   const hasIssues = (detail.newIssues || []).length > 0;
+  // Only tasks the teacher actually published a verdict for are shown.
+  const taskRows = (comparison.tasks || [])
+    .map((task) => ({ ...task, result: (detail.taskResults || []).find((row) => row.id === task.id) }))
+    .filter((row) => row.result);
+  const doneCount = taskRows.filter((row) => row.result.applied).length;
 
   return (
     <section className="ws-compare">
@@ -25,6 +30,28 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
 
       {detail.encouragement && <p className="ws-compare-lead">{detail.encouragement}</p>}
       {comparison.overall?.summary && <p className="ws-compare-line">{comparison.overall.summary}</p>}
+
+      {taskRows.length > 0 && (
+        <div className="ws-compare-tasks">
+          <h4>
+            {t("writing:student.comparisonTasksTitle", { n: fromNumber })}
+            <span className="ws-compare-tasks-count">
+              {t("writing:student.comparisonTasksDone", { done: doneCount, total: taskRows.length })}
+            </span>
+          </h4>
+          {taskRows.map((row) => (
+            <div className="ws-compare-task" key={row.id}>
+              <span className={`ws-task-check${row.result.applied ? "" : " is-open"}`}>
+                {row.result.applied
+                  ? <HiOutlineCheckCircle size={16} aria-hidden="true" />
+                  : <HiOutlineMinusCircle size={16} aria-hidden="true" />}
+                {row.text}
+              </span>
+              {row.result.note && <em>{row.result.note}</em>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="ws-compare-grid">
         {(detail.criteriaImproved || []).length > 0 && (

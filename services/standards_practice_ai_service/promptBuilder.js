@@ -1,4 +1,5 @@
 import { getLanguageLabel, normalizeRequestedLanguages } from "../../utils/aiLanguageUtils.js";
+import { CONTENT_RULES, PRIVACY_RULES } from "../aiPromptSafety.js";
 
 export default {
   _resolveRequestedLanguages(requestedLanguages) {
@@ -33,7 +34,6 @@ Do not change JSON keys or structural fields.`;
     difficulty,
     questionType,
     trueFalseTargetAnswer = null,
-    studentFirstName,
     questionMemory,
     recentAttempts,
     contextHints = {},
@@ -167,7 +167,6 @@ OUTPUT JSON SHAPE:
     correctAnswer,
     studentAnswer,
     standard,
-    studentFirstName,
     subjectName,
     requestedLanguages = ["en"],
     questionType,
@@ -178,7 +177,6 @@ OUTPUT JSON SHAPE:
     evaluationCriteria = "",
     retryNotes = [],
   }) {
-    const studentName = this._normalizeStudentName(studentFirstName);
     const resolvedGradeLevel =
       Number(gradeLevel) || standard?.gradeLevel || "unknown";
     const subject = subjectName || "the subject";
@@ -206,7 +204,12 @@ OUTPUT JSON SHAPE:
 
     return `You are evaluating a student's short-answer response.
 
-STUDENT FIRST NAME: ${studentName}
+STUDENT: you do not know this student's name and must never write or invent one. The server adds a greeting after your response.
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 GRADE LEVEL: ${resolvedGradeLevel}
 SUBJECT: ${subject}
 QUESTION TYPE: ${questionType}
@@ -233,7 +236,7 @@ ${subjectRules}
 - If a likely typo or minor formatting issue is unrelated to the tested skill, mention it gently but still mark "isCorrect": true.
 - ${this._buildPromptLanguageRule(requestedLanguages)}
 - Keep "feedback" between ${wordRange.minWords} and ${wordRange.maxWords} words.
-- Put first name in feedbackParts.personalGreeting.
+- Do not write a name in "feedbackParts.personalGreeting"; the server adds it.
 - Keep feedbackParts.whatYouDidWell empty if there is no meaningful success to highlight.
 - Keep feedbackParts.correctionOrConfirmation focused on the best answer and the tested skill.
 - Keep feedbackParts.nextStep to one concrete action focused on the tested skill.
@@ -269,12 +272,10 @@ Output JSON:
     subjectName,
     requestedLanguages = ["en"],
     difficulty,
-    studentFirstName,
     recentAttempts = [],
     contextHints = {},
     retryNotes = [],
   }) {
-    const safeName = this._normalizeStudentName(studentFirstName);
     const recentAttemptSummary = recentAttempts
       .slice(0, 5)
       .map((a, index) => {
@@ -294,7 +295,12 @@ Output JSON:
 
     return `You are an expert ${subjectName} teacher creating clear, non-tricky true/false practice content.
 
-STUDENT FIRST NAME: ${safeName}
+STUDENT: you do not know this student's name and must never write or invent one.
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 GRADE: ${standard?.gradeLevel ?? "unknown"}
 STANDARD CODE: ${standard?.code || "N/A"}
 STANDARD NAME: ${standard?.name || "N/A"}

@@ -1,6 +1,17 @@
 import { connectAi } from '../utils/connectAi.js';
 import { getLanguageLabel } from '../utils/aiLanguageUtils.js';
 import { ANALYSIS_PROMPT_VERSION, ERROR_TYPES } from '../utils/spellingAnalysisConfig.js';
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    STUDENT_TOKEN,
+    correctivePrompt,
+    createStudentRefs,
+    fillStudentTokens,
+    fillStudentTokensDeep,
+    inspectGeneratedText,
+    stripFlaggedFormulas
+} from './aiPromptSafety.js';
 
 const cleanText = (value, max) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -112,7 +123,7 @@ export const analyzeStudent = async ({
     const languageLabel = getLanguageLabel(language);
     const prompt = `You are an experienced K-12 spelling specialist. You are given pre-computed statistics for ONE student and a list of that student's actual misspellings. Trust the statistics; never recalculate or invent a number.
 
-STUDENT: ${context.studentName || 'Student'}${context.grade ? ` (${context.grade})` : ''} — ${context.periodKey || 'current period'}
+STUDENT: ${STUDENT_TOKEN}${context.grade ? ` (${context.grade})` : ''} — ${context.periodKey || 'current period'}
 STATISTICS:
 ${metricLines(metrics)}
 
@@ -128,6 +139,10 @@ TASK:
 Return ONLY valid JSON with this exact shape:
 {"errorTypes":[{"type":"omission","count":3,"examples":["because → becos"]}],"strengths":["..."],"gaps":["..."],"recommendation":"...","narrative":"..."}
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 RULES:
 - The counts across errorTypes must not exceed ${metrics.incorrect || 0}.
 - Only use words that appear in the misspelling list.
@@ -137,8 +152,9 @@ RULES:
     const reply = await connectAi(prompt, usageFor({ billing, context, feature: 'spelling_analysis' }));
     const parsed = extractJson(reply?.text);
     const normalized = normalizeAnalysis(parsed, metrics);
+    const filled = normalized.ok ? { ...normalized, fields: fillStudentTokensDeep(normalized.fields, context.studentName) } : normalized;
     return {
-        ...normalized,
+        ...filled,
         meta: replyMeta(reply, ANALYSIS_PROMPT_VERSION)
     };
 };
@@ -156,7 +172,7 @@ export const draftParentEmail = async ({
     const languageLabel = getLanguageLabel(language);
     const prompt = `You write short, warm emails from a school to parents. Nothing here is a diagnosis or a grade report.
 
-STUDENT: ${studentFirstName || 'the student'}${grade ? ` (${grade})` : ''}
+STUDENT: ${STUDENT_TOKEN}${grade ? ` (${grade})` : ''}
 WHAT THE TEACHER SEES:
 ${metricLines(metrics)}
 Strengths: ${(analysis.strengths || []).join('; ') || 'n/a'}
@@ -164,11 +180,16 @@ Gaps: ${(analysis.gaps || []).join('; ') || 'n/a'}
 Teacher recommendation: ${analysis.recommendation || 'n/a'}
 Words to practise at home: ${(metrics.topMissedWords || []).slice(0, 3).map((row) => row.word).join(', ') || 'n/a'}
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 TASK: write one email that asks the family for support at home.
 Return ONLY valid JSON: {"subject":"...","body":"..."}
 
 RULES:
 - Body is plain text, 120-180 words, friendly and specific.
+- Where the child's name belongs, write ${STUDENT_TOKEN} exactly.
 - No percentages, scores, marks, or dates.
 - No mention of apps, websites, or software; only simple at-home practice ideas.
 - Ask the family for one or two concrete things they can do.
@@ -177,20 +198,49 @@ ${teacherName
         : '- Do not add any signature or sign-off line, and never use a placeholder such as [Your Name].'}
 - Write in ${languageLabel} (${language}).`;
 
-    const reply = await connectAi(prompt, usageFor({ billing, context, feature: 'spelling_parent_draft' }));
-    const parsed = extractJson(reply?.text);
-    const subject = cleanText(parsed?.subject, 160);
-    const body = String(parsed?.body || '').trim().slice(0, 4000);
-    if (!subject || !body) {
+    const write = async (currentPrompt) => {
+        const reply = await connectAi(currentPrompt, usageFor({ billing, context, feature: 'spelling_parent_draft' }));
+        const parsed = extractJson(reply?.text);
+        return {
+            reply,
+            subject: cleanText(parsed?.subject, 160),
+            body: String(parsed?.body || '').trim().slice(0, 4000)
+        };
+    };
+
+    let draft = await write(prompt);
+    if (!draft.subject || !draft.body) {
         return { ok: false, error: 'The AI reply did not contain a usable email.' };
     }
-    return { ok: true, fields: { subject, body }, meta: replyMeta(reply, ANALYSIS_PROMPT_VERSION) };
+
+    let inspection = inspectGeneratedText(`${draft.subject}\n${draft.body}`, { allowToken: true });
+    if (!inspection.ok) {
+        draft = await write(correctivePrompt(prompt, inspection.problems));
+        if (!draft.subject || !draft.body) {
+            return { ok: false, error: 'The AI reply did not contain a usable email.' };
+        }
+        inspection = inspectGeneratedText(`${draft.subject}\n${draft.body}`, { allowToken: true });
+        if (!inspection.ok) draft.body = stripFlaggedFormulas(draft.body);
+    }
+
+    return {
+        ok: true,
+        fields: {
+            subject: fillStudentTokens(draft.subject, studentFirstName),
+            body: fillStudentTokens(draft.body, studentFirstName)
+        },
+        meta: replyMeta(draft.reply, ANALYSIS_PROMPT_VERSION)
+    };
 };
 
 export const cohortNarrative = async ({ grade, rows, classes, language = 'en', billing, context = {} }) => {
     const languageLabel = getLanguageLabel(language);
-    const table = rows.map((row) => (
-        `${row.rank}. ${row.studentName} — accuracy ${row.accuracy}%, recovery ${row.recoveryRate}%, words ${row.attempts}`
+    const refs = createStudentRefs(rows, {
+        keyOf: (row) => row.studentId ?? row._id ?? row.studentName,
+        labelOf: (row) => row.studentName
+    });
+    const table = refs.entries.map(({ row, ref }) => (
+        `${row.rank}. ${ref} — accuracy ${row.accuracy}%, recovery ${row.recoveryRate}%, words ${row.attempts}`
     )).join('\n');
     const classLines = classes.map((row) => (
         `${row.className} (${row.academicYear}) — accuracy ${row.accuracy}%, recovery ${row.recoveryRate}%, students ${row.students}`
@@ -198,15 +248,19 @@ export const cohortNarrative = async ({ grade, rows, classes, language = 'en', b
     const prompt = `You are a school data analyst. Below are already-computed results for one grade. Do not recalculate anything; only explain what the numbers show.
 
 GRADE: ${grade || 'n/a'} — ${context.periodKey || ''}
-STUDENTS:
+STUDENTS (labels only):
 ${table || 'none'}
 CLASSES:
 ${classLines || 'none'}
 
-Write 3-5 sentences that compare the classes and the spread between students, note anything worth acting on, and avoid blaming children. Plain text only, no markdown. Write in ${languageLabel} (${language}).`;
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
+Write 3-5 sentences that compare the classes and the spread between students, note anything worth acting on, and avoid blaming children. Refer to a student only by the label given above (S1, S2 …), never by name. Plain text only, no markdown. Write in ${languageLabel} (${language}).`;
 
     const reply = await connectAi(prompt, usageFor({ billing, context, feature: 'spelling_cohort_narrative' }));
-    const text = String(reply?.text || '').trim().slice(0, 2000);
+    const text = refs.restore(String(reply?.text || '').trim().slice(0, 2000));
     if (!text) return { ok: false, error: 'The AI reply was empty.' };
     return { ok: true, text, meta: replyMeta(reply, ANALYSIS_PROMPT_VERSION) };
 };

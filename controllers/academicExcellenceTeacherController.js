@@ -25,6 +25,7 @@ import {
     getSchoolAcademicExcellenceSettings
 } from '../services/academicExcellenceSettingsService.js';
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES } from '../services/aiPromptSafety.js';
 import { sanitizeObjectiveText, isObjectiveTextDegenerate } from '../utils/sanitizeObjectiveText.js';
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -739,6 +740,8 @@ Objective/Standard: ${sanitizeObjectiveText(objectiveName || objectiveKey)}
 Standard Code: ${objectiveKey || ''}
 Activity Type: ${activityDescription}
 Language: ${lang}
+
+${CONTENT_RULES}
 
 Generate the following in JSON format:
 {

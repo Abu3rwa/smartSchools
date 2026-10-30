@@ -1,5 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import * as reportCardService from '../services/reportCardService.js';
+import { getParentLinkedStudentById } from '../services/parentDashboardService.js';
 
 /**
  * POST /api/report-cards/generate
@@ -72,9 +73,21 @@ export const getReportCards = asyncHandler(async (req, res) => {
  */
 export const getReportCard = asyncHandler(async (req, res) => {
     const reportCard = await reportCardService.getReportCardById(req.params.id);
-    if (!reportCard) {
+    if (!reportCard || String(reportCard.school) !== String(req.schoolId)) {
         return res.status(404).json({ success: false, message: 'Report card not found' });
     }
+
+    if (req.user.role === 'parent') {
+        const linkedChild = await getParentLinkedStudentById({
+            schoolId: req.schoolId,
+            parentUser: req.user,
+            childId: reportCard.student?._id || reportCard.student
+        });
+        if (!linkedChild || reportCard.status !== 'published') {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
+
     res.json({ success: true, data: reportCard });
 });
 

@@ -2,6 +2,7 @@ import path from 'path';
 import { AITokenUsage } from '../../models/AITokenUsage.js';
 import { downloadFile, uploadPrivateFile } from '../firebaseStorageService.js';
 import aiService from '../aiservice.js';
+import { CONTENT_RULES } from '../aiPromptSafety.js';
 import googleDriveOAuthService from '../googleDriveOAuthService.js';
 import logger from '../../utils/logger.js';
 import {
@@ -227,6 +228,8 @@ Context:
 
 Source text:
 """${extractedText}"""
+
+${CONTENT_RULES}
 
 Required JSON output schema:
 {

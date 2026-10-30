@@ -8,6 +8,26 @@
     line-height: 1.45;
 }
 
+.report-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+}
+
+.report-nav a {
+    color: #1f3c88;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.report-nav a:hover {
+    text-decoration: underline;
+}
+
 .report-heading {
     text-align: center;
     border-bottom: 2px solid #1f3c88;
@@ -36,6 +56,7 @@
 
 @media print {
     .parent-plp-report { padding: 0; max-width: none; }
+    .report-nav { display: none; }
     .report-section { break-inside: avoid; }
 }
 

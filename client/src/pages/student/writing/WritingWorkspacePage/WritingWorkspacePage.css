@@ -179,6 +179,28 @@
   line-height: 1.75;
   white-space: pre-wrap;
 }
+/* The exact words a numbered comment is about. */
+.ws-essay-mark {
+  background: color-mix(in srgb, var(--ws-teal) 22%, var(--ws-surface));
+  border-bottom: 2px solid var(--ws-teal);
+  border-radius: 3px;
+  padding: 1px 2px;
+  color: var(--ws-ink);
+}
+.ws-essay-mark-n {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--ws-teal);
+  border-radius: 999px;
+  padding: 0 4px;
+  margin-inline-start: 3px;
+}
+.ws-essay-mark.is-action {
+  background: color-mix(in srgb, var(--warning-500, #f59e0b) 26%, var(--ws-surface));
+  border-bottom-color: var(--ws-amber);
+}
+.ws-essay-mark.is-action .ws-essay-mark-n { background: var(--ws-amber); }
 
 .ws-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--ws-muted); }
 .ws-field input,
@@ -243,6 +265,20 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ws-teal);
+}
+.ws-feedback-block.is-anchored { background: color-mix(in srgb, var(--ws-teal) 11%, var(--ws-surface)); }
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ws-teal);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
 }
 .ws-feedback-line {
   display: flex;
@@ -343,6 +379,43 @@
   justify-content: center;
   margin-top: 1px;
 }
+/* One card per class criterion: a word verdict, five dots, and the student's own
+   words as evidence. No points — those stay on the teacher's side. */
+.ws-rubric { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.ws-rubric-row {
+  border: 1px solid var(--ws-line);
+  border-radius: 12px;
+  background: var(--ws-surface);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ws-rubric-row h4 { margin: 0; font-size: 0.8rem; }
+.ws-rubric-verdict {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ws-muted);
+  background: var(--ws-surface-2);
+}
+.ws-rubric-row.is-strong .ws-rubric-verdict {
+  color: var(--success-700, #047857);
+  background: color-mix(in srgb, var(--success-500, #10b981) 14%, transparent);
+}
+.ws-rubric-row.is-near .ws-rubric-verdict {
+  color: var(--warning-700, #b45309);
+  background: color-mix(in srgb, var(--warning-500, #f59e0b) 15%, transparent);
+}
+.ws-rubric-dots { display: flex; gap: 4px; }
+.ws-rubric-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--ws-line); }
+.ws-rubric-dots i.is-on { background: var(--ws-teal); }
+.ws-rubric-quote { margin: 0; font-size: 0.76rem; line-height: 1.5; color: var(--ws-muted); font-style: italic; }
+
 .ws-feedback-card-foot {
   display: flex;
   flex-wrap: wrap;
@@ -497,6 +570,7 @@
 .ws-compare-block.is-warn { background: color-mix(in srgb, var(--ws-amber) 10%, transparent); }
 .ws-compare-block h4,
 .ws-compare-changes h4,
+.ws-compare-tasks h4,
 .ws-compare-applied h4 { margin: 0 0 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ws-muted); }
 .ws-compare-block ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .ws-compare-block li { display: flex; align-items: flex-start; gap: 6px; font-size: 0.84rem; line-height: 1.45; }
@@ -516,6 +590,39 @@
 .ws-compare-applied p { margin: 0; font-size: 0.84rem; line-height: 1.5; }
 .ws-compare-applied .is-applied { color: #15803d; }
 .ws-compare-applied .is-open { color: var(--ws-muted); }
+
+/* The tasks from the last draft, each one checked against what was actually sent. */
+.ws-compare-tasks { display: flex; flex-direction: column; gap: 8px; }
+.ws-compare-tasks h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ws-compare-tasks-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ws-teal);
+  background: var(--ws-soft);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.ws-compare-task {
+  border-top: 1px solid var(--ws-line);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ws-compare-task em { font-style: normal; font-size: 0.78rem; line-height: 1.5; color: var(--ws-muted); }
+.ws-task-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #15803d;
+}
+.ws-task-check svg { flex: 0 0 auto; margin-top: 2px; }
+.ws-task-check.is-open { color: var(--ws-muted); font-weight: 400; }
 
 @media (max-width: 1024px) {
   .ws-body { grid-template-columns: minmax(0, 1fr); }

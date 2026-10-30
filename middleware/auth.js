@@ -96,6 +96,7 @@ export const protect = async (req, res, next) => {
             req.schoolId = user.school._id;
             req.school = user.school;
             const schoolAcademicYear = resolveSchoolAcademicYear(user.school);
+            req.schoolAcademicYear = schoolAcademicYear;
             const headerAcademicYear = typeof req.headers['x-academic-year'] === 'string'
                 ? req.headers['x-academic-year'].trim()
                 : '';

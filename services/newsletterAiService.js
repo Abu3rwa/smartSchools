@@ -1,4 +1,11 @@
 import { connectAi } from "../utils/connectAi.js";
+import {
+  CONTENT_RULES,
+  PRIVACY_RULES,
+  correctivePrompt,
+  inspectGeneratedText,
+  stripFlaggedFormulas
+} from "./aiPromptSafety.js";
 import { AITokenUsage } from "../models/AITokenUsage.js";
 import {
   getLanguageLabel,
@@ -119,6 +126,10 @@ VERY IMPORTANT OUTPUT RULES:
 - Avoid student names and any sensitive info.
 - Keep it simple.
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 LANGUAGE:
 ${languageRule}
 
@@ -164,6 +175,8 @@ Rules:
 - Keep warm, professional tone for parents.
 - ${rewriteLanguageRule}
 - Output ONLY JSON with keys: content (string), wordCount (number), keyTopics (array of strings), homeworkMentioned (boolean)
+
+${CONTENT_RULES}
 
 TEXT:
 ${previousContent}
@@ -256,6 +269,25 @@ export async function generateNewsletterSection({
     parsed.wordCount = countWords(parsed.content);
   }
 
+  const contentCheck = inspectGeneratedText(parsed.content);
+  let retryTokens = { input: 0, output: 0, total: 0 };
+  if (!contentCheck.ok) {
+    try {
+      const retried = await connectAi(correctivePrompt(prompt, contentCheck.problems));
+      retryTokens = {
+        input: retried.inputtokenCount || 0,
+        output: retried.outputtokenCount || 0,
+        total: retried.totalTokenCount || 0,
+      };
+      const retriedContent = String(parseNewsletterJson(retried.text).content || "").trim();
+      if (retriedContent) parsed.content = retriedContent;
+    } catch {
+      // Keep the first draft; it is still reviewed by the teacher.
+    }
+    parsed.content = trimToMaxWords(stripFlaggedFormulas(parsed.content), maxWords);
+    parsed.wordCount = countWords(parsed.content);
+  }
+
   // Centralize token counting: store in AITokenUsage (single source of truth)
   let aiTokenUsageId = null;
   if (schoolId && userId) {
@@ -269,9 +301,9 @@ export async function generateNewsletterSection({
         language: toLegacyLanguageValue(normalizedRequestedLanguages),
         requestedLanguages: normalizedRequestedLanguages,
         dateRange: { startDate: weekStart, endDate: weekEnd },
-        inputTokens: aiRes.inputtokenCount || 0,
-        outputTokens: aiRes.outputtokenCount || 0,
-        totalTokens: aiRes.totalTokenCount || 0,
+        inputTokens: (aiRes.inputtokenCount || 0) + retryTokens.input,
+        outputTokens: (aiRes.outputtokenCount || 0) + retryTokens.output,
+        totalTokens: (aiRes.totalTokenCount || 0) + retryTokens.total,
         schoolId: schoolId.toString(),
         promptVersion: PROMPT_VERSION,
         metadata: {

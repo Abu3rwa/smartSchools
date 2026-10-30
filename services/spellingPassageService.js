@@ -6,6 +6,7 @@ import { getPortalUrl } from '../helpers/portalUrl.js';
 import { resolveSpellingCompletionRecipients } from './spellingEmailService.js';
 import { buildSpellingPassageEmail } from './spellingPassageEmailService.js';
 import aiService from './aiservice.js';
+import { CONTENT_RULES, inspectGeneratedText } from './aiPromptSafety.js';
 
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -79,6 +80,9 @@ export async function generateSpellingPassage({ schoolId, sessionId, userId, sty
     if (!missedWords.length) throw badRequest('No missed words are available for practice');
     const prompt = `Create safe, age-appropriate KG-Grade 5 spelling practice as ${style === 'passage' ? 'a short connected set of sentences' : 'a list of short sentences'}. Return only JSON: {"content":"...","highlightedWords":[...]}.
 Every sentence MUST include at least one word from the missed-word list. Every missed word must appear correctly spelled at least once, and may appear in more than one sentence for repeated practice. Do not include a heading, introduction, instructions, or closing sentence that does not contain a missed word. Use natural sentences like: "I have a cute little pet dog." Keep it short, avoid mature or frightening themes, and make clear this is practice material, not a grade.
+
+${CONTENT_RULES}
+
 Grade: ${session.curriculumGrade || 'KG-5'}
 Missed words: ${JSON.stringify(missedWords)}`;
     let content;
@@ -86,6 +90,9 @@ Missed words: ${JSON.stringify(missedWords)}`;
     try {
         const result = await aiService.generateStructuredJson({ prompt, modelName: process.env.SPELLING_PASSAGE_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite' });
         content = validateGeneratedContent({ content: result.parsed.content, missedWords, style });
+        if (!inspectGeneratedText(content).ok) {
+            content = fallbackContent(missedWords);
+        }
         highlightedWords = Array.isArray(result.parsed.highlightedWords) ? result.parsed.highlightedWords : missedWords;
     } catch {
         content = fallbackContent(missedWords);

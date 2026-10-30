@@ -15,6 +15,11 @@
   "accessibility": {
     "skipToMainContent": "الانتقال إلى المحتوى الرئيسي"
   },
+  "academicYear": "العام الدراسي",
+  "semester": "الفصل الدراسي",
+  "semester1": "الفصل الدراسي الأول",
+  "semester2": "الفصل الدراسي الثاني",
+  "fullYear": "السنة كاملة",
   "impersonation": {
     "returningToAdmin": "العودة إلى وضع المشرف...",
     "returnedToSuperAdmin": "تمت العودة إلى حساب المشرف العام",

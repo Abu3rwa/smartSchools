@@ -1,148 +1,188 @@
-import { HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi';
+import { useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineX } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
-import { getTeacherFullName } from '../utils/teacherPresentation';
+import toast from 'react-hot-toast';
+import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
+import { getTeacherFullName, sortAssignments } from '../utils/teacherPresentation';
 
 const TeacherAssignmentsModal = ({
     open,
     selectedTeacher,
-    assignments,
     classes,
     subjects,
     submitting,
     onClose,
-    onSubmit,
-    onAddAssignmentRow,
-    onRemoveAssignmentRow,
-    onAssignmentChange,
+    onAddAssignment,
     onRemoveExistingAssignment
 }) => {
-    const { t } = useTranslation(['teachers']);
+    const { t } = useTranslation(['teachers', 'common']);
+    const currentYear = useSelector(selectCurrentAcademicYear);
+    const [classId, setClassId] = useState('');
+    const [subjectId, setSubjectId] = useState('');
+    const [isClassTeacher, setIsClassTeacher] = useState(false);
+
+    const groups = useMemo(() => {
+        const sorted = sortAssignments(selectedTeacher?.assignedClasses);
+        const byYear = new Map();
+        sorted.forEach((assignment) => {
+            const year = assignment.class?.academicYear || '';
+            if (!byYear.has(year)) byYear.set(year, []);
+            byYear.get(year).push(assignment);
+        });
+        return [...byYear.entries()];
+    }, [selectedTeacher]);
+
     if (!open || !selectedTeacher) return null;
+
+    const total = selectedTeacher.assignedClasses?.length || 0;
+
+    const handleAdd = async () => {
+        if (!classId || !subjectId) {
+            toast.error(t('teachers:toast.selectClassAndSubject'));
+            return;
+        }
+        const ok = await onAddAssignment({ classId, subjectId, isClassTeacher });
+        if (ok) {
+            setClassId('');
+            setSubjectId('');
+            setIsClassTeacher(false);
+        }
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal modal-lg" onClick={(event) => event.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>{t('teachers:assignments.title', { name: getTeacherFullName(selectedTeacher) })}</h3>
-                    <button className="modal-close" onClick={onClose}>&times;</button>
+            <div className="modal assign-modal" onClick={(event) => event.stopPropagation()}>
+                <div className="assign-head">
+                    <div>
+                        <h3>{t('teachers:assignments.title', { name: getTeacherFullName(selectedTeacher) })}</h3>
+                        <p className="assign-who">
+                            {selectedTeacher.employeeId}
+                            {selectedTeacher.department?.name ? ` · ${selectedTeacher.department.name}` : ''}
+                        </p>
+                    </div>
+                    <button type="button" className="assign-close" onClick={onClose} aria-label={t('common:actions.close')}>
+                        <HiOutlineX size={16} />
+                    </button>
                 </div>
-                <form onSubmit={onSubmit}>
-                    <div className="modal-body">
-                        <div className="current-assignments-section">
-                            <div className="current-assignments-header">
-                                <h4>{t('teachers:assignments.currentTitle')}</h4>
-                                <span className="current-assignments-count">
-                                    {selectedTeacher.assignedClasses?.length || 0}
-                                </span>
-                            </div>
-                            {selectedTeacher.assignedClasses?.length > 0 ? (
-                                <div className="current-assignments-list">
-                                    {selectedTeacher.assignedClasses.map((assignment) => (
-                                        <div key={assignment._id} className="current-assignment-card">
-                                            <div>
-                                                <div className="current-assignment-title">
-                                                    {assignment.class?.name || t('teachers:assignments.unknownClass')}
-                                                </div>
-                                                <div className="current-assignment-meta">
-                                                    <span>{assignment.subject?.name || t('teachers:assignments.unknownSubject')}</span>
-                                                    {assignment.isClassTeacher && (
-                                                        <span className="assignment-flag">
-                                                            {t('teachers:assignments.classTeacherBadge')}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
+
+                <div className="assign-body">
+                    <section className="assign-list">
+                        <div className="assign-panel-head">
+                            <h4>{t('teachers:assignments.currentTitle')}</h4>
+                            <span className="assign-count">{total}</span>
+                        </div>
+
+                        {groups.length === 0 && (
+                            <p className="assign-empty">{t('teachers:assignments.noneAssigned')}</p>
+                        )}
+
+                        {groups.map(([year, rows]) => (
+                            <div key={year || 'none'} className={`assign-year${year === currentYear ? '' : ' is-past'}`}>
+                                <div className="assign-year-head">
+                                    <span className="assign-year-label">{year || t('teachers:assignments.unknownClass')}</span>
+                                    <span className={`assign-tag${year === currentYear ? ' is-now' : ''}`}>
+                                        {year === currentYear
+                                            ? t('teachers:assignments.currentYear')
+                                            : t('teachers:assignments.previousYear')}
+                                    </span>
+                                </div>
+                                <div className="assign-rows">
+                                    {rows.map((assignment) => (
+                                        <div key={assignment._id} className="assign-row">
+                                            <span className="assign-row-class">
+                                                {assignment.class?.name || t('teachers:assignments.unknownClass')}
+                                            </span>
+                                            <span className="assign-row-subject">
+                                                <span>{assignment.subject?.name || t('teachers:assignments.unknownSubject')}</span>
+                                                {assignment.subject?.code && (
+                                                    <span className="assign-code">{assignment.subject.code}</span>
+                                                )}
+                                                {assignment.isClassTeacher && (
+                                                    <span className="assign-homeroom">{t('teachers:assignments.homeroomBadge')}</span>
+                                                )}
+                                            </span>
                                             <button
                                                 type="button"
-                                                className="btn btn-sm btn-danger"
+                                                className="assign-remove"
                                                 onClick={() => onRemoveExistingAssignment(assignment._id)}
                                                 disabled={submitting}
+                                                aria-label={t('common:actions.remove')}
                                             >
-                                                <HiOutlineTrash size={14} /> {t('common:actions.remove')}
+                                                <HiOutlineTrash size={14} />
                                             </button>
                                         </div>
                                     ))}
                                 </div>
-                            ) : (
-                                <p className="current-assignments-empty">{t('teachers:assignments.noneAssigned')}</p>
-                            )}
-                        </div>
+                            </div>
+                        ))}
+                    </section>
 
-                        <div className="assignments-container">
-                            {assignments.map((assignment, index) => (
-                                <div key={index} className="assignment-row">
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>{t('teachers:assignments.class')}</label>
-                                            <select
-                                                value={assignment.classId}
-                                                onChange={(event) => onAssignmentChange(index, 'classId', event.target.value)}
-                                                required
-                                            >
-                                                <option value="">{t('teachers:assignments.selectClass')}</option>
-                                                {classes.map((classItem) => (
-                                                    <option key={classItem._id} value={classItem._id}>
-                                                        {classItem.name} ({classItem.academicYear})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="form-group">
-                                            <label>{t('teachers:assignments.subject')}</label>
-                                            <select
-                                                value={assignment.subjectId}
-                                                onChange={(event) => onAssignmentChange(index, 'subjectId', event.target.value)}
-                                                required
-                                            >
-                                                <option value="">{t('teachers:assignments.selectSubject')}</option>
-                                                {subjects.map((subject) => (
-                                                    <option key={subject._id} value={subject._id}>
-                                                        {subject.name} ({subject.code})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                checked={assignment.isClassTeacher}
-                                                onChange={(event) => onAssignmentChange(index, 'isClassTeacher', event.target.checked)}
-                                            />
-                                            {t('teachers:assignments.setAsClassTeacher')}
-                                        </label>
-                                    </div>
-                                    {assignments.length > 1 && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-danger"
-                                            onClick={() => onRemoveAssignmentRow(index)}
-                                        >
-                                            <HiOutlineTrash size={14} /> {t('common:actions.remove')}
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                    <section className="assign-form">
+                        <div className="assign-form-card">
+                            <h4>{t('teachers:assignments.addTitle')}</h4>
+                            <p className="assign-form-sub">{t('teachers:assignments.addSub')}</p>
+
+                            <div className="assign-field">
+                                <label htmlFor="assign-class">{t('teachers:assignments.classLabel')}</label>
+                                <select id="assign-class" value={classId} onChange={(e) => setClassId(e.target.value)}>
+                                    <option value="">{t('teachers:assignments.selectClass')}</option>
+                                    {classes.map((classItem) => (
+                                        <option key={classItem._id} value={classItem._id}>
+                                            {classItem.name} · {classItem.academicYear}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="assign-field">
+                                <label htmlFor="assign-subject">{t('teachers:assignments.subjectLabel')}</label>
+                                <select id="assign-subject" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                                    <option value="">{t('teachers:assignments.selectSubject')}</option>
+                                    {subjects.map((subject) => (
+                                        <option key={subject._id} value={subject._id}>
+                                            {subject.name} · {subject.code}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                type="button"
+                                className={`assign-toggle${isClassTeacher ? ' is-on' : ''}`}
+                                role="switch"
+                                aria-checked={isClassTeacher}
+                                onClick={() => setIsClassTeacher((v) => !v)}
+                            >
+                                <span className="assign-toggle-box" aria-hidden="true" />
+                                <span className="assign-toggle-text">
+                                    <b>{t('teachers:assignments.homeroomToggle')}</b>
+                                    <span>{t('teachers:assignments.homeroomHint')}</span>
+                                </span>
+                            </button>
+
+                            <button type="button" className="assign-add" onClick={handleAdd} disabled={submitting}>
+                                <HiOutlinePlus size={15} />
+                                {t('teachers:assignments.addButton')}
+                            </button>
+                            <p className="assign-hint">{t('teachers:assignments.addHint')}</p>
                         </div>
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={onAddAssignmentRow}
-                            style={{ marginTop: '1rem' }}
-                        >
-                            <HiOutlinePlus size={16} /> {t('teachers:assignments.addAnotherClass')}
-                        </button>
-                    </div>
-                    <div className="modal-footer">
+                    </section>
+                </div>
+
+                <div className="assign-foot">
+                    <span className="assign-sum">
+                        <b>{total}</b> {t('teachers:assignments.summaryAssignments')} · {groups.length} {t('teachers:assignments.summaryYears')}
+                    </span>
+                    <span className="assign-actions">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
                             {t('common:actions.cancel')}
                         </button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? t('teachers:actions.assigning') : t('teachers:actions.assignClasses')}
+                        <button type="button" className="btn btn-primary" onClick={onClose}>
+                            {t('common:actions.done')}
                         </button>
-                    </div>
-                </form>
+                    </span>
+                </div>
             </div>
         </div>
     );

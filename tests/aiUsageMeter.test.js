@@ -34,7 +34,7 @@ test('feature labels come from the real API surface', () => {
     assert.equal(featureFromPath('/api/writing/drafts/1/assess'), 'writing_assistant');
     assert.equal(featureFromPath('/api/reading/texts?page=2'), 'reading_assistant');
     assert.equal(featureFromPath('/api/map-test-prep/sessions'), 'map_test_prep');
-    assert.equal(featureFromPath('/api/worksheets/abc/mark'), 'worksheet_checker');
+    assert.equal(featureFromPath('/api/student-grouping/class-1/standard-1'), 'student_grouping');
     assert.equal(featureFromPath('/api/standards/assignments'), 'standards_practice');
     assert.equal(featureFromPath('/api/standard-assessment/x'), 'standards_practice');
     assert.equal(featureFromPath('/api/new-tool/x'), 'new_tool');

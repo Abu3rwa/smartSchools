@@ -130,6 +130,19 @@ test('a student email names the draft, the next step and the piece', () => {
     assert.match(message.text, /1\. Add one example\./);
 });
 
+test('feedback speaks to the student as their teacher, in both languages', () => {
+    const english = build();
+    assert.match(english.html, /I have added feedback on your draft 2/);
+    assert.match(english.html, /What I said/);
+    assert.equal(/your teacher/i.test(english.text), false);
+
+    const arabic = build({ language: 'ar', assessment: { ...assessment, language: 'ar' } });
+    assert.match(arabic.html, /أضفتُ ملاحظات على مسودتك 2/);
+    assert.match(arabic.html, /ما قلته/);
+    // First person also avoids assuming the teacher's gender in Arabic.
+    assert.equal(arabic.html.includes('معلمك'), false);
+});
+
 test('the email carries three priorities at most and no scores', () => {
     const message = build();
     assert.equal((message.html.match(/Add one example\./g) || []).length, 1);
@@ -139,7 +152,7 @@ test('the email carries three priorities at most and no scores', () => {
     assert.equal(message.text.includes('7'), false);
 });
 
-test('feedback by part reaches the email without scores or the draft quote', () => {
+test('per-part cards are the fallback when the draft itself cannot be shown', () => {
     const message = build({
         assessment: {
             ...assessment,
@@ -172,6 +185,133 @@ test('feedback by part reaches the email without scores or the draft quote', () 
     assert.match(message.text, /Body paragraph/);
 });
 
+const anchoredAssignment = {
+    ...assignment,
+    sections: [{ key: 'intro' }, { key: 'body' }, { key: 'ending' }]
+};
+
+const anchoredDraft = {
+    number: 2,
+    totalWords: 42,
+    sections: [
+        { key: 'intro', index: 0, text: 'Our school should have a longer recess.' },
+        { key: 'body', index: 0, text: 'A longer recess helps students focus. We run around and then we sit still.' },
+        { key: 'ending', index: 0, text: 'So I think recess should be longer.' }
+    ]
+};
+
+const anchoredAssessment = {
+    ...assessment,
+    sections: [
+        {
+            key: 'body', index: 0, label: 'Body paragraph',
+            strengths: ['You give one clear reason.'], improvements: [],
+            evidence: 'recess helps students focus',
+            nextStep: 'Add one example after this line.', why: ''
+        },
+        {
+            key: 'intro', index: 0, label: 'Introduction',
+            strengths: ['Your opinion is clear.'], improvements: [],
+            evidence: '', nextStep: '', why: ''
+        }
+    ],
+    scores: [
+        { key: 'ideas', label: 'Ideas', score: 8, maxScore: 10, evidence: 'a longer recess', explanation: 'One reason is explained.' },
+        { key: 'org', label: 'Organisation', score: 4, maxScore: 10, evidence: '', explanation: 'The ending repeats the start.' }
+    ]
+};
+
+const anchored = (overrides = {}) => build({
+    assignment: anchoredAssignment,
+    draft: anchoredDraft,
+    assessment: anchoredAssessment,
+    ...overrides
+});
+
+test('the email carries the draft with each comment under the line it is about', () => {
+    const message = anchored();
+    assert.match(message.html, /Your writing, with the comments under each line/);
+    assert.match(message.html, /Our school should have a longer recess\./);
+    assert.match(message.html, /So I think recess should be longer\./);
+    // The quoted phrase is highlighted and numbered; the note sits under it.
+    assert.match(message.html, /background-color:#fde68a[^>]*>recess helps students focus<\/span><sup[^>]*>1<\/sup>/);
+    assert.match(message.html, /Add one example after this line\./);
+    assert.match(message.html, /Your opinion is clear\./);
+    // Only paragraphs whose quote was found get a number, in reading order.
+    assert.equal((message.html.match(/<sup/g) || []).length, 1);
+    // The per-part cards would repeat the same notes, so they are dropped.
+    assert.equal(message.html.includes('Feedback by part'), false);
+    assert.match(message.text, /A longer recess helps students focus\./);
+    assert.match(message.text, /\[1\] Body paragraph · Try this/);
+});
+
+test('the rubric reads as words with one quote per criterion, never points', () => {
+    const message = anchored();
+    assert.match(message.html, /How the draft is going/);
+    assert.match(message.html, /Ideas/);
+    assert.match(message.html, /Strong/);
+    assert.match(message.html, /Needs work/);
+    assert.match(message.html, /“a longer recess”/);
+    assert.match(message.html, /The ending repeats the start\./);
+    assert.equal(message.text.includes('8'), false);
+    assert.equal(message.text.includes('10'), false);
+    assert.equal(/score|rubric/i.test(message.text), false);
+    assert.match(message.text, /- Ideas: Strong — “a longer recess”/);
+});
+
+test('a parent reads the same draft under the teacher first-person label', () => {
+    const message = anchored({ role: 'parent' });
+    assert.match(message.html, /Areen&#39;s draft, with my note under each marked line/);
+    assert.match(message.html, /recess helps students focus<\/span>/);
+    assert.equal(message.html.includes('Your writing, with the comments'), false);
+});
+
+test('an arabic draft keeps its highlights and uses arabic quote marks', () => {
+    const message = anchored({ language: 'ar', assessment: { ...anchoredAssessment, language: 'ar' } });
+    assert.match(message.html, /كتابتك، مع الملاحظات تحت كل سطر/);
+    assert.match(message.html, /جرّب هذا/);
+    assert.match(message.html, /«a longer recess»/);
+    assert.match(message.html, /كل ملاحظة في الأسفل تشير إلى سطر واحد بالضبط/);
+    assert.match(message.text, /\[1\] Body paragraph · جرّب هذا/);
+});
+
+test('a very long draft is clipped and the note keeps its own quote', () => {
+    const long = 'word '.repeat(1600);
+    const message = build({
+        assignment: { ...assignment, sections: [{ key: 'body' }] },
+        draft: {
+            number: 2,
+            totalWords: 1600,
+            sections: [{ key: 'body', index: 0, text: `${long}recess helps students focus.` }]
+        },
+        assessment: {
+            ...assessment,
+            sections: [{
+                key: 'body', index: 0, label: 'Body paragraph',
+                strengths: [], improvements: [], evidence: 'recess helps students focus',
+                nextStep: 'Add one example.', why: ''
+            }]
+        }
+    });
+    assert.match(message.html, /The rest of your draft is in the app\./);
+    assert.match(message.text, /The rest of your draft is in the app\./);
+    // The highlight fell outside the budget, so the comment carries the quote instead.
+    assert.equal(message.html.includes('<sup'), false);
+    assert.match(message.html, /“recess helps students focus”/);
+    assert.ok(message.html.length < 30000, 'a clipped draft must stay well under the Gmail clip limit');
+});
+
+test('the student draft text is escaped before it reaches the inbox', () => {
+    const message = build({
+        assignment: { ...assignment, sections: [{ key: 'body' }] },
+        draft: { number: 2, totalWords: 3, sections: [{ key: 'body', index: 0, text: '<script>alert(1)</script> & "mine"' }] },
+        assessment: anchoredAssessment
+    });
+    assert.equal(message.html.includes('<script>alert(1)'), false);
+    assert.match(message.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.match(message.html, /&quot;mine&quot;/);
+});
+
 test('section feedback alone is enough to send an email', () => {
     const message = build({
         assessment: {
@@ -186,21 +326,25 @@ test('section feedback alone is enough to send an email', () => {
     assert.match(message.html, /Clear reason\./);
 });
 
-test('a parent email attributes the student-directed words instead of rewriting them', () => {
+test('a parent email speaks in the teacher own voice instead of a third-person digest', () => {
     const message = build({ role: 'parent' });
-    assert.match(message.html, /Areen&#39;s feedback on draft 2 is ready/);
-    assert.match(message.html, /The message Areen received/);
-    assert.match(message.html, /Next steps the teacher asked for/);
+    assert.match(message.html, /I have read Areen&#39;s draft 2/);
+    assert.match(message.html, /What I told Areen/);
+    assert.match(message.html, /What I asked Areen to do next/);
     assert.match(message.html, /See the feedback/);
     assert.equal(message.html.includes('Do these next'), false);
+    // First person belongs to the teacher who published: the parent is never
+    // handed "the teacher" as some third party.
+    assert.equal(message.html.includes('teacher has added feedback'), false);
+    assert.equal(message.html.includes('What I said'), false);
 });
 
 test('arabic feedback gets an arabic, right-to-left message', () => {
     const message = build({ role: 'parent', language: 'ar', assessment: { ...assessment, language: 'ar' } });
     assert.match(message.html, /dir="rtl"/);
     assert.match(message.html, /lang="ar"/);
-    assert.match(message.html, /ملاحظات Areen على المسودة 2 جاهزة/);
-    assert.match(message.html, /الخطوات التالية التي طلبها المعلم/);
+    assert.match(message.html, /ملاحظاتي على مسودة Areen 2/);
+    assert.match(message.html, /ما طلبتُه من Areen بعد ذلك/);
     assert.match(message.html, /عرض الملاحظات/);
     assert.match(message.subject, /المسودة 2/);
 });
@@ -306,9 +450,27 @@ for (const [name, notify, recipients] of [
     });
 }
 
+test('greetings use only the first name when the record holds a compound name', async (t) => {
+    const { sent } = stubDelivery(t, {
+        student: {
+            firstName: 'Sofia Marie',
+            lastName: 'Hassan',
+            email: 'student@example.test',
+            getAllContactEmailEntries: () => [{ type: 'mother', email: 'parent@example.test' }]
+        }
+    });
+    await resendPublishedFeedbackEmail(resendContext);
+    const student = sent.find((message) => message.to === 'student@example.test');
+    const parent = sent.find((message) => message.to === 'parent@example.test');
+    assert.match(student.html, /Hello Sofia,/);
+    assert.match(parent.html, /I have read Sofia(&#39;|')s draft 2/);
+    assert.equal(student.html.includes('Sofia Marie'), false);
+    assert.equal(parent.html.includes('Sofia Marie'), false);
+});
+
 test('resending old feedback does not tell a finished student to start an old draft', () => {
     const message = build({ resend: true, project: { stage: 'completed', draftCount: 3 } });
-    assert.match(message.text, /published feedback on draft 2 again/);
+    assert.match(message.text, /feedback I published on your draft 2 again/);
     assert.doesNotMatch(message.html, /Now: writing draft|before you start draft/);
     const arabic = build({ resend: true, language: 'ar', role: 'parent' });
     assert.match(arabic.text, /مرة أخرى/);

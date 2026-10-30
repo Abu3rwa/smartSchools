@@ -10,11 +10,3 @@ export const createDefaultTeacherFormData = () => ({
     qualification: '',
     subjects: []
 });
-
-export const createDefaultAssignmentRow = () => ({
-    classId: '',
-    subjectId: '',
-    isClassTeacher: false
-});
-
-export const createDefaultAssignments = () => [createDefaultAssignmentRow()];

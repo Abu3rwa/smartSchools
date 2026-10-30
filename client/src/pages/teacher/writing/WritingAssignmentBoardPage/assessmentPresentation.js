@@ -25,6 +25,16 @@ export const publishedFeedbackForEmail = (assessments = []) => {
   });
 };
 
+/** Same window as the server's stale-run reclaim: past this the run is dead. */
+export const STALE_ASSESSMENT_MS = 5 * 60 * 1000;
+
+export const isStaleAssessment = (assessment, now = Date.now()) => {
+  if (!assessment || !["pending", "running"].includes(assessment.aiStatus)) return false;
+  const stamp = assessment.updatedAt || assessment.createdAt;
+  if (!stamp) return false;
+  return new Date(stamp).getTime() < now - STALE_ASSESSMENT_MS;
+};
+
 export const formFromAssessment = (assessment) => {
   if (!assessment) return null;
   const overall = assessment.overall || {};
@@ -56,6 +66,7 @@ export const formFromAssessment = (assessment) => {
       score: Number(row.score) || 0,
       maxScore: Number(row.maxScore) || 0,
       explanation: row.explanation || "",
+      evidence: row.evidence || "",
     })),
     path: assessment.recommendation?.path === "notebook" ? "notebook" : "revise",
     reason: assessment.recommendation?.reason || "",
@@ -75,6 +86,12 @@ export const formFromAssessment = (assessment) => {
       feedbackApplied: (comparison.feedbackApplied || []).map((row) => ({
         key: row.key,
         index: Number(row.index) || 0,
+        note: row.note || "",
+        applied: row.applied === true,
+      })),
+      taskResults: (comparison.taskResults || []).map((row) => ({
+        id: row.id,
+        text: (assessment.tasks || []).find((task) => task.id === row.id)?.text || row.id,
         note: row.note || "",
         applied: row.applied === true,
       })),
@@ -111,6 +128,7 @@ export const payloadFromForm = (form) => {
       key: row.key,
       score: Number(row.score) || 0,
       explanation: row.explanation,
+      evidence: row.evidence,
     })),
     recommendation: {
       path: form.path,
@@ -129,6 +147,10 @@ export const payloadFromForm = (form) => {
       feedbackApplied: (form.comparison?.feedbackApplied || []).map((row) => ({
         key: row.key,
         index: row.index,
+        applied: row.applied === true,
+      })),
+      taskResults: (form.comparison?.taskResults || []).map((row) => ({
+        id: row.id,
         applied: row.applied === true,
       })),
     },

@@ -39,7 +39,6 @@ export const SHORTCUT_CANDIDATES = [
         section: 'teaching'
     },
     { path: '/portal/live-lessons/join', labelKey: 'liveLessons', roles: ['student'], liveLessons: true, section: 'learning' },
-    { path: '/portal/worksheets', labelKey: 'worksheetChecker', roles: ['admin'], feature: 'worksheetChecker', section: 'teaching' },
     { path: '/portal/newsletters/admin', labelKey: 'newslettersReview', roles: ['admin'], feature: 'newsletterCommunication', section: 'communication' },
     { path: '/portal/newsletters/history', labelKey: 'newsletters', roles: ['parent'], feature: 'newsletterCommunication', section: 'communication' },
     { path: '/portal/sbr/config', labelKey: 'sbrConfig', roles: ['admin'], permissions: [PERMISSIONS.MANAGE_SBR_SCALES], section: 'admin' },

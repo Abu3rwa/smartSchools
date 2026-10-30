@@ -1,4 +1,5 @@
 import { connectAi } from "../utils/connectAi.js";
+import { inspectGeneratedText } from "./aiPromptSafety.js";
 import { resolvePracticeQuestionType } from "../constants/practiceQuestionTypes.js";
 import {
   MAX_AI_RETRIES,
@@ -463,6 +464,14 @@ class StandardsPracticeAIService {
           this._normalizeFeedback(feedbackSourceText, gradeLevel),
           studentFirstName,
         );
+
+        const contentCheck = inspectGeneratedText([
+          finalFeedback,
+          ...Object.values(finalFeedbackParts || {}),
+        ].filter((value) => typeof value === "string").join("\n"));
+        if (!contentCheck.ok) {
+          return fallbackResult();
+        }
 
         return {
           isCorrect: finalIsCorrect,

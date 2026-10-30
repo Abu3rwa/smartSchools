@@ -13,6 +13,7 @@ import {
 import { completeTask } from '../services/academicExcellenceTaskService.js';
 import { sanitizeObjectiveText, isObjectiveTextDegenerate } from '../utils/sanitizeObjectiveText.js';
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES, PRIVACY_RULES, inspectGeneratedText } from '../services/aiPromptSafety.js';
 
 const toIdString = (value) => {
     if (!value) return '';
@@ -74,6 +75,8 @@ Rules:
 - Provide the correct answer and a 1-2 sentence explanation for each question
 - Language: English
 
+${CONTENT_RULES}
+
 Return ONLY a valid JSON array (no markdown fences):
 [{
   "questionId": "q1",
@@ -93,6 +96,10 @@ Student answered: ${studentAnswer}
 
 Determine if the student's answer demonstrates understanding of the concept.
 Be lenient on phrasing; focus on conceptual correctness.
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 
 Return ONLY valid JSON:
 { "isCorrect": true|false, "feedback": "1-2 sentence explanation suitable for a student" }`;
@@ -581,6 +588,9 @@ export const studentAnswerInteractiveSession = asyncHandler(async (req, res) => 
             const parsed = JSON.parse(stripCodeFences(aiResult.text));
             isCorrect = Boolean(parsed?.isCorrect);
             aiFeedback = String(parsed?.feedback || '').trim();
+            if (aiFeedback && !inspectGeneratedText(aiFeedback).ok) {
+                aiFeedback = 'Your answer was recorded. Review the explanation and try the next question.';
+            }
         } catch {
             isCorrect = false;
             aiFeedback = 'Your answer was recorded, but automatic grading had an issue. Please review the explanation.';

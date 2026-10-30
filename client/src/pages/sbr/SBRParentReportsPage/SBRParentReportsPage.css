@@ -3,6 +3,19 @@
   gap: 1rem;
 }
 
+.sbr-parent-back {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sbr-parent-back:hover {
+  color: var(--primary-color);
+}
+
 .sbr-parent-header h2 {
   margin: 0;
 }

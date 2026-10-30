@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+    STALE_RUN_MS,
     alignSections,
     buildDraftSections,
     buildTracker,
@@ -14,8 +15,11 @@ import {
     sectionTotalWords,
     stageAfterPublish,
     stageAfterSubmit,
+    staleRunCutoff,
     studentNextAction,
     summarizeBoard,
+    tasksForCheckback,
+    tasksFromPriorities,
     validateSubmission,
     workingSectionsFor
 } from '../services/writingAssistantLogic.js';
@@ -473,16 +477,51 @@ test('extractJsonObject reads fenced, embedded and bare JSON', () => {
     assert.equal(extractJsonObject('no json at all'), null);
 });
 
+test('a reply that names sections by label is filed under the real section key', () => {
+    const result = normalizeFeedback({
+        draft: { number: 1, sections: filled() },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            sections: [
+                { key: 'Body paragraph', index: 0, evidence: 'uniforms save time', nextStep: 'Add an example.' },
+                { key: 'Body paragraph', index: 0, evidence: 'help me concentrate', nextStep: 'Say why.' },
+                { key: 'Conclusion', index: 0, evidence: 'I would keep uniforms', nextStep: 'Restate it.' }
+            ]
+        }
+    });
+
+    // Labels, and two body paragraphs both numbered 0, still fill the real slots once each.
+    assert.deepEqual(
+        result.sections.map((row) => `${row.key}:${row.index}`),
+        ['body:0', 'body:1', 'conclusion:0']
+    );
+    assert.equal(result.sections[0].evidence, 'uniforms save time');
+    assert.equal(result.sections[1].evidence, 'help me concentrate');
+});
+
 test('renderDraftForPrompt labels sections and marks empty ones', () => {
     const rendered = renderDraftForPrompt({
         number: 1,
         sections: [
-            { key: 'introduction', label: 'Introduction', text: 'My opening line.', words: 3 },
-            { key: 'body', label: 'Body paragraph 1', text: '   ', words: 0 }
+            { key: 'introduction', index: 0, label: 'Introduction', text: 'My opening line.', words: 3 },
+            { key: 'body', index: 1, label: 'Body paragraph 1', text: '   ', words: 0 }
         ]
     });
-    assert.match(rendered, /Introduction \(draft 1, 3 words\)/);
+    assert.match(rendered, /Introduction \[key: introduction, index: 0\] \(draft 1, 3 words\)/);
+    // The index has to be visible: feedback is filed back under key + index.
+    assert.match(rendered, /Body paragraph 1 \[key: body, index: 1\]/);
     assert.match(rendered, /\[empty\]/);
+});
+
+test('the prompt lists the section and rubric keys the reply must use', () => {
+    const snapshot = configSnapshotFor(essay());
+    const prompt = buildFeedbackPrompt({
+        snapshot,
+        draft: { number: 1, sections: [{ key: 'body', index: 1, label: 'Body paragraph 1', text: 'A reason.' }] },
+        language: 'en'
+    });
+    assert.match(prompt, /^- body: Body paragraph/m);
+    assert.match(prompt, new RegExp(`^- ${snapshot.rubric[0].key}: ${snapshot.rubric[0].label}`, 'm'));
 });
 
 for (const language of ['en', 'ar']) {
@@ -721,4 +760,129 @@ test('decideRecommendation counts unresolved comparison criteria even with a hig
     });
     assert.equal(decision.ratio, 0.8);
     assert.equal(decision.path, 'revise');
+});
+
+/* ------------------------------------------------------------------ */
+/* Revision tasks and the draft-to-draft checkback                       */
+/* ------------------------------------------------------------------ */
+
+test('revision tasks come from the priorities, three at most, with stable ids', () => {
+    assert.deepEqual(tasksFromPriorities([' Add a reason. ', '', 'Join your paragraphs.', 'End with your own idea.', 'A fourth.']), [
+        { id: 't1', text: 'Add a reason.' },
+        { id: 't2', text: 'Join your paragraphs.' },
+        { id: 't3', text: 'End with your own idea.' }
+    ]);
+    assert.deepEqual(tasksFromPriorities(), []);
+    assert.deepEqual(tasksFromPriorities([null, '   ']), []);
+});
+
+test('a checkback reads the stored tasks and falls back to the older priorities', () => {
+    const stored = [{ id: 't1', text: 'Add a reason.' }];
+    assert.deepEqual(tasksForCheckback({ tasks: stored, overall: { nextPriorities: ['Something else.'] } }), stored);
+    // Feedback published before tasks existed still gets checked, by position.
+    assert.deepEqual(tasksForCheckback({ overall: { nextPriorities: ['Add a reason.'] } }), [{ id: 't1', text: 'Add a reason.' }]);
+    assert.deepEqual(tasksForCheckback(null), []);
+});
+
+test('published feedback carries its tasks without asking the model for them', () => {
+    const result = normalizeFeedback({
+        draft: { number: 1, sections: filled() },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            sections: [{ key: 'introduction', index: 0, strengths: ['Clear opinion.'] }],
+            overall: { summary: 'A good start.', nextPriorities: ['Add a reason.', 'Check commas.'] }
+        }
+    });
+    assert.deepEqual(result.tasks, [
+        { id: 't1', text: 'Add a reason.' },
+        { id: 't2', text: 'Check commas.' }
+    ]);
+});
+
+test('each rubric score keeps a real quote and loses an invented one', () => {
+    const result = normalizeFeedback({
+        draft: { number: 1, sections: filled() },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            sections: [{ key: 'introduction', index: 0, strengths: ['Clear opinion.'] }],
+            overall: { summary: 'A good start.' },
+            scores: [
+                { key: 'ideas', score: 4, explanation: 'Two reasons.', evidence: 'uniforms save time' },
+                { key: 'organisation', score: 3, explanation: 'Order is clear.', evidence: 'a sentence the student never wrote' }
+            ]
+        }
+    });
+    const byKey = Object.fromEntries(result.scores.map((row) => [row.key, row]));
+    assert.equal(byKey.ideas.evidence, 'uniforms save time');
+    assert.equal(byKey.organisation.evidence, '');
+    assert.equal(byKey.organisation.explanation, 'Order is clear.');
+});
+
+test('the comparison prompt lists the tasks by id and asks for one verdict each', () => {
+    const prompt = buildComparisonPrompt({
+        snapshot: configSnapshotFor(essay()),
+        previousDraft: { number: 1, sections: filled() },
+        currentDraft: { number: 2, sections: filled() },
+        previousAssessment: { overall: { nextPriorities: ['Add a reason.', 'Check commas.'] } },
+        language: 'en'
+    });
+    assert.match(prompt, /- t1: Add a reason\./);
+    assert.match(prompt, /- t2: Check commas\./);
+    assert.match(prompt, /Report one "taskResults" entry for every task id listed above/);
+    assert.match(prompt, /"taskResults"/);
+});
+
+test('the comparison prompt asks for evidence behind every rubric score', () => {
+    const prompt = buildFeedbackPrompt({
+        snapshot: configSnapshotFor(essay()),
+        draft: { number: 1, sections: filled() },
+        language: 'en'
+    });
+    assert.match(prompt, /Every rubric score needs "evidence"/);
+    assert.match(prompt, /leave "evidence" empty rather than inventing one/);
+});
+
+test('taskResults keep only the ids the student was actually given', () => {
+    const result = normalizeComparison({
+        previousDraft: { number: 1, sections: filled() },
+        currentDraft: { number: 2, sections: filled() },
+        previousAssessment: { tasks: [{ id: 't1', text: 'Add a reason.' }, { id: 't2', text: 'Check commas.' }] },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            changedBySection: [{ key: 'introduction', index: 0, summary: 'A second reason appeared.', meaningful: true }],
+            taskResults: [
+                { id: 't2', applied: true, note: 'Commas are in place.' },
+                { id: 't9', applied: true, note: 'Never asked for.' },
+                { id: 't2', applied: false, note: 'A duplicate verdict.' },
+                { id: 't1', applied: 'yes', note: 'Still one reason.' }
+            ]
+        }
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.tasks, [{ id: 't1', text: 'Add a reason.' }, { id: 't2', text: 'Check commas.' }]);
+    assert.deepEqual(result.taskResults, [
+        { id: 't2', applied: true, note: 'Commas are in place.' },
+        { id: 't1', applied: false, note: 'Still one reason.' }
+    ]);
+});
+
+test('a comparison with no earlier tasks reports none rather than inventing them', () => {
+    const result = normalizeComparison({
+        previousDraft: { number: 1, sections: filled() },
+        currentDraft: { number: 2, sections: filled() },
+        snapshot: configSnapshotFor(essay()),
+        parsed: {
+            changedBySection: [{ key: 'introduction', index: 0, summary: 'Wording changed.', meaningful: true }],
+            taskResults: [{ id: 't1', applied: true, note: 'Nothing was asked.' }]
+        }
+    });
+    assert.deepEqual(result.tasks, []);
+    assert.deepEqual(result.taskResults, []);
+});
+
+test('an interrupted run is retryable far sooner than it would block the draft', () => {
+    const now = Date.now();
+    assert.equal(now - staleRunCutoff(now).getTime(), STALE_RUN_MS);
+    // Two model attempts at a two-minute cap each must both be able to finish first.
+    assert.ok(STALE_RUN_MS > 2 * 2 * 60 * 1000);
 });

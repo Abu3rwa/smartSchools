@@ -3,6 +3,7 @@ import SocialStudiesUnit from '../models/SocialStudiesUnit.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile } from '../helpers/teacherScoping.js';
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES } from '../services/aiPromptSafety.js';
 import logger from '../utils/logger.js';
 
 // ── AI helpers ────────────────────────────────────────────────────────────
@@ -37,6 +38,8 @@ LESSON CONTENT:
 """
 ${lessonText.slice(0, 4000)}
 """
+
+${CONTENT_RULES}
 
 Generate exactly ${count} questions from the lesson content above.
 Difficulty level: ${difficulty}

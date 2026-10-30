@@ -37,7 +37,7 @@ const resolveApiUrl = () => {
   return "/api";
 };
 
-const API_URL = resolveApiUrl();
+export const API_URL = resolveApiUrl();
 
 // Create axios instance
 const api = axios.create({

@@ -31,7 +31,6 @@ import formulaReducer from './slices/formulaSlice';
 import reportCardReducer from './slices/reportCardSlice';
 import spreadsheetReducer from './slices/spreadsheetSlice';
 import analyticsReducer from './slices/analyticsSlice';
-import worksheetReducer from './slices/worksheetSlice';
 import financeReducer from './slices/financeSlice';
 import hrReducer from './slices/hrSlice';
 import plpReducer from './slices/plpSlice';
@@ -69,7 +68,6 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'reportCards',
     'spreadsheet',
     'analytics',
-    'worksheets',
 ];
 
 const appReducer = combineReducers({
@@ -107,7 +105,6 @@ const appReducer = combineReducers({
     reportCards: reportCardReducer,
     spreadsheet: spreadsheetReducer,
     analytics: analyticsReducer,
-    worksheets: worksheetReducer,
     finance: financeReducer,
     hr: hrReducer,
     plp: plpReducer,

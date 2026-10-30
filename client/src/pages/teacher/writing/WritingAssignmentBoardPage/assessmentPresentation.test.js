@@ -1,13 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  STALE_ASSESSMENT_MS,
   formFromAssessment,
+  isStaleAssessment,
   joinLines,
   latestForDraft,
   payloadFromForm,
   publishedFeedbackForEmail,
   splitLines,
 } from './assessmentPresentation.js';
+
+test('a run left behind by a restart is offered as a retry, a live one is not', () => {
+  const now = Date.UTC(2026, 9, 30, 12, 0, 0);
+  const running = { aiStatus: 'running' };
+  assert.equal(isStaleAssessment({ ...running, updatedAt: new Date(now - 60_000).toISOString() }, now), false);
+  assert.equal(isStaleAssessment({ ...running, updatedAt: new Date(now - STALE_ASSESSMENT_MS - 1).toISOString() }, now), true);
+  assert.equal(isStaleAssessment({ ...running, createdAt: new Date(now - STALE_ASSESSMENT_MS - 1).toISOString() }, now), true);
+});
+
+test('only an unfinished run can be stale', () => {
+  const now = Date.now();
+  const old = new Date(now - STALE_ASSESSMENT_MS - 1).toISOString();
+  assert.equal(isStaleAssessment({ aiStatus: 'done', updatedAt: old }, now), false);
+  assert.equal(isStaleAssessment({ aiStatus: 'failed', updatedAt: old }, now), false);
+  assert.equal(isStaleAssessment(null, now), false);
+});
 
 const assessment = {
   _id: 'a1',

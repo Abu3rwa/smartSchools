@@ -107,7 +107,7 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, subjectId, su
             className="teacher-ae-input"
             value={form.title}
             onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder="e.g. Practice worksheet: Adding Fractions"
+            placeholder="e.g. Practice: Adding Fractions"
           />
         </div>
 

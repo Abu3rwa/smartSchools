@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import RubricStrip from "./RubricStrip.jsx";
 
 /** The feedback for the draft just sent, in the order a student should act on it. */
 export default function FeedbackCard({ draftNumber, feedback, onReadDraft, revising }) {
@@ -14,6 +15,12 @@ export default function FeedbackCard({ draftNumber, feedback, onReadDraft, revis
         <span className="ws-feedback-card-tag">{t("writing:student.draftTab", { n: draftNumber })}</span>
       </header>
       {summary && <p className="ws-feedback-card-summary">{summary}</p>}
+      {(feedback.scores || []).length > 0 && (
+        <>
+          <h3 className="ws-feedback-card-sub">{t("writing:student.rubricTitle")}</h3>
+          <RubricStrip scores={feedback.scores} />
+        </>
+      )}
       {priorities.length > 0 && (
         <>
           <h3 className="ws-feedback-card-sub">{t("writing:student.doTheseNext")}</h3>

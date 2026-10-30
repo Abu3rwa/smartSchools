@@ -1,17 +1,20 @@
 import { HiOutlineTrash, HiOutlineUserGroup } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import { TEACHER_DETAILS_MESSAGES } from '../constants';
+import { sortAssignments } from '../../TeachersPage/utils/teacherPresentation';
 
 const TeacherClassesPanel = ({ teacher, canManageTeachers, onRemoveAssignment }) => {
     const { t } = useTranslation(['teachers', 'common']);
+
+    const assignments = sortAssignments(teacher?.assignedClasses);
 
     return (
         <div className="profile-grid" style={{ paddingTop: 0 }}>
             <div className="info-section">
                 <h3><HiOutlineUserGroup /> Class Assignments</h3>
                 <div className="assignments-list">
-                    {teacher?.assignedClasses?.length > 0 ? (
-                        teacher.assignedClasses.map((assignment) => (
+                    {assignments.length > 0 ? (
+                        assignments.map((assignment) => (
                             <div key={assignment._id} className="assignment-card">
                                 <div className="assignment-header">
                                     <h4>{assignment.class?.name}</h4>

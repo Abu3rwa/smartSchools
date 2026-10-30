@@ -1,0 +1,363 @@
+.parent-timetable {
+    --pt-accent: #0f766e;
+    --pt-accent-soft: #ecfdf5;
+    --pt-line: var(--border-color, #e2e8f0);
+    --pt-ink: var(--text-primary, #0f172a);
+    --pt-muted: var(--text-muted, #64748b);
+    --pt-card: var(--bg-card, #ffffff);
+    --pt-bg-soft: var(--bg-secondary, #f8fafc);
+    display: grid;
+    gap: 16px;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+    animation: fadeIn 0.25s ease;
+}
+
+.parent-timetable h1,
+.parent-timetable h2,
+.parent-timetable p {
+    margin: 0;
+}
+
+.pt-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.pt-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    color: var(--pt-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.pt-back:hover {
+    color: var(--pt-accent);
+}
+
+.parent-timetable[dir='rtl'] .pt-back svg {
+    transform: scaleX(-1);
+}
+
+.pt-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pt-accent);
+}
+
+.pt-header h1 {
+    margin-top: 4px;
+    font-size: clamp(1.3rem, 1.1rem + 1vw, 1.7rem);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--pt-ink);
+}
+
+.pt-subtitle {
+    margin-top: 6px;
+    max-width: 60ch;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--pt-muted);
+}
+
+.pt-header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.pt-class-chip {
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--pt-line);
+    background: var(--pt-card);
+    color: var(--pt-ink);
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pt-view-only {
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: var(--pt-accent-soft);
+    color: var(--pt-accent);
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+/* ── Child chips ── */
+.pt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pt-chip {
+    padding: 7px 12px;
+    border: 1px solid var(--pt-line);
+    border-radius: 999px;
+    background: var(--pt-card);
+    color: var(--pt-ink);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.pt-chip:hover {
+    border-color: var(--pt-accent);
+    color: var(--pt-accent);
+}
+
+.pt-chip.is-active {
+    border-color: var(--pt-accent);
+    background: var(--pt-accent);
+    color: #fff;
+}
+
+/* ── Week navigation ── */
+.pt-weekbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border: 1px solid var(--pt-line);
+    border-radius: 14px;
+    background: var(--pt-card);
+}
+
+.pt-week-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--pt-line);
+    border-radius: 10px;
+    background: var(--pt-card);
+    color: var(--pt-muted);
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.pt-week-nav:hover {
+    color: var(--pt-accent);
+    border-color: var(--pt-accent);
+}
+
+.parent-timetable[dir='rtl'] .pt-week-nav svg {
+    transform: scaleX(-1);
+}
+
+.pt-week-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--pt-muted);
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.pt-week-label strong {
+    color: var(--pt-ink);
+    font-weight: 700;
+}
+
+.pt-today-chip {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--pt-accent-soft);
+    color: var(--pt-accent);
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* ── Days ── */
+.pt-days {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+.pt-day {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--pt-line);
+    border-radius: 16px;
+    background: var(--pt-card);
+}
+
+.pt-day.is-today {
+    border-color: rgb(15 118 110 / 45%);
+    box-shadow: 0 0 0 3px rgb(15 118 110 / 8%);
+}
+
+.pt-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--pt-line);
+}
+
+.pt-day-head h2 {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--pt-ink);
+}
+
+.pt-day-head div > span {
+    font-size: 0.72rem;
+    color: var(--pt-muted);
+}
+
+.pt-lessons {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pt-lesson {
+    display: grid;
+    gap: 5px;
+    padding: 10px 11px;
+    border-radius: 12px;
+    background: var(--pt-bg-soft);
+}
+
+.pt-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--pt-accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.pt-subject {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--pt-ink);
+    line-height: 1.4;
+    overflow-wrap: break-word;
+}
+
+.pt-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.pt-teacher,
+.pt-room {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--pt-muted);
+    font-size: 0.74rem;
+}
+
+/* ── States ── */
+.pt-state {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 54px 20px;
+    text-align: center;
+    color: var(--pt-muted);
+    font-size: 0.88rem;
+}
+
+.pt-state-error svg {
+    color: #b45309;
+}
+
+.pt-retry {
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--pt-accent);
+    background: var(--pt-card);
+    color: var(--pt-accent);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pt-retry:hover {
+    background: var(--pt-accent-soft);
+}
+
+.pt-empty {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 48px 24px;
+    border: 1px dashed var(--pt-line);
+    border-radius: 18px;
+    background: var(--pt-card);
+    text-align: center;
+    color: var(--pt-muted);
+}
+
+.pt-empty svg {
+    color: var(--pt-accent);
+}
+
+.pt-empty h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pt-ink);
+}
+
+.pt-empty p {
+    max-width: 460px;
+    font-size: 0.86rem;
+    line-height: 1.6;
+}
+
+@media (min-width: 720px) {
+    .parent-timetable {
+        padding: 28px 28px 56px;
+        gap: 18px;
+    }
+}
+
+@media (max-width: 520px) {
+    .parent-timetable {
+        padding: 16px 12px 40px;
+    }
+
+    .pt-weekbar {
+        padding: 6px;
+        gap: 6px;
+    }
+
+    .pt-week-label {
+        font-size: 0.78rem;
+    }
+}

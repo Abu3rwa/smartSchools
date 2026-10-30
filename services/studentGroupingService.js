@@ -9,6 +9,7 @@ import Class from '../models/Class.js';
 import StandardAssignment from '../models/StandardAssignment.js';
 import { getActiveSBRScale } from './sbrService.js';
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES } from './aiPromptSafety.js';
 import { logAIUsage } from '../utils/aiUsageTracker.js';
 import logger from '../utils/logger.js';
 
@@ -356,6 +357,8 @@ ${level === 'below' ? 'These students are struggling significantly. Focus on fou
 ${level === 'approaching' ? 'These students are close to proficiency. Focus on guided practice, targeted skill-building, and bridging gaps.' : ''}
 ${level === 'proficient' ? 'These students have solid understanding. Focus on deepening comprehension, application, and peer collaboration.' : ''}
 ${level === 'advanced' ? 'These students have mastered the basics. Focus on enrichment, higher-order thinking, real-world application, and leadership opportunities.' : ''}
+
+${CONTENT_RULES}
 
 Respond ONLY with a JSON array of exactly 3 objects. No other text, no markdown, no code blocks. Each object must have:
 - "title": short activity name (5-8 words)

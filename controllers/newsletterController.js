@@ -6,9 +6,9 @@ import NewsletterSection from "../models/NewsletterSection.js";
 import Class from "../models/Class.js";
 import Subject from "../models/Subject.js";
 import LessonPlan from "../models/LessonPlan.js";
-import Student from "../models/Student.js";
 import { resolveNewsletterPeriod, resolveNewsletterWordLimits } from "../helpers/newsletterPeriod.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
+import { getParentLinkedStudents } from "../services/parentDashboardService.js";
 import {
   resolveRequestedLanguages,
   toLegacyLanguageValue
@@ -468,7 +468,13 @@ export const listAdminIssues = asyncHandler(async (req, res) => {
 
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
-  const query = { academicYear: academicYearValue, weekStart: periodStart };
+  // A per-child run keys its issue on the exact period start the teacher picked,
+  // which can be any day inside this week. Match the whole window so those issues
+  // are not hidden from the admin list.
+  const query = {
+    academicYear: academicYearValue,
+    weekStart: { $gte: periodStart, $lte: periodEnd },
+  };
   if (classId) query.class = classId;
 
   // Ensure at least one issue exists when classId provided (lazy creation).
@@ -627,36 +633,15 @@ export const listParentNewsletterHistory = asyncHandler(async (req, res) => {
   const page = normalizePositiveInt(req.query.page, 1, 5000);
   const limit = normalizePositiveInt(req.query.limit, 20, 100);
 
-  const parentEmail = (req.user?.email || "").toString().trim();
-  if (!parentEmail) {
-    return res.json({
-      success: true,
-      data: {
-        issues: [],
-        children: [],
-        pagination: { page, limit, total: 0, totalPages: 0 },
-      },
-    });
-  }
-
-  const escapedEmail = parentEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const linkedStudentQuery = {
-    school: req.schoolId,
-    $or: [
-      { "parentInfo.fatherEmail": new RegExp(`^${escapedEmail}$`, "i") },
-      { "parentInfo.motherEmail": new RegExp(`^${escapedEmail}$`, "i") },
-      { "parentInfo.guardianEmail": new RegExp(`^${escapedEmail}$`, "i") },
-    ],
-  };
-  if (academicYear) {
-    linkedStudentQuery.academicYear = resolveRequestedAcademicYear(academicYear, req.school);
-  }
-
-  const linkedStudents = await Student.find(linkedStudentQuery)
-    .select("_id firstName lastName currentClass academicYear")
-    .populate("currentClass", "name grade section")
-    .sort({ firstName: 1, lastName: 1 })
-    .lean();
+  // Uses the shared linkage so a stale year header falls back to the newest
+  // year the family actually has a record in.
+  const linkedStudents = await getParentLinkedStudents({
+    schoolId: req.schoolId,
+    parentUser: req.user,
+    academicYear: academicYear
+      ? resolveRequestedAcademicYear(academicYear, req.school)
+      : undefined,
+  });
 
   const scopedStudents = childId
     ? linkedStudents.filter((student) => String(student?._id) === String(childId))

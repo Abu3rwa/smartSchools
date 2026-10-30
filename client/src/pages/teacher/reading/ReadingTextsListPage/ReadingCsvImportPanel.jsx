@@ -1,5 +1,10 @@
 import { useRef, useState } from 'react';
-import { HiOutlineDownload, HiOutlineUpload } from 'react-icons/hi';
+import {
+  HiOutlineChevronDown,
+  HiOutlineDownload,
+  HiOutlineInformationCircle,
+  HiOutlineUpload,
+} from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import readingService from '../../../../services/readingService.js';
@@ -58,18 +63,23 @@ export default function ReadingCsvImportPanel({ onImported }) {
   };
 
   return (
-    <section className="reading-csv-import" aria-labelledby="reading-csv-import-title">
-      <div>
-        <h2 id="reading-csv-import-title">{t('reading:texts.importTitle')}</h2>
-        <p>{t('reading:texts.importDescription')}</p>
+    <section className="reading-import" aria-labelledby="reading-import-title">
+      <div className="reading-import-intro">
+        <span className="reading-import-icon" aria-hidden="true">
+          <HiOutlineUpload size={20} />
+        </span>
+        <div>
+          <h2 id="reading-import-title">{t('reading:texts.importTitle')}</h2>
+          <p>{t('reading:texts.importDescription')}</p>
+        </div>
       </div>
-      <div className="reading-csv-import-actions">
+      <div className="reading-import-actions">
         <button type="button" className="btn btn-secondary btn-sm" onClick={downloadTemplate}>
-          <HiOutlineDownload size={16} />
+          <HiOutlineDownload size={16} aria-hidden="true" />
           {t('reading:texts.downloadCsvTemplate')}
         </button>
         <label className="btn btn-secondary btn-sm reading-csv-file-label">
-          <HiOutlineUpload size={16} />
+          <HiOutlineUpload size={16} aria-hidden="true" />
           {t('reading:texts.chooseCsv')}
           <input
             ref={inputRef}
@@ -84,9 +94,16 @@ export default function ReadingCsvImportPanel({ onImported }) {
       {error && <p className="reading-csv-error" role="alert">{error}</p>}
       {reading && (
         <div className="reading-csv-preview">
-          <strong>{reading.title}</strong>
-          <span>{t('reading:texts.questionCount', { total: reading.questions.length })} · {reading.subjectArea || t('reading:texts.noSubjectSpecified')}</span>
-          {reading.sections.length > 0 && <span>{t('reading:texts.sectionCount', { total: reading.sections.length })}</span>}
+          <div className="reading-csv-preview-title">
+            <strong>{reading.title}</strong>
+            <span>
+              {t('reading:texts.questionCount', { total: reading.questions.length })}
+              {' · '}
+              {reading.subjectArea || t('reading:texts.noSubjectSpecified')}
+              {reading.sections.length > 0
+                && ` · ${t('reading:texts.sectionCount', { total: reading.sections.length })}`}
+            </span>
+          </div>
           <label>
             <input type="checkbox" checked={isShared} onChange={(event) => setIsShared(event.target.checked)} />
             {t('reading:texts.shareWithSchool')}
@@ -96,9 +113,14 @@ export default function ReadingCsvImportPanel({ onImported }) {
           </button>
         </div>
       )}
-      <p className="reading-csv-help">
-        {t('reading:texts.csvHelp')}
-      </p>
+      <details className="reading-import-help">
+        <summary>
+          <HiOutlineInformationCircle size={15} aria-hidden="true" />
+          {t('reading:texts.importHelpSummary')}
+          <HiOutlineChevronDown size={14} className="reading-help-caret" aria-hidden="true" />
+        </summary>
+        <p>{t('reading:texts.csvHelp')}</p>
+      </details>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import aiService from "./aiservice.js";
+import { CONTENT_RULES, PRIVACY_RULES, inspectGeneratedText } from "./aiPromptSafety.js";
 import { logAIUsage } from "../utils/aiUsageTracker.js";
 
 /**
@@ -81,6 +82,10 @@ Give every answer you are shown exactly one entry, using the ref values below an
 "confidence" is your honest read of the suggestion: use "low" when the answer is cut short, ambiguous or in a language you cannot judge fairly.
 An answer that is empty or does not address the question gets 0 marks and a plain comment saying so.
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 Answers:
 ${JSON.stringify(list.map(toPromptEntry), null, 2)}
 
@@ -119,10 +124,14 @@ Required JSON schema:
         const entry = refs.get(ref);
         if (!entry || seen.has(ref)) return null;
         seen.add(ref);
+        const feedback = trim(draft?.feedback, MAX_FEEDBACK_CHARS);
+        const safeFeedback = feedback && !inspectGeneratedText(feedback).ok
+          ? "Check this answer against the question before saving the mark."
+          : feedback;
         return {
           studentId: String(entry.studentId),
           marks: clampMarks(draft?.marks, maxMarks),
-          feedback: trim(draft?.feedback, MAX_FEEDBACK_CHARS),
+          feedback: safeFeedback,
           confidence: normalizeConfidence(draft?.confidence),
         };
       })

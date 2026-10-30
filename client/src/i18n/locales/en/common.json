@@ -15,6 +15,11 @@
   "accessibility": {
     "skipToMainContent": "Skip to main content"
   },
+  "academicYear": "Academic year",
+  "semester": "Semester",
+  "semester1": "Semester 1",
+  "semester2": "Semester 2",
+  "fullYear": "Full year",
   "impersonation": {
     "returningToAdmin": "Returning to admin view...",
     "returnedToSuperAdmin": "Returned to Super Admin account",

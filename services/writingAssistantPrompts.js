@@ -7,8 +7,16 @@ import {
     countWords,
     draftDiffSummary,
     guardRecommendation,
-    rubricRatio
+    rubricRatio,
+    tasksForCheckback,
+    tasksFromPriorities
 } from './writingAssistantLogic.js';
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    STUDENT_TOKEN,
+    scrubForPrompt
+} from './aiPromptSafety.js';
 
 const MAX_STUDENT_CHARS = 12000;
 const MAX_LIST_ITEMS = 6;
@@ -31,13 +39,18 @@ const clampScore = (value, maxScore) => {
     return Math.min(score, maxScore);
 };
 
-/** The student's own writing, section-labelled, with a hard budget. */
-export const renderDraftForPrompt = (draft) => {
+/**
+ * The student's own writing, section-labelled, with a hard budget. The key and
+ * index are printed because feedback is filed back under them: without them the
+ * model can only guess, and a guessed index leaves the note unattached.
+ */
+export const renderDraftForPrompt = (draft, { studentName = '' } = {}) => {
     let budget = MAX_STUDENT_CHARS;
     const blocks = [];
     for (const section of draft?.sections || []) {
-        const heading = `${section.label || section.key} (draft ${draft.number}, ${section.words ?? countWords(section.text)} words)`;
-        const body = clean(section.text, budget);
+        const index = Number(section.index) || 0;
+        const heading = `${section.label || section.key} [key: ${section.key}, index: ${index}] (draft ${draft.number}, ${section.words ?? countWords(section.text)} words)`;
+        const body = clean(scrubForPrompt(section.text, { name: studentName, phoneNumbers: false }), budget);
         if (!body) {
             blocks.push(`${heading}\n[empty]`);
             continue;
@@ -55,13 +68,13 @@ const renderRubric = (snapshot) => {
     return (snapshot.rubric || [])
         .map((criterion) => {
             const scope = (criterion.appliesToSections || ['*']).join(', ');
-            return `- ${criterion.label} (0–${criterion.maxScore} points, applies to: ${scope})${criterion.description ? `: ${criterion.description}` : ''}`;
+            return `- ${criterion.key}: ${criterion.label} (0–${criterion.maxScore} points, applies to: ${scope})${criterion.description ? `: ${criterion.description}` : ''}`;
         })
         .join('\n');
 };
 
 const renderCriteria = (snapshot) => (snapshot.sections || [])
-    .map((section) => `- ${section.label}${(section.criteria || []).length ? `: ${section.criteria.join('; ')}` : ''}`)
+    .map((section) => `- ${section.key}: ${section.label}${(section.criteria || []).length ? ` (${section.criteria.join('; ')})` : ''}`)
     .join('\n');
 
 const guardrailBlock = (snapshot, aiConstraints) => `Rules you must follow:
@@ -91,7 +104,7 @@ Topic: ${clean(snapshot.topic, 300)}
 Instructions given to the student: ${clean(snapshot.instructions, 1200) || 'None.'}
 Length target: ${snapshot.minWords || 0}-${snapshot.maxWords || 0} words
 Expected level: ${clean(snapshot.expectedLevel, 200) || 'Not stated'}
-Student: ${clean(studentName, 80) || 'Unnamed'}${goal ? `\nIndividual goal for this student: ${clean(goal, 400)}` : ''}
+The draft was written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal for this student: ${clean(goal, 400)}` : ''}
 Draft number: ${draft.number}
 Structure required:
 ${renderCriteria(snapshot)}
@@ -100,10 +113,13 @@ ${renderRubric(snapshot)}
 
 The student's draft:
 <<<
-${renderDraftForPrompt(draft)}
+${renderDraftForPrompt(draft, { studentName })}
 >>>
 
 ${guardrailBlock(snapshot, aiConstraints)}
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 Put spelling corrections or clarification requests in the relevant section's "improvements", alongside content feedback. Keep each item under 260 characters and use at most 6 improvements per section; select useful examples rather than a long error list.
 Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}.
 
@@ -111,8 +127,8 @@ JSON shape:
 {
   "sections": [
     {
-      "key": "<section key exactly as listed above>",
-      "index": <number, matching the draft>,
+      "key": "<one of the section keys listed above, e.g. body>",
+      "index": <the index printed with that section in the draft>,
       "strengths": ["<what is working well>"],
       "improvements": ["<what needs improvement>"],
       "evidence": "<a short quote from the student's own writing>",
@@ -131,12 +147,13 @@ JSON shape:
     "nextPriorities": ["<up to 3 things, most important first>"]
   },
   "scores": [
-    { "key": "<rubric key>", "score": <number>, "explanation": "<why>" }
+    { "key": "<one of the rubric keys listed above>", "score": <number>, "explanation": "<why>", "evidence": "<a short quote from the student's own writing>" }
   ],
   "recommendation": { "path": "revise", "reason": "<one sentence>" }
 }
 
-Give one "sections" entry for every section the student wrote, including empty ones. Use only the section keys listed above.`;
+Give one "sections" entry for every section the student wrote, including empty ones. Use only the section keys listed above.
+Every rubric score needs "evidence": the exact short phrase from the draft the score is based on. Copy it word for word. If no single phrase shows that criterion, leave "evidence" empty rather than inventing one.`;
 
 export const buildComparisonPrompt = ({
     snapshot,
@@ -152,12 +169,17 @@ export const buildComparisonPrompt = ({
         .map((section) => `- ${section.label || section.key}: ${section.nextStep || (section.improvements || [])[0] || 'no next step recorded'}`)
         .join('\n') || 'No earlier feedback was recorded.';
 
+    const priorTasks = tasksForCheckback(previousAssessment);
+    const taskBlock = priorTasks.length
+        ? `\nThe tasks the student was asked to do (check each one by its id):\n${priorTasks.map((task) => `- ${task.id}: ${task.text}`).join('\n')}\n`
+        : '';
+
     return `You are comparing two submitted drafts by the same student on the same assignment, and saying what the revision achieved.
 
 Assignment: ${clean(snapshot.title, 200)} (${snapshot.writingType})
 Expected level: ${clean(snapshot.expectedLevel, 200) || 'Not stated'}
 Length target: ${snapshot.minWords || 0}-${snapshot.maxWords || 0} words
-Student: ${clean(studentName, 80) || 'Unnamed'}${goal ? `\nIndividual goal: ${clean(goal, 400)}` : ''}
+The drafts were written by one student whose name you do not know. Write ${STUDENT_TOKEN} if a name is ever needed, and never invent one.${goal ? `\nIndividual goal: ${clean(goal, 400)}` : ''}
 Structure required:
 ${renderCriteria(snapshot)}
 Rubric:
@@ -165,19 +187,23 @@ ${renderRubric(snapshot)}
 
 Feedback given on draft ${previousDraft.number} (the next steps the student was asked to act on):
 ${priorFeedback}
-
+${taskBlock}
 Draft ${previousDraft.number}:
 <<<
-${renderDraftForPrompt(previousDraft)}
+${renderDraftForPrompt(previousDraft, { studentName })}
 >>>
 
 Draft ${currentDraft.number}:
 <<<
-${renderDraftForPrompt(currentDraft)}
+${renderDraftForPrompt(currentDraft, { studentName })}
 >>>
 
 ${guardrailBlock(snapshot, aiConstraints)}
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 Be specific and encouraging. Say which requested feedback was actually applied and which was not.
+Report one "taskResults" entry for every task id listed above, even one the student ignored. Quote the new words that show a task was done; when it was not done, say what is still missing. Use the id exactly as given.
 Name any new problem the revision introduced. Do not count a synonym swap as an improvement.
 Report corrected spellings in "changedBySection", quoting the old and corrected words. Only flag spelling problems still present in the current draft: give corrections or clarification requests in that section's summary and, when a priority, in "overall.nextPriorities". Use "newIssues" only for errors newly introduced in this revision. Do not report a corrected old misspelling as a current problem.
 Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'}.
@@ -185,17 +211,20 @@ Write the feedback in ${language === 'ar' ? 'Modern Standard Arabic' : 'English'
 JSON shape:
 {
   "changedBySection": [
-    { "key": "<section key>", "index": <number>, "summary": "<what changed and whether it matters>", "meaningful": <true|false>, "kind": "changed" }
+    { "key": "<one of the section keys listed above>", "index": "<the index printed with that section>", "summary": "<what changed and whether it matters>", "meaningful": <true|false>, "kind": "changed" }
   ],
   "criteriaImproved": ["<rubric or section criterion labels that got stronger>"],
   "criteriaUnresolved": ["<criteria still not met>"],
   "feedbackApplied": [
     { "key": "<section key>", "note": "<the feedback you gave before>", "applied": <true|false> }
   ],
+  "taskResults": [
+    { "id": "<task id from the list above>", "applied": <true|false>, "note": "<what the student did, quoting their new words>" }
+  ],
   "newIssues": ["<anything worse than before>"],
   "encouragement": "<one or two sentences the student should read first>",
   "overall": { "summary": "<how the piece as a whole moved>", "nextPriorities": ["<up to 3>"] },
-  "scores": [ { "key": "<rubric key>", "score": <number>, "explanation": "<change since the last draft>" } ],
+  "scores": [ { "key": "<one of the rubric keys listed above>", "score": <number>, "explanation": "<change since the last draft>", "evidence": "<a short quote from the current draft>" } ],
   "recommendation": { "path": "revise" | "notebook", "reason": "<one sentence>" }
 }`;
 };
@@ -234,11 +263,77 @@ const evidenceIsReal = (evidence, draft) => {
     return haystack.includes(quote.replace(/\s+/g, ' ').toLowerCase());
 };
 
-const validSectionRef = (snapshot, key) => (snapshot?.sections || []).some(
-    (section) => section.key === key
-);
+const keySlug = (value) => String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 
-const validRubricKeys = (snapshot) => new Set((snapshot?.rubric || []).map((criterion) => criterion.key));
+/**
+ * The key a reply meant, matched against the real keys and their labels. A model
+ * that answers "Body paragraph" instead of "body" is still describing a section
+ * the draft has, so the note is filed under the real key rather than thrown away
+ * and leaving the email with nothing to anchor a comment to.
+ */
+const resolveKey = (candidates, raw) => {
+    const wanted = keySlug(raw);
+    if (!wanted) return null;
+    const rows = candidates || [];
+    const match = rows.find((row) => row.key === raw)
+        || rows.find((row) => keySlug(row.key) === wanted)
+        || rows.find((row) => keySlug(row.label) === wanted);
+    return match ? match.key : null;
+};
+
+/** Rubric rows, each keeping only a quote that really is in the draft judged. */
+const normalizeScores = (rows, snapshot, draft) => {
+    return (Array.isArray(rows) ? rows : [])
+        .map((row) => ({ row, key: resolveKey(snapshot?.rubric, row?.key) }))
+        .filter(({ key }) => key)
+        .map(({ row, key }) => {
+            const criterion = (snapshot.rubric || []).find((item) => item.key === key);
+            const evidence = clean(row.evidence, 300);
+            return {
+                key,
+                label: clean(criterion?.label || key, 120),
+                score: clampScore(row.score, criterion?.maxScore),
+                maxScore: Number(criterion?.maxScore) || 0,
+                explanation: clean(row.explanation, 400),
+                evidence: evidenceIsReal(evidence, draft) ? evidence : ''
+            };
+        });
+};
+
+/** One verdict per task the student was given; unknown or repeated ids drop out. */
+const normalizeTaskResults = (rows, tasks) => {
+    const known = new Set(tasks.map((task) => task.id));
+    const seen = new Set();
+    return (Array.isArray(rows) ? rows : [])
+        .filter((row) => {
+            const id = String(row?.id || '');
+            if (!known.has(id) || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        })
+        .map((row) => ({
+            id: String(row.id),
+            applied: row.applied === true,
+            note: clean(row.note, 400)
+        }));
+};
+
+const validSectionRef = (snapshot, key) => Boolean(resolveKey(snapshot?.sections, key));
+
+/**
+ * A reply that numbers every body paragraph 0 still fills each slot once. The
+ * draft's own slots decide what exists, so a note never lands on a paragraph
+ * the student did not write.
+ */
+const freeSlot = ({ draft, key, requested, taken }) => {
+    const slots = (draft?.sections || [])
+        .filter((row) => row?.key === key)
+        .map((row) => Number(row?.index) || 0);
+    const id = (index) => `${key}:${index}`;
+    const free = slots.filter((index) => !taken.has(id(index)));
+    if (!free.length) return null;
+    return free.includes(requested) ? requested : free[0];
+};
 
 export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
     if (!parsed) {
@@ -250,17 +345,22 @@ export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
         return criterion ? Number(criterion.maxScore) || 0 : 0;
     };
 
+    const taken = new Set();
     const sections = (Array.isArray(parsed.sections) ? parsed.sections : [])
-        .filter((row) => row && validSectionRef(snapshot, row?.key))
-        .map((row) => {
-            const definition = (snapshot.sections || []).find((item) => item.key === row.key);
-            const index = Number.isFinite(Number(row.index)) ? Number(row.index) : 0;
+        .map((row) => ({ row, key: resolveKey(snapshot?.sections, row?.key) }))
+        .filter(({ key }) => key)
+        .map(({ row, key }) => {
+            const definition = (snapshot.sections || []).find((item) => item.key === key);
+            const requested = Number.isFinite(Number(row.index)) ? Number(row.index) : 0;
+            const index = freeSlot({ draft, key, requested, taken });
+            if (index === null) return null;
+            taken.add(`${key}:${index}`);
             const evidence = clean(row.evidence, 300);
             const limit = maxFor((snapshot.rubric || [])[0]?.key) || 5;
             return {
-                key: row.key,
+                key,
                 index,
-                label: clean(definition?.label || row.key, 120),
+                label: clean(definition?.label || key, 120),
                 strengths: stringList(row.strengths),
                 improvements: stringList(row.improvements),
                 evidence: evidenceIsReal(evidence, draft) ? evidence : '',
@@ -269,21 +369,10 @@ export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
                 score: clampScore(row.score, limit),
                 maxScore: limit
             };
-        });
+        })
+        .filter(Boolean);
 
-    const knownKeys = validRubricKeys(snapshot);
-    const scores = (Array.isArray(parsed.scores) ? parsed.scores : [])
-        .filter((row) => row && knownKeys.has(row.key))
-        .map((row) => {
-            const criterion = (snapshot.rubric || []).find((item) => item.key === row.key);
-            return {
-                key: row.key,
-                label: clean(criterion?.label || row.key, 120),
-                score: clampScore(row.score, criterion?.maxScore),
-                maxScore: Number(criterion?.maxScore) || 0,
-                explanation: clean(row.explanation, 400)
-            };
-        });
+    const scores = normalizeScores(parsed.scores, snapshot, draft);
 
     const overallSource = parsed.overall || {};
     const overall = {
@@ -305,6 +394,7 @@ export const normalizeFeedback = ({ parsed, draft, snapshot }) => {
         sections,
         overall,
         scores,
+        tasks: tasksFromPriorities(overall.nextPriorities),
         totalScore: scores.reduce((sum, row) => sum + row.score, 0),
         recommendation: {
             path: parsed?.recommendation?.path === 'notebook' ? 'notebook' : 'revise',
@@ -326,23 +416,24 @@ export const normalizeComparison = ({
 
     const alignment = alignSections(previousDraft?.sections, currentDraft?.sections);
     const summary = draftDiffSummary(alignment);
-    const knownKeys = validRubricKeys(snapshot);
+    const tasks = tasksForCheckback(previousAssessment);
 
     const seen = new Set(alignment.matched.map((row) => `${row.key}:${row.index}`));
     const changedBySection = (Array.isArray(parsed.changedBySection) ? parsed.changedBySection : [])
         .filter((row) => row && validSectionRef(snapshot, row?.key))
         .map((row) => {
+            const key = resolveKey(snapshot?.sections, row.key);
             const index = Number.isFinite(Number(row.index)) ? Number(row.index) : 0;
-            const definition = (snapshot.sections || []).find((item) => item.key === row.key);
+            const definition = (snapshot.sections || []).find((item) => item.key === key);
             return {
-                key: row.key,
+                key,
                 index,
-                label: clean(definition?.label || row.key, 120),
+                label: clean(definition?.label || key, 120),
                 summary: clean(row.summary, 500),
                 meaningful: row.meaningful === true,
                 kind: row.kind === 'added' || row.kind === 'removed'
                     ? row.kind
-                    : (seen.has(`${row.key}:${index}`) ? 'changed' : 'added')
+                    : (seen.has(`${key}:${index}`) ? 'changed' : 'added')
             };
         });
 
@@ -383,10 +474,11 @@ export const normalizeComparison = ({
     const feedbackApplied = (Array.isArray(parsed.feedbackApplied) ? parsed.feedbackApplied : [])
         .filter((row) => row && validSectionRef(snapshot, row?.key))
         .map((row) => {
+            const key = resolveKey(snapshot?.sections, row.key);
             const index = Number.isFinite(Number(row.index)) ? Number(row.index) : 0;
-            const id = `${row.key}:${index}`;
+            const id = `${key}:${index}`;
             return {
-                key: row.key,
+                key,
                 index,
                 note: clean(row.note, 400) || priorNotes.get(id) || '',
                 applied: row.applied === true
@@ -399,6 +491,8 @@ export const normalizeComparison = ({
         alignment,
         summary,
         changedBySection,
+        tasks,
+        taskResults: normalizeTaskResults(parsed.taskResults, tasks),
         criteriaImproved: stringList(parsed.criteriaImproved, 8),
         criteriaUnresolved: stringList(parsed.criteriaUnresolved, 8),
         feedbackApplied,
@@ -412,18 +506,7 @@ export const normalizeComparison = ({
             summary: clean(overallSource.summary, 1200),
             nextPriorities: stringList(overallSource.nextPriorities, 3)
         },
-        scores: (Array.isArray(parsed.scores) ? parsed.scores : [])
-            .filter((row) => row && knownKeys.has(row.key))
-            .map((row) => {
-                const criterion = (snapshot.rubric || []).find((item) => item.key === row.key);
-                return {
-                    key: row.key,
-                    label: clean(criterion?.label || row.key, 120),
-                    score: clampScore(row.score, criterion?.maxScore),
-                    maxScore: Number(criterion?.maxScore) || 0,
-                    explanation: clean(row.explanation, 400)
-                };
-            }),
+        scores: normalizeScores(parsed.scores, snapshot, currentDraft),
         recommendation: {
             path: parsed?.recommendation?.path === 'notebook' ? 'notebook' : 'revise',
             reason: clean(parsed?.recommendation?.reason, 400)

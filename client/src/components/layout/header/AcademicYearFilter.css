@@ -160,6 +160,79 @@
     cursor: not-allowed;
 }
 
+/* Mobile: one control for both year and semester, so the header keeps room
+   for the menu and the account button */
+.ay-filter--compact {
+    position: relative;
+    padding: 0;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.ay-filter__btn--compact {
+    height: 38px;
+    gap: 7px;
+    padding: 0 8px;
+    min-width: 0;
+    max-width: 190px;
+    overflow: hidden;
+}
+
+.ay-filter__btn--compact:disabled {
+    opacity: 1;
+}
+
+.ay-filter__compact-labels {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    line-height: 1.15;
+}
+
+.ay-filter__compact-year {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: inherit;
+}
+
+.ay-filter__compact-semester {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.ay-filter__dropdown--compact {
+    min-width: 236px;
+    max-width: calc(100vw - 16px);
+    max-height: min(70vh, 420px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.ay-filter__section-label {
+    padding: 6px 10px 3px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ay-filter__divider {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border-color);
+}
+
 /* Mobile: keep compact */
 @media (max-width: 599px) {
     .ay-filter__btn--year,

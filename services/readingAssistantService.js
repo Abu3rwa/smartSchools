@@ -4,6 +4,7 @@
  */
 
 import { connectAi } from "../utils/connectAi.js";
+import { CONTENT_RULES, PRIVACY_RULES, inspectGeneratedText } from "./aiPromptSafety.js";
 import { logAIUsage } from "../utils/aiUsageTracker.js";
 import StudentReadingProfile from "../models/StudentReadingProfile.js";
 import SimplifiedText from "../models/SimplifiedText.js";
@@ -127,6 +128,8 @@ ${(originalText || "").slice(0, 4000)}
 LANGUAGE RULE:
 - Return "subjectArea" and "topicTags" in ${primaryLabel} (${primaryLanguage}) only.
 
+${CONTENT_RULES}
+
 Respond with a JSON object only, no other text:
 {
   "subjectArea": "Subject name",
@@ -227,6 +230,8 @@ TITLE: ${title || "Reading"}
 ORIGINAL TEXT:
 ${originalText}
 
+${CONTENT_RULES}
+
 Respond with a JSON object only, no other text:
 {
   "simplifiedText": "the full simplified text here",
@@ -288,6 +293,8 @@ TITLE: ${title || "Reading"}
 TEXT (excerpt):
 ${(originalText || "").slice(0, 3000)}
 
+${CONTENT_RULES}
+
 Respond with a JSON array only, no other text:
 [
   { "question": "First question?", "prompt": "Optional hint or prompt", "order": 1 },
@@ -336,6 +343,8 @@ TITLE: ${title || "Reading"}
 
 TEXT (excerpt):
 ${(originalText || "").slice(0, 3000)}
+
+${CONTENT_RULES}
 
 Respond with a JSON array only:
 [
@@ -885,6 +894,10 @@ If the answer is very short or off-topic, encourage them to re-read the text and
 LANGUAGE RULE:
 - ${languageRule}
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 CRITICAL THINKING QUESTION:
 ${question}
 
@@ -902,6 +915,12 @@ Respond with ONLY the feedback text. No labels, no "Feedback:" prefix. Write dir
     { textId, requestedLanguages: normalizedRequestedLanguages }
   );
   const feedback = (response?.text || "").trim();
+  if (feedback && !inspectGeneratedText(feedback).ok) {
+    return {
+      feedback:
+        "You made a start. Read the question and the text again, then add one clear reason for your answer.",
+    };
+  }
   return { feedback };
 }
 

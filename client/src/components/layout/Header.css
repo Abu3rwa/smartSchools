@@ -447,7 +447,15 @@
 @media (max-width: 899px) {
     .header {
         inset-inline-start: 0 !important;
-        padding: 0 var(--spacing-md);
+        padding: 0 var(--spacing-sm);
+        gap: var(--spacing-xs);
+    }
+
+    /* The right cluster has to give way, or it slides over the menu button */
+    .header-right {
+        min-width: 0;
+        flex-shrink: 1;
+        gap: 0;
     }
 
     .header-shortcuts {
@@ -465,6 +473,10 @@
     .header-divider {
         margin: 0 2px;
     }
+
+    .header-lang-btn {
+        min-width: 40px;
+    }
 }
 
 .hamburger-btn {
@@ -481,6 +493,20 @@
     font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
+}
+
+/* Mobile: the role is already named in the account menu, so the icon alone
+   keeps room for the academic period and the menu button. Declared after the
+   base rule above so it wins the cascade. */
+@media (max-width: 899px) {
+    .role-switcher-btn {
+        min-width: 36px;
+        padding: 0 8px;
+    }
+
+    .role-switcher-label {
+        display: none;
+    }
 }
 
 /* Impersonation Banner */

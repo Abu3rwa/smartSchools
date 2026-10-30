@@ -16,6 +16,7 @@ import School from '../models/School.js';
 import { NOTEBOOK_STATES, WRITING_STAGES } from '../constants/writingPresets.js';
 import { connectAi } from '../utils/connectAi.js';
 import logger from '../utils/logger.js';
+import { fillStudentTokensDeep } from './aiPromptSafety.js';
 import {
     buildComparisonPrompt,
     buildFeedbackPrompt,
@@ -28,9 +29,11 @@ import {
     PUBLISHABLE_FROM,
     canMoveTo,
     configSnapshotFor,
+    staleRunCutoff,
     stageAfterAssessment,
     stageAfterPublish,
-    statusAfterPublish
+    statusAfterPublish,
+    tasksFromPriorities
 } from './writingAssistantLogic.js';
 import { notifyFeedbackPublished } from './writingFeedbackEmailService.js';
 import { assertCanSpend, isCreditError, markUsageOutcome } from './aiCreditService.js';
@@ -124,10 +127,36 @@ const snapshotFor = (draft, assignment) => (
 const isDuplicateKey = (error) => Number(error?.code) === 11000;
 
 /**
+ * A run whose request was cut short (server restart, killed process) leaves a
+ * row in flight forever, and the in-flight row blocks every later attempt. Once
+ * the AI timeouts have long passed, such a run is failed so it can be retried.
+ */
+const releaseStaleRuns = async ({ schoolId, draft, kind }) => {
+    await WritingAssessment.updateOne(
+        {
+            school: schoolId,
+            draft: draft._id,
+            kind,
+            aiStatus: { $in: IN_FLIGHT },
+            updatedAt: { $lt: staleRunCutoff() }
+        },
+        {
+            $set: {
+                aiStatus: 'failed',
+                aiError: 'The previous run did not finish. Try again.',
+                ranAt: new Date()
+            }
+        }
+    );
+};
+
+/**
  * One assessment per draft per kind may be in flight. A failed attempt is reused
  * so a retry never leaves two competing rows; a finished one is never overwritten.
  */
 const claimAssessment = async ({ schoolId, project, draft, kind, previousDraft, userId, language = 'en' }) => {
+    await releaseStaleRuns({ schoolId, draft, kind });
+
     const inFlight = await WritingAssessment.findOne({
         school: schoolId,
         draft: draft._id,
@@ -306,22 +335,20 @@ const runFeedback = async ({ context, language, billing }) => {
         draftNumber: draft.number
     });
 
+    const fields = {
+        sections: normalized.sections,
+        overall: normalized.overall,
+        scores: normalized.scores,
+        tasks: normalized.tasks,
+        totalScore: normalized.totalScore,
+        recommendation: { path: decision.path, reason: decision.reason }
+    };
+    const filled = fillStudentTokensDeep(fields, studentName);
+
     return {
         modelName: reply.modelName,
-        fields: {
-            sections: normalized.sections,
-            overall: normalized.overall,
-            scores: normalized.scores,
-            totalScore: normalized.totalScore,
-            recommendation: { path: decision.path, reason: decision.reason }
-        },
-        original: {
-            sections: normalized.sections,
-            overall: normalized.overall,
-            scores: normalized.scores,
-            totalScore: normalized.totalScore,
-            recommendation: { path: decision.path, reason: decision.reason }
-        }
+        fields: filled,
+        original: filled
     };
 };
 
@@ -365,17 +392,22 @@ const runComparison = async ({ context, previousDraft, previousAssessment, langu
             criteriaImproved: normalized.criteriaImproved,
             criteriaUnresolved: normalized.criteriaUnresolved,
             feedbackApplied: normalized.feedbackApplied,
+            taskResults: normalized.taskResults,
             newIssues: normalized.newIssues,
             wordDelta: normalized.wordDelta,
             encouragement: normalized.encouragement
         },
+        // The tasks this revision was checked against, so the student view is
+        // self-contained even if the earlier feedback is never published.
+        tasks: normalized.tasks,
         overall: normalized.overall,
         scores: normalized.scores,
         totalScore: normalized.scores.reduce((sum, row) => sum + (Number(row.score) || 0), 0),
         recommendation: { path: decision.path, reason: decision.reason }
     };
 
-    return { modelName: reply.modelName, fields, original: fields };
+    const filled = fillStudentTokensDeep(fields, studentName);
+    return { modelName: reply.modelName, fields: filled, original: filled };
 };
 
 /* ------------------------------------------------------------------ */
@@ -657,6 +689,7 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
             sections: (assessment.sections || []).map(plain),
             overall: plain(assessment.overall),
             scores: (assessment.scores || []).map(plain),
+            tasks: (assessment.tasks || []).map(plain),
             totalScore: assessment.totalScore,
             comparison: plain(assessment.comparison),
             recommendation: plain(assessment.recommendation)
@@ -712,6 +745,11 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
             if (JSON.stringify(value) !== JSON.stringify(assessment.overall.nextPriorities)) {
                 assessment.overall.nextPriorities = value;
                 mark('overall.nextPriorities');
+                // Tasks are the priorities with ids; rewording keeps the id at that position.
+                if (assessment.kind !== 'comparison') {
+                    assessment.tasks = tasksFromPriorities(value);
+                    mark('tasks');
+                }
             }
         }
     }
@@ -733,6 +771,13 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
                 if (value !== target.explanation) {
                     target.explanation = value;
                     mark(`scores.${incoming.key}.explanation`);
+                }
+            }
+            if (incoming.evidence !== undefined) {
+                const value = text(incoming.evidence, 300);
+                if (value !== target.evidence) {
+                    target.evidence = value;
+                    mark(`scores.${incoming.key}.evidence`);
                 }
             }
         }
@@ -801,6 +846,18 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
                 if (value !== target.applied) {
                     target.applied = value;
                     mark(`comparison.feedbackApplied.${incoming.key}:${index}.applied`);
+                }
+            }
+        }
+        if (Array.isArray(payload.comparison.taskResults)) {
+            for (const incoming of payload.comparison.taskResults) {
+                if (!incoming || !incoming.id) continue;
+                const target = (comparison.taskResults || []).find((row) => row.id === incoming.id);
+                if (!target || incoming.applied === undefined) continue;
+                const value = incoming.applied === true;
+                if (value !== target.applied) {
+                    target.applied = value;
+                    mark(`comparison.taskResults.${incoming.id}.applied`);
                 }
             }
         }

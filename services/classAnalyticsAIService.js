@@ -5,11 +5,14 @@
 
 import { connectAi } from '../utils/connectAi.js';
 import { getLanguageLabel, resolveRequestedLanguages } from '../utils/aiLanguageUtils.js';
+import { CONTENT_RULES, PRIVACY_RULES, createStudentRefs } from './aiPromptSafety.js';
 
 /**
  * Build a plain-text summary of the analytics payload for the prompt.
+ * Students are listed by a local label (S1, S2 …) so no name reaches the model;
+ * `refFor` maps a payload row to its label and the reply is mapped back after.
  */
-function buildSummaryForPrompt(payload) {
+function buildSummaryForPrompt(payload, refFor) {
     const lines = [];
     const className = payload.class && payload.class.name ? payload.class.name : 'Unknown';
     const academicYear = payload.academicYear || 'N/A';
@@ -28,7 +31,7 @@ function buildSummaryForPrompt(payload) {
     if (payload.studentsToSupport?.length) {
         lines.push(`Students to support (${payload.atRiskCount ?? payload.studentsToSupport.length}):`);
         payload.studentsToSupport.forEach((s) => {
-            const parts = [`${s.firstName} ${s.lastName}`];
+            const parts = [refFor(s)];
             if (s.averagePercentage != null) parts.push(`grade avg ${s.averagePercentage}%`);
             if (s.attendanceRate != null) parts.push(`attendance ${s.attendanceRate}%`);
             lines.push(`  - ${parts.join(', ')}`);
@@ -63,20 +66,32 @@ export async function generateInsights(analyticsPayload, options = {}) {
         })()
         : `Write all bullet points in ${primaryLabel} (${primaryLanguage}) only.`;
 
-    const summary = buildSummaryForPrompt(analyticsPayload);
+    const refs = createStudentRefs(analyticsPayload.studentsToSupport || [], {
+        keyOf: (row) => row._id || row.studentId,
+        labelOf: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim()
+    });
+    const refFor = (row) => refs.refFor(row._id || row.studentId) || 'a student';
+
+    const summary = buildSummaryForPrompt(analyticsPayload, refFor);
     const prompt = `You are an experienced K-12 teacher and instructional coach. Based on the following class analytics summary, write 3 to 5 short, actionable bullet-point insights for the class teacher. Focus on: strengths, areas to improve, and concrete suggestions (e.g. which students to support, which subjects need attention). Be concise and professional.
 
 CLASS ANALYTICS SUMMARY:
 ${summary}
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 RULES:
 - Output only plain text bullet points (one per line). No markdown, no asterisks, no numbering.
 - Each bullet should be one short sentence.
+- Refer to a student only by the short label given above (S1, S2 …), written exactly as shown, and never invent a name.
 - Do not mention "AI" or "artificial intelligence".
 - LANGUAGE REQUIREMENT: ${languageRule}`;
 
     const response = await connectAi(prompt);
-    const text = (response.text || '').trim();
+    // The label goes back to the teacher as the real name; nothing else changes.
+    const text = refs.restore((response.text || '').trim());
     const tokenUsage = {
         input: response.inputtokenCount || 0,
         output: response.outputtokenCount || 0,

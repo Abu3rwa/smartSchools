@@ -188,7 +188,7 @@ export const getTeachers = asyncHandler(async (req, res) => {
         .populate('user', 'firstName lastName email phone mustChangePassword loginInvite')
         .populate('department', 'name type')
         .populate('subjects', 'name code')
-        .populate('assignedClasses.class', 'name grade section')
+        .populate('assignedClasses.class', 'name grade section academicYear')
         .populate('assignedClasses.subject', 'name code')
         .sort({ createdAt: -1 });
 
@@ -520,7 +520,7 @@ export const updateTeacher = asyncHandler(async (req, res) => {
         .populate('user', 'firstName lastName email phone mustChangePassword loginInvite')
         .populate('department', 'name type')
         .populate('subjects', 'name code')
-        .populate('assignedClasses.class', 'name grade section')
+        .populate('assignedClasses.class', 'name grade section academicYear')
         .populate('assignedClasses.subject', 'name code');
 
     res.json({
@@ -816,7 +816,7 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
     const updatedTeacher = await Teacher.findById(req.params.id)
         .select('user employeeId qualification specialization subjects assignedClasses joiningDate address isActive')
         .populate('user', 'firstName lastName email mustChangePassword loginInvite')
-        .populate('assignedClasses.class', 'name grade section')
+        .populate('assignedClasses.class', 'name grade section academicYear')
         .populate('assignedClasses.subject', 'name code');
 
     res.json({

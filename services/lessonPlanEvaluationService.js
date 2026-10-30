@@ -3,6 +3,7 @@ import LessonPlan from '../models/LessonPlan.js';
 import LessonPlanCriteria from '../models/LessonPlanCriteria.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
 import aiService from './aiservice.js';
+import { CONTENT_RULES, PRIVACY_RULES } from './aiPromptSafety.js';
 
 const MODEL_NAME = 'gemini-2.5-flash-lite';
 const PROMPT_VERSION = 'lesson-plan-evaluation-v2';
@@ -134,6 +135,10 @@ Use only the provided lesson content and criteria.
 Do not invent missing details.
 
 ${lessonContent}
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 
 EVALUATION CRITERIA:
 ${criteriaText}

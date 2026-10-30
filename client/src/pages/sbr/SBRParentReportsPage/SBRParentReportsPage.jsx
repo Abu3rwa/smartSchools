@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import sbrService from '../../../services/sbrService';
 import './SBRParentReportsPage.css';
@@ -52,6 +53,7 @@ const SBRParentReportsPage = () => {
     return (
         <div className="sbr-parent-page">
             <div className="sbr-parent-header">
+                <Link className="sbr-parent-back" to="/portal/dashboard">Back to dashboard</Link>
                 <h2>Standards-Based Report Cards</h2>
                 <p>View, read, and download your child report cards.</p>
             </div>

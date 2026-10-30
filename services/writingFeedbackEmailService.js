@@ -8,15 +8,26 @@ import WritingDraft from "../models/WritingDraft.js";
 import logger from "../utils/logger.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import { sendTransactionalEmail } from "./transactionalEmailService.js";
+import { essayParagraphs } from "../client/src/pages/student/writing/WritingWorkspacePage/draftEssay.js";
+import {
+  draftHtml,
+  draftText,
+  prepareDraftRows,
+  rubricHtml,
+  rubricText,
+} from "./writingFeedbackEmailBlocks.js";
 
 /**
  * The one email the writing module sends: feedback was published for a draft.
- * It carries no scores, no rubric points and none of the student's draft text —
- * only which piece, which draft, where the piece is, and what the teacher asked for.
+ * It carries the draft exactly as it was sent, the teacher's note under the line
+ * each note is about, and the rubric as words — never points or totals.
  */
 
 const CONTACT_TYPES = new Set(["father", "mother", "guardian"]);
 const DATE_LOCALES = { en: "en-GB", ar: "ar-EG-u-nu-latn" };
+
+// Student records can hold a compound name in firstName; greetings use one name.
+const firstWord = (value) => String(value || "").trim().split(/\s+/)[0] || "";
 
 const TYPE_LABELS = {
   en: {
@@ -44,23 +55,30 @@ const TYPE_LABELS = {
 const COPY = {
   en: {
     studentHeadline: "Your feedback on draft {{n}} is ready",
-    parentHeadline: "{{firstName}}'s feedback on draft {{n}} is ready",
+    parentHeadline: "I have read {{firstName}}'s draft {{n}}",
     studentGreeting: "Hello {{firstName}},",
     parentGreeting: "Dear parent or guardian,",
     studentIntro:
-      "Your teacher has added feedback on draft {{n}}. Read it before you start draft {{next}}.",
+      "I have added feedback on your draft {{n}}. Each comment below points at one exact line of your writing — read it before you start draft {{next}}.",
     parentIntro:
-      "{{firstName}}'s teacher has added feedback on draft {{n}}. Below is the message the student received and what the teacher asked for next.",
+      "I have read {{firstName}}'s draft {{n}} and written my note under the lines I commented on. Below is the writing exactly as {{firstName}} sent it.",
     studentResendIntro:
-      "Here is your teacher’s published feedback on draft {{n}} again.",
+      "Here is the feedback I published on your draft {{n}} again.",
     parentResendIntro:
-      "Here is the published feedback on {{firstName}}’s draft {{n}} again.",
-    studentQuoteLabel: "What your teacher said",
-    parentQuoteLabel: "The message {{firstName}} received",
+      "Here is the feedback I published on {{firstName}}’s draft {{n}} again.",
+    studentQuoteLabel: "What I said",
+    parentQuoteLabel: "What I told {{firstName}}",
     studentListLabel: "Do these next",
-    parentListLabel: "Next steps the teacher asked for",
+    parentListLabel: "What I asked {{firstName}} to do next",
+    studentDraftLabel: "Your writing, with the comments under each line",
+    parentDraftLabel:
+      "{{firstName}}'s draft, with my note under each marked line",
+    rubricLabel: "How the draft is going",
+    rubricLevel: { strong: "Strong", near: "Nearly there", needs: "Needs work" },
+    draftTruncated: "The rest of your draft is in the app.",
     sectionsLabel: "Feedback by part",
     workedLabel: "What worked",
+    tryThisLabel: "Try this",
     improveLabel: "What to improve",
     nextStepLabel: "One next step",
     whyLabel: "Why this matters",
@@ -75,23 +93,33 @@ const COPY = {
   },
   ar: {
     studentHeadline: "ملاحظاتك على المسودة {{n}} جاهزة",
-    parentHeadline: "ملاحظات {{firstName}} على المسودة {{n}} جاهزة",
+    parentHeadline: "ملاحظاتي على مسودة {{firstName}} {{n}}",
     studentGreeting: "مرحبا {{firstName}}،",
     parentGreeting: "ولي أمر عزيز،",
     studentIntro:
-      "أضاف معلمك ملاحظات على المسودة {{n}}. راجعها قبل أن تكتب المسودة {{next}}.",
+      "أضفتُ ملاحظات على مسودتك {{n}}. كل ملاحظة في الأسفل تشير إلى سطر واحد بالضبط من كتابتك — راجعها قبل أن تكتب المسودة {{next}}.",
     parentIntro:
-      "أضاف معلم {{firstName}} ملاحظات على المسودة {{n}}. في ما يلي الرسالة التي وصلت للطالب والخطوات التالية التي طلبها المعلم.",
+      "قرأتُ مسودة {{firstName}} {{n}} وكتبتُ ملاحظتي تحت كل سطر علّقتُ عليه. النص في الأسفل هو ما أرسله {{firstName}} بالضبط.",
     studentResendIntro:
-      "إليك مرة أخرى ملاحظات معلمك المنشورة على المسودة {{n}}.",
+      "إليك مرة أخرى ملاحظاتي المنشورة على مسودتك {{n}}.",
     parentResendIntro:
-      "إليكم مرة أخرى الملاحظات المنشورة على المسودة {{n}} للطالب {{firstName}}.",
-    studentQuoteLabel: "ما قاله معلمك",
-    parentQuoteLabel: "الرسالة التي وصلت إلى {{firstName}}",
+      "إليكم مرة أخرى ملاحظاتي المنشورة على مسودة {{firstName}} {{n}}.",
+    studentQuoteLabel: "ما قلته",
+    parentQuoteLabel: "ما قلتُه لـ{{firstName}}",
     studentListLabel: "افعل هذا بعد ذلك",
-    parentListLabel: "الخطوات التالية التي طلبها المعلم",
+    parentListLabel: "ما طلبتُه من {{firstName}} بعد ذلك",
+    studentDraftLabel: "كتابتك، مع الملاحظات تحت كل سطر",
+    parentDraftLabel: "مسودة {{firstName}}، مع ملاحظتي تحت كل سطر مُعلَّم",
+    rubricLabel: "كيف تسير المسودة",
+    rubricLevel: {
+      strong: "قوي",
+      near: "قريب من المطلوب",
+      needs: "يحتاج إلى عمل",
+    },
+    draftTruncated: "بقية المسودة في التطبيق.",
     sectionsLabel: "ملاحظات على كل جزء",
     workedLabel: "ما نجح",
+    tryThisLabel: "جرّب هذا",
     improveLabel: "ما يحتاج تحسينًا",
     nextStepLabel: "الخطوة التالية",
     whyLabel: "لماذا هذا مهم",
@@ -258,8 +286,8 @@ const prioritiesHtml = (priorities, language) => {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`;
 };
 
-// Per-part coaching the teacher wrote for each section. Scores and the quoted
-// draft text stay out on purpose — the email never carries the student's own words.
+// Per-part coaching, used when the draft itself cannot be shown. Points stay out
+// on purpose — a student reads words, never a score.
 const normalizeSections = (sections) =>
   (Array.isArray(sections) ? sections : [])
     .map((section) => ({
@@ -391,7 +419,14 @@ export const buildFeedbackEmail = ({
     .filter(Boolean)
     .slice(0, 3);
   const sections = normalizeSections(assessment.sections);
+  const { rows: draftRows, truncated } = prepareDraftRows({
+    paragraphs: essayParagraphs({ assignment, sections: draft?.sections }),
+    notes: assessment.sections,
+  });
+  const hasDraft = draftRows.length > 0;
+  const rubricScores = assessment.scores || [];
 
+  // The draft and the rubric enrich a message; they are never a reason to send one.
   if (!summary && priorities.length === 0 && sections.length === 0) return null;
 
   const typeLabel =
@@ -412,6 +447,18 @@ export const buildFeedbackEmail = ({
     n: draftNumber,
     next: nextDraft,
   };
+
+  const rubricBody = rubricHtml({ scores: rubricScores, language: lang, copy });
+  const draftBody = draftHtml({
+    rows: draftRows,
+    language: lang,
+    copy,
+    truncated,
+  });
+  const draftLabel = fill(
+    isParent ? copy.parentDraftLabel : copy.studentDraftLabel,
+    values,
+  );
 
   const html = renderTemplate(
     lang === "ar" ? "writingFeedback_ar" : "writingFeedback",
@@ -450,6 +497,9 @@ export const buildFeedbackEmail = ({
             lang,
           ) + summaryHtml({ summary, language: lang })
         : "",
+      rubricBlock: rubricBody
+        ? labelHtml(copy.rubricLabel, lang) + rubricBody
+        : "",
       prioritiesBlock: priorities.length
         ? labelHtml(
             fill(
@@ -459,10 +509,14 @@ export const buildFeedbackEmail = ({
             lang,
           ) + prioritiesHtml(priorities, lang)
         : "",
-      sectionsBlock: sections.length
-        ? labelHtml(copy.sectionsLabel, lang) +
-          sectionsHtml(sections, lang, copy)
-        : "",
+      draftBlock: draftBody ? labelHtml(draftLabel, lang) + draftBody : "",
+      // The per-part cards are the fallback for a draft we cannot show (older
+      // data, or sections the assignment no longer defines).
+      sectionsBlock:
+        !hasDraft && sections.length
+          ? labelHtml(copy.sectionsLabel, lang) +
+            sectionsHtml(sections, lang, copy)
+          : "",
       buttonHtml: buttonHtml({
         url,
         label: isParent ? copy.parentButton : copy.studentButton,
@@ -488,10 +542,16 @@ export const buildFeedbackEmail = ({
     summary
       ? `\n${fill(isParent ? copy.parentQuoteLabel : copy.studentQuoteLabel, values)}\n${summary}`
       : "",
+    rubricBody
+      ? `\n${copy.rubricLabel}\n${rubricText({ scores: rubricScores, language: lang, copy })}`
+      : "",
     priorities.length
       ? `\n${fill(isParent ? copy.parentListLabel : copy.studentListLabel, values)}\n${priorities.map((item, index) => `${index + 1}. ${item}`).join("\n")}`
       : "",
-    sections.length
+    draftBody
+      ? `\n${draftLabel}\n${draftText({ rows: draftRows, language: lang, copy, truncated })}`
+      : "",
+    !hasDraft && sections.length
       ? `\n${copy.sectionsLabel}\n${sections
           .map((section) => {
             const lines = [];
@@ -566,7 +626,7 @@ const prepareFeedbackDelivery = async ({
     language,
     resend,
     schoolName: String(school?.name || "").trim(),
-    studentFirstName: String(student.firstName || "").trim(),
+    studentFirstName: firstWord(student.firstName),
     assignment: assignment || {},
     project,
     draft,

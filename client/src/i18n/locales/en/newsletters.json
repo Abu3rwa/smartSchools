@@ -94,13 +94,14 @@
   "teacher": {
     "header": {
       "title": "Weekly Newsletters",
-      "subtitle": "Generate a 100-120 word summary per subject and submit for admin review."
+      "subtitle": "Draft a short letter about each child, or one class update for every family. What you sign off goes straight to the admin to send."
     },
     "sections": {
-      "select": "1) Select",
-      "pickLessonPlans": "2) Pick lesson plans",
+      "select": "Subject and instructions",
+      "pickLessonPlans": "Lesson plans",
       "pickLessonPlansHint": "If you select none, the system will use all lesson plans in the week for the chosen class/subject.",
-      "preview": "3) Preview"
+      "preview": "Draft",
+      "selectHint": "Write one summary per subject. Parents receive all approved subjects as a single email."
     },
     "fields": {
       "week": "Week (pick any date in the week)",
@@ -144,6 +145,118 @@
       "saveFailed": "Failed to save",
       "submitted": "Submitted to admin",
       "submitFailed": "Submit failed"
+    },
+    "tabs": {
+      "child": "Per-child letters",
+      "class": "Class update"
+    },
+    "sectionStatus": {
+      "draft": "Draft",
+      "submitted": "In review",
+      "approved": "Approved",
+      "rejected": "Needs changes"
+    }
+  },
+  "childLetters": {
+    "setup": {
+      "pickClass": "Pick a class to start writing per-child letters.",
+      "title": "Plan the letters",
+      "hint": "One short letter per student, drafted from the period you choose.",
+      "from": "From",
+      "to": "To",
+      "words": "Length per letter",
+      "wordsOption": "{{value}} words",
+      "include": "Include in the letter",
+      "includeHint": "Lesson plans and live lessons are always summarised as “what the class covered”. The AI never receives names, emails or other personal details.",
+      "note": "Note for the writer (optional)",
+      "notePlaceholder": "Example: Praise the effort in the science project and keep the tone light.",
+      "privacy": "Privacy: the AI sees only anonymous facts. Names are filled in by the server when the email is rendered.",
+      "pickStudents": "Pick at least one student."
+    },
+    "sources": {
+      "classwork": "Classwork and homework remarks",
+      "spelling": "Spelling practice",
+      "upcomingTest": "Upcoming formal spelling test (date only)",
+      "reading": "Reading assignments",
+      "writing": "Writing drafts"
+    },
+    "actions": {
+      "generate": "Draft letters",
+      "generating": "Drafting letters...",
+      "refresh": "Refresh",
+      "edit": "Edit",
+      "preview": "Preview email",
+      "pdf": "Download PDF",
+      "cancel": "Cancel",
+      "signOff": "Sign off",
+      "signedOff": "Signed off"
+    },
+    "list": {
+      "title": "Review and sign off",
+      "empty": "No letters yet. Draft them first.",
+      "studentFallback": "Student",
+      "counts": "{{draft}} draft · {{approved}} ready · {{rejected}} needs changes",
+      "editHint": "Keep the name placeholder where the name belongs — it is filled in at send time.",
+      "readyHint": "Read or edit the text, then sign off. Signed-off letters are sent by the admin.",
+      "filter": {
+        "all": "All",
+        "draft": "Draft",
+        "ready": "Ready",
+        "sent": "Sent"
+      },
+      "signOffAll": "Sign off all {{value}} drafts",
+      "signingOff": "Signing off…",
+      "editorWords": "{{words}} / {{target}} words",
+      "sentOn": "Sent {{date}}",
+      "emptyFiltered": "No letters in this filter.",
+      "noteLabel": "Your note to this family (optional)",
+      "notePlaceholder": "One sentence only you would know — e.g. “She has been a kind friend this week.”",
+      "noteHelp": "Shown in the email under “Teacher's note”. It replaces the classwork remark.",
+      "yourNote": "Your note"
+    },
+    "status": {
+      "draft": "Draft",
+      "submitted": "Not signed off",
+      "approved": "Ready",
+      "rejected": "Needs changes",
+      "sent": "Sent"
+    },
+    "preview": {
+      "title": "Letter preview",
+      "close": "Close"
+    },
+    "toasts": {
+      "loadFailed": "Could not load letters",
+      "generated": "{{generated}} drafted · {{failed}} failed · {{skipped}} skipped",
+      "overCap": "{{value}} more students were left for a second run.",
+      "generateFailed": "Could not draft letters",
+      "previewFailed": "Could not render the preview",
+      "pdfFailed": "Could not create the PDF",
+      "studentsFailed": "Could not load the class list",
+      "signedOff": "Letter signed off",
+      "bulkSignedOff": "{{value}} letters signed off"
+    },
+    "admin": {
+      "title": "Per-child letters",
+      "empty": "No per-child letters for this issue yet.",
+      "send": "Send letters to families",
+      "sending": "Sending...",
+      "preview": "Preview",
+      "statusLine": "{{ready}} ready to send of {{total}}",
+      "sent": "{{sent}} sent · {{skipped}} skipped · {{failed}} failed",
+      "notReady": "No letter is ready to send.",
+      "reviewFailed": "Could not save the review",
+      "sendFailed": "Could not send the letters",
+      "partial": "Only signed-off letters are sent — {{pending}} still waiting on the teacher."
+    },
+    "students": {
+      "title": "Students",
+      "selected": "{{selected}} of {{total}} selected",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "empty": "No active students in this class.",
+      "search": "Search students…",
+      "noMatch": "No students match."
     }
   }
 }

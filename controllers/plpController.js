@@ -136,10 +136,28 @@ const normalizeTraitName = (value) => String(value || '')
     .toLowerCase()
     .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 
-const proofreadEvidenceNote = async (value) => {
+const buildStudentIdentity = async ({ schoolId, studentId, classId, name = '' } = {}) => {
+    const [student, classmates] = await Promise.all([
+        name || !studentId
+            ? null
+            : Student.findOne({ _id: studentId, school: schoolId }).select('firstName lastName').lean(),
+        classId
+            ? Student.find({ school: schoolId, currentClass: classId, status: 'active' })
+                .select('firstName lastName')
+                .lean()
+            : [],
+    ]);
+    const resolvedName = String(name || `${student?.firstName || ''} ${student?.lastName || ''}`).trim();
+    const roster = classmates
+        .map((row) => `${row?.firstName || ''} ${row?.lastName || ''}`.trim())
+        .filter(Boolean);
+    return { name: resolvedName, roster };
+};
+
+const proofreadEvidenceNote = async (value, identity = {}) => {
     const cleanInput = String(value || '').trim();
     if (!cleanInput) return '';
-    const proofread = await plpAiService.proofreadObservationText(cleanInput);
+    const proofread = await plpAiService.proofreadObservationText(cleanInput, identity);
     return String(proofread || cleanInput).trim().slice(0, 1000);
 };
 
@@ -247,6 +265,10 @@ const buildEvidenceBackedTraitScoreEntries = async ({ schoolId, record, rawEntri
     }, {});
 
     const normalized = {};
+    const hasEvidence = traitIds.some((traitId) => (evidenceByTraitId[traitId] || []).length > 0);
+    const identity = hasEvidence
+        ? await buildStudentIdentity({ schoolId, studentId: record.student, classId: record.class })
+        : {};
     for (const traitId of traitIds) {
         const evidenceList = evidenceByTraitId[traitId] || [];
         const suggestion = await plpAiService.suggestTraitScore(traitId, evidenceList, {
@@ -254,7 +276,7 @@ const buildEvidenceBackedTraitScoreEntries = async ({ schoolId, record, rawEntri
             month: record.month,
             cycleId: record.cycle ? String(record.cycle) : null,
             recordId: String(record._id),
-        });
+        }, identity);
         const suggestedScore = clampTraitScore(suggestion?.suggestedScore);
         if (suggestedScore === null || evidenceList.length === 0) {
             throw Object.assign(new Error('Trait scores can only be saved when trait-linked observation evidence exists'), { statusCode: 400 });
@@ -2011,11 +2033,14 @@ export const getTraitScoreSuggestions = asyncHandler(async (req, res) => {
         month: record.month,
         recordId: String(record._id),
     };
+    const identity = evidenceRows.length > 0
+        ? await buildStudentIdentity({ schoolId: req.user.school, studentId: record.student, classId: record.class })
+        : {};
 
     const suggestions = await Promise.all(activeTraits.map(async (trait) => {
         const traitId = String(trait._id);
         const traitEvidence = evidenceByTraitId[traitId] || [];
-        const suggestion = await plpAiService.suggestTraitScore(traitId, traitEvidence, period);
+        const suggestion = await plpAiService.suggestTraitScore(traitId, traitEvidence, period, identity);
         const stored = storedEntries?.[traitId] || {};
         const legacyScoreField = scoreFieldByTraitId.get(traitId);
         const legacyScore = legacyScoreField ? clampTraitScore(record?.scores?.[legacyScoreField]) : null;
@@ -2059,7 +2084,8 @@ export const createEvidence = asyncHandler(async (req, res) => {
     if (noteInput.length > 1000) {
         return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
     }
-    const cleanNote = await proofreadEvidenceNote(noteInput);
+    const identity = await buildStudentIdentity({ schoolId: req.user.school, studentId: record.student, classId: record.class });
+    const cleanNote = await proofreadEvidenceNote(noteInput, identity);
     const evidence = await PlpEvidence.create({
         school: req.user.school,
         plpRecord: id,
@@ -2137,14 +2163,17 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
 
     const observationDate = capturedAt ? new Date(capturedAt) : new Date();
     const studentContext = {
-        studentId: String(student._id),
-        studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-        classId: String(effectiveClassId),
         academicYear: student.academicYear || req.academicYear || null,
         capturedAt: observationDate.toISOString(),
     };
+    const identity = await buildStudentIdentity({
+        schoolId: req.user.school,
+        studentId: student._id,
+        classId: effectiveClassId,
+        name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+    });
 
-    const classification = await plpAiService.classifyObservation(rawText, availableTraits, studentContext);
+    const classification = await plpAiService.classifyObservation(rawText, availableTraits, studentContext, identity);
 
     res.json({
         success: true,
@@ -2200,6 +2229,12 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
     let resolvedConfidence = null;
     let resolvedRationale = null;
     let reviewStatus = 'confirmed';
+    const identity = await buildStudentIdentity({
+        schoolId: req.user.school,
+        studentId: student._id,
+        classId: effectiveClassId,
+        name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+    });
 
     if (traitId) {
         resolvedTrait = availableTraits.find((trait) => String(trait._id) === String(traitId));
@@ -2219,12 +2254,9 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         source = 'ai_classified';
 
         const classification = await plpAiService.classifyObservation(noteInput, availableTraits, {
-            studentId: String(student._id),
-            studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-            classId: String(effectiveClassId),
             academicYear,
             capturedAt: observationDate.toISOString(),
-        });
+        }, identity);
 
         resolvedTrait = classification?.traitId
             ? availableTraits.find((trait) => String(trait._id) === String(classification.traitId))
@@ -2236,7 +2268,7 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         reviewStatus = resolvedTrait ? 'confirmed' : 'needs_review';
     }
 
-    resolvedNote = await proofreadEvidenceNote(resolvedNote || noteInput);
+    resolvedNote = await proofreadEvidenceNote(resolvedNote || noteInput, identity);
     if (!resolvedNote) {
         return res.status(400).json({ success: false, message: 'Evidence note is required' });
     }
@@ -2387,7 +2419,8 @@ export const updateEvidence = asyncHandler(async (req, res) => {
         const noteInput = String(note || '').trim();
         if (!noteInput) return res.status(400).json({ success: false, message: 'Evidence note is required' });
         if (noteInput.length > 1000) return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
-        updates.note = await proofreadEvidenceNote(noteInput);
+        const identity = await buildStudentIdentity({ schoolId: req.user.school, studentId: record.student, classId: record.class });
+        updates.note = await proofreadEvidenceNote(noteInput, identity);
     }
     if (type !== undefined) {
         const allowedTypes = ['observation', 'incident', 'positive_example', 'reflection'];

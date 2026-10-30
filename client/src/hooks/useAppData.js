@@ -44,7 +44,7 @@ const useAppData = () => {
         const canFetchTeachers = ['admin', 'department_principal'].includes(role);
 
         if (canFetchSubjects && (!subjects || subjects.length === 0) && !subjectsLoading) {
-            dispatch(fetchSubjects());
+            dispatch(fetchSubjects({ limit: 'all' }));
         }
 
         if (canFetchTeachers && teachers.length === 0 && !teachersLoading) {

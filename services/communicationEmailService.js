@@ -10,6 +10,14 @@ import { AITokenUsage } from '../models/AITokenUsage.js';
 import gmailOAuthService from './gmailOAuthService.js';
 import { downloadFile } from './firebaseStorageService.js';
 import { connectAi } from '../utils/connectAi.js';
+import logger from '../utils/logger.js';
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    correctivePrompt,
+    inspectGeneratedText,
+    scrubForPrompt
+} from './aiPromptSafety.js';
 import {
     getLanguageLabel,
     resolveRequestedLanguages,
@@ -1125,14 +1133,6 @@ export const generateCommunicationEmailDraft = async ({
     aiConnector = connectAi,
     tokenUsageModel = AITokenUsage
 }) => {
-    const promptText = String(prompt || '').trim();
-    if (!promptText) {
-        throw new Error('Prompt is required');
-    }
-    if (promptText.length > MAX_AI_DRAFT_PROMPT_LENGTH) {
-        throw new Error(`Prompt must be at most ${MAX_AI_DRAFT_PROMPT_LENGTH} characters`);
-    }
-
     const resolvedTone = toDraftTone(tone);
     const normalizedRequestedLanguages = resolveRequestedLanguages({
         requestedLanguages,
@@ -1144,6 +1144,17 @@ export const generateCommunicationEmailDraft = async ({
     const parentLabels = extractTokenLabels(selection?.toParents || [], 6);
     const teacherLabels = extractTokenLabels(selection?.toTeachers || [], 6);
     const studentLabels = extractTokenLabels(selection?.toStudents || [], 6);
+
+    const promptText = scrubForPrompt(prompt, {
+        roster: [...parentLabels, ...teacherLabels, ...studentLabels],
+        phoneNumbers: false
+    });
+    if (!promptText) {
+        throw new Error('Prompt is required');
+    }
+    if (promptText.length > MAX_AI_DRAFT_PROMPT_LENGTH) {
+        throw new Error(`Prompt must be at most ${MAX_AI_DRAFT_PROMPT_LENGTH} characters`);
+    }
 
     const toneInstruction = {
         professional: 'professional, clear, and respectful',
@@ -1163,10 +1174,10 @@ Keep content practical and parent/school appropriate.
 Tone: ${toneInstruction}.
 LANGUAGE REQUIREMENT: ${languageInstruction}
 
-Audience context:
-- Parents tokens: ${parentLabels.length ? parentLabels.join(' | ') : 'none'}
-- Teachers tokens: ${teacherLabels.length ? teacherLabels.join(' | ') : 'none'}
-- Students tokens: ${studentLabels.length ? studentLabels.join(' | ') : 'none'}
+Audience context (counts only, never personal data):
+- Parents selected: ${parentLabels.length}
+- Teachers selected: ${teacherLabels.length}
+- Students selected: ${studentLabels.length}
 
 Sender context:
 - Sender display name: ${String(senderDisplayName || 'School Staff').trim()}
@@ -1175,19 +1186,42 @@ Sender context:
 
 User request:
 ${promptText}
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
     `.trim();
 
-    const aiResult = await aiConnector(aiPrompt, { modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite' });
-    const rawHtml = String(aiResult?.text || '').trim();
-    const fallbackHtml = plainTextToHtml(rawHtml || promptText);
-    const bodyHtml = sanitizeComposerHtml(fallbackHtml);
+    let aiResult = await aiConnector(aiPrompt, { modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite' });
+    let inputTokens = Number(aiResult?.inputtokenCount || 0);
+    let outputTokens = Number(aiResult?.outputtokenCount || 0);
+    let totalTokens = Number(aiResult?.totalTokenCount || 0);
+
+    const toBody = (result) => {
+        const rawHtml = String(result?.text || '').trim();
+        return sanitizeComposerHtml(plainTextToHtml(rawHtml || promptText));
+    };
+
+    let bodyHtml = toBody(aiResult);
+    const inspection = inspectGeneratedText(stripHtmlToText(bodyHtml));
+    if (!inspection.ok) {
+        aiResult = await aiConnector(correctivePrompt(aiPrompt, inspection.problems), {
+            modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+        });
+        inputTokens += Number(aiResult?.inputtokenCount || 0);
+        outputTokens += Number(aiResult?.outputtokenCount || 0);
+        totalTokens += Number(aiResult?.totalTokenCount || 0);
+        bodyHtml = toBody(aiResult);
+        logger.warn('communication_email_content_retried', { problems: inspection.problems });
+    }
+
     const bodyText = stripHtmlToText(bodyHtml);
 
     let usage = {
         model: aiResult?.modelName || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
-        inputTokens: Number(aiResult?.inputtokenCount || 0),
-        outputTokens: Number(aiResult?.outputtokenCount || 0),
-        totalTokens: Number(aiResult?.totalTokenCount || 0),
+        inputTokens,
+        outputTokens,
+        totalTokens,
         logged: false
     };
 

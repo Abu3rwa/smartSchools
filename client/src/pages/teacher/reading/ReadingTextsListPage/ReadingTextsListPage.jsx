@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { Menu, MenuItem } from "@mui/material";
 import {
   HiOutlineArrowLeft,
+  HiOutlineCalendar,
   HiOutlineChevronDown,
   HiOutlineChevronUp,
   HiOutlineDocumentAdd,
   HiOutlineDotsVertical,
   HiOutlineFolderOpen,
+  HiOutlineSelector,
   HiOutlineUserGroup,
   HiOutlineBookOpen,
   HiOutlineSearch,
@@ -150,15 +152,20 @@ export default function ReadingTextsListPage() {
   return (
     <div className="reading-texts-list-page">
       <div className="page-header-row">
-        <button type="button" className="btn btn-ghost back-btn" onClick={onBack}>
-          <HiOutlineArrowLeft size={18} />
-          {t("reading:common.back")}
-        </button>
         <div className="page-header">
+          <button type="button" className="reading-back" onClick={onBack}>
+            <HiOutlineArrowLeft size={15} aria-hidden="true" />
+            {t("reading:common.back")}
+          </button>
           <h1>{t("reading:texts.title")}</h1>
           <p className="text-muted">
             {t("reading:texts.subtitle")}
-            {academicYear ? ` ${t("reading:texts.academicYear", { year: academicYear })}` : ""}
+            {academicYear && (
+              <span className="reading-year-chip">
+                <HiOutlineCalendar size={13} aria-hidden="true" />
+                {t("reading:texts.academicYearChip", { year: academicYear })}
+              </span>
+            )}
           </p>
         </div>
         <div className="page-header-actions">
@@ -190,13 +197,20 @@ export default function ReadingTextsListPage() {
         </div>
       ) : (
         <>
-          <div className="reading-toolbar">
-            <div className="reading-summary" role="status">
-              <span>{t("reading:texts.statsReadings", { total: summary.total })}</span>
-              <span aria-hidden="true">·</span>
-              <span>{t("reading:texts.statsAssigned", { total: summary.assigned })}</span>
-              <span aria-hidden="true">·</span>
-              <span>{t("reading:texts.statsShared", { total: summary.shared })}</span>
+          <div className="reading-library-bar">
+            <div className="reading-summary-strip reading-stats">
+              <div>
+                <span className="strip-value">{summary.total}</span>
+                <span className="strip-label">{t("reading:texts.statsReadings")}</span>
+              </div>
+              <div>
+                <span className="strip-value">{summary.assigned}</span>
+                <span className="strip-label">{t("reading:texts.statsAssigned")}</span>
+              </div>
+              <div>
+                <span className="strip-value">{summary.shared}</span>
+                <span className="strip-label">{t("reading:texts.statsShared")}</span>
+              </div>
             </div>
             <label className="reading-search">
               <HiOutlineSearch size={16} aria-hidden="true" />
@@ -220,6 +234,7 @@ export default function ReadingTextsListPage() {
             <div className="reading-table-card">
               <div className="reading-table-wrap">
                 <table className="reading-table">
+                  <caption className="reading-sr-only">{t("reading:texts.tableCaption")}</caption>
                   <thead>
                     <tr>
                       {COLUMNS.map((column) => {
@@ -242,9 +257,10 @@ export default function ReadingTextsListPage() {
                                 onClick={() => setSort((current) => nextSort(current, column.key))}
                               >
                                 <span>{t(`reading:texts.columns.${column.key}`)}</span>
-                                {isSorted && (sort.direction === "asc"
+                                {isSorted ? (sort.direction === "asc"
                                   ? <HiOutlineChevronUp size={14} aria-hidden="true" />
-                                  : <HiOutlineChevronDown size={14} aria-hidden="true" />)}
+                                  : <HiOutlineChevronDown size={14} aria-hidden="true" />)
+                                  : <HiOutlineSelector size={12} className="reading-sort-hint" aria-hidden="true" />}
                               </button>
                             )}
                           </th>
@@ -355,6 +371,9 @@ export default function ReadingTextsListPage() {
           >
             {menu.text && (
               <>
+                <MenuItem onClick={() => runFromMenu(openAssignModal, menu.text)}>
+                  {t("reading:texts.assign")}
+                </MenuItem>
                 <MenuItem onClick={() => runFromMenu((text) => onResults(text._id), menu.text)}>
                   {t("reading:texts.viewResults")}
                 </MenuItem>

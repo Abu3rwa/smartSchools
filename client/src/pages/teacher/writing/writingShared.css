@@ -760,6 +760,7 @@
   font-size: 0.82rem;
 }
 .wa-review-score em { font-style: normal; font-size: 0.72rem; color: var(--wa-muted); }
+.wa-review-score-evidence { grid-column: 1 / -1; font-size: 0.78rem; }
 
 .wa-review-sections { display: flex; flex-direction: column; gap: 6px; }
 .wa-review-section {

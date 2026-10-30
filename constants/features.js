@@ -158,12 +158,6 @@ export const FEATURES = {
         description: 'Read-only gradebook and progress dashboard for parents.',
         plans: ['starter', 'professional', 'enterprise']
     },
-    worksheetChecker: {
-        key: 'worksheetChecker',
-        label: 'AI Worksheet Checker',
-        description: 'Upload physical worksheets for AI-powered OCR extraction, marking, and gradebook integration.',
-        plans: ['professional', 'enterprise']
-    },
     socialStudies: {
         key: 'socialStudies',
         label: 'Social Studies',

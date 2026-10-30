@@ -353,6 +353,27 @@ export const draftDiffSummary = (alignment) => ({
 });
 
 /* ------------------------------------------------------------------ */
+/* Revision tasks                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The priorities a student was given, keyed so the next draft can be checked
+ * against them one by one. Ids are positional: rewording a task keeps its
+ * identity, and feedback saved before tasks existed keys the same way.
+ */
+export const tasksFromPriorities = (priorities = []) => (priorities || [])
+    .map((text) => String(text || '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((text, index) => ({ id: `t${index + 1}`, text }));
+
+/** The tasks a revision is checked against, stored or derived from the priorities. */
+export const tasksForCheckback = (assessment) => {
+    const stored = (assessment?.tasks || []).filter((row) => row?.id && row?.text);
+    return stored.length ? stored : tasksFromPriorities(assessment?.overall?.nextPriorities);
+};
+
+/* ------------------------------------------------------------------ */
 /* Recommendation                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -415,6 +436,13 @@ export const STAGE_LABELS = {
     awaiting_notebook_check: 'Notebook to check',
     completed: 'Completed'
 };
+
+// An AI reply is capped at two minutes per model, so a run still "running"
+// after five minutes died with the server or its request. It must never wedge
+// the draft: the teacher can retry. The client shows its retry at the same age.
+export const STALE_RUN_MS = 5 * 60 * 1000;
+
+export const staleRunCutoff = (now = Date.now()) => new Date(now - STALE_RUN_MS);
 
 export const summarizeBoard = (projects = []) => {
     const counts = {};

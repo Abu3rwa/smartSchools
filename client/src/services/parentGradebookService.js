@@ -1,6 +1,11 @@
 import api from '../config/api';
 
 const parentGradebookService = {
+    getChildren: async () => {
+        const response = await api.get('/parent/children');
+        return response.data;
+    },
+
     getGrades: async (studentId, params = {}) => {
         const response = await api.get(`/parent/grades/${studentId}`, { params });
         return response.data;

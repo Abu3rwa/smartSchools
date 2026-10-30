@@ -1,0 +1,247 @@
+{
+  "title": "Student support",
+  "subtitle": "Short teacher surveys become one shared plan for home and class.",
+  "common": {
+    "close": "Close",
+    "done": "Done",
+    "cancel": "Cancel",
+    "retry": "Try again"
+  },
+  "status": {
+    "draft": "Draft",
+    "sent": "Sent",
+    "opened": "Opened",
+    "submitted": "Submitted"
+  },
+  "domain": {
+    "academic": "Academic",
+    "character": "Character"
+  },
+  "concern": {
+    "effort": "Effort",
+    "homework": "Homework",
+    "participation": "Participation",
+    "understanding": "Understanding",
+    "respect": "Respect",
+    "routine": "Home routine",
+    "independence": "Independence",
+    "reading": "Reading",
+    "sleep": "Sleep",
+    "mood": "Mood",
+    "confidence": "Confidence",
+    "responsibility": "Responsibility"
+  },
+  "toolbar": {
+    "class": "Class",
+    "month": "Month",
+    "startMonth": "Start this month",
+    "starting": "Starting...",
+    "startHint": "Start {{month}} support to create the teacher and family surveys."
+  },
+  "summary": {
+    "students": "Students",
+    "surveys": "Surveys in",
+    "published": "Plans shared"
+  },
+  "table": {
+    "student": "Student",
+    "surveys": "Surveys",
+    "plan": "Plan",
+    "teacherCount": "{{done}}/{{total}} teachers",
+    "parentCount": "{{done}}/{{total}} family",
+    "notStarted": "Not started",
+    "open": "Open"
+  },
+  "detail": {
+    "back": "All students",
+    "round": "Round {{round}}"
+  },
+  "noClasses": {
+    "title": "No classes to support yet",
+    "body": "Student support starts from a homeroom class. Once a class is assigned to you, it appears here.",
+    "yearNote": "Looking at year {{year}}. If your class is in another year, switch the year at the top of the page."
+  },
+  "loadError": {
+    "title": "This page didn't load",
+    "body": "We couldn't get your classes, so we can't tell yet whether you have any. Try again in a moment."
+  },  "cycles": {
+    "created": "Support month started. Invitations are ready to send."
+  },
+  "plan": {
+    "title": "Support plan",
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "published": "Shared with family",
+      "closed": "Closed"
+    },
+    "builtFrom": "Built from {{teachers}} teacher surveys and {{parents}} family surveys.",
+    "readyToDraft": "Surveys are in. Create the first draft and review it before sharing.",
+    "waitingForSurveys": "Waiting for at least one survey before the plan can be drafted.",
+    "createDraft": "Create draft plan",
+    "drafting": "Creating draft...",
+    "saving": "Saving...",
+    "approve": "Approve plan",
+    "publish": "Share with family",
+    "publishing": "Sharing...",
+    "draftCreated": "Draft plan created",
+    "approved": "Plan approved",
+    "published": "Plan shared with the family",
+    "atHome": "At home",
+    "inClass": "In class",
+    "successLook": "What progress looks like",
+    "classProgress": "Class steps",
+    "homeProgress": "Home steps",
+    "checkInLabel": "How did this go?",
+    "done": "Done",
+    "didntFit": "Didn't fit",
+    "needHelp": "Need help",
+    "addNote": "Add a note",
+    "hideNote": "Hide note",
+    "notePlaceholder": "Optional note",
+    "familyMark": {
+      "done": "Family: done",
+      "didnt_fit": "Family: didn't fit",
+      "need_help": "Family: needs help"
+    },
+    "teacherMark": {
+      "done": "Done in class",
+      "didnt_fit": "Didn't fit in class",
+      "need_help": "Teacher needs help with this",
+      "waiting": "Not checked yet"
+    }
+  },
+  "surveys": {
+    "title": "Surveys",
+    "body": "Each teacher and the family answer a short survey. Access codes stay valid for later months.",
+    "sendAll": "Send invitations",
+    "sending": "Sending...",
+    "sent": "Invitations sent: {{sent}}",
+    "sendFailed": "Could not send the invitations.",
+    "noEmailForSend": "Add an email for this teacher before sending.",
+    "parent": "Family",
+    "teacher": "Teacher",
+    "noEmail": "No email yet",
+    "codeHint": "Code ends",
+    "send": "Send invitation",
+    "newCode": "Reset access code",
+    "addTeacher": "Add a teacher who is not on the platform",
+    "addTeacherBody": "Enter the teacher's name, email and the subject they teach. We create a reusable code for them.",
+    "teacherName": "Teacher name",
+    "teacherEmail": "Email",
+    "subject": "Subject",
+    "chooseSubject": "Choose a subject",
+    "add": "Add teacher",
+    "adding": "Adding...",
+    "teacherAdded": "Teacher added",
+    "addFailed": "Could not add this teacher."
+  },
+  "comments": {
+    "title": "Teacher notes",
+    "empty": "No written notes this month.",
+    "parent": "Family",
+    "teacher": "Teacher"
+  },
+  "codes": {
+    "title": "Access codes",
+    "body": "Share each code privately. It works on the access page and can be reused next month.",
+    "copyAll": "Copy all",
+    "copied": "Codes copied",
+    "copyFailed": "Could not copy the codes.",
+    "resetFailed": "Could not reset the code."
+  },
+  "parent": {
+    "title": "My child's support",
+    "subtitle": "A monthly plan built from teacher and family surveys, with simple check-ins for home.",
+    "chooseChild": "Choose a child",
+    "monthPlan": "{{month}} plan",
+    "planTitle": "This month's plan",
+    "strengths": "Strengths",
+    "focus": "Focus areas",
+    "noHomeTasks": "No home step this month.",
+    "surveyTitle": "A short survey for you",
+    "surveyBody": "{{name}}'s teachers have shared their view. A few minutes from you completes the picture for {{month}}.",
+    "surveyDoneTitle": "Thank you",
+    "surveyDoneBody": "Your answers for {{name}} were received. They will be compared with the teachers' surveys.",
+    "startSurvey": "Answer the survey",
+    "noChildrenTitle": "No children linked",
+    "noChildrenBody": "Ask the school office to link your account to your child.",
+    "noPlanTitle": "Plan not ready yet",
+    "noPlanBody": "The plan appears after the teachers and your family complete this month's surveys.",
+    "noPlanSurveyFirst": "Thank you for your survey. The plan appears once the teachers' answers are in.",
+    "historyTitle": "Previous months",
+    "taskLabel": "How did it go at home?",
+    "lastMonth": "Last month: home {{homeDone}}/{{homeTotal}} · class {{classDone}}/{{classTotal}}",
+    "historyProgress": "Home {{homeDone}}/{{homeTotal}} · class {{classDone}}/{{classTotal}}",
+    "goalStatus": {
+      "onTrack": "On track",
+      "needsHelp": "Needs help",
+      "done": "Done"
+    },
+    "progressTitle": "This month so far",
+    "progressLabel": "home steps done this month",
+    "progressDone": "Done {{n}}",
+    "progressHelp": "Needs help {{n}}",
+    "progressNotYet": "Not yet {{n}}",
+    "classSteps": "In class: {{done}} of {{total}} steps marked done by teachers",
+    "whoTitle": "Who sees this",
+    "whoHomeroom": "The homeroom teacher sees your home check-ins and your survey answers.",
+    "whoTeachers": "Each teacher sees only their own survey and the class steps they marked.",
+    "whoFamily": "This page is for your family only."
+  },
+  "survey": {
+    "progress": "{{answered}} of {{total}} answered",
+    "optional": "Optional",
+    "optionalPlaceholder": "Anything else you want to share? (optional)",
+    "requiredHint": "Please answer every required question.",
+    "saveForNow": "Save for now",
+    "saving": "Saving...",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "thankYouTitle": "Thank you",
+    "thankYouBody": "Your answers were submitted.",
+    "saved": "Saved",
+    "saveFailed": "Could not save your answers.",
+    "submitted": "Survey submitted",
+    "submitFailed": "Could not submit the survey."
+  },
+  "access": {
+    "brand": "Student support",
+    "title": "Enter your access code",
+    "subtitle": "Teachers and families use the six-digit code sent by the school.",
+    "codeLabel": "Six-digit code",
+    "enter": "Continue",
+    "entering": "Checking...",
+    "invalidFormat": "Enter the six digits from your code.",
+    "invalidBody": "That code did not match. Check the six digits and try again.",
+    "lockedBody": "Too many attempts. Try again in a few minutes.",
+    "genericError": "Could not check the code. Try again.",
+    "help": "No code? Ask the homeroom teacher or the school office.",
+    "parentRole": "Family",
+    "teacherRole": "Teacher",
+    "aboutStudent": "About {{name}} · {{className}}",
+    "changeCode": "Use a different code",
+    "surveysTitle": "Your surveys",
+    "noSurveys": "No survey waiting right now.",
+    "dueBy": "Due by",
+    "openSurvey": "Open",
+    "submitted": "Submitted",
+    "surveyTitle": "Survey",
+    "planTitle": "Support plan",
+    "foot": "This link is personal. Do not share your code.",
+    "expiredBody": "This access has expired. Enter your code again.",
+    "loadFailed": "Could not load your page. Try again.",
+    "loadSurveyFailed": "Could not open the survey."
+  },
+  "errors": {
+    "loadClasses": "Could not load your classes.",
+    "loadCycles": "Could not load this month's support.",
+    "loadCycle": "Could not open this student's support.",
+    "create": "Could not start the support month.",
+    "draft": "Could not create the draft plan.",
+    "approve": "Could not approve the plan.",
+    "publish": "Could not share the plan.",
+    "checkIn": "Could not save the check-in.",
+    "loadParent": "Could not load support plans."
+  }
+}

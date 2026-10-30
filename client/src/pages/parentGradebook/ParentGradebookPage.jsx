@@ -1,353 +1,473 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import toast from 'react-hot-toast';
 import {
     HiOutlineAcademicCap,
+    HiOutlineArrowLeft,
+    HiOutlineArrowPath,
     HiOutlineChartBar,
-    HiOutlineDocumentText,
     HiOutlineChevronDown,
-    HiOutlineChevronUp
-} from 'react-icons/hi';
-import { selectUser } from '../../store/slices/authSlice';
-import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
+    HiOutlineChevronUp,
+    HiOutlineDocumentText,
+    HiOutlineFaceSmile,
+    HiOutlineUserGroup
+} from 'react-icons/hi2';
 import parentGradebookService from '../../services/parentGradebookService';
+import './ParentGradebookPage.css';
+
+const TABS = [
+    { key: 'grades', icon: HiOutlineAcademicCap },
+    { key: 'progress', icon: HiOutlineChartBar },
+    { key: 'reports', icon: HiOutlineDocumentText }
+];
+
+const formatPercent = (value) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return `${Number.isInteger(number) ? number : number.toFixed(1)}%`;
+};
+
+const formatDate = (value, locale) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+};
+
+const gradeColor = (percentage) => {
+    const value = Number(percentage);
+    if (!Number.isFinite(value)) return 'var(--pg-muted)';
+    if (value >= 90) return '#15803d';
+    if (value >= 80) return '#1d4ed8';
+    if (value >= 70) return '#b45309';
+    if (value >= 60) return '#c2410c';
+    return '#b91c1c';
+};
+
+const periodLabel = (card, t) => {
+    if (card?.period?.label) return card.period.label;
+    const labels = {
+        semester_1: t('gradebook.term1'),
+        semester_2: t('gradebook.term2'),
+        full_year: t('gradebook.fullYear')
+    };
+    return labels[card?.period?.type] || t('gradebook.reportCard');
+};
 
 const ParentGradebookPage = () => {
-    const { t } = useTranslation(['gradebook']);
-    const user = useSelector(selectUser);
-    const academicYear = useSelector(selectCurrentAcademicYear);
+    const { t, i18n } = useTranslation('parentPortal');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const language = i18n.language?.startsWith('ar') ? 'ar' : 'en';
+    const locale = language === 'ar' ? 'ar-EG' : 'en-GB';
 
-    const [loading, setLoading] = useState(true);
-    const [gradesData, setGradesData] = useState(null);
-    const [progressData, setProgressData] = useState(null);
+    const [children, setChildren] = useState([]);
+    const [childrenLoading, setChildrenLoading] = useState(true);
+    const [childrenError, setChildrenError] = useState('');
+
+    const [grades, setGrades] = useState(null);
+    const [progress, setProgress] = useState(null);
     const [reportCards, setReportCards] = useState([]);
-    const [selectedStudent, setSelectedStudent] = useState(null);
-    const [expandedSubjects, setExpandedSubjects] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState('');
+
     const [activeTab, setActiveTab] = useState('grades');
     const [semester, setSemester] = useState('');
+    const [expanded, setExpanded] = useState({});
 
-    // Get children from user profile
-    const children = user?.children || [];
+    const loadChildren = useCallback(async () => {
+        setChildrenLoading(true);
+        setChildrenError('');
+        try {
+            const response = await parentGradebookService.getChildren();
+            setChildren(response?.data || []);
+        } catch (error) {
+            setChildrenError(error.response?.data?.message || t('gradebook.loadFailed'));
+        } finally {
+            setChildrenLoading(false);
+        }
+    }, [t]);
 
     useEffect(() => {
-        if (children.length > 0 && !selectedStudent) {
-            setSelectedStudent(children[0]._id || children[0]);
-        }
-    }, [children, selectedStudent]);
+        loadChildren();
+    }, [loadChildren]);
 
-    const fetchData = useCallback(async () => {
-        if (!selectedStudent) return;
+    const requestedChildId = searchParams.get('child');
+    const activeChild = useMemo(() => {
+        if (children.length === 0) return null;
+        return children.find((child) => String(child.id) === requestedChildId) || children[0];
+    }, [children, requestedChildId]);
+
+    const selectChild = (childId) => {
+        setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            next.set('child', String(childId));
+            return next;
+        });
+        setExpanded({});
+    };
+
+    const loadChildData = useCallback(async () => {
+        if (!activeChild) return;
         setLoading(true);
+        setLoadError('');
         try {
-            const params = { academicYear };
+            const year = activeChild.academicYear;
+            const params = { academicYear: year };
             if (semester) params.semester = semester;
 
-            const [gradesRes, progressRes, reportCardsRes] = await Promise.all([
-                parentGradebookService.getGrades(selectedStudent, params),
-                parentGradebookService.getProgress(selectedStudent, params).catch(() => null),
-                parentGradebookService.getReportCards(selectedStudent, { academicYear }).catch(() => null)
+            const [gradesResponse, progressResponse, reportsResponse] = await Promise.all([
+                parentGradebookService.getGrades(activeChild.id, params),
+                parentGradebookService.getProgress(activeChild.id, { academicYear: year }).catch(() => null),
+                parentGradebookService.getReportCards(activeChild.id).catch(() => null)
             ]);
 
-            if (gradesRes?.success) setGradesData(gradesRes.data);
-            if (progressRes?.success) setProgressData(progressRes.data);
-            if (reportCardsRes?.success) setReportCards(reportCardsRes.data || []);
+            setGrades(gradesResponse?.data || null);
+            setProgress(progressResponse?.data || null);
+            setReportCards(reportsResponse?.data || []);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to load grades');
+            setGrades(null);
+            setProgress(null);
+            setReportCards([]);
+            setLoadError(error.response?.data?.message || t('gradebook.loadFailed'));
         } finally {
             setLoading(false);
         }
-    }, [selectedStudent, academicYear, semester]);
+    }, [activeChild, semester, t]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        loadChildData();
+    }, [loadChildData]);
 
-    const toggleSubject = (subjectName) => {
-        setExpandedSubjects(prev => ({ ...prev, [subjectName]: !prev[subjectName] }));
+    const toggleSubject = (subject) => {
+        setExpanded((current) => ({ ...current, [subject]: !current[subject] }));
     };
 
-    const getGradeColor = (percentage) => {
-        if (percentage >= 90) return '#16a34a';
-        if (percentage >= 80) return '#2563eb';
-        if (percentage >= 70) return '#ca8a04';
-        if (percentage >= 60) return '#ea580c';
-        return '#dc2626';
-    };
-
-    if (children.length === 0) {
+    if (childrenLoading) {
         return (
-            <div className="page-container" style={{ padding: 24 }}>
-                <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-                    <HiOutlineAcademicCap size={48} style={{ color: '#9ca3af', marginBottom: 12 }} />
-                    <h3>No Students Linked</h3>
-                    <p className="text-muted">No students are currently linked to your account. Please contact the school administration.</p>
+            <div className="parent-gradebook">
+                <div className="pg-state"><div className="spinner" /><p>{t('gradebook.loading')}</p></div>
+            </div>
+        );
+    }
+
+    if (childrenError) {
+        return (
+            <div className="parent-gradebook">
+                <div className="pg-state pg-state-error">
+                    <HiOutlineArrowPath size={30} />
+                    <p>{childrenError}</p>
+                    <button type="button" className="pg-retry" onClick={loadChildren}>{t('states.retry')}</button>
                 </div>
             </div>
         );
     }
 
+    if (children.length === 0) {
+        return (
+            <div className="parent-gradebook" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                <div className="pg-empty">
+                    <HiOutlineUserGroup size={40} />
+                    <h2>{t('children.emptyTitle')}</h2>
+                    <p>{t('children.emptyBody')}</p>
+                    <Link className="pg-back" to="/portal/dashboard">
+                        <HiOutlineArrowLeft size={16} />
+                        {t('gradebook.back')}
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    const subjects = grades?.subjects || [];
+
     return (
-        <div className="page-container" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div>
-                    <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                        <HiOutlineAcademicCap size={28} />
-                        {t('gradebook:parent.title', 'Academic Progress')}
-                    </h1>
-                    <p className="text-muted" style={{ margin: '4px 0 0' }}>{academicYear}</p>
+        <div className="parent-gradebook" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+            <header className="pg-header">
+                <div className="pg-heading">
+                    <Link className="pg-back" to="/portal/dashboard">
+                        <HiOutlineArrowLeft size={16} />
+                        {t('gradebook.back')}
+                    </Link>
+                    <p className="pg-eyebrow">{t('header.eyebrow')}</p>
+                    <h1>{t('gradebook.title')}</h1>
+                    <p className="pg-subtitle">{t('gradebook.subtitle', { name: activeChild.name })}</p>
                 </div>
-
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {children.length > 1 && (
-                        <select
-                            value={selectedStudent || ''}
-                            onChange={(e) => setSelectedStudent(e.target.value)}
-                            style={{ padding: '6px 12px', borderRadius: 6 }}
-                        >
-                            {children.map((child) => (
-                                <option key={child._id || child} value={child._id || child}>
-                                    {child.firstName ? `${child.firstName} ${child.lastName}` : `Student`}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    <select
-                        value={semester}
-                        onChange={(e) => setSemester(e.target.value)}
-                        style={{ padding: '6px 12px', borderRadius: 6 }}
-                    >
-                        <option value="">All Semesters</option>
-                        <option value="1">Semester 1</option>
-                        <option value="2">Semester 2</option>
-                    </select>
-                    {selectedStudent && (
-                        <Link className="btn-primary" to={`/portal/parent-plp-report/${selectedStudent}`}>
-                            Character Development Report
-                        </Link>
-                    )}
-                </div>
-            </div>
-
-            {/* Tab navigation */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #e5e7eb' }}>
-                {[
-                    { key: 'grades', icon: HiOutlineAcademicCap, label: 'Grades' },
-                    { key: 'progress', icon: HiOutlineChartBar, label: 'Progress' },
-                    { key: 'reports', icon: HiOutlineDocumentText, label: 'Report Cards' }
-                ].map(tab => (
+                <div className="pg-header-meta">
+                    <span className="pg-year">{activeChild.academicYear || '—'}</span>
+                    <span className="pg-view-only">{t('children.viewOnly')}</span>
                     <button
-                        key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-                            border: 'none', background: 'none', cursor: 'pointer',
-                            borderBottom: activeTab === tab.key ? '2px solid var(--primary-color, #3b82f6)' : '2px solid transparent',
-                            color: activeTab === tab.key ? 'var(--primary-color, #3b82f6)' : '#6b7280',
-                            fontWeight: activeTab === tab.key ? 600 : 400, marginBottom: -2
-                        }}
+                        type="button"
+                        className="pg-refresh"
+                        onClick={loadChildData}
+                        aria-label={t('states.refresh')}
+                        disabled={loading}
                     >
-                        <tab.icon size={18} />
-                        {tab.label}
+                        <HiOutlineArrowPath size={16} />
                     </button>
-                ))}
+                </div>
+            </header>
+
+            {children.length > 1 && (
+                <nav className="pg-children" aria-label={t('children.title')}>
+                    {children.map((child) => (
+                        <button
+                            key={child.id}
+                            type="button"
+                            className={`pg-child-chip ${child.id === activeChild.id ? 'is-active' : ''}`}
+                            onClick={() => selectChild(child.id)}
+                            aria-pressed={child.id === activeChild.id}
+                        >
+                            <strong>{child.name}</strong>
+                            <span>{child.class || child.grade || t('child.noClass')}</span>
+                        </button>
+                    ))}
+                </nav>
+            )}
+
+            <div className="pg-toolbar">
+                <div className="pg-tabs" role="tablist" aria-label={t('gradebook.title')}>
+                    {TABS.map((tab) => (
+                        <button
+                            key={tab.key}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === tab.key}
+                            className={`pg-tab ${activeTab === tab.key ? 'is-active' : ''}`}
+                            onClick={() => setActiveTab(tab.key)}
+                        >
+                            <tab.icon size={17} />
+                            {t(`gradebook.tabs.${tab.key}`)}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="pg-toolbar-end">
+                    {activeTab === 'grades' && (
+                        <label className="pg-select">
+                            <span>{t('gradebook.term')}</span>
+                            <select value={semester} onChange={(event) => setSemester(event.target.value)}>
+                                <option value="">{t('gradebook.allTerms')}</option>
+                                <option value="1">{t('gradebook.term1')}</option>
+                                <option value="2">{t('gradebook.term2')}</option>
+                            </select>
+                        </label>
+                    )}
+                    <Link className="pg-action" to={`/portal/parent-plp-report/${activeChild.id}`}>
+                        <HiOutlineFaceSmile size={17} />
+                        {t('actions.report')}
+                    </Link>
+                </div>
             </div>
 
-            {loading ? (
-                <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-                    <div className="spinner" />
-                    <p className="text-muted" style={{ marginTop: 12 }}>Loading academic data...</p>
+            {loadError ? (
+                <div className="pg-state pg-state-error">
+                    <HiOutlineArrowPath size={30} />
+                    <p>{loadError}</p>
+                    <button type="button" className="pg-retry" onClick={loadChildData}>{t('states.retry')}</button>
                 </div>
+            ) : loading ? (
+                <div className="pg-state"><div className="spinner" /><p>{t('gradebook.loading')}</p></div>
             ) : (
                 <>
-                    {/* GRADES TAB */}
-                    {activeTab === 'grades' && gradesData && (
-                        <div>
-                            {/* Overall summary */}
-                            <div className="card" style={{ marginBottom: 16, padding: 20 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {activeTab === 'grades' && (
+                        <section className="pg-tab-panel">
+                            <div className="pg-overall">
+                                <div>
+                                    <span className="pg-label">{t('gradebook.overall')}</span>
+                                    <strong className="pg-overall-value" style={{ color: gradeColor(grades?.overallAverage) }}>
+                                        {grades?.totalGrades ? formatPercent(grades.overallAverage) : '—'}
+                                    </strong>
+                                </div>
+                                <dl className="pg-overall-meta">
                                     <div>
-                                        <h3 style={{ margin: 0 }}>{gradesData.studentName}</h3>
-                                        <p className="text-muted" style={{ margin: '4px 0 0' }}>
-                                            {gradesData.totalGrades} grades across {gradesData.subjects?.length || 0} subjects
-                                        </p>
+                                        <dt>{t('gradebook.subjects')}</dt>
+                                        <dd>{subjects.length}</dd>
                                     </div>
-                                    <div style={{ textAlign: 'center' }}>
-                                        <div style={{
-                                            fontSize: 32, fontWeight: 700,
-                                            color: getGradeColor(gradesData.overallAverage)
-                                        }}>
-                                            {gradesData.overallAverage}%
-                                        </div>
-                                        <div style={{ fontSize: 12, color: '#6b7280' }}>Overall Average</div>
+                                    <div>
+                                        <dt>{t('gradebook.assessments')}</dt>
+                                        <dd>{grades?.totalGrades || 0}</dd>
                                     </div>
+                                </dl>
+                            </div>
+
+                            {subjects.length === 0 ? (
+                                <div className="pg-empty pg-empty-inline">
+                                    <HiOutlineAcademicCap size={34} />
+                                    <p>{t('gradebook.noGrades')}</p>
+                                </div>
+                            ) : (
+                                <div className="pg-subjects">
+                                    {subjects.map((subject) => {
+                                        const isOpen = Boolean(expanded[subject.subject]);
+                                        return (
+                                            <article key={subject.subject} className={`pg-subject ${isOpen ? 'is-open' : ''}`}>
+                                                <button
+                                                    type="button"
+                                                    className="pg-subject-head"
+                                                    onClick={() => toggleSubject(subject.subject)}
+                                                    aria-expanded={isOpen}
+                                                >
+                                                    <span className="pg-subject-title">
+                                                        {isOpen ? <HiOutlineChevronUp size={17} /> : <HiOutlineChevronDown size={17} />}
+                                                        <strong>{subject.subject}</strong>
+                                                    </span>
+                                                    <span className="pg-subject-side">
+                                                        <span className="pg-count">
+                                                            {subject.totalGrades} · {t('gradebook.assessments')}
+                                                        </span>
+                                                        <strong style={{ color: gradeColor(subject.average) }}>
+                                                            {formatPercent(subject.average)}
+                                                        </strong>
+                                                    </span>
+                                                </button>
+
+                                                {isOpen && (
+                                                    <div className="pg-table-wrap">
+                                                        <table className="pg-table">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>{t('gradebook.table.date')}</th>
+                                                                    <th>{t('gradebook.table.assessment')}</th>
+                                                                    <th>{t('gradebook.table.category')}</th>
+                                                                    <th className="is-numeric">{t('gradebook.table.score')}</th>
+                                                                    <th className="is-numeric">{t('gradebook.table.percent')}</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(subject.recentGrades || []).map((grade, index) => (
+                                                                    <tr key={`${subject.subject}-${index}`}>
+                                                                        <td>{formatDate(grade.date, locale)}</td>
+                                                                        <td>
+                                                                            <strong>{grade.title || grade.category || '—'}</strong>
+                                                                            {grade.comment && <span className="pg-comment">{grade.comment}</span>}
+                                                                        </td>
+                                                                        <td>
+                                                                            <span className="pg-tag">{grade.category || '—'}</span>
+                                                                        </td>
+                                                                        <td className="is-numeric">{grade.marks}/{grade.maxMarks}</td>
+                                                                        <td className="is-numeric" style={{ color: gradeColor(grade.percentage) }}>
+                                                                            {formatPercent(grade.percentage)}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {activeTab === 'progress' && (
+                        <section className="pg-tab-panel">
+                            <div className="pg-split">
+                                <div className="pg-stat-card">
+                                    <span className="pg-label">{t('gradebook.term1')}</span>
+                                    <strong style={{ color: gradeColor(progress?.semester1Average) }}>
+                                        {progress?.semester1Average == null ? '—' : formatPercent(progress.semester1Average)}
+                                    </strong>
+                                </div>
+                                <div className="pg-stat-card">
+                                    <span className="pg-label">{t('gradebook.term2')}</span>
+                                    <strong style={{ color: gradeColor(progress?.semester2Average) }}>
+                                        {progress?.semester2Average == null ? '—' : formatPercent(progress.semester2Average)}
+                                    </strong>
                                 </div>
                             </div>
 
-                            {/* Subject cards */}
-                            {(gradesData.subjects || []).map((subj) => (
-                                <div key={subj.subject} className="card" style={{ marginBottom: 12, overflow: 'hidden' }}>
-                                    <div
-                                        onClick={() => toggleSubject(subj.subject)}
-                                        style={{
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                            padding: '14px 20px', cursor: 'pointer', background: '#f9fafb'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            {expandedSubjects[subj.subject]
-                                                ? <HiOutlineChevronUp size={18} />
-                                                : <HiOutlineChevronDown size={18} />}
-                                            <div>
-                                                <strong>{subj.subject}</strong>
-                                                <span className="text-muted" style={{ marginLeft: 8, fontSize: 13 }}>
-                                                    {subj.totalGrades} grades
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div style={{
-                                            fontSize: 20, fontWeight: 600,
-                                            color: getGradeColor(subj.average)
-                                        }}>
-                                            {subj.average}%
-                                        </div>
-                                    </div>
-
-                                    {expandedSubjects[subj.subject] && (
-                                        <div style={{ padding: '12px 20px', overflowX: 'auto' }}>
-                                            <table style={{ width: '100%', minWidth: 520, fontSize: 13, borderCollapse: 'collapse' }}>
-                                                <thead>
-                                                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>Date</th>
-                                                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>Assessment</th>
-                                                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>Category</th>
-                                                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>Score</th>
-                                                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6b7280', fontWeight: 500 }}>%</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {subj.recentGrades.map((g, i) => (
-                                                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                                            <td style={{ padding: '8px' }}>{g.date ? new Date(g.date).toLocaleDateString() : '-'}</td>
-                                                            <td style={{ padding: '8px' }}>
-                                                                {g.title || g.category}
-                                                                {g.comment && (
-                                                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{g.comment}</div>
-                                                                )}
-                                                            </td>
-                                                            <td style={{ padding: '8px' }}>
-                                                                <span style={{
-                                                                    padding: '2px 8px', borderRadius: 12, fontSize: 11,
-                                                                    background: '#f3f4f6', textTransform: 'capitalize'
-                                                                }}>
-                                                                    {g.category}
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ padding: '8px', textAlign: 'right' }}>{g.marks}/{g.maxMarks}</td>
-                                                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, color: getGradeColor(g.percentage) }}>
-                                                                {g.percentage}%
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-
-                            {(gradesData.subjects || []).length === 0 && (
-                                <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                                    <p className="text-muted">No grades available for the selected period.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* PROGRESS TAB */}
-                    {activeTab === 'progress' && (
-                        <div>
-                            {progressData ? (
-                                <div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-                                        {(progressData.subjectAverages || []).map((sa) => (
-                                            <div key={sa.subject} className="card" style={{ padding: 16, textAlign: 'center' }}>
-                                                <div style={{ fontSize: 28, fontWeight: 700, color: getGradeColor(sa.average) }}>
-                                                    {sa.average}%
-                                                </div>
-                                                <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{sa.subject}</div>
-                                                <div style={{ fontSize: 11, color: '#9ca3af' }}>{sa.gradeCount} assessments</div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {progressData.monthlyTrend && progressData.monthlyTrend.length > 0 && (
-                                        <div className="card" style={{ padding: 20 }}>
-                                            <h4 style={{ marginTop: 0 }}>Monthly Trend</h4>
-                                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
-                                                {progressData.monthlyTrend.map((m, i) => (
-                                                    <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                                                        <div
-                                                            style={{
-                                                                height: `${Math.max(m.average, 5)}%`,
-                                                                background: getGradeColor(m.average),
-                                                                borderRadius: '4px 4px 0 0',
-                                                                minHeight: 4,
-                                                                transition: 'height 0.3s'
-                                                            }}
-                                                        />
-                                                        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>{m.month}</div>
-                                                        <div style={{ fontSize: 11, fontWeight: 600 }}>{m.average}%</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                            {(progress?.subjectComparison || []).length === 0 ? (
+                                <div className="pg-empty pg-empty-inline">
+                                    <HiOutlineChartBar size={34} />
+                                    <p>{t('gradebook.noProgress')}</p>
                                 </div>
                             ) : (
-                                <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                                    <p className="text-muted">Progress data is not yet available.</p>
+                                <div className="pg-card">
+                                    <h2>{t('gradebook.comparison')}</h2>
+                                    <div className="pg-table-wrap">
+                                        <table className="pg-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{t('gradebook.table.subject')}</th>
+                                                    <th className="is-numeric">{t('gradebook.term1')}</th>
+                                                    <th className="is-numeric">{t('gradebook.term2')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {progress.subjectComparison.map((row) => (
+                                                    <tr key={row.subject}>
+                                                        <td><strong>{row.subject}</strong></td>
+                                                        <td className="is-numeric" style={{ color: gradeColor(row.semester1Avg) }}>
+                                                            {row.semester1Avg == null ? '—' : formatPercent(row.semester1Avg)}
+                                                        </td>
+                                                        <td className="is-numeric" style={{ color: gradeColor(row.semester2Avg) }}>
+                                                            {row.semester2Avg == null ? '—' : formatPercent(row.semester2Avg)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
-                        </div>
+
+                            {(progress?.recentGrades || []).length > 0 && (
+                                <div className="pg-card">
+                                    <h2>{t('gradebook.recent')}</h2>
+                                    <ul className="pg-recent">
+                                        {progress.recentGrades.map((grade, index) => (
+                                            <li key={`${grade.subject}-${index}`}>
+                                                <div>
+                                                    <strong>{grade.title || grade.category || grade.subject}</strong>
+                                                    <span>{grade.subject} · {formatDate(grade.date, locale)}</span>
+                                                </div>
+                                                <span
+                                                    className="pg-recent-score"
+                                                    style={{ color: gradeColor(grade.percentage) }}
+                                                >
+                                                    {formatPercent(grade.percentage)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </section>
                     )}
 
-                    {/* REPORT CARDS TAB */}
                     {activeTab === 'reports' && (
-                        <div>
-                            {reportCards.length > 0 ? (
-                                <div style={{ display: 'grid', gap: 12 }}>
-                                    {reportCards.map((rc) => (
-                                        <div key={rc._id} className="card" style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <section className="pg-tab-panel">
+                            {reportCards.length === 0 ? (
+                                <div className="pg-empty pg-empty-inline">
+                                    <HiOutlineDocumentText size={34} />
+                                    <p>{t('gradebook.noReports')}</p>
+                                </div>
+                            ) : (
+                                <div className="pg-reports">
+                                    {reportCards.map((card) => (
+                                        <article key={card._id} className="pg-report">
                                             <div>
-                                                <strong>{rc.title || `Report Card — ${rc.semester ? `Semester ${rc.semester}` : 'Full Year'}`}</strong>
-                                                <div className="text-muted" style={{ fontSize: 13 }}>
-                                                    {rc.academicYear} • Generated {rc.createdAt ? new Date(rc.createdAt).toLocaleDateString() : ''}
-                                                </div>
+                                                <h2>{periodLabel(card, t)}</h2>
+                                                <p>
+                                                    {card.academicYear || activeChild.academicYear}
+                                                    {' · '}
+                                                    {t('gradebook.published')} {formatDate(card.publishedAt || card.generatedAt, locale)}
+                                                </p>
                                             </div>
-                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                {rc.overallAverage != null && (
-                                                    <span style={{ fontSize: 18, fontWeight: 600, color: getGradeColor(rc.overallAverage) }}>
-                                                        {rc.overallAverage}%
-                                                    </span>
-                                                )}
-                                                {rc.pdfUrl && (
-                                                    <a href={rc.pdfUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
-                                                        <HiOutlineDocumentText size={14} /> View PDF
-                                                    </a>
-                                                )}
+                                            <div className="pg-report-score">
+                                                <strong style={{ color: gradeColor(card.overallAverage) }}>
+                                                    {card.overallAverage == null ? '—' : formatPercent(card.overallAverage)}
+                                                </strong>
+                                                {card.overallGrade && <span>{card.overallGrade}</span>}
                                             </div>
-                                        </div>
+                                        </article>
                                     ))}
                                 </div>
-                            ) : (
-                                <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                                    <HiOutlineDocumentText size={36} style={{ color: '#9ca3af', marginBottom: 8 }} />
-                                    <p className="text-muted">No report cards have been published yet.</p>
-                                </div>
                             )}
-                        </div>
+                        </section>
                     )}
                 </>
             )}

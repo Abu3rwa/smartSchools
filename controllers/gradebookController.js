@@ -26,6 +26,7 @@ import logger from '../utils/logger.js';
 import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
 import { buildStudentGradebookDocx } from '../services/studentGradebookDocxService.js';
 import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults.js';
+import { getParentLinkedStudentById } from '../services/parentDashboardService.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
 const MAX_GRADE_PAGE_LIMIT = 100;
@@ -1251,6 +1252,17 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
             }
         } else if (allowedSubjects.length > 0) {
             filters.subject = { $in: allowedSubjects };
+        }
+    } else if (req.user.role === 'parent') {
+        const linkedChild = mongoose.isValidObjectId(studentId)
+            ? await getParentLinkedStudentById({
+                schoolId: req.schoolId,
+                parentUser: req.user,
+                childId: studentId
+            })
+            : null;
+        if (!linkedChild) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
         }
     }
 

@@ -42,7 +42,7 @@
     "standards": "المعايير",
     "grammarAssessments": "اختبارات القواعد",
     "socialStudies": "الدراسات الاجتماعية",
-     "socialStudiesStudent": "الدراسات الاجتماعية الخاصة بي",
+    "socialStudiesStudent": "الدراسات الاجتماعية الخاصة بي",
     "assignStandards": "تعيين المعايير",
     "standardsGradebook": "سجل المعايير",
     "curriculumPlanning": "التخطيط المنهجي",
@@ -105,7 +105,10 @@
     "plpSupervisor": "عرض المشرف",
     "plpConfig": "إعدادات PLP",
     "plpSupervisorAssignments": "تعيينات المشرفين",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "studentSupport": "دعم الطلاب",
+    "parentUpdates": "التحديثات",
+    "parentTimetable": "الجدول الدراسي"
   },
   "studentDashboard": {
     "groups": {

@@ -1,5 +1,6 @@
 import { createHttpError } from './curriculum/curriculumErrors.js';
 import { connectAi } from '../utils/connectAi.js';
+import { CONTENT_RULES } from './aiPromptSafety.js';
 import { logAIUsage } from '../utils/aiUsageTracker.js';
 
 const MAX_OBJECTIVES = 30;
@@ -40,6 +41,8 @@ const buildPrompt = ({ objectives, context = {} }) => {
         'Return JSON only with this exact shape:',
         '{"refinedObjectives":["..."]}',
         'Do not include markdown or explanations.',
+        '',
+        CONTENT_RULES,
         '',
         ...(contextLines.length ? ['Context:', ...contextLines, ''] : []),
         'Objectives:',

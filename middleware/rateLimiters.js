@@ -56,6 +56,38 @@ export const emailSendRateLimiter = rateLimit({
 });
 
 /**
+ * Code entry is the one public door into support surveys. Ten tries per
+ * quarter-hour per IP keeps guessing impractical without punishing a typo.
+ */
+export const supportCodeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req, res) => ipKeyGenerator(req, res),
+    message: {
+        success: false,
+        message: 'Too many code attempts. Please wait a few minutes and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
+ * Once a code is accepted the respondent gets a short session. This ceiling is
+ * generous enough for saving answers question by question.
+ */
+export const supportAccessLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 240,
+    keyGenerator: (req, res) => ipKeyGenerator(req, res),
+    message: {
+        success: false,
+        message: 'Too many requests. Please wait a moment and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Rate limiter for document export / CSV import endpoints.
  * 60 requests per 15 minutes per user.
  */

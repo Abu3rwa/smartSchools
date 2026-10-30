@@ -1,5 +1,16 @@
 import { connectAi } from "../utils/connectAi.js";
 import { AITokenUsage } from "../models/AITokenUsage.js";
+import logger from "../utils/logger.js";
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    STUDENT_TOKEN,
+    correctivePrompt as retryPromptFor,
+    fillStudentTokens,
+    inspectGeneratedText,
+    scrubForPrompt,
+    stripFlaggedFormulas
+} from "./aiPromptSafety.js";
 import {
     getLanguageLabel,
     isRtlLanguageCode,
@@ -195,7 +206,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
         const languageSuffix = this.buildCustomPromptLanguageSuffix(normalizedRequestedLanguages);
 
         const prompt = customPrompt
-            ? `${String(customPrompt || '').trim()}\n\n${languageSuffix}`
+            ? `${scrubForPrompt(customPrompt, { name: [studentData?.firstName, studentData?.lastName].filter(Boolean).join(' ') })}${languageSuffix ? `\n\n${languageSuffix}` : ''}\n\n${PRIVACY_RULES}\n\n${CONTENT_RULES}`
             : this.constructAdvancedPrompt({
                 studentData,
                 grades,
@@ -227,6 +238,25 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
                 totalTokens += response.totalTokenCount || 0;
             }
 
+            // A family reads this verbatim, so biased or religious wording is
+            // rejected once before the report leaves the server.
+            let reportText = String(response.text || '');
+            const inspection = inspectGeneratedText(reportText, { allowToken: true });
+            if (!inspection.ok) {
+                const retry = await connectAi(retryPromptFor(prompt, inspection.problems));
+                inputTokens += retry.inputtokenCount || 0;
+                outputTokens += retry.outputtokenCount || 0;
+                totalTokens += retry.totalTokenCount || 0;
+
+                const retried = String(retry.text || '');
+                const retriedInspection = inspectGeneratedText(retried, { allowToken: true });
+                reportText = retriedInspection.ok ? retried : stripFlaggedFormulas(retried);
+                if (!retriedInspection.ok) {
+                    logger.warn('ai_report_content_flagged', { problems: retriedInspection.problems, reportType });
+                }
+            }
+            reportText = fillStudentTokens(reportText, studentData?.firstName);
+
             // Track token usage
             const tokenUsage = await this.trackTokenUsage({
                 userId,
@@ -242,7 +272,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             });
 
             return {
-                text: response.text,
+                text: reportText,
                 tokenUsage,
                 language: normalizedLanguage,
                 requestedLanguages: normalizedRequestedLanguages,
@@ -289,11 +319,9 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
 
         const subjects = [...new Set(sortedGrades.map(g => g.subject?.name || 'Unknown'))].join(', ');
         const teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}` : 'The Teacher';
-        const classLabel = studentData?.currentClass?.name
-            || [studentData?.currentClass?.grade, studentData?.currentClass?.section].filter(Boolean).join(' ')
+        const gradeLevel = studentData?.currentClass?.grade
+            || studentData?.grade
             || 'Not specified';
-        const age = this.getStudentAge(studentData);
-        const ageLabel = age === null ? 'Not specified' : `${age} years old`;
         const genderContext = this.getStudentGenderContext(studentData);
         const audienceContext = this.getStudentAudienceContext(studentData);
         const academicYear = studentData?.academicYear || 'Not specified';
@@ -398,19 +426,22 @@ TONE AND WRITING RULES:
 - When discussing improvement needs, be constructive and practical.
 
 Student Information:
-- Name: ${studentData.firstName} ${studentData.lastName}
+- Name: you do not know it. Write ${STUDENT_TOKEN} exactly wherever a name belongs, and never invent one.
 - Gender: ${genderContext.label}
 - Use these English pronouns when appropriate: ${genderContext.subjectPronoun}/${genderContext.objectPronoun}/${genderContext.possessivePronoun}
-- If writing in Arabic, naturally adapt the wording to the student's gender. If the gender is unclear or "other", prefer the student's name instead of forcing gendered wording.
-- Age: ${ageLabel}
-- Class: ${classLabel}
+- If writing in Arabic, naturally adapt the wording to the student's gender. If the gender is unclear or "other", use neutral wording instead of forcing gendered phrasing.
+- Grade level: ${gradeLevel}
 - Academic year: ${academicYear}
 - Period: ${period}
 - Overall average: ${average}%
 - Subjects: ${subjects}
 - Teacher: ${teacherName}
-- Likely email audience: ${audienceContext}
+- Likely email audience (roles only, never addresses): ${audienceContext}
 - Family preferred report language in the student profile: ${preferredFamilyLanguage}
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 
 Grades (chronological):
 ${gradeList}

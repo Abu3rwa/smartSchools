@@ -5,6 +5,7 @@
 
 import { connectAi } from "../utils/connectAi.js";
 import { getLanguageLabel } from "../utils/aiLanguageUtils.js";
+import { CONTENT_RULES } from "./aiPromptSafety.js";
 
 const VALID_FIELDS = [
   "title",
@@ -136,6 +137,8 @@ ${additionalContext}
 
 TASK: ${instruction}
 
+${CONTENT_RULES}
+
 Provide ONLY the suggested text. No explanation, no quotes, no markdown.`;
 
   const response = await connectAi(prompt);
@@ -217,6 +220,8 @@ RULES:
 - Use clear, concise codes (e.g. "1.1", "2.A", "NS.3") and short names. Description should state what the student will know or be able to do.
 - Return between 2 and 8 inferred standards/skills. No duplicates.
 - Language rule for "name" and "description": ${languageRule}
+
+${CONTENT_RULES}
 
 SUBJECT: ${subjectName}
 GRADE LEVEL: ${gradeLevel}
@@ -327,6 +332,8 @@ For each selected standard, provide:
 - relevanceScore (0–1)
 - explanation (1 sentence why this standard's code/description matches the lesson, following this language rule: ${languageRule})
 
+${CONTENT_RULES}
+
 Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
 [
   { "standardId": "...", "relevanceScore": 0.92, "explanation": "..." },
@@ -428,6 +435,9 @@ ${languageRule}
 
 Generate ALL of the following. Use age-appropriate language and pedagogical best practices.
 For stages, include realistic timing (e.g. "5 min", "10 min", "15 min") so the total fits a typical class period.
+
+${CONTENT_RULES}
+
 Output ONLY valid JSON. No markdown, no code fences, no extra text:
 
 {

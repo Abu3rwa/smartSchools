@@ -21,6 +21,7 @@ import {
     getParentUpdateByIdController,
     getParentUpdatesController,
     markAllParentUpdatesAsReadController,
+    markParentUpdateAsReadController,
     markParentMessageThreadReadController,
     replyToParentMessageThreadController,
     updateParentSettingsController
@@ -103,6 +104,7 @@ router.get(
 );
 router.get('/dashboard', getParentDashboardController);
 router.patch('/updates/read-all', markAllParentUpdatesAsReadController);
+router.patch('/updates/:id/read', validationRules.mongoId, validate, markParentUpdateAsReadController);
 router.get('/updates', getParentUpdatesController);
 router.get('/updates/:id', validationRules.mongoId, validate, getParentUpdateByIdController);
 router.get('/messages/threads', validationRules.pagination, validate, getParentMessageThreadsController);

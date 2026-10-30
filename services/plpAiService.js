@@ -1,4 +1,11 @@
 import aiService from './aiservice.js';
+import {
+    CONTENT_RULES,
+    PRIVACY_RULES,
+    STUDENT_TOKEN,
+    fillStudentTokens,
+    scrubForPrompt
+} from './aiPromptSafety.js';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
 const CONFIDENCE_LEVELS = ['high', 'medium', 'low'];
@@ -70,16 +77,24 @@ const toEvidenceEntry = (item) => ({
 });
 
 class PlpAiService {
-    async proofreadObservationText(rawText) {
+    async proofreadObservationText(rawText, { name = '', roster = [] } = {}) {
         const cleanText = String(rawText || '').trim();
         if (!cleanText) return '';
+
+        // The teacher's own words may name the child or a classmate. The model
+        // sees the token, and the name is put back on the way out.
+        const safeText = scrubForPrompt(cleanText, { name, roster, phoneNumbers: false });
 
         const prompt = `You are proofreading a teacher observation note.
 
 Original note:
 """
-${cleanText}
+${safeText}
 """
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 
 Rules:
 1) Return STRICT JSON only.
@@ -87,6 +102,7 @@ Rules:
 3) Preserve the original meaning and details; do not invent new facts.
 4) Keep the same point of view and classroom context.
 5) Keep the note concise and professional.
+6) Keep ${STUDENT_TOKEN} exactly where it appears. Never replace it with a name.
 
 Required JSON schema:
 {
@@ -103,13 +119,13 @@ Required JSON schema:
             if (!proofreadText) {
                 return formatObservationTextFallback(cleanText).slice(0, 1000);
             }
-            return formatObservationTextFallback(proofreadText).slice(0, 1000);
+            return fillStudentTokens(formatObservationTextFallback(proofreadText).slice(0, 1000), name);
         } catch {
             return formatObservationTextFallback(cleanText).slice(0, 1000);
         }
     }
 
-    async classifyObservation(rawText, availableTraits = [], studentContext = {}) {
+    async classifyObservation(rawText, availableTraits = [], studentContext = {}, { name = '', roster = [] } = {}) {
         const cleanText = String(rawText || '').trim();
         if (!cleanText) {
             return {
@@ -132,15 +148,21 @@ Required JSON schema:
             };
         }
 
+        const safeText = scrubForPrompt(cleanText, { name, roster, phoneNumbers: false });
+
         const prompt = `You are classifying a teacher classroom observation into a school's character trait system.
 
 Teacher raw observation:
 """
-${cleanText}
+${safeText}
 """
 
-Student context:
+Student context (identifiers removed on purpose):
 ${JSON.stringify(studentContext, null, 2)}
+
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
 
 Available traits (you MUST choose traitId from this list or null):
 ${JSON.stringify(traitList, null, 2)}
@@ -149,8 +171,9 @@ Rules:
 1) Return STRICT JSON only, no markdown.
 2) If observation is too vague, purely academic, or not character-related, set traitId to null.
 3) Never invent trait IDs or names.
-4) structuredNote should be a concise, clear rewrite preserving meaning.
-5) rationale should be one short sentence.
+4) structuredNote should be a concise, clear rewrite preserving meaning, keeping ${STUDENT_TOKEN} exactly where it appears.
+5) rationale should be one short sentence about the observed behaviour only.
+6) Never make a religious, moral or family judgement about the child.
 
 Required JSON schema:
 {
@@ -188,15 +211,20 @@ Required JSON schema:
             traitId: traitExists ? traitIdCandidate : null,
             confidence: normalizeConfidence(parsed?.confidence),
             evidenceType: normalizeEvidenceType(parsed?.evidenceType),
-            structuredNote: String(parsed?.structuredNote || cleanText).trim().slice(0, 1000),
-            rationale: String(parsed?.rationale || '').trim().slice(0, 300),
+            structuredNote: fillStudentTokens(String(parsed?.structuredNote || cleanText).trim().slice(0, 1000), name),
+            rationale: fillStudentTokens(String(parsed?.rationale || '').trim().slice(0, 300), name),
         };
     }
 
-    async suggestTraitScore(traitId, evidenceList = [], cyclePeriod = {}) {
+    async suggestTraitScore(traitId, evidenceList = [], cyclePeriod = {}, { name = '', roster = [] } = {}) {
         const cleanTraitId = String(traitId || '').trim();
         const entries = Array.isArray(evidenceList)
-            ? evidenceList.map(toEvidenceEntry).filter((entry) => entry.structuredNote || entry.createdAt)
+            ? evidenceList.map(toEvidenceEntry)
+                .filter((entry) => entry.structuredNote || entry.createdAt)
+                .map((entry) => ({
+                    ...entry,
+                    structuredNote: scrubForPrompt(entry.structuredNote, { name, roster, phoneNumbers: false })
+                }))
             : [];
 
         if (!cleanTraitId || entries.length === 0) {
@@ -219,11 +247,16 @@ ${JSON.stringify(cyclePeriod || {}, null, 2)}
 Evidence list:
 ${JSON.stringify(entries, null, 2)}
 
+${PRIVACY_RULES}
+
+${CONTENT_RULES}
+
 Rules:
 1) Return STRICT JSON only (no markdown, no extra keys).
 2) suggestedScore must be a number between 0 and 5.
 3) Consider evidenceType, aiConfidence, recency, and note content.
-4) Keep rationale to one or two short sentences and reference the evidence pattern.
+4) Keep rationale to one or two short sentences and reference the evidence pattern only.
+5) Judge the observed behaviour only, never the child, their faith or their family. Keep ${STUDENT_TOKEN} exactly where it appears.
 
 Required JSON schema:
 {
@@ -244,7 +277,7 @@ Required JSON schema:
             return {
                 suggestedScore,
                 confidence: normalizeScoreConfidence(parsed?.confidence),
-                rationale: String(parsed?.rationale || '').trim().slice(0, 300) || 'Score suggested from available evidence.',
+                rationale: fillStudentTokens(String(parsed?.rationale || '').trim().slice(0, 300), name) || 'Score suggested from available evidence.',
                 evidenceCount: entries.length,
             };
         } catch {

@@ -8,15 +8,19 @@ import {
 } from "react-icons/hi";
 import { countWords } from "../../../../utils/writingWorkflow.js";
 
-export function FeedbackForSection({ note }) {
+export function FeedbackForSection({ note, number = 0 }) {
   const { t } = useTranslation(["writing"]);
   // One thing to try per part: the teacher's next step, or the first improvement if none was set.
   const action = note.nextStep || (note.improvements || []).join(" · ");
+  // A numbered note is about the highlighted words above, so it does not repeat the quote.
+  const anchored = number > 0;
 
   return (
-    <div className="ws-feedback-block">
+    <div className={`ws-feedback-block${anchored ? " is-anchored" : ""}`}>
       <p className="ws-feedback-label">
-        <HiOutlineChat size={15} aria-hidden="true" />
+        {anchored
+          ? <span className="ws-badge">{number}</span>
+          : <HiOutlineChat size={15} aria-hidden="true" />}
         {t("writing:student.feedbackOnThisPart")}
       </p>
       {note.strengths?.length > 0 && (
@@ -31,7 +35,7 @@ export function FeedbackForSection({ note }) {
           <span>{t("writing:student.tryThis")}: {action}</span>
         </p>
       )}
-      {note.evidence && <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>}
+      {!anchored && note.evidence && <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>}
       {note.why && <p className="ws-feedback-why">{note.why}</p>}
     </div>
   );

@@ -15,7 +15,6 @@ const FEATURES = [
     ['/api/student-grouping', 'student_grouping'],
     ['/api/map-test-prep', 'map_test_prep'],
     ['/api/social-studies', 'social_studies'],
-    ['/api/worksheets', 'worksheet_checker'],
     ['/api/newsletters', 'newsletter'],
     ['/api/writing', 'writing_assistant'],
     ['/api/reading', 'reading_assistant'],

@@ -16,7 +16,7 @@ import {
     sendTeacherLoginInvite,
     updateTeacher
 } from '../../../store/slices/teacherSlice';
-import { selectSubjects } from '../../../store/slices/subjectSlice';
+import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import {
     fetchSchoolFeatures,
@@ -87,12 +87,7 @@ const TeachersPage = () => {
         setSubmitting,
         formData,
         setFormData,
-        assignments,
-        resetFormData,
-        resetAssignments,
-        addAssignmentRow,
-        removeAssignmentRow,
-        updateAssignmentField
+        resetFormData
     } = useTeachersPageState(teachers);
 
     const teachersQueryParams = useMemo(() => {
@@ -118,6 +113,7 @@ const TeachersPage = () => {
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
         dispatch(fetchClasses({ limit: 'all' }));
+        dispatch(fetchSubjects({ limit: 'all' }));
     }, [dispatch]);
 
     useEffect(() => {
@@ -406,7 +402,6 @@ const TeachersPage = () => {
 
     const handleOpenAssignModal = (teacher) => {
         setSelectedTeacher(teacher);
-        resetAssignments();
         setShowAssignModal(true);
     };
 
@@ -430,7 +425,6 @@ const TeachersPage = () => {
     const handleCloseAssignModal = () => {
         setShowAssignModal(false);
         setSelectedTeacher(null);
-        resetAssignments();
     };
 
     const handleRemoveExistingAssignment = async (assignmentId) => {
@@ -461,31 +455,26 @@ const TeachersPage = () => {
         }
     };
 
-    const handleAssignClasses = async (event) => {
-        event.preventDefault();
-
-        const validAssignments = assignments.filter((assignment) => assignment.classId && assignment.subjectId);
-        if (validAssignments.length === 0) {
-            toast.error(t('teachers:toast.selectClassAndSubject'));
-            return;
-        }
-
-        if (!selectedTeacher?._id) return;
+    const handleAddAssignment = async ({ classId, subjectId, isClassTeacher }) => {
+        if (!selectedTeacher?._id) return false;
 
         setSubmitting(true);
         try {
             const result = await dispatch(assignMultipleClassesToTeacher({
                 teacherId: selectedTeacher._id,
-                assignments: validAssignments
+                assignments: [{ classId, subjectId, isClassTeacher }]
             }));
 
             if (assignMultipleClassesToTeacher.fulfilled.match(result)) {
+                if (result.payload?.teacher) {
+                    setSelectedTeacher(result.payload.teacher);
+                }
                 toast.success(t('teachers:toast.assigned'));
-                handleCloseAssignModal();
                 dispatch(fetchClasses({ limit: 'all' }));
-            } else {
-                toast.error(result.payload || t('teachers:toast.assignFailed'));
+                return true;
             }
+            toast.error(result.payload || t('teachers:toast.assignFailed'));
+            return false;
         } finally {
             setSubmitting(false);
         }
@@ -676,15 +665,11 @@ const TeachersPage = () => {
             <TeacherAssignmentsModal
                 open={showAssignModal && !!selectedTeacher}
                 selectedTeacher={selectedTeacher}
-                assignments={assignments}
                 classes={classes}
                 subjects={subjects}
                 submitting={submitting}
                 onClose={handleCloseAssignModal}
-                onSubmit={handleAssignClasses}
-                onAddAssignmentRow={addAssignmentRow}
-                onRemoveAssignmentRow={removeAssignmentRow}
-                onAssignmentChange={updateAssignmentField}
+                onAddAssignment={handleAddAssignment}
                 onRemoveExistingAssignment={handleRemoveExistingAssignment}
             />
 

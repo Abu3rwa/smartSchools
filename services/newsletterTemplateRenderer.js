@@ -110,11 +110,13 @@ function blockStyle(block, defaults = {}) {
 }
 
 function renderHeaderBlock(block, s, logoUrl, schoolName) {
+  const kicker = block.kicker || "";
   const heading = block.heading || "Weekly Newsletter";
   const sub = block.subheading || "";
   const builder = headerBuilders[s.headerStyle] || headerBuilders.gradient;
   let shell = builder(s, logoUrl, schoolName);
   const innerHtml = `
+    ${kicker ? `<div style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${esc(s.headerTextColor)};opacity:0.85;">${esc(kicker)}</div>` : ""}
     <div style="font-size:${esc(s.headingFontSize)};font-weight:800;color:${esc(s.headerTextColor)};font-family:${esc(s.headingFont)};">${esc(heading)}</div>
     ${sub ? `<div style="margin-top:4px;font-size:13px;color:${esc(s.headerTextColor)};opacity:0.85;">${md2html(sub)}</div>` : ""}
   `;
@@ -136,8 +138,18 @@ function renderSubjectsBlock(subjectSections, s) {
     .map((sec) => {
       const name = esc(sec.subject?.name || "Subject");
       const content = md2html(sec.content || "");
-      return `<div style="margin:${esc(s.sectionSpacing)} 0;padding:14px;background:${esc(s.cardBg)};border:1px solid ${esc(s.cardBorder)};border-radius:${esc(s.borderRadius)};">
-  <div style="font-weight:700;color:${esc(s.accentColor || s.primaryColor)};margin-bottom:6px;font-family:${esc(s.headingFont)};">${name}</div>
+      const topics = Array.isArray(sec.keyTopics) ? sec.keyTopics.filter((topic) => String(topic || "").trim()).slice(0, 5) : [];
+      const chips = topics.length
+        ? `<div style="margin:0 0 10px;">${topics
+            .map(
+              (topic) =>
+                `<span style="display:inline-block;background:#f0fdfa;border:1px solid #cdeae6;border-radius:999px;padding:2px 9px;margin:0 4px 4px 0;font-size:11px;color:#0f766e;">${esc(topic)}</span>`
+            )
+            .join("")}</div>`
+        : "";
+      return `<div style="margin:${esc(s.sectionSpacing)} 0;padding:14px 16px;background:#ffffff;border:1px solid ${esc(s.cardBorder)};border-radius:${esc(s.borderRadius)};">
+  <div style="font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:${esc(s.accentColor || s.primaryColor)};margin-bottom:8px;font-family:${esc(s.headingFont)};">${name}</div>
+  ${chips}
   <div style="color:${esc(s.bodyTextColor)};line-height:${esc(s.lineHeight)};font-size:${esc(s.baseFontSize)};">${content}</div>
 </div>`;
     })
@@ -362,6 +374,7 @@ export function renderTemplateHtml({
       ...block,
       content: interpolate(block.content),
       richContent: block.richContent ? interpolate(block.richContent) : "",
+      kicker: interpolate(block.kicker),
       heading: interpolate(block.heading),
       subheading: interpolate(block.subheading),
       leftContent: interpolate(block.leftContent),
@@ -433,19 +446,27 @@ export function getBuiltinDefaultSections() {
       type: "header",
       order: 0,
       visible: true,
-      heading: "Weekly Newsletter",
-      subheading: "School: {schoolName}\nClass: {classLabel}\nWeek: {weekLabel}",
+      kicker: "{schoolName} · {classLabel}",
+      heading: "Our week in review",
+      subheading: "{weekLabel}",
+    },
+    {
+      id: "greeting-1",
+      type: "text",
+      order: 1,
+      visible: true,
+      content: "Dear families,",
     },
     {
       id: "subjects-1",
       type: "subjects",
-      order: 1,
+      order: 2,
       visible: true,
     },
     {
       id: "footer-1",
       type: "footer",
-      order: 2,
+      order: 3,
       visible: true,
       content: "",
     },

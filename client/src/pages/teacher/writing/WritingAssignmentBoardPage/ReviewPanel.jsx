@@ -11,6 +11,7 @@ import writingService from "../../../../services/writingService.js";
 import { creditErrorMessage, isCreditError } from "../../../../utils/aiCredit.js";
 import {
   formFromAssessment,
+  isStaleAssessment,
   latestForDraft,
   payloadFromForm,
 } from "./assessmentPresentation.js";
@@ -29,10 +30,12 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
 
   const [form, setForm] = useState(() => formFromAssessment(feedback));
   const [comparisonForm, setComparisonForm] = useState(() => formFromAssessment(comparison));
+  const [now, setNow] = useState(() => Date.now());
   const [note, setNote] = useState("");
   const [finalScore, setFinalScore] = useState("");
   const [pending, setPending] = useState("");
   const [notify, setNotify] = useState({ student: true, parents: true });
+  const runningRun = feedback?.aiStatus === "running" || comparison?.aiStatus === "running";
   const emailRecipients = {
     student: Boolean(emailDelivery?.students && notify.student),
     parents: Boolean(emailDelivery?.parents && notify.parents),
@@ -50,6 +53,13 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
     setComparisonForm(formFromAssessment(comparison));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comparisonStamp]);
+
+  // Nothing polls while a run is in flight; re-render so a dead run turns into a retry.
+  useEffect(() => {
+    if (!runningRun) return undefined;
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, [runningRun]);
 
   if (!project || !latestDraft) return null;
 
@@ -125,6 +135,8 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
 
   const feedbackEditable = feedback?.aiStatus === "done" && feedback.publish?.state !== "published";
   const comparisonEditable = comparison?.aiStatus === "done" && comparison.publish?.state !== "published";
+  const feedbackStale = isStaleAssessment(feedback, now);
+  const comparisonStale = isStaleAssessment(comparison, now);
   const lockedTo = project.teacherOverride?.stageLockedTo || "";
   const totalPoints = (history?.assignment?.rubric || []).reduce(
     (sum, row) => sum + (Number(row.maxScore) || 0),
@@ -168,7 +180,19 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
       )}
 
       {feedback?.aiStatus === "running" && (
-        <p className="wa-hint" aria-live="polite">{t("writing:teacher.review.assessing")}</p>
+        <div className="wa-review-empty">
+          <p className="wa-hint" aria-live="polite">
+            {feedbackStale
+              ? t("writing:teacher.review.stalled")
+              : t("writing:teacher.review.assessing")}
+          </p>
+          {feedbackStale && (
+            <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={assess}>
+              <HiOutlineRefresh size={15} aria-hidden="true" />
+              {t("writing:teacher.review.retryAssess")}
+            </button>
+          )}
+        </div>
       )}
 
       {feedback?.aiStatus === "failed" && (
@@ -238,6 +262,15 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                   onChange={(event) => updateScore(index, { score: event.target.value })}
                 />
                 <em>{t("writing:teacher.review.scoreOf", { n: row.score, max: row.maxScore || 0 })}</em>
+                <input
+                  className="wa-review-score-evidence"
+                  type="text"
+                  value={row.evidence}
+                  readOnly={!feedbackEditable}
+                  placeholder={t("writing:teacher.review.scoreEvidencePlaceholder")}
+                  aria-label={`${row.label} — ${t("writing:teacher.review.scoreEvidence")}`}
+                  onChange={(event) => updateScore(index, { evidence: event.target.value })}
+                />
               </div>
             ))}
           </div>
@@ -389,7 +422,19 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
           )}
 
           {comparison?.aiStatus === "running" && (
-            <p className="wa-hint" aria-live="polite">{t("writing:teacher.review.comparing")}</p>
+            <div className="wa-review-empty">
+              <p className="wa-hint" aria-live="polite">
+                {comparisonStale
+                  ? t("writing:teacher.review.stalled")
+                  : t("writing:teacher.review.comparing")}
+              </p>
+              {comparisonStale && (
+                <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(pending)} onClick={compare}>
+                  <HiOutlineRefresh size={15} aria-hidden="true" />
+                  {t("writing:teacher.review.retryCompare")}
+                </button>
+              )}
+            </div>
           )}
 
           {comparison?.aiStatus === "failed" && (
@@ -480,6 +525,27 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                   </div>
                 ))}
               </div>
+
+              {comparisonForm.comparison.taskResults.length > 0 && (
+                <div className="wa-review-applied">
+                  <span className="wa-field-label">{t("writing:teacher.review.taskResults")}</span>
+                  {comparisonForm.comparison.taskResults.map((row, index) => (
+                    <label className="wa-review-check" key={row.id}>
+                      <input
+                        type="checkbox"
+                        checked={row.applied}
+                        disabled={!comparisonEditable}
+                        onChange={(event) => updateComparison({
+                          taskResults: comparisonForm.comparison.taskResults.map((item, itemIndex) => (
+                            itemIndex === index ? { ...item, applied: event.target.checked } : item
+                          )),
+                        })}
+                      />
+                      <span>{row.note ? `${row.text} — ${row.note}` : row.text}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
 
               {comparisonForm.comparison.feedbackApplied.length > 0 && (
                 <div className="wa-review-applied">

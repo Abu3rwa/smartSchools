@@ -17,6 +17,7 @@ import {
   selectTeacherNewsletter
 } from '../../../../store/slices/newsletterSlice';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
+import ChildLettersPanel from './ChildLettersPanel.jsx';
 
 import './TeacherNewslettersPage.css';
 
@@ -32,6 +33,8 @@ const TeacherNewslettersPage = () => {
 
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  // Per-child letters are the default; the shared class update is the second mode.
+  const [mode, setMode] = useState('child');
   const [primaryLanguage, setPrimaryLanguage] = useState('en');
   const [secondaryLanguage, setSecondaryLanguage] = useState('');
   const [weekDate, setWeekDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -168,143 +171,174 @@ const TeacherNewslettersPage = () => {
 
   return (
     <div className="teacher-newsletters-page">
-      <div className="tn-header">
+      <header className="tn-header">
         <h2>{t('newsletters:teacher.header.title')}</h2>
         <p>{t('newsletters:teacher.header.subtitle')}</p>
+      </header>
+
+      <div className="tn-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'child'}
+          className={`tn-tab${mode === 'child' ? ' is-active' : ''}`}
+          onClick={() => setMode('child')}
+        >
+          {t('newsletters:teacher.tabs.child')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'class'}
+          className={`tn-tab${mode === 'class' ? ' is-active' : ''}`}
+          onClick={() => setMode('class')}
+        >
+          {t('newsletters:teacher.tabs.class')}
+        </button>
       </div>
 
+      <div className="tn-toolbar">
+        <label className="tn-toolbar-field">
+          <span>{t('newsletters:teacher.fields.week')}</span>
+          <input type="date" value={weekDate} onChange={(e) => setWeekDate(e.target.value)} />
+        </label>
+        <label className="tn-toolbar-field">
+          <span>{t('newsletters:teacher.fields.class')}</span>
+          <select value={classId} onChange={(e) => setClassId(e.target.value)}>
+            <option value="">{t('newsletters:teacher.fields.selectClass')}</option>
+            {classes.map((c) => (
+              <option key={c._id} value={c._id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
+        <div className="tn-week-range">
+          {t('newsletters:teacher.fields.weekRange', { start: weekStartStr, end: weekEndStr })}
+        </div>
+      </div>
+
+      {mode === 'child' ? (
+        classId ? (
+          <ChildLettersPanel
+            academicYear={academicYear}
+            classId={classId}
+            weekStart={weekStartStr}
+          />
+        ) : (
+          <div className="tn-card tn-muted">{t('newsletters:childLetters.setup.pickClass')}</div>
+        )
+      ) : (
       <div className="tn-grid">
-        <div className="tn-card">
-          <h3>{t('newsletters:teacher.sections.select')}</h3>
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.week')}</label>
-            <input type="date" value={weekDate} onChange={(e) => setWeekDate(e.target.value)} />
-            <div className="tn-subtext">{t('newsletters:teacher.fields.weekRange', { start: weekStartStr, end: weekEndStr })}</div>
-          </div>
+        <div className="tn-col">
+          <section className="tn-card">
+            <h3>{t('newsletters:teacher.sections.select')}</h3>
+            <p className="tn-subtext">{t('newsletters:teacher.sections.selectHint')}</p>
 
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.class')}</label>
-            <select value={classId} onChange={(e) => setClassId(e.target.value)}>
-              <option value="">{t('newsletters:teacher.fields.selectClass')}</option>
-              {classes.map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.subject')}</label>
-            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              <option value="">{t('newsletters:teacher.fields.selectSubject')}</option>
-              {classSubjectOptions.map((s) => (
-                <option key={s._id} value={s._id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.customInstructions')}</label>
-            <textarea
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder={t('newsletters:teacher.fields.customInstructionsPlaceholder')}
-            />
-          </div>
-
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.primaryLanguage')}</label>
-            <select
-              value={primaryLanguage}
-              onChange={(e) => {
-                const nextPrimary = e.target.value;
-                setPrimaryLanguage(nextPrimary);
-                if (nextPrimary === secondaryLanguage) {
-                  setSecondaryLanguage('');
-                }
-              }}
-            >
-              {AI_LANGUAGE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tn-field">
-            <label>{t('newsletters:teacher.fields.secondaryLanguage')}</label>
-            <select value={secondaryLanguage} onChange={(e) => setSecondaryLanguage(e.target.value)}>
-              <option value="">{t('newsletters:teacher.common.none')}</option>
-              {AI_LANGUAGE_OPTIONS
-                .filter((o) => o.value !== primaryLanguage)
-                .map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+            <label className="tn-field">
+              <span>{t('newsletters:teacher.fields.subject')}</span>
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                <option value="">{t('newsletters:teacher.fields.selectSubject')}</option>
+                {classSubjectOptions.map((s) => (
+                  <option key={s._id} value={s._id}>{s.name}</option>
                 ))}
-            </select>
-          </div>
+              </select>
+            </label>
 
-          <div className="tn-actions">
-            <button className="tn-btn primary" onClick={() => onGenerate()} disabled={teacherNewsletter.generating}>
-              {teacherNewsletter.generating ? t('newsletters:teacher.common.generating') : t('newsletters:teacher.actions.generate')}
-            </button>
-            <button
-              className="tn-btn"
-              onClick={() => onGenerate({ useFeedback: true })}
-              disabled={
-                teacherNewsletter.generating ||
-                mySection?.status !== 'rejected' ||
-                !mySection?.adminReview?.notes
-              }
-            >
-              {t('newsletters:teacher.actions.regenerateWithFeedback')}
-            </button>
-            <button
-              className="tn-btn"
-              onClick={onSaveContent}
-              disabled={savingContent || !mySection?._id || !editableContent.trim()}
-            >
-              {savingContent ? t('newsletters:teacher.common.saving') : t('newsletters:teacher.actions.saveDraft')}
-            </button>
-            <button className="tn-btn" onClick={onSubmit} disabled={teacherNewsletter.submitting || mySection?.status !== 'draft'}>
-              {teacherNewsletter.submitting ? t('newsletters:teacher.common.submitting') : t('newsletters:teacher.actions.submitToAdmin')}
-            </button>
-          </div>
+            <div className="tn-row">
+              <label className="tn-field">
+                <span>{t('newsletters:teacher.fields.primaryLanguage')}</span>
+                <select
+                  value={primaryLanguage}
+                  onChange={(e) => {
+                    const nextPrimary = e.target.value;
+                    setPrimaryLanguage(nextPrimary);
+                    if (nextPrimary === secondaryLanguage) {
+                      setSecondaryLanguage('');
+                    }
+                  }}
+                >
+                  {AI_LANGUAGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
 
-          {mySection?.status && (
-            <div className="tn-status">
-              {t('newsletters:teacher.status.current')}: <strong>{mySection.status}</strong>
-              {mySection.wordCount ? <span> • {t('newsletters:teacher.status.words', { count: mySection.wordCount })}</span> : null}
+              <label className="tn-field">
+                <span>{t('newsletters:teacher.fields.secondaryLanguage')}</span>
+                <select value={secondaryLanguage} onChange={(e) => setSecondaryLanguage(e.target.value)}>
+                  <option value="">{t('newsletters:teacher.common.none')}</option>
+                  {AI_LANGUAGE_OPTIONS
+                    .filter((o) => o.value !== primaryLanguage)
+                    .map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                </select>
+              </label>
             </div>
-          )}
+
+            <label className="tn-field">
+              <span>{t('newsletters:teacher.fields.customInstructions')}</span>
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder={t('newsletters:teacher.fields.customInstructionsPlaceholder')}
+              />
+            </label>
+
+            <div className="tn-actions">
+              <button className="tn-btn primary" onClick={() => onGenerate()} disabled={teacherNewsletter.generating}>
+                {teacherNewsletter.generating ? t('newsletters:teacher.common.generating') : t('newsletters:teacher.actions.generate')}
+              </button>
+              <button
+                className="tn-btn"
+                onClick={() => onGenerate({ useFeedback: true })}
+                disabled={
+                  teacherNewsletter.generating ||
+                  mySection?.status !== 'rejected' ||
+                  !mySection?.adminReview?.notes
+                }
+              >
+                {t('newsletters:teacher.actions.regenerateWithFeedback')}
+              </button>
+            </div>
+          </section>
+
+          <section className="tn-card">
+            <h3>{t('newsletters:teacher.sections.pickLessonPlans')}</h3>
+            <p className="tn-subtext">{t('newsletters:teacher.sections.pickLessonPlansHint')}</p>
+
+            {lessonsLoading ? (
+              <div className="tn-muted">{t('newsletters:teacher.common.loadingLessonPlans')}</div>
+            ) : (lessons.length === 0 ? (
+              <div className="tn-muted">{t('newsletters:teacher.common.noLessonPlans')}</div>
+            ) : (
+              <div className="tn-list">
+                {lessons.map((l) => (
+                  <label key={l._id} className="tn-list-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedLessonIds.includes(l._id)}
+                      onChange={() => toggleLesson(l._id)}
+                    />
+                    <span className="tn-list-title">{l.title}</span>
+                    <span className="tn-list-date">{l.date ? format(new Date(l.date), 'MMM d') : ''}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </section>
         </div>
 
-        <div className="tn-card">
-          <h3>{t('newsletters:teacher.sections.pickLessonPlans')}</h3>
-          <div className="tn-subtext">
-            {t('newsletters:teacher.sections.pickLessonPlansHint')}
+        <section className="tn-card">
+          <div className="tn-card-head">
+            <h3>{t('newsletters:teacher.sections.preview')}</h3>
+            {mySection?.status ? (
+              <span className={`tn-status-chip is-${mySection.status}`}>
+                {t(`newsletters:teacher.sectionStatus.${mySection.status}`, mySection.status)}
+                {mySection.wordCount ? ` · ${t('newsletters:teacher.status.words', { count: mySection.wordCount })}` : ''}
+              </span>
+            ) : null}
           </div>
 
-          {lessonsLoading ? (
-            <div className="tn-muted">{t('newsletters:teacher.common.loadingLessonPlans')}</div>
-          ) : (lessons.length === 0 ? (
-            <div className="tn-muted">{t('newsletters:teacher.common.noLessonPlans')}</div>
-          ) : (
-            <div className="tn-list">
-              {lessons.map((l) => (
-                <label key={l._id} className="tn-list-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedLessonIds.includes(l._id)}
-                    onChange={() => toggleLesson(l._id)}
-                  />
-                  <span className="tn-list-title">{l.title}</span>
-                  <span className="tn-list-date">{l.date ? format(new Date(l.date), 'MMM d') : ''}</span>
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        <div className="tn-card">
-          <h3>{t('newsletters:teacher.sections.preview')}</h3>
           {mySection?.content ? (
             <>
               <textarea
@@ -313,7 +347,18 @@ const TeacherNewslettersPage = () => {
                 onChange={(e) => setEditableContent(e.target.value)}
                 disabled={!mySection?._id || mySection?.status === 'approved'}
               />
-              <div className="tn-preview">{editableContent}</div>
+              <div className="tn-actions">
+                <button
+                  className="tn-btn primary"
+                  onClick={onSaveContent}
+                  disabled={savingContent || !mySection?._id || !editableContent.trim()}
+                >
+                  {savingContent ? t('newsletters:teacher.common.saving') : t('newsletters:teacher.actions.saveDraft')}
+                </button>
+                <button className="tn-btn" onClick={onSubmit} disabled={teacherNewsletter.submitting || mySection?.status !== 'draft'}>
+                  {teacherNewsletter.submitting ? t('newsletters:teacher.common.submitting') : t('newsletters:teacher.actions.submitToAdmin')}
+                </button>
+              </div>
             </>
           ) : (
             <div className="tn-muted">{t('newsletters:teacher.common.generateToPreview')}</div>
@@ -323,8 +368,9 @@ const TeacherNewslettersPage = () => {
               <strong>{t('newsletters:teacher.common.adminNotes')}:</strong> {mySection.adminReview.notes}
             </div>
           ) : null}
-        </div>
+        </section>
       </div>
+      )}
     </div>
   );
 };

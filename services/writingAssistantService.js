@@ -727,7 +727,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
         project: project._id,
         'publish.state': 'published'
     })
-        .select('draft previousDraft kind sections overall scores totalScore comparison recommendation publish publishedAt')
+        .select('draft previousDraft kind sections overall scores tasks totalScore comparison recommendation publish publishedAt')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -786,11 +786,13 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
         feedback: published.map((assessment) => ({
             id: String(assessment._id),
             draftId: String(assessment.draft),
+            previousDraftId: assessment.previousDraft ? String(assessment.previousDraft) : '',
             kind: assessment.kind,
             publishedAt: assessment.publish?.publishedAt,
             sections: assessment.sections,
             overall: assessment.overall,
             scores: assessment.scores,
+            tasks: assessment.tasks,
             totalScore: assessment.totalScore,
             comparison: assessment.comparison,
             recommendation: assessment.recommendation

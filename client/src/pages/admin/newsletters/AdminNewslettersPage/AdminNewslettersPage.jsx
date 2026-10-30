@@ -22,6 +22,7 @@ import {
   selectAdminNewsletter,
   clearAdminIssueDetails
 } from '../../../../store/slices/newsletterSlice';
+import ChildLettersReview from './ChildLettersReview.jsx';
 
 import './AdminNewslettersPage.css';
 
@@ -421,6 +422,10 @@ const AdminNewslettersPage = () => {
                   ))
                 )}
               </div>
+
+              {activeTab === 'review' && issue?._id ? (
+                <ChildLettersReview issueId={issue._id} />
+              ) : null}
 
               {activeTab === 'review' ? (
                 <div className="an-send">
