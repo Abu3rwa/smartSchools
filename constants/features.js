@@ -104,6 +104,12 @@ export const FEATURES = {
         description: 'Guide students through drafts, revisions and notebook checks with rubric-based feedback.',
         plans: ['professional', 'enterprise']
     },
+    studentAiTutor: {
+        key: 'studentAiTutor',
+        label: 'Student AI Tutor',
+        description: 'A student-facing tutor that answers only from the lessons and standards imported for the class subject, with per-student credit controlled by the school admin.',
+        plans: ['professional', 'enterprise']
+    },
     revisionPlanning: {
         key: 'revisionPlanning',
         label: 'Revision Planning',

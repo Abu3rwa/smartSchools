@@ -71,6 +71,9 @@
     "aiCreditDashboard": "AI credit dashboard",
     "spellingAnalysis": "Spelling analysis",
     "myWriting": "My Writing",
+    "aiTutor": "AI Tutor",
+    "tutorConversations": "Tutor conversations",
+    "tutorControl": "Tutor control",
     "sbrConfig": "SBR Config",
     "sbrGenerate": "SBR Generate",
     "sbrReports": "SBR Reports",
@@ -127,6 +130,7 @@
       "vocabulary": "Build word knowledge with quick practice.",
       "reading": "Read assigned texts and answer questions.",
       "myWriting": "Write your drafts and read your teacher's feedback.",
+      "aiTutor": "Ask about any subject using your class's lessons.",
       "plp": "Character goals, habits, and monthly focus.",
       "plpMyTasks": "The character tasks assigned to you.",
       "liveLessons": "Join a live class session when it starts."

@@ -719,6 +719,22 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/tutor/students",
+      icon: HiOutlineChatBubbleLeftRight,
+      labelKey: "tutorConversations",
+      roles: ["admin", "teacher"],
+      feature: "studentAiTutor",
+      section: "teaching",
+    },
+    {
+      path: "/portal/tutor/admin",
+      icon: HiOutlineAdjustmentsHorizontal,
+      labelKey: "tutorControl",
+      roles: ["admin"],
+      feature: "studentAiTutor",
+      section: "admin",
+    },
+    {
       path: "/portal/ai-credit",
       icon: HiOutlineCreditCard,
       labelKey: "aiCreditDashboard",
@@ -828,6 +844,14 @@ const Sidebar = () => {
       labelKey: "myWriting",
       roles: ["student"],
       feature: "writingAssistant",
+      section: "teaching",
+    },
+    {
+      path: "/portal/tutor",
+      icon: HiOutlineSparkles,
+      labelKey: "aiTutor",
+      roles: ["student"],
+      feature: "studentAiTutor",
       section: "teaching",
     },
     {

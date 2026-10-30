@@ -10,6 +10,7 @@ const store = new AsyncLocalStorage();
 // Longest paths first: `/api/standards` must not swallow `/api/standard-assessment`.
 const FEATURES = [
     ['/api/academic-excellence', 'academic_excellence'],
+    ['/api/tutor', 'student_tutor'],
     ['/api/communication-email', 'communication_email'],
     ['/api/standard-assessment', 'standards_practice'],
     ['/api/student-grouping', 'student_grouping'],

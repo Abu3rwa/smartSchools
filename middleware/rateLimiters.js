@@ -24,6 +24,23 @@ export const aiFeatureRateLimiter = rateLimit({
 });
 
 /**
+ * The student tutor is a conversation, so a session can legitimately hold more
+ * requests than a one-shot AI feature. The wallet and the daily question limit in
+ * the tutor settings remain the real caps; this only stops a scripted loop.
+ */
+export const tutorRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 40,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many tutor requests. Please wait a few minutes and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Practice generates questions from published pools or local templates, not the AI service.
  * Keep a separate, higher ceiling so normal student practice does not consume the AI budget.
  */

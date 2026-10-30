@@ -139,6 +139,9 @@ const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingW
 const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
+const TutorPage = lazy(() => import("./pages/student/tutor"));
+const TutorConversationsPage = lazy(() => import("./pages/teacher/tutor/TutorConversationsPage"));
+const TutorAdminPage = lazy(() => import("./pages/admin/tutor"));
 const MyAiCreditPage = lazy(() => import("./pages/aiCredit/MyCreditPage.jsx"));
 const AiCreditAdminPage = lazy(() => import("./pages/aiCredit/AdminCreditPage.jsx"));
 const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
@@ -1492,6 +1495,37 @@ function App() {
                 <RoleRoute roles={["teacher", "admin"]}>
                   <FeatureGate feature="writingAssistant" showUpgradePrompt>
                     <WritingAssignmentBuilderPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            {/* Student AI tutor: the student asks, the teacher reads, the admin controls */}
+            <Route
+              path="tutor"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="studentAiTutor" showUpgradePrompt>
+                    <TutorPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="tutor/students"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="studentAiTutor" showUpgradePrompt>
+                    <TutorConversationsPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="tutor/admin"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <FeatureGate feature="studentAiTutor" showUpgradePrompt>
+                    <TutorAdminPage />
                   </FeatureGate>
                 </RoleRoute>
               }

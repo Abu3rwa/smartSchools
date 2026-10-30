@@ -275,14 +275,13 @@ const shouldAutoPublish = (assignment) => (
 /* ------------------------------------------------------------------ */
 
 /**
- * Writing feedback is the one thing that may run on OpenAI. Everything else in
- * the product still uses the default provider; flip WRITING_AI_PROVIDER back to
- * "gemini" to send this path home without a code change.
+ * Writing feedback and comparisons run on GPT. The provider is fixed here, not
+ * read from the environment: a mis-set variable must never move this feature to
+ * another model family without a code review.
  */
-const writingAiOptions = () => {
-    const provider = String(process.env.WRITING_AI_PROVIDER || 'openai').toLowerCase();
-    const modelName = process.env.WRITING_AI_MODEL;
-    return modelName ? { provider, modelName } : { provider };
+const WRITING_AI = {
+    provider: 'openai',
+    ...(process.env.WRITING_AI_MODEL ? { modelName: process.env.WRITING_AI_MODEL } : {})
 };
 
 /**

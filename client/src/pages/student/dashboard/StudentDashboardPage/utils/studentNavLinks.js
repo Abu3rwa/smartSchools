@@ -76,6 +76,13 @@ export const studentNavLinks = [
     section: "practice",
   },
   {
+    path: "/portal/tutor",
+    icon: HiOutlineSparkles,
+    labelKey: "aiTutor",
+    feature: "studentAiTutor",
+    section: "practice",
+  },
+  {
     path: "/portal/plp",
     icon: HiOutlineSparkles,
     labelKey: "plp",
