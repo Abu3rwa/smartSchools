@@ -160,9 +160,10 @@ export default function TutorPage() {
   /* Step 1 — the subject decides the whole scope. */
   if (!subjectId) {
     return (
-      <div className="tt-page">
-        <header className="tt-head">
-          <div>
+      <div className="tt-page tt-page--home">
+        <header className="tt-head tt-head--home">
+          <span className="tt-hero-icon" aria-hidden="true"><HiOutlineSparkles size={26} /></span>
+          <div className="tt-head-main">
             <h1>{t('tutor:title')}</h1>
             <p className="tt-sub">{t('tutor:subtitle')}</p>
           </div>
@@ -191,14 +192,14 @@ export default function TutorPage() {
                 </div>
               )}
               <div className="tt-subjects">
-                {home.subjects.map((item) => (
+                {home.subjects.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
-                    className="tt-subject"
+                    className={`tt-subject tt-subject--${index % 4}`}
                     onClick={() => chooseSubject(item.id)}
                   >
-                    <span className="tt-subject-icon" aria-hidden="true"><HiOutlineAcademicCap size={20} /></span>
+                    <span className="tt-subject-icon" aria-hidden="true"><HiOutlineAcademicCap size={22} /></span>
                     <span className="tt-subject-name">{item.name}</span>
                     <span className="tt-subject-meta">{t('tutor:lessonCount', { n: item.lessons })}</span>
                     <HiOutlineChevronRight size={16} aria-hidden="true" className="tt-subject-go" />
@@ -542,7 +543,12 @@ function creditLine(home, t) {
     );
   }
   if (credits <= 3) {
-    return <p className="tt-notice is-soft" role="status">{t('tutor:credits.low', { n: credits })}</p>;
+    return (
+      <p className="tt-notice is-soft" role="status">
+        <HiOutlineLightningBolt size={15} aria-hidden="true" />
+        {t('tutor:credits.low', { n: credits })}
+      </p>
+    );
   }
   return <p className="tt-muted tt-credit-line">{t('tutor:credits.carryOver')}</p>;
 }

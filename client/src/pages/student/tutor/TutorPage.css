@@ -82,62 +82,100 @@
 }
 
 /* ---- Subject picker ---- */
+.tt-page--home { max-width: 880px; }
+.tt-head--home { align-items: center; justify-content: center; }
+.tt-head--home .tt-head-main { flex: 0 1 auto; }
+.tt-head--home h1 { font-size: 1.9rem; }
+.tt-head--home .tt-sub { max-width: 58ch; font-size: 1.05rem; }
+.tt-hero-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #14b8a6, var(--tt-teal));
+  color: #ffffff;
+  box-shadow: 0 12px 24px -16px rgba(13, 148, 136, 0.9);
+}
+
 .tt-section-title {
-  margin: 0 0 12px;
-  font-size: 0.88rem;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--tt-muted);
+  margin: 0 0 14px;
+  font-size: 1.15rem;
+  color: var(--tt-ink);
   font-weight: 700;
+  text-align: center;
 }
 
 .tt-subjects {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 300px));
+  justify-content: center;
+  gap: 14px;
 }
 
+.tt-page--home .tt-notice,
+.tt-page--home .tt-last-practice {
+  align-self: center;
+}
+.tt-page--home .tt-credit-line { align-self: center; text-align: center; }
+
 .tt-subject {
+  --tt-subject-accent: var(--tt-teal);
+  --tt-subject-soft: var(--tt-soft);
   display: grid;
   grid-template-columns: auto 1fr auto;
   grid-template-areas: "icon name go" "icon meta go";
   align-items: center;
   gap: 3px 14px;
-  padding: 18px;
+  padding: 20px 18px;
   border: 1px solid var(--tt-line);
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--tt-surface);
   color: var(--tt-ink);
   text-align: start;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
+.tt-subject--0 { --tt-subject-accent: #0d9488; --tt-subject-soft: color-mix(in srgb, #0d9488 12%, transparent); }
+.tt-subject--1 { --tt-subject-accent: #d97706; --tt-subject-soft: color-mix(in srgb, #d97706 13%, transparent); }
+.tt-subject--2 { --tt-subject-accent: #4f46e5; --tt-subject-soft: color-mix(in srgb, #4f46e5 12%, transparent); }
+.tt-subject--3 { --tt-subject-accent: #db2777; --tt-subject-soft: color-mix(in srgb, #db2777 12%, transparent); }
 .tt-subject:hover {
-  border-color: var(--tt-teal);
-  transform: translateY(-1px);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 14px 30px -22px rgba(15, 23, 42, 0.55);
+  border-color: color-mix(in srgb, var(--tt-subject-accent) 55%, transparent);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 18px 34px -24px rgba(15, 23, 42, 0.5);
 }
-.tt-subject:focus-visible { outline: 2px solid var(--tt-teal); outline-offset: 2px; }
+.tt-subject:focus-visible { outline: 2px solid var(--tt-subject-accent); outline-offset: 2px; }
 
 .tt-subject-icon {
   grid-area: icon;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 13px;
-  background: var(--tt-soft);
-  color: var(--tt-teal);
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--tt-subject-soft);
+  color: var(--tt-subject-accent);
 }
 .tt-subject-name {
   grid-area: name;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   overflow-wrap: anywhere;
 }
-.tt-subject-meta { grid-area: meta; font-size: 0.92rem; color: var(--tt-muted); }
-.tt-subject-go { grid-area: go; color: var(--tt-muted); }
+.tt-subject-meta { grid-area: meta; font-size: 0.95rem; color: var(--tt-muted); }
+.tt-subject-go {
+  grid-area: go;
+  color: var(--tt-subject-accent);
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+.tt-subject:hover .tt-subject-go { transform: translateX(3px); }
+[dir="rtl"] .tt-subject-go { transform: scaleX(-1); }
+[dir="rtl"] .tt-subject:hover .tt-subject-go { transform: scaleX(-1) translateX(3px); }
 
 .tt-empty {
   border: 1px dashed var(--tt-line);
@@ -745,9 +783,11 @@
   line-height: 1.5;
 }
 .tt-notice.is-soft {
-  background: var(--tt-surface-2);
-  color: var(--tt-muted);
-  border: 1px solid var(--tt-line);
+  padding: 12px 15px;
+  border-radius: 14px;
+  background: var(--tt-amber-soft);
+  color: var(--tt-amber);
+  font-weight: 600;
 }
 
 .tt-composer {

@@ -1,12 +1,12 @@
 {
   "title": "AI Tutor",
-  "subtitle": "Pick a subject, then ask about any lesson. Answers come only from your grade's lessons and standards.",
+  "subtitle": "Pick a subject you're learning and let's work it out together — one step at a time.",
   "loading": "Opening the tutor…",
   "unavailableTitle": "The tutor is not available",
   "retry": "Try again",
-  "pickSubject": "Choose a subject",
+  "pickSubject": "What do you want to learn today?",
   "noSubjects": "No lessons are published for your grade yet. The school office adds them.",
-  "lessonCount": "Lessons: {{n}}",
+  "lessonCount": "Lessons to explore: {{n}}",
   "changeSubject": "Change subject",
   "lessonsTitle": "Lessons",
   "loadingLessons": "Loading lessons…",
@@ -16,9 +16,9 @@
   "chapter": "Chapter {{n}}",
   "credits": {
     "left": "Questions left: {{n}}",
-    "low": "Only {{n}} questions left in your balance.",
-    "usedAll": "You have used all your tutor questions. Ask your teacher or the school office for more.",
-    "carryOver": "Your balance stays with you and carries into the next term."
+    "low": "Only a few questions left ({{n}}). Choose your next one carefully!",
+    "usedAll": "You've used all your questions. Ask your teacher or the school office for more.",
+    "carryOver": "No rush — any questions you don't use wait for you next term."
   },
   "blocked": {
     "title": "The tutor is paused",
