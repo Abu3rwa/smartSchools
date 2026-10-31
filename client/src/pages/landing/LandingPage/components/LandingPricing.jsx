@@ -6,9 +6,46 @@ import Button from '@mui/material/Button';
 import { HiOutlineCheckCircle } from 'react-icons/hi';
 
 /**
- * Pricing plans — uses .landing-card-grid for equal width cards.
+ * Pricing plans — live from the subscription plan records when available,
+ * falling back to the CMS copy.
  */
-export default function LandingPricing({ content, handleAction }) {
+const formatPrice = (billing = {}) => {
+    const amount = Number(billing.amount);
+    if (!Number.isFinite(amount)) return '';
+    const currency = String(billing.currency || 'USD').toUpperCase();
+    return currency === 'USD' ? `$${amount}` : `${currency} ${amount}`;
+};
+
+export default function LandingPricing({ content, plans = [], uiText = {}, handleAction }) {
+    const seatsLabel = (limit) => {
+        const value = Number(limit);
+        if (!Number.isFinite(value)) return '';
+        if (value < 0) return uiText.unlimitedStudents || 'Unlimited students';
+        return (uiText.upToStudents || 'Up to {{n}} students').replace('{{n}}', String(value));
+    };
+
+    const periodLabel = (interval) => {
+        if (!interval) return '';
+        return interval === 'year'
+            ? uiText.perYear || '/ year'
+            : uiText.perMonth || '/ month';
+    };
+
+    const livePlans = plans.length > 0
+        ? plans.map((plan) => ({
+            name: plan.name,
+            price: formatPrice(plan.billing),
+            period: periodLabel(plan.billing?.interval),
+            description: plan.description || '',
+            features: [seatsLabel(plan.limits?.maxStudents), ...(plan.featureHighlights || [])].filter(Boolean),
+            featured: Boolean(plan.featured),
+            ctaLabel: uiText?.demoCta || 'Book a demo',
+            ctaAction: 'demo'
+        }))
+        : null;
+
+    const cards = livePlans || content.pricing.plans || [];
+
     return (
         <Box id="pricing" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
             <Container maxWidth="lg">
@@ -23,7 +60,7 @@ export default function LandingPricing({ content, handleAction }) {
                 </Typography>
 
                 <div className="landing-card-grid">
-                    {(content.pricing.plans || []).map((plan) => (
+                    {cards.map((plan) => (
                         <Paper
                             key={`${plan.name}-${plan.price}`}
                             className="landing-lift-card"

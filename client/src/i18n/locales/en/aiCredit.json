@@ -96,6 +96,9 @@
       "academic_excellence": "Academic excellence",
       "class_analytics": "Class analytics",
       "advanced_reporting": "Reports",
+      "voice-tutor": "Voice tutor",
+      "tutor-question": "Tutor questions",
+      "tutor-practice": "Tutor practice",
       "general": "AI request"
     },
     "unusable": "Reply unusable",

@@ -40,6 +40,12 @@ const aiCreditEntrySchema = new mongoose.Schema(
       cachedInputPerMillionCents: { type: Number },
       outputPerMillionCents: { type: Number }
     },
+    // Voice turns bill two extra meters; zero on every text-only row.
+    audioCostCents: { type: Number },
+    transcriptSeconds: { type: Number },
+    speechSeconds: { type: Number },
+    sttModel: { type: String, trim: true },
+    ttsModel: { type: String, trim: true },
 
     assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingAssignment' },
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingProject' },

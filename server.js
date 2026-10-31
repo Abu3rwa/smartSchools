@@ -65,6 +65,7 @@ import writingRoutes from "./routes/writingRoutes.js";
 import tutorRoutes from "./routes/tutorRoutes.js";
 import aiCreditRoutes from "./routes/aiCreditRoutes.js";
 import platformAiCreditRoutes from "./routes/platformAiCreditRoutes.js";
+import platformDashboardRoutes from "./routes/platformDashboardRoutes.js";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import attendanceRequestTypeRoutes from "./routes/attendanceRequestTypeRoutes.js";
 import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
@@ -280,12 +281,7 @@ app.get("/api/health/ready", async (req, res) => {
   };
 
   // BE-031: check external dependencies
-  try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    checks.aiService = process.env.GEMINI_API_KEY ? 'configured' : 'missing_key';
-  } catch {
-    checks.aiService = 'unavailable';
-  }
+  checks.aiService = process.env.OPENAI_API_KEY ? 'configured' : 'missing_key';
 
   const allHealthy = connected && checks.aiService !== 'unavailable';
   res.status(allHealthy ? 200 : 503).json({ ready: allHealthy, checks });
@@ -378,6 +374,7 @@ app.use("/api/writing", writingRoutes);
 app.use("/api/tutor", tutorRoutes);
 app.use("/api/ai-credit", aiCreditRoutes);
 app.use("/api/platform/ai-credit", platformAiCreditRoutes);
+app.use("/api/platform/dashboard", platformDashboardRoutes);
 app.use("/api/substitutions", substitutionRoutes);
 app.use("/api/review", reviewRoutes);
 app.use("/api/interventions", interventionRoutes);

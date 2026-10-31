@@ -24,7 +24,7 @@ const MARK_STEP = 0.25;
 const CONFIDENCE_LEVELS = ["high", "medium", "low"];
 
 const draftModelName = () => (
-  process.env.LIVE_LESSON_MARK_AI_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash-lite"
+  process.env.LIVE_LESSON_MARK_AI_MODEL || process.env.OPENAI_MODEL || "gpt-5.4-mini"
 );
 
 const clampMarks = (value, maxMarks) => {

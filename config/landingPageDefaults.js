@@ -122,6 +122,24 @@ export const landingPageDefaultContent = {
         description:
           "Support learners with reading assistant and revision planning while keeping parents informed through notifications.",
       },
+      {
+        iconKey: "ai",
+        title: "AI tutor and voice tutor",
+        description:
+          "A student tutor that answers only from the lessons imported for the class, plus a spoken voice mode. Both spend from a school AI credit pool the admin controls.",
+      },
+      {
+        iconKey: "feedback",
+        title: "Rubric-based writing and reading feedback",
+        description:
+          "Students get feedback on drafts and reading responses that follows your rubric, with revision notes the teacher reviews before anything is published.",
+      },
+      {
+        iconKey: "insights",
+        title: "AI reports and teacher drafts",
+        description:
+          "Spelling analysis reports and class insights built from your gradebook, plus AI drafts for lesson plans, newsletters and parent messages — all editable before sending.",
+      },
     ],
   },
   pricing: {

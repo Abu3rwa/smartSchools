@@ -1,0 +1,65 @@
+{
+  "page": {
+    "title": "Demo Requests",
+    "subtitle": "Schools that asked to see GradeBook Pro in action."
+  },
+  "stats": {
+    "all": "All requests",
+    "new": "New",
+    "contacted": "Contacted",
+    "scheduled": "Scheduled",
+    "closed": "Closed"
+  },
+  "search": {
+    "placeholder": "Search by name, school, or email"
+  },
+  "filters": {
+    "statusLabel": "Status",
+    "all": "All statuses"
+  },
+  "status": {
+    "new": "New",
+    "contacted": "Contacted",
+    "scheduled": "Scheduled",
+    "closed": "Closed"
+  },
+  "table": {
+    "school": "School",
+    "contact": "Contact",
+    "role": "Role",
+    "requested": "Requested",
+    "status": "Status",
+    "actions": "Actions",
+    "open": "Open"
+  },
+  "loading": "Loading demo requests…",
+  "errors": {
+    "load": "Demo requests could not be loaded.",
+    "retry": "Try again"
+  },
+  "empty": {
+    "title": "No demo requests yet",
+    "description": "Requests submitted from the landing page will appear here.",
+    "filtered": "No demo requests match this filter."
+  },
+  "details": {
+    "title": "Demo request",
+    "close": "Close",
+    "contact": "Contact",
+    "school": "School",
+    "role": "Role",
+    "received": "Received",
+    "message": "What they shared",
+    "noMessage": "No message was included.",
+    "notes": "Internal notes",
+    "notesPlaceholder": "What happened after you reached out…",
+    "statusLabel": "Status",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "saved": "Demo request updated.",
+    "failed": "That update could not be saved.",
+    "email": "Email",
+    "phone": "Phone",
+    "na": "—"
+  }
+}

@@ -46,6 +46,7 @@ export default function LandingMobileDrawer({
                     </Button>
                 ))}
                 <Button fullWidth onClick={() => { onClose(); handleAction('login'); }} sx={{ color: 'text.secondary' }}>{content.header.loginLabel}</Button>
+                <Button variant="outlined" fullWidth onClick={() => { onClose(); handleAction('demo'); }}>{uiText.demoCta || 'Book a demo'}</Button>
                 <Button variant="contained" fullWidth onClick={() => { onClose(); handleAction('register'); }}>{content.header.startLabel}</Button>
             </Box>
         </Drawer>

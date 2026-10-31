@@ -24,6 +24,13 @@ const studentLearningProfileSchema = new mongoose.Schema({
         enum: ['slow', 'medium', 'fast'], 
         default: 'medium' 
     },
+    // Teacher override for how the AI tutors speak to this student. Empty means
+    // the measured reading level decides, falling back to on-level.
+    languageLevel: {
+        type: String,
+        enum: ['support', 'on_level', 'stretch'],
+        default: null
+    },
     preferredStudyTime: { 
         type: String, 
         trim: true 

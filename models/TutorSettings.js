@@ -11,9 +11,8 @@ const tutorSettingsSchema = new mongoose.Schema(
         school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true, unique: true },
         enabled: { type: Boolean, default: false },
         practiceEnabled: { type: Boolean, default: true },
-        // A cost guard, not a credit: a student can never spend more than their
-        // wallet, and this caps how many questions one student may ask in a day.
-        dailyMessageLimit: { type: Number, default: 40, min: 1, max: 200 },
+        // The wallet is the only limit: a student works at their own pace until
+        // their questions run out, with no daily reset.
         defaultCredits: { type: Number, default: 30, min: 0, max: 1000 },
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
     },

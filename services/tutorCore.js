@@ -255,6 +255,59 @@ const LANGUAGE_NAMES = {
     ar: 'Arabic'
 };
 
+/* ------------------------------------------------------------------ */
+/* Language level                                                      */
+/* ------------------------------------------------------------------ */
+
+export const LANGUAGE_LEVELS = ['support', 'on_level', 'stretch'];
+
+/**
+ * Bands a measured reading level against the class grade. Comprehension outranks
+ * the level: a student who decodes above grade but understands little still needs
+ * the simplest wording. Nothing measured means on-level rather than a guess.
+ */
+export const readingLevelBand = ({ readingLevel, accuracy, grade } = {}) => {
+    const measuredAccuracy = Number(accuracy);
+    if (accuracy !== null && accuracy !== undefined && accuracy !== ''
+        && Number.isFinite(measuredAccuracy) && measuredAccuracy < 60) {
+        return 'support';
+    }
+    const level = Number(readingLevel);
+    const gradeNumber = Number(grade);
+    if (!Number.isFinite(level) || !Number.isFinite(gradeNumber) || gradeNumber < 1) return null;
+    const gap = level - gradeNumber;
+    if (gap <= -1) return 'support';
+    if (gap >= 2) return 'stretch';
+    return 'on_level';
+};
+
+/** A teacher's override always wins; otherwise the measured reading level decides. */
+export const resolveLanguageLevel = ({ override, readingLevel, accuracy, grade } = {}) => (
+    LANGUAGE_LEVELS.includes(override)
+        ? override
+        : readingLevelBand({ readingLevel, accuracy, grade }) || 'on_level'
+);
+
+const LANGUAGE_LEVEL_GUIDANCE = {
+    support: `This student needs language support.
+- Use short, simple sentences (under 12 words) and everyday words.
+- Explain any subject word the first time you use it, in one short phrase.
+- One idea at a time. At most two points.
+- Keep every reply under 80 words. Avoid idioms and long examples.`,
+    on_level: `This student reads at their grade level.
+- Use clear, everyday words and short sentences.
+- Up to three points, each explained in one sentence.
+- Keep every reply under 120 words.`,
+    stretch: `This student is a strong reader for their grade.
+- Use precise subject vocabulary; explain any word above grade level in a short phrase.
+- Up to three points, each stated crisply.
+- Keep every reply under 140 words.`
+};
+
+export const languageLevelGuidance = (level) => LANGUAGE_LEVEL_GUIDANCE[
+    LANGUAGE_LEVELS.includes(level) ? level : 'on_level'
+];
+
 /**
  * The tutor may only speak from the lessons handed to it. The student's name is
  * never part of this prompt: the model addresses "you" and knows nothing about
@@ -267,6 +320,7 @@ export const buildTutorPrompt = ({
     subjectName = 'this subject',
     grade = '',
     language = 'en',
+    languageLevel = 'on_level',
     selectedLesson = null,
     history = [],
     tries = 0
@@ -311,11 +365,14 @@ HOW YOU TEACH
 - The student explains things back. You do not lecture unless they have tried twice.
 - One hint at a time. Never stack two hints or slip the answer into a hint.
 - Reply in ${languageName} only. Write plain text: no markdown headings, no tables, no code fences.
-- Keep every reply under 120 words. Short paragraphs. A short numbered list only when giving steps.
+- Short paragraphs. A short numbered list only when giving steps.
 - If the question is not covered by the lesson material, say exactly that in one sentence, name the closest lesson you can see, and offer to explain what that lesson does cover. Never fill the gap with invented content.
 - If the student asks about another subject or something personal, say you only help with ${subjectName} lessons for grade ${grade} and name one lesson you can help with.
 - Never mention the student's name, class, school, teacher or any personal detail. Address the student as "you".
 - Do not hand over finished homework. Guide, then check.
+
+HOW YOU TALK TO THIS STUDENT
+${languageLevelGuidance(languageLevel)}
 
 REPLY FORMAT
 Start every reply with one tag on its own line, then your reply on the next line:
@@ -326,6 +383,226 @@ The tag is removed before the student reads your reply, so never repeat it in th
 
 STUDENT MESSAGE
 ${text(question)}`;
+};
+
+export const VOICE_BLOCKS_MAX = 3;
+export const VOICE_BLOCK_ITEMS_MAX = 4;
+export const VOICE_CONTRAST_ITEMS_MAX = 3;
+export const VOICE_POINT_WORDS = 15;
+export const VOICE_REPLY_MAX_CHARS = 700;
+
+const VOICE_BLOCK_TYPES = ['bullets', 'contrast', 'example', 'steps', 'keyIdea'];
+const VOICE_ITEM_CHARS = 200;
+const VOICE_LEAD_CHARS = 280;
+const VOICE_FOLLOWUP_CHARS = 220;
+
+/**
+ * The spoken tutor. Same grounding and the same try-hint-answer ladder as the
+ * text tutor, but every reply is a short spoken turn shaped as JSON so the board
+ * can lay out typed blocks and the voice can read them without symbols. A reply
+ * may carry no blocks at all: a one-line answer stays one line.
+ */
+export const buildVoicePrompt = ({
+    transcript,
+    lessons = [],
+    standards = [],
+    subjectName = 'this subject',
+    grade = '',
+    language = 'en',
+    languageLevel = 'on_level',
+    lesson = null,
+    board = [],
+    tries = 0
+}) => {
+    const languageName = LANGUAGE_NAMES[String(language).slice(0, 2)] || LANGUAGE_NAMES.en;
+    const lessonBlocks = lessons.map((row) => {
+        const code = row.standards?.length ? ` (standards: ${row.standards.join(', ')})` : '';
+        return `[${lessonLabel(row)}]${code}\n${clip(row.content, LESSON_CHARS_IN_ANSWER)}`;
+    }).join('\n\n');
+    const standardsBlock = standards.slice(0, STANDARDS_IN_ANSWER)
+        .map((standard) => `- ${standard.code}: ${clip(standard.description || standard.name || '', 300)}`)
+        .join('\n');
+    const boardBlock = board.slice(-8)
+        .map((message) => (
+            message.role === 'student'
+                ? `Student said: ${shorten(message.text, 300)}`
+                : `You said: ${shorten(message.spoken || message.text, 400)}`
+        ))
+        .join('\n');
+    const attempts = Math.min(MAX_TRIES_BEFORE_ANSWER, Math.max(0, Number(tries) || 0));
+
+    const ladder = attempts === 0
+        ? `The student has not tried yet. Do NOT explain, hint or give the answer.
+Ask them to say in their own words what they already understand, or to make a first try.
+If they are instead explaining back something you just taught them, check it and correct what is wrong.`
+        : attempts === 1
+            ? `The student has tried once. Give ONE hint only — a single nudge or leading question.
+Do NOT explain the whole idea and do NOT give the answer. Ask them to try again.`
+            : `The student has tried ${attempts} times. You may now explain the idea fully, one step at a time.
+Then ask them to say it back in their own words so you can check it.`;
+
+    return `You are a warm, patient ${subjectName} tutor talking out loud with one student in grade ${grade}.
+Everything you write is spoken aloud by a voice. Never write anything that only works on a screen.
+
+WHAT YOU MAY ANSWER FROM
+Use ONLY the lesson material below. Do not use outside knowledge, and never invent facts, dates, formulas, names or page numbers.
+${lesson ? `The student chose this lesson: ${lessonLabel(lesson)}.\n` : ''}
+LESSON MATERIAL
+${lessonBlocks || '(no lesson material matched this question)'}
+
+${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ''}
+${boardBlock ? `BOARD SO FAR (this session)\n${boardBlock}\n\n` : ''}HOW THIS TURN MUST GO
+${ladder}
+
+HOW YOU TALK
+${languageLevelGuidance(languageLevel)}
+- Speak ${languageName} only, including every item and the follow-up question.
+- Short spoken sentences. Contractions are welcome. Sound like a kind teacher, not a textbook.
+- Numbers, symbols and formulas are said in words. No markdown, no bullet characters, no emoji, no code.
+- If the lesson material does not cover the question, say exactly that in one short sentence, name the closest lesson, and offer what it does cover.
+- If the student asks about another subject or something personal, say you only help with ${subjectName} lessons for grade ${grade}.
+- Never mention the student's name, class, school, teacher or any personal detail.
+- Do not hand over finished homework. Guide, then check.
+
+REPLY FORMAT
+Return exactly one JSON object and nothing else:
+{"stage":"prompt|hint|answer","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question"}
+- "stage" follows how this turn must go: prompt for an invitation to try, hint for one hint, answer for a full explanation.
+- "lead" reacts to what the student just said, in one or two sentences. The board shows it largest.
+- "emphasis" repeats the one word or phrase inside "lead" that the board should underline. Copy it exactly. Leave it empty when nothing deserves the underline.
+- "blocks" holds only the blocks this turn needs: none, one, two, or three. Never pad the reply to a fixed number. A short answer can be one lead sentence and the follow-up, with no blocks.
+  {"type":"bullets","items":["...","..."]} — two to four short parallel points.
+  {"type":"contrast","items":[{"word":"and","text":"adds another idea"},{"word":"but","text":"shows a difference"}]} — two or three words, each with the job it does.
+  {"type":"example","text":"one concrete example"} — one sentence.
+  {"type":"steps","items":["...","..."]} — two to four steps in order.
+  {"type":"keyIdea","text":"one sentence worth remembering"} — the idea to keep.
+- Every list item is under ${VOICE_POINT_WORDS} words and a plain sentence: no numbering, no bullet characters, no symbols.
+- "followUp" is one short question that makes the student think or answer back.
+
+STUDENT SAID
+${text(transcript)}`;
+};
+
+/**
+ * The first thing a student hears when a voice lesson opens: a warm greeting, a
+ * hook drawn from the chosen lesson, and one warm-up question. Generated from the
+ * lesson content and the student's language level, never a fixed template.
+ */
+export const buildVoiceOpeningPrompt = ({
+    lessons = [],
+    standards = [],
+    subjectName = 'this subject',
+    grade = '',
+    language = 'en',
+    languageLevel = 'on_level',
+    lesson = null
+}) => {
+    const languageName = LANGUAGE_NAMES[String(language).slice(0, 2)] || LANGUAGE_NAMES.en;
+    const lessonBlocks = lessons.map((row) => {
+        const code = row.standards?.length ? ` (standards: ${row.standards.join(', ')})` : '';
+        return `[${lessonLabel(row)}]${code}\n${clip(row.content, LESSON_CHARS_IN_ANSWER)}`;
+    }).join('\n\n');
+    const standardsBlock = standards.slice(0, STANDARDS_IN_ANSWER)
+        .map((standard) => `- ${standard.code}: ${clip(standard.description || standard.name || '', 300)}`)
+        .join('\n');
+
+    return `You are a warm, patient ${subjectName} tutor opening a spoken lesson with one student in grade ${grade}.
+This is the very first thing the student hears. Everything you write is spoken aloud by a voice.
+
+WHAT YOU MAY USE
+Use ONLY the lesson material below for the hook. Do not use outside knowledge, and never invent facts, dates, formulas, names or page numbers.
+${lesson ? `The student chose this lesson: ${lessonLabel(lesson)}.\n` : ''}
+LESSON MATERIAL
+${lessonBlocks || '(no lesson material matched)'}
+
+${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ''}
+HOW THIS OPENING MUST GO
+- Greet the student warmly in one short sentence. No name, no personal detail.
+- Give ONE hook: a single interesting idea or observation drawn from this lesson's material, to make them curious.
+- Then ask ONE warm-up question they can answer from what they already know or have seen in everyday life — not from the lesson's answer.
+- Do NOT explain the lesson, give a hint, or reveal the answer. You are opening a conversation, not teaching yet.
+- Keep the whole opening short: a greeting, a hook, and one question.
+
+HOW YOU TALK
+${languageLevelGuidance(languageLevel)}
+- Speak ${languageName} only, including the follow-up question.
+- Short spoken sentences. Contractions are welcome. Sound like a kind teacher, not a textbook.
+- Numbers, symbols and formulas are said in words. No markdown, no bullet characters, no emoji, no code.
+- Never mention the student's name, class, school, teacher or any personal detail.
+
+REPLY FORMAT
+Return exactly one JSON object and nothing else:
+{"stage":"opening","lead":"the greeting and hook, one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[],"followUp":"one short warm-up question"}
+- "stage" is always "opening".
+- "lead" is the greeting plus the hook. The board shows it largest.
+- "emphasis" repeats one word or phrase inside "lead" to underline, copied exactly, or empty.
+- "blocks" is usually empty for an opening; at most one short "example" or "keyIdea" block if it truly helps the hook.
+- "followUp" is the single warm-up question.`;
+};
+
+const voiceBlockText = (value) => shorten(text(value), VOICE_ITEM_CHARS);
+
+/** One typed block, normalized. A list of one is not a list, so it is dropped. */
+const readVoiceBlock = (raw) => {
+    const type = text(raw?.type);
+    if (!VOICE_BLOCK_TYPES.includes(type)) return null;
+    if (type === 'bullets' || type === 'steps') {
+        const items = (Array.isArray(raw?.items) ? raw.items : [])
+            .map((item) => voiceBlockText(typeof item === 'string' ? item : item?.text))
+            .filter(Boolean)
+            .slice(0, VOICE_BLOCK_ITEMS_MAX);
+        return items.length >= 2 ? { type, items } : null;
+    }
+    if (type === 'contrast') {
+        const items = (Array.isArray(raw?.items) ? raw.items : [])
+            .map((item) => ({ word: shorten(text(item?.word), 40), text: voiceBlockText(item?.text) }))
+            .filter((item) => item.word && item.text)
+            .slice(0, VOICE_CONTRAST_ITEMS_MAX);
+        return items.length >= 2 ? { type, items } : null;
+    }
+    const body = voiceBlockText(raw?.text);
+    return body ? { type, text: body } : null;
+};
+
+const blockAsSpeech = (block) => {
+    if (block.type !== 'contrast') {
+        return Array.isArray(block.items) ? block.items.join(' ') : block.text;
+    }
+    return block.items.map((item) => `${item.word} ${item.text}`).join(', ');
+};
+
+/** Parses the spoken reply. A reply that is not usable JSON is rejected, never guessed at. */
+export const readVoiceReply = (value) => {
+    const source = String(value ?? '').trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/, '')
+        .trim();
+    let parsed;
+    try {
+        parsed = JSON.parse(source);
+    } catch {
+        return null;
+    }
+    const lead = shorten(text(parsed?.lead), VOICE_LEAD_CHARS);
+    const emphasisRaw = text(parsed?.emphasis);
+    const emphasis = emphasisRaw && emphasisRaw.length <= 60 && lead.includes(emphasisRaw) ? emphasisRaw : '';
+    const blocks = (Array.isArray(parsed?.blocks) ? parsed.blocks : [])
+        .map(readVoiceBlock)
+        .filter(Boolean)
+        .slice(0, VOICE_BLOCKS_MAX);
+    // Old sessions and any model that still answers with "points" keep working.
+    if (!blocks.length && Array.isArray(parsed?.points)) {
+        const points = parsed.points.map(voiceBlockText).filter(Boolean).slice(0, VOICE_BLOCK_ITEMS_MAX);
+        if (points.length) blocks.push({ type: 'bullets', items: points });
+    }
+    const followUp = shorten(text(parsed?.followUp), VOICE_FOLLOWUP_CHARS);
+    const stage = ['opening', 'prompt', 'hint', 'answer'].includes(parsed?.stage) ? parsed.stage : 'hint';
+    if (!lead && !blocks.length && !followUp) return null;
+    const spoken = [lead, ...blocks.map(blockAsSpeech), followUp]
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, VOICE_REPLY_MAX_CHARS);
+    return { stage, lead, emphasis, blocks, followUp, spoken };
 };
 
 export const buildPracticePrompt = ({

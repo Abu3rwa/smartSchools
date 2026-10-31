@@ -34,7 +34,7 @@ export async function connectAiWithUsage(prompt, options = {}, opts = {}) {
     logger.error('connectAiWithUsage: AI call failed', err);
     // Log usage before re-throwing so the record is always created
     usageId = await logAIUsage({
-      model: response?.modelName || 'gemini-2.5-flash-lite',
+      model: response?.modelName || 'gpt-5.4-mini',
       feature: opts.feature,
       schoolId: opts.schoolId,
       userId: opts.userId,
@@ -52,7 +52,7 @@ export async function connectAiWithUsage(prompt, options = {}, opts = {}) {
 
   // Log usage on success
   usageId = await logAIUsage({
-    model: response?.modelName || 'gemini-2.5-flash-lite',
+    model: response?.modelName || 'gpt-5.4-mini',
     feature: opts.feature,
     schoolId: opts.schoolId,
     userId: opts.userId,

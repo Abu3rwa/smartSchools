@@ -1,47 +1,95 @@
 {
   "header": {
     "title": "Platform Analytics",
-    "subtitle": "SaaS business metrics and engagement overview"
+    "subtitle": "Your platform at a glance — schools, money, activity, and what needs a decision.",
+    "rangeLabel": "Time range",
+    "range": {
+      "30d": "30 days",
+      "90d": "90 days",
+      "12m": "12 months"
+    },
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "updatedAgo": "Updated {{when}}"
   },
   "common": {
-    "period": "Period",
-    "school": "School"
+    "never": "Never",
+    "notSet": "—"
   },
-  "stats": {
-    "totalSchools": "Total Schools",
-    "totalUsers": "Total Users",
-    "totalStudents": "Total Students",
-    "monthlyRecurringRevenue": "Monthly Recurring Revenue"
+  "kpis": {
+    "label": "Key figures",
+    "schools": "Schools",
+    "schoolsMeta": "Active {{active}} · Trial {{trial}}",
+    "students": "Students",
+    "studentsMeta": "+{{newCount}} in range",
+    "staff": "Staff",
+    "staffMeta": "{{active}}/{{total}} schools active in 30 days",
+    "mrr": "MRR",
+    "mrrMeta": "ARR {{arr}} · {{collected}} collected",
+    "aiProfit": "AI profit",
+    "aiMeta": "Charged {{charged}} · cost {{cost}}"
   },
-  "quickActions": {
-    "title": "Quick Actions",
-    "addSchool": "Add School",
-    "viewAllSchools": "View all schools"
+  "attention": {
+    "title": "Needs attention",
+    "subtitle": "Items that usually need a decision.",
+    "empty": "Nothing needs attention right now.",
+    "review": "Review",
+    "truncated": "Showing the most urgent.",
+    "trialsEnding": "Trials ending soon",
+    "billingIssues": "Billing issues",
+    "renewalsSoon": "Renewals this week",
+    "inactiveSchools": "Quiet schools (14+ days)",
+    "demosOver48h": "Demo requests waiting 48h+",
+    "oldest": "oldest {{date}}",
+    "upgradeRequests": "Upgrade requests",
+    "creditRequests": "AI credit requests"
   },
-  "analytics": {
-    "revenueGrowthTitle": "Revenue & Growth",
-    "revenueGrowthSubtitle": "New subscriptions and recurring revenue over the last year.",
-    "notEnoughData": "Not enough data yet.",
-    "currentMrr": "Current MRR",
-    "totalCollected": "Total collected",
-    "plansTitle": "Plans",
-    "plansSubtitle": "Distribution of schools across subscription plans.",
-    "noSubscriptions": "No subscriptions yet.",
-    "studentDistribution": "Student Distribution"
+  "revenue": {
+    "title": "Revenue",
+    "subtitle": "Invoiced vs collected, last 12 months.",
+    "invoiced": "Invoiced",
+    "collected": "Collected",
+    "collectionRate": "Collection rate",
+    "empty": "No invoices in the last 12 months."
   },
-  "charts": {
-    "revenue": "Revenue"
+  "growth": {
+    "title": "Growth",
+    "subtitle": "New schools and students, last 12 months.",
+    "newSchools": "New schools",
+    "newStudents": "New students",
+    "empty": "No new schools or students in the last 12 months."
+  },
+  "plans": {
+    "title": "Plan mix",
+    "subtitle": "Schools per plan.",
+    "empty": "No plans assigned yet."
+  },
+  "ai": {
+    "title": "AI economics",
+    "subtitle": "This month, by school.",
+    "viewAll": "AI credit",
+    "empty": "No AI usage this month.",
+    "table": {
+      "school": "School",
+      "charged": "Charged",
+      "profit": "Profit",
+      "margin": "Margin"
+    }
   },
   "schools": {
     "title": "Schools",
+    "subtitle": "Largest by students.",
+    "viewAll": "View all schools",
     "empty": "No schools yet. Create your first school to get started.",
     "table": {
       "school": "School",
-      "admin": "Admin",
-      "users": "Users",
-      "students": "Students",
       "plan": "Plan",
-      "status": "Status"
+      "status": "Status",
+      "students": "Students",
+      "staff": "Staff",
+      "lastActivity": "Last activity",
+      "renewal": "Renewal",
+      "open": "Open school"
     }
   },
   "plan": {
@@ -54,6 +102,37 @@
     "trial": "Trial",
     "suspended": "Suspended",
     "cancelled": "Cancelled",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "past_due": "Past due",
+    "expired": "Expired",
+    "other": "Other"
+  },
+  "demoRequests": {
+    "title": "Demo Requests",
+    "subtitle": "Open pipeline, then the latest requests.",
+    "viewAll": "View all",
+    "empty": "No demo requests yet. Requests from the landing page will appear here.",
+    "age": {
+      "label": "Age",
+      "fresh": "0–2 days",
+      "aging": "3–7 days",
+      "overdue": "8+ days"
+    },
+    "table": {
+      "school": "School",
+      "contact": "Contact",
+      "requested": "Requested",
+      "status": "Status"
+    },
+    "status": {
+      "new": "New",
+      "contacted": "Contacted",
+      "scheduled": "Scheduled",
+      "closed": "Closed"
+    }
+  },
+  "error": {
+    "title": "Dashboard unavailable",
+    "retry": "Try again"
   }
 }

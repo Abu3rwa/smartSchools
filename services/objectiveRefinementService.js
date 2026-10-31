@@ -86,11 +86,11 @@ export const createObjectiveRefinementService = () => ({
 
         const prompt = buildPrompt({ objectives, context: req.body?.context || {} });
         const aiResult = await connectAi(prompt, {
-            modelName: process.env.CURRICULUM_OBJECTIVE_REFINEMENT_MODEL || process.env.GEMINI_MODEL,
+            modelName: process.env.CURRICULUM_OBJECTIVE_REFINEMENT_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
         });
 
         await logAIUsage({
-            model: aiResult?.modelName || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+            model: aiResult?.modelName || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
             feature: 'objective_refinement',
             schoolId: req.schoolId,
             userId: req.user?._id,

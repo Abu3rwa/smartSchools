@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
+import { markReturning } from '../../utils/returningVisitor';
 
 // Async thunks
 export const login = createAsyncThunk(
@@ -14,6 +15,7 @@ export const login = createAsyncThunk(
           localStorage.setItem('refreshToken', response.data.data.refreshToken);
         }
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        markReturning();
         return response.data.data;
       }
     } catch (error) {
@@ -34,6 +36,7 @@ export const register = createAsyncThunk(
           localStorage.setItem('refreshToken', response.data.data.refreshToken);
         }
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        markReturning();
         return response.data.data;
       }
     } catch (error) {

@@ -4,7 +4,7 @@ import { parseBooleanEnv } from './booleanEnv.js';
 const requiredEnvVars = [
   'MONGODB_URI',
   'JWT_SECRET',
-  'GEMINI_API_KEY',
+  'OPENAI_API_KEY',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET'
 ];

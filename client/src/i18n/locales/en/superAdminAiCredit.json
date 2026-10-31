@@ -22,6 +22,28 @@
     "example": "At {{markup}}%, a request that costs you {{base}} is billed {{total}}.",
     "applyNote": "Changes apply only to requests charged after you save. Every earlier row keeps the percentage and amount it ran under."
   },
+  "voice": {
+    "title": "Voice tutor",
+    "subtitle": "One price per spoken message, for every school. The caps decide the worst case the price must cover.",
+    "price": "{{n}} credits per message",
+    "fields": {
+      "model": "Tutor model",
+      "stt": "Speech-to-text model",
+      "tts": "Text-to-speech model",
+      "voiceName": "Voice",
+      "credits": "Credits per message",
+      "context": "Most tokens sent to the model",
+      "reply": "Most tokens in one reply",
+      "listening": "Longest student recording (seconds)",
+      "speaking": "Longest spoken reply (seconds)"
+    },
+    "economics": "Worst case costs {{cost}} and is billed at the fixed price, leaving {{profit}} profit ({{margin}}% margin).",
+    "capNote": "Suggested price for these caps at your markup: {{suggested}} credits per message.",
+    "save": "Save voice pricing",
+    "saved": "Voice pricing saved. New sessions use it.",
+    "saveFailed": "Couldn't save the voice pricing.",
+    "loadFailed": "Couldn't load the voice pricing."
+  },
   "schools": {
     "loadFailed": "Couldn't load the school credit list.",
     "title": "Schools",

@@ -48,7 +48,7 @@ test('pricing knows the models this app sends and refuses to guess the rest', ()
         [75, 7.5, 450]
     );
     assert.equal(ratesForModel('gpt-5.4-mini-2026-01-01', {}).inputPerMillionCents, 75);
-    assert.equal(ratesForModel('gemini-2.5-flash', {}).outputPerMillionCents, 37.5);
+    assert.equal(ratesForModel('gemini-2.5-flash', {}), null);
     assert.equal(isModelPriced('some-new-model', {}), false);
     assert.equal(ratesForModel('', {}), null);
 });

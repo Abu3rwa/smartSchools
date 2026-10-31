@@ -33,11 +33,7 @@ const objectId = (value) => (mongoose.isValidObjectId(value) ? new mongoose.Type
 export const roundCents = (value) => Math.round((Number(value) || 0) * 10000) / 10000;
 
 export const creditRates = (env = process.env, modelName) => {
-    const model = modelName || env.WRITING_AI_MODEL || (
-        String(env.WRITING_AI_PROVIDER || 'openai').toLowerCase() === 'openai'
-            ? env.OPENAI_MODEL || 'gpt-5.4-mini'
-            : env.GEMINI_MODEL || 'gemini-2.5-flash'
-    );
+    const model = modelName || env.WRITING_AI_MODEL || env.OPENAI_MODEL || 'gpt-5.4-mini';
     const defaults = /^gpt-5\.4-mini(?:-\d{4}-\d{2}-\d{2})?$/.test(model) ? MINI_RATES : {};
     const rates = { model };
     for (const [field, key] of [
@@ -136,7 +132,11 @@ export const splitTopUp = ({ amountCents = 0, staffCount = 0, reservePercent = D
 };
 
 const CREDIT_ROLES = ['teacher', 'admin', 'super_admin'];
-const canHoldCredit = (user) => CREDIT_ROLES.includes(user?.role) || (user?.roles || []).includes('teacher');
+// Staff hold a credit account. Students are metered, not billed, except for the
+// premium voice tutor, whose balance is funded from the school reserve only.
+const canHoldCredit = (user, { students = false } = {}) => CREDIT_ROLES.includes(user?.role)
+    || (user?.roles || []).includes('teacher')
+    || (students && (user?.role === 'student' || (user?.roles || []).includes('student')));
 
 /** Roles whose AI use is paid from an account. Other roles are metered but not charged. */
 export const isBillableRole = ({ role, roles = [] } = {}) => CREDIT_ROLES.includes(role) || roles.includes('teacher');
@@ -202,14 +202,21 @@ export const chargeUsage = async ({
     outcome = 'done',
     refs = {},
     env = process.env,
-    rates: explicitRates
+    rates: explicitRates,
+    // Voice adds two meters that tokens cannot express: seconds of speech in each
+    // direction, and an optional fixed price instead of cost + markup.
+    extraCostCents = 0,
+    audio = null,
+    chargedCents: fixedChargedCents = null
 }) => {
     try {
         const rates = explicitRates || creditRates(env, reply.modelName);
         const tokens = tokenCounts(reply);
-        const providerCostCents = costCents(tokens, rates);
+        const providerCostCents = roundCents(costCents(tokens, rates) + (Number(extraCostCents) || 0));
         const markupPercent = await getMarkupPercent();
-        const chargedCents = applyMarkup(providerCostCents, markupPercent);
+        const chargedCents = fixedChargedCents === null || fixedChargedCents === undefined
+            ? applyMarkup(providerCostCents, markupPercent)
+            : roundCents(fixedChargedCents);
         const profitCents = roundCents(chargedCents - providerCostCents);
         const base = {
             school: schoolId,
@@ -224,6 +231,13 @@ export const chargeUsage = async ({
             model: String(reply.modelName || ''),
             ...tokens,
             rates,
+            ...(audio ? {
+                audioCostCents: roundCents(Number(extraCostCents) || 0),
+                transcriptSeconds: Math.max(0, Number(audio.transcriptSeconds) || 0),
+                speechSeconds: Math.max(0, Number(audio.speechSeconds) || 0),
+                sttModel: String(audio.sttModel || ''),
+                ttsModel: String(audio.ttsModel || '')
+            } : {}),
             assignment: refs.assignment,
             project: refs.project,
             draft: refs.draft,
@@ -616,13 +630,13 @@ export const cancelCreditRequest = async ({ schoolId, userId, requestId }) => {
 /* Admin                                                               */
 /* ------------------------------------------------------------------ */
 
-const loadCreditUser = async ({ schoolId, userId }) => {
+const loadCreditUser = async ({ schoolId, userId, students = false }) => {
     const id = objectId(userId);
     if (!id) throw notFound('Credit user not found.');
     const user = await User.findOne({ _id: id, school: schoolId })
         .select('firstName lastName email role roles')
         .lean();
-    if (!user || !canHoldCredit(user)) throw notFound('Credit user not found.');
+    if (!user || !canHoldCredit(user, { students })) throw notFound('Credit user not found.');
     return user;
 };
 
@@ -896,7 +910,7 @@ export const fundSchool = async ({ schoolId, amountCents, note = '', adminId, re
 /** School admin moves reserve credit to a teacher. Never creates credit. */
 export const allocateCredit = async ({ schoolId, userId, amountCents, note = '', adminId, session = null }) => {
     const amount = parseAmountCents(amountCents);
-    const user = await loadCreditUser({ schoolId, userId });
+    const user = await loadCreditUser({ schoolId, userId, students: true });
     return withTransaction(session, async (txn) => {
         await ensurePoolAccount(schoolId, txn);
         const pool = await AiCreditAccount.findOneAndUpdate(

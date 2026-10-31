@@ -8,6 +8,7 @@ import { getTheme } from "./theme";
 import i18n from "./i18n";
 import { isRtlLanguage, normalizeLanguage } from "./i18n/config";
 import { ltrCache, rtlCache } from "./i18n/rtlCache";
+import { markReturning } from "./utils/returningVisitor";
 import {
   selectIsAuthenticated,
   selectAuth,
@@ -31,10 +32,9 @@ import FeatureGate from "./components/FeatureGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GoogleReauthPrompt from "./components/GoogleReauthPrompt";
 
-const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
+// const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
 const RegisterSchoolPage = lazy(() => import("./pages/auth/RegisterSchoolPage"));
-const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
-const AuthCallbackPage = lazy(() => import("./pages/auth/AuthCallbackPage"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));const AuthCallbackPage = lazy(() => import("./pages/auth/AuthCallbackPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const TestUiPage = lazy(() => import("./pages/testui/TestUiPage"));
@@ -140,6 +140,7 @@ const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/Writin
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
 const TutorPage = lazy(() => import("./pages/student/tutor"));
+const VoiceTutorPage = lazy(() => import("./pages/student/tutor/voice"));
 const TutorConversationsPage = lazy(() => import("./pages/teacher/tutor/TutorConversationsPage"));
 const TutorAdminPage = lazy(() => import("./pages/admin/tutor"));
 const MyAiCreditPage = lazy(() => import("./pages/aiCredit/MyCreditPage.jsx"));
@@ -156,8 +157,8 @@ const SuperAdminSettingsPage = lazy(() => import("./pages/superAdmin/SuperAdminS
 const SuperAdminAiCreditPage = lazy(() => import("./pages/superAdmin/SuperAdminAiCreditPage/SuperAdminAiCreditPage.jsx"));
 const SuperAdminSubscriptionsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionsPage"));
 const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionDetailsPage"));
-const SuperAdminAnalyticsPage = lazy(() => import("./pages/superAdmin/SuperAdminAnalyticsPage/SuperAdminAnalyticsPage"));
 const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperAdminLandingPageEditor"));
+const SuperAdminDemoRequestsPage = lazy(() => import("./pages/superAdmin/SuperAdminDemoRequestsPage"));
 const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 const LiveLessonsPage = lazy(() => import("./pages/liveLessons/LiveLessonsPage"));
 const LiveLessonSessionPage = lazy(() => import("./pages/liveLessons/LiveLessonSessionPage"));
@@ -226,9 +227,13 @@ const MapTestPrepRoute = () => {
   );
 };
 
+// First-time visitors meet the landing page; anyone who has signed in before
+// goes straight to the login screen.
+// const RootRoute = () => (isReturning() ? <LoginPage /> : <LandingPage />);
+const RootRoute = () => <LoginPage />;
+
 // Protected Route - requires authentication
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = useSelector(selectIsAuthenticated);
+const ProtectedRoute = ({ children }) => {  const isAuthenticated = useSelector(selectIsAuthenticated);
   const { loading } = useSelector(selectAuth);
 
   if (loading) {
@@ -364,8 +369,9 @@ function App() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token && isAuthenticated) {
-      dispatch(fetchCurrentUser());
+    if (token) {
+      markReturning();
+      if (isAuthenticated) dispatch(fetchCurrentUser());
     }
     // Fetch generic public app config
     dispatch(fetchAppName());
@@ -392,11 +398,10 @@ function App() {
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
           {/* Public Routes */}
-          {/* <Route path="/" element={<LandingPage />} /> */}
           {import.meta.env.DEV && <Route path="/testui" element={<TestUiPage />} />}
           <Route path="/register-school" element={<RegisterSchoolPage />} />
           <Route path="/login" element={<LoginPage />} />
-                    <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<RootRoute />} />
 
           <Route path="/login/:schoolSlug" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -1511,6 +1516,16 @@ function App() {
               }
             />
             <Route
+              path="tutor/voice"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="studentAiTutor" showUpgradePrompt>
+                    <VoiceTutorPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
               path="tutor/students"
               element={
                 <RoleRoute roles={["teacher", "admin"]}>
@@ -1839,8 +1854,9 @@ function App() {
             <Route path="schools/new" element={<SuperAdminSchoolsPage />} />
             <Route path="schools/:id" element={<SuperAdminSchoolDetailsPage />} />
             <Route path="users" element={<SuperAdminUsersPage />} />
-            <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
+            <Route path="analytics" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="landing" element={<SuperAdminLandingPageEditor />} />
+            <Route path="demo-requests" element={<SuperAdminDemoRequestsPage />} />
             <Route path="settings" element={<SuperAdminSettingsPage />} />
             <Route path="ai-credit" element={<SuperAdminAiCreditPage />} />
             <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />

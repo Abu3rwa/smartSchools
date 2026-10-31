@@ -20,17 +20,22 @@ import TutorCreditEntry from '../models/TutorCreditEntry.js';
 import TutorConversation from '../models/TutorConversation.js';
 import TutorPracticeSet from '../models/TutorPracticeSet.js';
 import Student from '../models/Student.js';
+import StudentLearningProfile from '../models/StudentLearningProfile.js';
+import StudentReadingProfile from '../models/StudentReadingProfile.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import Standard from '../models/Standard.js';
 import Teacher from '../models/Teacher.js';
+import AiCreditAccount from '../models/AiCreditAccount.js';
 
 import { connectAi } from '../utils/connectAi.js';
 import logger from '../utils/logger.js';
 import aiService from './aiservice.js';
+import { recordUsage } from './aiCreditService.js';
 import {
     FREE_AFTER_CREDITS,
     HISTORY_IN_PROMPT,
+    LANGUAGE_LEVELS,
     STANDARDS_IN_ANSWER,
     buildPracticePrompt,
     buildTutorPrompt,
@@ -40,6 +45,7 @@ import {
     normalizePracticeQuestions,
     readTutorReply,
     resolveAccess,
+    resolveLanguageLevel,
     selectLessons,
     summarizeLessonsByUnit,
     validateLessonImport,
@@ -65,10 +71,6 @@ const forbidden = (message, code) => Object.assign(new Error(message), { statusC
 const paymentRequired = (message, code = 'TUTOR_NO_CREDIT') => Object.assign(new Error(message), { statusCode: 402, code });
 
 const objectId = (value) => (mongoose.isValidObjectId(value) ? new mongoose.Types.ObjectId(String(value)) : null);
-const startOfToday = () => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-};
 
 /* ------------------------------------------------------------------ */
 /* Settings and class access                                           */
@@ -77,7 +79,6 @@ const startOfToday = () => {
 export const DEFAULT_TUTOR_SETTINGS = {
     enabled: false,
     practiceEnabled: true,
-    dailyMessageLimit: 40,
     defaultCredits: 30
 };
 
@@ -87,7 +88,6 @@ export const getTutorSettings = async (schoolId) => {
     return {
         enabled: row.enabled === true,
         practiceEnabled: row.practiceEnabled !== false,
-        dailyMessageLimit: Number(row.dailyMessageLimit ?? DEFAULT_TUTOR_SETTINGS.dailyMessageLimit),
         defaultCredits: Number(row.defaultCredits ?? DEFAULT_TUTOR_SETTINGS.defaultCredits),
         updatedAt: row.updatedAt || null
     };
@@ -104,7 +104,6 @@ export const saveTutorSettings = async ({ schoolId, userId, patch = {} }) => {
         set.practiceEnabled = patch.practiceEnabled;
     }
     for (const [field, min, max, label] of [
-        ['dailyMessageLimit', 1, 200, 'daily message limit'],
         ['defaultCredits', 0, 1000, 'default credit amount']
     ]) {
         if (patch[field] === undefined) continue;
@@ -178,6 +177,26 @@ export const studentScope = async ({ schoolId, student }) => {
         throw badRequest('This student has no class with a grade, so there are no lessons to study yet.');
     }
     return { grade, classDoc };
+};
+
+/**
+ * The band the tutor speaks in. A teacher override wins; otherwise the reading
+ * diagnostic decides, and a student nobody has measured is treated as on-level.
+ */
+export const studentLanguageLevel = async ({ schoolId, student, grade }) => {
+    const studentId = student?._id || student;
+    const [profile, reading] = await Promise.all([
+        StudentLearningProfile.findOne({ school: schoolId, student: studentId })
+            .select('languageLevel').lean(),
+        StudentReadingProfile.findOne({ school: schoolId, student: studentId })
+            .select('currentReadingLevel comprehensionAccuracy').lean()
+    ]);
+    return resolveLanguageLevel({
+        override: profile?.languageLevel,
+        readingLevel: reading?.currentReadingLevel,
+        accuracy: reading?.comprehensionAccuracy,
+        grade
+    });
 };
 
 /** Subjects that have lessons for the student's grade, narrowed to their class when set. */
@@ -442,7 +461,7 @@ const lessonSearchScope = async ({ schoolId, subjectId, grade }) => TutorLesson.
     isActive: true
 }).select(LESSON_SEARCH_FIELDS).lean();
 
-const pickLessons = async ({ schoolId, subjectId, grade, question, lessonId }) => {
+export const pickLessons = async ({ schoolId, subjectId, grade, question, lessonId }) => {
     const candidates = await lessonSearchScope({ schoolId, subjectId, grade });
     if (!candidates.length) return [];
     const chosen = selectLessons({ lessons: candidates, question, selectedLessonId: lessonId });
@@ -478,19 +497,6 @@ export const askTutor = async ({
     const wallet = await ensureWallet({ schoolId, student });
     await assertStudentCanAsk({ schoolId, student, settings, wallet });
 
-    const today = await TutorCreditEntry.countDocuments({
-        school: schoolId,
-        student: student._id,
-        type: 'spend',
-        createdAt: { $gte: startOfToday() }
-    });
-    if (today >= settings.dailyMessageLimit) {
-        throw Object.assign(
-            new Error(`You have asked ${settings.dailyMessageLimit} questions today. You can ask again tomorrow.`),
-            { statusCode: 429, code: 'TUTOR_DAILY_LIMIT' }
-        );
-    }
-
     const { grade, classDoc } = await studentScope({ schoolId, student });
     const lessons = await pickLessons({ schoolId, subjectId: subject, grade, question: trimmed, lessonId });
     if (!lessons.length) {
@@ -513,6 +519,7 @@ export const askTutor = async ({
         text: message.text,
         stage: message.stage || null
     }));
+    const languageLevel = await studentLanguageLevel({ schoolId, student, grade });
     const prompt = buildTutorPrompt({
         question: trimmed,
         lessons,
@@ -520,6 +527,7 @@ export const askTutor = async ({
         subjectName: subjectDoc.name,
         grade,
         language,
+        languageLevel,
         selectedLesson: selected,
         history: priorMessages.slice(-HISTORY_IN_PROMPT),
         tries: countTries(priorMessages)
@@ -568,6 +576,17 @@ export const askTutor = async ({
     conversation.lastMessageAt = new Date();
     await conversation.save();
 
+    // The student pays in questions, not cents: record what the answer really
+    // costs the school so the ledger still shows the spend.
+    await recordUsage({
+        schoolId,
+        userId: student.user,
+        reply,
+        feature: 'tutor-question',
+        refs: { student: student._id },
+        billable: false
+    });
+
     const after = await ensureWallet({ schoolId, student });
     return {
         answer,
@@ -585,7 +604,7 @@ export const askTutor = async ({
 /* Practice                                                            */
 /* ------------------------------------------------------------------ */
 
-const practiceLessons = async ({ schoolId, student, subjectId, grade, lessonId, fallbackLessonIds = [] }) => {
+const practiceLessons = async ({ schoolId, subjectId, grade, lessonId, fallbackLessonIds = [] }) => {
     if (lessonId) {
         const lesson = await TutorLesson.findOne({ school: schoolId, _id: lessonId, grade, isActive: true }).lean();
         if (lesson) return [lesson];
@@ -679,6 +698,14 @@ export const generatePractice = async ({ schoolId, student, subjectId, lessonId 
         lessonIds: lessons.map((lesson) => lesson._id),
         questions,
         status: 'open'
+    });
+    await recordUsage({
+        schoolId,
+        userId: student.user,
+        reply,
+        feature: 'tutor-practice',
+        refs: { student: student._id },
+        billable: false
     });
     const after = await ensureWallet({ schoolId, student });
     return { ...shapePractice(set.toObject()), balance: walletShape(after) };
@@ -921,7 +948,13 @@ export const conversationForTeacher = async ({ schoolId, user, isAdmin, conversa
 /* ------------------------------------------------------------------ */
 
 export const getAdminOverview = async ({ schoolId, academicYear }) => {
-    const settings = await getTutorSettings(schoolId);
+    const [settings, pool] = await Promise.all([
+        getTutorSettings(schoolId),
+        // The reserve the voice tutor spends from. One credit is one cent.
+        AiCreditAccount.findOne({ school: schoolId, user: null, kind: 'school' })
+            .select('balanceCents')
+            .lean()
+    ]);
     const classes = await Class.find({ school: schoolId, ...(academicYear ? { academicYear } : {}) })
         .select('name grade academicYear')
         .sort({ grade: 1, name: 1 })
@@ -972,6 +1005,9 @@ export const getAdminOverview = async ({ schoolId, academicYear }) => {
             credits: wallets[0]?.credits || 0,
             spent: wallets[0]?.spent || 0,
             studentsWithWallet: wallets[0]?.students || 0
+        },
+        reserve: {
+            credits: Math.max(0, Math.floor(Number(pool?.balanceCents) || 0))
         }
     };
 };
@@ -984,19 +1020,51 @@ export const listAdminStudents = async ({ schoolId, classId, search = '' }) => {
         filter.$and = [{ $or: [{ firstName: pattern }, { lastName: pattern }, { studentId: pattern }] }];
     }
     const students = await Student.find(filter)
-        .select('firstName lastName studentId currentClass')
+        .select('firstName lastName studentId currentClass user')
         .sort({ firstName: 1, lastName: 1 })
         .limit(500)
         .lean();
-    const wallets = await TutorWallet.find({ school: schoolId, student: { $in: students.map((row) => row._id) } }).lean();
+    const ids = students.map((row) => row._id);
+    const userIds = students.map((row) => row.user).filter(Boolean);
+    const [wallets, profiles, voiceAccounts] = await Promise.all([
+        TutorWallet.find({ school: schoolId, student: { $in: ids } }).lean(),
+        StudentLearningProfile.find({ school: schoolId, student: { $in: ids } })
+            .select('student languageLevel').lean(),
+        // The voice tutor pays from the same AI credit account teachers use.
+        AiCreditAccount.find({ school: schoolId, user: { $in: userIds } })
+            .select('user balanceCents').lean()
+    ]);
     const walletBy = new Map(wallets.map((row) => [String(row.student), row]));
+    const levelBy = new Map(profiles.map((row) => [String(row.student), row.languageLevel || null]));
+    const voiceBy = new Map(voiceAccounts.map((row) => [String(row.user), row]));
     return students.map((student) => ({
         id: String(student._id),
         name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
         studentId: student.studentId || '',
         classId: String(student.currentClass || ''),
-        wallet: walletShape(walletBy.get(String(student._id)))
+        languageLevel: levelBy.get(String(student._id)) || null,
+        wallet: walletShape(walletBy.get(String(student._id))),
+        voiceCredits: Math.max(0, Math.floor(Number(voiceBy.get(String(student.user))?.balanceCents) || 0))
     }));
+};
+
+/** The teacher's override for how the tutors speak to one student. */
+export const setStudentLanguageLevel = async ({ schoolId, studentId, level }) => {
+    const student = objectId(studentId);
+    if (!student) throw notFound('Student not found.');
+    const exists = await Student.exists({ _id: student, school: schoolId });
+    if (!exists) throw notFound('Student not found.');
+
+    const value = level === null || level === undefined || level === '' ? null : String(level);
+    if (value !== null && !LANGUAGE_LEVELS.includes(value)) {
+        throw badRequest('Pick support, on level or stretch, or leave it automatic.');
+    }
+    await StudentLearningProfile.findOneAndUpdate(
+        { school: schoolId, student },
+        { $set: { languageLevel: value } },
+        { upsert: true, setDefaultsOnInsert: true }
+    );
+    return { studentId: String(student), languageLevel: value };
 };
 
 export const studentsInClass = async ({ schoolId, classId }) => {

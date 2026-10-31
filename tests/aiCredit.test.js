@@ -94,7 +94,7 @@ test('creditRates uses verified standard mini prices and refuses unknown or inva
     assert.deepEqual(creditRates({}, 'gpt-5.4-mini-2026-03-17'), { ...rates, model: 'gpt-5.4-mini-2026-03-17' });
     assert.throws(() => creditRates({ AI_CREDIT_OUTPUT_CENTS_PER_MILLION: 'oops' }), { code: 'AI_CREDIT_PRICING_REQUIRED' });
     assert.throws(() => creditRates({ WRITING_AI_MODEL: 'gpt-other' }), { code: 'AI_CREDIT_PRICING_REQUIRED' });
-    assert.throws(() => creditRates({ WRITING_AI_PROVIDER: 'gemini' }), { code: 'AI_CREDIT_PRICING_REQUIRED' });
+    assert.deepEqual(creditRates({ WRITING_AI_PROVIDER: 'gemini' }), rates);
     assert.deepEqual(creditRates({
         WRITING_AI_MODEL: 'gpt-other',
         AI_CREDIT_INPUT_CENTS_PER_MILLION: '100',
@@ -762,6 +762,20 @@ test('allocation is refused when the reserve cannot cover it', async (context) =
     await assert.rejects(
         allocateCredit({ schoolId, userId, amountCents: 500, adminId: userId }),
         { code: 'AI_CREDIT_RESERVE_SHORT', statusCode: 409 }
+    );
+});
+
+test('allocation reaches a student, while an ordinary grant still does not', async (context) => {
+    context.mock.method(User, 'findOne', () => chain({ _id: userId, role: 'student', roles: ['student'] }));
+    context.mock.method(AiCreditAccount, 'updateOne', async () => ({ modifiedCount: 1 }));
+    context.mock.method(AiCreditAccount, 'findOneAndUpdate', (filter) => {
+        assert.equal(filter.kind, 'school');
+        return chain(null);
+    });
+    // The student passes the role gate and only the empty reserve stops the move.
+    await assert.rejects(
+        allocateCredit({ schoolId, userId, amountCents: 500, adminId: userId }),
+        { code: 'AI_CREDIT_RESERVE_SHORT' }
     );
 });
 

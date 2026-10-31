@@ -273,7 +273,7 @@ export const generateBillingNarrative = async (schoolId, query = {}) => {
 
     try {
         const { parsed } = await aiService.generateStructuredJson({
-            modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.GEMINI_MODEL || undefined,
+            modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.OPENAI_MODEL || undefined,
             prompt: `You are writing a short internal finance briefing for a school's lesson-billing administrator.
 
 Use ONLY the facts in the JSON below. Do not invent money amounts, names, dates, causes, or actions that are not present. Do not give legal, tax, or accounting advice. Do not claim that anything has been sent, charged, refunded, or fixed. The administrator will decide and act.
@@ -333,7 +333,7 @@ Return one JSON object: { "opening": "..." }`;
 
         const write = async (currentPrompt) => {
             const { parsed } = await aiService.generateStructuredJson({
-                modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.GEMINI_MODEL || undefined,
+                modelName: process.env.SESSION_BILLING_AI_MODEL || process.env.OPENAI_MODEL || undefined,
                 prompt: currentPrompt
             });
             return String(parsed?.opening || '').trim().slice(0, 400);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   HiOutlineAcademicCap,
@@ -11,6 +12,7 @@ import {
   HiOutlineLightningBolt,
   HiOutlineLockClosed,
   HiOutlineMenu,
+  HiOutlineMicrophone,
   HiOutlinePause,
   HiOutlineRefresh,
   HiOutlineSparkles,
@@ -171,6 +173,10 @@ export default function TutorPage() {
             <HiOutlineLightningBolt size={15} aria-hidden="true" />
             {t('tutor:credits.left', { n: credits })}
           </span>
+          <Link className="btn btn-secondary btn-sm tt-voice-link" to="/portal/tutor/voice">
+            <HiOutlineMicrophone size={15} aria-hidden="true" />
+            {t('tutor:voice.title')}
+          </Link>
         </header>
 
         {home.access?.allowed === false && (
@@ -240,6 +246,10 @@ export default function TutorPage() {
           <HiOutlineLightningBolt size={15} aria-hidden="true" />
           {t('tutor:credits.left', { n: credits })}
         </span>
+        <Link className="btn btn-secondary btn-sm tt-voice-link" to="/portal/tutor/voice">
+          <HiOutlineMicrophone size={15} aria-hidden="true" />
+          {t('tutor:voice.title')}
+        </Link>
         <button type="button" className="tt-rail-toggle" onClick={() => setRailOpen(true)}>
           <HiOutlineMenu size={16} aria-hidden="true" />
           {t('tutor:lessonsTitle')}

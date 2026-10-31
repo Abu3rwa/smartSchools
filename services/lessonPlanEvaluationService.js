@@ -5,7 +5,7 @@ import { AITokenUsage } from '../models/AITokenUsage.js';
 import aiService from './aiservice.js';
 import { CONTENT_RULES, PRIVACY_RULES } from './aiPromptSafety.js';
 
-const MODEL_NAME = 'gemini-2.5-flash-lite';
+const MODEL_NAME = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const PROMPT_VERSION = 'lesson-plan-evaluation-v2';
 const MAX_HISTORY_ENTRIES = 20;
 

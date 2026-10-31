@@ -6,11 +6,8 @@ import logger from './logger.js';
  * Input / Output in USD.
  */
 const PRICING_REGISTRY = {
-  'gemini-2.5-flash-lite': { input: 0.000075, output: 0.0003 },
-  'gemini-2.5-flash': { input: 0.000125, output: 0.000375 },
-  'gemini-2.0-flash-exp': { input: 0.000125, output: 0.000375 },
-  'gemini-1.5-flash': { input: 0.000075, output: 0.0003 },
-  'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
+  'gpt-5.4-mini': { input: 0.00075, output: 0.0045 },
+  'gpt-5.4': { input: 0.0025, output: 0.015 },
 };
 
 /**
@@ -36,7 +33,7 @@ function extractTokenCounts(response) {
  * Centralized wrapper to log AI usage.
  * Ensures consistent token tracking, cost calculation, and error logging.
  * @param {Object} opts
- * @param {String} opts.model - Model name (e.g., gemini-2.5-flash-lite)
+ * @param {String} opts.model - Model name (e.g., gpt-5.4-mini)
  * @param {String} opts.feature - Feature tag (e.g., 'practice_question')
  * @param {ObjectId} opts.schoolId - School ID (required)
  * @param {ObjectId} opts.userId - User ID (required)

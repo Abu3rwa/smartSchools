@@ -177,7 +177,7 @@ test('generateCommunicationEmailDraft sanitizes output and logs token usage', as
             inputtokenCount: 25,
             outputtokenCount: 40,
             totalTokenCount: 65,
-            modelName: 'gemini-test'
+            modelName: 'gpt-test'
         }),
         tokenUsageModel: {
             create: async (payload) => {

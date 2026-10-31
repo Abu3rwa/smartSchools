@@ -30,6 +30,9 @@ export default function LandingPageHeader({
             <Button onClick={() => handleAction('login')} sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 {content.header.loginLabel}
             </Button>
+            <Button variant="outlined" onClick={() => handleAction('demo')} sx={{ fontWeight: 600 }}>
+                {uiText.demoCta || 'Book a demo'}
+            </Button>
             <Button variant="contained" onClick={() => handleAction('register')} sx={{ fontWeight: 600 }}>
                 {content.header.startLabel}
             </Button>

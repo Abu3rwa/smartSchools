@@ -92,7 +92,7 @@ async function callAiWithOptionalUsage(prompt, tracking, feature, metadata) {
     throw err;
   } finally {
     await logAIUsage({
-      model: "gemini-2.5-flash-lite",
+      model: "gpt-5.4-mini",
       feature,
       schoolId: tracking.schoolId,
       userId: tracking.userId,

@@ -58,7 +58,7 @@ See [.env.example](.env.example) for the full list. Required variables:
 |---------|-------------|
 | `MONGODB_URI` | MongoDB connection string |
 | `JWT_SECRET` | Secret for JWT tokens |
-| `GEMINI_API_KEY` | API key for Gemini AI features |
+| `OPENAI_API_KEY` | API key for all AI features (GPT models) |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 

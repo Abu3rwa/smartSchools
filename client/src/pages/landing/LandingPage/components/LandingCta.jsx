@@ -7,7 +7,7 @@ import { HiOutlineArrowRight } from 'react-icons/hi';
 /**
  * Final CTA section with gradient background and dual buttons.
  */
-export default function LandingCta({ content, handleAction }) {
+export default function LandingCta({ content, uiText = {}, handleAction }) {
     return (
         <Box
             component="section"
@@ -83,10 +83,10 @@ export default function LandingCta({ content, handleAction }) {
                     <Button
                         variant="outlined"
                         size="large"
-                        onClick={() => handleAction('login')}
+                        onClick={() => handleAction('demo')}
                         sx={{ px: 4, py: 1.5, fontSize: '1rem', fontWeight: 600 }}
                     >
-                        Request Demo
+                        {uiText.demoCta || 'Book a demo'}
                     </Button>
                 </Box>
             </Container>

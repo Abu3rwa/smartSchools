@@ -41,6 +41,9 @@ const SuperAdminAiCreditPage = () => {
     const [result, setResult] = useState({ key: '', data: null, failed: false });
     const [markupInput, setMarkupInput] = useState('');
     const [saving, setSaving] = useState(false);
+    const [voice, setVoice] = useState(null);
+    const [voiceDraft, setVoiceDraft] = useState(null);
+    const [savingVoice, setSavingVoice] = useState(false);
     const [schools, setSchools] = useState(null);
     const [selectedId, setSelectedId] = useState('');
     const [fundAmount, setFundAmount] = useState('10');
@@ -80,7 +83,47 @@ const SuperAdminAiCreditPage = () => {
         return () => { active = false; };
     }, [reloadKey, t]);
 
+    useEffect(() => {
+        let active = true;
+        platformAiCreditService.getVoiceSettings()
+            .then((next) => {
+                if (!active) return;
+                setVoice(next);
+                setVoiceDraft(next);
+            })
+            .catch(() => {
+                if (!active) return;
+                toast.error(t('superAdminAiCredit:voice.loadFailed'));
+            });
+        return () => { active = false; };
+    }, [reloadKey, t]);
+
     const selected = (schools?.schools || []).find((row) => row.id === selectedId) || null;
+
+    const saveVoice = async () => {
+        if (!voiceDraft || savingVoice) return;
+        setSavingVoice(true);
+        try {
+            const next = await platformAiCreditService.updateVoiceSettings({
+                model: voiceDraft.model,
+                sttModel: voiceDraft.sttModel,
+                ttsModel: voiceDraft.ttsModel,
+                ttsVoice: voiceDraft.ttsVoice,
+                messageCredits: Number(voiceDraft.messageCredits),
+                maxContextTokens: Number(voiceDraft.maxContextTokens),
+                maxReplyTokens: Number(voiceDraft.maxReplyTokens),
+                maxTranscriptSeconds: Number(voiceDraft.maxTranscriptSeconds),
+                maxSpeechSeconds: Number(voiceDraft.maxSpeechSeconds)
+            });
+            setVoice(next);
+            setVoiceDraft(next);
+            toast.success(t('superAdminAiCredit:voice.saved'));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('superAdminAiCredit:voice.saveFailed'));
+        } finally {
+            setSavingVoice(false);
+        }
+    };
 
     const moneyInput = (value) => dollarsToCents(value);
 
@@ -511,6 +554,74 @@ const SuperAdminAiCreditPage = () => {
                             </p>
                         </div>
                     </section>
+
+                    {voice && voiceDraft && (
+                        <section className="admin-section">
+                            <div className="admin-section-header">
+                                <div>
+                                    <h2>{t('superAdminAiCredit:voice.title')}</h2>
+                                    <p className="admin-section-subtitle">{t('superAdminAiCredit:voice.subtitle')}</p>
+                                </div>
+                                <span className="ai-credit-current">
+                                    {t('superAdminAiCredit:voice.price', { n: voiceDraft.messageCredits })}
+                                </span>
+                            </div>
+                            <div className="ai-credit-settings">
+                                <div className="voice-config-grid">
+                                    {[
+                                        ['model', 'model'],
+                                        ['sttModel', 'stt'],
+                                        ['ttsModel', 'tts'],
+                                        ['ttsVoice', 'voiceName'],
+                                    ].map(([field, labelKey]) => (
+                                        <label className="ai-credit-field" key={field}>
+                                            <span>{t(`superAdminAiCredit:voice.fields.${labelKey}`)}</span>
+                                            <input
+                                                type="text"
+                                                value={voiceDraft[field] || ''}
+                                                onChange={(event) => setVoiceDraft({ ...voiceDraft, [field]: event.target.value })}
+                                            />
+                                        </label>
+                                    ))}
+                                    {[
+                                        ['messageCredits', 'credits'],
+                                        ['maxContextTokens', 'context'],
+                                        ['maxReplyTokens', 'reply'],
+                                        ['maxTranscriptSeconds', 'listening'],
+                                        ['maxSpeechSeconds', 'speaking'],
+                                    ].map(([field, labelKey]) => (
+                                        <label className="ai-credit-field" key={field}>
+                                            <span>{t(`superAdminAiCredit:voice.fields.${labelKey}`)}</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={voiceDraft[field] ?? ''}
+                                                onChange={(event) => setVoiceDraft({ ...voiceDraft, [field]: event.target.value })}
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="ai-credit-example">
+                                    {t('superAdminAiCredit:voice.economics', {
+                                        cost: formatCents(voice.worstCaseCostCents, locale),
+                                        profit: formatCents(voice.worstCase?.profitCents, locale),
+                                        margin: voice.worstCase?.marginPercent ?? 0,
+                                    })}
+                                </p>
+                                <p className="ai-credit-note">
+                                    {t('superAdminAiCredit:voice.capNote', { suggested: voice.suggestedCredits })}
+                                </p>
+                                <button
+                                    type="button"
+                                    className="admin-action-btn primary"
+                                    disabled={savingVoice}
+                                    onClick={saveVoice}
+                                >
+                                    {t('superAdminAiCredit:voice.save')}
+                                </button>
+                            </div>
+                        </section>
+                    )}
 
                     <section className="admin-section">
                         <div className="admin-section-header">

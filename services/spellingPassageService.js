@@ -88,7 +88,7 @@ Missed words: ${JSON.stringify(missedWords)}`;
     let content;
     let highlightedWords = missedWords;
     try {
-        const result = await aiService.generateStructuredJson({ prompt, modelName: process.env.SPELLING_PASSAGE_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite' });
+        const result = await aiService.generateStructuredJson({ prompt, modelName: process.env.SPELLING_PASSAGE_AI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini' });
         content = validateGeneratedContent({ content: result.parsed.content, missedWords, style });
         if (!inspectGeneratedText(content).ok) {
             content = fallbackContent(missedWords);

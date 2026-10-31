@@ -104,63 +104,39 @@ export const landingPageDefaults = {
       },
       {
         iconKey: "analytics",
-        title: "Standards practice and mastery tracking",
+        title: "Practice, interventions, and reporting",
         description:
-          "Assign standards-based practice, track attempts and mastery, and surface learning gaps quickly.",
-      },
-      {
-        iconKey: "ai",
-        title: "AI lesson plan evaluation",
-        description:
-          "Review lesson plans against school-defined criteria with AI scoring and feedback to speed up approvals.",
-      },
-      {
-        iconKey: "ai",
-        title: "AI-assisted reporting",
-        description:
-          "Generate advanced reports with templates, analytics, and automated summaries for leaders and teachers.",
-      },
-      {
-        iconKey: "analytics",
-        title: "Behavior analytics and interventions",
-        description:
-          "Track behavior incidents, monitor trends, and manage intervention queues for targeted student support.",
-      },
-      {
-        iconKey: "mobile",
-        title: "Reading assistant and revision planning",
-        description:
-          "Support learners with reading workflows, simplified texts, and revision plans to improve outcomes.",
-      },
-      {
-        iconKey: "communication",
-        title: "Notifications and newsletters",
-        description:
-          "Keep families and staff informed with in-app notifications and scheduled newsletter workflows.",
-      },
-      {
-        iconKey: "automation",
-        title: "Workflow automation",
-        description:
-          "Automate reminders, review queues, and request lifecycles to reduce manual administration.",
-      },
-      {
-        iconKey: "planning",
-        title: "School settings and departments",
-        description:
-          "Configure school structure, departments, roles, and academic year settings in one place.",
-      },
-      {
-        iconKey: "governance",
-        title: "Super admin oversight and subscriptions",
-        description:
-          "Manage multi-school access, subscriptions, and platform governance with secure controls.",
+          "Run standards-based practice with mastery tracking, intervention queues, behavior analytics, and advanced reports.",
       },
       {
         iconKey: "security",
         title: "Secure access and multi-tenant design",
         description:
           "Protect each school with isolated data, role-based permissions, secure auth, and admin governance controls.",
+      },
+      {
+        iconKey: "mobile",
+        title: "Reading, revision, and communication",
+        description:
+          "Support learners with reading assistant and revision planning while keeping parents informed through notifications.",
+      },
+      {
+        iconKey: "ai",
+        title: "AI tutor and voice tutor",
+        description:
+          "A student tutor that answers only from the lessons imported for the class, plus a spoken voice mode. Both spend from a school AI credit pool the admin controls.",
+      },
+      {
+        iconKey: "feedback",
+        title: "Rubric-based writing and reading feedback",
+        description:
+          "Students get feedback on drafts and reading responses that follows your rubric, with revision notes the teacher reviews before anything is published.",
+      },
+      {
+        iconKey: "insights",
+        title: "AI reports and teacher drafts",
+        description:
+          "Spelling analysis reports and class insights built from your gradebook, plus AI drafts for lesson plans, newsletters and parent messages — all editable before sending.",
       },
     ],
   },

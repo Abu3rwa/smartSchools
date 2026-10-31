@@ -7,6 +7,9 @@ export const platformAiCreditService = {
   getOverview: (params) => api.get('/platform/ai-credit', { params }).then(unwrap),
   updateMarkup: (markupPercent) =>
     api.patch('/platform/ai-credit/settings', { markupPercent }).then(unwrap),
+  getVoiceSettings: () => api.get('/platform/ai-credit/voice-settings').then(unwrap),
+  updateVoiceSettings: (body) =>
+    api.patch('/platform/ai-credit/voice-settings', body).then(unwrap),
   getSchools: () => api.get('/platform/ai-credit/schools').then(unwrap),
   fundSchool: (schoolId, body) =>
     api.post(`/platform/ai-credit/schools/${schoolId}/fund`, body).then(unwrap),

@@ -1,47 +1,95 @@
 {
   "header": {
     "title": "تحليلات المنصة",
-    "subtitle": "مؤشرات أعمال SaaS ونظرة عامة على التفاعل"
+    "subtitle": "منصتك في لمحة — المدارس والمال والنشاط وما يحتاج إلى قرار.",
+    "rangeLabel": "النطاق الزمني",
+    "range": {
+      "30d": "30 يومًا",
+      "90d": "90 يومًا",
+      "12m": "12 شهرًا"
+    },
+    "refresh": "تحديث",
+    "refreshing": "جارٍ التحديث…",
+    "updatedAgo": "آخر تحديث {{when}}"
   },
   "common": {
-    "period": "الفترة",
-    "school": "مدرسة"
+    "never": "أبدًا",
+    "notSet": "—"
   },
-  "stats": {
-    "totalSchools": "إجمالي المدارس",
-    "totalUsers": "إجمالي المستخدمين",
-    "totalStudents": "إجمالي الطلاب",
-    "monthlyRecurringRevenue": "الإيراد الشهري المتكرر"
+  "kpis": {
+    "label": "المؤشرات الرئيسية",
+    "schools": "المدارس",
+    "schoolsMeta": "نشط {{active}} · تجريبي {{trial}}",
+    "students": "الطلاب",
+    "studentsMeta": "\u200E+{{newCount}} خلال الفترة",
+    "staff": "الموظفون",
+    "staffMeta": "{{active}} من {{total}} نشطة خلال 30 يومًا",
+    "mrr": "الإيراد الشهري المتكرر",
+    "mrrMeta": "سنويًا {{arr}} · محصّل {{collected}}",
+    "aiProfit": "ربح الذكاء الاصطناعي",
+    "aiMeta": "مُحتسب {{charged}} · التكلفة {{cost}}"
   },
-  "quickActions": {
-    "title": "إجراءات سريعة",
-    "addSchool": "إضافة مدرسة",
-    "viewAllSchools": "عرض جميع المدارس"
+  "attention": {
+    "title": "يحتاج إلى انتباه",
+    "subtitle": "بنود تحتاج عادةً إلى قرار.",
+    "empty": "لا شيء يحتاج إلى انتباه الآن.",
+    "review": "مراجعة",
+    "truncated": "تُعرض البنود الأكثر إلحاحًا.",
+    "trialsEnding": "فترات تجريبية تنتهي قريبًا",
+    "billingIssues": "مشكلات الفوترة",
+    "renewalsSoon": "تجديدات هذا الأسبوع",
+    "inactiveSchools": "مدارس هادئة (14 يومًا أو أكثر)",
+    "demosOver48h": "طلبات عرض تنتظر 48 ساعة أو أكثر",
+    "oldest": "أقدمها {{date}}",
+    "upgradeRequests": "طلبات ترقية",
+    "creditRequests": "طلبات رصيد ذكاء اصطناعي"
   },
-  "analytics": {
-    "revenueGrowthTitle": "الإيراد والنمو",
-    "revenueGrowthSubtitle": "الاشتراكات الجديدة والإيراد المتكرر خلال السنة الماضية.",
-    "notEnoughData": "لا توجد بيانات كافية بعد.",
-    "currentMrr": "الإيراد الشهري المتكرر الحالي",
-    "totalCollected": "إجمالي المحصّل",
-    "plansTitle": "الخطط",
-    "plansSubtitle": "توزيع المدارس عبر خطط الاشتراك.",
-    "noSubscriptions": "لا توجد اشتراكات بعد.",
-    "studentDistribution": "توزيع الطلاب"
+  "revenue": {
+    "title": "الإيرادات",
+    "subtitle": "المفوتر مقابل المحصّل خلال 12 شهرًا.",
+    "invoiced": "مفوتر",
+    "collected": "محصّل",
+    "collectionRate": "نسبة التحصيل",
+    "empty": "لا توجد فواتير خلال الأشهر الـ12 الماضية."
   },
-  "charts": {
-    "revenue": "الإيراد"
+  "growth": {
+    "title": "النمو",
+    "subtitle": "المدارس والطلاب الجدد خلال 12 شهرًا.",
+    "newSchools": "مدارس جديدة",
+    "newStudents": "طلاب جدد",
+    "empty": "لا توجد مدارس أو طلاب جدد خلال الأشهر الـ12 الماضية."
+  },
+  "plans": {
+    "title": "مزيج الخطط",
+    "subtitle": "عدد المدارس لكل خطة.",
+    "empty": "لا توجد خطط بعد."
+  },
+  "ai": {
+    "title": "اقتصاديات الذكاء الاصطناعي",
+    "subtitle": "هذا الشهر، حسب المدرسة.",
+    "viewAll": "رصيد الذكاء الاصطناعي",
+    "empty": "لا يوجد استخدام للذكاء الاصطناعي هذا الشهر.",
+    "table": {
+      "school": "المدرسة",
+      "charged": "المُحتسب",
+      "profit": "الربح",
+      "margin": "الهامش"
+    }
   },
   "schools": {
     "title": "المدارس",
+    "subtitle": "الأكبر حسب عدد الطلاب.",
+    "viewAll": "عرض جميع المدارس",
     "empty": "لا توجد مدارس بعد. أنشئ أول مدرسة للبدء.",
     "table": {
       "school": "المدرسة",
-      "admin": "المسؤول",
-      "users": "المستخدمون",
-      "students": "الطلاب",
       "plan": "الخطة",
-      "status": "الحالة"
+      "status": "الحالة",
+      "students": "الطلاب",
+      "staff": "الموظفون",
+      "lastActivity": "آخر نشاط",
+      "renewal": "التجديد",
+      "open": "فتح المدرسة"
     }
   },
   "plan": {
@@ -54,6 +102,37 @@
     "trial": "تجريبي",
     "suspended": "معلّق",
     "cancelled": "ملغى",
-    "inactive": "غير نشط"
+    "inactive": "غير نشط",
+    "past_due": "متأخر السداد",
+    "expired": "منتهي",
+    "other": "أخرى"
+  },
+  "demoRequests": {
+    "title": "طلبات العرض التجريبي",
+    "subtitle": "خط الطلبات المفتوح، ثم أحدث الطلبات.",
+    "viewAll": "عرض الكل",
+    "empty": "لا توجد طلبات عرض بعد. ستظهر هنا الطلبات المرسلة من صفحة الهبوط.",
+    "age": {
+      "label": "العمر",
+      "fresh": "0–2 يومًا",
+      "aging": "3–7 أيام",
+      "overdue": "8 أيام أو أكثر"
+    },
+    "table": {
+      "school": "المدرسة",
+      "contact": "جهة الاتصال",
+      "requested": "تاريخ الطلب",
+      "status": "الحالة"
+    },
+    "status": {
+      "new": "جديد",
+      "contacted": "تم التواصل",
+      "scheduled": "مجدول",
+      "closed": "مغلق"
+    }
+  },
+  "error": {
+    "title": "تعذّر تحميل لوحة التحكم",
+    "retry": "إعادة المحاولة"
   }
 }

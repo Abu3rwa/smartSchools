@@ -5,9 +5,11 @@ import {
     decidePlatformCreditRequest,
     fundSchool,
     getPlatformCredit,
+    getVoiceSettings,
     grantTeacherCredit,
     listPlatformSchools,
-    updatePlatformMarkup
+    updatePlatformMarkup,
+    updateVoiceSettings
 } from '../controllers/aiCreditController.js';
 
 const router = express.Router();
@@ -18,6 +20,8 @@ router.use(superAdminOnly);
 
 router.get('/', getPlatformCredit);
 router.patch('/settings', updatePlatformMarkup);
+router.get('/voice-settings', getVoiceSettings);
+router.patch('/voice-settings', updateVoiceSettings);
 router.get('/schools', listPlatformSchools);
 router.post('/schools/:schoolId/fund', fundSchool);
 router.post('/schools/:schoolId/teachers/:userId/grant', grantTeacherCredit);

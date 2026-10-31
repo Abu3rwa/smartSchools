@@ -279,7 +279,7 @@ const trackAiUsage = async ({ job, tokenUsage, modelName, feature, metadata = {}
     if (total <= 0) return null;
 
     return AITokenUsage.create({
-        model: modelName || 'gemini-2.5-flash-lite',
+        model: modelName || 'gpt-5.4-mini',
         feature,
         school: job.school,
         user: toEntityId(job.requestedBy),

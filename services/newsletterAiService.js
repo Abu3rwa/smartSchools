@@ -13,7 +13,7 @@ import {
   toLegacyLanguageValue
 } from "../utils/aiLanguageUtils.js";
 
-const MODEL_NAME = "gemini-2.5-flash-lite";
+const MODEL_NAME = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const PROMPT_VERSION = "v1";
 
 function stripCodeFences(text) {

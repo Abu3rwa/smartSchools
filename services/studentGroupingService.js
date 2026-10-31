@@ -370,7 +370,7 @@ Respond ONLY with a JSON array of exactly 3 objects. No other text, no markdown,
         const aiResponse = await connectAi(prompt);
 
         await logAIUsage({
-            model: aiResponse.modelName || 'gemini-2.5-flash-lite',
+            model: aiResponse.modelName || 'gpt-5.4-mini',
             feature: 'student_grouping_activities',
             schoolId,
             userId,

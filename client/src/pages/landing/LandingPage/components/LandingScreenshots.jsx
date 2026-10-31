@@ -12,23 +12,9 @@ export default function LandingScreenshots() {
                 <Typography
                     variant="overline"
                     color="primary"
-                    sx={{ display: 'block', textAlign: 'center', mb: 1, letterSpacing: 2, fontWeight: 700 }}
+                    sx={{ display: 'block', textAlign: 'center', mb: 5, letterSpacing: 2, fontWeight: 700 }}
                 >
                     SEE IT IN ACTION
-                </Typography>
-                <Typography
-                    variant="h4"
-                    align="center"
-                    sx={{ fontWeight: 800, mb: 1.5, fontSize: { xs: '1.75rem', md: '2.25rem' } }}
-                >
-                    A Dashboard Designed for Schools
-                </Typography>
-                <Typography
-                    color="text.secondary"
-                    align="center"
-                    sx={{ maxWidth: 600, mx: 'auto', mb: 6, fontSize: '1.05rem', lineHeight: 1.7 }}
-                >
-                    Track grades, monitor attendance, and manage your school — all from one clean, intuitive interface.
                 </Typography>
                 <Box
                     sx={{

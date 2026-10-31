@@ -1192,7 +1192,7 @@ ${PRIVACY_RULES}
 ${CONTENT_RULES}
     `.trim();
 
-    let aiResult = await aiConnector(aiPrompt, { modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite' });
+    let aiResult = await aiConnector(aiPrompt, { modelName: process.env.OPENAI_MODEL || 'gpt-5.4-mini' });
     let inputTokens = Number(aiResult?.inputtokenCount || 0);
     let outputTokens = Number(aiResult?.outputtokenCount || 0);
     let totalTokens = Number(aiResult?.totalTokenCount || 0);
@@ -1206,7 +1206,7 @@ ${CONTENT_RULES}
     const inspection = inspectGeneratedText(stripHtmlToText(bodyHtml));
     if (!inspection.ok) {
         aiResult = await aiConnector(correctivePrompt(aiPrompt, inspection.problems), {
-            modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
+            modelName: process.env.OPENAI_MODEL || 'gpt-5.4-mini'
         });
         inputTokens += Number(aiResult?.inputtokenCount || 0);
         outputTokens += Number(aiResult?.outputtokenCount || 0);
@@ -1218,7 +1218,7 @@ ${CONTENT_RULES}
     const bodyText = stripHtmlToText(bodyHtml);
 
     let usage = {
-        model: aiResult?.modelName || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+        model: aiResult?.modelName || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
         inputTokens,
         outputTokens,
         totalTokens,

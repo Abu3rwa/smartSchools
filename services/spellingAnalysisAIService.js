@@ -81,13 +81,12 @@ export const normalizeAnalysis = (parsed, metrics = {}) => {
 };
 
 /**
- * Spelling analysis runs on OpenAI by default. Flip SPELLING_AI_PROVIDER to
- * "gemini" to send it back without a code change.
+ * Spelling analysis runs on the OpenAI gateway; the model can be overridden
+ * with SPELLING_AI_MODEL.
  */
 const spellingAiOptions = () => {
-    const provider = String(process.env.SPELLING_AI_PROVIDER || 'openai').toLowerCase();
     const modelName = process.env.SPELLING_AI_MODEL;
-    return modelName ? { provider, modelName } : { provider };
+    return modelName ? { modelName } : {};
 };
 
 const usageFor = ({ billing, context, feature }) => ({

@@ -22,6 +22,14 @@ const FEATURE_ICON_OPTIONS = [
   'analytics',
   'security',
   'mobile',
+  'ai',
+  'feedback',
+  'insights',
+  'automation',
+  'reporting',
+  'communication',
+  'planning',
+  'governance',
 ];
 
 const cloneContent = (value) => JSON.parse(JSON.stringify(value));

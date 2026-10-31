@@ -494,10 +494,10 @@ Output the final result as one HTML block only.
             totalTokens
         } = usageData;
 
-        // Calculate estimated cost (using Gemini 2.5 Flash pricing)
+        // Estimated cost uses gpt-5.4-mini list pricing (USD per 1K tokens).
         const pricing = {
-            input: 0.000125,  // per 1K tokens
-            output: 0.000375  // per 1K tokens
+            input: 0.00075,
+            output: 0.0045
         };
 
         const estimatedCost = (inputTokens * pricing.input / 1000) +
@@ -507,7 +507,7 @@ Output the final result as one HTML block only.
         const schoolIdString = schoolId ? (typeof schoolId === 'string' ? schoolId : schoolId.toString()) : '';
 
         const tokenUsage = new AITokenUsage({
-            model: 'gemini-2.5-flash',
+            model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
             user: userId,
             school: schoolId,
             schoolId: schoolIdString,

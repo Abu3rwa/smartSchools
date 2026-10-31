@@ -10,6 +10,8 @@ import {
     HiOutlineOfficeBuilding,
     HiOutlineUserAdd,
     HiOutlineCheckCircle,
+    HiOutlinePencilAlt,
+    HiOutlineDocumentReport,
 } from 'react-icons/hi';
 
 export const featureIconMap = {
@@ -20,6 +22,8 @@ export const featureIconMap = {
     security: HiOutlineShieldCheck,
     mobile: HiOutlineDeviceMobile,
     ai: HiOutlineSparkles,
+    feedback: HiOutlinePencilAlt,
+    insights: HiOutlineDocumentReport,
     automation: HiOutlineCloud,
     reporting: HiOutlineChartBar,
     communication: HiOutlineDeviceMobile,
@@ -42,6 +46,8 @@ export const featureMetaMap = {
     security: { audience: 'For admins', highlight: 'Safer school data', tint: 'rgba(13,148,136,0.2)' },
     mobile: { audience: 'For everyone', highlight: 'Work from anywhere', tint: 'rgba(15,23,42,0.2)' },
     ai: { audience: 'For instruction', highlight: 'AI-powered support', tint: 'rgba(59,130,246,0.22)' },
+    feedback: { audience: 'For teachers', highlight: 'Consistent, rubric-based', tint: 'rgba(168,85,247,0.2)' },
+    insights: { audience: 'For leadership', highlight: 'See who needs support', tint: 'rgba(16,185,129,0.18)' },
     automation: { audience: 'For operations', highlight: 'Less manual work', tint: 'rgba(14,165,233,0.18)' },
     reporting: { audience: 'For leadership', highlight: 'Clear performance view', tint: 'rgba(16,185,129,0.18)' },
     communication: { audience: 'For families', highlight: 'Stay informed', tint: 'rgba(244,114,182,0.2)' },

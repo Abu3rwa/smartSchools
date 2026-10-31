@@ -112,7 +112,7 @@ Required JSON schema:
         try {
             const aiResult = await aiService.generateStructuredJson({
                 prompt,
-                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                modelName: process.env.PLP_AI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
                 maxRetries: 1,
             });
             const proofreadText = String(aiResult?.parsed?.proofreadText || '').trim();
@@ -188,7 +188,7 @@ Required JSON schema:
         try {
             const aiResult = await aiService.generateStructuredJson({
                 prompt,
-                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                modelName: process.env.PLP_AI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
                 maxRetries: 1,
             });
             parsed = aiResult?.parsed || null;
@@ -269,7 +269,7 @@ Required JSON schema:
         try {
             const aiResult = await aiService.generateStructuredJson({
                 prompt,
-                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                modelName: process.env.PLP_AI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
                 maxRetries: 1,
             });
             const parsed = aiResult?.parsed || {};
@@ -363,7 +363,7 @@ Required JSON schema:
         try {
             const aiResult = await aiService.generateStructuredJson({
                 prompt,
-                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                modelName: process.env.PLP_AI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
                 maxRetries: 1,
             });
             parsed = aiResult?.parsed || null;

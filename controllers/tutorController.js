@@ -2,6 +2,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import Student from '../models/Student.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import * as tutorService from '../services/tutorService.js';
+import * as voiceTutorService from '../services/voiceTutorService.js';
 
 const isAdminUser = (user) => ['admin', 'super_admin'].includes(String(user?.role || ''));
 
@@ -62,6 +63,64 @@ export const askTutor = asyncHandler(async (req, res) => {
         language: languageOf(req.body?.language)
     });
     res.status(201).json({ success: true, data });
+});
+
+/* Premium voice tutor: the picker, the session and one spoken turn. */
+
+export const myVoiceHome = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const data = await voiceTutorService.getVoiceHome({
+        schoolId: req.schoolId,
+        student,
+        subjectId: req.query.subjectId || null
+    });
+    res.json({ success: true, data });
+});
+
+export const startVoiceSession = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const data = await voiceTutorService.startVoiceSession({
+        schoolId: req.schoolId,
+        student,
+        subjectId: req.body?.subjectId,
+        lessonId: req.body?.lessonId,
+        language: req.body?.language
+    });
+    res.status(201).json({ success: true, data });
+});
+
+export const getVoiceSession = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const data = await voiceTutorService.getVoiceSession({
+        schoolId: req.schoolId,
+        student,
+        sessionId: req.params.sessionId
+    });
+    res.json({ success: true, data });
+});
+
+export const voiceTurn = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const data = await voiceTutorService.askVoice({
+        schoolId: req.schoolId,
+        student,
+        sessionId: req.params.sessionId,
+        audio: req.file?.buffer || null,
+        mimeType: req.file?.mimetype || 'audio/webm',
+        text: req.body?.text || '',
+        durationMs: Number(req.body?.durationMs) || 0
+    });
+    res.status(201).json({ success: true, data });
+});
+
+export const endVoiceSession = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const data = await voiceTutorService.endVoiceSession({
+        schoolId: req.schoolId,
+        student,
+        sessionId: req.params.sessionId
+    });
+    res.json({ success: true, data });
 });
 
 export const createPractice = asyncHandler(async (req, res) => {
@@ -201,6 +260,26 @@ export const pauseStudent = asyncHandler(async (req, res) => {
         studentId: req.params.studentId,
         userId: req.user._id,
         paused: req.body?.paused
+    });
+    res.json({ success: true, data });
+});
+
+export const giveVoiceCredit = asyncHandler(async (req, res) => {
+    const data = await voiceTutorService.giveVoiceCredit({
+        schoolId: req.schoolId,
+        studentIds: req.body?.studentIds,
+        classId: req.body?.classId,
+        credits: req.body?.credits,
+        adminId: req.user._id
+    });
+    res.json({ success: true, data });
+});
+
+export const setStudentLevel = asyncHandler(async (req, res) => {
+    const data = await tutorService.setStudentLanguageLevel({
+        schoolId: req.schoolId,
+        studentId: req.params.studentId,
+        level: req.body?.level
     });
     res.json({ success: true, data });
 });

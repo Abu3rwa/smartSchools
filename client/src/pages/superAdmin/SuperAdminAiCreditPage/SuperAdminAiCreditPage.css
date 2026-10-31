@@ -140,3 +140,14 @@
         justify-content: space-between;
     }
 }
+
+.voice-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-sm);
+    max-width: 900px;
+}
+
+.voice-config-grid .ai-credit-field {
+    max-width: none;
+}

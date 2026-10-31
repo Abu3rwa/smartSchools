@@ -23,6 +23,8 @@ import LandingTestimonials from './components/LandingTestimonials.jsx';
 import LandingFaq from './components/LandingFaq.jsx';
 import LandingCta from './components/LandingCta.jsx';
 import LandingFindSchool from './components/LandingFindSchool.jsx';
+import LandingPlatformStory from './components/LandingPlatformStory.jsx';
+import LandingBookDemo from './components/LandingBookDemo.jsx';
 import LandingFooter from './components/LandingFooter.jsx';
 import RevealOnScroll from './components/RevealOnScroll.jsx';
 import './LandingPage.css';
@@ -39,6 +41,7 @@ export default function LandingPage() {
         contentError,
         contentLoading,
         loading,
+        plans,
         schools,
         schoolsToShow,
         filtered,
@@ -130,6 +133,11 @@ export default function LandingPage() {
                 <LandingFeatures content={content} />
             </RevealOnScroll>
 
+            {/* 5b. Platform story — admin, teacher, student and the AI layer */}
+            <RevealOnScroll>
+                <LandingPlatformStory uiText={uiText} />
+            </RevealOnScroll>
+
             {/* 6. Screenshots — SEE the product */}
             <RevealOnScroll>
                 <LandingScreenshots />
@@ -142,7 +150,7 @@ export default function LandingPage() {
 
             {/* 8. Pricing */}
             <RevealOnScroll>
-                <LandingPricing content={content} handleAction={handleAction} />
+                <LandingPricing content={content} plans={plans} uiText={uiText} handleAction={handleAction} />
             </RevealOnScroll>
 
             {/* 9. Testimonials */}
@@ -157,7 +165,12 @@ export default function LandingPage() {
 
             {/* 11. Final CTA */}
             <RevealOnScroll>
-                <LandingCta content={content} handleAction={handleAction} />
+                <LandingCta content={content} uiText={uiText} handleAction={handleAction} />
+            </RevealOnScroll>
+
+            {/* 11b. Book a Demo */}
+            <RevealOnScroll>
+                <LandingBookDemo uiText={uiText} language={language} />
             </RevealOnScroll>
 
             {/* 12. Find School */}

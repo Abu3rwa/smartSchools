@@ -27,7 +27,10 @@ export default function TutorAdminPage() {
   const { grade, setGrade, subjectId, setSubjectId, subjects, standards, lessons, subject, loadingSubjects, loadingLessons, importing, importLessons, removeLesson } = useTutorLessons({
     gradeOptions: overview?.gradeOptions || []
   });
-  const credits = useTutorCredits({ defaultCredits: overview?.settings?.defaultCredits ?? 30 });
+  const credits = useTutorCredits({
+    defaultCredits: overview?.settings?.defaultCredits ?? 30,
+    initialReserve: overview?.reserve?.credits ?? 0
+  });
 
   const [draft, setDraft] = useState(null);
   const [changingClass, setChangingClass] = useState('');
@@ -35,6 +38,7 @@ export default function TutorAdminPage() {
   const tabRefs = useRef([]);
 
   const settings = overview?.settings || null;
+  const num = (value) => Number(value || 0).toLocaleString(i18n.language);
 
   useEffect(() => {
     if (settings) setDraft({ ...settings });
@@ -46,7 +50,6 @@ export default function TutorAdminPage() {
     && (
       draft.enabled !== settings.enabled
       || draft.practiceEnabled !== settings.practiceEnabled
-      || Number(draft.dailyMessageLimit) !== settings.dailyMessageLimit
       || Number(draft.defaultCredits) !== settings.defaultCredits
     )
   );
@@ -56,7 +59,6 @@ export default function TutorAdminPage() {
       await saveSettings({
         enabled: Boolean(draft.enabled),
         practiceEnabled: Boolean(draft.practiceEnabled),
-        dailyMessageLimit: Number(draft.dailyMessageLimit),
         defaultCredits: Number(draft.defaultCredits)
       });
       toast.success(t('tutor:admin.settings.saved'));
@@ -253,17 +255,6 @@ export default function TutorAdminPage() {
 
                 <div className="ta-numbers">
                   <label>
-                    <span>{t('tutor:admin.settings.dailyLimit')}</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="200"
-                      value={draft.dailyMessageLimit}
-                      onChange={(event) => setDraft({ ...draft, dailyMessageLimit: event.target.value })}
-                    />
-                    <small>{t('tutor:admin.settings.dailyLimitHint')}</small>
-                  </label>
-                  <label>
                     <span>{t('tutor:admin.settings.defaultCredits')}</span>
                     <input
                       type="number"
@@ -342,59 +333,125 @@ export default function TutorAdminPage() {
         )}
 
         {tab === 'credits' && (
-          <section className="ta-card" aria-labelledby="ta-credits-title">
+          <section className="ta-card ta-credits-card" aria-labelledby="ta-credits-title">
             <header className="ta-card-head">
               <h2 id="ta-credits-title">{t('tutor:admin.credits.title')}</h2>
               <p>{t('tutor:admin.credits.hint')}</p>
             </header>
 
-            <div className="ta-toolbar">
-              <label>
-                <span>{t('tutor:admin.credits.class')}</span>
-                <select value={credits.classId} onChange={(event) => credits.setClassId(event.target.value)}>
-                  <option value="">{t('tutor:admin.credits.pickClass')}</option>
-                  {overview.classes.map((row) => (
-                    <option key={row.id} value={row.id}>{row.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t('tutor:admin.credits.amount')}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="1000"
-                  value={credits.amount}
-                  placeholder={String(overview.settings.defaultCredits)}
-                  onChange={(event) => credits.setAmount(event.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={credits.distribute}
-                disabled={!credits.classId || credits.busy}
-              >
-                {t('tutor:admin.credits.giveClass')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={credits.giveSelected}
-                disabled={!credits.selected.length || credits.busy}
-              >
-                {t('tutor:admin.credits.giveSelected', { n: credits.selected.length })}
-              </button>
-            </div>
-            <p className="ta-hint">{t('tutor:admin.credits.amountHint', { n: overview.settings.defaultCredits })}</p>
+            <div className="ta-credits-grid">
+              <div className="ta-credits-controls">
+                <div className="ta-kind-switch" role="group" aria-label={t('tutor:admin.credits.kindLabel')}>
+                  <button
+                    type="button"
+                    className={credits.kind === 'questions' ? 'is-active' : ''}
+                    aria-pressed={credits.kind === 'questions'}
+                    onClick={() => credits.setKind('questions')}
+                  >
+                    {t('tutor:admin.credits.kindQuestions')}
+                  </button>
+                  <button
+                    type="button"
+                    className={credits.kind === 'voice' ? 'is-active' : ''}
+                    aria-pressed={credits.kind === 'voice'}
+                    onClick={() => credits.setKind('voice')}
+                  >
+                    {t('tutor:admin.credits.kindVoice')}
+                  </button>
+                </div>
 
-            {!credits.classId && <p className="ta-hint">{t('tutor:admin.credits.pickClassHint')}</p>}
-            {credits.classId && credits.loading && <p className="ta-hint">{t('tutor:admin.credits.loadingStudents')}</p>}
-            {credits.classId && !credits.loading && credits.students.length === 0 && (
-              <p className="ta-hint">{t('tutor:admin.credits.noStudents')}</p>
-            )}
+                <div className="ta-toolbar ta-toolbar-fields">
+                  <label>
+                    <span>{t('tutor:admin.credits.class')}</span>
+                    <select value={credits.classId} onChange={(event) => credits.setClassId(event.target.value)}>
+                      <option value="">{t('tutor:admin.credits.pickClass')}</option>
+                      {overview.classes.map((row) => (
+                        <option key={row.id} value={row.id}>{row.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t(credits.kind === 'voice' ? 'tutor:admin.credits.voiceAmount' : 'tutor:admin.credits.amount')}</span>
+                    <input
+                      type="number"
+                      min={credits.kind === 'voice' ? '1' : '0'}
+                      max="1000"
+                      value={credits.amount}
+                      placeholder={String(overview.settings.defaultCredits)}
+                      onChange={(event) => credits.setAmount(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="ta-hint">
+                  {credits.kind === 'voice'
+                    ? t('tutor:admin.credits.voiceAmountHint')
+                    : t('tutor:admin.credits.amountHint', { n: overview.settings.defaultCredits })}
+                </p>
 
-            {credits.classId && !credits.loading && credits.students.length > 0 && (
+                {credits.kind === 'voice' && (
+                  <div className={`ta-reserve${credits.reserveNotice ? ' is-short' : ''}`}>
+                    <div className="ta-reserve-head">
+                      <span className="ta-reserve-label">{t('tutor:admin.credits.reserveLabel')}</span>
+                      <strong className="ta-reserve-value">
+                        {t('tutor:admin.credits.reserveValue', { n: num(credits.reserve) })}
+                      </strong>
+                    </div>
+                    <p className="ta-reserve-hint">{t('tutor:admin.credits.reserveHint')}</p>
+                    {credits.classId && credits.classCost !== null && credits.students.length > 0 && (
+                      <p className={`ta-reserve-line${credits.classShort ? ' is-short' : ''}`}>
+                        {t('tutor:admin.credits.reserveClassCost', {
+                          students: num(credits.students.length),
+                          each: num(credits.amountValue),
+                          total: num(credits.classCost)
+                        })}
+                      </p>
+                    )}
+                    {credits.selected.length > 0 && credits.selectedCost !== null && (
+                      <p className={`ta-reserve-line${credits.selectedShort ? ' is-short' : ''}`}>
+                        {t('tutor:admin.credits.reserveSelectedCost', {
+                          students: num(credits.selected.length),
+                          each: num(credits.amountValue),
+                          total: num(credits.selectedCost)
+                        })}
+                      </p>
+                    )}
+                    {credits.reserveNotice === 'partial' && (
+                      <p className="ta-reserve-alert" role="alert">{t('tutor:admin.credits.voiceReserveShort')}</p>
+                    )}
+                    {credits.reserveNotice === 'short' && (
+                      <p className="ta-reserve-alert" role="alert">{t('tutor:admin.credits.reserveNotEnough')}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="ta-grant-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={credits.distribute}
+                    disabled={!credits.classId || credits.busy || credits.classShort}
+                  >
+                    {t('tutor:admin.credits.giveClass')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={credits.giveSelected}
+                    disabled={!credits.selected.length || credits.busy || credits.selectedShort}
+                  >
+                    {t('tutor:admin.credits.giveSelected', { n: credits.selected.length })}
+                  </button>
+                </div>
+              </div>
+
+              <div className="ta-credits-students">
+                {!credits.classId && <p className="ta-hint">{t('tutor:admin.credits.pickClassHint')}</p>}
+                {credits.classId && credits.loading && <p className="ta-hint">{t('tutor:admin.credits.loadingStudents')}</p>}
+                {credits.classId && !credits.loading && credits.students.length === 0 && (
+                  <p className="ta-hint">{t('tutor:admin.credits.noStudents')}</p>
+                )}
+
+                {credits.classId && !credits.loading && credits.students.length > 0 && (
               <div className="ta-table-wrap">
                 <table className="ta-table">
                   <thead>
@@ -409,7 +466,9 @@ export default function TutorAdminPage() {
                       </th>
                       <th>{t('tutor:admin.credits.student')}</th>
                       <th>{t('tutor:admin.credits.studentId')}</th>
+                      <th>{t('tutor:admin.credits.level')}</th>
                       <th className="ta-col-num">{t('tutor:admin.credits.balance')}</th>
+                      <th className="ta-col-num">{t('tutor:admin.credits.voiceBalance')}</th>
                       <th>{t('tutor:admin.credits.status')}</th>
                       <th />
                     </tr>
@@ -427,7 +486,22 @@ export default function TutorAdminPage() {
                         </td>
                         <td>{student.name}</td>
                         <td className="ta-muted">{student.studentId || '—'}</td>
+                        <td>
+                          <select
+                            className="ta-level-select"
+                            value={student.languageLevel || ''}
+                            disabled={credits.busy}
+                            onChange={(event) => credits.setLevel(student.id, event.target.value || null)}
+                            aria-label={t('tutor:admin.credits.levelFor', { name: student.name })}
+                          >
+                            <option value="">{t('tutor:admin.credits.levelAuto')}</option>
+                            <option value="support">{t('tutor:admin.credits.levelSupport')}</option>
+                            <option value="on_level">{t('tutor:admin.credits.levelOn')}</option>
+                            <option value="stretch">{t('tutor:admin.credits.levelStretch')}</option>
+                          </select>
+                        </td>
                         <td className="ta-col-num ta-strong">{student.wallet?.credits ?? 0}</td>
+                        <td className="ta-col-num">{student.voiceCredits ?? 0}</td>
                         <td>
                           {student.wallet?.paused
                             ? t('tutor:admin.credits.pausedState')
@@ -450,7 +524,9 @@ export default function TutorAdminPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+                )}
+              </div>
+            </div>
           </section>
         )}
 

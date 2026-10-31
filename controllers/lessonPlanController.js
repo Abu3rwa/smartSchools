@@ -20,7 +20,7 @@ import {
     toLegacyLanguageValue
 } from '../utils/aiLanguageUtils.js';
 
-const MODEL_NAME = 'gemini-2.5-flash-lite';
+const MODEL_NAME = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const VALID_SUGGEST_FIELDS = [
     'title', 'summary', 'description', 'homework', 'teachingObjectives', 'vocabulary',
     'previousKnowledge', 'characterTraitLinks', 'techIntegration', 'stageProcedure'

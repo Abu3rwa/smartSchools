@@ -94,7 +94,7 @@ export const getClassInsights = asyncHandler(async (req, res) => {
     });
 
     await AITokenUsage.create({
-        model: 'gemini-2.5-flash-lite',
+        model: 'gpt-5.4-mini',
         feature: 'class_analytics_insights',
         school: req.schoolId,
         user: req.user._id,

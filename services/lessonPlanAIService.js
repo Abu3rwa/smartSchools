@@ -1,6 +1,6 @@
 /**
  * AI service for lesson plan features: field suggestions, standards detection, and section generation.
- * Uses connectAi (Gemini) and follows patterns from standardsPracticeAIService and newsletterAiService.
+ * Uses connectAi (OpenAI) and follows patterns from standardsPracticeAIService and newsletterAiService.
  */
 
 import { connectAi } from "../utils/connectAi.js";

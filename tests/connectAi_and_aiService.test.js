@@ -5,8 +5,8 @@ import aiService from '../services/aiservice.js';
 import { connectAi } from '../utils/connectAi.js';
 
 test('connectAi rejects empty prompt before external API call', async () => {
-  const previousApiKey = process.env.GEMINI_API_KEY;
-  process.env.GEMINI_API_KEY = previousApiKey || 'test-key';
+  const previousApiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = previousApiKey || 'test-key';
 
   try {
     await assert.rejects(
@@ -18,9 +18,9 @@ test('connectAi rejects empty prompt before external API call', async () => {
     );
   } finally {
     if (previousApiKey === undefined) {
-      delete process.env.GEMINI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
     } else {
-      process.env.GEMINI_API_KEY = previousApiKey;
+      process.env.OPENAI_API_KEY = previousApiKey;
     }
   }
 });

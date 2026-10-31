@@ -25,8 +25,8 @@ export const aiFeatureRateLimiter = rateLimit({
 
 /**
  * The student tutor is a conversation, so a session can legitimately hold more
- * requests than a one-shot AI feature. The wallet and the daily question limit in
- * the tutor settings remain the real caps; this only stops a scripted loop.
+ * requests than a one-shot AI feature. The student's wallet is the real cap;
+ * this only stops a scripted loop.
  */
 export const tutorRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -115,6 +115,22 @@ export const importRateLimiter = rateLimit({
     message: {
         success: false,
         message: 'Too many export/import requests. Please try again in a few minutes.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
+ * Public landing page demo form. Five submissions per IP per hour is enough
+ * for real prospects and stops scripted form spam.
+ */
+export const demoRequestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req, res) => ipKeyGenerator(req, res),
+    message: {
+        success: false,
+        message: 'Too many demo requests from this connection. Please try again later.'
     },
     standardHeaders: true,
     legacyHeaders: false

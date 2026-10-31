@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { fetchSchools, selectSchools, selectSchoolLoading } from '../../../../store/slices/schoolSlice.js';
 import { selectIsAuthenticated } from '../../../../store/slices/authSlice.js';
 import { selectTheme, selectLanguage, setLanguage, setTheme } from '../../../../store/slices/uiSlice.js';
-import { getLandingContent, getLandingDynamicBlocks } from '../../../../services/landingContentService.js';
+import { getLandingContent, getLandingDynamicBlocks, getLandingPlans } from '../../../../services/landingContentService.js';
 import { landingPageDefaults, resolveLandingTemplate } from '../../../../config/landingPageDefaults.js';
 import { isRtlLanguage, normalizeLanguage } from '../../../../i18n/config.js';
+import { markReturning } from '../../../../utils/returningVisitor.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -57,7 +58,7 @@ export function useLandingPageData() {
             defaultValue: {},
         });
         return isObject(translatedUi) ? translatedUi : {};
-    }, [language, t]);
+    }, [t]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -128,6 +129,21 @@ export function useLandingPageData() {
             mounted = false;
         };
     }, [language]);
+
+    const [plans, setPlans] = useState([]);
+    useEffect(() => {
+        let mounted = true;
+        getLandingPlans()
+            .then((rows) => {
+                if (mounted) setPlans(Array.isArray(rows) ? rows : []);
+            })
+            .catch(() => {
+                if (mounted) setPlans([]);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -202,7 +218,12 @@ export function useLandingPageData() {
                 return;
             }
             if (action === 'login') {
+                markReturning();
                 navigate('/login');
+                return;
+            }
+            if (action === 'demo') {
+                scrollTo('book-demo');
                 return;
             }
             if (action.startsWith('scroll:')) {
@@ -255,6 +276,7 @@ export function useLandingPageData() {
         dynamicLoading,
         dynamicError,
         loading,
+        plans,
         schools,
         filtered,
         schoolsToShow,

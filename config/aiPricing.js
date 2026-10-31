@@ -1,18 +1,9 @@
 /**
  * One place that turns a model name into a price in US cents per million tokens.
  *
- * OpenAI mini rates are the verified numbers used for Writing feedback. Gemini
- * numbers come from the app's existing reporting registry (USD per 1K) and are
- * only as fresh as that table — override any model with AI_CREDIT_MODEL_RATES.
+ * OpenAI mini rates are the verified numbers used for Writing feedback. Override
+ * any model with AI_CREDIT_MODEL_RATES.
  */
-
-const USD_PER_K_TO_CENTS_PER_M = 100000;
-
-const fromPerThousand = ({ input, output }) => ({
-    inputPerMillionCents: input * USD_PER_K_TO_CENTS_PER_M,
-    cachedInputPerMillionCents: input * USD_PER_K_TO_CENTS_PER_M,
-    outputPerMillionCents: output * USD_PER_K_TO_CENTS_PER_M
-});
 
 export const OPENAI_MINI_RATES = {
     inputPerMillionCents: 75,
@@ -21,12 +12,7 @@ export const OPENAI_MINI_RATES = {
 };
 
 const MODEL_RATES = {
-    'gpt-5.4-mini': OPENAI_MINI_RATES,
-    'gemini-2.5-flash-lite': fromPerThousand({ input: 0.000075, output: 0.0003 }),
-    'gemini-2.5-flash': fromPerThousand({ input: 0.000125, output: 0.000375 }),
-    'gemini-2.0-flash-exp': fromPerThousand({ input: 0.000125, output: 0.000375 }),
-    'gemini-1.5-flash': fromPerThousand({ input: 0.000075, output: 0.0003 }),
-    'gemini-1.5-pro': fromPerThousand({ input: 0.00125, output: 0.005 })
+    'gpt-5.4-mini': OPENAI_MINI_RATES
 };
 
 const RATE_FIELDS = ['inputPerMillionCents', 'cachedInputPerMillionCents', 'outputPerMillionCents'];
@@ -70,3 +56,40 @@ export const ratesForModel = (model, env = process.env) => {
 };
 
 export const isModelPriced = (model, env = process.env) => Boolean(ratesForModel(model, env));
+
+/* ------------------------------------------------------------------ */
+/* Speech                                                              */
+/* ------------------------------------------------------------------ */
+
+/** Speech is billed by the minute of audio, not by tokens: US cents per minute. */
+export const AUDIO_RATES = {
+    'gpt-4o-mini-transcribe': 0.3,
+    'gpt-4o-mini-tts': 1.5,
+    'whisper-1': 0.6
+};
+
+/** Optional JSON map: {"gpt-4o-mini-tts":{"centsPerMinute":1.2}}. Malformed input is ignored. */
+const audioOverride = (model, env = {}) => {
+    const raw = env.AI_CREDIT_AUDIO_RATES;
+    if (typeof raw !== 'string' || !raw.trim()) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        const row = parsed?.[model];
+        const value = Number(row?.centsPerMinute ?? row);
+        return Number.isFinite(value) && value >= 0 ? value : null;
+    } catch {
+        return null;
+    }
+};
+
+/** Cents per minute of audio, or null when nobody has priced the speech model. */
+export const audioCentsPerMinute = (model, env = process.env) => {
+    const name = String(model || '').trim();
+    if (!name) return null;
+    const override = audioOverride(name, env);
+    if (override !== null) return override;
+    const rate = Number(AUDIO_RATES[name]);
+    return Number.isFinite(rate) && rate >= 0 ? rate : null;
+};
+
+export const isAudioModelPriced = (model, env = process.env) => audioCentsPerMinute(model, env) !== null;

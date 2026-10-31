@@ -1,6 +1,6 @@
 /**
  * AI service for class analytics: generates short narrative insights from analytics payload.
- * Uses connectAi (Gemini) and logs token usage via AITokenUsage (caller responsibility).
+ * Uses connectAi (OpenAI) and logs token usage via AITokenUsage (caller responsibility).
  */
 
 import { connectAi } from '../utils/connectAi.js';

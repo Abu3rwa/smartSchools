@@ -85,6 +85,11 @@
     color: var(--icon-purple);
 }
 
+.admin-stat-icon.demo {
+    background: rgba(13, 148, 136, 0.15);
+    color: #0d9488;
+}
+
 .admin-stat-info h3 {
     font-size: 1.5rem;
     font-weight: 700;
@@ -223,6 +228,26 @@
 .status-badge.inactive {
     background: rgba(239, 68, 68, 0.15);
     color: var(--accent-red);
+}
+
+.status-badge.new {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--icon-amber);
+}
+
+.status-badge.contacted {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+}
+
+.status-badge.scheduled {
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--icon-purple);
+}
+
+.status-badge.closed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-emerald);
 }
 
 /* Quick Actions */

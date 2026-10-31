@@ -7,11 +7,15 @@ import path from 'node:path';
 import {
     buildPracticePrompt,
     buildTutorPrompt,
+    buildVoicePrompt,
+    buildVoiceOpeningPrompt,
+    readVoiceReply,
     countTries,
     gradePractice,
     normalizePracticeQuestions,
     readTutorReply,
     resolveAccess,
+    resolveLanguageLevel,
     scoreLesson,
     selectLessons,
     summarizeLessonsByUnit,
@@ -181,6 +185,153 @@ test('an arabic session asks for arabic and keeps the same grounding rule', () =
     });
     assert.match(prompt, /Reply in Arabic only/);
     assert.match(prompt, /Use ONLY the lesson material below/);
+});
+
+test('the language band comes from the reading level against the class grade', () => {
+    assert.equal(resolveLanguageLevel({ readingLevel: 3, grade: 5 }), 'support');
+    assert.equal(resolveLanguageLevel({ readingLevel: 5, grade: 5 }), 'on_level');
+    assert.equal(resolveLanguageLevel({ readingLevel: 6, grade: 5 }), 'on_level');
+    assert.equal(resolveLanguageLevel({ readingLevel: 7, grade: 5 }), 'stretch');
+    assert.equal(resolveLanguageLevel({ grade: 5 }), 'on_level');
+});
+
+test('low comprehension needs support even when the reading level is above grade', () => {
+    assert.equal(resolveLanguageLevel({ readingLevel: 8, grade: 5, accuracy: 55 }), 'support');
+    assert.equal(resolveLanguageLevel({ readingLevel: 8, grade: 5, accuracy: 80 }), 'stretch');
+});
+
+test('a teacher override outranks the measured level', () => {
+    assert.equal(resolveLanguageLevel({ override: 'support', readingLevel: 9, grade: 5, accuracy: 95 }), 'support');
+    assert.equal(resolveLanguageLevel({ override: 'stretch', readingLevel: 3, grade: 5 }), 'stretch');
+    assert.equal(resolveLanguageLevel({ override: 'nonsense', readingLevel: 3, grade: 5 }), 'support');
+});
+
+test('the prompt tells the tutor how to talk without changing what it teaches', () => {
+    const support = buildTutorPrompt({ question: 'q', lessons: [lesson('a')], languageLevel: 'support' });
+    assert.match(support, /HOW YOU TALK TO THIS STUDENT/);
+    assert.match(support, /needs language support/);
+    assert.match(support, /under 80 words/);
+    assert.match(support, /Use ONLY the lesson material below/);
+
+    const onLevel = buildTutorPrompt({ question: 'q', lessons: [lesson('a')] });
+    assert.match(onLevel, /reads at their grade level/);
+    assert.match(onLevel, /under 120 words/);
+
+    const stretch = buildTutorPrompt({ question: 'q', lessons: [lesson('a')], languageLevel: 'stretch' });
+    assert.match(stretch, /strong reader for their grade/);
+    assert.match(stretch, /under 140 words/);
+});
+
+test('the spoken tutor keeps the grounding, the ladder and the level rules', () => {
+    const prompt = buildVoicePrompt({
+        transcript: 'I think gases move fast',
+        lessons: [lesson('a')],
+        subjectName: 'Science',
+        grade: 5,
+        languageLevel: 'support',
+        tries: 1
+    });
+    assert.match(prompt, /spoken aloud/);
+    assert.match(prompt, /Use ONLY the lesson material below/);
+    assert.match(prompt, /Gases fill the container/);
+    assert.match(prompt, /has tried once/);
+    assert.match(prompt, /needs language support/);
+    assert.match(prompt, /under 15 words/);
+    assert.match(prompt, /\{"stage":"prompt\|hint\|answer"/);
+    assert.match(prompt, /"blocks"/);
+    assert.match(prompt, /Never pad the reply to a fixed number/);
+    assert.match(prompt, /"emphasis"/);
+    assert.match(prompt, /I think gases move fast/);
+    assert.match(prompt, /Speak English only/);
+});
+
+test('the spoken tutor answers in the student language', () => {
+    const arabic = buildVoicePrompt({
+        transcript: 'الغازات تتحرك',
+        lessons: [lesson('a')],
+        grade: 5,
+        language: 'ar'
+    });
+    assert.match(arabic, /Speak Arabic only/);
+    assert.match(arabic, /including every item and the follow-up question/);
+});
+
+test('the voice opening is generated from the lesson and the level, not a template', () => {
+    const prompt = buildVoiceOpeningPrompt({
+        lessons: [lesson('a')],
+        subjectName: 'Science',
+        grade: 5,
+        languageLevel: 'support',
+        lesson: lesson('a')
+    });
+    assert.match(prompt, /opening a spoken lesson/);
+    assert.match(prompt, /Gases fill the container/);
+    assert.match(prompt, /needs language support/);
+    assert.match(prompt, /Do NOT explain the lesson, give a hint, or reveal the answer/);
+    assert.match(prompt, /warm-up question/);
+    assert.match(prompt, /\{"stage":"opening"/);
+    assert.match(prompt, /Never mention the student's name/);
+    const stretch = buildVoiceOpeningPrompt({ lessons: [lesson('a')], grade: 5, languageLevel: 'stretch' });
+    assert.match(stretch, /strong reader for their grade/);
+    const arabic = buildVoiceOpeningPrompt({ lessons: [lesson('a')], grade: 5, language: 'ar' });
+    assert.match(arabic, /Speak Arabic only/);
+});
+
+test('an opening reply keeps its opening stage and never counts as a try', () => {
+    const reply = readVoiceReply('{"stage":"opening","lead":"Hi! Today we look at how gases fill a room.","emphasis":"gases","blocks":[],"followUp":"Have you ever smelled something from across a room?"}');
+    assert.equal(reply.stage, 'opening');
+    assert.equal(reply.lead, 'Hi! Today we look at how gases fill a room.');
+    assert.equal(reply.emphasis, 'gases');
+    assert.match(reply.spoken, /Have you ever smelled something from across a room\?/);
+    assert.equal(countTries([{ role: 'tutor', stage: 'opening' }]), 0);
+});
+
+test('a spoken reply is parsed into a lead and typed blocks', () => {
+    const reply = readVoiceReply('```json\n{"stage":"hint","lead":"Good start — a conjunction is glue.","emphasis":"glue","blocks":[{"type":"bullets","items":["Gas particles move freely.","They fill the space."]},{"type":"contrast","items":[{"word":"and","text":"adds another idea"},{"word":"but","text":"shows a difference"}]}],"followUp":"What happens if you trap the gas?"}\n```');
+    assert.equal(reply.stage, 'hint');
+    assert.equal(reply.lead, 'Good start — a conjunction is glue.');
+    assert.equal(reply.emphasis, 'glue');
+    assert.equal(reply.blocks.length, 2);
+    assert.deepEqual(reply.blocks[0], { type: 'bullets', items: ['Gas particles move freely.', 'They fill the space.'] });
+    assert.deepEqual(reply.blocks[1].items[1], { word: 'but', text: 'shows a difference' });
+    assert.equal(reply.followUp, 'What happens if you trap the gas?');
+    assert.match(reply.spoken, /Good start — a conjunction is glue\./);
+    assert.match(reply.spoken, /Gas particles move freely\. They fill the space\./);
+    assert.match(reply.spoken, /and adds another idea, but shows a difference/);
+});
+
+test('a spoken reply without blocks stays one statement', () => {
+    const reply = readVoiceReply('{"stage":"prompt","lead":"Yes — because joins a reason to the thing it explains.","followUp":"Finish it: I stayed inside because..."}');
+    assert.equal(reply.blocks.length, 0);
+    assert.equal(reply.emphasis, '');
+    assert.equal(reply.spoken, 'Yes — because joins a reason to the thing it explains. Finish it: I stayed inside because...');
+});
+
+test('older point replies still become one bullet block', () => {
+    const reply = readVoiceReply('{"stage":"hint","lead":"Nice.","points":["Gas particles move freely.","They fill the space."],"followUp":"What next?"}');
+    assert.deepEqual(reply.blocks, [{ type: 'bullets', items: ['Gas particles move freely.', 'They fill the space.'] }]);
+});
+
+test('a malformed or empty spoken reply is rejected instead of guessed', () => {
+    assert.equal(readVoiceReply('not json'), null);
+    assert.equal(readVoiceReply('{"lead":"","blocks":[],"followUp":""}'), null);
+    const capped = readVoiceReply(JSON.stringify({
+        stage: 'nonsense',
+        lead: 'a',
+        emphasis: 'not in the lead',
+        blocks: [
+            { type: 'bullets', items: ['1', '2'] },
+            { type: 'steps', items: ['1', '2'] },
+            { type: 'example', text: 'x' },
+            { type: 'keyIdea', text: 'y' }
+        ],
+        followUp: 'b'
+    }));
+    assert.equal(capped.stage, 'hint');
+    assert.equal(capped.emphasis, '');
+    assert.equal(capped.blocks.length, 3);
+    const single = readVoiceReply('{"lead":"a","blocks":[{"type":"bullets","items":["only one"]}],"followUp":"b"}');
+    assert.equal(single.blocks.length, 0);
 });
 
 test('no student name is ever part of the tutor prompts', () => {

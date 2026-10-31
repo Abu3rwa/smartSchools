@@ -42,7 +42,7 @@ const reply = (drafts) => () => ({
   parsed: { drafts },
   text: "",
   tokenUsage: { input: 40, output: 20, total: 60 },
-  modelName: "gemini-2.5-flash-lite",
+  modelName: "gpt-5.4-mini",
 });
 
 test("every answer the teacher waits on gets a suggestion, on the question's own scale", async (t) => {
@@ -73,7 +73,7 @@ test("every answer the teacher waits on gets a suggestion, on the question's own
 });
 
 test("a model that is not working leaves the queue exactly as it was", async (t) => {
-  const broken = new Error("AI service request failed (gemini-2.5-flash-lite): unavailable");
+  const broken = new Error("AI service request failed (gpt-5.4-mini): unavailable");
   broken.statusCode = 503;
   stubGenerate(t, () => { throw broken; });
 

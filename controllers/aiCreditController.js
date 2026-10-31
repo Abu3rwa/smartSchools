@@ -1,5 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import * as creditService from '../services/aiCreditService.js';
+import { getVoiceConfig, saveVoiceConfig } from '../services/voiceTutorConfig.js';
 
 export const getMyCredit = asyncHandler(async (req, res) => {
     const summary = await creditService.getCreditSummary({
@@ -116,6 +117,18 @@ export const getPlatformCredit = asyncHandler(async (req, res) => {
 export const updatePlatformMarkup = asyncHandler(async (req, res) => {
     const data = await creditService.updatePlatformMarkup({
         markupPercent: req.body?.markupPercent,
+        updatedBy: req.user._id
+    });
+    res.json({ success: true, data });
+});
+
+export const getVoiceSettings = asyncHandler(async (_req, res) => {
+    res.json({ success: true, data: await getVoiceConfig() });
+});
+
+export const updateVoiceSettings = asyncHandler(async (req, res) => {
+    const data = await saveVoiceConfig({
+        patch: req.body || {},
         updatedBy: req.user._id
     });
     res.json({ success: true, data });
