@@ -51,7 +51,7 @@
     "columns": {
       "school": "School",
       "reserve": "Reserve",
-      "allocated": "With staff",
+      "allocated": "With staff & students",
       "spent": "Spent this month",
       "staff": "Staff",
       "actions": "Details"

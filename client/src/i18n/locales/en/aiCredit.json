@@ -119,7 +119,7 @@
     "title": "AI credit dashboard",
     "stats": {
       "reserve": "School reserve",
-      "allocated": "Allocated to staff",
+      "allocated": "Allocated to staff & students",
       "spentThisMonth": "Used this month",
       "waiting": "Requests waiting"
     },
@@ -137,6 +137,9 @@
     "teachersTitle": "Teachers and admins",
     "teachersBody": "All accounts start with no credit. Open an account to add credit, change its warning level, or pause AI use.",
     "search": "Search accounts",
+    "studentsTitle": "Students",
+    "studentsBody": "Students who hold voice tutor credit or used AI this month. Open a student to move reserve credit.",
+    "noStudents": "No students have credit or AI use yet.",
     "columns": {
       "teacher": "Account",
       "balance": "Balance",

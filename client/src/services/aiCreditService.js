@@ -1,4 +1,4 @@
-import api from '../config/api.js';
+import api from "../config/api.js";
 
 const unwrap = (response) => response?.data?.data ?? response?.data;
 
@@ -8,14 +8,18 @@ const unwrap = (response) => response?.data?.data ?? response?.data;
  */
 export const aiCreditService = {
   // The signed-in person: balance, history and asking for more
-  getSummary: () => api.get('/ai-credit').then(unwrap),
-  getHistory: (params) => api.get('/ai-credit/history', { params }).then(unwrap),
-  requestCredit: (body) => api.post('/ai-credit/requests', body).then(unwrap),
+  getSummary: () => api.get("/ai-credit").then(unwrap),
+  getHistory: (params) =>
+    api.get("/ai-credit/history", { params }).then(unwrap),
+  requestCredit: (body) => api.post("/ai-credit/requests", body).then(unwrap),
   cancelRequest: (requestId) =>
     api.post(`/ai-credit/requests/${requestId}/cancel`).then(unwrap),
 
   // School admin: every account, its history and the reserve
-  listAccounts: () => api.get('/ai-credit/accounts').then(unwrap),
+  listAccounts: (params) =>
+    api.get("/ai-credit/accounts", { params }).then(unwrap),
+  listStudentAccounts: (params) =>
+    api.get("/ai-credit/accounts/students", { params }).then(unwrap),
   getAccountHistory: (userId, params) =>
     api.get(`/ai-credit/accounts/${userId}/history`, { params }).then(unwrap),
   allocate: (userId, body) =>
