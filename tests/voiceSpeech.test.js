@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import process from 'node:process';
-import { estimateSpeechSeconds, synthesizeSpeech, transcribeAudio } from '../services/voiceSpeech.js';
+import { estimateSpeechSeconds, synthesizeSpeech, synthesizeSpeechSegments, transcribeAudio } from '../services/voiceSpeech.js';
 
 const withEnv = async (values, run) => {
     const previous = {};
@@ -111,6 +111,85 @@ test('nothing to read is a 400, not an empty audio file', async () => {
             await assert.rejects(
                 synthesizeSpeech({ text: '   ' }),
                 (error) => error.statusCode === 400
+            );
+        });
+    });
+});
+
+test('pronunciation instructions are sent, and a different instruction is a different clip', async () => {
+    const bodies = [];
+    await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+        await withFetch(async (_url, options) => {
+            bodies.push(JSON.parse(options.body));
+            return new globalThis.Response(new Uint8Array([1]), { status: 200 });
+        }, async () => {
+            await synthesizeSpeech({ text: 'Instruction cache probe.', voice: 'fable', instructions: 'Say only the word.' });
+            await synthesizeSpeech({ text: 'Instruction cache probe.', voice: 'fable', instructions: 'Say only the word.' });
+            await synthesizeSpeech({ text: 'Instruction cache probe.', voice: 'fable', instructions: 'Say it slowly.' });
+        });
+    });
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].instructions, 'Say only the word.');
+    assert.equal(bodies[0].response_format, 'mp3');
+});
+
+test('every board part gets its own clip, synthesized together', async () => {
+    let calls = 0;
+    await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+        await withFetch(async (_url, options) => {
+            calls += 1;
+            const input = JSON.parse(options.body).input;
+            return new globalThis.Response(new Uint8Array([input.length]), { status: 200 });
+        }, async () => {
+            const clips = await synthesizeSpeechSegments({
+                segments: [
+                    { kind: 'lead', text: 'Segment lead clip.' },
+                    { kind: 'block', index: 0, text: 'Segment block clip.' },
+                    { kind: 'followUp', text: 'Segment follow-up clip?' }
+                ]
+            });
+            assert.deepEqual(clips.map((clip) => clip.kind), ['lead', 'block', 'followUp']);
+            assert.equal(clips[1].index, 0);
+            assert.equal(calls, 3);
+            assert.ok(clips.every((clip) => clip.audio.startsWith('data:audio/mpeg;base64,')));
+        });
+    });
+});
+
+test('a segment is retried once before the batch gives up', async () => {
+    let attempts = 0;
+    await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+        await withFetch(async (_url, options) => {
+            const input = JSON.parse(options.body).input;
+            if (input.includes('retry this segment')) {
+                attempts += 1;
+                if (attempts === 1) {
+                    return new globalThis.Response(JSON.stringify({ error: { message: 'busy' } }), {
+                        status: 500,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            }
+            return new globalThis.Response(new Uint8Array([1]), { status: 200 });
+        }, async () => {
+            const clips = await synthesizeSpeechSegments({
+                segments: [{ kind: 'lead', text: 'Please retry this segment now.' }]
+            });
+            assert.equal(attempts, 2);
+            assert.equal(clips.length, 1);
+        });
+    });
+});
+
+test('a batch that never succeeds rejects so the caller can fall back', async () => {
+    await withEnv({ OPENAI_API_KEY: 'test-key' }, async () => {
+        await withFetch(async () => new globalThis.Response(JSON.stringify({ error: { message: 'down' } }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        }), async () => {
+            await assert.rejects(
+                synthesizeSpeechSegments({ segments: [{ kind: 'lead', text: 'This batch always fails loudly.' }] }),
+                (error) => error.statusCode === 502
             );
         });
     });

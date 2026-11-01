@@ -1,16 +1,9 @@
 import { useId, useMemo, useState } from 'react';
 import { Box, Button, Collapse, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
 import { HiOutlineSpeakerWave, HiOutlineChevronDown, HiOutlineCheck } from 'react-icons/hi2';
-import { DEFAULT_VOICE_ID, DICTIONARY_LABELS } from '../../utils/voicePlayback';
-
-const ACCENTS = [
-    ['us', 'US', 'American'],
-    ['uk', 'UK', 'British']
-];
+import { DEFAULT_VOICE_ID, getSpellingVoiceOptions } from '../../utils/voicePlayback';
 
 const TARGET = { minHeight: 44 }; // comfortable touch target
-
-const dictionaryLabel = (dictionary) => DICTIONARY_LABELS[dictionary] || dictionary;
 
 const GROUP_ITEM_SX = { '& .MuiToggleButtonGroup-grouped': { border: 1, borderColor: 'divider', borderRadius: 1.5, m: 0 } };
 
@@ -30,23 +23,34 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
     const panelId = useId();
     const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const dictionaries = useMemo(() => Object.entries(audio?.dictionaries || {}), [audio]);
+    const voices = useMemo(() => {
+        const options = getSpellingVoiceOptions(audio);
+        const aiAccents = new Set(Object.keys(audio?.ai || {}));
+        // Once a generated clip exists for an accent, its dictionary recordings are not offered any more.
+        return aiAccents.size === 0
+            ? options
+            : options.filter((option) => option.dictionary === 'ai' || !aiAccents.has(option.accent));
+    }, [audio]);
+    const exampleSets = useMemo(
+        () => dictionaries
+            .map(([, section]) => section.examples || [])
+            .filter((examples) => examples.length > 0),
+        [dictionaries]
+    );
 
-    const activeLabel = useMemo(() => {
-        if (selectedVoice === DEFAULT_VOICE_ID) return 'Default';
-        for (const [dictionary, section] of dictionaries) {
-            for (const [accent, label] of ACCENTS) {
-                if (section[accent] && selectedVoice === `${dictionary}-${accent}`) {
-                    return `${dictionaryLabel(dictionary)} ${label}`;
-                }
-            }
-        }
-        return 'Default';
-    }, [dictionaries, selectedVoice]);
+    const activeVoice = useMemo(
+        () => (voices.some((option) => option.id === selectedVoice) ? selectedVoice : DEFAULT_VOICE_ID),
+        [selectedVoice, voices]
+    );
+    const activeLabel = useMemo(
+        () => voices.find((option) => option.id === activeVoice)?.label || 'Default',
+        [activeVoice, voices]
+    );
 
-    if (dictionaries.length === 0) return null;
+    if (voices.length === 0 && exampleSets.length === 0) return null;
 
     // Clicking the active voice again passes null: replay the current voice.
-    const handleChange = (_event, value) => onSelectVoice(value || selectedVoice);
+    const handleChange = (_event, value) => onSelectVoice(value || activeVoice);
 
     return (
         <Box
@@ -101,49 +105,43 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
                     <ToggleButtonGroup
                         exclusive
                         size="small"
-                        value={selectedVoice}
+                        value={activeVoice}
                         onChange={handleChange}
                         disabled={disabled}
                         aria-label="Choose a voice"
                         sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
                     >
-                        <VoiceOption id={DEFAULT_VOICE_ID} label="Default" selected={selectedVoice === DEFAULT_VOICE_ID} />
-                        {dictionaries.flatMap(([dictionary, section]) => ACCENTS
-                            .filter(([accent]) => section[accent])
-                            .map(([accent, label, full]) => {
-                                const id = `${dictionary}-${accent}`;
-                                return (
-                                    <VoiceOption
-                                        key={id}
-                                        id={id}
-                                        label={`${dictionaryLabel(dictionary)} ${label}`}
-                                        ariaLabel={`${dictionaryLabel(dictionary)} ${full} voice`}
-                                        selected={selectedVoice === id}
-                                        withIcon
-                                    />
-                                );
-                            }))}
+                        <VoiceOption id={DEFAULT_VOICE_ID} label="Default" selected={activeVoice === DEFAULT_VOICE_ID} />
+                        {voices.map((option) => (
+                            <VoiceOption
+                                key={option.id}
+                                id={option.id}
+                                label={option.label}
+                                ariaLabel={`${option.label} voice`}
+                                selected={activeVoice === option.id}
+                                withIcon
+                            />
+                        ))}
                     </ToggleButtonGroup>
 
-                    {dictionaries.map(([dictionary, section]) => {
-                        const examples = section.examples || [];
-                        if (examples.length === 0) return null;
+                    {exampleSets.map((examples, index) => {
+                        const setLabel = `Set ${index + 1}`;
                         return (
-                            <Stack key={dictionary} component="section" aria-label={`${dictionaryLabel(dictionary)} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
-                                <Typography variant="subtitle2" sx={{ color: 'primary.dark', fontWeight: 700 }}>{dictionaryLabel(dictionary)}</Typography>
+                            <Stack key={setLabel} component="section" aria-label={`${setLabel} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+                                <Typography variant="subtitle2" sx={{ color: 'primary.dark', fontWeight: 700 }}>{setLabel}</Typography>
                                 <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
-                                {examples.map((url, index) => (
+                                {examples.map((url, exampleIndex) => (
                                     <Button
                                         key={url}
                                         size="small"
                                         variant="contained"
-                                        aria-label={`${dictionaryLabel(dictionary)} example sentence ${index + 1}`}
+                                        aria-label={`${setLabel} example sentence ${exampleIndex + 1}`}
                                         startIcon={<HiOutlineSpeakerWave />}
                                         onClick={() => onPlayExample(url)}
                                         disabled={disabled}
                                         sx={{ ...TARGET, textTransform: 'none', fontWeight: 700, boxShadow: 'none', bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark', boxShadow: 'none' } }}
                                     >
-                                        {`Example ${index + 1}`}
+                                        {`Example ${exampleIndex + 1}`}
                                     </Button>
                                 ))}
                             </Stack>

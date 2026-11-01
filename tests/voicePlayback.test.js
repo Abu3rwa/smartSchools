@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    getSpellingVoiceOptions,
     getVoiceOptions,
     playWithFallback,
     readStoredVoice,
+    resolvePlaybackVoice,
     resolveVoice,
     storeVoice
 } from '../client/src/utils/voicePlayback.js';
@@ -15,9 +17,28 @@ const audio = {
     }
 };
 
+const aiAudio = {
+    ai: { us: '/api/spelling/pronunciation/aaaa', uk: '/api/spelling/pronunciation/bbbb' },
+    dictionaries: {
+        longman: { us: 'https://www.ldoceonline.com/us.mp3' },
+        oxford: { us: 'https://www.oxfordlearnersdictionaries.com/us.mp3', uk: 'https://www.oxfordlearnersdictionaries.com/uk.mp3' }
+    }
+};
+
 test('getVoiceOptions lists only the voices that exist for the word', () => {
     assert.deepEqual(getVoiceOptions(audio).map((option) => option.id), ['longman-us', 'oxford-uk']);
     assert.deepEqual(getVoiceOptions(undefined), []);
+});
+
+test('generated clips come first and are numbered like every other spelling voice', () => {
+    assert.deepEqual(getSpellingVoiceOptions(aiAudio).map((option) => option.label), [
+        'US 1',
+        'UK 1',
+        'US 2',
+        'US 3',
+        'UK 2'
+    ]);
+    assert.deepEqual(getVoiceOptions(aiAudio).slice(0, 2).map((option) => option.id), ['ai-us', 'ai-uk']);
 });
 
 test('resolveVoice falls back to Default (null) when the choice is default or missing for the word', () => {
@@ -25,6 +46,19 @@ test('resolveVoice falls back to Default (null) when the choice is default or mi
     assert.equal(resolveVoice(audio, 'webster-us'), null);
     assert.equal(resolveVoice(audio, 'oxford-uk').url, audio.dictionaries.oxford.uk);
     assert.equal(resolveVoice(null, 'oxford-uk'), null);
+});
+
+test('the default playback prefers the generated clip, UK then US', () => {
+    assert.equal(resolvePlaybackVoice(aiAudio, 'default').id, 'ai-uk');
+    assert.equal(resolvePlaybackVoice({ ai: { us: '/u' } }, 'default').id, 'ai-us');
+    assert.equal(resolvePlaybackVoice(audio, 'default'), null);
+    assert.equal(resolvePlaybackVoice(null, 'default'), null);
+});
+
+test('a saved dictionary voice is ignored once a generated clip covers its accent', () => {
+    assert.equal(resolvePlaybackVoice(aiAudio, 'oxford-us').id, 'ai-uk');
+    assert.equal(resolvePlaybackVoice(aiAudio, 'ai-us').id, 'ai-us');
+    assert.equal(resolvePlaybackVoice(audio, 'oxford-uk').id, 'oxford-uk');
 });
 
 test('voice choice is stored and read back, defaulting safely', () => {

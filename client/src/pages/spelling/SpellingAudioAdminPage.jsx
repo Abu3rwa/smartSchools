@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, Stack, Switch, Table, Tabl
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../config/api';
+import { toApiUrl } from '../../config/apiBase';
 import { selectIsAdmin } from '../../store/slices/authSlice';
 
 const COVERAGE_COLUMNS = [
@@ -65,6 +66,9 @@ const SpellingAudioAdminPage = () => {
     const [replacementDrafts, setReplacementDrafts] = useState({});
     const [replacingAudio, setReplacingAudio] = useState('');
     const [pronunciationDrafts, setPronunciationDrafts] = useState({});
+    const [aiSettings, setAiSettings] = useState(null);
+    const [aiCoverage, setAiCoverage] = useState(null);
+    const [aiBusyGrade, setAiBusyGrade] = useState('');
 
     const loadCoverage = useCallback(async () => {
         try {
@@ -75,7 +79,21 @@ const SpellingAudioAdminPage = () => {
         }
     }, []);
 
+    const loadAiAudio = useCallback(async () => {
+        try {
+            const [settings, coverageResponse] = await Promise.all([
+                api.get('/spelling/word-audio/ai/settings'),
+                api.get('/spelling/word-audio/ai/coverage')
+            ]);
+            setAiSettings(settings.data.data);
+            setAiCoverage(coverageResponse.data.data);
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to load AI word audio.' });
+        }
+    }, []);
+
     useEffect(() => { if (isAdmin) loadCoverage(); }, [isAdmin, loadCoverage]);
+    useEffect(() => { if (isAdmin) loadAiAudio(); }, [isAdmin, loadAiAudio]);
 
     const searchExamples = async (event) => {
         event?.preventDefault();
@@ -222,6 +240,35 @@ const SpellingAudioAdminPage = () => {
         }
     };
 
+    const toggleAiAudio = async (enabled) => {
+        try {
+            const response = await api.put('/spelling/word-audio/ai/settings', { wordAudioEnabled: enabled });
+            setAiSettings(response.data.data);
+            await loadAiAudio();
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to change AI word audio.' });
+        }
+    };
+
+    const generateAiAudio = async (grade) => {
+        setAiBusyGrade(grade);
+        setMessage(null);
+        try {
+            const response = await api.post('/spelling/word-audio/ai/generate', { grade, limit: 80 });
+            const data = response.data.data;
+            const cost = Number(data.costCents) > 0 ? ` Estimated cost ${Number(data.costCents).toFixed(2)}¢.` : ' No charge was added.';
+            setMessage({
+                severity: data.failed > 0 ? 'warning' : 'success',
+                text: `${grade}: generated ${data.generated} clip${data.generated === 1 ? '' : 's'}, ${data.failed} failed, ${data.remaining} still missing.${cost}`
+            });
+            await loadAiAudio();
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to generate AI word audio.' });
+        } finally {
+            setAiBusyGrade('');
+        }
+    };
+
     return (
         <Stack spacing={3} sx={{ p: { xs: 1, sm: 3 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
@@ -288,6 +335,32 @@ const SpellingAudioAdminPage = () => {
                                             </Stack>
                                         );
                                     })}
+                                </Stack>
+                                <Stack
+                                    spacing={1}
+                                    sx={{ mt: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}
+                                >
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>AI word audio</Typography>
+                                    {['us', 'uk'].map((accent) => (
+                                        <Stack key={accent} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                                            <Typography variant="body2" sx={{ minWidth: 210 }}>AI {accent.toUpperCase()} pronunciation</Typography>
+                                            {entry.ai?.[accent] ? (
+                                                <audio
+                                                    controls
+                                                    preload="none"
+                                                    src={toApiUrl(entry.ai[accent])}
+                                                    aria-label={`${entry.word} AI ${accent.toUpperCase()} pronunciation`}
+                                                />
+                                            ) : (
+                                                <Typography variant="body2" color="text.secondary">Not generated yet.</Typography>
+                                            )}
+                                        </Stack>
+                                    ))}
+                                    {(!entry.ai?.us || !entry.ai?.uk) && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            Generate missing clips per grade in the AI word audio card below.
+                                        </Typography>
+                                    )}
                                 </Stack>
                                 <Stack spacing={1} sx={{ mt: 1 }}>
                                     {entry.examples.map((example, index) => {
@@ -431,6 +504,91 @@ const SpellingAudioAdminPage = () => {
                                 <Typography variant="body2">{entry.wordsWithNoAudio.join(', ')}</Typography>
                             </Box>
                         ))}
+                    </Stack>
+                </CardContent>
+            </Card>}
+
+            {isAdmin && <Card variant="outlined">
+                <CardContent>
+                    <Stack spacing={2}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
+                            <Typography variant="h6" component="h2">AI word audio</Typography>
+                            {aiSettings && (
+                                <Chip
+                                    size="small"
+                                    color={aiSettings.available ? 'success' : 'default'}
+                                    label={aiSettings.available ? 'Available on this platform' : 'Turned off on this platform'}
+                                />
+                            )}
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                            Pronunciation clips are generated once, stored in our database, and reused for every school.
+                            Students never call AI; they play the stored clip. Generation is charged to this school's AI credits.
+                        </Typography>
+                        <FormControlLabel
+                            label={aiSettings?.wordAudioEnabled ? 'AI word audio is on for this school' : 'AI word audio is off for this school'}
+                            control={(
+                                <Switch
+                                    checked={Boolean(aiSettings?.wordAudioEnabled)}
+                                    disabled={!aiSettings?.available}
+                                    onChange={(event) => toggleAiAudio(event.target.checked)}
+                                    inputProps={{ 'aria-label': 'Enable AI word audio for this school' }}
+                                />
+                            )}
+                        />
+                        {aiSettings && !aiSettings.available && (
+                            <Alert severity="info">
+                                AI word audio is switched off for the whole platform. It appears here, but nothing can be generated
+                                or played until it is enabled on the server.
+                            </Alert>
+                        )}
+                        <Typography variant="body2" color="text.secondary">
+                            Grades still need their extra voices switched on above before students see the clips.
+                        </Typography>
+                        {aiCoverage?.grades?.length > 0 && (
+                            <TableContainer>
+                                <Table size="small" aria-label="AI word audio coverage by grade">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Grade</TableCell>
+                                            <TableCell align="right">Words</TableCell>
+                                            <TableCell align="right">US clips</TableCell>
+                                            <TableCell align="right">UK clips</TableCell>
+                                            <TableCell align="right">Both</TableCell>
+                                            <TableCell align="right">Missing clips</TableCell>
+                                            <TableCell align="right">Est. cost</TableCell>
+                                            <TableCell align="right">Generate</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {aiCoverage.grades.map((entry) => (
+                                            <TableRow key={entry.grade}>
+                                                <TableCell>{entry.grade}</TableCell>
+                                                <TableCell align="right">{entry.totalWords}</TableCell>
+                                                <TableCell align="right">{entry.withUs}</TableCell>
+                                                <TableCell align="right">{entry.withUk}</TableCell>
+                                                <TableCell align="right">{entry.withBoth}</TableCell>
+                                                <TableCell align="right">{entry.remainingClips}</TableCell>
+                                                <TableCell align="right">{Number(entry.estimatedCents || 0).toFixed(2)}¢</TableCell>
+                                                <TableCell align="right">
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        disabled={!aiSettings?.available || entry.remainingClips === 0 || Boolean(aiBusyGrade)}
+                                                        onClick={() => generateAiAudio(entry.grade)}
+                                                    >
+                                                        {aiBusyGrade === entry.grade ? 'Generating…' : 'Generate'}
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                        {aiCoverage && aiCoverage.grades.length === 0 && (
+                            <Typography variant="body2" color="text.secondary">Import spelling words first; there is nothing to generate yet.</Typography>
+                        )}
                     </Stack>
                 </CardContent>
             </Card>}

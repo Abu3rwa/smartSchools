@@ -1,43 +1,8 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_URL } from "./apiBase.js";
 
-const PROD_FALLBACK_API_URL =
-  import.meta.env.VITE_PROD_API_URL || "https://schoolworkso.onrender.com/api";
-
-const isLocalLikeUrl = (value = "") =>
-  /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
-
-const resolveApiUrl = () => {
-  const envApiUrl = import.meta.env.VITE_API_URL;
-
-  if (import.meta.env.PROD) {
-    if (envApiUrl && !isLocalLikeUrl(envApiUrl)) {
-      // Ensure absolute URLs have /api if they don't already
-      if (
-        envApiUrl.startsWith("http") &&
-        !envApiUrl.endsWith("/api") &&
-        !envApiUrl.includes("/api/")
-      ) {
-        return `${envApiUrl.replace(/\/+$/, "")}/api`;
-      }
-      return envApiUrl;
-    }
-    return PROD_FALLBACK_API_URL;
-  }
-
-  if (envApiUrl) return envApiUrl;
-
-  // Default to /api for same-origin or localhost:5000/api
-  if (
-    typeof window !== "undefined" &&
-    isLocalLikeUrl(window.location.hostname)
-  ) {
-    return "http://localhost:5000/api";
-  }
-  return "/api";
-};
-
-export const API_URL = resolveApiUrl();
+export { API_URL };
 
 // Create axios instance
 const api = axios.create({

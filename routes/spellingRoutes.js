@@ -45,12 +45,17 @@ import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
 import {
+    aiAudioCoverage,
+    aiAudioSettings,
+    generateAiWordAudio,
+    getPronunciationAudio,
     importWordAudioCsv,
     deleteWordAudioExample,
     listWordAudioSettings,
     replaceWordPronunciation,
     replaceWordAudioExample,
     searchWordAudio,
+    updateAiAudioSettings,
     updateWordAudioSetting,
     wordAudioCoverage
 } from '../controllers/wordAudioController.js';
@@ -84,6 +89,8 @@ const wordAudioImportUpload = multer({
     }
 });
 
+// Sound files are fetched by an <audio> element, which cannot send the Bearer token.
+router.get('/pronunciation/:publicId', getPronunciationAudio);
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
@@ -107,6 +114,10 @@ router.patch('/word-audio/pronunciation', express.json(), authorize('admin'), re
 router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
 router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
 router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);
+router.get('/word-audio/ai/settings', authorize('admin'), aiAudioSettings);
+router.put('/word-audio/ai/settings', authorize('admin'), express.json(), updateAiAudioSettings);
+router.get('/word-audio/ai/coverage', authorize('admin'), aiAudioCoverage);
+router.post('/word-audio/ai/generate', authorize('admin'), express.json(), generateAiWordAudio);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
 router.post('/sessions', authorize('admin', 'department_principal', 'teacher'), startSession);
 router.get('/sessions', listSessions);

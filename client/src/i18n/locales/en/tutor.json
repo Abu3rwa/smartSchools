@@ -115,6 +115,8 @@
     "youSaid": "You said",
     "convertedShort": "Voice turned into words · held Ctrl",
     "yourTurn": "Your turn",
+    "answerPlaceholder": "Type your answer",
+    "sendAnswer": "Send",
     "holdToTalk": "Hold to talk",
     "releaseSend": "Release to send",
     "replayHint": "Tap once to replay",

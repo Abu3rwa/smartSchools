@@ -3,6 +3,7 @@ import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingWord from '../models/SpellingWord.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport, validateAudioUrl } from '../utils/wordAudio.js';
+import { getAiAudioForWord, isAiAudioAllowed, lookupPronunciations } from './spellingPronunciationService.js';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -23,6 +24,8 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
             .lean()
         : [];
     const audioByWord = new Map(audioDocs.map((entry) => [entry.word, entry]));
+    // Admin preview shows generated clips even when the switches are off.
+    const aiByWord = await lookupPronunciations(words.map((entry) => entry.word));
     const result = [];
     const seen = new Set();
     for (const entry of words) {
@@ -35,6 +38,7 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
         result.push({
             word: entry.word,
             grade: entry.grade,
+            ai: aiByWord.get(key) || {},
             pronunciations: {
                 longmanUS: audio?.longmanUS || '',
                 longmanUK: audio?.longmanUK || '',
@@ -169,11 +173,13 @@ export const buildAudioPayload = (doc) => {
     return Object.keys(payload).length > 0 ? payload : null;
 };
 
-// Returns the same item object untouched unless the grade flag is on AND the word has audio.
-export const decorateItemWithAudio = (item, enabled, doc) => {
+// Returns the same item object untouched unless the grade flag is on AND there is something to play.
+export const decorateItemWithAudio = (item, enabled, doc, ai = null) => {
     if (!item || !enabled) return item;
-    const audio = buildAudioPayload(doc);
-    return audio ? { ...item, audio } : item;
+    const audio = buildAudioPayload(doc) || {};
+    const payload = ai ? { ...audio, ai } : audio;
+    if (!payload.ai && !payload.dictionaries) return item;
+    return { ...item, audio: payload };
 };
 
 export async function isAudioEnabledForGrade(schoolId, grade) {
@@ -186,8 +192,18 @@ export async function isAudioEnabledForGrade(schoolId, grade) {
 export async function attachAudioToCurrentItem(result, schoolId) {
     try {
         if (!result?.item?.word || !(await isAudioEnabledForGrade(schoolId, result.item.grade))) return result;
-        const doc = await WordAudio.findOne({ word: normalizeWordKey(result.item.word) }).lean();
-        const item = decorateItemWithAudio(result.item, true, doc);
+        // Once AI audio is on for the platform, dictionary recordings stop reaching students.
+        // Only the shared definition is read; the generated clips are the voice they hear.
+        const dictionaryAudioOff = isAiAudioAllowed();
+        const [doc, ai] = await Promise.all([
+            WordAudio.findOne({ word: normalizeWordKey(result.item.word) })
+                .select(dictionaryAudioOff
+                    ? 'definition'
+                    : 'word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
+                .lean(),
+            getAiAudioForWord({ schoolId, word: result.item.word })
+        ]);
+        const item = decorateItemWithAudio(result.item, true, doc, ai);
         return item === result.item ? result : { ...result, item };
     } catch {
         return result;

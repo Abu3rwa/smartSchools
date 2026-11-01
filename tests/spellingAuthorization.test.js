@@ -45,13 +45,26 @@ test('audio editing endpoints are admin-only and curriculum word editing is avai
     const patchExampleRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/examples' && layer.route.methods.patch)?.route;
     const patchPronunciationRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/pronunciation' && layer.route.methods.patch)?.route;
     const patchWordRoute = router.stack.find((layer) => layer.route?.path === '/word-lists/:wordId' && layer.route.methods.patch)?.route;
+    const aiSettingsRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/ai/settings' && layer.route.methods.put)?.route;
+    const aiCoverageRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/ai/coverage' && layer.route.methods.get)?.route;
+    const aiGenerateRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/ai/generate' && layer.route.methods.post)?.route;
     assert.ok(getRoute);
     assert.ok(deleteRoute);
     assert.ok(patchExampleRoute);
     assert.ok(patchPronunciationRoute);
     assert.ok(patchWordRoute);
-    for (const route of [getRoute, deleteRoute, patchExampleRoute, patchPronunciationRoute]) {
-        const guardIndex = route.stack.length - 2;
+    assert.ok(aiSettingsRoute);
+    assert.ok(aiCoverageRoute);
+    assert.ok(aiGenerateRoute);
+    for (const [route, guardIndex] of [
+        [getRoute, 0],
+        [deleteRoute, 1],
+        [patchExampleRoute, 1],
+        [patchPronunciationRoute, 1],
+        [aiSettingsRoute, 0],
+        [aiCoverageRoute, 0],
+        [aiGenerateRoute, 0]
+    ]) {
         assert.equal(runMiddleware(route.stack[guardIndex].handle, { role: 'admin' }, 'school-1').nextCalled, true);
         assert.equal(runMiddleware(route.stack[guardIndex].handle, { role: 'teacher' }, 'school-1').response.statusCode, 403);
         assert.equal(runMiddleware(route.stack[guardIndex].handle, { role: 'student' }, 'school-1').response.statusCode, 403);
@@ -59,4 +72,13 @@ test('audio editing endpoints are admin-only and curriculum word editing is avai
     const wordGuard = patchWordRoute.stack[1].handle;
     assert.equal(runMiddleware(wordGuard, { role: 'teacher' }, 'school-1').nextCalled, true);
     assert.equal(runMiddleware(wordGuard, { role: 'student' }, 'school-1').response.statusCode, 403);
+});
+
+test('pronunciation audio is public and mounted before the auth wall', async () => {
+    const { default: router } = await import('../routes/spellingRoutes.js');
+    const publicIndex = router.stack.findIndex((layer) => layer.route?.path === '/pronunciation/:publicId' && layer.route.methods.get);
+    const protectIndex = router.stack.findIndex((layer) => layer.handle?.name === 'protect');
+    assert.ok(publicIndex >= 0);
+    assert.ok(protectIndex > publicIndex);
+    assert.equal(router.stack[publicIndex].route.stack.length, 1);
 });

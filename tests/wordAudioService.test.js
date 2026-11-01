@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import process from 'node:process';
+import SpellingAiAudioSettings from '../models/SpellingAiAudioSettings.js';
 import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
+import SpellingPronunciation from '../models/SpellingPronunciation.js';
 import SpellingWord from '../models/SpellingWord.js';
 import WordAudio from '../models/WordAudio.js';
 import {
@@ -12,6 +15,7 @@ import {
     replaceSchoolWordAudioExample,
     searchSchoolWordAudio
 } from '../services/wordAudioService.js';
+import { instructionFor, pronunciationKey, resolveTtsConfig } from '../services/spellingPronunciationService.js';
 
 const item = { wordId: 'w1', sequence: 1, word: 'Cat', definition: 'a pet', grade: 'G1', week: 1, category: 'CVC', order: 1, isRetest: false };
 const doc = {
@@ -71,6 +75,54 @@ test('attachAudioToCurrentItem adds audio when the flag is ON and never breaks o
     assert.equal((await attachAudioToCurrentItem({ session: {}, item: null }, 'school1')).item, null);
 });
 
+test('platform AI audio keeps dictionary URLs away from students', async (t) => {
+    const previous = process.env.SPELLING_AI_AUDIO;
+    process.env.SPELLING_AI_AUDIO = 'true';
+    try {
+        t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
+        t.mock.method(SpellingAiAudioSettings, 'findOne', () => stubQuery({ wordAudioEnabled: true }));
+        const publicId = 'a'.repeat(32);
+        t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{ key: 'k1', publicId, accent: 'uk' }]));
+        let selected;
+        t.mock.method(WordAudio, 'findOne', () => ({
+            select: (fields) => {
+                selected = fields;
+                return { lean: async () => ({ definition: 'a small furry pet' }) };
+            }
+        }));
+
+        const result = { session: { _id: 's1' }, item };
+        const withAudio = await attachAudioToCurrentItem(result, 'school1');
+        assert.equal(selected, 'definition');
+        assert.deepEqual(withAudio.item.audio, {
+            definition: 'a small furry pet',
+            ai: { uk: `/api/spelling/pronunciation/${publicId}` }
+        });
+        assert.equal(Object.hasOwn(withAudio.item.audio, 'dictionaries'), false);
+    } finally {
+        if (previous === undefined) delete process.env.SPELLING_AI_AUDIO;
+        else process.env.SPELLING_AI_AUDIO = previous;
+    }
+});
+
+test('platform AI audio leaves a school that has not enabled AI silent rather than serving dictionaries', async (t) => {
+    const previous = process.env.SPELLING_AI_AUDIO;
+    process.env.SPELLING_AI_AUDIO = 'true';
+    try {
+        t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
+        t.mock.method(SpellingAiAudioSettings, 'findOne', () => stubQuery({ wordAudioEnabled: false }));
+        t.mock.method(WordAudio, 'findOne', () => ({
+            select: () => ({ lean: async () => ({ definition: 'a small furry pet' }) })
+        }));
+
+        const result = { session: { _id: 's1' }, item };
+        assert.equal(await attachAudioToCurrentItem(result, 'school1'), result);
+    } finally {
+        if (previous === undefined) delete process.env.SPELLING_AI_AUDIO;
+        else process.env.SPELLING_AI_AUDIO = previous;
+    }
+});
+
 test('audio search returns pronunciation and example audio for spelling words in the requesting school', async (t) => {
     let spellingFilter;
     let audioFilter;
@@ -97,6 +149,7 @@ test('audio search returns pronunciation and example audio for spelling words in
             examples: { longman: ['https://www.ldoceonline.com/ex1.mp3'] }
         }]);
     });
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([]));
 
     const results = await searchSchoolWordAudio({ schoolId: 'school1', query: 'ca' });
     assert.deepEqual(spellingFilter, { school: 'school1', normalizedWord: { $regex: 'ca' } });
@@ -104,6 +157,7 @@ test('audio search returns pronunciation and example audio for spelling words in
     assert.deepEqual(results, [{
         word: 'Cat',
         grade: 'G1',
+        ai: {},
         pronunciations: {
             longmanUS: 'https://www.ldoceonline.com/us.mp3',
             longmanUK: '',
@@ -116,9 +170,41 @@ test('audio search returns pronunciation and example audio for spelling words in
     }, {
         word: 'Dog',
         grade: 'G1',
+        ai: {},
         pronunciations: { longmanUS: '', longmanUK: '', oxfordUS: '', oxfordUK: '', googleUS: '', googleUK: '' },
         examples: []
     }]);
+});
+
+test('audio search shows generated AI clips even when AI word audio is switched off', async (t) => {
+    t.mock.method(SpellingWord, 'find', () => ({
+        select: () => ({
+            sort: () => ({
+                limit: () => ({ lean: async () => [{ word: 'Cow', normalizedWord: 'cow', grade: 'G2' }] })
+            })
+        })
+    }));
+    t.mock.method(WordAudio, 'find', () => stubQuery([]));
+    const config = resolveTtsConfig({});
+    const keyFor = (accent) => pronunciationKey({
+        word: 'cow',
+        accent,
+        model: config.model,
+        voice: config.voices[accent],
+        instructions: instructionFor(accent)
+    });
+    const usId = 'a'.repeat(32);
+    const ukId = 'b'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([
+        { key: keyFor('us'), publicId: usId, accent: 'us' },
+        { key: keyFor('uk'), publicId: ukId, accent: 'uk' }
+    ]));
+
+    const [entry] = await searchSchoolWordAudio({ schoolId: 'school1', query: 'co' });
+    assert.deepEqual(entry.ai, {
+        us: `/api/spelling/pronunciation/${usId}`,
+        uk: `/api/spelling/pronunciation/${ukId}`
+    });
 });
 
 test('pronunciation replacement validates and atomically updates the selected field', async (t) => {

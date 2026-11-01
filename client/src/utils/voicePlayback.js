@@ -1,3 +1,5 @@
+import { toApiUrl } from '../config/apiBase.js';
+
 export const VOICE_STORAGE_KEY = 'spelling.voice';
 export const DEFAULT_VOICE_ID = 'default';
 export const PLAYBACK_TIMEOUT_MS = 6000;
@@ -5,9 +7,21 @@ export const PLAYBACK_TIMEOUT_MS = 6000;
 export const DICTIONARY_LABELS = Object.freeze({ longman: 'Longman', oxford: 'Oxford', webster: 'Merriam-Webster', google: 'Google' });
 const ACCENT_LABELS = Object.freeze({ us: 'US', uk: 'UK' });
 
-// Flat list of the voices that actually exist for a word, e.g. [{ id: 'longman-us', url, label: 'Longman US' }].
+// Flat list of the voices that actually exist for a word, e.g. [{ id: 'ai-us', url, label: 'US 1' }].
+// Generated clips come first: when they exist they are the voice students hear by default.
 export const getVoiceOptions = (audio) => {
     const options = [];
+    for (const accent of ['us', 'uk']) {
+        if (audio?.ai?.[accent]) {
+            options.push({
+                id: `ai-${accent}`,
+                dictionary: 'ai',
+                accent,
+                url: toApiUrl(audio.ai[accent]),
+                label: `AI ${ACCENT_LABELS[accent]}`
+            });
+        }
+    }
     for (const [dictionary, section] of Object.entries(audio?.dictionaries || {})) {
         for (const accent of ['us', 'uk']) {
             if (section?.[accent]) {
@@ -24,10 +38,30 @@ export const getVoiceOptions = (audio) => {
     return options;
 };
 
+// Spelling voices are numbered per accent ("US 1", "US 2") so no dictionary brand reaches the UI.
+export const getSpellingVoiceOptions = (audio) => {
+    const counts = { us: 0, uk: 0 };
+    return getVoiceOptions(audio).map((option) => {
+        counts[option.accent] += 1;
+        return { ...option, label: `${ACCENT_LABELS[option.accent]} ${counts[option.accent]}` };
+    });
+};
+
 // A chosen voice that is missing for this word resolves to null, which means "use Default".
 export const resolveVoice = (audio, voiceId) => {
     if (!voiceId || voiceId === DEFAULT_VOICE_ID) return null;
     return getVoiceOptions(audio).find((option) => option.id === voiceId) || null;
+};
+
+// The voice "Default" actually plays. A generated clip wins over a saved dictionary choice,
+// because the dictionary recording is no longer offered in the panel for that accent.
+export const resolvePlaybackVoice = (audio, voiceId) => {
+    const chosen = resolveVoice(audio, voiceId);
+    if (chosen && (chosen.dictionary === 'ai' || !audio?.ai?.[chosen.accent])) return chosen;
+    for (const accent of ['uk', 'us']) {
+        if (audio?.ai?.[accent]) return resolveVoice(audio, `ai-${accent}`);
+    }
+    return null;
 };
 
 export const readStoredVoice = (storage = globalThis.localStorage) => {

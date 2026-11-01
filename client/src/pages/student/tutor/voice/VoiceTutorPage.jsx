@@ -56,12 +56,14 @@ export default function VoiceTutorPage() {
     error,
     phase,
     seconds,
+    speakingIndex,
     chooseSubject,
     startSession,
     leaveSession,
     startListening,
     stopListening,
     replay,
+    answerByText,
     canRecord,
   } = useVoiceTutor();
   const [lessonId, setLessonId] = useState(null);
@@ -105,12 +107,14 @@ export default function VoiceTutorPage() {
         error={error}
         phase={phase}
         seconds={seconds}
+        speakingIndex={speakingIndex}
         canRecord={canRecord}
         listenSeconds={home.voice?.listenSeconds || 30}
         onLeave={leaveSession}
         onStart={startListening}
         onStop={stopListening}
         onReplay={replay}
+        onAnswer={answerByText}
         t={t}
       />
     );
@@ -278,18 +282,17 @@ function Board({
   error,
   phase,
   seconds,
+  speakingIndex,
   canRecord,
   listenSeconds,
   onLeave,
   onStart,
   onStop,
   onReplay,
+  onAnswer,
   t,
 }) {
   const messages = session.messages || [];
-  const lastStudent =
-    [...messages].reverse().find((message) => message.role === "student") ||
-    null;
   const lastTutor =
     [...messages].reverse().find((message) => message.role === "tutor") || null;
   const points = Array.isArray(lastTutor?.points) ? lastTutor.points : [];
@@ -299,6 +302,22 @@ function Board({
       : points.length
         ? [{ type: "bullets", items: points }]
         : [];
+  const hasFollowUp = Boolean(lastTutor?.followUp);
+  // Choices only render as buttons when the server confirmed a steps block exists.
+  const asksChoice = lastTutor?.questionType === "mcq";
+  const totalSteps = 1 + blocks.length + (hasFollowUp ? 1 : 0);
+  // The server sends one clip per board part: lead, each block, then follow-up.
+  const spokenStep =
+    phase === "speaking" && Number.isInteger(speakingIndex)
+      ? speakingIndex
+      : null;
+  const revealActive = spokenStep !== null && spokenStep < totalSteps;
+  const stepClass = (index) => {
+    if (!revealActive) return "";
+    if (index < spokenStep) return " is-past";
+    if (index === spokenStep) return " is-active";
+    return " is-upcoming";
+  };
   const credits = session.voice?.credits ?? 0;
   const price = session.voice?.price ?? 0;
   const canAsk = session.voice?.canAsk !== false;
@@ -369,8 +388,12 @@ function Board({
         {thinking ? (
           <Waiting t={t} />
         ) : (
-          <div className={`vt-turn${blocks.length ? "" : " is-solo"}`}>
-            <h2 className="vt-lead">
+          <div
+            className={`vt-turn${blocks.length ? "" : " is-solo"}${
+              revealActive ? " is-revealing" : ""
+            }`}
+          >
+            <h2 className={`vt-lead${stepClass(0)}`}>
               {markAt < 0 ? (
                 lead
               ) : (
@@ -384,7 +407,15 @@ function Board({
             {blocks.length > 0 && (
               <div className="vt-side">
                 {blocks.map((block, index) => (
-                  <Block key={`${block.type}-${index}`} block={block} t={t} />
+                  <Block
+                    key={`${block.type}-${index}`}
+                    block={block}
+                    t={t}
+                    stateClass={stepClass(index + 1)}
+                    choices={asksChoice && block.type === "steps"}
+                    disabled={blocked}
+                    onChoose={onAnswer}
+                  />
                 ))}
               </div>
             )}
@@ -392,13 +423,16 @@ function Board({
         )}
 
         {!outOfCredit && lastTutor?.followUp && !thinking && (
-          <div className="vt-check">
+          <div className={`vt-check${stepClass(blocks.length + 1)}`}>
             <span className="vt-check-icon" aria-hidden="true">
               <HiOutlineQuestionMarkCircle size={17} />
             </span>
             <div className="vt-check-text">
               <strong>{t("tutor:voice.yourTurn")}</strong>
               <p>{lastTutor.followUp}</p>
+              {!asksChoice && (
+                <AnswerBox t={t} disabled={blocked} onSend={onAnswer} />
+              )}
             </div>
           </div>
         )}
@@ -541,14 +575,70 @@ function Waiting({ t }) {
   );
 }
 
+/** A typed answer for short and matching questions. */
+function AnswerBox({ t, disabled, onSend }) {
+  const [value, setValue] = useState("");
+  const submit = (event) => {
+    event.preventDefault();
+    const answer = value.trim();
+    if (!answer || disabled) return;
+    setValue("");
+    onSend(answer);
+  };
+  return (
+    <form className="vt-answer" onSubmit={submit}>
+      <input
+        type="text"
+        value={value}
+        maxLength={500}
+        disabled={disabled}
+        placeholder={t("tutor:voice.answerPlaceholder")}
+        aria-label={t("tutor:voice.answerPlaceholder")}
+        onChange={(event) => setValue(event.target.value)}
+      />
+      <button type="submit" disabled={disabled || !value.trim()}>
+        {t("tutor:voice.sendAnswer")}
+      </button>
+    </form>
+  );
+}
+
 /** One typed block. Lists keep their shape; a contrast gets one tint per word. */
-function Block({ block, t }) {
+function Block({
+  block,
+  t,
+  stateClass = "",
+  choices = false,
+  disabled = false,
+  onChoose,
+}) {
+  if (choices) {
+    const items = Array.isArray(block.items) ? block.items : [];
+    if (!items.length) return null;
+    return (
+      <div className={`vt-bubble vt-choices${stateClass}`}>
+        {items.map((item, index) => (
+          <button
+            key={index}
+            type="button"
+            className="vt-choice"
+            disabled={disabled}
+            onClick={() => onChoose(String(item))}
+          >
+            <b aria-hidden="true">{String.fromCharCode(65 + index)}</b>
+            <span>{item}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   if (block.type === "bullets" || block.type === "steps") {
     const items = Array.isArray(block.items) ? block.items : [];
     if (!items.length) return null;
     const List = block.type === "steps" ? "ol" : "ul";
     return (
-      <div className={`vt-bubble vt-${block.type}`}>
+      <div className={`vt-bubble vt-${block.type}${stateClass}`}>
         <List>
           {items.map((item, index) => (
             <li key={index}>{item}</li>
@@ -561,7 +651,7 @@ function Block({ block, t }) {
     const items = Array.isArray(block.items) ? block.items : [];
     if (!items.length) return null;
     return (
-      <div className="vt-contrast">
+      <div className={`vt-contrast${stateClass}`}>
         {items.map((item, index) => (
           <div
             key={index}
@@ -576,7 +666,7 @@ function Block({ block, t }) {
   }
   if (!block.text) return null;
   return (
-    <div className={`vt-bubble vt-${block.type}`}>
+    <div className={`vt-bubble vt-${block.type}${stateClass}`}>
       <span className="vt-block-label">
         {t(`tutor:voice.blockLabels.${block.type}`)}
       </span>

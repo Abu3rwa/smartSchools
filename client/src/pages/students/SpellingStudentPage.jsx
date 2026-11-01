@@ -16,9 +16,14 @@ import {
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
 import SpellingVoicePanel from './SpellingVoicePanel';
-import { getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolveVoice, storeVoice } from '../../utils/voicePlayback';
+import { getSpellingVoiceOptions, getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
 
 const HISTORY_PAGE_SIZE = 8;
+
+// The voice panel only makes sense when there is something to play; a payload with just
+// a shared definition keeps the plain "Hear word" button.
+const hasVoicePanel = (audio) => getSpellingVoiceOptions(audio).length > 0
+    || Object.values(audio?.dictionaries || {}).some((section) => section?.examples?.length > 0);
 
 const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
     mode === 'self-serve'
@@ -250,9 +255,9 @@ const SpellingStudentPage = () => {
         setAudioPlaying(false);
     };
 
-    // Chosen dictionary voice -> Default (the original playback above). Missing voice or any failure uses Default.
+    // Generated clip (or chosen voice) -> Default (the original playback above). Any failure uses Default.
     const speakWord = (word, audio = null, voiceId = selectedVoice) => {
-        const voice = resolveVoice(audio, voiceId);
+        const voice = resolvePlaybackVoice(audio, voiceId);
         if (!voice) {
             playDefaultWord(word);
             return;
@@ -656,8 +661,8 @@ const SpellingStudentPage = () => {
                                             <Typography variant="body1" sx={{ color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.6 }}>{currentItem.definition}</Typography>
                                         </Box>
                                     )}
-                                    {/* Words with dictionary audio use the voice panel; others keep the original play button. */}
-                                    {!currentItem.audio && (
+                                    {/* Words with any playable recording use the voice panel; others keep the original play button. */}
+                                    {!hasVoicePanel(currentItem.audio) && (
                                     <Button
                                         variant="contained"
                                         size="large"
@@ -669,7 +674,7 @@ const SpellingStudentPage = () => {
                                         {t('hearWord')}
                                     </Button>
                                     )}
-                                    {currentItem.audio && (
+                                    {hasVoicePanel(currentItem.audio) && (
                                         <SpellingVoicePanel
                                             audio={currentItem.audio}
                                             selectedVoice={selectedVoice}

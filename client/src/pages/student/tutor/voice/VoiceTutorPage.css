@@ -541,6 +541,47 @@
   border-radius: 3px;
 }
 
+/* Spoken reveal: each board part arrives with its own clip. Upcoming parts keep
+   their space so the layout never jumps, the spoken part is full strength, and
+   finished parts recede without disappearing. */
+.vt-lead,
+.vt-side > *,
+.vt-check {
+  transition:
+    opacity 0.32s ease,
+    translate 0.32s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.32s ease;
+}
+.vt-board .is-upcoming {
+  opacity: 0;
+  translate: 0 14px;
+  filter: blur(3px);
+  pointer-events: none;
+}
+.vt-board .is-past {
+  opacity: 0.28;
+  translate: 0 -4px;
+  filter: saturate(0.55);
+}
+.vt-board .is-active {
+  opacity: 1;
+  translate: 0 0;
+  filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vt-lead,
+  .vt-side > *,
+  .vt-check {
+    transition: opacity 0.15s linear;
+  }
+  .vt-board .is-upcoming,
+  .vt-board .is-past,
+  .vt-board .is-active {
+    translate: 0 0;
+    filter: none;
+  }
+}
+
 .vt-side {
   display: flex;
   flex-direction: column;
@@ -750,6 +791,69 @@
   font-size: clamp(1rem, 1.5vw, 1.2rem);
   line-height: 1.45;
   color: #33413d;
+}
+
+.vt-answer {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.vt-answer input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #cfdad6;
+  border-radius: 10px;
+  font: inherit;
+}
+.vt-answer button {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--vt-teal-deep);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vt-answer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vt-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vt-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #cfdad6;
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.vt-choice b {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--vt-soft);
+  color: var(--vt-teal-deep);
+}
+.vt-choice:hover:not(:disabled) {
+  border-color: var(--vt-teal-deep);
+}
+.vt-choice:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .vt-empty {

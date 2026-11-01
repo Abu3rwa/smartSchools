@@ -87,16 +87,19 @@ const cacheSet = (key, value) => {
 export const synthesizeSpeech = async ({
     text,
     model = 'gpt-4o-mini-tts',
-    voice = 'alloy'
+    voice = 'alloy',
+    instructions = ''
 } = {}) => {
-    const key = `speech|${model}|${voice}|${String(text || '').trim()}`;
+    const spoken = String(text || '').trim();
+    const direction = String(instructions || '').trim();
+    const key = `speech|${model}|${voice}|${direction}|${spoken}`;
     const cached = cacheGet(key);
     if (cached) return cached;
     if (!apiKey()) {
         logger.error('voice_speech_not_configured', { model });
         throw fail('The voice tutor is not set up yet. Ask your teacher or the school office.', 422, 'VOICE_NOT_CONFIGURED');
     }
-    if (!String(text || '').trim()) throw fail('There is nothing to read.', 400);
+    if (!spoken) throw fail('There is nothing to read.', 400);
 
     let response;
     try {
@@ -109,8 +112,9 @@ export const synthesizeSpeech = async ({
             body: JSON.stringify({
                 model,
                 voice,
-                input: String(text).trim(),
-                response_format: 'mp3'
+                input: spoken,
+                response_format: 'mp3',
+                ...(direction ? { instructions: direction } : {})
             }),
             signal: AbortSignal.timeout(timeoutMs())
         });
@@ -131,6 +135,34 @@ export const synthesizeSpeech = async ({
     };
     cacheSet(key, value);
     return value;
+};
+
+const toDataUri = ({ contentType, buffer }) => `data:${contentType};base64,${buffer.toString('base64')}`;
+
+/** A provider hiccup gets one retry; missing config or empty text never will. */
+const synthesizeWithRetry = async (options) => {
+    try {
+        return await synthesizeSpeech(options);
+    } catch (error) {
+        if (error?.statusCode === 400 || error?.statusCode === 422) throw error;
+        return synthesizeSpeech(options);
+    }
+};
+
+/**
+ * One clip per board part. Clips are synthesized in parallel, so a four-part
+ * turn costs one provider round-trip of latency rather than four. If the batch
+ * still fails after the retry, the caller falls back to a single full clip.
+ */
+export const synthesizeSpeechSegments = async ({ segments = [], model, voice } = {}) => {
+    return Promise.all(segments.map(async (segment) => {
+        const speech = await synthesizeWithRetry({ text: segment.text, model, voice });
+        return {
+            kind: segment.kind,
+            ...(Number.isInteger(segment.index) ? { index: segment.index } : {}),
+            audio: toDataUri(speech)
+        };
+    }));
 };
 
 /** Speech runs about 2.5 words a second; used to price a spoken reply. */

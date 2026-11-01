@@ -115,6 +115,8 @@
     "youSaid": "قلت",
     "convertedShort": "تحوّل الصوت إلى كلمات · أثناء ضغط Ctrl",
     "yourTurn": "دورك",
+    "answerPlaceholder": "اكتب إجابتك",
+    "sendAnswer": "إرسال",
     "holdToTalk": "اضغط مع الاستمرار لتتحدّث",
     "releaseSend": "أفلت للإرسال",
     "replayHint": "اضغط مرة واحدة للإعادة",

@@ -39,7 +39,7 @@ const StudentDashboardPage = () => {
 
   return (
     <div className="student-dashboard">
-      <StudentDashboardHeader firstName={firstName} />
+      {/* <StudentDashboardHeader firstName={firstName} /> */}
 
       <div className="student-dashboard-sections">
         {sections.map((section) => (

@@ -1,5 +1,12 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
+    findPronunciationByPublicId,
+    generateForSchool,
+    getAiAudioSettings,
+    getAiCoverage,
+    setAiAudioSetting
+} from '../services/spellingPronunciationService.js';
+import {
     getAudioCoverage,
     getAudioSettings,
     importWordAudio,
@@ -72,4 +79,58 @@ export const replaceWordAudioExample = asyncHandler(async (req, res) => {
         replacementUrl: req.body?.replacementUrl
     });
     return res.json({ success: true, data });
+});
+
+export const aiAudioSettings = asyncHandler(async (req, res) => {
+    const data = await getAiAudioSettings({ schoolId: req.schoolId });
+    return res.json({ success: true, data });
+});
+
+export const updateAiAudioSettings = asyncHandler(async (req, res) => {
+    const data = await setAiAudioSetting({
+        schoolId: req.schoolId,
+        userId: req.user?._id,
+        wordAudioEnabled: req.body?.wordAudioEnabled
+    });
+    return res.json({ success: true, data });
+});
+
+export const aiAudioCoverage = asyncHandler(async (req, res) => {
+    const data = await getAiCoverage({ schoolId: req.schoolId });
+    return res.json({ success: true, data });
+});
+
+export const generateAiWordAudio = asyncHandler(async (req, res) => {
+    const requested = Number(req.body?.limit);
+    const limit = Number.isFinite(requested) ? Math.min(200, Math.max(1, Math.floor(requested))) : 80;
+    const data = await generateForSchool({
+        schoolId: req.schoolId,
+        userId: req.user?._id,
+        grade: req.body?.grade,
+        limit
+    });
+    if (data.available === false) {
+        return res.status(409).json({
+            success: false,
+            message: 'AI word audio is turned off for this platform. Set SPELLING_AI_AUDIO=true to use it.',
+            code: 'SPELLING_AI_AUDIO_OFF'
+        });
+    }
+    return res.json({ success: true, data });
+});
+
+// Public and immutable: an <audio> element cannot carry the Bearer token. The
+// random id is unguessable and the bytes are a single word, never school data.
+export const getPronunciationAudio = asyncHandler(async (req, res) => {
+    const doc = await findPronunciationByPublicId(req.params.publicId);
+    if (!doc?.data) {
+        return res.status(404).json({ success: false, message: 'Pronunciation audio not found' });
+    }
+    res.set({
+        'Content-Type': doc.contentType || 'audio/mpeg',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        ETag: `"${doc.key}"`,
+        'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(doc.data);
 });
