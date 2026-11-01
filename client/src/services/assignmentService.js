@@ -101,6 +101,30 @@ const assignmentService = {
     sendReminder: async (id, payload = {}) => {
         const response = await api.post(`/assignments/${id}/remind`, payload);
         return response.data;
+    },
+
+    draftQuestions: async ({ classId, subjectId, lessonPlanIds = [], count = 5, types = [], file = null }) => {
+        if (file) {
+            const formData = new FormData();
+            formData.append('classId', classId);
+            formData.append('subjectId', subjectId);
+            formData.append('count', String(count));
+            formData.append('types', JSON.stringify(types));
+            if (lessonPlanIds.length > 0) formData.append('lessonPlanIds', JSON.stringify(lessonPlanIds));
+            formData.append('materialFile', file);
+            const response = await api.post('/assignments/ai/draft-questions', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return response.data;
+        }
+        const response = await api.post('/assignments/ai/draft-questions', {
+            classId,
+            subjectId,
+            lessonPlanIds,
+            count,
+            types
+        });
+        return response.data;
     }
 };
 

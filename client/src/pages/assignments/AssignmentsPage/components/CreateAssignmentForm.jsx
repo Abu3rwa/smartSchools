@@ -12,6 +12,7 @@ import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLink
 import LinkEditor from './LinkEditor';
 import AttachmentEditor from './AttachmentEditor';
 import GoogleFormQuestionEditor from './GoogleFormQuestionEditor';
+import AssignmentQuestionDrafter from './AssignmentQuestionDrafter';
 import { buildAssignmentCsvTemplate, parseAssignmentCsv } from '../utils/assignmentCsvImport';
 
 const uniqueById = (items = []) => (
@@ -466,6 +467,20 @@ const CreateAssignmentForm = ({
                                         </div>
                                     )}
                                 </div>
+                                {!googleFormPublished && (
+                                    <AssignmentQuestionDrafter
+                                        classId={selectedClass}
+                                        subjectId={selectedSubject}
+                                        lessonPlanIds={form.lessonPlanIds || []}
+                                        disabled={submitting}
+                                        hasExistingQuestions={(form.googleFormQuestions || []).length > 0}
+                                        onRequestLessonPlans={() => scrollToSection(resourcesRef)}
+                                        onDrafted={(googleFormQuestions) => setForm((prev) => ({
+                                            ...prev,
+                                            googleFormQuestions
+                                        }))}
+                                    />
+                                )}
                                 <GoogleFormQuestionEditor
                                     questions={form.googleFormQuestions || []}
                                     onChange={(googleFormQuestions) => setForm((prev) => ({

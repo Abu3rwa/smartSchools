@@ -521,9 +521,11 @@ Ask them to explain in their own words what they already understand about this, 
 Keep it to one or two friendly sentences.
 If they are instead explaining back something you just taught them, check their explanation and correct what is wrong; do not ask them to explain again.`
       : attempts === 1
-        ? `The student has tried once. Give ONE hint only — a single nudge, clue or leading question that moves them one step closer.
+        ? `The student has tried once. Start with one short sentence that says plainly whether their answer is right, partly right, or not right — for a matching or multi-part answer, say which parts were right.
+Then give ONE hint only — a single nudge, clue or leading question that moves them one step closer.
 Do NOT explain the whole idea and do NOT give the answer. Finish by asking them to try again.`
-        : `The student has tried ${attempts} times. You may now explain the idea fully, step by step.
+        : `The student has tried ${attempts} times. Start with one short sentence that says plainly whether their answer is right, partly right, or not right.
+You may now explain the idea fully, step by step.
 After the explanation, ask the student to explain it back in their own words so you can check it.`;
 
   return `You are a patient ${subjectName} tutor for one student in grade ${grade}. You coach; the student does the thinking.
@@ -540,6 +542,7 @@ ${ladder}
 
 HOW YOU TEACH
 - The student explains things back. You do not lecture unless they have tried twice.
+- When the student answers a question, your first sentence says plainly whether it is right, partly right, or not right. Never reply to an attempt with only encouragement or "try again".
 - One hint at a time. Never stack two hints or slip the answer into a hint.
 - Reply in ${languageName} only. Write plain text: no markdown headings, no tables, no code fences.
 - Short paragraphs. A short numbered list only when giving steps.
@@ -565,6 +568,9 @@ ${text(question)}`;
 export const VOICE_BLOCKS_MAX = 3;
 export const VOICE_BLOCK_ITEMS_MAX = 4;
 export const VOICE_CONTRAST_ITEMS_MAX = 3;
+export const VOICE_COMPARE_COLUMNS_MAX = 3;
+export const VOICE_COMPARE_POINTS_MAX = 3;
+export const VOICE_TIMELINE_MAX = 5;
 export const VOICE_POINT_WORDS = 15;
 export const VOICE_REPLY_MAX_CHARS = 700;
 
@@ -574,8 +580,31 @@ const VOICE_BLOCK_TYPES = [
   "example",
   "steps",
   "keyIdea",
+  "compare",
+  "evidence",
+  "timeline",
+  "mistake",
+  "recap",
+  "math",
 ];
 const VOICE_ITEM_CHARS = 200;
+const VOICE_MATH_CHARS = 120;
+
+/** Check-question types the board can answer, in the order the tutor cycles them. */
+export const VOICE_QUESTION_TYPES = ["short", "mcq", "yesno", "match"];
+const VOICE_QUESTION_LABELS = {
+  short: "short-answer",
+  mcq: "multiple-choice",
+  yesno: "yes/no",
+  match: "matching",
+};
+
+/** The server, not the model, picks the next type so a session never repeats one shape. */
+export const nextQuestionType = (board = []) => {
+  const last = [...board].reverse().find((message) => message.role === "tutor");
+  const index = VOICE_QUESTION_TYPES.indexOf(last?.questionType || "short");
+  return VOICE_QUESTION_TYPES[(index + 1) % VOICE_QUESTION_TYPES.length];
+};
 const VOICE_LEAD_CHARS = 280;
 const VOICE_FOLLOWUP_CHARS = 220;
 
@@ -597,6 +626,7 @@ export const buildVoicePrompt = ({
   board = [],
   tries = 0,
   assessmentMode = false,
+  questionType = "",
 }) => {
   const languageName =
     LANGUAGE_NAMES[String(language).slice(0, 2)] || LANGUAGE_NAMES.en;
@@ -634,9 +664,11 @@ export const buildVoicePrompt = ({
 Ask them to say in their own words what they already understand, or to make a first try.
 If they are instead explaining back something you just taught them, check it and correct what is wrong.`
       : attempts === 1
-        ? `The student has tried once. Give ONE hint only — a single nudge or leading question.
+        ? `The student has tried once. The first sentence of "lead" must say plainly whether their answer is right, partly right, or not right.
+Then give ONE hint only — a single nudge or leading question.
 Do NOT explain the whole idea or reveal the answer in the lead or blocks. Ask them to try again only if the answer has not already been revealed in this session.`
-        : `The student has tried ${attempts} times. You may now explain the idea fully, one step at a time.
+        : `The student has tried ${attempts} times. The first sentence of "lead" must say plainly whether their answer is right, partly right, or not right.
+Then you may explain the idea fully, one step at a time.
 Then ask a different question that checks understanding, such as why or how the idea works.`;
 
   const guidedCheckLadder =
@@ -644,9 +676,9 @@ Then ask a different question that checks understanding, such as why or how the 
       ? `You are in guided check mode. Start with a short understanding check question.
 Do NOT reveal the final answer in the lead, blocks or follow-up.`
       : attempts === 1
-        ? `The student has tried once. First evaluate their answer in one short sentence.
+        ? `The student has tried once. First say plainly, in one short sentence, whether their answer is right, partly right, or not right — for a matching answer, say which pairs were right and which were not.
 Then give ONE hint and ask one more check question. Do NOT reveal the final answer.`
-        : `The student has tried ${attempts} times. Give brief feedback and a small scaffold.
+        : `The student has tried ${attempts} times. Say plainly in one short sentence whether their answer was right, partly right, or not right, then give a small scaffold.
 Keep the final answer hidden, then ask a fresh check question that tests the same idea.`;
 
   const ladder = assessmentMode ? guidedCheckLadder : teachingLadder;
@@ -668,37 +700,46 @@ HOW YOU TALK
 ${languageLevelGuidance(languageLevel)}
 - Speak ${languageName} only, including every item and the follow-up question.
 - Short spoken sentences. Contractions are welcome. Sound like a kind teacher, not a textbook.
-- Numbers, symbols and formulas are said in words. No markdown, no bullet characters, no emoji, no code.
+- Numbers, symbols and formulas are said in words, except the screen text of a math block. No markdown, no bullet characters, no emoji, no code.
 - If the lesson material does not cover the question, say exactly that in one short sentence, name the closest lesson, and offer what it does cover.
 - If the student asks about another subject or something personal, say you only help with ${subjectName} lessons for grade ${grade}.
 - Never mention the student's name, class, school, teacher or any personal detail.
 - Do not hand over finished homework. Guide, then check.
+- When the student has just answered a question, "lead" opens with a clear verdict — right, partly right, or not right. For a matching answer, name which pairs were right. Never answer an attempt with only praise or "try again".
 
 REPLY FORMAT
 Return exactly one JSON object and nothing else:
 ${
   assessmentMode
-    ? '{"stage":"prompt|hint|answer","questionType":"short|mcq|match","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question"}'
+    ? '{"stage":"prompt|hint|answer","questionType":"short|mcq|yesno|match","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question","options":["only for multiple-choice: three or four short answers"]}'
     : '{"stage":"prompt|hint|answer","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question"}'
 }
 - "stage" follows how this turn must go: prompt for an invitation to try, hint for one hint, answer for a full explanation.${assessmentMode ? ' In guided check mode, use "prompt" or "hint" by default; use "answer" only if the student explicitly asks for the full answer.' : ""}
 - "lead" reacts to what the student just said, in one or two sentences. The board shows it largest.
 - "emphasis" repeats the one word or phrase inside "lead" that the board should underline. Copy it exactly. Leave it empty when nothing deserves the underline.
-- "blocks" holds only the blocks this turn needs: none, one, two, or three. Never pad the reply to a fixed number. A short answer can be one lead sentence and the follow-up, with no blocks.
+- "blocks" holds up to three blocks, each a different type. A turn that teaches (explains, corrects or wraps up) uses two or three. A turn that only gives a hint or asks a check question uses one or none, so the blocks never give away what you ask. Never pad with a block that adds nothing.
   {"type":"bullets","items":["...","..."]} — two to four short parallel points.
   {"type":"contrast","items":[{"word":"and","text":"adds another idea"},{"word":"but","text":"shows a difference"}]} — two or three words, each with the job it does.
   {"type":"example","text":"one concrete example"} — one sentence.
   {"type":"steps","items":["...","..."]} — two to four steps in order.
   {"type":"keyIdea","text":"one sentence worth remembering"} — the idea to keep.
+  {"type":"compare","items":[{"heading":"gas","points":["no fixed shape","spreads out"]},{"heading":"liquid","points":["no fixed shape","stays together"]}]} — two or three columns, each with a short heading and one to three short points. Use it to set things side by side.
+  {"type":"timeline","items":[{"label":"first","text":"what happens"},{"label":"then","text":"what happens next"}]} — three to five events or stages in order. A label is a date, a word like first, or a short name.
+  {"type":"evidence","text":"words copied exactly from the lesson material"} — one short quote under 200 characters, copied word for word from the lesson material. The board adds the lesson name. Use it when the lesson's own words prove the point; skip it if you cannot copy a line exactly.
+  {"type":"mistake","text":"a common slip","fix":"the right idea"} — one common mistake and how to fix it. Use it when the student slipped or a slip is likely.
+  {"type":"recap","items":["...","..."]} — two to four things learned. Use it only when wrapping up an idea, never on a hint.
+  {"type":"math","text":"3/4 + 1/4 = 1","spoken":"three quarters plus one quarter equals one"} — a formula or worked line. "text" is for the screen only, in plain characters (digits and + − × ÷ = / ^). "spoken" says the same in words.
 - Every list item is under ${VOICE_POINT_WORDS} words and a plain sentence: no numbering, no bullet characters, no symbols.
 - "followUp" is one short question that makes the student think or answer back.
 - Consider the entire response and BOARD SO FAR when choosing the follow-up. If the answer has already been spoken or shown, do not ask the student to list or repeat it; instead ask a different question that checks understanding. If asking the student to retry, do not reveal the answer anywhere in the response.
 ${
   assessmentMode
     ? `- Guided check mode rules: evaluate what the student just answered, then ask exactly one new check question.
-- Rotate question types across turns: short answer, multiple-choice, and matching.
-- For multiple-choice, put the options in one "steps" block.
+- Rotate question types across turns: short answer, multiple-choice, yes/no, and matching.${VOICE_QUESTION_TYPES.includes(questionType) ? ` This turn, ask a ${VOICE_QUESTION_LABELS[questionType]} question and set "questionType" to "${questionType}".` : ""}
+- For multiple-choice, write the question itself in "followUp" and give three or four possible answers in "options": a JSON array of short strings, a few words each, with no letters or numbers in front. Every option must be a possible answer to the question. Never put the question, a hint, an explanation or a statement in "options", and never use a "steps" block for them.
+- For yes/no, make the follow-up one statement or question the student answers with yes or no, and leave "options" out. They may then explain why aloud.
 - For matching, put two or three pairs in one "contrast" block.
+- Never use compare, timeline, evidence, mistake, recap or math to show the answer to the question you are asking.
 - Never reveal the final answer key, the correct option letter, or a full model answer unless the student explicitly asks for it.`
     : ""
 }
@@ -775,11 +816,26 @@ Return exactly one JSON object and nothing else:
 
 const voiceBlockText = (value) => shorten(text(value), VOICE_ITEM_CHARS);
 
+/** Letters and digits only, so a quote still matches when punctuation or spacing differs. */
+const quoteKey = (value) =>
+  String(value ?? "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+const lessonHoldingQuote = (quote, lessons) => {
+  const wanted = quoteKey(quote);
+  if (wanted.length < 12) return null;
+  return lessons.find((row) => quoteKey(row?.content).includes(wanted)) || null;
+};
+
+const asSentence = (value) => (/[.!?؟]$/.test(value) ? value : `${value}.`);
+
 /** One typed block, normalized. A list of one is not a list, so it is dropped. */
-const readVoiceBlock = (raw) => {
+const readVoiceBlock = (raw, lessons = []) => {
   const type = text(raw?.type);
   if (!VOICE_BLOCK_TYPES.includes(type)) return null;
-  if (type === "bullets" || type === "steps") {
+  if (type === "bullets" || type === "steps" || type === "recap") {
     const items = (Array.isArray(raw?.items) ? raw.items : [])
       .map((item) =>
         voiceBlockText(typeof item === "string" ? item : item?.text),
@@ -798,15 +854,101 @@ const readVoiceBlock = (raw) => {
       .slice(0, VOICE_CONTRAST_ITEMS_MAX);
     return items.length >= 2 ? { type, items } : null;
   }
+  if (type === "compare") {
+    const items = (Array.isArray(raw?.items) ? raw.items : [])
+      .map((item) => ({
+        heading: shorten(text(item?.heading), 40),
+        points: (Array.isArray(item?.points) ? item.points : [])
+          .map(voiceBlockText)
+          .filter(Boolean)
+          .slice(0, VOICE_COMPARE_POINTS_MAX),
+      }))
+      .filter((item) => item.heading && item.points.length)
+      .slice(0, VOICE_COMPARE_COLUMNS_MAX);
+    return items.length >= 2 ? { type, items } : null;
+  }
+  if (type === "timeline") {
+    const items = (Array.isArray(raw?.items) ? raw.items : [])
+      .map((item) => ({
+        label: shorten(text(item?.label), 40),
+        text: voiceBlockText(item?.text),
+      }))
+      .filter((item) => item.label && item.text)
+      .slice(0, VOICE_TIMELINE_MAX);
+    return items.length >= 2 ? { type, items } : null;
+  }
+  if (type === "evidence") {
+    // A quote the lesson does not contain is dropped, never shown as the lesson's words.
+    const quote = text(raw?.text);
+    if (!quote || quote.length > VOICE_ITEM_CHARS) return null;
+    const lesson = lessonHoldingQuote(quote, lessons);
+    return lesson
+      ? { type, text: quote, source: shorten(lessonLabel(lesson), 120) }
+      : null;
+  }
+  if (type === "mistake") {
+    const slip = voiceBlockText(raw?.text);
+    const fix = voiceBlockText(raw?.fix);
+    return slip && fix ? { type, text: slip, fix } : null;
+  }
+  if (type === "math") {
+    // The voice cannot read symbols, so a formula without its spoken wording is dropped.
+    const display = shorten(text(raw?.text), VOICE_MATH_CHARS);
+    const spoken = voiceBlockText(raw?.spoken);
+    return display && spoken ? { type, text: display, spoken } : null;
+  }
   const body = voiceBlockText(raw?.text);
   return body ? { type, text: body } : null;
 };
 
-const blockAsSpeech = (block) => {
-  if (block.type !== "contrast") {
-    return Array.isArray(block.items) ? block.items.join(" ") : block.text;
+/**
+ * The answer choices for a multiple-choice question. A line that is the question
+ * itself, or any question, is not a choice, so a model that slips the question
+ * into the list cannot shift every option down a letter.
+ */
+const VOICE_OPTION_CHARS = 90;
+const readChoiceOptions = (raw, { followUp = "", lead = "" } = {}) => {
+  const banned = new Set([quoteKey(followUp), quoteKey(lead)].filter(Boolean));
+  const seen = new Set();
+  const options = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const option = shorten(
+      text(typeof item === "string" ? item : item?.text).replace(
+        /^[A-Da-d][.):]\s+/,
+        "",
+      ),
+      VOICE_OPTION_CHARS,
+    );
+    const key = quoteKey(option);
+    if (!option || /[?\u061f]/.test(option) || banned.has(key) || seen.has(key))
+      continue;
+    seen.add(key);
+    options.push(option);
   }
-  return block.items.map((item) => `${item.word} ${item.text}`).join(", ");
+  return options.length >= 3 ? options.slice(0, 4) : [];
+};
+
+const blockAsSpeech = (block) => {
+  switch (block.type) {
+    case "contrast":
+      return block.items.map((item) => `${item.word} ${item.text}`).join(", ");
+    case "compare":
+      return block.items
+        .map(
+          (item) => `${item.heading}. ${item.points.map(asSentence).join(" ")}`,
+        )
+        .join(" ");
+    case "timeline":
+      return block.items
+        .map((item) => `${item.label}, ${asSentence(item.text)}`)
+        .join(" ");
+    case "mistake":
+      return `${asSentence(block.text)} ${asSentence(block.fix)}`;
+    case "math":
+      return block.spoken;
+    default:
+      return Array.isArray(block.items) ? block.items.join(" ") : block.text;
+  }
 };
 
 /**
@@ -818,6 +960,7 @@ export const voiceSpeechSegments = ({
   lead = "",
   blocks = [],
   followUp = "",
+  options = [],
 } = {}) => {
   const raw = [];
   if (lead) raw.push({ kind: "lead", text: lead });
@@ -825,7 +968,12 @@ export const voiceSpeechSegments = ({
     const text = blockAsSpeech(block);
     if (text) raw.push({ kind: "block", index, text });
   });
-  if (followUp) raw.push({ kind: "followUp", text: followUp });
+  // Choices are read right after their question, as part of the same board card.
+  if (followUp)
+    raw.push({
+      kind: "followUp",
+      text: options.length ? `${followUp} ${options.join(", ")}.` : followUp,
+    });
 
   // The old single-clip cap still applies, so segment text never speaks more
   // than the stored "spoken" reply contains.
@@ -841,7 +989,7 @@ export const voiceSpeechSegments = ({
 };
 
 /** Parses the spoken reply. A reply that is not usable JSON is rejected, never guessed at. */
-export const readVoiceReply = (value) => {
+export const readVoiceReply = (value, { lessons = [] } = {}) => {
   const source = String(value ?? "")
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -859,9 +1007,12 @@ export const readVoiceReply = (value) => {
     emphasisRaw && emphasisRaw.length <= 60 && lead.includes(emphasisRaw)
       ? emphasisRaw
       : "";
+  const seenTypes = new Set();
   const blocks = (Array.isArray(parsed?.blocks) ? parsed.blocks : [])
-    .map(readVoiceBlock)
+    .map((raw) => readVoiceBlock(raw, lessons))
     .filter(Boolean)
+    // One block per type keeps a page varied instead of repeating a shape.
+    .filter((block) => !seenTypes.has(block.type) && seenTypes.add(block.type))
     .slice(0, VOICE_BLOCKS_MAX);
   // Old sessions and any model that still answers with "points" keep working.
   if (!blocks.length && Array.isArray(parsed?.points)) {
@@ -876,17 +1027,23 @@ export const readVoiceReply = (value) => {
     ? parsed.stage
     : "hint";
   if (!lead && !blocks.length && !followUp) return null;
-  // Choices need a steps block to render; without one the question is a plain short answer.
+  // Choices need their own options list; without one the question is a plain short answer.
   const asked = text(parsed?.questionType);
+  const options =
+    asked === "mcq" && followUp
+      ? readChoiceOptions(parsed?.options, { followUp, lead })
+      : [];
   const questionType =
-    asked === "mcq" && blocks.some((block) => block.type === "steps")
+    asked === "mcq" && options.length
       ? "mcq"
       : asked === "match" && blocks.some((block) => block.type === "contrast")
         ? "match"
-        : followUp
-          ? "short"
-          : "";
-  const segments = voiceSpeechSegments({ lead, blocks, followUp });
+        : asked === "yesno" && followUp
+          ? "yesno"
+          : followUp
+            ? "short"
+            : "";
+  const segments = voiceSpeechSegments({ lead, blocks, followUp, options });
   const spoken = segments.map((segment) => segment.text).join(" ");
   return {
     stage,
@@ -895,6 +1052,7 @@ export const readVoiceReply = (value) => {
     emphasis,
     blocks,
     followUp,
+    options,
     spoken,
     segments,
   };

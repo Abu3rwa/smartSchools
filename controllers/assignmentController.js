@@ -6,6 +6,7 @@ import Grade from '../models/Grade.js';
 import Notification from '../models/Notification.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
+import LessonPlan from '../models/LessonPlan.js';
 import notificationService from '../services/notificationService.js';
 import { uploadPrivateFile, getSignedUrl, deleteFile } from '../services/firebaseStorageService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -28,6 +29,13 @@ import {
     validateGoogleFormQuestions
 } from '../services/googleFormsAssignmentService.js';
 import { isGoogleFormsEnabledForSchool } from '../config/googleFormsConfig.js';
+import { extractDocumentText } from '../services/documentTextExtraction.js';
+import {
+    clampDraftCount,
+    draftQuestionsFromLessonPlans,
+    draftQuestionsFromText,
+    normalizeDraftTypes
+} from '../services/assignmentQuestionAiService.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 const refId = (value) => (value && typeof value === 'object'
@@ -1752,4 +1760,128 @@ export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
 
     const signedUrl = await getSignedUrl(attachment.storageKey);
     res.json({ success: true, data: { url: signedUrl, fileName: attachment.fileName, mimeType: attachment.mimeType } });
+});
+
+/**
+ * Draft quiz questions for the Google Form builder. The source is either this
+ * class and subject's own lesson plans, or one ephemeral PDF/photo. Nothing is
+ * saved here — the teacher edits the drafts in the drawer before saving.
+ */
+export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res.status(403).json({
+            success: false,
+            code: 'GOOGLE_FORMS_DISABLED',
+            message: 'Google Forms is not enabled for this school. Ask your administrator to enable it before drafting quiz questions.'
+        });
+    }
+
+    const body = req.body || {};
+    const classId = toId(body.classId || body.class);
+    const subjectId = toId(body.subjectId || body.subject);
+    if (!classId || !subjectId) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_CLASS_SUBJECT_REQUIRED',
+            message: 'Choose a class and subject first.'
+        });
+    }
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
+        .select('_id subjects')
+        .lean();
+    if (!classDoc) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_CLASS_INVALID',
+            message: 'Selected class was not found in this school. Refresh the class list and try again.'
+        });
+    }
+    const subjectExistsInClass = (classDoc.subjects || []).some(
+        (entry) => toId(entry.subject) === subjectId
+    );
+    if (!subjectExistsInClass) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_SUBJECT_INVALID',
+            message: 'Selected subject is not assigned to the selected class'
+        });
+    }
+
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
+        if (!authorized) {
+            return res.status(403).json({
+                success: false,
+                code: 'DRAFT_NOT_AUTHORIZED',
+                message: 'You are not authorized for this class and subject'
+            });
+        }
+    }
+
+    const lessonPlanIds = toArray(body.lessonPlanIds).filter(Boolean);
+    if (!req.file && lessonPlanIds.length === 0) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_SOURCE_REQUIRED',
+            message: 'Choose lesson plans for this class and subject, or upload a PDF or photo.'
+        });
+    }
+
+    const count = clampDraftCount(body.count);
+    const types = normalizeDraftTypes(toArray(body.types));
+    const usage = { feature: 'assignment_question_draft' };
+
+    if (req.file) {
+        const extracted = await extractDocumentText({
+            buffer: req.file.buffer,
+            mimeType: req.file.mimetype,
+            usage
+        });
+        const result = await draftQuestionsFromText({
+            sourceText: extracted.text,
+            count,
+            types,
+            usage
+        });
+        return res.json({
+            success: true,
+            data: {
+                questions: result.questions,
+                source: {
+                    kind: extracted.sourceType,
+                    characters: extracted.text.length,
+                    truncated: extracted.truncated || result.truncatedSource
+                }
+            }
+        });
+    }
+
+    const validLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds,
+        schoolId: req.schoolId,
+        classId,
+        subjectId,
+        user: req.user
+    });
+    const lessons = await LessonPlan.find({ _id: { $in: validLessonPlanIds } })
+        .select('title topic summary description previousKnowledge teachingObjectives objectives.text vocabulary activities assessmentMethods resources stages extractedMaterialText contextText')
+        .lean();
+    const result = await draftQuestionsFromLessonPlans({ lessons, count, types, usage });
+
+    res.json({
+        success: true,
+        data: {
+            questions: result.questions,
+            source: {
+                kind: 'lesson_plans',
+                lessonCount: lessons.length,
+                truncated: result.truncatedSource
+            }
+        }
+    });
 });

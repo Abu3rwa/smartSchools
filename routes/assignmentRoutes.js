@@ -2,6 +2,7 @@ import express from 'express';
 import {
     createAssignment,
     deleteAssignment,
+    draftAssignmentQuestions,
     getAssignmentAttachmentUrl,
     getAssignmentGradebook,
     getAssignments,
@@ -17,6 +18,8 @@ import { PERMISSIONS } from '../config/permissions.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 import { uploadAssignmentAttachments } from '../middleware/uploadAssignmentAttachments.js';
+import { uploadAssignmentDraftSource } from '../middleware/uploadAssignmentDraftSource.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -25,6 +28,15 @@ router.use(requireSchoolContext);
 
 router.get('/', authorize('teacher', 'admin', 'department_principal'), getAssignments);
 router.get('/my', authorize('student'), getMyAssignmentsForStudent);
+
+router.post(
+    '/ai/draft-questions',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    aiFeatureRateLimiter,
+    uploadAssignmentDraftSource,
+    draftAssignmentQuestions
+);
 
 router.post(
     '/',

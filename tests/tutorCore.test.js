@@ -9,6 +9,7 @@ import {
   buildTutorPrompt,
   buildVoicePrompt,
   buildVoiceOpeningPrompt,
+  nextQuestionType,
   readVoiceReply,
   countTries,
   gradePractice,
@@ -316,10 +317,36 @@ test("the spoken tutor keeps the grounding, the ladder and the level rules", () 
   assert.match(prompt, /under 15 words/);
   assert.match(prompt, /\{"stage":"prompt\|hint\|answer"/);
   assert.match(prompt, /"blocks"/);
-  assert.match(prompt, /Never pad the reply to a fixed number/);
+  assert.match(prompt, /Never pad with a block that adds nothing/);
   assert.match(prompt, /"emphasis"/);
   assert.match(prompt, /I think gases move fast/);
   assert.match(prompt, /Speak English only/);
+});
+
+test("both tutors must say plainly whether an attempt was right or not", () => {
+  const chat = buildTutorPrompt({
+    question: "either/or or neither/nor?",
+    lessons: [lesson("a")],
+    tries: 1,
+  });
+  assert.match(chat, /says plainly whether it is right, partly right, or not right/);
+  assert.match(chat, /Never reply to an attempt with only encouragement or "try again"/);
+
+  const voice = buildVoicePrompt({
+    transcript: "neither/nor means one choice or another",
+    lessons: [lesson("a")],
+    tries: 1,
+  });
+  assert.match(voice, /must say plainly whether their answer is right, partly right, or not right/);
+  assert.match(voice, /name which pairs were right/);
+
+  const guided = buildVoicePrompt({
+    transcript: "neither/nor means one choice or another",
+    lessons: [lesson("a")],
+    tries: 1,
+    assessmentMode: true,
+  });
+  assert.match(guided, /say which pairs were right and which were not/);
 });
 
 test("the spoken tutor answers in the student language", () => {
@@ -347,7 +374,52 @@ test("guided check mode keeps answers hidden and asks structured checks", () => 
   assert.match(prompt, /multiple-choice/i);
   assert.match(prompt, /matching/i);
   assert.match(prompt, /Never reveal the final answer key/i);
-  assert.match(prompt, /"questionType":"short\|mcq\|match"/);
+  assert.match(prompt, /"questionType":"short\|mcq\|yesno\|match"/);
+  assert.match(prompt, /yes\/no/);
+});
+
+test("the server picks the next check-question type and the prompt asks for it", () => {
+  assert.equal(nextQuestionType([]), "mcq");
+  assert.equal(
+    nextQuestionType([{ role: "tutor", questionType: "mcq" }]),
+    "yesno",
+  );
+  assert.equal(
+    nextQuestionType([{ role: "tutor", questionType: "yesno" }]),
+    "match",
+  );
+  assert.equal(
+    nextQuestionType([{ role: "tutor", questionType: "match" }]),
+    "short",
+  );
+  assert.equal(
+    nextQuestionType([
+      { role: "tutor", questionType: "yesno" },
+      { role: "student", text: "yes" },
+    ]),
+    "match",
+  );
+  const prompt = buildVoicePrompt({
+    transcript: "gold",
+    lessons: [lesson("a")],
+    assessmentMode: true,
+    questionType: "yesno",
+  });
+  assert.match(
+    prompt,
+    /ask a yes\/no question and set "questionType" to "yesno"/,
+  );
+});
+
+test("a yes/no question is kept without options and a plain follow-up stays short", () => {
+  const yesno = readVoiceReply(
+    '{"stage":"prompt","questionType":"yesno","lead":"Think about gases.","followUp":"Do gases fill their container?"}',
+  );
+  assert.equal(yesno.questionType, "yesno");
+  const noQuestion = readVoiceReply(
+    '{"stage":"prompt","questionType":"yesno","lead":"Good.","blocks":[{"type":"keyIdea","text":"Gases spread out."}]}',
+  );
+  assert.equal(noQuestion.questionType, "");
 });
 
 test("voice follow-ups do not ask for answers already revealed on the board", () => {
@@ -493,21 +565,61 @@ test("a spoken reply carries one speech segment per board part, in board order",
   );
 });
 
+test("the question is never one of the multiple-choice options", () => {
+  const question =
+    "Which region included New Hampshire, Massachusetts and Connecticut?";
+  const reply = readVoiceReply(
+    JSON.stringify({
+      stage: "prompt",
+      questionType: "mcq",
+      lead: "Let's check the colony regions.",
+      followUp: question,
+      options: [
+        question,
+        "A. New England Colonies",
+        "B) Middle Colonies",
+        "Southern Colonies",
+        "Southern Colonies",
+      ],
+    }),
+  );
+  assert.equal(reply.questionType, "mcq");
+  assert.deepEqual(reply.options, [
+    "New England Colonies",
+    "Middle Colonies",
+    "Southern Colonies",
+  ]);
+
+  const broken = readVoiceReply(
+    JSON.stringify({
+      questionType: "mcq",
+      lead: "Check.",
+      followUp: question,
+      options: [question, "Pick the region name that matches that group?"],
+    }),
+  );
+  assert.equal(broken.questionType, "short");
+  assert.deepEqual(broken.options, []);
+});
+
 test("a check question type is kept only when the board can render it", () => {
   const mcq = readVoiceReply(
     JSON.stringify({
       stage: "prompt",
       questionType: "mcq",
       lead: "Pick one.",
-      blocks: [{ type: "steps", items: ["Gold", "Glory", "Fame"] }],
       followUp: "Which is it?",
+      options: ["Gold", "Glory", "Fame"],
     }),
   );
   assert.equal(mcq.questionType, "mcq");
+  assert.deepEqual(mcq.options, ["Gold", "Glory", "Fame"]);
+  assert.match(mcq.segments.at(-1).text, /^Which is it\? Gold, Glory, Fame\.$/);
   const noOptions = readVoiceReply(
     '{"stage":"prompt","questionType":"mcq","lead":"Pick one.","followUp":"Which?"}',
   );
   assert.equal(noOptions.questionType, "short");
+  assert.deepEqual(noOptions.options, []);
   const match = readVoiceReply(
     JSON.stringify({
       lead: "Match them.",
@@ -537,6 +649,158 @@ test("older point replies still become one bullet block", () => {
       items: ["Gas particles move freely.", "They fill the space."],
     },
   ]);
+});
+
+test("compare, timeline, mistake, recap and math blocks are read and spoken", () => {
+  const reply = readVoiceReply(
+    JSON.stringify({
+      stage: "answer",
+      lead: "Here it is.",
+      blocks: [
+        {
+          type: "compare",
+          items: [
+            { heading: "Solid", points: ["Keeps its shape", "Does not flow"] },
+            { heading: "Liquid", points: ["Flows"] },
+            { heading: "", points: ["dropped"] },
+          ],
+        },
+        {
+          type: "timeline",
+          items: [
+            { label: "first", text: "Ice melts" },
+            { label: "then", text: "Water boils." },
+          ],
+        },
+        {
+          type: "math",
+          text: "3/4 + 1/4 = 1",
+          spoken: "three quarters plus one quarter equals one",
+        },
+      ],
+      followUp: "Why?",
+    }),
+  );
+  assert.deepEqual(
+    reply.blocks.map((block) => block.type),
+    ["compare", "timeline", "math"],
+  );
+  assert.equal(reply.blocks[0].items.length, 2);
+  assert.match(
+    reply.segments[1].text,
+    /^Solid\. Keeps its shape\. Does not flow\. Liquid\. Flows\.$/,
+  );
+  assert.equal(reply.segments[2].text, "first, Ice melts. then, Water boils.");
+  assert.equal(
+    reply.segments[3].text,
+    "three quarters plus one quarter equals one",
+  );
+
+  const closing = readVoiceReply(
+    JSON.stringify({
+      lead: "Nice.",
+      blocks: [
+        {
+          type: "mistake",
+          text: "Gases keep their shape",
+          fix: "Gases fill the container",
+        },
+        { type: "recap", items: ["Solids keep shape", "Gases spread"] },
+      ],
+      followUp: "Ready?",
+    }),
+  );
+  assert.equal(closing.blocks[0].fix, "Gases fill the container");
+  assert.equal(
+    closing.segments[1].text,
+    "Gases keep their shape. Gases fill the container.",
+  );
+  assert.equal(closing.blocks[1].items.length, 2);
+});
+
+test("a math block without spoken words or a mistake without its fix is dropped", () => {
+  const reply = readVoiceReply(
+    JSON.stringify({
+      lead: "Look.",
+      blocks: [
+        { type: "math", text: "2 + 2 = 4" },
+        { type: "mistake", text: "Only the slip" },
+      ],
+      followUp: "Ok?",
+    }),
+  );
+  assert.equal(reply.blocks.length, 0);
+});
+
+test("an evidence quote is kept only when the lesson really contains it", () => {
+  const lessons = [lesson("a")];
+  const real = readVoiceReply(
+    JSON.stringify({
+      lead: "The lesson says it.",
+      blocks: [{ type: "evidence", text: "Gases fill the container" }],
+      followUp: "Why?",
+    }),
+    { lessons },
+  );
+  assert.equal(real.blocks[0].text, "Gases fill the container");
+  assert.match(real.blocks[0].source, /Lesson 1: Solids, liquids and gases/);
+
+  const invented = readVoiceReply(
+    JSON.stringify({
+      lead: "The lesson says it.",
+      blocks: [{ type: "evidence", text: "Gases are heavier than solids" }],
+      followUp: "Why?",
+    }),
+    { lessons },
+  );
+  assert.equal(invented.blocks.length, 0);
+
+  const unchecked = readVoiceReply(
+    JSON.stringify({
+      lead: "The lesson says it.",
+      blocks: [{ type: "evidence", text: "Gases fill the container" }],
+      followUp: "Why?",
+    }),
+  );
+  assert.equal(unchecked.blocks.length, 0);
+});
+
+test("a page never repeats a block type", () => {
+  const reply = readVoiceReply(
+    JSON.stringify({
+      lead: "a",
+      blocks: [
+        { type: "bullets", items: ["1", "2"] },
+        { type: "bullets", items: ["3", "4"] },
+        { type: "keyIdea", text: "y" },
+      ],
+      followUp: "b",
+    }),
+  );
+  assert.deepEqual(
+    reply.blocks.map((block) => block.type),
+    ["bullets", "keyIdea"],
+  );
+});
+
+test("the voice prompt teaches the new blocks and asks for two or three on a teaching turn", () => {
+  const prompt = buildVoicePrompt({
+    transcript: "Explain it",
+    lessons: [lesson("a")],
+    tries: 2,
+  });
+  for (const type of [
+    "compare",
+    "timeline",
+    "evidence",
+    "mistake",
+    "recap",
+    "math",
+  ]) {
+    assert.match(prompt, new RegExp(`"type":"${type}"`));
+  }
+  assert.match(prompt, /uses two or three/);
+  assert.match(prompt, /copied word for word from the lesson material/);
 });
 
 test("a malformed or empty spoken reply is rejected instead of guessed", () => {

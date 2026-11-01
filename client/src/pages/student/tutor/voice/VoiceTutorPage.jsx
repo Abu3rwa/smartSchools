@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   HiOutlineArrowLeft,
   HiOutlineChatAlt2,
   HiOutlineCheck,
+  HiOutlineChevronDown,
   HiOutlineChevronRight,
   HiOutlineGlobe,
   HiOutlineLockClosed,
@@ -292,32 +293,25 @@ function Board({
   onAnswer,
   t,
 }) {
-  const messages = session.messages || [];
-  const lastTutor =
-    [...messages].reverse().find((message) => message.role === "tutor") || null;
-  const points = Array.isArray(lastTutor?.points) ? lastTutor.points : [];
-  const blocks =
-    Array.isArray(lastTutor?.blocks) && lastTutor.blocks.length
-      ? lastTutor.blocks
-      : points.length
-        ? [{ type: "bullets", items: points }]
-        : [];
-  const hasFollowUp = Boolean(lastTutor?.followUp);
-  // Choices only render as buttons when the server confirmed a steps block exists.
-  const asksChoice = lastTutor?.questionType === "mcq";
-  const totalSteps = 1 + blocks.length + (hasFollowUp ? 1 : 0);
+  // One page per tutor turn, each paired with what the student said to get it.
+  const pages = useMemo(() => {
+    const rows = [];
+    let said = null;
+    for (const message of session.messages || []) {
+      if (message.role === "student") {
+        said = message;
+        continue;
+      }
+      rows.push({ id: String(rows.length), tutor: message, said });
+      said = null;
+    }
+    return rows;
+  }, [session.messages]);
   // The server sends one clip per board part: lead, each block, then follow-up.
   const spokenStep =
     phase === "speaking" && Number.isInteger(speakingIndex)
       ? speakingIndex
       : null;
-  const revealActive = spokenStep !== null && spokenStep < totalSteps;
-  const stepClass = (index) => {
-    if (!revealActive) return "";
-    if (index < spokenStep) return " is-past";
-    if (index === spokenStep) return " is-active";
-    return " is-upcoming";
-  };
   const credits = session.voice?.credits ?? 0;
   const price = session.voice?.price ?? 0;
   const canAsk = session.voice?.canAsk !== false;
@@ -327,13 +321,38 @@ function Board({
   const holding = phase === "listening";
   const thinking = phase === "thinking";
   const blocked = !canRecord || thinking || outOfCredit;
-  const lead =
-    lastTutor?.lead || lastTutor?.text || t("tutor:voice.board.hello");
-  const emphasis = lastTutor?.emphasis || "";
-  const markAt = emphasis ? lead.indexOf(emphasis) : -1;
   const languageName = t(
     `tutor:voice.language.${session.language === "ar" ? "ar" : "en"}`,
   );
+
+  const mainRef = useRef(null);
+  const latestRef = useRef(null);
+  const [atLatest, setAtLatest] = useState(true);
+
+  const scrollToLatest = useCallback(() => {
+    const container = mainRef.current;
+    const target = latestRef.current;
+    if (!container || !target) return;
+    const reduce = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    container.scrollTo({
+      top: Math.max(0, target.offsetTop - 8),
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, []);
+
+  // A new page (or the waiting page) pushes the old ones up and lands on a clean board.
+  // A reply replacing the waiting page keeps the count, so a student reading back is not yanked down.
+  const pageCount = pages.length + (thinking ? 1 : 0);
+  useEffect(() => {
+    scrollToLatest();
+  }, [pageCount, scrollToLatest]);
+
+  const onFeedScroll = useCallback((event) => {
+    const el = event.currentTarget;
+    setAtLatest(el.scrollTop + el.clientHeight >= el.scrollHeight - 140);
+  }, []);
 
   return (
     <div className="vt-page vt-board" dir="auto">
@@ -365,96 +384,68 @@ function Board({
         </button>
       </header>
 
-      <div className="vt-board-main">
+      <div className="vt-feed-wrap">
         {error && (
-          <p className="vt-error" role="alert">
+          <p className="vt-error vt-feed-error" role="alert">
             {error}
           </p>
         )}
 
-        {/* {lastStudent?.text && (
-          <div className="vt-your-words">
-            <span className="vt-your-words-tag">
-              <HiOutlineMicrophone size={11} aria-hidden="true" />
-              {t("tutor:voice.youSaid")}
-            </span>
-            <q>{lastStudent.text}</q>
-            <span className="vt-converted">
-              {t("tutor:voice.convertedShort")}
-            </span>
-          </div>
-        )} */}
+        <div className="vt-board-main" ref={mainRef} onScroll={onFeedScroll}>
+          {pages.map((page, index) => {
+            const latest = !thinking && index === pages.length - 1;
+            return (
+              <FeedPage
+                key={page.id}
+                page={page}
+                picked={pages[index + 1]?.said?.text || ""}
+                latest={latest}
+                pageRef={latest ? latestRef : null}
+                spokenStep={latest ? spokenStep : null}
+                blocked={blocked}
+                outOfCredit={outOfCredit}
+                onAnswer={onAnswer}
+                t={t}
+              />
+            );
+          })}
 
-        {thinking ? (
-          <Waiting t={t} />
-        ) : (
-          <div
-            className={`vt-turn${blocks.length ? "" : " is-solo"}${
-              revealActive ? " is-revealing" : ""
-            }`}
-          >
-            <h2 className={`vt-lead${stepClass(0)}`}>
-              {markAt < 0 ? (
-                lead
-              ) : (
-                <>
-                  {lead.slice(0, markAt)}
-                  <mark>{emphasis}</mark>
-                  {lead.slice(markAt + emphasis.length)}
-                </>
-              )}
-            </h2>
-            {blocks.length > 0 && (
-              <div className="vt-side">
-                {blocks.map((block, index) => (
-                  <Block
-                    key={`${block.type}-${index}`}
-                    block={block}
-                    t={t}
-                    stateClass={stepClass(index + 1)}
-                    choices={asksChoice && block.type === "steps"}
-                    disabled={blocked}
-                    onChoose={onAnswer}
-                  />
-                ))}
+          {thinking && (
+            <section className="vt-feed-page is-latest" ref={latestRef}>
+              <Waiting t={t} />
+            </section>
+          )}
+
+          {outOfCredit && (
+            <div className="vt-empty">
+              <span className="vt-empty-icon" aria-hidden="true">
+                <HiOutlineLockClosed size={20} />
+              </span>
+              <div className="vt-empty-text">
+                <strong>{t("tutor:voice.outOfCreditTitle")}</strong>
+                <p>{t("tutor:voice.outOfCreditBody", { price })}</p>
               </div>
-            )}
-          </div>
-        )}
-
-        {!outOfCredit && lastTutor?.followUp && !thinking && (
-          <div className={`vt-check${stepClass(blocks.length + 1)}`}>
-            <span className="vt-check-icon" aria-hidden="true">
-              <HiOutlineQuestionMarkCircle size={17} />
-            </span>
-            <div className="vt-check-text">
-              <strong>{t("tutor:voice.yourTurn")}</strong>
-              <p>{lastTutor.followUp}</p>
-              {!asksChoice && (
-                <AnswerBox t={t} disabled={blocked} onSend={onAnswer} />
-              )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={onLeave}
+              >
+                {t("tutor:voice.pickAnother")}
+              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {outOfCredit && (
-          <div className="vt-empty">
-            <span className="vt-empty-icon" aria-hidden="true">
-              <HiOutlineLockClosed size={20} />
-            </span>
-            <div className="vt-empty-text">
-              <strong>{t("tutor:voice.outOfCreditTitle")}</strong>
-              <p>{t("tutor:voice.outOfCreditBody", { price })}</p>
-            </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={onLeave}
-            >
-              {t("tutor:voice.pickAnother")}
-            </button>
-          </div>
-        )}
+        <button
+          type="button"
+          className={`vt-jump${atLatest ? "" : " is-visible"}`}
+          onClick={scrollToLatest}
+          tabIndex={atLatest ? -1 : 0}
+          aria-hidden={atLatest}
+        >
+          <HiOutlineChevronDown size={15} aria-hidden="true" />
+          {t("tutor:voice.backToLatest")}
+        </button>
       </div>
 
       <footer className="vt-dock">
@@ -546,6 +537,154 @@ function Board({
   );
 }
 
+/**
+ * One tutor turn as a page. The newest page reveals itself with the voice and takes
+ * answers; older pages stay put above it, read-only, so the student can scroll back.
+ */
+function FeedPage({
+  page,
+  picked,
+  latest,
+  pageRef,
+  spokenStep,
+  blocked,
+  outOfCredit,
+  onAnswer,
+  t,
+}) {
+  const message = page.tutor;
+  const points = Array.isArray(message?.points) ? message.points : [];
+  const blocks =
+    Array.isArray(message?.blocks) && message.blocks.length
+      ? message.blocks
+      : points.length
+        ? [{ type: "bullets", items: points }]
+        : [];
+  const followUp = message?.followUp || "";
+  const options = Array.isArray(message?.options) ? message.options : [];
+  const asksChoice = message?.questionType === "mcq";
+  // Sessions saved before options existed put their choices in a steps block.
+  const legacyChoices = asksChoice && options.length === 0;
+  const asksYesNo = message?.questionType === "yesno";
+  const totalSteps = 1 + blocks.length + (followUp ? 1 : 0);
+  const revealActive = latest && spokenStep !== null && spokenStep < totalSteps;
+  const stepClass = (index) => {
+    if (!revealActive) return "";
+    if (index < spokenStep) return " is-past";
+    if (index === spokenStep) return " is-active";
+    return " is-upcoming";
+  };
+  const interactive = latest && !outOfCredit;
+  const lead = message?.lead || message?.text || t("tutor:voice.board.hello");
+  const emphasis = message?.emphasis || "";
+  const markAt = emphasis ? lead.indexOf(emphasis) : -1;
+
+  return (
+    <section
+      ref={pageRef}
+      className={`vt-feed-page${latest ? " is-latest" : " is-archived"}`}
+      aria-current={latest ? "true" : undefined}
+    >
+      {page.said?.text && (
+        <div className="vt-your-words">
+          <span className="vt-your-words-tag">
+            <HiOutlineMicrophone size={11} aria-hidden="true" />
+            {t("tutor:voice.youSaid")}
+          </span>
+          <q>{page.said.text}</q>
+        </div>
+      )}
+
+      <div
+        className={`vt-turn${blocks.length ? "" : " is-solo"}${
+          revealActive ? " is-revealing" : ""
+        }`}
+      >
+        <h2 className={`vt-lead${stepClass(0)}`}>
+          {markAt < 0 ? (
+            lead
+          ) : (
+            <>
+              {lead.slice(0, markAt)}
+              <mark>{emphasis}</mark>
+              {lead.slice(markAt + emphasis.length)}
+            </>
+          )}
+        </h2>
+        {blocks.length > 0 && (
+          <div className="vt-side">
+            {blocks.map((block, index) => (
+              <Block
+                key={`${block.type}-${index}`}
+                block={block}
+                t={t}
+                stateClass={stepClass(index + 1)}
+                choices={legacyChoices && block.type === "steps"}
+                disabled={!interactive || blocked}
+                picked={picked}
+                onChoose={onAnswer}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {followUp && !(latest && outOfCredit) && (
+        <div className={`vt-check${stepClass(blocks.length + 1)}`}>
+          <span className="vt-check-icon" aria-hidden="true">
+            <HiOutlineQuestionMarkCircle size={17} />
+          </span>
+          <div className="vt-check-text">
+            <strong>{t("tutor:voice.yourTurn")}</strong>
+            <p>{followUp}</p>
+            {options.length > 0 && (
+              <Choices
+                items={options}
+                picked={picked}
+                disabled={!interactive || blocked}
+                onChoose={onAnswer}
+              />
+            )}
+            {interactive && asksYesNo && (
+              <YesNo t={t} disabled={blocked} onSend={onAnswer} />
+            )}
+            {interactive && !asksChoice && !asksYesNo && (
+              <AnswerBox t={t} disabled={blocked} onSend={onAnswer} />
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Two taps for a yes/no check; the student can still hold the mic to say why. */
+function YesNo({ t, disabled, onSend }) {
+  return (
+    <div
+      className="vt-yesno"
+      role="group"
+      aria-label={t("tutor:voice.yesNoLabel")}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onSend(t("tutor:voice.yes"))}
+      >
+        {t("tutor:voice.yes")}
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onSend(t("tutor:voice.no"))}
+      >
+        {t("tutor:voice.no")}
+      </button>
+      <span className="vt-yesno-hint">{t("tutor:voice.yesNoHint")}</span>
+    </div>
+  );
+}
+
 /** The turn the model is still shaping: human copy and where the blocks will land. */
 function Waiting({ t }) {
   const [step, setStep] = useState(0);
@@ -603,6 +742,36 @@ function AnswerBox({ t, disabled, onSend }) {
   );
 }
 
+/** Lettered answer buttons; the question itself is never one of them. */
+function Choices({
+  items,
+  picked = "",
+  disabled = false,
+  onChoose,
+  stateClass = "",
+  bubble = false,
+}) {
+  return (
+    <div
+      className={`vt-choices${bubble ? " vt-bubble" : ""}${stateClass}`}
+      role="group"
+    >
+      {items.map((item, index) => (
+        <button
+          key={index}
+          type="button"
+          className={`vt-choice${picked && picked === String(item) ? " is-picked" : ""}`}
+          disabled={disabled}
+          onClick={() => onChoose(String(item))}
+        >
+          <b aria-hidden="true">{String.fromCharCode(65 + index)}</b>
+          <span>{item}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** One typed block. Lists keep their shape; a contrast gets one tint per word. */
 function Block({
   block,
@@ -610,26 +779,21 @@ function Block({
   stateClass = "",
   choices = false,
   disabled = false,
+  picked = "",
   onChoose,
 }) {
   if (choices) {
     const items = Array.isArray(block.items) ? block.items : [];
     if (!items.length) return null;
     return (
-      <div className={`vt-bubble vt-choices${stateClass}`}>
-        {items.map((item, index) => (
-          <button
-            key={index}
-            type="button"
-            className="vt-choice"
-            disabled={disabled}
-            onClick={() => onChoose(String(item))}
-          >
-            <b aria-hidden="true">{String.fromCharCode(65 + index)}</b>
-            <span>{item}</span>
-          </button>
-        ))}
-      </div>
+      <Choices
+        items={items}
+        picked={picked}
+        disabled={disabled}
+        onChoose={onChoose}
+        stateClass={stateClass}
+        bubble
+      />
     );
   }
 
@@ -661,6 +825,103 @@ function Block({
             <p>{item.text}</p>
           </div>
         ))}
+      </div>
+    );
+  }
+  if (block.type === "compare") {
+    const items = Array.isArray(block.items) ? block.items : [];
+    if (items.length < 2) return null;
+    return (
+      <div className={`vt-compare${stateClass}`}>
+        {items.map((item, index) => (
+          <div
+            key={index}
+            className={`vt-compare-col is-${JOIN_TONES[index % JOIN_TONES.length]}`}
+          >
+            <strong>{item.heading}</strong>
+            <ul>
+              {(item.points || []).map((point, pointIndex) => (
+                <li key={pointIndex}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (block.type === "timeline") {
+    const items = Array.isArray(block.items) ? block.items : [];
+    if (items.length < 2) return null;
+    return (
+      <div className={`vt-bubble vt-timeline${stateClass}`}>
+        <span className="vt-block-label">
+          {t("tutor:voice.blockLabels.timeline")}
+        </span>
+        <ol>
+          {items.map((item, index) => (
+            <li key={index}>
+              <b>{item.label}</b>
+              <span>{item.text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+  if (block.type === "recap") {
+    const items = Array.isArray(block.items) ? block.items : [];
+    if (!items.length) return null;
+    return (
+      <div className={`vt-bubble vt-recap${stateClass}`}>
+        <span className="vt-block-label">
+          {t("tutor:voice.blockLabels.recap")}
+        </span>
+        <ul>
+          {items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (block.type === "evidence") {
+    if (!block.text) return null;
+    return (
+      <div className={`vt-bubble vt-evidence${stateClass}`}>
+        <span className="vt-block-label">
+          {t("tutor:voice.blockLabels.evidence")}
+        </span>
+        <blockquote>{block.text}</blockquote>
+        {block.source && <cite>{block.source}</cite>}
+      </div>
+    );
+  }
+  if (block.type === "mistake") {
+    if (!block.text || !block.fix) return null;
+    return (
+      <div className={`vt-bubble vt-mistake${stateClass}`}>
+        <span className="vt-block-label">
+          {t("tutor:voice.blockLabels.mistake")}
+        </span>
+        <p className="vt-mistake-slip">{block.text}</p>
+        <p className="vt-mistake-fix">
+          <b>{t("tutor:voice.blockLabels.mistakeFix")}</b> {block.fix}
+        </p>
+      </div>
+    );
+  }
+  if (block.type === "math") {
+    if (!block.text) return null;
+    return (
+      <div className={`vt-bubble vt-math${stateClass}`}>
+        <span
+          className="vt-math-line"
+          dir="ltr"
+          role="math"
+          aria-label={block.spoken || block.text}
+        >
+          {block.text}
+        </span>
       </div>
     );
   }

@@ -268,6 +268,16 @@
       "words": "{{n}} words",
       "emptySection": "Nothing written in this part."
     },
+    "paste": {
+      "title": "Paste attempts detected: {{count}}",
+      "hint": "Pasting is blocked in the writing box. Each row is something the student tried to paste, with the time it happened. It never reached the draft.",
+      "badge": "Paste ×{{count}}",
+      "draftN": "Draft {{n}}",
+      "notSubmitted": "not sent yet",
+      "chars": "{{n}} characters",
+      "noText": "No text could be read from the paste.",
+      "elsewhere": "Elsewhere on the page"
+    },
     "review": {
       "title": "Feedback",
       "batch": "Assess waiting drafts ({{n}})",
@@ -449,6 +459,11 @@
     "pieceTitle": "Title of your piece",
     "pieceTitlePlaceholder": "Give your writing a title",
     "sectionPlaceholder": "Write here.",
+    "pasteBlocked": "Pasting is not allowed. At {{time}} you tried to paste: {{text}}. It was not added, and your teacher has been told.",
+    "pasteFlagTitle": "A paste was detected",
+    "pasteFlagBody": "Pasting is not allowed in this task. These are the times you tried to paste, and the text you tried to bring in. It was not added to your draft.",
+    "pasteFlagAt": "Paste attempt on {{when}}",
+    "pasteFlagNoText": "No text could be read.",
     "saving": "Saving…",
     "savedAt": "Saved {{time}}",
     "allSaved": "Everything is saved",

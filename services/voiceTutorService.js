@@ -20,6 +20,7 @@ import {
   buildVoicePrompt,
   buildVoiceOpeningPrompt,
   lessonLabel,
+  nextQuestionType,
   readVoiceReply,
   resolveAccess,
   voiceSpeechSegments,
@@ -350,6 +351,7 @@ const publicMessage = (message = {}) => ({
   blocks: Array.isArray(message.blocks) ? message.blocks : [],
   points: Array.isArray(message.points) ? message.points : [],
   followUp: message.followUp || "",
+  options: Array.isArray(message.options) ? message.options : [],
   questionType: message.questionType || "",
   stage: message.stage || "",
   at: message.at || null,
@@ -484,7 +486,7 @@ export const startVoiceSession = async ({
       provider: "openai",
       modelName: config.model,
     });
-    opening = readVoiceReply(openingReply?.text);
+    opening = readVoiceReply(openingReply?.text, { lessons: [lesson] });
   } catch (error) {
     logger.warn("voice_tutor_opening_failed", {
       schoolId: String(schoolId),
@@ -712,6 +714,7 @@ export const askVoice = async ({
     text: message.text,
     spoken: message.spoken,
     stage: message.stage || null,
+    questionType: message.questionType || "",
   }));
   const prompt = buildVoicePrompt({
     transcript,
@@ -725,6 +728,7 @@ export const askVoice = async ({
     board: prior,
     tries: countTries(prior),
     assessmentMode: true,
+    questionType: nextQuestionType(prior),
   });
 
   let reply;
@@ -750,7 +754,7 @@ export const askVoice = async ({
     );
   }
 
-  const parsed = readVoiceReply(reply?.text);
+  const parsed = readVoiceReply(reply?.text, { lessons });
   if (!parsed) {
     logger.warn("voice_tutor_reply_unusable", { schoolId: String(schoolId) });
     throw Object.assign(
@@ -824,6 +828,7 @@ export const askVoice = async ({
       emphasis: parsed.emphasis,
       blocks: parsed.blocks,
       followUp: parsed.followUp,
+      options: parsed.options,
       questionType: parsed.questionType,
       stage: parsed.stage,
       lessonIds: lessons.map((lesson) => lesson._id),
@@ -854,6 +859,7 @@ export const askVoice = async ({
     emphasis: parsed.emphasis,
     blocks: parsed.blocks,
     followUp: parsed.followUp,
+    options: parsed.options,
     questionType: parsed.questionType,
     spoken: parsed.spoken,
     lesson: lessonRow

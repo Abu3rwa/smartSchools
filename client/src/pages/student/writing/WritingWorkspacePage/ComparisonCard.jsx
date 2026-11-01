@@ -1,5 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { HiOutlineArrowNarrowUp, HiOutlineCheckCircle, HiOutlineMinusCircle } from "react-icons/hi";
+import {
+  HiOutlineArrowNarrowUp,
+  HiOutlineCheckCircle,
+  HiOutlineMinusCircle,
+} from "react-icons/hi";
 
 /** What changed between two drafts, as the teacher published it. */
 export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
@@ -10,15 +14,27 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
   const wordDelta = Number(detail.wordDelta) || 0;
   const hasIssues = (detail.newIssues || []).length > 0;
   // Only tasks the teacher actually published a verdict for are shown.
-  const taskRows = (comparison.tasks || [])
-    .map((task) => ({ ...task, result: (detail.taskResults || []).find((row) => row.id === task.id) }))
-    .filter((row) => row.result);
+  const taskRows = (detail.taskResults || [])
+    .map((result) => ({
+      id: result.id,
+      result,
+      text:
+        result.text ||
+        (comparison.tasks || []).find((task) => task.id === result.id)?.text ||
+        "",
+    }))
+    .filter((row) => row.text);
   const doneCount = taskRows.filter((row) => row.result.applied).length;
 
   return (
     <section className="ws-compare">
       <header className="ws-compare-head">
-        <h3>{t("writing:student.comparisonTitle", { from: fromNumber, to: toNumber })}</h3>
+        <h3>
+          {t("writing:student.comparisonTitle", {
+            from: fromNumber,
+            to: toNumber,
+          })}
+        </h3>
         <span className={`ws-compare-delta${wordDelta < 0 ? " is-down" : ""}`}>
           <HiOutlineArrowNarrowUp size={15} aria-hidden="true" />
           {t("writing:student.comparisonWords", {
@@ -28,23 +44,34 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         </span>
       </header>
 
-      {detail.encouragement && <p className="ws-compare-lead">{detail.encouragement}</p>}
-      {comparison.overall?.summary && <p className="ws-compare-line">{comparison.overall.summary}</p>}
+      {detail.encouragement && (
+        <p className="ws-compare-lead">{detail.encouragement}</p>
+      )}
+      {comparison.kind === "comparison" && comparison.overall?.summary && (
+        <p className="ws-compare-line">{comparison.overall.summary}</p>
+      )}
 
       {taskRows.length > 0 && (
         <div className="ws-compare-tasks">
           <h4>
             {t("writing:student.comparisonTasksTitle", { n: fromNumber })}
             <span className="ws-compare-tasks-count">
-              {t("writing:student.comparisonTasksDone", { done: doneCount, total: taskRows.length })}
+              {t("writing:student.comparisonTasksDone", {
+                done: doneCount,
+                total: taskRows.length,
+              })}
             </span>
           </h4>
           {taskRows.map((row) => (
             <div className="ws-compare-task" key={row.id}>
-              <span className={`ws-task-check${row.result.applied ? "" : " is-open"}`}>
-                {row.result.applied
-                  ? <HiOutlineCheckCircle size={16} aria-hidden="true" />
-                  : <HiOutlineMinusCircle size={16} aria-hidden="true" />}
+              <span
+                className={`ws-task-check${row.result.applied ? "" : " is-open"}`}
+              >
+                {row.result.applied ? (
+                  <HiOutlineCheckCircle size={16} aria-hidden="true" />
+                ) : (
+                  <HiOutlineMinusCircle size={16} aria-hidden="true" />
+                )}
                 {row.text}
               </span>
               {row.result.note && <em>{row.result.note}</em>}
@@ -84,7 +111,9 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
           <div className="ws-compare-block is-warn">
             <h4>{t("writing:student.comparisonNewIssues")}</h4>
             <ul>
-              {detail.newIssues.map((item) => <li key={item}>{item}</li>)}
+              {detail.newIssues.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
             </ul>
           </div>
         )}
@@ -94,10 +123,15 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         <div className="ws-compare-changes">
           <h4>{t("writing:student.comparisonSections")}</h4>
           {detail.changedBySection.map((row) => (
-            <div className="ws-compare-change" key={`${row.kind}-${row.key}-${row.index}`}>
+            <div
+              className="ws-compare-change"
+              key={`${row.kind}-${row.key}-${row.index}`}
+            >
               <span className="ws-compare-label">{row.label || row.key}</span>
               <p>{row.summary}</p>
-              <em>{t(`writing:student.comparisonKind.${row.kind || "changed"}`)}</em>
+              <em>
+                {t(`writing:student.comparisonKind.${row.kind || "changed"}`)}
+              </em>
             </div>
           ))}
         </div>
@@ -108,7 +142,9 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
           <h4>{t("writing:student.spellingWinsTitle")}</h4>
           <div className="ws-spelling-chips">
             {comparison.spellingWins.map((row) => (
-              <span className="ws-spelling-chip is-win" key={row.word}>{row.word}</span>
+              <span className="ws-spelling-chip is-win" key={row.word}>
+                {row.word}
+              </span>
             ))}
           </div>
         </div>
@@ -118,7 +154,10 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         <div className="ws-compare-applied">
           <h4>{t("writing:student.comparisonApplied")}</h4>
           {detail.feedbackApplied.map((row) => (
-            <p className={row.applied ? "is-applied" : "is-open"} key={`${row.key}-${row.index}`}>
+            <p
+              className={row.applied ? "is-applied" : "is-open"}
+              key={`${row.key}-${row.index}`}
+            >
               {row.applied
                 ? t("writing:student.comparisonAppliedYes")
                 : t("writing:student.comparisonAppliedNo")}

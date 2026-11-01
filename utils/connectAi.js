@@ -28,6 +28,35 @@ const meterReply = async (reply, options) => {
 const DEFAULT_MODEL_NAME = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const OPENAI_TIMEOUT_MS = () => Number(process.env.OPENAI_TIMEOUT_MS) || 120000;
 
+const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+const invalidInput = (message) => {
+  const error = new Error(message);
+  error.status = 400;
+  error.statusCode = 400;
+  return error;
+};
+
+/** One inline image as a data URI content part, so no upload has to be hosted first. */
+const imageContentPart = (image) => {
+  if (!image || typeof image !== "object") {
+    throw invalidInput("Image input must be an object with mimeType and base64 data.");
+  }
+  const mimeType = String(image.mimeType || "").toLowerCase();
+  const data = typeof image.data === "string" ? image.data.trim() : "";
+  if (!IMAGE_MIME_TYPES.has(mimeType)) {
+    throw invalidInput("Image input must be a JPEG, PNG, WebP or GIF.");
+  }
+  if (!data) {
+    throw invalidInput("Image input is missing its base64 data.");
+  }
+  return { type: "image_url", image_url: { url: `data:${mimeType};base64,${data}` } };
+};
+
+const messageContent = (prompt, image) => (
+  image ? [{ type: "text", text: prompt }, imageContentPart(image)] : prompt
+);
+
 const isRetryableOpenAiStatus = (status) => status === 429 || status >= 500;
 
 const openAiError = (status, message, modelName) => {
@@ -40,7 +69,9 @@ const openAiError = (status, message, modelName) => {
 
 async function connectOpenAi(prompt, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
-  const modelName = options.modelName || DEFAULT_MODEL_NAME;
+  const image = options.image || null;
+  const modelName = options.modelName
+    || (image ? process.env.OPENAI_VISION_MODEL || DEFAULT_MODEL_NAME : DEFAULT_MODEL_NAME);
 
   if (!apiKey) {
     logger.error("OPENAI_API_KEY is not set in environment variables");
@@ -56,11 +87,10 @@ async function connectOpenAi(prompt, options = {}) {
   }
 
   if (options.imageUrls?.length) {
-    const error = new Error("Image input is not supported.");
-    error.status = 400;
-    throw error;
+    throw invalidInput("Image input is not supported.");
   }
 
+  const content = messageContent(prompt, image);
   const baseUrl = String(process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
   const modelsToTry = [modelName, process.env.OPENAI_FALLBACK_MODEL]
     .filter((model, index, all) => model && all.indexOf(model) === index);
@@ -79,7 +109,7 @@ async function connectOpenAi(prompt, options = {}) {
         body: JSON.stringify({
           model: candidateModel,
           service_tier: "default",
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content }],
         }),
         signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS()),
       });

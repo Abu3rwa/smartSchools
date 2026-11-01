@@ -275,6 +275,7 @@ export const useVoiceTutor = () => {
                     emphasis: data.emphasis,
                     blocks: data.blocks,
                     followUp: data.followUp,
+                    options: data.options,
                     questionType: data.questionType,
                     stage: data.stage,
                     at: new Date().toISOString(),

@@ -3,10 +3,15 @@ import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
 
 const voiceBlockSchema = new mongoose.Schema(
   {
-    // bullets | contrast | example | steps | keyIdea
+    // bullets | contrast | example | steps | keyIdea | compare | evidence | timeline | mistake | recap | math
     type: { type: String, required: true },
     text: { type: String, default: "" },
-    // bullets and steps hold strings; contrast holds { word, text }.
+    // evidence: the lesson the quote came from. mistake: the fix. math: the words the voice says.
+    source: { type: String, default: "" },
+    fix: { type: String, default: "" },
+    spoken: { type: String, default: "" },
+    // bullets, steps and recap hold strings; contrast holds { word, text };
+    // compare holds { heading, points }; timeline holds { label, text }.
     items: { type: [mongoose.Schema.Types.Mixed], default: [] },
   },
   { _id: false },
@@ -22,6 +27,8 @@ const voiceMessageSchema = new mongoose.Schema(
     blocks: { type: [voiceBlockSchema], default: [] },
     points: [{ type: String }],
     followUp: { type: String, default: "" },
+    // The answer choices of a multiple-choice question; the question itself is followUp.
+    options: [{ type: String }],
     questionType: { type: String, default: "" },
     stage: { type: String, default: "" },
     lessonIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "TutorLesson" }],

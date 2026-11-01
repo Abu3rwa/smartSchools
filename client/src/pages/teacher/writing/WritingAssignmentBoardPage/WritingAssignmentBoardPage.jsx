@@ -1,6 +1,11 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { HiOutlineArrowLeft, HiOutlinePencilAlt, HiOutlineSearch, HiOutlineSparkles } from "react-icons/hi";
+import {
+  HiOutlineArrowLeft,
+  HiOutlinePencilAlt,
+  HiOutlineSearch,
+  HiOutlineSparkles,
+} from "react-icons/hi";
 import { stageTone } from "../../../../utils/writingWorkflow.js";
 import {
   formatDate,
@@ -9,6 +14,7 @@ import {
   teacherNextStepKey,
 } from "./boardPresentation.js";
 import ReviewPanel from "./ReviewPanel.jsx";
+import PasteAttempts from "./PasteAttempts.jsx";
 import CreditChip from "../components/CreditChip.jsx";
 import { useWritingBoardData } from "./hooks/useWritingBoardData.js";
 import "../writingShared.css";
@@ -61,22 +67,34 @@ export default function WritingAssignmentBoardPage() {
     );
   }
 
-  const labelFor = (section) => section.label
-    || (assignment?.sections || []).find((item) => item.key === section.key)?.label
-    || section.key;
+  const labelFor = (section) =>
+    section.label ||
+    (assignment?.sections || []).find((item) => item.key === section.key)
+      ?.label ||
+    section.key;
 
   return (
     <div className="wa-page wa-board">
       <div className="wa-head">
         <div>
-          <button type="button" className="btn btn-ghost btn-sm wa-back" onClick={onBack}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm wa-back"
+            onClick={onBack}
+          >
             <HiOutlineArrowLeft size={16} aria-hidden="true" />
             {t("writing:common.back")}
           </button>
           <h1>{assignment?.title || t("writing:teacher.board.title")}</h1>
           <p className="wa-sub">
             {t(`writing:teacher.types.${assignment?.writingType}`)}
-            {assignment?.dueDate && <> · {t("writing:teacher.due")} {formatDate(assignment.dueDate, i18n.language)}</>}
+            {assignment?.dueDate && (
+              <>
+                {" "}
+                · {t("writing:teacher.due")}{" "}
+                {formatDate(assignment.dueDate, i18n.language)}
+              </>
+            )}
             {assignment?.expectedLevel && <> · {assignment.expectedLevel}</>}
           </p>
         </div>
@@ -92,7 +110,9 @@ export default function WritingAssignmentBoardPage() {
               <HiOutlineSparkles size={16} aria-hidden="true" />
               {batchPending
                 ? t("writing:teacher.review.assessing")
-                : t("writing:teacher.review.batch", { n: summary.awaitingAssessment })}
+                : t("writing:teacher.review.batch", {
+                    n: summary.awaitingAssessment,
+                  })}
             </button>
           )}
           <button type="button" className="btn btn-secondary" onClick={onEdit}>
@@ -106,19 +126,29 @@ export default function WritingAssignmentBoardPage() {
         <div className="wa-stats">
           <div className="wa-stat">
             <span className="wa-stat-value">{summary.total}</span>
-            <span className="wa-stat-label">{t("writing:teacher.board.students")}</span>
+            <span className="wa-stat-label">
+              {t("writing:teacher.board.students")}
+            </span>
           </div>
           <div className="wa-stat">
             <span className="wa-stat-value">{summary.notStarted}</span>
-            <span className="wa-stat-label">{t("writing:teacher.board.notStarted")}</span>
+            <span className="wa-stat-label">
+              {t("writing:teacher.board.notStarted")}
+            </span>
           </div>
           <div className="wa-stat">
-            <span className="wa-stat-value">{rows.filter((row) => row.draftCount > 0).length}</span>
-            <span className="wa-stat-label">{t("writing:teacher.board.withDrafts")}</span>
+            <span className="wa-stat-value">
+              {rows.filter((row) => row.draftCount > 0).length}
+            </span>
+            <span className="wa-stat-label">
+              {t("writing:teacher.board.withDrafts")}
+            </span>
           </div>
           <div className="wa-stat">
             <span className="wa-stat-value">{summary.completed}</span>
-            <span className="wa-stat-label">{t("writing:teacher.board.completed")}</span>
+            <span className="wa-stat-label">
+              {t("writing:teacher.board.completed")}
+            </span>
           </div>
         </div>
       )}
@@ -159,14 +189,24 @@ export default function WritingAssignmentBoardPage() {
       <div className="wa-board-body">
         <div className="wa-table-card">
           <table className="wa-table">
-            <caption className="wa-sr-only">{t("writing:teacher.board.caption")}</caption>
+            <caption className="wa-sr-only">
+              {t("writing:teacher.board.caption")}
+            </caption>
             <thead>
               <tr>
-                <th scope="col">{t("writing:teacher.board.columns.student")}</th>
+                <th scope="col">
+                  {t("writing:teacher.board.columns.student")}
+                </th>
                 <th scope="col">{t("writing:teacher.board.columns.stage")}</th>
-                <th scope="col" className="wa-cell-number">{t("writing:teacher.board.columns.drafts")}</th>
-                <th scope="col" className="wa-cell-number">{t("writing:teacher.board.columns.words")}</th>
-                <th scope="col" className="wa-cell-date">{t("writing:teacher.board.columns.lastEdit")}</th>
+                <th scope="col" className="wa-cell-number">
+                  {t("writing:teacher.board.columns.drafts")}
+                </th>
+                <th scope="col" className="wa-cell-number">
+                  {t("writing:teacher.board.columns.words")}
+                </th>
+                <th scope="col" className="wa-cell-date">
+                  {t("writing:teacher.board.columns.lastEdit")}
+                </th>
                 <th scope="col">{t("writing:teacher.board.columns.next")}</th>
               </tr>
             </thead>
@@ -174,16 +214,37 @@ export default function WritingAssignmentBoardPage() {
               {rows.map((row) => (
                 <tr
                   key={row.studentId}
-                  className={projectId === row.projectId && row.projectId ? "is-selected" : undefined}
+                  className={
+                    projectId === row.projectId && row.projectId
+                      ? "is-selected"
+                      : undefined
+                  }
                   onClick={() => row.projectId && openStudent(row.projectId)}
                   tabIndex={row.projectId ? 0 : -1}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && row.projectId) openStudent(row.projectId);
+                    if (event.key === "Enter" && row.projectId)
+                      openStudent(row.projectId);
                   }}
                 >
                   <td>
                     <span className="wa-student-name">{row.name}</span>
-                    {row.studentIdCode && <span className="wa-student-code">{row.studentIdCode}</span>}
+                    {row.studentIdCode && (
+                      <span className="wa-student-code">
+                        {row.studentIdCode}
+                      </span>
+                    )}
+                    {row.pasteAttempts > 0 && (
+                      <span
+                        className="wa-paste-badge"
+                        title={t("writing:teacher.paste.title", {
+                          count: row.pasteAttempts,
+                        })}
+                      >
+                        {t("writing:teacher.paste.badge", {
+                          count: row.pasteAttempts,
+                        })}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className={`wa-stage ${stageTone(row.stage)}`}>
@@ -192,19 +253,24 @@ export default function WritingAssignmentBoardPage() {
                   </td>
                   <td className="wa-cell-number">{row.draftCount}</td>
                   <td className="wa-cell-number">{row.wordCount}</td>
-                  <td className="wa-cell-date">{formatDateTime(row.lastEditedAt, i18n.language) || "—"}</td>
-                  <td>{t(`writing:teacher.board.next.${teacherNextStepKey(row)}`)}</td>
+                  <td className="wa-cell-date">
+                    {formatDateTime(row.lastEditedAt, i18n.language) || "—"}
+                  </td>
+                  <td>
+                    {t(`writing:teacher.board.next.${teacherNextStepKey(row)}`)}
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="wa-table-empty">{t("writing:teacher.board.noRows")}</td>
+                  <td colSpan={6} className="wa-table-empty">
+                    {t("writing:teacher.board.noRows")}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-
       </div>
 
       {projectId && (
@@ -219,56 +285,100 @@ export default function WritingAssignmentBoardPage() {
             <header className="wa-modal-head">
               <div className="wa-modal-id">
                 <h2 id="wa-review-title">
-                  {history?.project?.student?.name || t("writing:teacher.board.loading")}
+                  {history?.project?.student?.name ||
+                    t("writing:teacher.board.loading")}
                 </h2>
                 {history && (
                   <p className="wa-sub">
-                    {t("writing:teacher.board.draftsIn", { n: history.drafts.length })}
+                    {t("writing:teacher.board.draftsIn", {
+                      n: history.drafts.length,
+                    })}
                     {" · "}
                     {t(`writing:teacher.stages.${history.project.stage}`)}
                   </p>
                 )}
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => openStudent("")} autoFocus>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => openStudent("")}
+                autoFocus
+              >
                 {t("writing:teacher.board.closePanel")}
               </button>
             </header>
 
             {historyLoading && (
-              <div className="wa-modal-loading"><div className="spinner" /></div>
+              <div className="wa-modal-loading">
+                <div className="spinner" />
+              </div>
             )}
 
             {!historyLoading && history && (
               <div className="wa-modal-body">
                 <div className="wa-modal-main">
                   {history.tracker?.length > 0 && (
-                    <ol className="wa-tracker" aria-label={t("writing:student.progressAria")}>
+                    <ol
+                      className="wa-tracker"
+                      aria-label={t("writing:student.progressAria")}
+                    >
                       {history.tracker.map((step) => (
-                        <li key={step.key} className={`wa-tracker-step is-${step.state}`}>
+                        <li
+                          key={step.key}
+                          className={`wa-tracker-step is-${step.state}`}
+                        >
                           {t(`writing:student.tracker.${step.key}`)}
                         </li>
                       ))}
                     </ol>
                   )}
-                  <ReviewPanel history={history} onChanged={refresh} emailDelivery={emailDelivery} />
+                  <PasteAttempts history={history} />
+                  <ReviewPanel
+                    history={history}
+                    onChanged={refresh}
+                    emailDelivery={emailDelivery}
+                  />
                 </div>
 
-                <aside className="wa-modal-side" aria-label={t("writing:teacher.board.draftsPanel")}>
-                  <h3 className="wa-modal-side-title">{t("writing:teacher.board.draftsPanel")}</h3>
+                <aside
+                  className="wa-modal-side"
+                  aria-label={t("writing:teacher.board.draftsPanel")}
+                >
+                  <h3 className="wa-modal-side-title">
+                    {t("writing:teacher.board.draftsPanel")}
+                  </h3>
                   {history.drafts.length === 0 && (
-                    <p className="wa-hint">{t("writing:teacher.board.noDraftsYet")}</p>
+                    <p className="wa-hint">
+                      {t("writing:teacher.board.noDraftsYet")}
+                    </p>
                   )}
                   {history.drafts.map((draft) => (
                     <section className="wa-draft" key={draft._id}>
                       <header>
-                        <h4>{t("writing:teacher.board.draftNumber", { n: draft.number })}</h4>
-                        <span>{t("writing:teacher.board.words", { n: draft.totalWords || 0 })}</span>
+                        <h4>
+                          {t("writing:teacher.board.draftNumber", {
+                            n: draft.number,
+                          })}
+                        </h4>
+                        <span>
+                          {t("writing:teacher.board.words", {
+                            n: draft.totalWords || 0,
+                          })}
+                        </span>
                       </header>
-                      <p className="wa-draft-time">{formatDateTime(draft.submittedAt, i18n.language)}</p>
+                      <p className="wa-draft-time">
+                        {formatDateTime(draft.submittedAt, i18n.language)}
+                      </p>
                       {(draft.sections || []).map((section) => (
-                        <div className="wa-draft-section" key={`${section.key}-${section.index}`}>
+                        <div
+                          className="wa-draft-section"
+                          key={`${section.key}-${section.index}`}
+                        >
                           <h5>{labelFor(section)}</h5>
-                          <p>{String(section.text || "").trim() || t("writing:teacher.board.emptySection")}</p>
+                          <p>
+                            {String(section.text || "").trim() ||
+                              t("writing:teacher.board.emptySection")}
+                          </p>
                         </div>
                       ))}
                     </section>

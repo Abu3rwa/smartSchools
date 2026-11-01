@@ -117,6 +117,11 @@
     "yourTurn": "دورك",
     "answerPlaceholder": "اكتب إجابتك",
     "sendAnswer": "إرسال",
+    "yes": "نعم",
+    "no": "لا",
+    "yesNoLabel": "أجب بنعم أو لا",
+    "yesNoHint": "أو اضغط على الميكروفون لتشرح السبب",
+    "backToLatest": "العودة إلى الأحدث",
     "holdToTalk": "اضغط مع الاستمرار لتتحدّث",
     "releaseSend": "أفلت للإرسال",
     "replayHint": "اضغط مرة واحدة للإعادة",
@@ -130,7 +135,12 @@
     },
     "blockLabels": {
       "example": "مثال",
-      "keyIdea": "الفكرة الأساسية"
+      "keyIdea": "الفكرة الأساسية",
+      "timeline": "بالترتيب",
+      "recap": "ملخص سريع",
+      "evidence": "من درسك",
+      "mistake": "انتبه",
+      "mistakeFix": "بدلًا من ذلك:"
     },
     "waiting": {
       "join": "دعني أجمع ذلك…",

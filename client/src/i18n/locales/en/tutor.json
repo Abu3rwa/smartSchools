@@ -117,6 +117,11 @@
     "yourTurn": "Your turn",
     "answerPlaceholder": "Type your answer",
     "sendAnswer": "Send",
+    "yes": "Yes",
+    "no": "No",
+    "yesNoLabel": "Answer yes or no",
+    "yesNoHint": "Or hold the mic to say why",
+    "backToLatest": "Back to latest",
     "holdToTalk": "Hold to talk",
     "releaseSend": "Release to send",
     "replayHint": "Tap once to replay",
@@ -130,7 +135,12 @@
     },
     "blockLabels": {
       "example": "Example",
-      "keyIdea": "Key idea"
+      "keyIdea": "Key idea",
+      "timeline": "In order",
+      "recap": "Quick recap",
+      "evidence": "From your lesson",
+      "mistake": "Watch out",
+      "mistakeFix": "Instead:"
     },
     "waiting": {
       "join": "Let me put that together…",

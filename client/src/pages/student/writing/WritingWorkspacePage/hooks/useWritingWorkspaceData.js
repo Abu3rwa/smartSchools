@@ -3,13 +3,21 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
+import { formatPasteTime, watchPaste } from "../pasteGuard.js";
 
-const EMPTY = { project: null, assignment: null, drafts: [], feedback: [], tracker: [], nextAction: null };
+const EMPTY = {
+  project: null,
+  assignment: null,
+  drafts: [],
+  feedback: [],
+  tracker: [],
+  nextAction: null,
+};
 
 export function useWritingWorkspaceData() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation(["writing"]);
+  const { t, i18n } = useTranslation(["writing"]);
 
   const [data, setData] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -24,7 +32,8 @@ export function useWritingWorkspaceData() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    writingService.getProject(projectId)
+    writingService
+      .getProject(projectId)
       .then((payload) => {
         if (!active) return;
         setData(payload);
@@ -35,23 +44,29 @@ export function useWritingWorkspaceData() {
       })
       .catch((error) => {
         if (active) {
-          toast.error(error?.response?.data?.message || t("writing:student.loadFailed"));
+          toast.error(
+            error?.response?.data?.message || t("writing:student.loadFailed"),
+          );
           navigate("/portal/writing");
         }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [attempt, navigate, projectId, t]);
 
   const readOnly = useMemo(() => {
     const stage = data.project?.stage;
-    return stage === "submitted"
-      || stage === "feedback_ready"
-      || stage === "ready_for_notebook"
-      || stage === "awaiting_notebook_check"
-      || stage === "completed";
+    return (
+      stage === "submitted" ||
+      stage === "feedback_ready" ||
+      stage === "ready_for_notebook" ||
+      stage === "awaiting_notebook_check" ||
+      stage === "completed"
+    );
   }, [data.project?.stage]);
 
   // What the next save sends; kept in an effect so leaving the page can still flush it.
@@ -69,16 +84,25 @@ export function useWritingWorkspaceData() {
       dirty.current = false;
       setSaveState("saving");
       try {
-        const result = await writingService.autosave(projectId, payload.current);
+        const result = await writingService.autosave(
+          projectId,
+          payload.current,
+        );
         setSavedAt(result.savedAt);
         setSaveState("saved");
         setData((current) => ({
           ...current,
-          project: { ...current.project, stage: result.stage, wordCount: result.wordCount },
+          project: {
+            ...current.project,
+            stage: result.stage,
+            wordCount: result.wordCount,
+          },
         }));
       } catch (error) {
         setSaveState("idle");
-        toast.error(error?.response?.data?.message || t("writing:student.saveFailed"));
+        toast.error(
+          error?.response?.data?.message || t("writing:student.saveFailed"),
+        );
       }
     }, 1200);
     return () => {
@@ -87,52 +111,108 @@ export function useWritingWorkspaceData() {
   }, [loading, projectId, readOnly, t, title, working]);
 
   // Navigating away inside the debounce window must not swallow the last keystrokes.
-  useEffect(() => () => {
-    if (!dirty.current) return;
-    dirty.current = false;
-    writingService.autosave(projectId, payload.current).catch(() => {});
-  }, [projectId]);
+  useEffect(
+    () => () => {
+      if (!dirty.current) return;
+      dirty.current = false;
+      writingService.autosave(projectId, payload.current).catch(() => {});
+    },
+    [projectId],
+  );
 
   const markDirty = useCallback(() => {
     dirty.current = true;
     setSaveState("pending");
   }, []);
 
-  const editSection = useCallback((id, text) => {
-    setWorking((current) => current.map((row) => (
-      `${row.key}:${row.index}` === id ? { ...row, text } : row
-    )));
-    markDirty();
-  }, [markDirty]);
+  const editSection = useCallback(
+    (id, text) => {
+      setWorking((current) =>
+        current.map((row) =>
+          `${row.key}:${row.index}` === id ? { ...row, text } : row,
+        ),
+      );
+      markDirty();
+    },
+    [markDirty],
+  );
 
-  const editTitle = useCallback((value) => {
-    setTitle(value);
-    markDirty();
-  }, [markDirty]);
+  const editTitle = useCallback(
+    (value) => {
+      setTitle(value);
+      markDirty();
+    },
+    [markDirty],
+  );
 
-  const addSlot = useCallback((definition) => {
-    setWorking((current) => {
-      const used = current.filter((row) => row.key === definition.key)
-        .map((row) => Number(row.index) || 0);
-      const next = used.length ? Math.max(...used) + 1 : 0;
-      return [...current, { key: definition.key, index: next, text: "" }];
+  // Pasting is refused everywhere on the page; the server keeps the time and the text.
+  useEffect(() => {
+    let last = { at: 0, text: "" };
+    return watchPaste(({ key, index, text }) => {
+      const now = Date.now();
+      if (now - last.at < 500 && last.text === text) return;
+      last = { at: now, text };
+      const attemptedAt = new Date();
+      writingService
+        .reportPaste(projectId, {
+          key,
+          index,
+          text: text.slice(0, 2000),
+          chars: text.length,
+        })
+        .then((result) => (result?.at ? new Date(result.at) : attemptedAt))
+        .catch(() => attemptedAt)
+        .then((at) => {
+          toast.error(
+            t("writing:student.pasteBlocked", {
+              time: formatPasteTime(at, i18n.language),
+              text: text
+                ? `“${text.length > 200 ? `${text.slice(0, 200)}…` : text}”`
+                : t("writing:student.pasteFlagNoText"),
+            }),
+            { duration: 10000 },
+          );
+        });
     });
-    markDirty();
-  }, [markDirty]);
+  }, [i18n.language, projectId, t]);
 
-  const removeSlot = useCallback((id) => {
-    setWorking((current) => current.filter((row) => `${row.key}:${row.index}` !== id));
-    markDirty();
-  }, [markDirty]);
+  const addSlot = useCallback(
+    (definition) => {
+      setWorking((current) => {
+        const used = current
+          .filter((row) => row.key === definition.key)
+          .map((row) => Number(row.index) || 0);
+        const next = used.length ? Math.max(...used) + 1 : 0;
+        return [...current, { key: definition.key, index: next, text: "" }];
+      });
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const removeSlot = useCallback(
+    (id) => {
+      setWorking((current) =>
+        current.filter((row) => `${row.key}:${row.index}` !== id),
+      );
+      markDirty();
+    },
+    [markDirty],
+  );
 
   const submit = useCallback(async () => {
     dirty.current = false;
     if (timer.current) clearTimeout(timer.current);
     setSaveState("idle");
     try {
-      return await writingService.submit(projectId, { title, sections: working });
+      return await writingService.submit(projectId, {
+        title,
+        sections: working,
+      });
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:student.submitFailed"));
+      toast.error(
+        error?.response?.data?.message || t("writing:student.submitFailed"),
+      );
       return null;
     }
   }, [projectId, t, title, working]);
@@ -142,7 +222,9 @@ export function useWritingWorkspaceData() {
       await writingService.markNotebookWritten(projectId);
       return true;
     } catch (error) {
-      toast.error(error?.response?.data?.message || t("writing:student.notebookFailed"));
+      toast.error(
+        error?.response?.data?.message || t("writing:student.notebookFailed"),
+      );
       return false;
     }
   }, [projectId, t]);
@@ -150,17 +232,27 @@ export function useWritingWorkspaceData() {
   const latestDraft = data.drafts[data.drafts.length - 1] || null;
   // A published comparison sits in the same list as feedback; they are different views.
   const feedback = useMemo(
-    () => data.feedback.find((row) => (
-      latestDraft && row.draftId === latestDraft.id && row.kind !== "comparison"
-    )) || null,
+    () =>
+      data.feedback.find(
+        (row) =>
+          latestDraft &&
+          row.draftId === latestDraft.id &&
+          row.kind !== "comparison",
+      ) || null,
     [data.feedback, latestDraft],
   );
-  const comparison = useMemo(
-    () => data.feedback.find((row) => (
-      latestDraft && row.draftId === latestDraft.id && row.kind === "comparison"
-    )) || null,
-    [data.feedback, latestDraft],
-  );
+  const comparison = useMemo(() => {
+    // Feedback on a revision already carries its comparison; older rounds published one apart.
+    if (feedback?.previousDraftId) return feedback;
+    return (
+      data.feedback.find(
+        (row) =>
+          latestDraft &&
+          row.draftId === latestDraft.id &&
+          row.kind === "comparison",
+      ) || null
+    );
+  }, [data.feedback, feedback, latestDraft]);
 
   return {
     addSlot,

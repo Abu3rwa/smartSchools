@@ -18,24 +18,32 @@ export function FeedbackForSection({ note, number = 0 }) {
   return (
     <div className={`ws-feedback-block${anchored ? " is-anchored" : ""}`}>
       <p className="ws-feedback-label">
-        {anchored
-          ? <span className="ws-badge">{number}</span>
-          : <HiOutlineChat size={15} aria-hidden="true" />}
+        {anchored ? (
+          <span className="ws-badge">{number}</span>
+        ) : (
+          <HiOutlineChat size={15} aria-hidden="true" />
+        )}
         {t("writing:student.feedbackOnThisPart")}
       </p>
       {note.strengths?.length > 0 && (
         <p className="ws-feedback-line is-good">
           <HiOutlineCheckCircle size={16} aria-hidden="true" />
-          <span>{t("writing:student.workedWell")}: {note.strengths.join(" · ")}</span>
+          <span>
+            {t("writing:student.workedWell")}: {note.strengths.join(" · ")}
+          </span>
         </p>
       )}
       {action && (
         <p className="ws-feedback-line is-action">
           <HiOutlineLightBulb size={16} aria-hidden="true" />
-          <span>{t("writing:student.tryThis")}: {action}</span>
+          <span>
+            {t("writing:student.tryThis")}: {action}
+          </span>
         </p>
       )}
-      {!anchored && note.evidence && <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>}
+      {!anchored && note.evidence && (
+        <blockquote className="ws-feedback-quote">{note.evidence}</blockquote>
+      )}
       {note.why && <p className="ws-feedback-why">{note.why}</p>}
     </div>
   );
@@ -63,24 +71,34 @@ export default function SectionCard({
         <h3>{definition?.label || section.label || definition?.key}</h3>
         <span className={`ws-count${short ? " is-short" : ""}`}>
           {t("writing:student.words", { n: words })}
-          {minWords > 0 && <> / {t("writing:student.minWords", { n: minWords })}</>}
+          {minWords > 0 && (
+            <> / {t("writing:student.minWords", { n: minWords })}</>
+          )}
         </span>
       </header>
 
-      {definition?.instructions && <p className="ws-section-help">{definition.instructions}</p>}
+      {definition?.instructions && (
+        <p className="ws-section-help">{definition.instructions}</p>
+      )}
 
       <textarea
         value={section.text}
         readOnly={readOnly}
         rows={Math.min(14, Math.max(5, Math.ceil(words / 12)))}
-        onChange={(event) => onChange(section.key, section.index, event.target.value)}
+        onChange={(event) =>
+          onChange(section.key, section.index, event.target.value)
+        }
+        data-paste-key={section.key}
+        data-paste-index={section.index}
         placeholder={t("writing:student.sectionPlaceholder")}
         aria-label={definition?.label || section.key}
       />
 
       {definition?.criteria?.length > 0 && (
         <ul className="ws-criteria">
-          {definition.criteria.map((item) => <li key={item}>{item}</li>)}
+          {definition.criteria.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
         </ul>
       )}
 
@@ -89,13 +107,23 @@ export default function SectionCard({
       {!readOnly && (
         <div className="ws-section-actions">
           {canAdd && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onAdd}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={onAdd}
+            >
               <HiOutlinePlus size={15} aria-hidden="true" />
-              {t("writing:student.addAnother", { label: definition?.label || section.key })}
+              {t("writing:student.addAnother", {
+                label: definition?.label || section.key,
+              })}
             </button>
           )}
           {canRemove && (
-            <button type="button" className="btn btn-ghost btn-sm ws-remove" onClick={onRemove}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm ws-remove"
+              onClick={onRemove}
+            >
               <HiOutlineTrash size={15} aria-hidden="true" />
               {t("writing:student.removeSection")}
             </button>

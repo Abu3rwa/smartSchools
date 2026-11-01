@@ -1,23 +1,29 @@
 /** Presentation helpers for the teacher assessment drawer. No React, no requests. */
 
-export const splitLines = (value) => String(value || "")
-  .split("\n")
-  .map((line) => line.trim())
-  .filter(Boolean);
+export const splitLines = (value) =>
+  String(value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-export const joinLines = (value) => (Array.isArray(value) ? value.join("\n") : "");
+export const joinLines = (value) =>
+  Array.isArray(value) ? value.join("\n") : "";
 
 /** The newest assessment of one kind for a draft. History arrives newest first. */
-export const latestForDraft = (assessments, draftId, kind) => (
+export const latestForDraft = (assessments, draftId, kind) =>
   (assessments || []).find(
     (row) => String(row.draft) === String(draftId) && row.kind === kind,
-  ) || null
-);
+  ) || null;
 
 export const publishedFeedbackForEmail = (assessments = []) => {
   const drafts = new Set();
   return assessments.filter((row) => {
-    if (row.kind !== "feedback" || row.aiStatus !== "done" || row.publish?.state !== "published") return false;
+    if (
+      row.kind !== "feedback" ||
+      row.aiStatus !== "done" ||
+      row.publish?.state !== "published"
+    )
+      return false;
     const draft = String(row.draft);
     if (drafts.has(draft)) return false;
     drafts.add(draft);
@@ -29,7 +35,8 @@ export const publishedFeedbackForEmail = (assessments = []) => {
 export const STALE_ASSESSMENT_MS = 5 * 60 * 1000;
 
 export const isStaleAssessment = (assessment, now = Date.now()) => {
-  if (!assessment || !["pending", "running"].includes(assessment.aiStatus)) return false;
+  if (!assessment || !["pending", "running"].includes(assessment.aiStatus))
+    return false;
   const stamp = assessment.updatedAt || assessment.createdAt;
   if (!stamp) return false;
   return new Date(stamp).getTime() < now - STALE_ASSESSMENT_MS;
@@ -38,7 +45,9 @@ export const isStaleAssessment = (assessment, now = Date.now()) => {
 export const formFromAssessment = (assessment) => {
   if (!assessment) return null;
   const overall = assessment.overall || {};
-  const priorities = Array.isArray(overall.nextPriorities) ? overall.nextPriorities : [];
+  const priorities = Array.isArray(overall.nextPriorities)
+    ? overall.nextPriorities
+    : [];
   const comparison = assessment.comparison || {};
   return {
     summary: overall.summary || "",
@@ -68,14 +77,17 @@ export const formFromAssessment = (assessment) => {
       explanation: row.explanation || "",
       evidence: row.evidence || "",
     })),
-    path: assessment.recommendation?.path === "notebook" ? "notebook" : "revise",
+    path:
+      assessment.recommendation?.path === "notebook" ? "notebook" : "revise",
     reason: assessment.recommendation?.reason || "",
     spellingTargets: (assessment.spellingTargets || []).map((row) => ({
       word: row.word || "",
       grade: row.grade || "",
       week: Number(row.week) || 0,
     })),
-    spellingWins: (assessment.spellingWins || []).map((row) => row.word).filter(Boolean),
+    spellingWins: (assessment.spellingWins || [])
+      .map((row) => row.word)
+      .filter(Boolean),
     comparison: {
       encouragement: comparison.encouragement || "",
       improvedText: joinLines(comparison.criteriaImproved),
@@ -97,7 +109,10 @@ export const formFromAssessment = (assessment) => {
       })),
       taskResults: (comparison.taskResults || []).map((row) => ({
         id: row.id,
-        text: (assessment.tasks || []).find((task) => task.id === row.id)?.text || row.id,
+        text:
+          row.text ||
+          (assessment.tasks || []).find((task) => task.id === row.id)?.text ||
+          row.id,
         note: row.note || "",
         applied: row.applied === true,
       })),
@@ -118,7 +133,9 @@ export const payloadFromForm = (form) => {
       flow: form.flow,
       repetition: form.repetition,
       requirements: form.requirements,
-      nextPriorities: form.priorities.map((row) => String(row || "").trim()).filter(Boolean),
+      nextPriorities: form.priorities
+        .map((row) => String(row || "").trim())
+        .filter(Boolean),
     },
     sections: (form.sections || []).map((row) => ({
       key: row.key,
@@ -141,17 +158,21 @@ export const payloadFromForm = (form) => {
       reason: form.reason,
     },
     // The server keeps only the words it already approved; this list can shrink.
-    spellingTargets: (form.spellingTargets || []).map((row) => ({ word: row.word })),
+    spellingTargets: (form.spellingTargets || []).map((row) => ({
+      word: row.word,
+    })),
     comparison: {
       encouragement: form.comparison?.encouragement || "",
       criteriaImproved: splitLines(form.comparison?.improvedText),
       criteriaUnresolved: splitLines(form.comparison?.unresolvedText),
       newIssues: splitLines(form.comparison?.newIssuesText),
-      changedBySection: (form.comparison?.changedBySection || []).map((row) => ({
-        key: row.key,
-        index: row.index,
-        summary: row.summary,
-      })),
+      changedBySection: (form.comparison?.changedBySection || []).map(
+        (row) => ({
+          key: row.key,
+          index: row.index,
+          summary: row.summary,
+        }),
+      ),
       feedbackApplied: (form.comparison?.feedbackApplied || []).map((row) => ({
         key: row.key,
         index: row.index,
