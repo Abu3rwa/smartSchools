@@ -59,6 +59,7 @@ export const readingService = {
 
   // Student: reading gate timer
   startReading: (body) => api.post("/reading/read-start", body),
+  recordReadingHeartbeat: (body) => api.post("/reading/read-heartbeat", body),
   finishReading: (body) => api.post("/reading/read-finish", body),
 
   // Student: update progress after quiz

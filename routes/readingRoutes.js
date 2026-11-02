@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
-import { aiFeatureRateLimiter, fluencyAttemptRateLimiter, fluencyListenRateLimiter } from '../middleware/rateLimiters.js';
+import { aiFeatureRateLimiter, fluencyAttemptRateLimiter, fluencyListenRateLimiter, readingHeartbeatRateLimiter } from '../middleware/rateLimiters.js';
 import { uploadFluencyAudio } from '../middleware/uploadReadingFluencyAudio.js';
 import {
   getFluencyAssignment,
@@ -29,6 +29,7 @@ import {
   getStudentLevel,
   startReading,
   finishReading,
+  recordReadingHeartbeat,
   updateProgress,
   evaluateCriticalThinkingAnswer,
   createAssignment,
@@ -78,6 +79,7 @@ router.get('/simplify/:textId/:studentId', authorize('teacher', 'admin'), getSim
 
 // Student: reading gate timer
 router.post('/read-start', authorize('student'), startReading);
+router.post('/read-heartbeat', authorize('student'), readingHeartbeatRateLimiter, recordReadingHeartbeat);
 router.post('/read-finish', authorize('student'), finishReading);
 
 // Student: assess level

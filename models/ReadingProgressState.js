@@ -9,6 +9,9 @@ const readingProgressStateSchema = new mongoose.Schema(
     text: { type: mongoose.Schema.Types.ObjectId, ref: 'SimplifiedText', required: true },
     readStartedAt: { type: Date, default: Date.now },
     readFinishedAt: { type: Date, default: null },
+    // Credited reading time, built from visible-tab heartbeats rather than wall clock.
+    readSeconds: { type: Number, default: 0, min: 0 },
+    lastBeatAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

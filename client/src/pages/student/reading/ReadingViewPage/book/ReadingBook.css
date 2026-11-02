@@ -148,7 +148,10 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 26px 38px 24px;
+  padding:
+    var(--book-page-pad-block, 26px)
+    var(--book-page-pad-inline, 38px)
+    var(--book-page-pad-bottom, 24px);
   overflow: hidden;
 }
 
@@ -791,10 +794,13 @@
   min-height: 0;
 }
 
+/* Pagination fills the page; the scrollbar is only a net for a stale measurement. */
 .book-passage-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .book-passage-body p {
@@ -814,8 +820,8 @@
 }
 
 .book-passage-body .reading-text {
-  font-size: 1.1rem;
-  line-height: 1.78;
+  font-size: var(--book-text-size, 1.1rem);
+  line-height: var(--book-text-line, 1.78);
 }
 
 .book-passage-body .reading-instruction {
@@ -1186,8 +1192,9 @@
 
 .book-measure-paragraph {
   font-family: var(--read-serif);
-  font-size: 1.1rem;
-  line-height: 1.78;
+  font-size: var(--book-text-size, 1.1rem);
+  line-height: var(--book-text-line, 1.78);
+  letter-spacing: 0.002em;
 }
 
 .book-measure-instruction {
@@ -1196,86 +1203,77 @@
 }
 
 /* ---------------------------------- Responsive ---------------------------------- */
-@media (max-width: 879px) {
-  .book-page-inner {
-    padding: 22px;
-  }
-
-  .book-passage-body .reading-text,
-  .book-measure-paragraph {
-    font-size: 1.02rem;
-    line-height: 1.74;
-  }
-
-  .book-cover-frame {
-    padding: 22px 18px;
-  }
-
-  .book-cover-stats {
-    margin-top: 16px;
-  }
-
-  .book-chapter-heading {
-    font-size: 1.4rem;
-  }
-
-  .book-toc-row {
-    gap: 9px;
-    padding: 8px 4px;
-  }
-
-  .book-toc-status {
-    font-size: .6rem;
-  }
-
-  .book-toc-score {
-    display: none;
-  }
+/* Layout follows the measured book width, never the window, so text flow and
+   page geometry always agree. Page padding and passage type come from the
+   variables above; only cosmetic sizing lives here. */
+.book-flip[data-layout="single"] .book-cover-frame,
+.book-flip[data-layout="compact"] .book-cover-frame {
+  padding: 22px 18px;
 }
 
-@media (max-width: 520px) {
-  .book-page-inner {
-    padding: 18px 16px 16px;
-  }
+.book-flip[data-layout="single"] .book-cover-stats,
+.book-flip[data-layout="compact"] .book-cover-stats {
+  margin-top: 16px;
+}
 
-  .book-page-topline {
-    font-size: .58rem;
-    margin-bottom: 9px;
-  }
+.book-flip[data-layout="single"] .book-chapter-heading,
+.book-flip[data-layout="compact"] .book-chapter-heading {
+  font-size: 1.4rem;
+}
 
-  .book-cover-name {
-    font-size: 1.6rem;
-  }
+.book-flip[data-layout="single"] .book-toc-row,
+.book-flip[data-layout="compact"] .book-toc-row {
+  gap: 9px;
+  padding: 8px 4px;
+}
 
-  .book-cover-stats {
-    gap: 12px;
-  }
+.book-flip[data-layout="single"] .book-toc-status,
+.book-flip[data-layout="compact"] .book-toc-status {
+  font-size: .6rem;
+}
 
-  .book-cover-stats strong {
-    font-size: 1.3rem;
-  }
+.book-flip[data-layout="single"] .book-toc-score,
+.book-flip[data-layout="compact"] .book-toc-score {
+  display: none;
+}
 
-  .book-toc-meta {
-    display: none;
-  }
+.book-flip[data-layout="compact"] .book-page-topline {
+  font-size: .58rem;
+  margin-bottom: 9px;
+}
 
-  .book-toc-status {
-    padding: 2px 6px;
-  }
+.book-flip[data-layout="compact"] .book-cover-name {
+  font-size: 1.6rem;
+}
 
-  .book-submit {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
+.book-flip[data-layout="compact"] .book-cover-stats {
+  gap: 12px;
+}
 
-  .book-submit .btn-primary {
-    width: 100%;
-  }
+.book-flip[data-layout="compact"] .book-cover-stats strong {
+  font-size: 1.3rem;
+}
 
-  .book-page .thinking-answer {
-    min-height: 88px;
-  }
+.book-flip[data-layout="compact"] .book-toc-meta {
+  display: none;
+}
+
+.book-flip[data-layout="compact"] .book-toc-status {
+  padding: 2px 6px;
+}
+
+.book-flip[data-layout="compact"] .book-submit {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.book-flip[data-layout="compact"] .book-submit .btn-primary {
+  width: 100%;
+}
+
+.book-flip[data-layout="compact"] .book-page .thinking-answer {
+  min-height: 88px;
 }
 
 @media (prefers-reduced-motion: reduce) {

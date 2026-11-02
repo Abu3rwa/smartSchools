@@ -39,6 +39,8 @@ export function useReadingViewData(options = {}) {
   const [submittedScore, setSubmittedScore] = useState(null);
   const [readingGate, setReadingGate] = useState(null);
   const [gateBaselineSeconds, setGateBaselineSeconds] = useState(0);
+  const [gateRequiredSeconds, setGateRequiredSeconds] = useState(null);
+  const [gateVisibleSeconds, setGateVisibleSeconds] = useState(0);
   const [gateFinishing, setGateFinishing] = useState(false);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
@@ -58,6 +60,8 @@ export function useReadingViewData(options = {}) {
     setSubmittedScore(null);
     setReadingGate(null);
     setGateBaselineSeconds(0);
+    setGateRequiredSeconds(null);
+    setGateVisibleSeconds(0);
     setGateFinishing(false);
     return undefined;
   }, [enabled, textId, routeAssignmentId]);
@@ -76,10 +80,10 @@ export function useReadingViewData(options = {}) {
           setCtAnswers(payload.savedAnswers || {});
           setQuizAnswers(payload.savedAnswers || {});
           setQuizSubmitted(Boolean(payload.completed));
-          const startedAt = payload.readingGate?.readStartedAt;
-          setGateBaselineSeconds(startedAt
-            ? Math.max(0, (Date.now() - new Date(startedAt).getTime()) / 1000)
-            : 0);
+          setGateBaselineSeconds(Number(payload.readingGate?.readSeconds) || 0);
+          setGateRequiredSeconds(Number.isFinite(Number(payload.readingGate?.requiredSeconds))
+            ? Number(payload.readingGate.requiredSeconds)
+            : null);
         } else {
           setError(action.payload || t('reading:view.loadFailed'));
         }
@@ -100,6 +104,27 @@ export function useReadingViewData(options = {}) {
   const criticalThinkingQuestions = useMemo(() => content?.criticalThinkingQuestions || [], [content]);
   const comprehensionQuestions = useMemo(() => content?.comprehensionQuestions || [], [content]);
   const score = submittedScore || content?.score || null;
+  const gateEnabled = Boolean(readingGate?.enabled && !readingGate?.unlocked && assignmentId);
+
+  const beatReading = useCallback(() => {
+    if (!assignmentId) return Promise.resolve(null);
+    return readingService
+      .recordReadingHeartbeat({ assignmentId })
+      .then((res) => {
+        const data = res.data?.data;
+        if (!data) return null;
+        if (Number.isFinite(Number(data.readSeconds))) {
+          setGateBaselineSeconds(Number(data.readSeconds));
+          setGateVisibleSeconds(0);
+        }
+        if (Number.isFinite(Number(data.requiredSeconds))) {
+          setGateRequiredSeconds(Number(data.requiredSeconds));
+        }
+        if (data.unlocked) setReadingGate((prev) => ({ ...(prev || {}), unlocked: true }));
+        return data;
+      })
+      .catch(() => null);
+  }, [assignmentId]);
 
   useEffect(() => {
     const incoming = content?.readingGate || null;
@@ -112,11 +137,10 @@ export function useReadingViewData(options = {}) {
         if (active && res.data?.data) {
           const started = res.data.data;
           setReadingGate((prev) => ({ ...(prev || {}), ...started }));
-          if (started.readStartedAt) {
-            setGateBaselineSeconds(Math.max(
-              0,
-              (Date.now() - new Date(started.readStartedAt).getTime()) / 1000
-            ));
+          setGateBaselineSeconds(Number(started.readSeconds) || 0);
+          setGateVisibleSeconds(0);
+          if (Number.isFinite(Number(started.requiredSeconds))) {
+            setGateRequiredSeconds(Number(started.requiredSeconds));
           }
         }
       })
@@ -126,11 +150,38 @@ export function useReadingViewData(options = {}) {
     };
   }, [content, assignmentId]);
 
-  const handleFinishReading = useCallback(async ({ level = null } = {}) => {
+  // The server owns credited time; ticking only smooths the countdown between beats.
+  useEffect(() => {
+    if (!gateEnabled) return undefined;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setGateVisibleSeconds((seconds) => seconds + 1);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [gateEnabled]);
+
+  useEffect(() => {
+    if (!gateEnabled) return undefined;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') beatReading();
+    }, 10000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') beatReading();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [gateEnabled, beatReading]);
+
+  const handleFinishReading = useCallback(async () => {
     if (!assignmentId) return false;
     setGateFinishing(true);
     try {
-      const res = await readingService.finishReading({ assignmentId, level });
+      await beatReading();
+      const res = await readingService.finishReading({ assignmentId });
       setReadingGate((prev) => ({ ...(prev || {}), ...(res.data?.data || {}), unlocked: true }));
       reload();
       return true;
@@ -145,7 +196,7 @@ export function useReadingViewData(options = {}) {
     } finally {
       setGateFinishing(false);
     }
-  }, [assignmentId, reload, t]);
+  }, [assignmentId, beatReading, reload, t]);
 
   const handleGetFeedback = useCallback(
     (index, question, textExcerpt) => {
@@ -235,7 +286,8 @@ export function useReadingViewData(options = {}) {
     quizSubmitted,
     progressSubmitting,
     readingGate,
-    gateBaselineSeconds,
+    gateElapsedSeconds: gateEnabled ? gateBaselineSeconds + gateVisibleSeconds : 0,
+    gateRequiredSeconds,
     gateFinishing,
     handleFinishReading,
   };

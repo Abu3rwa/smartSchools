@@ -11,6 +11,19 @@ export const bookDirection = ({ uiLanguage, textLanguage } = {}) => (
   isArabicLanguage(uiLanguage) || isArabicLanguage(textLanguage) ? 'rtl' : 'ltr'
 );
 
+export const SWIPE_MIN_DISTANCE = 48;
+
+/**
+ * A page turn from a horizontal gesture. Mouse drags are text selection, not
+ * swipes, so only touch and pen qualify.
+ */
+export const swipeDirection = ({ dx = 0, dy = 0, direction = 'ltr', pointerType } = {}) => {
+  if (pointerType !== 'touch' && pointerType !== 'pen') return null;
+  if (Math.abs(dx) < SWIPE_MIN_DISTANCE || Math.abs(dx) < Math.abs(dy)) return null;
+  const forward = direction === 'rtl' ? dx > 0 : dx < 0;
+  return forward ? 'next' : 'prev';
+};
+
 /** Translate an arrow key into a page turn, mirrored for right-to-left reading. */
 export const arrowAction = (key, direction) => {
   if (direction === 'rtl') {

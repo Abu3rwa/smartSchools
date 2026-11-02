@@ -1,0 +1,44 @@
+/* No header on the reading screen, so home floats instead of taking a bar. */
+.student-home-fab {
+    position: fixed;
+    z-index: 60;
+    inset-inline-end: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--text-primary);
+    box-shadow: 0 10px 24px -12px rgba(8, 15, 27, .45);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.student-home-fab:hover {
+    background: var(--primary-500);
+    border-color: var(--primary-500);
+    color: var(--on-accent);
+    transform: translateY(-1px);
+}
+
+.student-home-fab:focus-visible {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .student-home-fab {
+        transition: none;
+    }
+
+    .student-home-fab:hover {
+        transform: none;
+    }
+}

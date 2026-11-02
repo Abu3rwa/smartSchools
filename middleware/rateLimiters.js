@@ -57,6 +57,22 @@ export const fluencyAttemptRateLimiter = rateLimit({
 });
 
 /**
+ * Reading heartbeats arrive about every 10 seconds while a tab is visible.
+ * 20/minute allows the extra beat on tab focus and on finish.
+ */
+export const readingHeartbeatRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many reading updates. Please wait a moment and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Play taps are cheap and local, but a scripted loop must not reach the
  * database thousands of times; the service already dedupes within 20 seconds.
  */

@@ -33,13 +33,14 @@ import {
   countWords,
   gateLocksQuestions,
   mergeReadingGate,
+  recommendedWordCount,
   requiredReadSeconds,
-  sanitizeReadingGate,
-  wordCountForLevel
+  sanitizeReadingGate
 } from "./readingGate/settings.js";
 import {
   isAssignmentLocked,
   readingLockedError,
+  resolveOpenStudentAssignment,
   sanitizePublishPatch,
   sanitizePublishSettings
 } from "./readingGate/publish.js";
@@ -546,6 +547,16 @@ export async function getSimplifiedForStudent(
   const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
   if (!text) throw new Error("Text not found");
 
+  let targetLevel = 8;
+  const profile = await StudentReadingProfile.findOne({
+    school: schoolId,
+    student: studentId,
+  });
+  const hasMeasuredLevel = profile?.currentReadingLevel != null;
+  if (hasMeasuredLevel) {
+    targetLevel = profile.currentReadingLevel;
+  }
+
   let assignmentFluency = null;
   let readingGate = null;
   if (requireAssignment) {
@@ -594,7 +605,7 @@ export async function getSimplifiedForStudent(
           school: schoolId,
           student: studentId,
           assignment: assignment._id,
-        }).select("readStartedAt readFinishedAt").lean(),
+        }).select("readStartedAt readFinishedAt readSeconds").lean(),
         ReadingCompletion.exists({
           school: schoolId,
           student: studentId,
@@ -611,19 +622,11 @@ export async function getSimplifiedForStudent(
         ...gate,
         readStartedAt: state?.readStartedAt || null,
         readFinishedAt: state?.readFinishedAt || null,
+        readSeconds: Math.floor(creditedReadSeconds(state)),
+        requiredSeconds: requiredReadSeconds(gate, recommendedWordCount(text, targetLevel)),
         unlocked: Boolean(state?.readFinishedAt || completion || nothingToLock),
       };
     }
-  }
-
-  let targetLevel = 8;
-  const profile = await StudentReadingProfile.findOne({
-    school: schoolId,
-    student: studentId,
-  });
-  const hasMeasuredLevel = profile?.currentReadingLevel != null;
-  if (hasMeasuredLevel) {
-    targetLevel = profile.currentReadingLevel;
   }
 
   const attachVocabularyAudio = async (items, passageText) => {
@@ -833,6 +836,36 @@ const gateNotFinishedError = (remainingSeconds, requiredSeconds) => Object.assig
   }
 );
 
+export const HEARTBEAT_CAP_SECONDS = 15;
+const HEARTBEAT_MIN_GAP_SECONDS = 3;
+const FINISH_SLACK_SECONDS = 5;
+
+async function recommendedReadingLevel(schoolId, studentId) {
+  const profile = await StudentReadingProfile.findOne({
+    school: schoolId,
+    student: studentId,
+  }).select("currentReadingLevel").lean();
+  const level = Number(profile?.currentReadingLevel);
+  return Number.isFinite(level) ? level : 8;
+}
+
+/** The server decides the time from the student's level, never from the request. */
+async function requiredSecondsFor(schoolId, studentId, text, gate) {
+  const level = await recommendedReadingLevel(schoolId, studentId);
+  const wordCount = recommendedWordCount(text, level);
+  return { wordCount, requiredSeconds: requiredReadSeconds(gate, wordCount) };
+}
+
+/** States created before heartbeats existed only have a wall clock to fall back on. */
+function creditedReadSeconds(state, now = new Date()) {
+  const value = state?.readSeconds;
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+  if (state?.readStartedAt) {
+    return Math.max(0, (now.getTime() - new Date(state.readStartedAt).getTime()) / 1000);
+  }
+  return 0;
+}
+
 async function readingIsFinished(schoolId, studentId, assignmentId) {
   const [state, completion] = await Promise.all([
     ReadingProgressState.findOne({
@@ -869,7 +902,13 @@ export async function startReading(schoolId, studentId, assignmentId, academicYe
   if (isAssignmentLocked(assignment)) throw readingLockedError();
   const gate = mergeReadingGate(assignment.readingGate);
   if (!gate.enabled) {
-    return { ...gate, readStartedAt: null, readFinishedAt: null, unlocked: true };
+    return {
+      ...gate,
+      readStartedAt: null,
+      readFinishedAt: null,
+      readSeconds: 0,
+      unlocked: true,
+    };
   }
 
   const now = new Date();
@@ -884,6 +923,7 @@ export async function startReading(schoolId, studentId, assignmentId, academicYe
           assignment: assignment._id,
           text: assignment.text,
           readStartedAt: now,
+          lastBeatAt: now,
         },
       },
       { upsert: true, new: true }
@@ -896,10 +936,16 @@ export async function startReading(schoolId, studentId, assignmentId, academicYe
       assignment: assignment._id,
     }).lean();
   }
+  const text = await SimplifiedText.findOne({ _id: assignment.text, school: schoolId })
+    .select("originalText simplifiedVersions")
+    .lean();
+  const { requiredSeconds } = await requiredSecondsFor(schoolId, studentId, text, gate);
   return {
     ...gate,
     readStartedAt: state?.readStartedAt || now,
     readFinishedAt: state?.readFinishedAt || null,
+    readSeconds: Math.floor(creditedReadSeconds(state, now)),
+    requiredSeconds,
     unlocked: Boolean(state?.readFinishedAt),
   };
 }
@@ -908,8 +954,7 @@ export async function finishReading(
   schoolId,
   studentId,
   assignmentId,
-  academicYear = null,
-  { level = null } = {}
+  academicYear = null
 ) {
   const assignment = await ReadingAssignment.findOne(
     gateAssignmentQuery(schoolId, studentId, assignmentId, academicYear)
@@ -926,8 +971,12 @@ export async function finishReading(
   const text = await SimplifiedText.findOne({ _id: assignment.text, school: schoolId })
     .select("originalText simplifiedVersions")
     .lean();
-  const wordCount = wordCountForLevel(text, level);
-  const requiredSeconds = requiredReadSeconds(gate, wordCount);
+  const { wordCount, requiredSeconds } = await requiredSecondsFor(
+    schoolId,
+    studentId,
+    text,
+    gate
+  );
   const now = new Date();
   const [state, completion] = await Promise.all([
     ReadingProgressState.findOne({
@@ -965,6 +1014,7 @@ export async function finishReading(
             assignment: assignment._id,
             text: assignment.text,
             readStartedAt: now,
+            lastBeatAt: now,
           },
         },
         { upsert: true, new: true }
@@ -981,9 +1031,17 @@ export async function finishReading(
     }
   }
 
-  const elapsedSeconds = Math.max(0, (now.getTime() - new Date(startedAt).getTime()) / 1000);
-  // Small tolerance absorbs the time between the client's countdown ending and its click.
-  if (elapsedSeconds < requiredSeconds * 0.9) {
+  // Heartbeat time excludes hidden tabs; documents created before this field
+  // existed fall back to the old wall clock exactly once.
+  const hasCredit = typeof state?.readSeconds === "number" && Number.isFinite(state.readSeconds);
+  const elapsedSeconds = hasCredit
+    ? Math.max(0, state.readSeconds)
+    : Math.max(0, (now.getTime() - new Date(startedAt).getTime()) / 1000);
+  const satisfied = hasCredit
+    ? elapsedSeconds >= requiredSeconds - FINISH_SLACK_SECONDS
+    // Small tolerance absorbs the time between the client's countdown ending and its click.
+    : elapsedSeconds >= requiredSeconds * 0.9;
+  if (!satisfied) {
     throw gateNotFinishedError(
       Math.max(1, Math.ceil(requiredSeconds - elapsedSeconds)),
       requiredSeconds
@@ -999,9 +1057,99 @@ export async function finishReading(
     ...gate,
     readStartedAt: finished?.readStartedAt || startedAt,
     readFinishedAt: finished?.readFinishedAt || now,
+    readSeconds: Number(finished?.readSeconds) || 0,
     unlocked: true,
     requiredSeconds,
     wordCount,
+  };
+}
+
+/** Credits visible reading time. Hidden tabs never call this, and gaps are capped. */
+export async function recordReadingHeartbeat(
+  schoolId,
+  studentId,
+  assignmentId,
+  academicYear = null
+) {
+  const assignment = await ReadingAssignment.findOne(
+    gateAssignmentQuery(schoolId, studentId, assignmentId, academicYear)
+  ).select("_id text readingGate isPublished publishAt").lean();
+  if (!assignment) {
+    throw Object.assign(new Error("Active reading assignment not found"), { statusCode: 404 });
+  }
+  if (isAssignmentLocked(assignment)) throw readingLockedError();
+  const gate = mergeReadingGate(assignment.readingGate);
+  if (!gate.enabled) return { readSeconds: 0, unlocked: true };
+
+  const now = new Date();
+  const stateQuery = {
+    school: schoolId,
+    student: studentId,
+    assignment: assignment._id,
+  };
+  let state = await ReadingProgressState.findOne(stateQuery)
+    .select("readStartedAt readFinishedAt readSeconds lastBeatAt")
+    .lean();
+  if (!state) {
+    try {
+      state = await ReadingProgressState.findOneAndUpdate(
+        stateQuery,
+        {
+          $setOnInsert: {
+            school: schoolId,
+            student: studentId,
+            assignment: assignment._id,
+            text: assignment.text,
+            readStartedAt: now,
+            lastBeatAt: now,
+          },
+        },
+        { upsert: true, new: true }
+      ).lean();
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+      state = await ReadingProgressState.findOne(stateQuery)
+        .select("readStartedAt readFinishedAt readSeconds lastBeatAt")
+        .lean();
+    }
+  }
+  if (state?.readFinishedAt) {
+    return { readSeconds: Math.floor(creditedReadSeconds(state, now)), unlocked: true };
+  }
+
+  const lastBeatAt = state?.lastBeatAt ? new Date(state.lastBeatAt) : null;
+  const hasCredit = typeof state?.readSeconds === "number" && Number.isFinite(state.readSeconds);
+  let credit = 0;
+  if (lastBeatAt) {
+    const gap = Math.max(0, Math.floor((now.getTime() - lastBeatAt.getTime()) / 1000));
+    if (gap >= HEARTBEAT_MIN_GAP_SECONDS) credit = Math.min(gap, HEARTBEAT_CAP_SECONDS);
+  }
+  const patch = { $set: { lastBeatAt: now } };
+  if (hasCredit) {
+    patch.$inc = { readSeconds: credit };
+  } else {
+    // First beat on a pre-heartbeat document: start counting from the old clock.
+    patch.$set.readSeconds = creditedReadSeconds(state, now);
+  }
+  // Match the beat we read, so two requests arriving together can only credit once.
+  const updated = await ReadingProgressState.findOneAndUpdate(
+    { ...stateQuery, lastBeatAt: lastBeatAt || null },
+    patch,
+    { new: true }
+  ).lean();
+  const current = updated || await ReadingProgressState.findOne(stateQuery)
+    .select("readSeconds")
+    .lean();
+
+  const text = await SimplifiedText.findOne({ _id: assignment.text, school: schoolId })
+    .select("originalText simplifiedVersions")
+    .lean();
+  const { requiredSeconds } = await requiredSecondsFor(schoolId, studentId, text, gate);
+  return {
+    readSeconds: Number(current?.readSeconds) || 0,
+    required: requiredSeconds,
+    requiredSeconds,
+    unlocked: false,
   };
 }
 
@@ -1169,25 +1317,39 @@ export async function evaluateCriticalThinkingAnswer(schoolId, payload) {
     throw new Error("question and studentAnswer are required");
   }
 
-  if (tracking?.studentId) {
-    const assignmentQuery = {
+  let readingText = null;
+  if (tracking) {
+    const notFound = () => Object.assign(new Error("Reading assignment not found"), {
+      statusCode: 404,
+      code: "READING_ASSIGNMENT_NOT_FOUND"
+    });
+    if (!tracking.studentId) throw notFound();
+    const assignment = await resolveOpenStudentAssignment({
+      schoolId,
+      studentId: tracking.studentId,
+      textId,
+      assignmentId,
+      academicYear,
+      select: "_id text readingGate isPublished publishAt",
+    });
+    await assertReadingUnlocked(schoolId, tracking.studentId, assignment, "thinking");
+
+    readingText = await SimplifiedText.findOne({
+      _id: textId || assignment.text,
       school: schoolId,
-      students: tracking.studentId,
-      isActive: true,
-      ...(academicYear ? { academicYear } : {}),
-    };
-    if (assignmentId) {
-      assignmentQuery._id = assignmentId;
-    } else if (textId) {
-      assignmentQuery.text = textId;
-    }
-    const assignment = (textId || assignmentId)
-      ? await ReadingAssignment.findOne(assignmentQuery)
-        .select("_id readingGate isPublished publishAt")
-      : null;
-    if (assignment) {
-      if (isAssignmentLocked(assignment)) throw readingLockedError();
-      await assertReadingUnlocked(schoolId, tracking.studentId, assignment, "thinking");
+    })
+      .select("originalText simplifiedVersions criticalThinkingQuestions")
+      .lean();
+    if (!readingText) throw notFound();
+    const asked = String(question || "").replace(/\s+/g, " ").trim();
+    const ownsQuestion = (readingText.criticalThinkingQuestions || []).some((item) => (
+      String(item?.question || "").replace(/\s+/g, " ").trim() === asked
+    ));
+    if (!ownsQuestion) {
+      throw Object.assign(new Error("That question is not part of this reading."), {
+        statusCode: 400,
+        code: "READING_QUESTION_NOT_FOUND"
+      });
     }
   }
 
@@ -1201,15 +1363,16 @@ export async function evaluateCriticalThinkingAnswer(schoolId, payload) {
   });
   const languageRule = buildReadingLanguageRule(normalizedRequestedLanguages);
   let excerpt = textExcerpt;
-  if (!excerpt && textId) {
-    const text = await SimplifiedText.findById(textId)
-      .select("originalText simplifiedVersions")
-      .lean();
-    if (text) {
-      excerpt =
-        text.simplifiedVersions?.[0]?.simplifiedText || text.originalText || "";
-      excerpt = (excerpt || "").slice(0, 2500);
-    }
+  const sourceText = readingText
+    || (textId
+      ? await SimplifiedText.findOne({ _id: textId, school: schoolId })
+        .select("originalText simplifiedVersions")
+        .lean()
+      : null);
+  if (!excerpt && sourceText) {
+    excerpt =
+      sourceText.simplifiedVersions?.[0]?.simplifiedText || sourceText.originalText || "";
+    excerpt = (excerpt || "").slice(0, 2500);
   }
   excerpt = (excerpt || "").slice(0, 2500);
 
@@ -1558,7 +1721,7 @@ export async function getBookForStudent(studentId, schoolId, academicYear = null
         student: studentId,
         assignment: { $in: publishedIds },
       })
-        .select("assignment readStartedAt readFinishedAt")
+        .select("assignment readStartedAt readFinishedAt readSeconds")
         .lean(),
       ReadingFluencyProgress.find({
         school: schoolId,
@@ -1629,6 +1792,7 @@ export async function getBookForStudent(studentId, schoolId, academicYear = null
           lockScope: gate.lockScope,
           readStartedAt: state?.readStartedAt || null,
           readFinishedAt: state?.readFinishedAt || null,
+          readSeconds: Math.floor(creditedReadSeconds(state, now)),
           unlocked: Boolean(state?.readFinishedAt || completion?.completedAt),
         }
         : { enabled: false },

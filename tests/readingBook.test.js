@@ -3,6 +3,7 @@ import test from "node:test";
 
 import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
+import ReadingModelAudio from "../models/ReadingModelAudio.js";
 import ReadingFluencyProgress from "../models/ReadingFluencyProgress.js";
 import ReadingProgressState from "../models/ReadingProgressState.js";
 import SimplifiedText from "../models/SimplifiedText.js";
@@ -20,6 +21,7 @@ import { getStudentAssignmentView } from "../services/readingFluency/readingFlue
 import { getModelAudio } from "../services/readingFluency/modelAudioService.js";
 import {
   isAssignmentLocked,
+  resolveOpenStudentAssignment,
   sanitizePublishPatch,
   sanitizePublishSettings
 } from "../services/readingGate/publish.js";
@@ -154,6 +156,7 @@ test("locked readings are refused by the gate endpoints", async (t) => {
 
 test("locked readings are refused when saving or evaluating answers", async (t) => {
   t.mock.method(ReadingAssignment, "findOne", () => query(lockedGateAssignment()));
+  t.mock.method(ReadingAssignment, "find", () => query([lockedGateAssignment()]));
 
   await assert.rejects(
     () => updateProgress(studentId, "t1", 1, 1, schoolId, "a1", "2026-2027", {}),
@@ -175,6 +178,7 @@ test("locked readings are refused by fluency and its model voice", async (t) => 
   t.mock.method(ReadingAssignment, "findOne", () => query(
     lockedGateAssignment({ text: { _id: "t1", title: "Secret" } })
   ));
+  t.mock.method(ReadingAssignment, "find", () => query([lockedGateAssignment()]));
 
   await assert.rejects(
     () => getStudentAssignmentView({
@@ -194,6 +198,121 @@ test("locked readings are refused by fluency and its model voice", async (t) => 
       academicYear: "2026-2027"
     }),
     (error) => error.statusCode === 403 && error.code === "READING_NOT_PUBLISHED"
+  );
+});
+
+test("feedback needs an assignment and a question from that reading", async (t) => {
+  t.mock.method(ReadingAssignment, "find", () => query([assignment()]));
+  t.mock.method(SimplifiedText, "findOne", () => query({
+    originalText: "A passage.",
+    criticalThinkingQuestions: [{ question: "Why did it happen?" }]
+  }));
+
+  await assert.rejects(
+    () => evaluateCriticalThinkingAnswer(schoolId, {
+      textId: "t1",
+      question: "Why did it happen?",
+      studentAnswer: "Because.",
+      tracking: { userId: "u1", studentId: null }
+    }),
+    (error) => error.statusCode === 404 && error.code === "READING_ASSIGNMENT_NOT_FOUND"
+  );
+
+  await assert.rejects(
+    () => evaluateCriticalThinkingAnswer(schoolId, {
+      textId: "t1",
+      question: "Something unrelated?",
+      studentAnswer: "Because.",
+      tracking: { studentId }
+    }),
+    (error) => error.statusCode === 400 && error.code === "READING_QUESTION_NOT_FOUND"
+  );
+});
+
+test("feedback is refused when the student has no assignment for the text", async (t) => {
+  t.mock.method(ReadingAssignment, "find", () => query([]));
+
+  await assert.rejects(
+    () => evaluateCriticalThinkingAnswer(schoolId, {
+      textId: "t1",
+      question: "Why?",
+      studentAnswer: "Because.",
+      tracking: { studentId }
+    }),
+    (error) => error.statusCode === 404 && error.code === "READING_ASSIGNMENT_NOT_FOUND"
+  );
+});
+
+test("feedback is gated until the student finishes reading", async (t) => {
+  t.mock.method(ReadingAssignment, "find", () => query([
+    assignment({
+      readingGate: { enabled: true, lockScope: "quiz_and_thinking", minReadSeconds: 0 }
+    })
+  ]));
+  t.mock.method(SimplifiedText, "findOne", () => query({
+    originalText: "A passage.",
+    criticalThinkingQuestions: [{ question: "Why did it happen?" }]
+  }));
+  t.mock.method(ReadingProgressState, "findOne", () => query({ readFinishedAt: null }));
+  t.mock.method(ReadingCompletion, "exists", async () => null);
+
+  await assert.rejects(
+    () => evaluateCriticalThinkingAnswer(schoolId, {
+      textId: "t1",
+      question: "Why did it happen?",
+      studentAnswer: "Because.",
+      tracking: { studentId }
+    }),
+    (error) => error.statusCode === 403 && error.code === "READING_GATE_LOCKED"
+  );
+});
+
+test("the assignment lookup only sees active rows of that text", async (t) => {
+  let filter = null;
+  t.mock.method(ReadingAssignment, "find", (value) => {
+    filter = value;
+    return query([assignment()]);
+  });
+
+  await resolveOpenStudentAssignment({
+    schoolId,
+    studentId,
+    textId: "t1",
+    assignmentId: "a1",
+    academicYear: "2026-2027"
+  });
+
+  assert.deepEqual(filter, {
+    school: schoolId,
+    students: studentId,
+    isActive: true,
+    academicYear: "2026-2027",
+    text: "t1",
+    _id: "a1"
+  });
+});
+
+test("model audio accepts any open assignment of the same text", async (t) => {
+  const locked = lockedGateAssignment({ _id: "a-locked", text: "t1" });
+  const open = assignment({ _id: "a-open", text: "t1" });
+  t.mock.method(ReadingAssignment, "find", () => query([locked, open]));
+  t.mock.method(ReadingModelAudio, "findOne", () => query(null));
+
+  await assert.rejects(
+    () => getModelAudio({ schoolId, textId: "t1", blockKey: "p-0", studentId }),
+    (error) => error.code === "MODEL_AUDIO_NOT_FOUND"
+  );
+
+  t.mock.method(ReadingAssignment, "find", () => query([locked]));
+  await assert.rejects(
+    () => getModelAudio({ schoolId, textId: "t1", blockKey: "p-0", studentId }),
+    (error) => error.statusCode === 403 && error.code === "READING_NOT_PUBLISHED"
+  );
+
+  t.mock.method(ReadingAssignment, "find", () => query([]));
+  await assert.rejects(
+    () => getModelAudio({ schoolId, textId: "t1", blockKey: "p-0", studentId }),
+    (error) => error.statusCode === 404 && error.code === "MODEL_AUDIO_TEXT_NOT_FOUND"
   );
 });
 

@@ -291,6 +291,7 @@ test("a served clip is cached, so replay does not query the database again", asy
   };
   let queries = 0;
   t.mock.method(ReadingAssignment, "findOne", () => query({ _id: "assignment-1" }));
+  t.mock.method(ReadingAssignment, "find", () => query([{ _id: "assignment-1" }]));
   t.mock.method(ReadingModelAudio, "findOne", () => {
     queries += 1;
     return query(doc);
@@ -343,6 +344,7 @@ test("streaming by text hash ignores the reader's level label", async (t) => {
   const hash = readingTextHash({ targetLevel: null, blockKey: "p-0", text: PASSAGE });
   let filter = null;
   t.mock.method(ReadingAssignment, "findOne", () => query({ _id: "assignment-1" }));
+  t.mock.method(ReadingAssignment, "find", () => query([{ _id: "assignment-1" }]));
   t.mock.method(ReadingModelAudio, "findOne", (queryFilter) => {
     filter = queryFilter;
     return query({
@@ -372,6 +374,7 @@ test("streaming by text hash ignores the reader's level label", async (t) => {
 
 test("an invalid model voice hash is rejected", async (t) => {
   t.mock.method(ReadingAssignment, "findOne", () => query({ _id: "assignment-1" }));
+  t.mock.method(ReadingAssignment, "find", () => query([{ _id: "assignment-1" }]));
   await assert.rejects(
     getModelAudio({
       schoolId,

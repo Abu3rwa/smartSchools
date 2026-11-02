@@ -20,6 +20,7 @@ import { canSpeak, chunkForSpeech, speechLang, speakChunks } from '../readAloud.
 import { buildBookPages } from './bookPages.js';
 import { paginateBlocks } from './bookPagination.js';
 import { bookDirection, isArabicLanguage } from './bookDirection.js';
+import { layoutCssVars, layoutForWidth, passageTextHeight } from './bookLayout.js';
 import { readLastPage, writeLastPage } from './readingBookStorage.js';
 import { useReadingBookData } from './useReadingBookData.js';
 import { useBookModelAudio } from './useBookModelAudio.js';
@@ -258,13 +259,16 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
   // observer setup in that later render instead of missing it on mount.
   const [bookHost, setBookHost] = useState(null);
   const measureRef = useRef(null);
-  const [metrics, setMetrics] = useState({
-    width: 0,
-    spread: false,
-    pageHeight: 560,
-    textWidth: 620,
-    textHeight: 400,
-    ready: false,
+  const [metrics, setMetrics] = useState(() => {
+    const layout = layoutForWidth(0);
+    return {
+      width: 0,
+      layout,
+      pageHeight: 560,
+      textWidth: 620,
+      textHeight: passageTextHeight(560, layout),
+      ready: false,
+    };
   });
 
   useEffect(() => {
@@ -272,21 +276,20 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
     const update = () => {
       const width = bookHost.clientWidth;
       if (!width) return;
-      const spread = width >= 880;
-      const pageWidth = spread ? (width - 14) / 2 : width;
-      const padding = width < 768 ? 22 : 38;
+      const layout = layoutForWidth(width);
+      const pageWidth = layout.wide ? (width - 14) / 2 : width;
       const pageHeight = Math.max(380, Math.min(880, Math.round(window.innerHeight - 200)));
       const next = {
         width,
-        spread,
+        layout,
         pageHeight,
-        textWidth: Math.max(180, Math.round(pageWidth - padding * 2)),
-        textHeight: Math.max(190, pageHeight - 168),
+        textWidth: Math.max(180, Math.round(pageWidth - layout.padInline * 2)),
+        textHeight: passageTextHeight(pageHeight, layout),
         ready: true,
       };
       setMetrics((previous) => (
         previous.width === next.width
-        && previous.spread === next.spread
+        && previous.layout.size === next.layout.size
         && previous.pageHeight === next.pageHeight
         && previous.textWidth === next.textWidth
         && previous.textHeight === next.textHeight
@@ -299,6 +302,10 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
     const observer = new ResizeObserver(update);
     observer.observe(bookHost);
     window.addEventListener('resize', update);
+    // Fonts settle after first paint and can change measured line heights.
+    document.fonts?.ready.then(() => {
+      if (bookHost.isConnected) update();
+    }).catch(() => {});
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', update);
@@ -326,9 +333,9 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
     const host = measureRef.current;
     const measure = (paragraph) => {
       if (!host) {
-        const perLine = Math.max(20, Math.floor(metrics.textWidth / 9));
+        const perLine = Math.max(20, Math.floor(metrics.textWidth / (metrics.layout.textSize * 0.55)));
         const lines = Math.ceil(String(paragraph.text || '').length / perLine);
-        return lines * 28 + 18 + (paragraph.title ? 30 : 0);
+        return lines * metrics.layout.textLine + 18 + (paragraph.title ? 30 : 0);
       }
       const nodes = [];
       if (paragraph.title) {
@@ -342,14 +349,21 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
       body.textContent = paragraph.text;
       nodes.push(body);
       host.replaceChildren(...nodes);
-      return Math.ceil(host.getBoundingClientRect().height) + 12;
+      return Math.ceil(host.getBoundingClientRect().height)
+        + Math.round(metrics.layout.textSize * 0.8);
     };
     const next = paginateBlocks(passageBlocks, measure, { pageHeight: metrics.textHeight });
     const signature = JSON.stringify(next);
     if (signature === passageSignature.current) return;
     passageSignature.current = signature;
     setPassagePages(next);
-  }, [passageBlocks, metrics.ready, metrics.textWidth, metrics.textHeight]);
+  }, [
+    passageBlocks,
+    metrics.ready,
+    metrics.layout,
+    metrics.textWidth,
+    metrics.textHeight,
+  ]);
 
   const thinking = useMemo(
     () => [...chapterData.criticalThinkingQuestions].sort((a, b) => (a.order || 0) - (b.order || 0)),
@@ -364,30 +378,22 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
     .filter((question) => (chapterData.ctAnswers[String(question._id)] || '').trim()).length;
 
   const gateEnabled = Boolean(chapterData.readingGate?.enabled && !chapterData.readingGate?.unlocked);
+  // The server picks the level; the chip only changes what is displayed.
   const gateRequired = gateEnabled
-    ? requiredReadSeconds(chapterData.readingGate, activeLevel?.wordCount)
+    ? chapterData.gateRequiredSeconds ?? requiredReadSeconds(
+      chapterData.readingGate,
+      levels[recommendedIndex]?.wordCount
+    )
     : 0;
-  const [visibleSeconds, setVisibleSeconds] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
 
   useEffect(() => {
-    setVisibleSeconds(0);
     setReachedEnd(false);
     stopReadingAloud();
     closeVocabulary();
   }, [activeChapterId, stopReadingAloud, closeVocabulary]);
 
-  useEffect(() => {
-    if (!gateEnabled) return undefined;
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        setVisibleSeconds((seconds) => seconds + 1);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [gateEnabled]);
-
-  const gateElapsed = gateEnabled ? chapterData.gateBaselineSeconds + visibleSeconds : 0;
+  const gateElapsed = gateEnabled ? chapterData.gateElapsedSeconds : 0;
   const gateRemaining = Math.max(0, Math.ceil(gateRequired - gateElapsed));
   const gateCanFinish = gateEnabled && gateRemaining <= 0 && reachedEnd;
 
@@ -441,6 +447,14 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
   }), [chapters, activeChapterId, status, chapterData.error, passagePages, thinking, quiz, gate, result]);
 
   const [pageIndex, setPageIndex] = useState(0);
+  const [visibleIndexes, setVisibleIndexes] = useState([]);
+  const currentChapterId = pages[pageIndex]?.chapterId || activeChapterId;
+  // The spread start is reported by the book; until it lands, fall back to the page
+  // the reader is on so a chapter switch never uses the previous chapter's spread.
+  const spreadPage = pages[visibleIndexes[0]];
+  const anchorIndex = spreadPage && spreadPage.chapterId === currentChapterId
+    ? visibleIndexes[0]
+    : pageIndex;
   const restoreTarget = useRef(null);
   const deepLinkHandled = useRef(false);
   const pendingResultsJump = useRef(false);
@@ -527,20 +541,22 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
   }, [pages, pageIndex, activeChapterId]);
 
   useEffect(() => {
-    const page = pages[pageIndex];
-    if (!page) return;
-    if (page.kind === 'passage' && page.isLast) setReachedEnd(true);
-  }, [pages, pageIndex]);
+    const reached = visibleIndexes.some((index) => {
+      const page = pages[index];
+      return page?.kind === 'passage' && page.isLast && page.chapterId === currentChapterId;
+    });
+    if (reached) setReachedEnd(true);
+  }, [pages, visibleIndexes, currentChapterId]);
 
   useEffect(() => {
     if (!restoreTarget.current) {
-      const page = pages[pageIndex];
+      const page = pages[anchorIndex];
       if (page?.chapterId) {
         const first = pages.findIndex((item) => item.chapterId === page.chapterId);
-        writeLastPage(page.chapterId, Math.max(0, pageIndex - first));
+        writeLastPage(page.chapterId, Math.max(0, anchorIndex - first));
       }
     }
-  }, [pages, pageIndex]);
+  }, [pages, anchorIndex]);
 
   useEffect(() => {
     if (pageIndex > pages.length - 1) setPageIndex(Math.max(0, pages.length - 1));
@@ -555,14 +571,14 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
   useEffect(() => {
     if (previousPassageKey.current === passageKey) return;
     previousPassageKey.current = passageKey;
-    const page = pages[pageIndex];
+    const page = pages[anchorIndex];
     if (page?.kind !== 'passage') return;
     const ratio = page.pageCount > 1 ? (page.pageNumber - 1) / (page.pageCount - 1) : 0;
     const reflowed = pages.filter((item) => item.kind === 'passage' && item.chapterId === page.chapterId);
     const target = reflowed[Math.min(reflowed.length - 1, Math.round(ratio * Math.max(0, reflowed.length - 1)))];
     const index = target ? pages.findIndex((item) => item.id === target.id) : -1;
     if (index >= 0) setPageIndex(index);
-  }, [passageKey, pages, pageIndex]);
+  }, [passageKey, pages, anchorIndex]);
 
   useEffect(() => {
     if (!pendingResultsJump.current || !chapterData.quizSubmitted) return;
@@ -577,7 +593,7 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
   useEffect(() => {
     stopReadingAloud();
     closeVocabulary();
-  }, [pageIndex, stopReadingAloud, closeVocabulary]);
+  }, [anchorIndex, stopReadingAloud, closeVocabulary]);
 
   // Warm the visible page's clips so a tap plays without a network wait.
   useEffect(() => {
@@ -665,7 +681,7 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
             vocabulary={vocabulary}
             onWordClick={openVocabulary}
             onListen={toggleReadAloud}
-            onFinish={() => chapterData.handleFinishReading({ level: activeLevel?.targetLevel ?? null })}
+            onFinish={() => chapterData.handleFinishReading()}
             gate={page.isLast && gateEnabled ? gate : null}
             speaking={speakingKey === page.id}
             listenAvailable={listenAvailable}
@@ -677,7 +693,7 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
         return (
           <GatePage
             gate={{ ...page.gate, chapterNumber: page.chapterNumber }}
-            onFinish={() => chapterData.handleFinishReading({ level: activeLevel?.targetLevel ?? null })}
+            onFinish={() => chapterData.handleFinishReading()}
             onContents={goToContents}
           />
         );
@@ -800,6 +816,7 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
             pages={pages}
             pageIndex={pageIndex}
             onPageChange={setPageIndex}
+            onVisiblePagesChange={setVisibleIndexes}
             renderPage={renderPage}
             direction={direction}
             pageLabel={pageLabel}
@@ -814,13 +831,15 @@ const BookShell = ({ startAssignmentId = null, startTextId = null, showBack = fa
                   : t('reading:book.pageProgress', { page: number, total: totalNumber })
             )}
             pageHeight={metrics.pageHeight}
+            layout={metrics.layout}
           />
         </div>
 
         <div
           className="book-measure"
           ref={measureRef}
-          style={{ width: `${metrics.textWidth}px` }}
+          data-layout={metrics.layout.size}
+          style={{ width: `${metrics.textWidth}px`, ...layoutCssVars(metrics.layout) }}
           aria-hidden="true"
         />
 

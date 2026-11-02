@@ -7,8 +7,10 @@ import ReadingProgressState from "../models/ReadingProgressState.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import StudentReadingProfile from "../models/StudentReadingProfile.js";
 import {
+  HEARTBEAT_CAP_SECONDS,
   assertReadingUnlocked,
   finishReading,
+  recordReadingHeartbeat,
   startReading,
   updateProgress
 } from "../services/readingAssistantService.js";
@@ -49,6 +51,10 @@ const gateAssignment = (gate = {}) => ({
   text: textId,
   readingGate: { enabled: true, lockScope: "quiz_and_thinking", minReadSeconds: 10, ...gate }
 });
+
+const mockProfile = (t, level = 8) => {
+  t.mock.method(StudentReadingProfile, "findOne", () => query({ currentReadingLevel: level }));
+};
 
 test("gate settings default to off with automatic time", () => {
   assert.deepEqual(sanitizeReadingGate({}), { ...DEFAULT_READING_GATE });
@@ -177,20 +183,31 @@ test("disabled and unlocked gates do not change the questions", () => {
 test("read-start records one start per student and assignment", async (t) => {
   const startedAt = new Date("2026-11-02T08:00:00.000Z");
   t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
-  t.mock.method(ReadingProgressState, "findOneAndUpdate", () => query({
-    readStartedAt: startedAt,
-    readFinishedAt: null
-  }));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  let startedPatch = null;
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", (filter, update) => {
+    startedPatch = update;
+    return query({
+      readStartedAt: startedAt,
+      readFinishedAt: null,
+      readSeconds: 0
+    });
+  });
 
   const state = await startReading(schoolId, studentId, assignmentId, "2026-2027");
   assert.equal(state.readStartedAt, startedAt);
+  assert.equal(state.readSeconds, 0);
+  assert.equal(state.requiredSeconds, 10);
   assert.equal(state.unlocked, false);
   assert.equal(state.enabled, true);
+  assert.ok(startedPatch.$setOnInsert.lastBeatAt instanceof Date);
 });
 
 test("read-finish rejects an early finish and reports the remaining time", async (t) => {
   t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
   t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
   t.mock.method(ReadingProgressState, "findOne", () => query({
     readStartedAt: new Date(Date.now() - 1000),
     readFinishedAt: null
@@ -199,7 +216,7 @@ test("read-finish rejects an early finish and reports the remaining time", async
   t.mock.method(ReadingProgressState, "findOneAndUpdate", () => query({}));
 
   await assert.rejects(
-    () => finishReading(schoolId, studentId, assignmentId, "2026-2027", { level: 5 }),
+    () => finishReading(schoolId, studentId, assignmentId, "2026-2027"),
     (error) => error.statusCode === 409
       && error.code === "READING_GATE_NOT_FINISHED"
       && error.data.remainingSeconds > 0
@@ -210,6 +227,7 @@ test("read-finish rejects an early finish and reports the remaining time", async
 test("read-finish unlocks after enough time has passed", async (t) => {
   t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
   t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
   t.mock.method(ReadingProgressState, "findOne", () => query({
     readStartedAt: new Date(Date.now() - 60_000),
     readFinishedAt: null
@@ -221,15 +239,179 @@ test("read-finish unlocks after enough time has passed", async (t) => {
     return query({ readStartedAt: new Date(Date.now() - 60_000), readFinishedAt: finishedAt });
   });
 
-  const state = await finishReading(schoolId, studentId, assignmentId, "2026-2027", { level: 5 });
+  const state = await finishReading(schoolId, studentId, assignmentId, "2026-2027");
   assert.equal(state.unlocked, true);
   assert.ok(finishedAt);
   assert.equal(state.requiredSeconds, 10);
 });
 
+test("read-finish allows the last few seconds the client counted", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  t.mock.method(ReadingCompletion, "exists", async () => null);
+  let credited = 4;
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 60_000),
+    readFinishedAt: null,
+    readSeconds: credited
+  }));
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", () => query({ readFinishedAt: new Date() }));
+
+  await assert.rejects(
+    () => finishReading(schoolId, studentId, assignmentId, "2026-2027"),
+    (error) => error.code === "READING_GATE_NOT_FINISHED"
+      && error.data.remainingSeconds === 6
+  );
+
+  credited = 5;
+  const state = await finishReading(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(state.unlocked, true);
+});
+
+test("read-finish ignores the level the client sends", async (t) => {
+  const short = Array.from({ length: 400 }, (_, index) => `s${index}`).join(" ");
+  const long = Array.from({ length: 1000 }, (_, index) => `l${index}`).join(" ");
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment({ minReadSeconds: null })));
+  t.mock.method(SimplifiedText, "findOne", () => query({
+    originalText: short,
+    simplifiedVersions: [
+      { targetLevel: 5, simplifiedText: short },
+      { targetLevel: 9, simplifiedText: long }
+    ]
+  }));
+  mockProfile(t, 8);
+  t.mock.method(ReadingCompletion, "exists", async () => null);
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 200_000),
+    readFinishedAt: null,
+    readSeconds: 150
+  }));
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", () => query({ readFinishedAt: new Date() }));
+
+  const state = await finishReading(schoolId, studentId, assignmentId, "2026-2027", { level: 5 });
+  assert.equal(state.requiredSeconds, 150);
+  assert.equal(state.wordCount, 1000);
+  assert.equal(state.unlocked, true);
+});
+
+test("a heartbeat credits the visible gap and caps runaway ones", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  let lastBeatAt = new Date(Date.now() - 10_000);
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 120_000),
+    readFinishedAt: null,
+    readSeconds: 12,
+    lastBeatAt
+  }));
+  let patch = null;
+  let match = null;
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", (filter, update) => {
+    match = filter;
+    patch = update;
+    return query({ readSeconds: 22 });
+  });
+
+  const data = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(patch.$inc.readSeconds, 10);
+  assert.equal(match.lastBeatAt.getTime(), lastBeatAt.getTime());
+  assert.equal(data.readSeconds, 22);
+  assert.equal(data.requiredSeconds, 10);
+  assert.equal(data.unlocked, false);
+
+  lastBeatAt = new Date(Date.now() - 3_600_000);
+  const capped = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(patch.$inc.readSeconds, HEARTBEAT_CAP_SECONDS);
+  assert.equal(capped.readSeconds, 22);
+});
+
+test("a heartbeat with no previous beat credits nothing", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 10_500),
+    readFinishedAt: null,
+    readSeconds: 0,
+    lastBeatAt: null
+  }));
+  let patch = null;
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", (filter, update) => {
+    patch = update;
+    return query({ readSeconds: 0 });
+  });
+
+  const data = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(patch.$inc.readSeconds, 0);
+  assert.equal(data.readSeconds, 0);
+});
+
+test("a heartbeat closer than the minimum gap credits nothing", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 120_000),
+    readFinishedAt: null,
+    readSeconds: 12,
+    lastBeatAt: new Date(Date.now() - 1000)
+  }));
+  let patch = null;
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", (filter, update) => {
+    patch = update;
+    return query({ readSeconds: 12 });
+  });
+
+  const data = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(patch.$inc.readSeconds, 0);
+  assert.equal(data.readSeconds, 12);
+});
+
+test("the first heartbeat keeps wall-clock time on a pre-heartbeat document", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
+  t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
+  t.mock.method(ReadingProgressState, "findOne", () => query({
+    readStartedAt: new Date(Date.now() - 100_000),
+    readFinishedAt: null
+  }));
+  let patch = null;
+  t.mock.method(ReadingProgressState, "findOneAndUpdate", (filter, update) => {
+    patch = update;
+    return query({ readSeconds: update.$set.readSeconds });
+  });
+
+  const data = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.equal(patch.$inc, undefined);
+  assert.ok(patch.$set.readSeconds >= 99);
+  assert.ok(data.readSeconds >= 99);
+});
+
+test("a heartbeat changes nothing on a disabled gate", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment({ enabled: false })));
+
+  const data = await recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027");
+  assert.deepEqual(data, { readSeconds: 0, unlocked: true });
+});
+
+test("a heartbeat on a locked reading is refused", async (t) => {
+  t.mock.method(ReadingAssignment, "findOne", () => query({
+    ...gateAssignment(),
+    isPublished: false
+  }));
+
+  await assert.rejects(
+    () => recordReadingHeartbeat(schoolId, studentId, assignmentId, "2026-2027"),
+    (error) => error.statusCode === 403 && error.code === "READING_NOT_PUBLISHED"
+  );
+});
+
 test("an existing completion unlocks the reading even without time", async (t) => {
   t.mock.method(ReadingAssignment, "findOne", () => query(gateAssignment()));
   t.mock.method(SimplifiedText, "findOne", () => query({ originalText: "short passage" }));
+  mockProfile(t, 5);
   t.mock.method(ReadingProgressState, "findOne", () => query({
     readStartedAt: new Date(),
     readFinishedAt: null

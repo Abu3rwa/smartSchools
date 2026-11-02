@@ -99,6 +99,21 @@ export const gateLocksQuestions = (gate, comprehensionCount, criticalThinkingCou
     : quizCount > 0;
 };
 
+/**
+ * Word count of the version the student is actually shown: the closest level to
+ * their recommended one, not the chip they happen to have selected.
+ */
+export const recommendedWordCount = (text, level = 8) => {
+  const raw = readRaw(text);
+  const versions = Array.isArray(raw.simplifiedVersions) ? raw.simplifiedVersions : [];
+  if (versions.length === 0) return countWords(raw.originalText);
+  const target = Number.isFinite(Number(level)) ? Number(level) : 8;
+  const best = [...versions].sort(
+    (a, b) => Math.abs(Number(a.targetLevel) - target) - Math.abs(Number(b.targetLevel) - target)
+  )[0];
+  return countWords(best?.simplifiedText || raw.originalText);
+};
+
 /** Word count of the version the student is viewing, used for the automatic time. */
 export const wordCountForLevel = (text, level) => {
   const raw = readRaw(text);

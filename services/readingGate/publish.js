@@ -89,3 +89,44 @@ export async function assertReadingPublished({
   if (isAssignmentLocked(assignment)) throw readingLockedError();
   return assignment;
 }
+
+/**
+ * One text can be assigned to a student more than once, so any open assignment
+ * grants access; the explicit or newest one is returned for the caller's checks.
+ */
+export async function resolveOpenStudentAssignment({
+  schoolId,
+  studentId,
+  textId = null,
+  assignmentId = null,
+  academicYear = null,
+  select = "_id text isPublished publishAt"
+}) {
+  if (!assignmentId && !textId) {
+    throw Object.assign(new Error("A reading is required."), {
+      statusCode: 400,
+      code: "READING_ASSIGNMENT_REQUIRED"
+    });
+  }
+  const query = {
+    school: schoolId,
+    students: studentId,
+    isActive: true,
+  };
+  if (academicYear) query.academicYear = academicYear;
+  if (assignmentId) query._id = assignmentId;
+  if (textId) query.text = textId;
+  const assignments = await ReadingAssignment.find(query)
+    .select(select)
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+  if (!assignments.length) {
+    throw Object.assign(new Error("Reading assignment not found"), {
+      statusCode: 404,
+      code: "READING_ASSIGNMENT_NOT_FOUND"
+    });
+  }
+  const open = assignments.find((assignment) => !isAssignmentLocked(assignment));
+  if (!open) throw readingLockedError();
+  return open;
+}

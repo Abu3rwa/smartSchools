@@ -69,6 +69,11 @@
     margin-inline-start: 0;
 }
 
+/* No header on the reading screen: content starts at the page gutter. */
+.main-layout.is-headerless {
+    --header-height: 0px;
+}
+
 .page-content {
     position: relative;
     flex: 1;

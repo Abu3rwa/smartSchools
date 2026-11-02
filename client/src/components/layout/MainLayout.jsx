@@ -5,11 +5,12 @@ import { useTheme, useMediaQuery } from '@mui/material';
 import { Drawer } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { selectSidebarOpen, setSidebarOpen } from '../../store/slices/uiSlice';
-import { selectUser } from '../../store/slices/authSlice';
+import { selectUser, selectIsImpersonating } from '../../store/slices/authSlice';
 import { selectSubscriptionStatus } from '../../store/slices/schoolFeaturesSlice';
 import useAppData from '../../hooks/useAppData';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import StudentHomeButton from './StudentHomeButton';
 import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
 import SubscriptionExpiredBanner from '../SubscriptionExpiredBanner';
 import StudentLiveLessonPopup from '../liveLessons/StudentLiveLessonPopup';
@@ -24,12 +25,17 @@ const MainLayout = () => {
 
     const sidebarOpen = useSelector(selectSidebarOpen);
     const user = useSelector(selectUser);
+    const isImpersonating = useSelector(selectIsImpersonating);
     const subscriptionStatus = useSelector(selectSubscriptionStatus);
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const isRtl = i18n.dir() === 'rtl';
     const isStudent = user?.role === 'student';
     const showSidebarForRole = Boolean(user) && !isStudent;
+    const path = location.pathname.replace(/\/+$/, '') || '/';
+    // The reading screen trades the app header for a floating home button.
+    const isReadingScreen = path === '/portal/reading' || path.startsWith('/portal/reading/view/');
+    const hideHeader = isStudent && !isImpersonating && isReadingScreen;
     const normalizedStatus = String(subscriptionStatus || '').toLowerCase();
     const isExpired = ['inactive', 'cancelled', 'suspended', 'expired'].includes(normalizedStatus);
     const shouldShowWall = isExpired
@@ -49,7 +55,7 @@ const MainLayout = () => {
     }, [dispatch]);
 
     return (
-        <div className={`main-layout${isStudent ? ' student-layout' : ''} ${sidebarOpen && isDesktop && showSidebarForRole ? '' : 'sidebar-collapsed'}`}>
+        <div className={`main-layout${isStudent ? ' student-layout' : ''}${hideHeader ? ' is-headerless' : ''} ${sidebarOpen && isDesktop && showSidebarForRole ? '' : 'sidebar-collapsed'}`}>
             <a href="#main-content" className="skip-link">{t('common:accessibility.skipToMainContent')}</a>
             {/* Desktop: Persistent sidebar */}
             {isDesktop && showSidebarForRole && <Sidebar />}
@@ -81,13 +87,14 @@ const MainLayout = () => {
             <div className="main-content">
                 <div className="bg-grid-inset" aria-hidden="true" />
                 <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <Header />
+                    {!hideHeader && <Header />}
                     <main id="main-content" className="page-content">
                         {shouldShowBanner && <SubscriptionExpiredBanner />}
                         <Outlet />
                     </main>
                 </div>
             </div>
+            {hideHeader && <StudentHomeButton />}
             {isStudent &&
                 import.meta.env.VITE_LIVE_LESSONS_ENABLED === 'true' && (
                     <StudentLiveLessonPopup />

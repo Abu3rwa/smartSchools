@@ -1,25 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { HiOutlineChevronLeft, HiOutlineChevronRight } from 'react-icons/hi';
-import { arrowAction } from './bookDirection.js';
+import { arrowAction, swipeDirection } from './bookDirection.js';
+import { layoutCssVars } from './bookLayout.js';
+import { spreadStart, visiblePageIndexes } from './bookSpread.js';
 
-const useWideBook = () => {
-  const [wide, setWide] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 880px)').matches
-  ));
-  useEffect(() => {
-    const media = window.matchMedia('(min-width: 880px)');
-    const update = () => setWide(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  return wide;
-};
+const SWIPE_BLOCKED = 'input, textarea, select, button, a, [contenteditable], .vocab-word';
 
 const isTypingTarget = (target) => {
   const tag = String(target?.tagName || '').toUpperCase();
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(target?.isContentEditable);
 };
+
+const blocksSwipe = (target) => (
+  isTypingTarget(target) || Boolean(target?.closest?.(SWIPE_BLOCKED))
+);
 
 /**
  * A paper book driven by CSS 3D transforms. Only the visible spread is mounted, so a
@@ -29,6 +23,7 @@ const PageFlipBook = ({
   pages = [],
   pageIndex = 0,
   onPageChange,
+  onVisiblePagesChange,
   renderPage,
   direction = 'ltr',
   pageLabel,
@@ -37,11 +32,16 @@ const PageFlipBook = ({
   announceLabel,
   ariaLabel,
   pageHeight,
+  layout,
 }) => {
-  const wide = useWideBook();
+  const wide = Boolean(layout?.wide);
   const step = wide ? 2 : 1;
-  const start = wide ? pageIndex - (pageIndex % 2) : pageIndex;
-  const visible = wide ? [pages[start], pages[start + 1]] : [pages[start]];
+  const start = spreadStart(pageIndex, wide);
+  const visibleIndexes = useMemo(
+    () => visiblePageIndexes(pageIndex, wide, pages.length),
+    [pageIndex, wide, pages.length]
+  );
+  const visible = visibleIndexes.map((index) => pages[index]);
   const atStart = start <= 0;
   const atEnd = start + step >= pages.length;
   const [flip, setFlip] = useState(null);
@@ -62,6 +62,10 @@ const PageFlipBook = ({
     const timer = setTimeout(() => setFlip(null), 520);
     return () => clearTimeout(timer);
   }, [flip]);
+
+  useEffect(() => {
+    onVisiblePagesChange?.(visibleIndexes);
+  }, [visibleIndexes, onVisiblePagesChange]);
 
   const go = (target) => {
     const nextIndex = Math.max(0, Math.min(pages.length - 1, target));
@@ -86,20 +90,27 @@ const PageFlipBook = ({
   };
 
   const handlePointerDown = (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    pointerStart.current = { x: event.clientX, y: event.clientY };
+    if (blocksSwipe(event.target)) return;
+    pointerStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
   };
 
   const handlePointerUp = (event) => {
     const origin = pointerStart.current;
     pointerStart.current = null;
     if (!origin) return;
-    const dx = event.clientX - origin.x;
-    const dy = event.clientY - origin.y;
-    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
-    const forward = direction === 'rtl' ? dx > 0 : dx < 0;
-    if (forward) next();
-    else previous();
+    if (window.getSelection?.()?.toString()) return;
+    const action = swipeDirection({
+      dx: event.clientX - origin.x,
+      dy: event.clientY - origin.y,
+      direction,
+      pointerType: origin.pointerType || event.pointerType,
+    });
+    if (action === 'next') next();
+    else if (action === 'prev') previous();
+  };
+
+  const handlePointerCancel = () => {
+    pointerStart.current = null;
   };
 
   if (!pages.length) return null;
@@ -126,7 +137,15 @@ const PageFlipBook = ({
   ));
 
   return (
-    <div className={`book-flip ${wide ? 'is-spread' : 'is-single'}`} dir={direction} style={pageHeight ? { '--book-page-height': `${pageHeight}px` } : undefined}>
+    <div
+      className={`book-flip ${wide ? 'is-spread' : 'is-single'}`}
+      dir={direction}
+      data-layout={layout?.size || (wide ? 'spread' : 'single')}
+      style={{
+        ...layoutCssVars(layout),
+        ...(pageHeight ? { '--book-page-height': `${pageHeight}px` } : {}),
+      }}
+    >
       <button
         type="button"
         className="book-edge is-prev"
@@ -150,6 +169,7 @@ const PageFlipBook = ({
         onKeyDown={handleKeyDown}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         <div className="book-spread">
           {slot(visible[0], 0)}

@@ -68,7 +68,8 @@ const ReadingScrollPage = ({ textId = null, assignmentId = null }) => {
     progressSubmitting,
     score,
     readingGate,
-    gateBaselineSeconds,
+    gateElapsedSeconds,
+    gateRequiredSeconds: serverGateRequiredSeconds,
     gateFinishing,
     handleFinishReading,
   } = useReadingViewData({ textId, assignmentId });
@@ -76,7 +77,6 @@ const ReadingScrollPage = ({ textId = null, assignmentId = null }) => {
   const [vocab, setVocab] = useState({ anchorEl: null, item: null });
   const [selection, setSelection] = useState({ textKey: null, index: 0 });
   const [speakingKey, setSpeakingKey] = useState(null);
-  const [visibleSeconds, setVisibleSeconds] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
   const vocabularyPlayback = useRef(null);
   const speechRef = useRef(null);
@@ -111,19 +111,13 @@ const ReadingScrollPage = ({ textId = null, assignmentId = null }) => {
   const audioSupported = canSpeak();
 
   const gateEnabled = Boolean(readingGate?.enabled && !readingGate.unlocked);
+  // The server picks the level; the chip only changes what is displayed.
   const gateRequiredSeconds = gateEnabled
-    ? requiredReadSeconds(readingGate, activeLevel?.wordCount)
+    ? serverGateRequiredSeconds ?? requiredReadSeconds(
+      readingGate,
+      levels[recommendedIndex]?.wordCount
+    )
     : 0;
-
-  useEffect(() => {
-    if (!gateEnabled) return undefined;
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        setVisibleSeconds((seconds) => seconds + 1);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [gateEnabled]);
 
   useEffect(() => {
     if (!gateEnabled || reachedEnd) return undefined;
@@ -220,7 +214,6 @@ const ReadingScrollPage = ({ textId = null, assignmentId = null }) => {
   const sortedThinking = [...criticalThinkingQuestions]
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-  const gateElapsedSeconds = gateEnabled ? gateBaselineSeconds + visibleSeconds : 0;
   const gateRemainingSeconds = Math.max(0, Math.ceil(gateRequiredSeconds - gateElapsedSeconds));
   const gateCanFinish = gateEnabled && gateRemainingSeconds <= 0 && reachedEnd;
   const gateLocked = Boolean(readingGate?.enabled && !readingGate.unlocked);
@@ -260,7 +253,7 @@ const ReadingScrollPage = ({ textId = null, assignmentId = null }) => {
         type="button"
         className="btn btn-primary"
         disabled={!gateCanFinish || gateFinishing}
-        onClick={() => handleFinishReading({ level: activeLevel?.targetLevel ?? null })}
+        onClick={() => handleFinishReading()}
       >
         {gateFinishing ? t('reading:gate.confirming') : t('reading:gate.finish')}
       </button>

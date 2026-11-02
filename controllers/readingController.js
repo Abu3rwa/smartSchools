@@ -263,7 +263,7 @@ export const finishReading = asyncHandler(async (req, res) => {
       message: `Student not found for academic year ${effectiveAcademicYear}`,
     });
   }
-  const { assignmentId, level = null } = req.body || {};
+  const { assignmentId } = req.body || {};
   if (!assignmentId) {
     return res.status(400).json({ success: false, message: "assignmentId is required" });
   }
@@ -272,8 +272,39 @@ export const finishReading = asyncHandler(async (req, res) => {
     req.schoolId,
     student._id,
     assignmentId,
-    effectiveAcademicYear,
-    { level }
+    effectiveAcademicYear
+  );
+  res.status(200).json({ success: true, data });
+});
+
+/**
+ * @desc    Credit visible reading time on the server
+ * @route   POST /api/reading/read-heartbeat
+ * @access  Private (Student)
+ */
+export const recordReadingHeartbeat = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  }).select("_id");
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+  const { assignmentId } = req.body || {};
+  if (!assignmentId) {
+    return res.status(400).json({ success: false, message: "assignmentId is required" });
+  }
+
+  const data = await readingAssistantService.recordReadingHeartbeat(
+    req.schoolId,
+    student._id,
+    assignmentId,
+    effectiveAcademicYear
   );
   res.status(200).json({ success: true, data });
 });
@@ -475,6 +506,12 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
   })
     .select("_id")
     .lean();
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
 
   const result = await readingAssistantService.evaluateCriticalThinkingAnswer(
     req.schoolId,

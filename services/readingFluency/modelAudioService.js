@@ -9,7 +9,6 @@
  */
 import { audioCentsPerMinute } from "../../config/aiPricing.js";
 import { parseBooleanEnv } from "../../config/booleanEnv.js";
-import ReadingAssignment from "../../models/ReadingAssignment.js";
 import ReadingModelAudio from "../../models/ReadingModelAudio.js";
 import SimplifiedText from "../../models/SimplifiedText.js";
 import {
@@ -32,7 +31,7 @@ import {
 import { alignReferenceToTranscript } from "./align.js";
 import { normalizeReference, normalizeTranscript } from "./normalize.js";
 import { isEnglishLanguage } from "./settings.js";
-import { isAssignmentLocked, readingLockedError } from "../readingGate/publish.js";
+import { resolveOpenStudentAssignment } from "../readingGate/publish.js";
 
 export const MODEL_AUDIO_ENV = "READING_FLUENCY_AUDIO";
 export const TTS_MODEL = "gpt-4o-mini-tts";
@@ -659,15 +658,20 @@ export async function getModelAudio({
   academicYear = null,
 }) {
   if (studentId) {
-    const query = { school: schoolId, text: textId, students: studentId };
-    if (academicYear) query.academicYear = academicYear;
-    const assignment = await ReadingAssignment.findOne(query)
-      .select("_id isPublished publishAt")
-      .lean();
-    if (!assignment) {
-      throw fail("Reading not found.", 404, "MODEL_AUDIO_TEXT_NOT_FOUND");
+    try {
+      await resolveOpenStudentAssignment({
+        schoolId,
+        studentId,
+        textId,
+        academicYear,
+        select: "_id isPublished publishAt",
+      });
+    } catch (error) {
+      if (error?.code === "READING_ASSIGNMENT_NOT_FOUND") {
+        throw fail("Reading not found.", 404, "MODEL_AUDIO_TEXT_NOT_FOUND");
+      }
+      throw error;
     }
-    if (isAssignmentLocked(assignment)) throw readingLockedError();
   } else {
     await loadVisibleText({ schoolId, textId, userId, isAdmin });
   }
