@@ -2,7 +2,12 @@
   "header": {
     "title": "Standards",
     "subtitle": "Manage educational standards for student practice",
-    "add": "Add Standard"
+    "add": "Add Standard",
+    "subtitles": {
+      "import": "Paste or upload a CSV to add standards to your library.",
+      "pool": "Reuse approved assessment questions across standards.",
+      "settings": "Control pool limits, approval rules and parent communications."
+    }
   },
   "tabs": {
     "list": "Standards List",
@@ -41,6 +46,7 @@
       "subject": "Subject",
       "grade": "Grade",
       "category": "Category",
+      "subjectGrade": "Subject · Grade",
       "mastery": "Mastery",
       "actions": "Actions"
     },

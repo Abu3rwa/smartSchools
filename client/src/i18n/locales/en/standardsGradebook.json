@@ -71,7 +71,7 @@
     "saveCount": "Save {{n}} changes (Ctrl+S)",
     "saving": "Saving…",
     "unsaved": "{{n}} unsaved",
-    "assignStandard": "+ Assign Standard"
+    "assignStandard": "Assign Standard"
   },
   "teacherHelp": {
     "title": "Teacher Instructions",

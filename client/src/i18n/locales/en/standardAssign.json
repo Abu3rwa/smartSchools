@@ -100,6 +100,14 @@
     "unableToLoadSbGradebook": "Unable to load SB gradebook.",
     "unableToLoadStandardAverage": "Unable to load standard average."
   },
+  "filters": {
+    "academicYear": "Academic Year",
+    "all": "All",
+    "class": "Class",
+    "searchPlaceholder": "Search assignments...",
+    "semester": "Semester",
+    "subject": "Subject"
+  },
   "form": {
     "aria": {
       "assignmentSetupSteps": "Assignment setup steps"
@@ -210,6 +218,7 @@
   "list": {
     "academicYear": "Year",
     "adminAssigned": "Admin-assigned",
+    "classSubject": "Class · Subject",
     "defaultAssignmentTitle": "Standard Assignment {{index}}",
     "dueDate": "Due",
     "emptyDescription": "Create your first assignment to start tracking standards mastery.",
@@ -217,7 +226,9 @@
     "generalTest": "General Test",
     "generalTestDescription": "A test built from your own questions, not tied to a curriculum standard.",
     "mode": "Mode:",
+    "modeHeader": "Mode",
     "poolSize": "Pool:",
+    "questionsHeader": "Questions",
     "semester": "Semester",
     "workflow": "Workflow:"
   },

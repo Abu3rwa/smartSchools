@@ -100,6 +100,14 @@
     "unableToLoadSbGradebook": "تعذر تحميل سجل درجات SB.",
     "unableToLoadStandardAverage": "تعذر تحميل متوسط المعيار."
   },
+  "filters": {
+    "academicYear": "السنة الدراسية",
+    "all": "الكل",
+    "class": "الفصل",
+    "searchPlaceholder": "ابحث في الإسنادات...",
+    "semester": "الفصل الدراسي",
+    "subject": "المادة"
+  },
   "form": {
     "aria": {
       "assignmentSetupSteps": "خطوات إعداد الإسناد"
@@ -210,6 +218,7 @@
   "list": {
     "academicYear": "السنة",
     "adminAssigned": "مسند من الإدارة",
+    "classSubject": "الفصل · المادة",
     "defaultAssignmentTitle": "إسناد معيار {{index}}",
     "dueDate": "الاستحقاق",
     "emptyDescription": "أنشئ أول إسناد لبدء تتبع إتقان المعايير.",
@@ -217,7 +226,9 @@
     "generalTest": "اختبار عام",
     "generalTestDescription": "اختبار من أسئلتك الخاصة، غير مرتبط بمعيار دراسي.",
     "mode": "النمط:",
+    "modeHeader": "النمط",
     "poolSize": "الحجم:",
+    "questionsHeader": "الأسئلة",
     "semester": "الفصل الدراسي",
     "workflow": "سير العمل:"
   },

@@ -2,100 +2,27 @@
     animation: fadeIn 0.4s ease;
 }
 
-.standards-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
-}
-
-.standards-toolbar__tabs {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.standards-toolbar__add {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    white-space: nowrap;
-}
-
-.standards-page .filters-bar {
-    display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-    flex-wrap: wrap;
-    align-items: center;
-    padding: var(--spacing-sm);
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-}
-
-.standards-page .filters-bar .search-bar {
-    position: relative;
-    flex: 1 1 260px;
-    min-width: 200px;
-    max-width: 420px;
-}
-
-.standards-page .filters-bar .search-bar .search-icon {
-    position: absolute;
-    top: 50%;
-    inset-inline-start: 12px;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    pointer-events: none;
-    font-size: 1rem;
-}
-
-.standards-page .filters-bar .search-bar input {
-    padding-inline-start: 36px;
-}
-
-.standards-page .filters-bar select {
-    flex: 0 1 auto;
-    width: auto;
-    min-width: 140px;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-size: 0.875rem;
-}
-
-.standards-page .filters-clear {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    white-space: nowrap;
-}
-
-.standards-page .filters-result-count {
-    margin-inline-start: auto;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-
 .standards-bulk-actions {
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
     color: var(--text-secondary);
-    font-size: 0.875rem;
+    font-size: 0.84rem;
 }
 
 .standards-bulk-actions .btn {
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-xs);
+    height: 30px;
+    padding: 0 12px;
+    font-size: 0.8rem;
 }
 
 .standards-table input[type="checkbox"] {
@@ -110,18 +37,19 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     overflow: auto;
-    max-height: min(72vh, 780px);
+    max-height: min(70vh, 760px);
 }
 
 .standards-table table {
     width: 100%;
+    min-width: 760px;
     border-collapse: separate;
     border-spacing: 0;
 }
 
 .standards-table th,
 .standards-table td {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 10px 14px;
     text-align: start;
     border-bottom: 1px solid var(--border-color);
 }
@@ -132,7 +60,7 @@
     z-index: 2;
     background: var(--bg-secondary);
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.5px;
@@ -151,6 +79,7 @@
 
 .standards-table td {
     font-size: 0.875rem;
+    vertical-align: top;
 }
 
 .standards-table tbody tr:nth-child(even) td {
@@ -169,17 +98,31 @@
     font-family: var(--font-mono);
     font-weight: 600;
     color: var(--primary-600);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
 }
 
-.standard-description {
-    max-width: 300px;
-    white-space: normal;
+.standards-table__standard {
+    display: grid;
+    gap: 3px;
+    min-width: 240px;
+    max-width: 560px;
+}
+
+.standards-table__name {
+    font-weight: 600;
+    color: var(--text-primary);
     overflow-wrap: anywhere;
-    word-break: break-word;
-    line-height: 1.45;
-    color: var(--text-secondary);
-    font-size: 0.82rem;
+}
+
+.standards-table__desc {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .standard-actions {
@@ -265,25 +208,29 @@
 .standards-page .tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 0;
-    border-bottom: none;
+    gap: 4px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
 }
 
 .standards-page .tab-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    margin-bottom: 0;
+    min-height: 36px;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    transition: all 0.2s ease;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
     white-space: nowrap;
 }
 
@@ -293,14 +240,15 @@
 }
 
 .standards-page .tab-btn.active {
-    background: var(--bg-secondary);
-    color: var(--primary-600);
-    border-color: var(--primary-600);
+    background: var(--bg-card);
+    color: var(--primary-700, var(--primary-600));
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .standards-page .tab-btn:hover:not(.active) {
     color: var(--text-primary);
-    border-color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-card) 60%, transparent);
 }
 
 /* Empty state */
@@ -349,24 +297,8 @@
 }
 
 @media (max-width: 899px) {
-    .standards-toolbar {
-        flex-direction: column-reverse;
-        align-items: stretch;
-        gap: var(--spacing-sm);
-    }
-
-    .standards-toolbar__add {
-        justify-content: center;
-    }
-
-    .standards-page .filters-bar select {
-        flex: 1 1 100%;
+    .standards-page .tabs {
         width: 100%;
-        min-width: 0;
-    }
-
-    .standards-page .filters-result-count {
-        margin-inline-start: 0;
     }
 
     .standards-table {

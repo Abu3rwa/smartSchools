@@ -41,7 +41,7 @@
 }
 
 .standards-gradebook-header--embedded {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .standards-gradebook-header h1 {
@@ -89,23 +89,6 @@
   cursor: default;
 }
 
-.standards-gradebook-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.75rem;
-}
-
-.standards-gradebook-filters input,
-.standards-gradebook-filters select {
-  width: 100%;
-  min-height: 38px;
-  border: 1px solid var(--border-color, #d7d7d7);
-  background: var(--bg-card, #fff);
-  color: var(--text-primary, #0f172a);
-  border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-}
-
 /* ---------- Toolbar ---------- */
 .gb-toolbar {
   display: flex;
@@ -113,6 +96,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .gb-toolbar__actions {
@@ -120,10 +104,7 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
-}
-
-.gb-toolbar .standards-gradebook-header {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .gb-toolbar-save,
@@ -131,7 +112,8 @@
   border: none;
   background: var(--primary, #1976d2);
   color: #fff;
-  padding: 0.5rem 1.1rem;
+  min-height: 36px;
+  padding: 0 1.1rem;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
@@ -147,21 +129,6 @@
   opacity: 0.45;
   cursor: default;
   box-shadow: none;
-}
-
-.gb-toolbar__assign {
-  border: 1px solid var(--primary, #1976d2);
-  background: var(--bg-card, #fff);
-  color: var(--primary, #1976d2);
-  padding: 0.5rem 1.1rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.gb-toolbar__assign:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .gb-unsaved-pill {
@@ -182,12 +149,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem 0.9rem;
-  padding: 0.55rem 0.75rem;
+  gap: 0.3rem 0.7rem;
+  padding: 5px 10px;
+  margin-bottom: 8px;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: var(--radius-md, 10px);
   background: var(--bg-card, #fff);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: var(--text-secondary, #475467);
 }
 
@@ -225,22 +193,28 @@
 }
 
 .gb-teacher-help {
-  border: 1px solid color-mix(in srgb, var(--primary-color, #1976d2) 35%, var(--border-color, #dbeafe));
-  background: color-mix(in srgb, var(--primary-color, #1976d2) 10%, var(--bg-card, #fff));
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-card, #fff);
   color: var(--text-primary, #0f172a);
   border-radius: 10px;
-  padding: 0.75rem 0.9rem;
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 0.82rem;
 }
 
-.gb-teacher-help h3 {
-  margin: 0 0 0.3rem;
-  font-size: 0.95rem;
+.gb-teacher-help summary {
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary, #475467);
 }
 
 .gb-teacher-help p {
   margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.4;
+  padding: 0 12px 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #475467);
 }
 
 @media (max-width: 900px) {
@@ -867,20 +841,10 @@
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 1024px) {
-  .standards-gradebook-filters {
-    grid-template-columns: repeat(2, minmax(160px, 1fr));
-  }
-}
-
 @media (max-width: 640px) {
   .standards-gradebook-header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .standards-gradebook-filters {
-    grid-template-columns: 1fr;
   }
 
   .gb-matrix-wrap {

@@ -101,7 +101,8 @@ const useStandardAssignPageData = (options = {}) => {
         classId: '',
         subjectId: '',
         semester: '',
-        academicYear: ''
+        academicYear: '',
+        search: ''
     });
 
     const handleFilterChange = (key, value) => {
@@ -143,11 +144,22 @@ const useStandardAssignPageData = (options = {}) => {
     }, [assignmentsForView]);
 
     const filteredAssignments = useMemo(() => {
+        const search = String(filters.search || '').trim().toLowerCase();
         return assignmentsForView.filter(a => {
             if (filters.classId && a.class?._id !== filters.classId) return false;
             if (filters.subjectId && a.subject?._id !== filters.subjectId) return false;
             if (filters.semester && String(a.semester) !== String(filters.semester)) return false;
             if (filters.academicYear && a.academicYear !== filters.academicYear) return false;
+            if (search) {
+                const haystack = [
+                    a.title,
+                    a.standard?.code,
+                    a.standard?.name,
+                    a.subject?.name,
+                    a.class?.name
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (!haystack.includes(search)) return false;
+            }
             return true;
         });
     }, [assignmentsForView, filters]);

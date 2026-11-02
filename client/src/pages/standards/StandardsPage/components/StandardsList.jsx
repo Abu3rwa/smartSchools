@@ -92,10 +92,7 @@ const StandardsList = ({
                         )}
                         <th scope="col">{t('standards:list.columns.code')}</th>
                         <th scope="col">{t('standards:list.columns.name')}</th>
-                        <th scope="col">{t('standards:list.columns.description')}</th>
-                        <th scope="col">{t('standards:list.columns.subject')}</th>
-                        <th scope="col">{t('standards:list.columns.grade')}</th>
-                        <th scope="col">{t('standards:list.columns.category')}</th>
+                        <th scope="col">{t('standards:list.columns.subjectGrade')}</th>
                         <th scope="col">{t('standards:list.columns.mastery')}</th>
                         {isAdmin && <th scope="col">{t('standards:list.columns.actions')}</th>}
                     </tr>
@@ -114,18 +111,32 @@ const StandardsList = ({
                                 </td>
                             )}
                             <td className="standard-code">{standard.code}</td>
-                            <td>{standard.name}</td>
-                            <td className="standard-description" title={standard.description}>
-                                {standard.description}
-                            </td>
-                            <td>{standard.subject?.name || t('standards:common.empty')}</td>
-                            <td>{standard.gradeLevel}</td>
-                            <td>{standard.category || t('standards:common.empty')}</td>
                             <td>
-                                {t('standards:list.masteryValue', {
-                                    threshold: standard.masteryThreshold,
-                                    questions: standard.masteryMinQuestions
-                                })}
+                                <div className="standards-table__standard">
+                                    <span className="standards-table__name">{standard.name}</span>
+                                    {standard.description ? (
+                                        <span className="standards-table__desc" title={standard.description}>
+                                            {standard.description}
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </td>
+                            <td>
+                                <div className="standards-meta-cell">
+                                    <span>{standard.subject?.name || t('standards:common.empty')}</span>
+                                    <span className="standards-meta-cell__sub">
+                                        {t('standards:filters.grade', { grade: standard.gradeLevel })}
+                                        {standard.category ? ` · ${standard.category}` : ''}
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <span className="standards-pill">
+                                    {t('standards:list.masteryValue', {
+                                        threshold: standard.masteryThreshold,
+                                        questions: standard.masteryMinQuestions
+                                    })}
+                                </span>
                             </td>
                             {isAdmin && (
                                 <td>

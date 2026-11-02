@@ -133,13 +133,11 @@ const StandardAssignList = ({
                     <thead>
                         <tr>
                             <th>{t('standardAssign:list.assignmentTitle', 'Assignment Title')}</th>
-                            <th>{t('standardAssign:list.standard', 'Standard')}</th>
-                            <th>{t('standardAssign:list.subject', 'Subject')}</th>
-                            <th>{t('standardAssign:list.class', 'Class')}</th>
-                            <th>{t('standardAssign:list.mode', 'Mode')}</th>
-                            <th>{t('standardAssign:list.poolSize', 'Pool Size')}</th>
-                            <th>{t('standardAssign:list.workflowStatus', 'Workflow Status')}</th>
-                            <th style={{ width: '60px', textAlign: 'center' }}>{t('standardAssign:list.actions', 'Actions')}</th>
+                            <th>{t('standardAssign:list.classSubject', 'Class · Subject')}</th>
+                            <th>{t('standardAssign:list.modeHeader', 'Mode')}</th>
+                            <th>{t('standardAssign:list.questionsHeader', 'Questions')}</th>
+                            <th>{t('standardAssign:list.dueDate', 'Due')}</th>
+                            <th className="assign-table__actions-col">{t('standardAssign:list.actions', 'Actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -174,29 +172,42 @@ const StandardAssignList = ({
                                                     </span>
                                                 )}
                                         </div>
+                                        <span className="assign-table__sub" title={standardDescription}>
+                                            {isGeneralTest
+                                                ? t('standardAssign:list.generalTest')
+                                                : (formatStandardLabel(assignment.standard) || assignment.standard?.code || '—')}
+                                        </span>
                                     </td>
                                     <td>
-                                        <div className="assign-table__standard" title={standardDescription}>
-                                            <span className="assign-table__standard-code">
-                                                {isGeneralTest
-                                                    ? t('standardAssign:list.generalTest')
-                                                    : (formatStandardLabel(assignment.standard) || assignment.standard?.code)}
-                                            </span>
-                                            {/* <span className="assign-table__standard-desc">{standardDescription}</span> */}
+                                        <div className="assign-table__stack">
+                                            <span>{assignment.class?.name || t('standardAssign:common.class')}</span>
+                                            <span className="assign-table__sub">{assignment.subject?.name || '-'}</span>
                                         </div>
                                     </td>
-                                    <td>{assignment.subject?.name || '-'}</td>
-                                    <td>{assignment.class?.name || t('standardAssign:common.class')}</td>
                                     <td>
                                         <span className={`assign-chip ${isAssessment ? 'assign-chip--assessment' : 'assign-chip--practice'}`}>
                                             {getSessionModeLabel(assignment.practiceConfig?.sessionType)}
                                         </span>
                                     </td>
-                                    <td>{assignment.questionWorkflow?.preGeneratedQuestionCount || 0}</td>
                                     <td>
-                                        <span className={`assign-chip assign-chip--workflow-${workflowStatus || 'none'}`}>
-                                            {getWorkflowStatusLabel(workflowStatus || 'none')}
-                                        </span>
+                                        <div className="assign-table__stack">
+                                            <span className="assign-table__count">{assignment.questionWorkflow?.preGeneratedQuestionCount || 0}</span>
+                                            <span className={`assign-chip assign-chip--workflow-${workflowStatus || 'none'}`}>
+                                                {getWorkflowStatusLabel(workflowStatus || 'none')}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="assign-table__stack">
+                                            {assignment.dueDate ? (
+                                                <>
+                                                    <span>{new Date(assignment.dueDate).toLocaleDateString(locale)}</span>
+                                                    <span className={`assign-chip assign-chip--${dueState} assign-chip--xs`}>{dueLabel}</span>
+                                                </>
+                                            ) : (
+                                                <span className="assign-chip assign-chip--no_due assign-chip--xs">{dueLabel}</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td style={{ textAlign: 'center', position: 'relative' }}>
                                         <button 

@@ -1,3 +1,4 @@
+import { HiOutlineSearch } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 
 const StandardsGradebookFilters = ({
@@ -8,20 +9,18 @@ const StandardsGradebookFilters = ({
   const { t } = useTranslation(['standardsGradebook']);
 
   return (
-    <section className="standards-gradebook-filters" aria-label={t('standardsGradebook:filters.title')}>
-      {/* Period filter */}
-      <select
-        aria-label={t('standardsGradebook:filters.periodLabel', 'Period')}
-        value={filters.period || ''}
-        onChange={(event) => onFilterChange('period', event.target.value)}
-      >
-        <option value="">{t('standardsGradebook:filters.currentPeriod', 'Current Period')}</option>
-        <option value="semester_1">{t('standardsGradebook:filters.semester1', 'Semester 1')}</option>
-        <option value="semester_2">{t('standardsGradebook:filters.semester2', 'Semester 2')}</option>
-        <option value="full_year">{t('standardsGradebook:filters.fullYear', 'Full Year')}</option>
-      </select>
+    <section className="standards-controls" aria-label={t('standardsGradebook:filters.title')}>
+      <div className="standards-controls__search">
+        <HiOutlineSearch aria-hidden="true" />
+        <input
+          type="search"
+          aria-label={t('standardsGradebook:filters.searchPlaceholder')}
+          value={filters.search}
+          onChange={(event) => onFilterChange('search', event.target.value)}
+          placeholder={t('standardsGradebook:filters.searchPlaceholder')}
+        />
+      </div>
 
-      {/* Class filter */}
       <select
         aria-label={t('standardsGradebook:filters.classLabel', 'Class')}
         value={filters.classId}
@@ -33,7 +32,6 @@ const StandardsGradebookFilters = ({
         ))}
       </select>
 
-      {/* Subject filter */}
       <select
         aria-label={t('standardsGradebook:filters.subjectLabel', 'Subject')}
         value={filters.subjectId}
@@ -45,14 +43,16 @@ const StandardsGradebookFilters = ({
         ))}
       </select>
 
-      {/* Text search */}
-      <input
-        type="search"
-        aria-label={t('standardsGradebook:filters.searchPlaceholder')}
-        value={filters.search}
-        onChange={(event) => onFilterChange('search', event.target.value)}
-        placeholder={t('standardsGradebook:filters.searchPlaceholder')}
-      />
+      <select
+        aria-label={t('standardsGradebook:filters.periodLabel', 'Period')}
+        value={filters.period || ''}
+        onChange={(event) => onFilterChange('period', event.target.value)}
+      >
+        <option value="">{t('standardsGradebook:filters.currentPeriod', 'Current Period')}</option>
+        <option value="semester_1">{t('standardsGradebook:filters.semester1', 'Semester 1')}</option>
+        <option value="semester_2">{t('standardsGradebook:filters.semester2', 'Semester 2')}</option>
+        <option value="full_year">{t('standardsGradebook:filters.fullYear', 'Full Year')}</option>
+      </select>
     </section>
   );
 };

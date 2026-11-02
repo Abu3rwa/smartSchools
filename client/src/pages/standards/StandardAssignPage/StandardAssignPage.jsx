@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import StandardAssignPageHeader from './components/StandardAssignPageHeader';
 import StandardAssignFiltersBar from './components/StandardAssignFiltersBar';
 import StandardAssignList from './components/StandardAssignList';
@@ -6,10 +8,12 @@ import StandardAssignProgressModal from './components/StandardAssignProgressModa
 import AssessmentGradebookModal from './components/AssessmentGradebookModal';
 import QuestionPoolEditorModal from './components/QuestionPoolEditorModal';
 import useStandardAssignPageData from './hooks/useStandardAssignPageData';
+import '../standardsWorkspace.css';
 import './StandardAssignPage.css';
 
 const StandardAssignPage = ({
     embedded,
+    registerHeaderAction,
     grammarOnly = false,
     headerTitle,
     headerSubtitle,
@@ -19,6 +23,7 @@ const StandardAssignPage = ({
     modalCreateActionLabel,
     modalEditActionLabel
 }) => {
+    const { t } = useTranslation(['standardAssign']);
     const {
         assignments: _assignments,
         filteredAssignments,
@@ -99,14 +104,29 @@ const StandardAssignPage = ({
         getStandardOptionLabel
     } = useStandardAssignPageData({ grammarOnly });
 
+    const openCreateRef = useRef(openCreateModal);
+    const createActionLabel = createButtonLabel || t('standardAssign:actions.newAssignment');
+
+    useEffect(() => {
+        openCreateRef.current = openCreateModal;
+    });
+
+    useEffect(() => {
+        if (!embedded || !registerHeaderAction) return undefined;
+        registerHeaderAction({ label: createActionLabel, onClick: () => openCreateRef.current() });
+        return () => registerHeaderAction(null);
+    }, [embedded, registerHeaderAction, createActionLabel]);
+
     return (
         <div className={embedded ? 'assign-page assign-page--embedded' : 'assign-page'}>
-            <StandardAssignPageHeader
-                onCreate={openCreateModal}
-                title={headerTitle}
-                subtitle={headerSubtitle}
-                createLabel={createButtonLabel}
-            />
+            {!embedded && (
+                <StandardAssignPageHeader
+                    onCreate={openCreateModal}
+                    title={headerTitle}
+                    subtitle={headerSubtitle}
+                    createLabel={createButtonLabel}
+                />
+            )}
             <StandardAssignFiltersBar 
                 filters={filters} 
                 onFilterChange={handleFilterChange} 

@@ -5,9 +5,10 @@ import StandardsGradebookMatrix from './components/StandardsGradebookMatrix';
 import StandardsGradebookLegend from './components/StandardsGradebookLegend';
 import useStandardsGradebookMatrixData from './hooks/useStandardsGradebookMatrixData';
 import api from '../../../config/api';
+import '../standardsWorkspace.css';
 import './StandardsGradebookPage.css';
 
-const StandardsGradebookPage = ({ embedded }) => {
+const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
   const {
     t,
     standards,
@@ -206,6 +207,16 @@ const StandardsGradebookPage = ({ embedded }) => {
     };
   }, [isStandardMenuOpen]);
 
+  useEffect(() => {
+    if (!embedded || !registerHeaderAction) return undefined;
+    registerHeaderAction({
+      label: t('standardsGradebook:toolbar.assignStandard', 'Assign Standard'),
+      onClick: openAssignModal,
+      disabled: !canAssignStandard,
+    });
+    return () => registerHeaderAction(null);
+  }, [embedded, registerHeaderAction, openAssignModal, canAssignStandard, t]);
+
   // Ctrl+S keyboard shortcut to save
   const handleKeyDown = useCallback((e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -235,7 +246,16 @@ const StandardsGradebookPage = ({ embedded }) => {
     <div className={embedded ? 'standards-gradebook-page standards-gradebook-page--embedded' : 'standards-gradebook-page'}>
       {/* Toolbar */}
       <div className="gb-toolbar">
+        <StandardsGradebookHeader onRefresh={onRefresh} loading={loading} embedded={Boolean(embedded)} />
         <div className="gb-toolbar__actions">
+          {hasPendingChanges && (
+            <span className="gb-unsaved-pill" role="status">
+              {t('standardsGradebook:toolbar.unsaved', {
+                n: pendingCount,
+                defaultValue: '{{n}} unsaved',
+              })}
+            </span>
+          )}
           <button
             type="button"
             className={`gb-toolbar__save${hasPendingChanges ? ' is-dirty' : ''}`}
@@ -251,31 +271,14 @@ const StandardsGradebookPage = ({ embedded }) => {
                   })
                 : t('standardsGradebook:toolbar.save', 'Save (Ctrl+S)')}
           </button>
-          <button
-            type="button"
-            className="gb-toolbar__assign"
-            onClick={openAssignModal}
-            disabled={!canAssignStandard}
-          >
-            {t('standardsGradebook:toolbar.assignStandard', '+ Assign Standard')}
-          </button>
-          {hasPendingChanges && (
-            <span className="gb-unsaved-pill" role="status">
-              {t('standardsGradebook:toolbar.unsaved', {
-                n: pendingCount,
-                defaultValue: '{{n}} unsaved',
-              })}
-            </span>
-          )}
         </div>
-        <StandardsGradebookHeader onRefresh={onRefresh} loading={loading} embedded={Boolean(embedded)} />
       </div>
 
       {!embedded && (
-        <section className="gb-teacher-help" aria-label={t('standardsGradebook:teacherHelp.title', 'Teacher Instructions')}>
-          <h3>{t('standardsGradebook:teacherHelp.title', 'Teacher Instructions')}</h3>
+        <details className="gb-teacher-help">
+          <summary>{t('standardsGradebook:teacherHelp.title', 'Teacher Instructions')}</summary>
           <p>{t('standardsGradebook:teacherHelp.steps', '1) Select class and subject. 2) Use + Assign Standard to add missing standards. 3) Enter 1-4 scores in cells. 4) Press Save (Ctrl+S) to store changes.')}</p>
-        </section>
+        </details>
       )}
 
       <StandardsGradebookFilters
@@ -347,7 +350,7 @@ const StandardsGradebookPage = ({ embedded }) => {
                   </span>
                 </button>
 
-                {isStandardMenuOpen && !standardsLoading && (
+                {isStandardMenuOpen && (
                   <div className="gb-standard-picker__menu" role="listbox">
                     <div className="gb-standard-picker__search-wrap">
                       <input
@@ -366,6 +369,11 @@ const StandardsGradebookPage = ({ embedded }) => {
                       />
                     </div>
 
+                    {standardsLoading ? (
+                      <div className="gb-standard-picker__empty">
+                        {t('standardsGradebook:assignStandard.loadingStandards', 'Loading standards...')}
+                      </div>
+                    ) : (
                     <div className="gb-standard-picker__options">
                       {filteredStandardOptions.length === 0 ? (
                         <div className="gb-standard-picker__empty">
@@ -399,6 +407,7 @@ const StandardsGradebookPage = ({ embedded }) => {
                         })
                       )}
                     </div>
+                    )}
                   </div>
                 )}
               </div>

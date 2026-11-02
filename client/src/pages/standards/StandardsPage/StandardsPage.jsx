@@ -1,4 +1,6 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
+import { HiOutlinePlus } from 'react-icons/hi2';
+import { useTranslation } from 'react-i18next';
 import StandardsPageHeader from './components/StandardsPageHeader';
 import StandardsTabs from './components/StandardsTabs';
 import StandardsFiltersBar from './components/StandardsFiltersBar';
@@ -8,6 +10,7 @@ import StandardModal from './components/StandardModal';
 import StandardsImportTab from './components/StandardsImportTab';
 import useStandardsPageData from './hooks/useStandardsPageData';
 import { STANDARDS_PAGE_TABS } from './constants';
+import '../standardsWorkspace.css';
 import './StandardsPage.css';
 
 const StandardAssignPage = lazy(() => import('../StandardAssignPage/StandardAssignPage'));
@@ -16,6 +19,8 @@ const AssessmentPoolPage = lazy(() => import('../AssessmentPoolPage/AssessmentPo
 const AssessmentSettingsPage = lazy(() => import('../AssessmentSettingsPage/AssessmentSettingsPage'));
 
 const StandardsPage = () => {
+    const { t } = useTranslation(['standards', 'standardAssign', 'standardsGradebook']);
+    const [tabAction, setTabAction] = useState(null);
     const {
         activeTab,
         setActiveTab,
@@ -64,6 +69,26 @@ const StandardsPage = () => {
 
     const hasActiveFilters = Boolean(searchTerm || filterClass || filterSubject || filterGrade);
 
+    const tabSubtitles = {
+        [STANDARDS_PAGE_TABS.list]: t('standards:header.subtitle'),
+        [STANDARDS_PAGE_TABS.import]: t('standards:header.subtitles.import'),
+        [STANDARDS_PAGE_TABS.assign]: t('standardAssign:header.subtitle'),
+        [STANDARDS_PAGE_TABS.gradebook]: t('standardsGradebook:header.subtitle'),
+        [STANDARDS_PAGE_TABS.pool]: t('standards:header.subtitles.pool'),
+        [STANDARDS_PAGE_TABS.settings]: t('standards:header.subtitles.settings')
+    };
+
+    const registerHeaderAction = useCallback((action) => setTabAction(action), []);
+
+    const handleTabChange = (tab) => {
+        setTabAction(null);
+        setActiveTab(tab);
+    };
+
+    const primaryAction = activeTab === STANDARDS_PAGE_TABS.list
+        ? (isAdmin ? { label: t('standards:header.add'), onClick: handleOpenCreateModal } : null)
+        : tabAction;
+
     const handleClearFilters = () => {
         setSearchTerm('');
         setFilterClass('');
@@ -74,10 +99,21 @@ const StandardsPage = () => {
     return (
         <div className="standards-page">
             <StandardsPageHeader
-                showAddStandard={isAdmin && activeTab === STANDARDS_PAGE_TABS.list}
-                onAddStandard={handleOpenCreateModal}
+                title={t('standards:header.title')}
+                subtitle={tabSubtitles[activeTab]}
+                action={primaryAction ? (
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={primaryAction.onClick}
+                        disabled={Boolean(primaryAction.disabled)}
+                    >
+                        <HiOutlinePlus size={18} aria-hidden="true" />
+                        {primaryAction.label}
+                    </button>
+                ) : null}
             >
-                <StandardsTabs activeTab={activeTab} onTabChange={setActiveTab} isAdmin={isAdmin} />
+                <StandardsTabs activeTab={activeTab} onTabChange={handleTabChange} isAdmin={isAdmin} />
             </StandardsPageHeader>
 
             {activeTab === STANDARDS_PAGE_TABS.list && (
@@ -135,11 +171,15 @@ const StandardsPage = () => {
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.assign && (
-                <Suspense fallback={<LoadingState />}><StandardAssignPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}>
+                    <StandardAssignPage embedded registerHeaderAction={registerHeaderAction} />
+                </Suspense>
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.gradebook && (
-                <Suspense fallback={<LoadingState />}><StandardsGradebookPage embedded /></Suspense>
+                <Suspense fallback={<LoadingState />}>
+                    <StandardsGradebookPage embedded registerHeaderAction={registerHeaderAction} />
+                </Suspense>
             )}
 
             {activeTab === STANDARDS_PAGE_TABS.pool && (

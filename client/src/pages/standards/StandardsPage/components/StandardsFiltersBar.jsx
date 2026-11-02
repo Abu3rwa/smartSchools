@@ -21,9 +21,9 @@ const StandardsFiltersBar = ({
     const { t } = useTranslation(['standards']);
 
     return (
-        <div className="filters-bar">
-            <div className="search-bar">
-                <HiOutlineSearch className="search-icon" aria-hidden="true" />
+        <div className="standards-controls">
+            <div className="standards-controls__search">
+                <HiOutlineSearch aria-hidden="true" />
                 <input
                     type="text"
                     placeholder={t('standards:filters.searchPlaceholder')}
@@ -69,12 +69,12 @@ const StandardsFiltersBar = ({
                 ))}
             </select>
             {hasActiveFilters && (
-                <button type="button" className="btn btn-secondary btn-sm filters-clear" onClick={onClearFilters}>
+                <button type="button" className="btn btn-secondary btn-sm standards-controls__clear" onClick={onClearFilters}>
                     <HiOutlineXCircle aria-hidden="true" />
                     {t('standards:filters.clear')}
                 </button>
             )}
-            <span className="filters-result-count" aria-live="polite">
+            <span className="standards-controls__count" aria-live="polite">
                 {t('standards:filters.resultCount', { shown: shownCount, total: totalCount })}
             </span>
         </div>

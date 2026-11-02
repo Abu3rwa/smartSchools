@@ -33,6 +33,7 @@ const StandardAssignModal = ({
 }) => {
     const { t } = useTranslation(['standardAssign']);
     const dialogRef = useRef(null);
+    const onCloseRef = useRef(onClose);
     const resolvedCreateTitle =
         modalCreateTitle || t('standardAssign:modal.assignStandardTitle');
     const resolvedEditTitle =
@@ -43,10 +44,16 @@ const StandardAssignModal = ({
         submitEditLabel || t('standardAssign:actions.saveChanges');
 
     useEffect(() => {
+        onCloseRef.current = onClose;
+    });
+
+    // onClose is re-created on every parent render; keeping it out of the deps
+    // stops this effect from stealing focus back to the dialog on each keystroke.
+    useEffect(() => {
         if (!showAssignModal) return undefined;
 
         const handleKeyDown = (event) => {
-            if (event.key === 'Escape') onClose();
+            if (event.key === 'Escape') onCloseRef.current();
         };
 
         document.addEventListener('keydown', handleKeyDown);
@@ -54,7 +61,7 @@ const StandardAssignModal = ({
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [showAssignModal, onClose]);
+    }, [showAssignModal]);
 
     if (!showAssignModal) return null;
 

@@ -71,7 +71,7 @@
     "saveCount": "حفظ التغييرات ({{n}}) (Ctrl+S)",
     "saving": "جارٍ الحفظ…",
     "unsaved": "تغييرات غير محفوظة: {{n}}",
-    "assignStandard": "+ إسناد معيار"
+    "assignStandard": "إسناد معيار"
   },
   "teacherHelp": {
     "title": "إرشادات المعلم",
