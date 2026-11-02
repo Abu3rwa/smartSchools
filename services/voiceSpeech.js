@@ -19,8 +19,7 @@ const extensionFor = (mimeType = '') => {
 };
 
 /** One recording in, one transcript out. An empty or missed recording is a 422, not a silent pass. */
-export const transcribeAudio = async ({
-    buffer,
+export const transcribeAudio = async ({    buffer,
     mimeType = 'audio/webm',
     model = 'gpt-4o-mini-transcribe',
     language = 'en'
@@ -60,6 +59,79 @@ export const transcribeAudio = async ({
     const text = String(payload?.text || '').trim();
     if (!text) throw fail("I didn't catch that. Hold the button and say it again.", 422);
     return { text };
+};
+
+const transcriptWords = (payload) => (Array.isArray(payload?.words) ? payload.words : [])
+    .map((word) => ({
+        word: String(word?.word || '').trim(),
+        start: Number(word?.start),
+        end: Number(word?.end)
+    }))
+    .filter((word) => word.word && Number.isFinite(word.start) && Number.isFinite(word.end));
+
+const transcriptSegments = (payload) => (Array.isArray(payload?.segments) ? payload.segments : [])
+    .map((segment) => ({
+        text: String(segment?.text || '').trim(),
+        start: Number(segment?.start),
+        end: Number(segment?.end),
+        no_speech_prob: Number(segment?.no_speech_prob)
+    }));
+
+/**
+ * Fluency needs word timings for pauses and karaoke highlighting, so it pins
+ * whisper-1 (`verbose_json` is the only response with `words`). No prompt: the
+ * passage as a prompt makes the model hear words the student did not say.
+ */
+export const transcribeWithWordTimes = async ({
+    buffer,
+    mimeType = 'audio/webm',
+    language = 'en'
+} = {}) => {
+    const model = 'whisper-1';
+    const key = apiKey();
+    if (!key) {
+        logger.error('voice_speech_not_configured', { model });
+        throw fail('Reading practice is not set up yet. Ask your teacher or the school office.', 422, 'VOICE_NOT_CONFIGURED');
+    }
+    if (!Buffer.isBuffer(buffer) || !buffer.length) {
+        throw fail('The recording was empty. Try again.', 422);
+    }
+
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: mimeType }), `reading.${extensionFor(mimeType)}`);
+    form.append('model', model);
+    form.append('language', language);
+    form.append('response_format', 'verbose_json');
+    form.append('timestamp_granularities[]', 'word');
+    form.append('timestamp_granularities[]', 'segment');
+    form.append('temperature', '0');
+
+    let response;
+    try {
+        response = await fetch(`${baseUrl()}/audio/transcriptions`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${key}` },
+            body: form,
+            signal: AbortSignal.timeout(timeoutMs())
+        });
+    } catch (error) {
+        logger.warn('voice_transcribe_failed', { message: error?.message, model });
+        throw fail('The reading could not be checked just now. Try again.');
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        logger.warn('voice_transcribe_rejected', { status: response.status, message: payload?.error?.message, model });
+        throw fail('The reading could not be checked just now. Try again.');
+    }
+
+    return {
+        text: String(payload?.text || '').trim(),
+        words: transcriptWords(payload),
+        segments: transcriptSegments(payload),
+        duration: Number(payload?.duration) || 0,
+        model
+    };
 };
 
 const CACHE_LIMIT = 40;

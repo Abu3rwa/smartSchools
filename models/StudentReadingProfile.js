@@ -11,6 +11,12 @@ const studentReadingProfileSchema = new mongoose.Schema(
     readingSpeedWpm: { type: Number },
     comprehensionAccuracy: { type: Number },
     preferredTextComplexity: { type: Number },
+    // Kept separately from the microphone permission the browser remembers,
+    // because the server must know whether this student ever agreed.
+    micConsent: {
+      acceptedAt: { type: Date, default: null },
+      version: { type: Number, default: 0 },
+    },
     progressHistory: [
       {
         assessedAt: { type: Date, default: Date.now },

@@ -12,6 +12,8 @@ import {
   HiOutlineUserGroup,
   HiOutlineBookOpen,
   HiOutlineSearch,
+  HiOutlineVolumeUp,
+  HiOutlineSparkles,
 } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
@@ -21,6 +23,7 @@ import { fetchTexts } from "../../../../store/slices/readingSlice.js";
 import readingService from "../../../../services/readingService.js";
 import ReadingCsvImportPanel from "./ReadingCsvImportPanel.jsx";
 import ReadingEditorModal from "./ReadingEditorModal.jsx";
+import ModelAudioPreview from "../ModelAudioPreview.jsx";
 import {
   filterReadings,
   nextSort,
@@ -62,17 +65,40 @@ export default function ReadingTextsListPage() {
     academicYear,
     loading,
     assignModal,
-    setAssignModal,
     assignClassId,
     setAssignClassId,
     assignDueDate,
     setAssignDueDate,
     assignInstructions,
     setAssignInstructions,
+    assignPublished,
+    setAssignPublished,
+    assignPublishAt,
+    setAssignPublishAt,
     assignSubmitting,
     openAssignModal,
+    closeAssignModal,
     handleAssignSubmit,
     assignmentCountByText,
+    readingGate,
+    enableReadingGate,
+    disableReadingGate,
+    setReadingGateField,
+    fluency,
+    fluencyAvailable,
+    enableFluency,
+    disableFluency,
+    toggleFluencyPart,
+    setFluencyField,
+    coverage,
+    coverageParts,
+    coverageLoading,
+    coverageError,
+    selectedCoverage,
+    generatingAudio,
+    audioProgress,
+    cancelAudioGeneration,
+    generateSelectedAudio,
     onBack,
     onUpload,
     onResults,
@@ -85,6 +111,11 @@ export default function ReadingTextsListPage() {
       month: "short",
       year: "numeric",
     });
+  };
+
+  const formatCents = (value) => {
+    const cents = Number(value) || 0;
+    return cents >= 1 ? Math.round(cents) : Math.round(cents * 100) / 100;
   };
 
   const visibleReadings = useMemo(() => sortReadings(
@@ -397,7 +428,7 @@ export default function ReadingTextsListPage() {
       )}
 
       {assignModal && (
-        <div className="modal-overlay" onClick={() => setAssignModal(null)}>
+        <div className="modal-overlay" onClick={closeAssignModal}>
           <div
             className="modal-content reading-assign-modal"
             onClick={(e) => e.stopPropagation()}
@@ -429,6 +460,45 @@ export default function ReadingTextsListPage() {
                   onChange={(e) => setAssignDueDate(e.target.value)}
                 />
               </div>
+
+              <div className="fluency-toggle-row">
+                <div>
+                  <strong>{t("reading:texts.publish.toggleTitle")}</strong>
+                  <p>{t("reading:texts.publish.toggleHint")}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={assignPublished}
+                  className={`reading-switch${assignPublished ? " is-on" : ""}`}
+                  onClick={() => setAssignPublished((current) => !current)}
+                >
+                  <span>
+                    {assignPublished
+                      ? t("reading:texts.publish.on")
+                      : t("reading:texts.publish.off")}
+                  </span>
+                  <span className="reading-switch-track" aria-hidden="true">
+                    <span className="reading-switch-thumb" />
+                  </span>
+                </button>
+              </div>
+
+              {assignPublished && (
+                <div className="form-group">
+                  <label htmlFor="assign-publish-at">
+                    {t("reading:texts.publish.publishOn")}
+                  </label>
+                  <input
+                    id="assign-publish-at"
+                    type="datetime-local"
+                    value={assignPublishAt}
+                    onChange={(e) => setAssignPublishAt(e.target.value)}
+                  />
+                  <small>{t("reading:texts.publish.publishHint")}</small>
+                </div>
+              )}
+
               <div className="form-group">
                 <label htmlFor="assign-instructions">{t("reading:texts.instructionsOptional")}</label>
                 <textarea
@@ -439,18 +509,284 @@ export default function ReadingTextsListPage() {
                   placeholder={t("reading:texts.instructionsPlaceholder")}
                 />
               </div>
+
+              <div className="fluency-toggle-row">
+                <div>
+                  <strong>{t("reading:texts.gate.toggleTitle")}</strong>
+                  <p>{t("reading:texts.gate.toggleHint")}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(readingGate)}
+                  className={`reading-switch${readingGate ? " is-on" : ""}`}
+                  onClick={() => (readingGate ? disableReadingGate() : enableReadingGate())}
+                >
+                  <span>{readingGate
+                    ? t("reading:texts.gate.on")
+                    : t("reading:texts.gate.off")}</span>
+                  <span className="reading-switch-track" aria-hidden="true">
+                    <span className="reading-switch-thumb" />
+                  </span>
+                </button>
+              </div>
+
+              {readingGate && (
+                <div className="fluency-section">
+                  <div className="fluency-fields">
+                    <label>
+                      <span>{t("reading:texts.gate.lockScope")}</span>
+                      <select
+                        value={readingGate.lockScope}
+                        onChange={(e) => setReadingGateField("lockScope", e.target.value)}
+                      >
+                        <option value="quiz_and_thinking">
+                          {t("reading:texts.gate.scopeBoth")}
+                        </option>
+                        <option value="quiz">
+                          {t("reading:texts.gate.scopeQuiz")}
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>{t("reading:texts.gate.minSeconds")}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1800"
+                        value={readingGate.minReadSeconds}
+                        placeholder={t("reading:texts.gate.auto")}
+                        onChange={(e) => setReadingGateField("minReadSeconds", e.target.value)}
+                      />
+                      <small>{t("reading:texts.gate.autoHint")}</small>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className={`fluency-toggle-row${fluencyAvailable ? "" : " is-disabled"}`}>
+                <div>
+                  <strong>{t("reading:texts.fluency.toggleTitle")}</strong>
+                  <p>
+                    {fluencyAvailable
+                      ? t("reading:texts.fluency.toggleHint")
+                      : t("reading:texts.fluency.englishOnly")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(fluency)}
+                  className={`reading-switch${fluency ? " is-on" : ""}`}
+                  onClick={() => (fluency ? disableFluency() : enableFluency())}
+                  disabled={!fluencyAvailable}
+                >
+                  <span>{fluency
+                    ? t("reading:texts.fluency.on")
+                    : t("reading:texts.fluency.off")}</span>
+                  <span className="reading-switch-track" aria-hidden="true">
+                    <span className="reading-switch-thumb" />
+                  </span>
+                </button>
+              </div>
+
+              {fluency && (
+                <div className="fluency-section">
+                  <div className="fluency-section-heading">
+                    <span>{t("reading:texts.fluency.partsHeading")}</span>
+                    <span className="reading-sub">
+                      {t("reading:texts.fluency.partsSelected", { n: fluency.parts.length })}
+                    </span>
+                  </div>
+                  {coverageLoading ? (
+                    <p className="fluency-dialog-note">{t("reading:texts.fluency.coverageLoading")}</p>
+                  ) : coverageError ? (
+                    <p className="fluency-dialog-note is-error">{coverageError}</p>
+                  ) : coverageParts.length === 0 ? (
+                    <p className="fluency-dialog-note">{t("reading:texts.fluency.noParts")}</p>
+                  ) : (
+                    <ul className="fluency-part-list">
+                      {coverageParts.map((part, index) => (
+                        <li key={part.key} className={part.isList ? "is-list" : undefined}>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={fluency.parts.includes(part.key)}
+                              onChange={() => toggleFluencyPart(part.key)}
+                            />
+                            <span className="fluency-part-title">
+                              {part.title || t("reading:texts.fluency.partFallback", { n: index + 1 })}
+                            </span>
+                            <span className="fluency-part-words">
+                              {part.wordCountMin === part.wordCountMax
+                                ? t("reading:texts.fluency.partWords", { words: part.wordCountMax })
+                                : t("reading:texts.fluency.partWordsRange", {
+                                  min: part.wordCountMin,
+                                  max: part.wordCountMax,
+                                })}
+                            </span>
+                          </label>
+                          {part.isList && (
+                            <p className="fluency-part-note">{t("reading:texts.fluency.listPartNote")}</p>
+                          )}
+                          {part.wordCountMax > 250 && (
+                            <p className="fluency-part-note is-warning">
+                              {t("reading:texts.fluency.longPartNote")}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="fluency-fields">
+                    <label>
+                      <span>{t("reading:texts.fluency.minReadings")}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={fluency.minReadings}
+                        onChange={(e) => setFluencyField("minReadings", e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>{t("reading:texts.fluency.maxReadings")}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={fluency.maxReadingsPerPart}
+                        onChange={(e) => setFluencyField("maxReadingsPerPart", e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>{t("reading:texts.fluency.targetAccuracy")}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={fluency.targetAccuracy}
+                        onChange={(e) => setFluencyField("targetAccuracy", e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>{t("reading:texts.fluency.targetPace")}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="400"
+                        value={fluency.targetWpm}
+                        placeholder={t("reading:texts.fluency.optional")}
+                        onChange={(e) => setFluencyField("targetWpm", e.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="fluency-check">
+                    <input
+                      type="checkbox"
+                      checked={fluency.showPace}
+                      onChange={(e) => setFluencyField("showPace", e.target.checked)}
+                    />
+                    {t("reading:texts.fluency.showPace")}
+                  </label>
+                  <label className="fluency-check">
+                    <input
+                      type="checkbox"
+                      checked={fluency.requireListenFirst}
+                      onChange={(e) => setFluencyField("requireListenFirst", e.target.checked)}
+                    />
+                    {t("reading:texts.fluency.requireListenFirst")}
+                  </label>
+
+                  <div className="fluency-audio">
+                    <div className="fluency-audio-head">
+                      <HiOutlineVolumeUp size={16} aria-hidden="true" />
+                      <strong>{t("reading:texts.fluency.modelVoice")}</strong>
+                    </div>
+                    {coverageLoading ? (
+                      <p className="fluency-dialog-note">{t("reading:texts.fluency.coverageLoading")}</p>
+                    ) : coverageError ? (
+                      <p className="fluency-dialog-note is-error">{coverageError}</p>
+                    ) : coverage?.available === false ? (
+                      <p className="fluency-dialog-note">{t("reading:texts.fluency.audioDisabled")}</p>
+                    ) : selectedCoverage.blocks === 0 ? (
+                      <p className="fluency-dialog-note">{t("reading:texts.fluency.choosePartsForAudio")}</p>
+                    ) : selectedCoverage.missing === 0 ? (
+                      <p className="fluency-dialog-note">
+                        {t("reading:texts.fluency.audioReady", { total: selectedCoverage.blocks })}
+                      </p>
+                    ) : (
+                      <p className="fluency-dialog-note">
+                        {t("reading:texts.fluency.audioMissing", {
+                          missing: selectedCoverage.missing,
+                          total: selectedCoverage.blocks,
+                          cents: formatCents(selectedCoverage.cents),
+                        })}
+                      </p>
+                    )}
+                    {selectedCoverage.ready.length > 0 && (
+                      <ModelAudioPreview
+                        textId={assignModal?._id}
+                        parts={selectedCoverage.ready}
+                      />
+                    )}
+                    {coverage?.available !== false && selectedCoverage.missing > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={generateSelectedAudio}
+                        disabled={generatingAudio}
+                      >
+                        <HiOutlineSparkles size={16} aria-hidden="true" />
+                        {generatingAudio
+                          ? t("reading:texts.fluency.generating")
+                          : t("reading:texts.fluency.generate")}
+                      </button>
+                    )}
+                    {generatingAudio && audioProgress && (
+                      <div className="fluency-audio-progress">
+                        <progress
+                          className="fluency-audio-bar"
+                          max={audioProgress.total || 1}
+                          value={audioProgress.done}
+                          aria-label={t("reading:texts.fluency.audioProgress", {
+                            done: audioProgress.done,
+                            total: audioProgress.total,
+                          })}
+                        />
+                        <span>
+                          {t("reading:texts.fluency.audioProgress", {
+                            done: audioProgress.done,
+                            total: audioProgress.total,
+                          })}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={cancelAudioGeneration}
+                        >
+                          {t("reading:common.cancel")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="modal-actions">
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setAssignModal(null)}
+                  onClick={closeAssignModal}
                 >
                   {t("reading:common.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={assignSubmitting}
+                  disabled={assignSubmitting || generatingAudio}
                 >
                   {assignSubmitting ? t("reading:common.creating") : t("reading:texts.createAssignment")}
                 </button>

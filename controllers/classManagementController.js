@@ -8,6 +8,8 @@ import HomeworkAssignment from '../models/HomeworkAssignment.js';
 import HomeworkSubmission from '../models/HomeworkSubmission.js';
 import ReadingAssignment from '../models/ReadingAssignment.js';
 import ReadingCompletion from '../models/ReadingCompletion.js';
+import ReadingFluencyAttempt from '../models/ReadingFluencyAttempt.js';
+import ReadingFluencyProgress from '../models/ReadingFluencyProgress.js';
 import StandardAssignment from '../models/StandardAssignment.js';
 import StandardQuestionPool from '../models/StandardQuestionPool.js';
 import PracticeSession from '../models/PracticeSession.js';
@@ -484,6 +486,8 @@ export const deleteClass = asyncHandler(async (req, res) => {
 
         HomeworkSubmission.deleteMany({ school: schoolId, homeworkAssignment: { $in: homeworkAssignmentIds } }),
         ReadingCompletion.deleteMany({ school: schoolId, assignment: { $in: readingAssignmentIds } }),
+        ReadingFluencyAttempt.deleteMany({ school: schoolId, assignment: { $in: readingAssignmentIds } }),
+        ReadingFluencyProgress.deleteMany({ school: schoolId, assignment: { $in: readingAssignmentIds } }),
         Grade.deleteMany({
             school: schoolId,
             $or: [

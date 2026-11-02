@@ -4,6 +4,7 @@ import Student from "../models/Student.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
+import { stripLockedQuestions } from "../services/readingGate/response.js";
 import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 
 /**
@@ -170,6 +171,9 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
   result.score = completion?.completedAt && completion.totalCount > 0
     ? { correctCount: completion.correctCount, totalCount: completion.totalCount }
     : null;
+
+  stripLockedQuestions(result);
+
   const safeQuestions = (result.text.comprehensionQuestions || []).map((question) => {
     const studentQuestion = { ...question };
     delete studentQuestion.correctIndex;
@@ -207,6 +211,71 @@ export const getSimplified = asyncHandler(async (req, res) => {
     effectiveAcademicYear
   );
   res.status(200).json({ success: true, data: result });
+});
+
+/**
+ * @desc    Start (or resume) the reading timer for an assignment
+ * @route   POST /api/reading/read-start
+ * @access  Private (Student)
+ */
+export const startReading = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  }).select("_id");
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+  const { assignmentId } = req.body || {};
+  if (!assignmentId) {
+    return res.status(400).json({ success: false, message: "assignmentId is required" });
+  }
+
+  const data = await readingAssistantService.startReading(
+    req.schoolId,
+    student._id,
+    assignmentId,
+    effectiveAcademicYear
+  );
+  res.status(200).json({ success: true, data });
+});
+
+/**
+ * @desc    Confirm the student finished reading, unlocking the questions
+ * @route   POST /api/reading/read-finish
+ * @access  Private (Student)
+ */
+export const finishReading = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  }).select("_id");
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+  const { assignmentId, level = null } = req.body || {};
+  if (!assignmentId) {
+    return res.status(400).json({ success: false, message: "assignmentId is required" });
+  }
+
+  const data = await readingAssistantService.finishReading(
+    req.schoolId,
+    student._id,
+    assignmentId,
+    effectiveAcademicYear,
+    { level }
+  );
+  res.status(200).json({ success: true, data });
 });
 
 /**
@@ -418,6 +487,8 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
       primaryLanguage,
       secondaryLanguage,
       language,
+      assignmentId: req.body.assignmentId || null,
+      academicYear: effectiveAcademicYear,
       tracking: {
         schoolId: req.schoolId,
         userId: req.user._id,
@@ -436,7 +507,7 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const createAssignment = asyncHandler(async (req, res) => {
-  const { textId, classId, studentIds, dueDate, instructions } = req.body;
+  const { textId, classId, studentIds, dueDate, instructions, fluency, readingGate, isPublished, publishAt } = req.body;
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const schoolStartMonth = req.school?.settings?.academicYearStartMonth;
 
@@ -449,7 +520,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
   const assignment = await readingAssistantService.createAssignment(
     req.schoolId,
-    { textId, classId, studentIds, dueDate, instructions },
+    { textId, classId, studentIds, dueDate, instructions, fluency, readingGate, isPublished, publishAt },
     req.user._id,
     effectiveAcademicYear,
     schoolStartMonth,
@@ -490,6 +561,38 @@ export const myAssignments = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    The student's reading book for the year (locked chapters as stubs)
+ * @route   GET /api/reading/book
+ * @access  Private (Student)
+ */
+export const getMyBook = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  })
+    .select("_id")
+    .lean();
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+
+  const chapters = await readingAssistantService.getBookForStudent(
+    student._id,
+    req.schoolId,
+    effectiveAcademicYear
+  );
+  res.status(200).json({
+    success: true,
+    data: { academicYear: effectiveAcademicYear, chapters },
+  });
+});
+
+/**
  * @desc    Remove an assignment for its students (keeps the submitted work)
  * @route   DELETE /api/reading/assignments/:assignmentId
  * @access  Private (Teacher who assigned it, Admin)
@@ -506,6 +609,22 @@ export const removeAssignment = asyncHandler(async (req, res) => {
     message: "Reading removed for students",
     data,
   });
+});
+
+/**
+ * @desc    Publish, unpublish, or schedule one assignment
+ * @route   PATCH /api/reading/assignments/:assignmentId/publish
+ * @access  Private (Teacher who assigned it, Admin)
+ */
+export const updateAssignmentPublish = asyncHandler(async (req, res) => {
+  const data = await readingAssistantService.updateAssignmentPublish(
+    req.schoolId,
+    req.params.assignmentId,
+    req.user._id,
+    req.user.role === "admin",
+    req.body || {}
+  );
+  res.status(200).json({ success: true, message: "Publishing updated", data });
 });
 
 /**

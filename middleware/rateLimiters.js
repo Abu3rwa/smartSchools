@@ -41,6 +41,38 @@ export const tutorRateLimiter = rateLimit({
 });
 
 /**
+ * Reading recordings follow the tutor's ceiling: one student can legitimately
+ * make a handful of attempts, but not an unbounded stream of paid transcripts.
+ */
+export const fluencyAttemptRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 40,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many reading recordings. Please wait a few minutes and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
+ * Play taps are cheap and local, but a scripted loop must not reach the
+ * database thousands of times; the service already dedupes within 20 seconds.
+ */
+export const fluencyListenRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many playback requests. Please wait a minute and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Practice generates questions from published pools or local templates, not the AI service.
  * Keep a separate, higher ceiling so normal student practice does not consume the AI budget.
  */

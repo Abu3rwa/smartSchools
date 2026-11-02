@@ -15,6 +15,7 @@ import {
 } from "../../../../../store/slices/readingSlice.js";
 import { selectUser, selectIsAdmin } from "../../../../../store/slices/authSlice.js";
 import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice.js";
+import readingService from "../../../../../services/readingService.js";
 
 export function useReadingAssignmentsData() {
   const dispatch = useDispatch();
@@ -75,6 +76,15 @@ export function useReadingAssignmentsData() {
     removeAssignment: async (assignmentId) => {
       const result = await dispatch(removeAssignmentThunk(assignmentId));
       return result.meta.requestStatus === "fulfilled";
+    },
+    updateAssignmentPublish: async (assignmentId, body) => {
+      try {
+        await readingService.updateAssignmentPublish(assignmentId, body);
+        dispatch(fetchTeacherAssignments({ academicYear, textId: textFilter || undefined }));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, message: err.response?.data?.message || "" };
+      }
     },
     onBack: () => navigate("/portal/reading/texts"),
   };

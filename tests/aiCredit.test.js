@@ -107,6 +107,15 @@ const stub = (target, key, replacement) => {
   };
 };
 
+test("the ledger accepts the model-audio outcome used by reading fluency", () => {
+  const entry = new AiCreditEntry({
+    school: "507f1f77bcf86cd799439011",
+    type: "usage",
+    outcome: "model-audio"
+  });
+  assert.equal(entry.validateSync(), undefined);
+});
+
 test("creditRates uses verified standard mini prices and refuses unknown or invalid prices", () => {
   assert.deepEqual(creditRates({}), rates);
   assert.deepEqual(creditRates({}, "gpt-5.4-mini-2026-03-17"), {

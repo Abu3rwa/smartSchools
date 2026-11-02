@@ -1,0 +1,32 @@
+.model-audio-preview {
+  display: grid;
+  gap: 4px;
+}
+
+.model-audio-preview ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-audio-preview li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.model-audio-preview-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-audio-preview .btn {
+  flex-shrink: 0;
+  margin-top: 0;
+}

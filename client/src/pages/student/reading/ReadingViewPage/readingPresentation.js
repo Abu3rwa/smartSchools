@@ -6,6 +6,10 @@ const normalizeTerm = (value) => String(value || '')
 
 const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
+const countWords = (text) => (
+  String(text || '').match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || []
+).length;
+
 const normalizeSections = (sections) => [...(sections || [])]
   .sort(byOrder)
   .map((section) => ({
@@ -22,12 +26,19 @@ export const buildReadingLevels = (content) => {
   const levels = Array.isArray(content?.readingLevels) ? content.readingLevels : [];
   const mapped = levels
     .filter((level) => String(level?.text || '').trim() || level?.sections?.length)
-    .map((level) => ({
-      targetLevel: level.targetLevel,
-      text: String(level.text || ''),
-      sections: normalizeSections(level.sections),
-      vocabularySubstitutions: level.vocabularySubstitutions || [],
-    }));
+    .map((level) => {
+      const sections = normalizeSections(level.sections);
+      const text = String(level.text || '');
+      return {
+        targetLevel: level.targetLevel,
+        text,
+        sections,
+        vocabularySubstitutions: level.vocabularySubstitutions || [],
+        wordCount: Number.isFinite(Number(level.wordCount))
+          ? Number(level.wordCount)
+          : countWords(sections.length ? sections.map((section) => section.text).join('\n\n') : text),
+      };
+    });
   if (mapped.length) return mapped;
   const fallbackText = String(content?.simplifiedContent || content?.text?.originalText || '');
   return [{
@@ -35,6 +46,7 @@ export const buildReadingLevels = (content) => {
     text: fallbackText,
     sections: normalizeSections(content?.text?.sections),
     vocabularySubstitutions: [],
+    wordCount: countWords(fallbackText),
   }];
 };
 

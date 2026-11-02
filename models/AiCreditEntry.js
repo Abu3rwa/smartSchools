@@ -29,7 +29,7 @@ const aiCreditEntrySchema = new mongoose.Schema(
     balanceAfterCents: { type: Number },
 
     feature: { type: String, trim: true, default: '' },
-    outcome: { type: String, enum: ['done', 'unusable', ''], default: '' },
+    outcome: { type: String, enum: ['done', 'unusable', 'model-audio', ''], default: '' },
     model: { type: String, trim: true, default: '' },
     inputTokens: { type: Number, default: 0 },
     cachedInputTokens: { type: Number, default: 0 },

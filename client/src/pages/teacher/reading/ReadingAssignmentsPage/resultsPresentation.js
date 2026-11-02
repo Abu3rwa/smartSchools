@@ -39,3 +39,22 @@ export const assignmentSummary = (assignments) => assignments.reduce(
   }),
   { total: 0, students: 0, submitted: 0 },
 );
+
+const isFullySubmitted = (assignment) => {
+  const total = Number(assignment?.studentCount || 0);
+  return total > 0 && Number(assignment?.completedCount || 0) >= total;
+};
+
+/** status: active (default) | pending | complete | removed | all */
+export const filterAssignments = (assignments, { search = '', className = '', status = 'active' } = {}) => {
+  const needle = search.trim().toLowerCase();
+  return assignments.filter((assignment) => {
+    const removed = assignment.isActive === false;
+    if (status === 'removed' ? !removed : (status !== 'all' && removed)) return false;
+    if (status === 'pending' && isFullySubmitted(assignment)) return false;
+    if (status === 'complete' && !isFullySubmitted(assignment)) return false;
+    if (className && (assignment.class?.name || '') !== className) return false;
+    if (!needle) return true;
+    return `${assignment.text?.title || ''} ${assignment.class?.name || ''}`.toLowerCase().includes(needle);
+  });
+};

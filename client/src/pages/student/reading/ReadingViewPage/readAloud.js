@@ -35,7 +35,7 @@ export const speechLang = (languageCode) => {
 export const canSpeak = () => Boolean(globalThis.speechSynthesis);
 
 /** Speaks the chunks in order. Returns { cancel }; onEnd fires when the last chunk finishes. */
-export const speakChunks = (chunks, { lang = 'en-US', onEnd } = {}) => {
+export const speakChunks = (chunks, { lang = 'en-US', rate = 1, onEnd } = {}) => {
   const synth = globalThis.speechSynthesis;
   if (!synth || !chunks.length) {
     onEnd?.();
@@ -52,6 +52,7 @@ export const speakChunks = (chunks, { lang = 'en-US', onEnd } = {}) => {
     const utterance = new globalThis.SpeechSynthesisUtterance(chunks[index]);
     index += 1;
     utterance.lang = lang;
+    utterance.rate = rate;
     let settled = false;
     const advance = () => {
       if (settled) return;
