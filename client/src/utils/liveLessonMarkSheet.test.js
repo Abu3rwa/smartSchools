@@ -10,7 +10,8 @@ import {
   markSheetSaved,
   markSheetSummary,
   mergeMarkSheet,
-  pendingMarkCount
+  pendingMarkCount,
+  rescaleAutoRows
 } from './liveLessonMarkSheet.js';
 
 const question = {
@@ -184,4 +185,91 @@ test('a suggestion that cannot be made says so without touching the sheet', () =
   assert.equal(draftOutcome({ unavailable: false }, { waiting: 2, applied: 2 }).kind, 'ready');
   // nothing landed because the teacher had already written every box
   assert.match(draftOutcome({ unavailable: false }, { waiting: 2, applied: 0 }).message, /already has a mark/);
+});
+
+const objective = {
+  slideId: 'slide-3',
+  kind: 'mcq',
+  maxMarks: 2,
+  answers: [
+    { studentId: 'ada', name: 'Ada', kind: 'mcq', state: 'correct', credit: 1, marks: 2, maxMarks: 2, marksSource: 'auto', feedback: '', released: false },
+    { studentId: 'bo', name: 'Bo', kind: 'mcq', state: 'wrong', credit: 0, marks: 0, maxMarks: 2, marksSource: 'auto', feedback: '', released: false },
+    { studentId: 'cal', name: 'Cal', kind: 'text', state: 'pending', credit: null, marks: null, maxMarks: null, marksSource: null, feedback: '', released: false }
+  ]
+};
+
+test('an answer the engines settled arrives with its mark already filled in', () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  assert.deepEqual(sheet.rows.ada, { marks: '2', feedback: '', released: false, auto: true });
+  assert.deepEqual(sheet.rows.bo, { marks: '0', feedback: '', released: false, auto: true });
+  assert.deepEqual(sheet.rows.cal, { marks: '', feedback: '', released: false });
+  assert.deepEqual(markSheetSummary(objective, sheet), {
+    total: 3,
+    marked: 2,
+    released: 0,
+    toMark: 1,
+    suggested: 0,
+    invalid: false,
+    error: ''
+  });
+});
+
+test('a question worth more re-scores every auto mark and leaves a typed one alone', () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  sheet.rows.cal.marks = '1';
+  const rescaled = rescaleAutoRows(sheet, objective, '4');
+  assert.equal(rescaled.maxMarks, '4');
+  assert.equal(rescaled.rows.ada.marks, '4');
+  assert.equal(rescaled.rows.bo.marks, '0');
+  assert.equal(rescaled.rows.cal.marks, '1');
+  assert.equal(rescaled.rows.ada.auto, true);
+});
+
+test('an auto mark never rises above the new total', () => {
+  const sheet = { maxMarks: '2', rows: { ada: { marks: '2', feedback: '', released: false, auto: true } } };
+  assert.equal(rescaleAutoRows(sheet, objective, '1').rows.ada.marks, '1');
+});
+
+test("an untouched auto mark is not sent back as the teacher's own", () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  assert.deepEqual(buildMarkPayload(objective, sheet).marks, [
+    { studentId: 'cal', marks: null, feedback: '', released: false }
+  ]);
+  // a comment or a share is the teacher touching the row, so it goes with its mark
+  sheet.rows.ada.feedback = 'Nice work';
+  sheet.rows.bo.released = true;
+  assert.deepEqual(buildMarkPayload(objective, sheet).marks, [
+    { studentId: 'ada', marks: 2, feedback: 'Nice work', released: false },
+    { studentId: 'bo', marks: 0, feedback: '', released: true },
+    { studentId: 'cal', marks: null, feedback: '', released: false }
+  ]);
+});
+
+test('a suggestion never overwrites a mark the engines already made', () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  const { applied, sheet: next } = applyMarkDrafts(sheet, objective, {
+    maxMarks: 2,
+    drafts: [{ studentId: 'ada', marks: 0.5, feedback: 'Hmm', confidence: 'low' }]
+  });
+  assert.equal(applied, 0);
+  assert.deepEqual(next.rows.ada, { marks: '2', feedback: '', released: false, auto: true });
+});
+
+test('saving a question hands its auto rows to the teacher', () => {
+  const saved = markSheetSaved(mergeMarkSheet(undefined, objective));
+  assert.deepEqual(saved.rows.ada, { marks: '2', feedback: '', released: false, suggested: false });
+  assert.deepEqual(saved.rows.bo, { marks: '0', feedback: '', released: false, suggested: false });
+  assert.equal(saved.rows.ada.auto, undefined);
+});
+
+test('clearing suggestions leaves the engine mark where it was', () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  const cleared = clearMarkDrafts(sheet, objective);
+  assert.deepEqual(cleared.rows.ada, { marks: '2', feedback: '', released: false, auto: true });
+});
+
+test('an auto mark is not a typo even at the very top of the allocation', () => {
+  const sheet = mergeMarkSheet(undefined, objective);
+  sheet.rows.ada.marks = '5';
+  assert.equal(markSheetSummary(objective, sheet).invalid, false);
 });

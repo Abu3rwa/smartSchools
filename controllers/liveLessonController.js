@@ -37,8 +37,10 @@ import {
 import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
 import {
   calculateLiveSessionMark,
+  effectiveAnswerMarks,
   liveAnswerCredit,
   liveAnswerState,
+  LIVE_DEFAULT_QUESTION_MARKS,
 } from "../services/liveSessionGradebookService.js";
 import {
   activeLiveSessionDurationMs,
@@ -1634,10 +1636,6 @@ const LIVE_OPTION_KINDS = ["mcq", "tf", "multi_select"];
 // Students who are not in a listed group still answer the slide's own question, so the teacher
 // marks that queue under this name.
 const LIVE_BASE_LEVEL = "Class";
-// An exit ticket is worth a small mark by default; the teacher can change it per question and the
-// session keeps the choice.
-const LIVE_DEFAULT_QUESTION_MARKS = 2;
-
 const percentCredit = (rows) => {
   const graded = rows.filter((row) => row.credit !== null);
   if (!graded.length) return 0;
@@ -1681,7 +1679,7 @@ const optionTally = (question, rows) => (LIVE_OPTION_KINDS.includes(liveQuestion
   ]))
   : {});
 
-const buildLiveSessionReportData = async (req, session) => {
+const buildLiveSessionReportData = async (req, session, { studentIds = [] } = {}) => {
   const [students, responses, events, classDoc, groups] = await Promise.all([
     getSessionStudents(session),
     LiveResponse.find({ sessionId: session._id, school: req.schoolId }).lean(),
@@ -1752,6 +1750,10 @@ const buildLiveSessionReportData = async (req, session) => {
     .filter((response) => response.slideId === String(slide._id))
     .map((response) => {
       const { question, level, levelKey } = levelForStudent(slide, response.studentId);
+      const effectiveMarks = effectiveAnswerMarks({
+        response,
+        allocation: allocationBySlide.get(String(slide._id)),
+      });
       return {
         studentId: String(response.studentId),
         name: nameByStudent.get(String(response.studentId)) || "Student",
@@ -1764,8 +1766,9 @@ const buildLiveSessionReportData = async (req, session) => {
         guidance: question.guidance || "",
         state: liveAnswerState(response),
         credit: liveAnswerCredit(response),
-        marks: response.grade?.marks ?? null,
-        maxMarks: response.grade?.maxMarks ?? null,
+        marks: effectiveMarks.marks,
+        maxMarks: effectiveMarks.maxMarks,
+        marksSource: effectiveMarks.marksSource,
         feedback: response.grade?.feedback || "",
         released: Boolean(response.grade?.released),
         submittedAt: response.submittedAt || null,
@@ -1832,7 +1835,15 @@ const buildLiveSessionReportData = async (req, session) => {
   );
 
   const endedAt = session.endedAt || new Date();
-  const perStudent = students.map((student) => {
+  // A PDF for chosen students builds only those rows; per-question numbers stay class-wide above.
+  const selectedStudentIds = new Set((studentIds || []).map(String));
+  const roster = selectedStudentIds.size
+    ? students.filter((student) => selectedStudentIds.has(String(student.studentId)))
+    : students;
+  const joinedStudentIds = new Set(events
+    .filter((event) => event.type === "presence:joined")
+    .map((event) => String(event.actor?.userId || event.payload?.studentId || "")));
+  const perStudent = roster.map((student) => {
     const studentId = String(student.studentId);
     const answers = responses.filter((response) => String(response.studentId) === studentId);
     const studentEvents = events.filter((event) =>
@@ -1859,6 +1870,7 @@ const buildLiveSessionReportData = async (req, session) => {
         credit: row?.credit ?? null,
         marks: row?.marks ?? null,
         maxMarks: row?.maxMarks ?? null,
+        marksSource: row?.marksSource ?? null,
         feedback: row?.feedback || "",
         released: Boolean(row?.released),
         submittedAt: response?.submittedAt || null,
@@ -1919,7 +1931,7 @@ const buildLiveSessionReportData = async (req, session) => {
     },
     summary: {
       rosterCount: students.length,
-      joinedCount: perStudent.filter((student) => student.joined).length,
+      joinedCount: students.filter((student) => joinedStudentIds.has(String(student.studentId))).length,
       questionCount: questionSlides.length,
       presentedQuestionCount,
       submittedAnswers: responses.length,
@@ -2164,8 +2176,13 @@ export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res
 export const exportLiveSessionReportPdf = asyncHandler(async (req, res) => {
   const session = await findOwnedSession(req, res);
   if (!session) return;
-  const report = await buildLiveSessionReportData(req, session);
   const studentIds = parseReportStudentIds(req.body?.studentIds);
+  const reportStartedAt = Date.now();
+  const report = await buildLiveSessionReportData(req, session, { studentIds });
+  logger.info("Live session report built for PDF", {
+    students: studentIds.length || report.summary.rosterCount,
+    ms: Date.now() - reportStartedAt,
+  });
   if (studentIds.length && studentIds.some((id) => !report.perStudent.some((student) => student.studentId === id))) {
     return res.status(400).json({ success: false, message: "The selected students are not in this session report." });
   }

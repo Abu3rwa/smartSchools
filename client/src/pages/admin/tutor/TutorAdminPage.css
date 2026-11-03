@@ -301,6 +301,30 @@
   cursor: pointer;
 }
 .ta-link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ta-link-danger { color: #b91c1c; }
+.ta-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.ta-reclaim-hint {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ta-muted);
+}
+.ta-check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ta-check-line span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ta-ink);
+}
 
 .ta-icon-btn {
   display: inline-flex;
@@ -568,4 +592,75 @@
   }
   .ta-toolbar-fields label { min-width: 180px; flex: 1 1 180px; }
   .ta-toolbar-fields input[type="number"] { width: auto; max-width: 160px; }
+}
+
+/* ---- Credit history ---- */
+.ta-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.ta-modal {
+  width: min(720px, 100%);
+  max-height: min(80vh, 720px);
+  overflow: auto;
+  padding: 18px 20px;
+  border: 1px solid var(--ta-line);
+  border-radius: 14px;
+  background: var(--ta-surface);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+.ta-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ta-modal-head h2 { margin: 0; font-size: 1.1rem; }
+.ta-history {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.ta-history-section h3 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ta-muted);
+}
+.ta-history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ta-history-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--ta-line);
+  border-radius: 8px;
+  background: var(--ta-surface-2);
+  font-size: 0.88rem;
+}
+.ta-history-date { color: var(--ta-muted); font-size: 0.8rem; }
+.ta-history-type { font-weight: 600; }
+.ta-history-amount { color: var(--ta-green); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ta-history-amount.is-negative { color: #b91c1c; }
+.ta-history-balance { color: var(--ta-muted); font-variant-numeric: tabular-nums; }
+.ta-history-note { flex: 1 1 100%; color: var(--ta-muted); font-size: 0.82rem; }
+
+@media (max-width: 560px) {
+  .ta-row-actions { gap: 10px; }
 }

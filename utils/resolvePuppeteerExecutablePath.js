@@ -94,41 +94,48 @@ const getPlatformCandidates = () => {
     return LINUX_BROWSER_PATHS;
 };
 
-export const resolvePuppeteerExecutablePath = async () => {
-    if (!cachedExecutablePathPromise) {
-        cachedExecutablePathPromise = (async () => {
-            const envCandidates = [
-                await sanitizeExecutableEnvVar('PUPPETEER_EXECUTABLE_PATH'),
-                await sanitizeExecutableEnvVar('CHROME_PATH')
-            ].filter(Boolean);
+export const resolvePuppeteerExecutablePath = async ({ allowInstall = true } = {}) => {
+    if (cachedExecutablePathPromise) return cachedExecutablePathPromise;
 
-            const candidates = [...envCandidates, ...getPlatformCandidates()];
-            for (const candidate of candidates) {
-                if (await pathExists(candidate)) {
-                    return candidate;
-                }
+    const resolving = (async () => {
+        const envCandidates = [
+            await sanitizeExecutableEnvVar('PUPPETEER_EXECUTABLE_PATH'),
+            await sanitizeExecutableEnvVar('CHROME_PATH')
+        ].filter(Boolean);
+
+        const candidates = [...envCandidates, ...getPlatformCandidates()];
+        for (const candidate of candidates) {
+            if (await pathExists(candidate)) {
+                return candidate;
             }
+        }
 
-            // Fall back to Puppeteer's own bundled browser
-            try {
-                const executablePath = puppeteer.executablePath();
-                if (executablePath && await pathExists(executablePath)) {
-                    return executablePath;
-                }
-            } catch {
-                // ignore — bundled browser not available
+        // Fall back to Puppeteer's own bundled browser
+        try {
+            const executablePath = puppeteer.executablePath();
+            if (executablePath && await pathExists(executablePath)) {
+                return executablePath;
             }
+        } catch {
+            // ignore — bundled browser not available
+        }
 
-            const installedPath = await installChromiumIfMissing();
-            if (installedPath) {
-                return installedPath;
-            }
+        // A request must never wait for a browser download; only a warm-up may install one.
+        if (!allowInstall) return undefined;
 
-            return undefined;
-        })();
+        return installChromiumIfMissing();
+    })();
+
+    cachedExecutablePathPromise = resolving;
+    try {
+        const executablePath = await resolving;
+        // A miss is not cached, so a later warm-up can still install the browser.
+        if (!executablePath) cachedExecutablePathPromise = null;
+        return executablePath;
+    } catch (error) {
+        cachedExecutablePathPromise = null;
+        throw error;
     }
-
-    return cachedExecutablePathPromise;
 };
 
 export const clearResolvedPuppeteerExecutablePathCache = () => {

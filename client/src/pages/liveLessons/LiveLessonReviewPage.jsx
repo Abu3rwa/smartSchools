@@ -56,6 +56,9 @@ const assertPdfBlob = async (blob) => {
   }
 };
 
+const PDF_EXPORT_OPTIONS = { responseType: "blob", timeout: 120000, skipErrorToast: true };
+const PDF_EXPORT_TIMEOUT_MESSAGE = "The PDF is taking longer than expected. Please try again in a moment.";
+
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -407,12 +410,14 @@ const LiveLessonReviewPage = ({ mode }) => {
     try {
       const response = await api.post(`/live/sessions/${sessionId}/report/export.pdf`, {
         studentIds,
-      }, { responseType: "blob" });
+      }, PDF_EXPORT_OPTIONS);
       await assertPdfBlob(response.data);
       const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
       downloadBlob(response.data, `live-session-${scope}-report.pdf`);
     } catch (requestError) {
-      setExportError(await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the session report PDF."));
+      setExportError(requestError.code === "ECONNABORTED"
+        ? PDF_EXPORT_TIMEOUT_MESSAGE
+        : await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the session report PDF."));
     } finally {
       setReportExporting(false);
     }
@@ -429,14 +434,14 @@ const LiveLessonReviewPage = ({ mode }) => {
         dateTo: performance.dateTo,
       });
       if (studentIds.length) params.set("studentIds", studentIds.join(","));
-      const response = await api.get(`/live/sessions/performance/export.pdf?${params.toString()}`, {
-        responseType: "blob",
-      });
+      const response = await api.get(`/live/sessions/performance/export.pdf?${params.toString()}`, PDF_EXPORT_OPTIONS);
       await assertPdfBlob(response.data);
       const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
       downloadBlob(response.data, `class-performance-${scope}-${performance.dateFrom}-to-${performance.dateTo}.pdf`);
     } catch (requestError) {
-      setPerformanceError(await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the class performance PDF."));
+      setPerformanceError(requestError.code === "ECONNABORTED"
+        ? PDF_EXPORT_TIMEOUT_MESSAGE
+        : await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the class performance PDF."));
     } finally {
       setPerformanceExporting(false);
     }
@@ -529,21 +534,25 @@ const LiveLessonReviewPage = ({ mode }) => {
     <main className="live-review-page">
       <header className="live-review-header">
         <button className="live-session-back" onClick={() => navigate(lessonsBackPath)}><HiOutlineArrowLeft /> Back</button>
-        <div><span className="live-eyebrow">{mode === "report" ? "SESSION REPORT" : "SESSION REPLAY"}</span><h1>{replay?.lesson?.title || report?.session?.title || "Live lesson review"}</h1></div>
+        <div className="live-review-title">
+          {mode !== "report" && <span className="live-eyebrow">SESSION REPLAY</span>}
+          <h1>{replay?.lesson?.title || report?.session?.title || "Live lesson review"}</h1>
+        </div>
+        {mode === "report" && report?.session?.status === "live" && (
+          <span className="live-report-status-pill">In progress</span>
+        )}
       </header>
       {mode === "report" ? (
         <div className="live-report-layout">
           <section className="live-review-card live-report-class-section live-report-hero">
             <div className="live-report-heading">
-              <div>
-                <span className="live-report-kicker">{report.session.status === "live" ? "SESSION IN PROGRESS" : "SESSION REPORT"}</span>
-                <h2>{report.session.title}</h2>
-                <p className="live-report-context">
-                  <span>{report.session.class?.name || "Class"}</span>
-                  <span>{report.session.subject || "Subject not set"}</span>
-                  <span>{report.session.startedAt ? new Date(report.session.startedAt).toLocaleString() : "Not started"}</span>
-                </p>
-                {report.session.status === "live" && <small>In progress · updates every 10 seconds · unanswered counts may change</small>}
+              <div className="live-report-chips">
+                <span className="live-report-chip">{report.session.class?.name || "Class"}</span>
+                <span className="live-report-chip">{report.session.subject || "Subject not set"}</span>
+                <span className="live-report-chip">{report.session.startedAt ? new Date(report.session.startedAt).toLocaleString() : "Not started"}</span>
+                {report.session.status === "live" && (
+                  <span className="live-report-chip live-report-chip-note">Updates every 10 seconds · unanswered counts may change</span>
+                )}
               </div>
               <div className="live-report-export-actions no-print">
                 <button className="live-session-primary" onClick={() => downloadSessionPdf()} disabled={reportExporting}>

@@ -14,7 +14,7 @@ import AiCreditAccount from "../models/AiCreditAccount.js";
 
 import { connectAi } from "../utils/connectAi.js";
 import logger from "../utils/logger.js";
-import { allocateCredit, chargeUsage, tokenCounts } from "./aiCreditService.js";
+import { allocateCredit, chargeUsage, reclaimCredit, tokenCounts } from "./aiCreditService.js";
 import {
   countTries,
   buildVoicePrompt,
@@ -291,6 +291,102 @@ export const giveVoiceCredit = async ({
     );
   }
   return { credits: amountCents, students: rows.length, rows, shortPool };
+};
+
+/**
+ * Takes unspent school-allocated voice credit back into the reserve. Only the
+ * `schoolCents` part of the account is reclaimable; platform grants stay put.
+ * A student who spent some of it simply has less to give back.
+ */
+export const takeBackVoiceCredit = async ({
+  schoolId,
+  studentIds = [],
+  classId = null,
+  credits,
+  all = false,
+  adminId,
+  note = "",
+}) => {
+  const requested = all === true ? null : Number(credits);
+  if (
+    requested !== null &&
+    (!Number.isInteger(requested) ||
+      requested < 1 ||
+      requested > MAX_VOICE_GRANT)
+  ) {
+    throw badRequest(
+      `Enter a whole number of voice credits from 1 to ${MAX_VOICE_GRANT}.`,
+    );
+  }
+  const filter = { school: schoolId, user: { $ne: null } };
+  if (Array.isArray(studentIds) && studentIds.length) {
+    const ids = studentIds.map(objectId).filter(Boolean);
+    if (!ids.length) throw badRequest("Pick at least one student.");
+    filter._id = { $in: ids };
+  } else if (objectId(classId)) {
+    filter.$or = [{ currentClass: classId }, { enrolledClasses: classId }];
+  } else {
+    throw badRequest("Pick a class or at least one student.");
+  }
+
+  const students = await Student.find(filter).select("_id user").lean();
+  if (!students.length)
+    throw badRequest("No students with a sign-in were found for this choice.");
+
+  const trimmed = String(note || "").trim().slice(0, 300);
+  const rows = [];
+  let takenTotal = 0;
+  for (const student of students) {
+    const account = await AiCreditAccount.findOne({
+      school: schoolId,
+      user: student.user,
+    })
+      .select("balanceCents schoolCents")
+      .lean();
+    const available = Math.max(0, Math.floor(Number(account?.schoolCents) || 0));
+    if (available < 1) continue;
+    const take =
+      requested === null
+        ? Math.min(available, MAX_VOICE_GRANT)
+        : Math.min(requested, available);
+    if (take < 1) continue;
+    try {
+      const result = await reclaimCredit({
+        schoolId,
+        userId: student.user,
+        amountCents: take,
+        note: trimmed || "Voice tutor take-back",
+        adminId,
+      });
+      takenTotal += take;
+      rows.push({
+        studentId: String(student._id),
+        taken: take,
+        voiceCredits: creditsOf(result.account),
+        reclaimableCredits: Math.max(
+          0,
+          Math.floor(Number(result.account?.schoolCents) || 0),
+        ),
+      });
+    } catch (error) {
+      // A message bought between the read and the reclaim left less to take.
+      if (error?.code !== "AI_CREDIT_RECLAIM_EXCEEDS") throw error;
+    }
+  }
+
+  const pool = await AiCreditAccount.findOne({
+    school: schoolId,
+    user: null,
+    kind: "school",
+  })
+    .select("balanceCents")
+    .lean();
+  return {
+    students: rows.length,
+    takenTotal,
+    rows,
+    reserveCredits: Math.max(0, Math.floor(Number(pool?.balanceCents) || 0)),
+  };
 };
 
 /* ------------------------------------------------------------------ */

@@ -12,6 +12,7 @@ import {
   markSheetSummary,
   mergeMarkSheet,
   pendingMarkCount,
+  rescaleAutoRows,
 } from "../../utils/liveLessonMarkSheet";
 import "./LiveSessionMarkSheet.css";
 
@@ -78,11 +79,12 @@ const LiveSessionMarkSheet = ({ sessionId, questions, onSaved }) => {
     });
   };
 
-  const updateAllocation = (slideId, value) => {
-    setSheets((current) => ({
-      ...current,
-      [slideId]: { ...current[slideId], maxMarks: value },
-    }));
+  const updateAllocation = (question, value) => {
+    setSheets((current) => {
+      const sheet = current[question.slideId];
+      if (!sheet) return current;
+      return { ...current, [question.slideId]: rescaleAutoRows(sheet, question, value) };
+    });
   };
 
   const saveQuestion = async (question) => {
@@ -202,7 +204,7 @@ const LiveSessionMarkSheet = ({ sessionId, questions, onSaved }) => {
                     max="100"
                     step="0.25"
                     value={sheet.maxMarks}
-                    onChange={(event) => updateAllocation(question.slideId, event.target.value)}
+                    onChange={(event) => updateAllocation(question, event.target.value)}
                     aria-label={`Marks available for question ${index + 1}`}
                   />
                 </label>
@@ -246,9 +248,10 @@ const LiveSessionMarkSheet = ({ sessionId, questions, onSaved }) => {
                             step="0.25"
                             value={row.marks}
                             placeholder="—"
-                            onChange={(event) => updateRow(question.slideId, answer.studentId, { marks: event.target.value, suggested: false })}
+                            onChange={(event) => updateRow(question.slideId, answer.studentId, { marks: event.target.value, suggested: false, auto: false })}
                             aria-label={`Mark for ${answer.name} on question ${index + 1}`}
                           />
+                          {row.auto && <small className="live-mark-auto">Auto</small>}
                           {row.suggested && (
                             <small className={row.confidence === "low" ? "live-mark-suggestion shaky" : "live-mark-suggestion"}>
                               {row.confidence === "low" ? "Suggested · needs a look" : "Suggested"}
@@ -261,7 +264,7 @@ const LiveSessionMarkSheet = ({ sessionId, questions, onSaved }) => {
                           value={row.feedback}
                           maxLength={2000}
                           placeholder="Comment for the student"
-                          onChange={(event) => updateRow(question.slideId, answer.studentId, { feedback: event.target.value, suggested: false })}
+                          onChange={(event) => updateRow(question.slideId, answer.studentId, { feedback: event.target.value, suggested: false, auto: false })}
                           aria-label={`Feedback for ${answer.name} on question ${index + 1}`}
                         />
                         <input

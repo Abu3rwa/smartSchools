@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Grade from "../models/Grade.js";
-import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
+import {
+  calculateLiveSessionMark,
+  effectiveAnswerMarks,
+  LIVE_DEFAULT_QUESTION_MARKS,
+} from "../services/liveSessionGradebookService.js";
 
 test("live session grade uses earned credit over the questions that have a verdict", () => {
   assert.deepEqual(calculateLiveSessionMark({
@@ -83,4 +87,51 @@ test("live session grades have a unique session/student reference and source typ
   assert.equal(sessionStudentIndex[1].unique, true);
   assert.equal(sessionStudentIndex[1].partialFilterExpression.liveSession.$type, "objectId");
   assert.ok(Grade.schema.path("gradingSource").enumValues.includes("live_session"));
+});
+
+test("a teacher's grade outranks what the engines settled", () => {
+  assert.deepEqual(effectiveAnswerMarks({
+    response: { grade: { status: "graded", marks: 5, maxMarks: 8 }, isCorrect: false },
+    allocation: 2,
+  }), { marks: 5, maxMarks: 8, marksSource: "teacher" });
+});
+
+test("an auto-graded answer earns its credit against the question's allocation", () => {
+  assert.deepEqual(effectiveAnswerMarks({
+    response: { isCorrect: true, score: 1 },
+    allocation: 4,
+  }), { marks: 4, maxMarks: 4, marksSource: "auto" });
+  // Half credit from a multi-select is half the question.
+  assert.deepEqual(effectiveAnswerMarks({
+    response: { isCorrect: false, score: 0.5 },
+    allocation: 2,
+  }), { marks: 1, maxMarks: 2, marksSource: "auto" });
+});
+
+test("a correct answer with no allocation keeps the default question mark", () => {
+  assert.deepEqual(effectiveAnswerMarks({ response: { isCorrect: true, score: 1 } }), {
+    marks: LIVE_DEFAULT_QUESTION_MARKS,
+    maxMarks: LIVE_DEFAULT_QUESTION_MARKS,
+    marksSource: "auto",
+  });
+});
+
+test("a wrong auto-graded answer earns a zero instead of a blank", () => {
+  assert.deepEqual(effectiveAnswerMarks({
+    response: { isCorrect: false, score: 0 },
+    allocation: 2,
+  }), { marks: 0, maxMarks: 2, marksSource: "auto" });
+});
+
+test("an answer waiting for the teacher has no mark yet", () => {
+  assert.deepEqual(effectiveAnswerMarks({ response: { isCorrect: null }, allocation: 2 }), {
+    marks: null,
+    maxMarks: null,
+    marksSource: null,
+  });
+  assert.deepEqual(effectiveAnswerMarks({ response: null, allocation: 2 }), {
+    marks: null,
+    maxMarks: null,
+    marksSource: null,
+  });
 });

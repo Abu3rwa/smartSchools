@@ -9,7 +9,7 @@ const tutorCreditEntrySchema = new mongoose.Schema(
     {
         school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true, index: true },
         student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
-        type: { type: String, enum: ['grant', 'adjust', 'spend', 'refund'], required: true },
+        type: { type: String, enum: ['grant', 'adjust', 'spend', 'refund', 'reclaim'], required: true },
         credits: { type: Number, required: true },
         balanceAfter: { type: Number, default: 0 },
         note: { type: String, trim: true, default: '', maxlength: 300 },

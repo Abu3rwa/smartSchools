@@ -43,6 +43,9 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
   const [reserve, setReserve] = useState(initialReserve);
   // '' | 'short' (nothing moved) | 'partial' (the reserve ran out mid-list)
   const [reserveNotice, setReserveNotice] = useState('');
+  // Take back uses the same amount field; this switches it to "everything".
+  const [takeAll, setTakeAll] = useState(false);
+  const [history, setHistory] = useState(null);
 
   useEffect(() => {
     setReserve(initialReserve);
@@ -85,11 +88,23 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
     return value;
   };
 
-  const mergeVoice = (rows = []) => {
+  const mergeVoice = (rows = [], { reclaimableDelta = 0 } = {}) => {
     const byId = new Map(rows.map((row) => [row.studentId, row.voiceCredits]));
-    setStudents((current) => current.map((student) => (
-      byId.has(student.id) ? { ...student, voiceCredits: byId.get(student.id) } : student
-    )));
+    const reclaimableById = new Map(
+      rows
+        .filter((row) => row.reclaimableCredits !== undefined)
+        .map((row) => [row.studentId, row.reclaimableCredits])
+    );
+    setStudents((current) => current.map((student) => {
+      if (!byId.has(student.id)) return student;
+      const next = { ...student, voiceCredits: byId.get(student.id) };
+      if (reclaimableById.has(student.id)) {
+        next.voiceReclaimableCredits = reclaimableById.get(student.id);
+      } else if (reclaimableDelta) {
+        next.voiceReclaimableCredits = Math.max(0, (student.voiceReclaimableCredits ?? 0) + reclaimableDelta);
+      }
+      return next;
+    }));
   };
 
   const give = async ({ studentIds = null, broadcast = false } = {}) => {
@@ -109,7 +124,7 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
           broadcast ? { classId, credits } : { studentIds, credits }
         ));
         const rows = data?.rows || [];
-        mergeVoice(rows);
+        mergeVoice(rows, { reclaimableDelta: credits });
         setSelected([]);
         setReserve((current) => Math.max(0, current - credits * rows.length));
         if (data?.shortPool) {
@@ -148,6 +163,91 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
     if (!selected.length) return;
     return give({ studentIds: selected });
   };
+
+  const readTakeAmount = () => {
+    if (takeAll) return null;
+    const value = amountOf(amount, defaultCredits);
+    if (value === null || value < 1) {
+      toast.error(i18n.t('tutor:admin.credits.takeAmountInvalid'));
+      return undefined;
+    }
+    return value;
+  };
+
+  const takeBack = async ({ broadcast = false, studentIds = null, student = null } = {}) => {
+    if (busy) return;
+    const credits = readTakeAmount();
+    if (credits === undefined) return;
+    const targets = broadcast ? students.length : (student ? 1 : (studentIds || []).length);
+    if (!targets) return;
+
+    const amountLabel = takeAll
+      ? i18n.t('tutor:admin.credits.takeAllAmount')
+      : String(credits);
+    const confirmText = kind === 'voice'
+      ? i18n.t('tutor:admin.credits.takeConfirmVoice', { amount: amountLabel, students: targets })
+      : i18n.t('tutor:admin.credits.takeConfirmQuestions', { amount: amountLabel, students: targets });
+    if (typeof window !== 'undefined' && !window.confirm(confirmText)) return;
+
+    const body = { kind, all: takeAll };
+    if (credits !== null) body.credits = credits;
+    if (broadcast) body.classId = classId;
+    else if (student) body.studentIds = [student.id];
+    else body.studentIds = studentIds;
+
+    setBusy(true);
+    setReserveNotice('');
+    try {
+      const data = unwrap(await tutorService.takeBackCredits(body));
+      if (kind === 'voice') {
+        const rows = data?.rows || [];
+        mergeVoice(rows);
+        if (typeof data?.reserveCredits === 'number') setReserve(data.reserveCredits);
+        const total = Number(data?.takenTotal) || 0;
+        if (total > 0) {
+          toast.success(i18n.t('tutor:admin.credits.voiceTaken', {
+            total,
+            n: data?.students ?? rows.length
+          }));
+        } else {
+          toast(i18n.t('tutor:admin.credits.nothingToTake'));
+        }
+      } else {
+        const rows = data?.credits || [];
+        mergeWallets(rows);
+        const total = rows.reduce((sum, row) => sum + (Number(row.taken) || 0), 0);
+        if (total > 0) {
+          toast.success(i18n.t('tutor:admin.credits.taken', { total, n: rows.length }));
+        } else {
+          toast(i18n.t('tutor:admin.credits.nothingToTake'));
+        }
+      }
+      setSelected([]);
+    } catch (error) {
+      toast.error(errorText(error) || i18n.t('tutor:admin.credits.takeFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const takeFromClass = () => takeBack({ broadcast: true });
+  const takeFromSelected = () => {
+    if (!selected.length) return;
+    return takeBack({ studentIds: selected });
+  };
+  const takeFromStudent = (student) => takeBack({ student });
+
+  const openHistory = async (student) => {
+    setHistory({ student, loading: true, data: null });
+    try {
+      const data = unwrap(await tutorService.creditHistory(student.id));
+      setHistory({ student, loading: false, data });
+    } catch (error) {
+      setHistory(null);
+      toast.error(errorText(error) || i18n.t('tutor:admin.credits.historyFailed'));
+    }
+  };
+  const closeHistory = () => setHistory(null);
 
   const togglePause = async (studentId, paused) => {
     if (busy) return;
@@ -198,6 +298,11 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
     setReserveNotice('');
   };
 
+  const changeTakeAll = (next) => {
+    setTakeAll(next);
+    setReserveNotice('');
+  };
+
   const changeAmount = (value) => {
     setAmount(value);
     setReserveNotice('');
@@ -225,6 +330,14 @@ export const useTutorCredits = ({ defaultCredits = 30, initialReserve = 0 } = {}
     busy,
     distribute,
     giveSelected,
+    takeAll,
+    setTakeAll: changeTakeAll,
+    takeFromClass,
+    takeFromSelected,
+    takeFromStudent,
+    history,
+    openHistory,
+    closeHistory,
     togglePause,
     setLevel,
     reserve,

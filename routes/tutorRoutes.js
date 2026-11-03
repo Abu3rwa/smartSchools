@@ -27,6 +27,8 @@ import {
     removeLesson,
     setStudentLevel,
     startVoiceSession,
+    studentCreditHistory,
+    takeBackCredits,
     teacherConversation,
     teacherConversations,
     updateClassAccess,
@@ -51,6 +53,8 @@ router.get('/admin/students', admin, adminStudents);
 router.post('/admin/credits/distribute', admin, distributeCredits);
 router.post('/admin/credits/give', admin, giveCredits);
 router.post('/admin/credits/voice', admin, giveVoiceCredit);
+router.post('/admin/credits/take-back', admin, takeBackCredits);
+router.get('/admin/students/:studentId/credit-history', admin, studentCreditHistory);
 router.put('/admin/students/:studentId/pause', admin, pauseStudent);
 router.put('/admin/students/:studentId/level', admin, setStudentLevel);
 router.get('/admin/subjects', admin, adminSubjects);

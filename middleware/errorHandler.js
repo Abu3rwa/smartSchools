@@ -38,7 +38,9 @@ const buildErrorPayload = (error, originalError, statusCode) => {
     const payload = {
         success: false,
         // BE-035: Never leak raw internal error messages to clients for 500s
-        message: statusCode >= 500 ? 'Internal server error' : (error.message || 'Server Error')
+        message: statusCode >= 500 && error.expose !== true
+            ? 'Internal server error'
+            : (error.message || 'Server Error')
     };
 
     if (error.code) {

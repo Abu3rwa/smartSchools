@@ -275,6 +275,56 @@ export const giveVoiceCredit = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
+const takeBackError = (message) => Object.assign(new Error(message), { statusCode: 400 });
+
+export const takeBackCredits = asyncHandler(async (req, res) => {
+    const kind = req.body?.kind;
+    if (kind !== 'questions' && kind !== 'voice') {
+        throw takeBackError('Pick questions or voice credit to take back.');
+    }
+    let studentIds = req.body?.studentIds;
+    if ((!Array.isArray(studentIds) || !studentIds.length) && req.body?.classId) {
+        studentIds = await tutorService.studentsInClass({
+            schoolId: req.schoolId,
+            classId: req.body.classId
+        });
+        if (!studentIds.length) throw takeBackError('This class has no students yet.');
+    }
+    if (!Array.isArray(studentIds) || !studentIds.length) {
+        throw takeBackError('Pick a class or at least one student.');
+    }
+    const all = req.body?.all === true;
+    if (kind === 'voice') {
+        const data = await voiceTutorService.takeBackVoiceCredit({
+            schoolId: req.schoolId,
+            studentIds,
+            credits: req.body?.credits,
+            all,
+            adminId: req.user._id,
+            note: req.body?.note || ''
+        });
+        res.json({ success: true, data });
+        return;
+    }
+    const rows = await tutorService.takeBackCredits({
+        schoolId: req.schoolId,
+        studentIds,
+        credits: req.body?.credits,
+        all,
+        userId: req.user._id,
+        note: req.body?.note || ''
+    });
+    res.json({ success: true, data: { students: rows.length, credits: rows } });
+});
+
+export const studentCreditHistory = asyncHandler(async (req, res) => {
+    const data = await tutorService.studentCreditHistory({
+        schoolId: req.schoolId,
+        studentId: req.params.studentId
+    });
+    res.json({ success: true, data });
+});
+
 export const setStudentLevel = asyncHandler(async (req, res) => {
     const data = await tutorService.setStudentLanguageLevel({
         schoolId: req.schoolId,

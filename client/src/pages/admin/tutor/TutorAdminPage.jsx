@@ -39,6 +39,12 @@ export default function TutorAdminPage() {
 
   const settings = overview?.settings || null;
   const num = (value) => Number(value || 0).toLocaleString(i18n.language);
+  const dateTime = (value) => (
+    value
+      ? new Date(value).toLocaleString(i18n.language, { dateStyle: 'short', timeStyle: 'short' })
+      : '—'
+  );
+  const historyType = (type) => t(`tutor:admin.credits.historyType.${type}`, { defaultValue: type });
 
   useEffect(() => {
     if (settings) setDraft({ ...settings });
@@ -378,8 +384,17 @@ export default function TutorAdminPage() {
                       max="1000"
                       value={credits.amount}
                       placeholder={String(overview.settings.defaultCredits)}
+                      disabled={credits.takeAll}
                       onChange={(event) => credits.setAmount(event.target.value)}
                     />
+                  </label>
+                  <label className="ta-check-line">
+                    <input
+                      type="checkbox"
+                      checked={credits.takeAll}
+                      onChange={(event) => credits.setTakeAll(event.target.checked)}
+                    />
+                    <span>{t('tutor:admin.credits.takeAll')}</span>
                   </label>
                 </div>
                 <p className="ta-hint">
@@ -429,7 +444,7 @@ export default function TutorAdminPage() {
                     type="button"
                     className="btn btn-primary"
                     onClick={credits.distribute}
-                    disabled={!credits.classId || credits.busy || credits.classShort}
+                    disabled={!credits.classId || credits.busy || credits.classShort || credits.takeAll}
                   >
                     {t('tutor:admin.credits.giveClass')}
                   </button>
@@ -437,9 +452,25 @@ export default function TutorAdminPage() {
                     type="button"
                     className="btn btn-secondary"
                     onClick={credits.giveSelected}
-                    disabled={!credits.selected.length || credits.busy || credits.selectedShort}
+                    disabled={!credits.selected.length || credits.busy || credits.selectedShort || credits.takeAll}
                   >
                     {t('tutor:admin.credits.giveSelected', { n: credits.selected.length })}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={credits.takeFromClass}
+                    disabled={!credits.classId || credits.busy || credits.students.length === 0}
+                  >
+                    {t('tutor:admin.credits.takeClass')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={credits.takeFromSelected}
+                    disabled={!credits.selected.length || credits.busy}
+                  >
+                    {t('tutor:admin.credits.takeSelected', { n: credits.selected.length })}
                   </button>
                 </div>
               </div>
@@ -501,23 +532,48 @@ export default function TutorAdminPage() {
                           </select>
                         </td>
                         <td className="ta-col-num ta-strong">{student.wallet?.credits ?? 0}</td>
-                        <td className="ta-col-num">{student.voiceCredits ?? 0}</td>
+                        <td className="ta-col-num">
+                          {student.voiceCredits ?? 0}
+                          {student.voiceReclaimableCredits !== undefined
+                            && student.voiceReclaimableCredits !== (student.voiceCredits ?? 0) && (
+                              <small className="ta-reclaim-hint">
+                                {t('tutor:admin.credits.reclaimable', { n: student.voiceReclaimableCredits })}
+                              </small>
+                            )}
+                        </td>
                         <td>
                           {student.wallet?.paused
                             ? t('tutor:admin.credits.pausedState')
                             : t('tutor:admin.credits.activeState')}
                         </td>
                         <td className="ta-col-action">
-                          <button
-                            type="button"
-                            className="ta-link-btn"
-                            disabled={credits.busy}
-                            onClick={() => credits.togglePause(student.id, !student.wallet?.paused)}
-                          >
-                            {student.wallet?.paused
-                              ? t('tutor:admin.credits.resume')
-                              : t('tutor:admin.credits.pause')}
-                          </button>
+                          <div className="ta-row-actions">
+                            <button
+                              type="button"
+                              className="ta-link-btn"
+                              onClick={() => credits.openHistory(student)}
+                            >
+                              {t('tutor:admin.credits.history')}
+                            </button>
+                            <button
+                              type="button"
+                              className="ta-link-btn ta-link-danger"
+                              disabled={credits.busy}
+                              onClick={() => credits.takeFromStudent(student)}
+                            >
+                              {t('tutor:admin.credits.takeBack')}
+                            </button>
+                            <button
+                              type="button"
+                              className="ta-link-btn"
+                              disabled={credits.busy}
+                              onClick={() => credits.togglePause(student.id, !student.wallet?.paused)}
+                            >
+                              {student.wallet?.paused
+                                ? t('tutor:admin.credits.resume')
+                                : t('tutor:admin.credits.pause')}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -527,6 +583,84 @@ export default function TutorAdminPage() {
                 )}
               </div>
             </div>
+
+            {credits.history && (
+              <div className="ta-modal-backdrop" role="presentation" onClick={credits.closeHistory}>
+                <div
+                  className="ta-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="ta-history-title"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <header className="ta-modal-head">
+                    <h2 id="ta-history-title">
+                      {t('tutor:admin.credits.historyTitle', { name: credits.history.student.name })}
+                    </h2>
+                    <button
+                      type="button"
+                      className="ta-icon-btn"
+                      onClick={credits.closeHistory}
+                      aria-label={t('tutor:admin.credits.close')}
+                    >
+                      ×
+                    </button>
+                  </header>
+
+                  {credits.history.loading && <p className="ta-hint">{t('tutor:admin.credits.historyLoading')}</p>}
+
+                  {!credits.history.loading && (
+                    <div className="ta-history">
+                      <section className="ta-history-section">
+                        <h3>{t('tutor:admin.credits.historyQuestions')}</h3>
+                        {credits.history.data?.questions?.length ? (
+                          <ul className="ta-history-list">
+                            {credits.history.data.questions.map((row) => (
+                              <li key={row.id}>
+                                <span className="ta-history-date">{dateTime(row.createdAt)}</span>
+                                <span className="ta-history-type">{historyType(row.type)}</span>
+                                <span className={`ta-history-amount${row.credits < 0 ? ' is-negative' : ''}`}>
+                                  {row.credits > 0 ? `\u200E+${row.credits}` : row.credits}
+                                </span>
+                                <span className="ta-history-balance">
+                                  {t('tutor:admin.credits.historyBalance', { n: row.balanceAfter })}
+                                </span>
+                                {row.note && <span className="ta-history-note">{row.note}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="ta-hint">{t('tutor:admin.credits.historyEmpty')}</p>
+                        )}
+                      </section>
+
+                      <section className="ta-history-section">
+                        <h3>{t('tutor:admin.credits.historyVoice')}</h3>
+                        {credits.history.data?.voice?.length ? (
+                          <ul className="ta-history-list">
+                            {credits.history.data.voice.map((row) => (
+                              <li key={row.id}>
+                                <span className="ta-history-date">{dateTime(row.createdAt)}</span>
+                                <span className="ta-history-type">{historyType(row.type)}</span>
+                                <span className={`ta-history-amount${row.credits < 0 ? ' is-negative' : ''}`}>
+                                  {row.credits > 0 ? `\u200E+${row.credits}` : row.credits}
+                                </span>
+                                <span className="ta-history-balance">
+                                  {t('tutor:admin.credits.historyBalance', { n: row.balanceAfter })}
+                                </span>
+                                {row.note && <span className="ta-history-note">{row.note}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="ta-hint">{t('tutor:admin.credits.historyEmpty')}</p>
+                        )}
+                      </section>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 

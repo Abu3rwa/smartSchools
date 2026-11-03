@@ -38,6 +38,31 @@ export const liveAnswerCredit = (response) => {
   return response.isCorrect ? 1 : 0;
 };
 
+// An exit ticket is worth a small mark by default; the teacher can change it per question and the
+// session keeps the choice.
+export const LIVE_DEFAULT_QUESTION_MARKS = 2;
+
+/**
+ * The mark a row shows. A teacher's grade wins; an answer the engine settled earns its credit
+ * against the question's allocation; an answer still waiting for a teacher has no mark yet.
+ */
+export const effectiveAnswerMarks = ({ response, allocation }) => {
+  const teacherMarks = number(response?.grade?.marks);
+  const teacherMaxMarks = number(response?.grade?.maxMarks);
+  if (response?.grade?.status === "graded" && teacherMarks !== null) {
+    return { marks: teacherMarks, maxMarks: teacherMaxMarks, marksSource: "teacher" };
+  }
+  const credit = liveAnswerCredit(response);
+  if (credit === null) return { marks: null, maxMarks: null, marksSource: null };
+  const allocated = number(allocation);
+  const maxMarks = allocated !== null && allocated > 0 ? allocated : LIVE_DEFAULT_QUESTION_MARKS;
+  return {
+    marks: Number((credit * maxMarks).toFixed(2)),
+    maxMarks,
+    marksSource: "auto",
+  };
+};
+
 /**
  * A session mark is earned credit over the questions that have a verdict: an objective answer scores
  * what the engine gave it, a marked written answer scores marks over its allocation, and a question

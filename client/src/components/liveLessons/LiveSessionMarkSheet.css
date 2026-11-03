@@ -34,6 +34,7 @@
 .live-mark-mark { display: flex; min-width: 0; flex-direction: column; gap: .15rem; }
 .live-mark-suggestion { color: #2c5f86; font-size: .67rem; font-weight: 750; white-space: nowrap; }
 .live-mark-suggestion.shaky { color: #8a5b12; }
+.live-mark-auto { color: #4f6a72; font-size: .67rem; font-weight: 750; white-space: nowrap; }
 .live-mark-release { justify-self: center; width: 17px; height: 17px; accent-color: #168078; }
 .live-mark-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .8rem; padding-top: .7rem; border-top: 1px solid #e6edea; }
 .live-mark-card-footer>span { color: #73838a; font-size: .78rem; }

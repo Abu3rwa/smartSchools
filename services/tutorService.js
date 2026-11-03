@@ -27,6 +27,7 @@ import Subject from '../models/Subject.js';
 import Standard from '../models/Standard.js';
 import Teacher from '../models/Teacher.js';
 import AiCreditAccount from '../models/AiCreditAccount.js';
+import AiCreditEntry from '../models/AiCreditEntry.js';
 
 import { connectAi } from '../utils/connectAi.js';
 import logger from '../utils/logger.js';
@@ -398,6 +399,68 @@ const refundCredit = async ({ schoolId, student, conversationId = null, practice
         practice: practiceId
     });
     return wallet;
+};
+
+/**
+ * Removes credit from a wallet without ever overdrawing it. The balance is read
+ * first only to size the conditional update; if a question is asked in between,
+ * the guarded update misses and one retry sizes it again from the real balance.
+ */
+const takeFromWallet = async ({ schoolId, studentId, requested, note, userId }) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const current = await TutorWallet.findOne({ school: schoolId, student: studentId })
+            .select('credits')
+            .lean();
+        const available = Math.max(0, Math.floor(Number(current?.credits) || 0));
+        if (available < 1) return { taken: 0, wallet: current };
+        const take = requested === null ? available : Math.min(requested, available);
+        if (take < 1) return { taken: 0, wallet: current };
+        const wallet = await TutorWallet.findOneAndUpdate(
+            { school: schoolId, student: studentId, credits: { $gte: take } },
+            { $inc: { credits: -take, granted: -take } },
+            { new: true }
+        ).lean();
+        if (!wallet) continue;
+        await TutorCreditEntry.create({
+            school: schoolId,
+            student: studentId,
+            type: 'reclaim',
+            credits: -take,
+            balanceAfter: wallet.credits,
+            note,
+            by: userId
+        });
+        return { taken: take, wallet };
+    }
+    return { taken: 0, wallet: null };
+};
+
+export const takeBackCredits = async ({ schoolId, studentIds = [], credits, all = false, userId, note = '' }) => {
+    const requested = all === true ? null : Number(credits);
+    if (requested !== null && (!Number.isSafeInteger(requested) || requested < 1 || requested > 1000)) {
+        throw badRequest('Credits to take back must be a whole number from 1 to 1000.');
+    }
+    if (!Array.isArray(studentIds) || !studentIds.length) throw badRequest('Pick at least one student.');
+    if (studentIds.length > 500) throw badRequest('Take credit back from no more than 500 students at once.');
+
+    const ids = studentIds.map(objectId).filter(Boolean);
+    if (ids.length !== studentIds.length) throw notFound('One of the students is not in this school.');
+    const students = await Student.find({ school: schoolId, _id: { $in: ids } }).select('_id').lean();
+    if (students.length !== ids.length) throw notFound('One of the students is not in this school.');
+
+    const trimmed = String(note || '').trim().slice(0, 300);
+    const rows = [];
+    for (const student of students) {
+        const { taken, wallet } = await takeFromWallet({
+            schoolId,
+            studentId: student._id,
+            requested,
+            note: trimmed,
+            userId
+        });
+        if (taken > 0) rows.push({ studentId: String(student._id), taken, ...walletShape(wallet) });
+    }
+    return rows;
 };
 
 /* ------------------------------------------------------------------ */
@@ -1032,20 +1095,70 @@ export const listAdminStudents = async ({ schoolId, classId, search = '' }) => {
             .select('student languageLevel').lean(),
         // The voice tutor pays from the same AI credit account teachers use.
         AiCreditAccount.find({ school: schoolId, user: { $in: userIds } })
-            .select('user balanceCents').lean()
+            .select('user balanceCents schoolCents').lean()
     ]);
     const walletBy = new Map(wallets.map((row) => [String(row.student), row]));
     const levelBy = new Map(profiles.map((row) => [String(row.student), row.languageLevel || null]));
     const voiceBy = new Map(voiceAccounts.map((row) => [String(row.user), row]));
-    return students.map((student) => ({
-        id: String(student._id),
-        name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-        studentId: student.studentId || '',
-        classId: String(student.currentClass || ''),
-        languageLevel: levelBy.get(String(student._id)) || null,
-        wallet: walletShape(walletBy.get(String(student._id))),
-        voiceCredits: Math.max(0, Math.floor(Number(voiceBy.get(String(student.user))?.balanceCents) || 0))
-    }));
+    return students.map((student) => {
+        const voice = voiceBy.get(String(student.user));
+        return {
+            id: String(student._id),
+            name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+            studentId: student.studentId || '',
+            classId: String(student.currentClass || ''),
+            languageLevel: levelBy.get(String(student._id)) || null,
+            wallet: walletShape(walletBy.get(String(student._id))),
+            voiceCredits: Math.max(0, Math.floor(Number(voice?.balanceCents) || 0)),
+            voiceReclaimableCredits: Math.max(0, Math.floor(Number(voice?.schoolCents) || 0))
+        };
+    });
+};
+
+export const studentCreditHistory = async ({ schoolId, studentId }) => {
+    const student = objectId(studentId);
+    if (!student) throw notFound('Student not found.');
+    const row = await Student.findOne({ _id: student, school: schoolId }).select('_id user').lean();
+    if (!row) throw notFound('Student not found.');
+
+    const [tutorEntries, voiceEntries] = await Promise.all([
+        TutorCreditEntry.find({ school: schoolId, student })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .select('type credits balanceAfter note createdAt')
+            .lean(),
+        row.user
+            ? AiCreditEntry.find({
+                school: schoolId,
+                user: row.user,
+                type: { $in: ['allocation', 'reclaim', 'usage'] }
+            })
+                .sort({ createdAt: -1 })
+                .limit(50)
+                .select('type amountCents balanceAfterCents note createdAt')
+                .lean()
+            : []
+    ]);
+
+    return {
+        studentId: String(student),
+        questions: tutorEntries.map((entry) => ({
+            id: String(entry._id),
+            type: entry.type,
+            credits: Number(entry.credits) || 0,
+            balanceAfter: Number(entry.balanceAfter) || 0,
+            note: entry.note || '',
+            createdAt: entry.createdAt
+        })),
+        voice: voiceEntries.map((entry) => ({
+            id: String(entry._id),
+            type: entry.type,
+            credits: Math.floor(Number(entry.amountCents) || 0),
+            balanceAfter: Math.max(0, Math.floor(Number(entry.balanceAfterCents) || 0)),
+            note: entry.note || '',
+            createdAt: entry.createdAt
+        }))
+    };
 };
 
 /** The teacher's override for how the tutors speak to one student. */

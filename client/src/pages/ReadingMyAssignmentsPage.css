@@ -1,12 +1,15 @@
 .reading-my-assignments-page {
   animation: fadeIn 0.3s ease;
   padding: var(--spacing-lg);
+  padding-top: 1px;
   max-width: 760px;
   margin: 0 auto;
+  margin-top: 0;
 }
 
 .reading-my-assignments-page .page-header {
-  margin-bottom: var(--spacing-xl);
+  margin: 2px;
+  padding: 3pz;
 }
 
 .reading-my-assignments-page .page-header h1 {
@@ -63,7 +66,9 @@
   padding: 6px 13px;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
 .reading-view-toggle button:hover {
@@ -97,7 +102,10 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .reading-assignment-card:hover {
@@ -136,15 +144,15 @@
   gap: 5px;
   padding: 3px 9px;
   border-radius: var(--radius-full);
-  border: 1px solid rgba(178, 128, 44, .32);
-  background: rgba(226, 171, 95, .14);
+  border: 1px solid rgba(178, 128, 44, 0.32);
+  background: rgba(226, 171, 95, 0.14);
   color: #8a6222;
   font-size: 0.74rem;
   font-weight: 600;
 }
 
 .card-fluency-sep {
-  opacity: .55;
+  opacity: 0.55;
 }
 
 .reading-assignment-card .card-meta-row {

@@ -1,23 +1,104 @@
 import puppeteer from "puppeteer";
+import logger from "../utils/logger.js";
 import { resolvePuppeteerExecutablePath } from "../utils/resolvePuppeteerExecutablePath.js";
 
-let browserPromise;
+const PDF_TIMEOUT_MS = 45000;
+const STEP_TIMEOUT_MS = 30000;
+const MAX_CONCURRENT_RENDERS = 2;
+const PDF_TIMEOUT_MESSAGE = "The PDF took too long to prepare. Please try again.";
+const PDF_UNAVAILABLE_MESSAGE = "PDF export is not available on this server right now.";
 
-const getBrowser = async () => {
-  if (!browserPromise) {
-    browserPromise = (async () => {
-      const executablePath = await resolvePuppeteerExecutablePath();
-      return puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        ...(executablePath ? { executablePath } : {}),
-      });
-    })().catch((error) => {
-      browserPromise = null;
-      throw error;
-    });
+let browserPromise;
+let browserGeneration = 0;
+let activeRenders = 0;
+const renderWaiters = [];
+
+const pdfError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  // A slow render or a missing browser is safe to explain to the teacher.
+  error.expose = true;
+  return error;
+};
+
+/** Rejects with a 504 when a step outstays its budget, so a hung render can never wait forever. */
+export const withTimeout = (promise, ms = STEP_TIMEOUT_MS, message = PDF_TIMEOUT_MESSAGE) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(pdfError(message, 504)), ms);
+  if (typeof timer.unref === "function") timer.unref();
+  promise.then(
+    (value) => {
+      clearTimeout(timer);
+      resolve(value);
+    },
+    (error) => {
+      clearTimeout(timer);
+      reject(error);
+    },
+  );
+});
+
+const launchBrowser = async ({ allowInstall }) => {
+  const executablePath = await resolvePuppeteerExecutablePath({ allowInstall });
+  if (!executablePath) throw pdfError(PDF_UNAVAILABLE_MESSAGE, 503);
+  return puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    executablePath,
+    timeout: STEP_TIMEOUT_MS,
+  });
+};
+
+const browserUsable = (browser) => Boolean(browser && (
+  typeof browser.isConnected === "function" ? browser.isConnected() : browser.connected
+));
+
+const getBrowser = async ({ allowInstall = true } = {}) => {
+  if (browserPromise) {
+    const existing = await browserPromise.catch(() => null);
+    if (existing && browserUsable(existing)) return existing;
+    browserPromise = null;
   }
-  return browserPromise;
+  const generation = browserGeneration + 1;
+  browserGeneration = generation;
+  const pending = launchBrowser({ allowInstall });
+  browserPromise = pending;
+  pending.then((browser) => {
+    // A crashed or closed browser is never handed out again.
+    browser.once("disconnected", () => {
+      if (browserGeneration === generation) browserPromise = null;
+    });
+  }).catch(() => {
+    if (browserGeneration === generation) browserPromise = null;
+  });
+  return pending;
+};
+
+/** Launch the browser after boot, off the request path, so the first export is not the one that pays. */
+export const warmUpPdfBrowser = async () => {
+  try {
+    await getBrowser({ allowInstall: true });
+    logger.info("Live lesson PDF browser is warmed up.");
+  } catch (error) {
+    logger.warn(`Live lesson PDF browser warm-up skipped: ${error.message}`);
+  }
+};
+
+const acquireRenderSlot = () => new Promise((resolve) => {
+  const attempt = () => {
+    if (activeRenders < MAX_CONCURRENT_RENDERS) {
+      activeRenders += 1;
+      resolve();
+    } else {
+      renderWaiters.push(attempt);
+    }
+  };
+  attempt();
+});
+
+const releaseRenderSlot = () => {
+  activeRenders = Math.max(0, activeRenders - 1);
+  const next = renderWaiters.shift();
+  if (next) next();
 };
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -275,7 +356,7 @@ const renderSessionReport = (report, studentIds) => {
     ],
   })}
     ${studentOnly
-    ? `<p class="note">Selected students: ${students.length} of ${report.perStudent?.length || 0}.</p>${sheets}`
+    ? `<p class="note">Selected students: ${students.length} of ${report.summary?.rosterCount || students.length}.</p>${sheets}`
     : `${classContent}${sheets}`}
   `;
 };
@@ -397,16 +478,18 @@ export const buildLiveLessonReportHtml = (report, { type, studentIds = [] } = {}
   return `<!doctype html><html><head><meta charset="utf-8"><style>${REPORT_STYLES}</style></head><body>${content}</body></html>`;
 };
 
-export const generateLiveLessonReportPdf = async (report, { type, studentIds = [] } = {}) => {
-  const performance = type === "performance";
-  const html = buildLiveLessonReportHtml(report, { type, studentIds });
-  const label = performance
-    ? `Class performance · ${report.class?.name || "Class"}`
-    : `Live lesson report · ${report.session?.class?.name || "Class"}`;
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+const renderPdf = async (html, { label, timings }) => {
+  const browserStartedAt = Date.now();
+  const browser = await withTimeout(getBrowser({ allowInstall: false }), STEP_TIMEOUT_MS);
+  timings.browserMs = Date.now() - browserStartedAt;
+  const page = await withTimeout(browser.newPage(), STEP_TIMEOUT_MS);
+  page.setDefaultTimeout(STEP_TIMEOUT_MS);
+  page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
   try {
-    await page.setContent(html, { waitUntil: "load" });
+    const contentStartedAt = Date.now();
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: STEP_TIMEOUT_MS });
+    timings.contentMs = Date.now() - contentStartedAt;
+    const pdfStartedAt = Date.now();
     const pdf = Buffer.from(await page.pdf({
       format: "A4",
       printBackground: true,
@@ -414,12 +497,45 @@ export const generateLiveLessonReportPdf = async (report, { type, studentIds = [
       headerTemplate: "<span></span>",
       footerTemplate: pageFooter(label),
       margin: { top: "15mm", bottom: "16mm", left: "14mm", right: "14mm" },
+      timeout: STEP_TIMEOUT_MS,
     }));
+    timings.pdfMs = Date.now() - pdfStartedAt;
     if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
       throw new Error("The PDF renderer returned an invalid document.");
     }
     return pdf;
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
+  }
+};
+
+export const generateLiveLessonReportPdf = async (report, { type, studentIds = [] } = {}) => {
+  const startedAt = Date.now();
+  const performance = type === "performance";
+  const html = buildLiveLessonReportHtml(report, { type, studentIds });
+  const label = performance
+    ? `Class performance · ${report.class?.name || "Class"}`
+    : `Live lesson report · ${report.session?.class?.name || "Class"}`;
+  // Timing every step says which one is slow instead of guessing.
+  const timings = {
+    buildMs: Date.now() - startedAt,
+    students: studentIds.length ? studentIds.length : (report.perStudent || report.students || []).length,
+  };
+  await acquireRenderSlot();
+  try {
+    return await withTimeout(renderPdf(html, { label, timings }), PDF_TIMEOUT_MS);
+  } catch (error) {
+    if (error.statusCode === 503 || error.statusCode === 504) throw error;
+    if (/timed?out|timeout/i.test(String(error.message))) {
+      throw pdfError(PDF_TIMEOUT_MESSAGE, 504);
+    }
+    throw error;
+  } finally {
+    releaseRenderSlot();
+    logger.info("Live lesson PDF timings", {
+      type: performance ? "performance" : "session",
+      ...timings,
+      totalMs: Date.now() - startedAt,
+    });
   }
 };

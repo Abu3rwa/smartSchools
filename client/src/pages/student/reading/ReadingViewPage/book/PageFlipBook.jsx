@@ -1,19 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { HiOutlineChevronLeft, HiOutlineChevronRight } from 'react-icons/hi';
-import { arrowAction, swipeDirection } from './bookDirection.js';
-import { layoutCssVars } from './bookLayout.js';
-import { spreadStart, visiblePageIndexes } from './bookSpread.js';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { HiOutlineChevronLeft, HiOutlineChevronRight } from "react-icons/hi";
+import { arrowAction, swipeDirection } from "./bookDirection.js";
+import { layoutCssVars } from "./bookLayout.js";
+import { spreadStart, visiblePageIndexes } from "./bookSpread.js";
 
-const SWIPE_BLOCKED = 'input, textarea, select, button, a, [contenteditable], .vocab-word';
+const SWIPE_BLOCKED =
+  "input, textarea, select, button, a, [contenteditable], .vocab-word";
 
 const isTypingTarget = (target) => {
-  const tag = String(target?.tagName || '').toUpperCase();
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(target?.isContentEditable);
+  const tag = String(target?.tagName || "").toUpperCase();
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    Boolean(target?.isContentEditable)
+  );
 };
 
-const blocksSwipe = (target) => (
-  isTypingTarget(target) || Boolean(target?.closest?.(SWIPE_BLOCKED))
-);
+const blocksSwipe = (target) =>
+  isTypingTarget(target) || Boolean(target?.closest?.(SWIPE_BLOCKED));
 
 /**
  * A paper book driven by CSS 3D transforms. Only the visible spread is mounted, so a
@@ -25,7 +30,7 @@ const PageFlipBook = ({
   onPageChange,
   onVisiblePagesChange,
   renderPage,
-  direction = 'ltr',
+  direction = "ltr",
   pageLabel,
   previousLabel,
   nextLabel,
@@ -33,13 +38,14 @@ const PageFlipBook = ({
   ariaLabel,
   pageHeight,
   layout,
+  gutter,
 }) => {
   const wide = Boolean(layout?.wide);
   const step = wide ? 2 : 1;
   const start = spreadStart(pageIndex, wide);
   const visibleIndexes = useMemo(
     () => visiblePageIndexes(pageIndex, wide, pages.length),
-    [pageIndex, wide, pages.length]
+    [pageIndex, wide, pages.length],
   );
   const visible = visibleIndexes.map((index) => pages[index]);
   const atStart = start <= 0;
@@ -70,20 +76,24 @@ const PageFlipBook = ({
   const go = (target) => {
     const nextIndex = Math.max(0, Math.min(pages.length - 1, target));
     if (nextIndex === start) return;
-    setFlip({ from: start, direction: nextIndex > start ? 'next' : 'prev' });
+    setFlip({ from: start, direction: nextIndex > start ? "next" : "prev" });
     onPageChange?.(nextIndex);
   };
 
-  const previous = () => { if (!atStart) go(start - step); };
-  const next = () => { if (!atEnd) go(start + step); };
+  const previous = () => {
+    if (!atStart) go(start - step);
+  };
+  const next = () => {
+    if (!atEnd) go(start + step);
+  };
 
   const handleKeyDown = (event) => {
     if (isTypingTarget(event.target)) return;
     const action = arrowAction(event.key, direction);
-    if (action === 'next') {
+    if (action === "next") {
       event.preventDefault();
       next();
-    } else if (action === 'prev') {
+    } else if (action === "prev") {
       event.preventDefault();
       previous();
     }
@@ -91,7 +101,11 @@ const PageFlipBook = ({
 
   const handlePointerDown = (event) => {
     if (blocksSwipe(event.target)) return;
-    pointerStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
+    pointerStart.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerType: event.pointerType,
+    };
   };
 
   const handlePointerUp = (event) => {
@@ -105,8 +119,8 @@ const PageFlipBook = ({
       direction,
       pointerType: origin.pointerType || event.pointerType,
     });
-    if (action === 'next') next();
-    else if (action === 'prev') previous();
+    if (action === "next") next();
+    else if (action === "prev") previous();
   };
 
   const handlePointerCancel = () => {
@@ -115,35 +129,48 @@ const PageFlipBook = ({
 
   if (!pages.length) return null;
 
-  const lastVisible = Math.min(start + visible.filter(Boolean).length, pages.length);
+  const lastVisible = Math.min(
+    start + visible.filter(Boolean).length,
+    pages.length,
+  );
   const indicator = pageLabel
     ? pageLabel({ from: start + 1, to: lastVisible, total: pages.length })
     : `${start + 1} / ${pages.length}`;
 
-  const slot = (page, index) => (page ? (
-    <div
-      key={page.id || index}
-      className="book-page"
-      tabIndex={-1}
-      ref={index === 0 ? firstPage : undefined}
-      role="group"
-      aria-label={ariaLabel ? ariaLabel(page, start + index + 1, pages.length) : undefined}
-      data-page-kind={page.kind}
-    >
-      <div className="book-page-inner">{renderPage(page)}</div>
-    </div>
-  ) : (
-    <div key={`blank-${index}`} className="book-page is-blank" aria-hidden="true" />
-  ));
+  const slot = (page, index) =>
+    page ? (
+      <div
+        key={page.id || index}
+        className="book-page"
+        tabIndex={-1}
+        ref={index === 0 ? firstPage : undefined}
+        role="group"
+        aria-label={
+          ariaLabel
+            ? ariaLabel(page, start + index + 1, pages.length)
+            : undefined
+        }
+        data-page-kind={page.kind}
+      >
+        <div className="book-page-inner">{renderPage(page)}</div>
+      </div>
+    ) : (
+      <div
+        key={`blank-${index}`}
+        className="book-page is-blank"
+        aria-hidden="true"
+      />
+    );
 
   return (
     <div
-      className={`book-flip ${wide ? 'is-spread' : 'is-single'}`}
+      className={`book-flip ${wide ? "is-spread" : "is-single"}`}
       dir={direction}
-      data-layout={layout?.size || (wide ? 'spread' : 'single')}
+      data-layout={layout?.size || (wide ? "spread" : "single")}
       style={{
         ...layoutCssVars(layout),
-        ...(pageHeight ? { '--book-page-height': `${pageHeight}px` } : {}),
+        ...(pageHeight ? { "--book-page-height": `${pageHeight}px` } : {}),
+        ...(gutter != null ? { "--book-gutter": `${gutter}px` } : {}),
       }}
     >
       <button
@@ -179,41 +206,64 @@ const PageFlipBook = ({
 
         {flip && (
           <div
-            className={`book-flip-leaf is-${flip.direction}${direction === 'rtl' ? ' is-rtl' : ''}${wide ? '' : ' is-single'}`}
+            className={`book-flip-leaf is-${flip.direction}${direction === "rtl" ? " is-rtl" : ""}${wide ? "" : " is-single"}`}
             aria-hidden="true"
             inert={true}
           >
             <div className="book-page-inner">
-              {renderPage(pages[flip.direction === 'next' && wide ? Math.min(flip.from + 1, pages.length - 1) : flip.from])}
+              {renderPage(
+                pages[
+                  flip.direction === "next" && wide
+                    ? Math.min(flip.from + 1, pages.length - 1)
+                    : flip.from
+                ],
+              )}
             </div>
           </div>
         )}
       </div>
 
+      <button
+        type="button"
+        className="book-nav-btn is-prev"
+        onClick={previous}
+        disabled={atStart}
+        aria-label={previousLabel}
+      >
+        {direction === "rtl" ? (
+          <HiOutlineChevronRight size={18} />
+        ) : (
+          <HiOutlineChevronLeft size={18} />
+        )}
+      </button>
+      <button
+        type="button"
+        className="book-nav-btn is-next"
+        onClick={next}
+        disabled={atEnd}
+        aria-label={nextLabel}
+      >
+        {direction === "rtl" ? (
+          <HiOutlineChevronLeft size={18} />
+        ) : (
+          <HiOutlineChevronRight size={18} />
+        )}
+      </button>
+
       <div className="book-controls">
-        <button
-          type="button"
-          className="book-nav-btn"
-          onClick={previous}
-          disabled={atStart}
-          aria-label={previousLabel}
-        >
-          {direction === 'rtl' ? <HiOutlineChevronRight size={18} /> : <HiOutlineChevronLeft size={18} />}
-        </button>
-        <span className="book-page-indicator" dir="auto">{indicator}</span>
-        <button
-          type="button"
-          className="book-nav-btn"
-          onClick={next}
-          disabled={atEnd}
-          aria-label={nextLabel}
-        >
-          {direction === 'rtl' ? <HiOutlineChevronLeft size={18} /> : <HiOutlineChevronRight size={18} />}
-        </button>
+        <span className="book-page-indicator" dir="auto">
+          {indicator}
+        </span>
       </div>
 
       <p className="book-announcement" aria-live="polite" aria-atomic="true">
-        {announceLabel ? announceLabel({ from: start + 1, to: lastVisible, total: pages.length }) : ''}
+        {announceLabel
+          ? announceLabel({
+              from: start + 1,
+              to: lastVisible,
+              total: pages.length,
+            })
+          : ""}
       </p>
     </div>
   );

@@ -16,6 +16,29 @@ const markValue = (answer) => (
   answer.marks === null || answer.marks === undefined ? '' : String(answer.marks)
 );
 
+// An answer the engines settled carries its own mark; the teacher can still overwrite it.
+const isAutoAnswer = (answer) => answer?.marksSource === 'auto';
+
+/** The share of the question an answer earned, 0 to 1, from the credit or its first mark. */
+const answerCredit = (answer) => {
+  const credit = Number(answer?.credit);
+  if (Number.isFinite(credit)) return Math.min(1, Math.max(0, credit));
+  const marks = Number(answer?.marks);
+  const maxMarks = Number(answer?.maxMarks);
+  if (Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0) {
+    return Math.min(1, Math.max(0, marks / maxMarks));
+  }
+  return null;
+};
+
+/** What an engine-settled answer is worth once the question is marked out of a new total. */
+const autoMarkFor = (answer, maxMarks) => {
+  const allocation = Number(maxMarks);
+  const credit = answerCredit(answer);
+  if (!Number.isFinite(allocation) || allocation <= 0 || credit === null) return markValue(answer);
+  return String(Math.min(allocation, Number((credit * allocation).toFixed(2))));
+};
+
 /**
  * The rows the teacher types into. An answer that lands while they are still writing gets its own
  * row, and the rows already touched keep what is on the screen, so the live poll never overwrites a
@@ -29,12 +52,27 @@ export const mergeMarkSheet = (current, question) => {
       marks: markValue(answer),
       feedback: answer.feedback || '',
       released: Boolean(answer.released),
+      ...(isAutoAnswer(answer) ? { auto: true } : {}),
     };
   }
   return {
     maxMarks: current?.maxMarks ?? String(question.maxMarks ?? ''),
     rows,
   };
+};
+
+/**
+ * Changing what a question is worth re-scores the answers the engines settled. A mark the teacher put
+ * there themselves is never rescaled, and an auto mark never rises above the new total.
+ */
+export const rescaleAutoRows = (sheet, question, maxMarks) => {
+  const rows = { ...(sheet?.rows || {}) };
+  for (const answer of question?.answers || []) {
+    const row = rows[answer.studentId];
+    if (!row?.auto) continue;
+    rows[answer.studentId] = { ...row, marks: autoMarkFor(answer, maxMarks) };
+  }
+  return { maxMarks, rows };
 };
 
 export const allocationError = (value) => {
@@ -62,7 +100,8 @@ export const markSheetSummary = (question, sheet) => {
   const released = rows.filter((row) => row.marks !== '' && row.released).length;
   const errors = [
     allocationError(sheet?.maxMarks),
-    ...rows.map((row) => markRowError(row, Number.isFinite(maxMarks) ? maxMarks : 0)),
+    // An auto mark is derived, not typed: it can never be out of range.
+    ...rows.filter((row) => !row.auto).map((row) => markRowError(row, Number.isFinite(maxMarks) ? maxMarks : 0)),
   ].filter(Boolean);
   return {
     total: answers.length,
@@ -79,20 +118,21 @@ export const markSheetSummary = (question, sheet) => {
 /** One request per question, all levels at once: a blank mark is sent as null, not as a zero. */
 export const buildMarkPayload = (question, sheet) => {
   const maxMarks = Number(sheet.maxMarks);
-  return {
-    slideId: question.slideId,
-    maxMarks,
-    marks: (question.answers || []).map((answer) => {
-      const row = sheet.rows?.[answer.studentId] || { marks: '', feedback: '', released: false };
-      const marked = row.marks !== '';
-      return {
-        studentId: answer.studentId,
-        marks: marked ? Number(row.marks) : null,
-        feedback: row.feedback || '',
-        released: marked && Boolean(row.released),
-      };
-    }),
-  };
+  const marks = [];
+  for (const answer of question.answers || []) {
+    const row = sheet.rows?.[answer.studentId] || { marks: '', feedback: '', released: false };
+    const marked = row.marks !== '';
+    const entry = {
+      studentId: answer.studentId,
+      marks: marked ? Number(row.marks) : null,
+      feedback: row.feedback || '',
+      released: marked && Boolean(row.released),
+    };
+    // An untouched auto mark is already in the book; sending it back would claim it for the teacher.
+    if (row.auto && !entry.feedback && !entry.released) continue;
+    marks.push(entry);
+  }
+  return { slideId: question.slideId, maxMarks, marks };
 };
 
 /** The answers only a teacher can settle: a written one, or an objective one nothing could score. */
@@ -142,19 +182,22 @@ export const clearMarkDrafts = (sheet, question) => {
       marks: markValue(answer),
       feedback: answer?.feedback || '',
       released: Boolean(answer?.released),
+      ...(isAutoAnswer(answer) ? { auto: true } : {}),
     };
   }
   return { maxMarks: sheet?.maxMarks ?? '', rows };
 };
 
-/** Once the teacher saves, the rows hold their marks, so the suggestion marker is no longer true. */
-export const markSheetSaved = (sheet) => ({
-  ...sheet,
-  rows: Object.fromEntries(Object.entries(sheet.rows || {}).map(([studentId, row]) => [
-    studentId,
-    { ...row, suggested: false },
-  ])),
-});
+/** Once the teacher saves, the rows hold their marks, so the suggestion and auto markers are done. */
+export const markSheetSaved = (sheet) => {
+  const rows = {};
+  for (const [studentId, row] of Object.entries(sheet.rows || {})) {
+    const saved = { ...row, suggested: false };
+    delete saved.auto;
+    rows[studentId] = saved;
+  }
+  return { ...sheet, rows };
+};
 
 const DRAFT_MESSAGES = {
   credit_limit: 'This school has used up its monthly allowance for suggestions, so these answers need your own mark for now.',

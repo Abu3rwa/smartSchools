@@ -134,6 +134,7 @@ import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.
 import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 import { initLiveLessonsGateway } from "./realtime/liveLessonsGateway.js";
+import { warmUpPdfBrowser } from "./services/liveLessonReportPdfService.js";
 import { validateTenantIsolation } from "./utils/validateTenantIsolation.js";
 import { allowedOrigins, isAllowedRequestOrigin } from "./utils/requestOrigins.js";
 // Validate environment variables
@@ -454,6 +455,9 @@ const activeIntervals = [];
 
 const server = httpServer.listen(PORT, () => {
   logger.success(`Server is running on port ${PORT}`);
+
+  // The first PDF export should not pay for a cold browser launch.
+  void warmUpPdfBrowser();
 
   // BE-023: Validate all tenant-scoped models have isolation plugin
   validateTenantIsolation();
