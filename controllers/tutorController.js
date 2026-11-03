@@ -13,11 +13,11 @@ const isAdminUser = (user) => ['admin', 'super_admin'].includes(String(user?.rol
 const studentForRequest = async (req) => {
     const academicYear = resolveAcademicYearForRequest(req);
     const student = await Student.findOne({ school: req.schoolId, user: req.user._id, academicYear })
-        .select('_id user currentClass enrolledClasses academicYear')
+        .select('_id user currentClass enrolledClasses academicYear firstName lastName')
         .lean();
     if (student) return student;
     const fallback = await Student.findOne({ school: req.schoolId, user: req.user._id })
-        .select('_id user currentClass enrolledClasses academicYear')
+        .select('_id user currentClass enrolledClasses academicYear firstName lastName')
         .sort({ createdAt: -1 })
         .lean();
     if (!fallback) {
@@ -27,6 +27,30 @@ const studentForRequest = async (req) => {
 };
 
 const languageOf = (value) => (String(value || '').slice(0, 2).toLowerCase() === 'ar' ? 'ar' : 'en');
+
+/** The lazy flag is a text part next to the audio file, or a plain JSON field. */
+const lazyAudio = (body) => String(body?.audio || body?.audioMode || '').toLowerCase() === 'lazy';
+
+/** One timing line per turn, plus the same numbers in the response header. */
+const timedVoiceCall = async (req, res, run) => {
+    const timing = voiceTutorService.createTurnTiming();
+    let data;
+    try {
+        data = await run(timing);
+    } catch (error) {
+        voiceTutorService.logVoiceTurnTiming({ schoolId: req.schoolId, timing });
+        throw error;
+    }
+    const body = { success: true, data };
+    voiceTutorService.logVoiceTurnTiming({
+        schoolId: req.schoolId,
+        timing,
+        responseBytes: Buffer.byteLength(JSON.stringify(body))
+    });
+    const header = voiceTutorService.serverTimingHeader(timing);
+    if (header) res.set('Server-Timing', header);
+    return body;
+};
 
 /* ------------------------------------------------------------------ */
 /* Student                                                             */
@@ -79,14 +103,16 @@ export const myVoiceHome = asyncHandler(async (req, res) => {
 
 export const startVoiceSession = asyncHandler(async (req, res) => {
     const student = await studentForRequest(req);
-    const data = await voiceTutorService.startVoiceSession({
+    const body = await timedVoiceCall(req, res, (timing) => voiceTutorService.startVoiceSession({
         schoolId: req.schoolId,
         student,
         subjectId: req.body?.subjectId,
         lessonId: req.body?.lessonId,
-        language: req.body?.language
-    });
-    res.status(201).json({ success: true, data });
+        language: req.body?.language,
+        lazy: lazyAudio(req.body),
+        timing
+    }));
+    res.status(201).json(body);
 });
 
 export const getVoiceSession = asyncHandler(async (req, res) => {
@@ -101,16 +127,35 @@ export const getVoiceSession = asyncHandler(async (req, res) => {
 
 export const voiceTurn = asyncHandler(async (req, res) => {
     const student = await studentForRequest(req);
-    const data = await voiceTutorService.askVoice({
+    const body = await timedVoiceCall(req, res, (timing) => voiceTutorService.askVoice({
         schoolId: req.schoolId,
         student,
         sessionId: req.params.sessionId,
         audio: req.file?.buffer || null,
         mimeType: req.file?.mimetype || 'audio/webm',
         text: req.body?.text || '',
-        durationMs: Number(req.body?.durationMs) || 0
+        durationMs: Number(req.body?.durationMs) || 0,
+        lazy: lazyAudio(req.body),
+        timing
+    }));
+    res.status(201).json(body);
+});
+
+export const voiceClip = asyncHandler(async (req, res) => {
+    const student = await studentForRequest(req);
+    const clip = await voiceTutorService.getVoiceClip({
+        schoolId: req.schoolId,
+        student,
+        sessionId: req.params.sessionId,
+        turnId: req.params.turnId,
+        clipIndex: req.params.clipIndex
     });
-    res.status(201).json({ success: true, data });
+    res.set({
+        'Content-Type': clip.contentType,
+        'Content-Length': String(clip.buffer.length),
+        'Cache-Control': 'private, max-age=3600'
+    });
+    res.end(clip.buffer);
 });
 
 export const endVoiceSession = asyncHandler(async (req, res) => {

@@ -41,6 +41,22 @@ export const tutorRateLimiter = rateLimit({
 });
 
 /**
+ * One lazy turn fetches up to 8 clips in parallel, and a replay reads the
+ * browser cache, so this ceiling stays well above a normal voice conversation.
+ */
+export const voiceClipRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many sound requests. Please wait a moment and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Reading recordings follow the tutor's ceiling: one student can legitimately
  * make a handful of attempts, but not an unbounded stream of paid transcripts.
  */
@@ -67,6 +83,18 @@ export const readingHeartbeatRateLimiter = rateLimit({
     message: {
         success: false,
         message: 'Too many reading updates. Please wait a moment and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+export const readingAnswerDraftRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 40,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many draft saves. Please wait a moment and try again.'
     },
     standardHeaders: true,
     legacyHeaders: false

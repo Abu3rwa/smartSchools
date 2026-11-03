@@ -12,6 +12,8 @@ import { essayParagraphs } from "../client/src/pages/student/writing/WritingWork
 import {
   draftHtml,
   draftText,
+  comparisonHtml,
+  comparisonText,
   //
   prepareDraftRows,
   rubricHtml,
@@ -83,6 +85,14 @@ const COPY = {
     improveLabel: "What to improve",
     nextStepLabel: "One next step",
     whyLabel: "Why this matters",
+    comparisonLabel: "What changed from draft {{from}} to draft {{to}}",
+    comparisonWordsUnit: "words",
+    comparisonImproved: "Stronger now",
+    comparisonUnresolved: "Still to work on",
+    comparisonNewIssues: "Watch out for",
+    comparisonSections: "Part by part",
+    comparisonKind: { changed: "Changed", added: "New part", removed: "Removed part" },
+    comparisonWinsLabel: "Spelling words you used",
     studentButton: "Open my writing",
     parentButton: "See the feedback",
     statusSteps: ["Sent", "Feedback", "Revising", "Notebook", "Done"],
@@ -124,6 +134,14 @@ const COPY = {
     improveLabel: "ما يحتاج تحسينًا",
     nextStepLabel: "الخطوة التالية",
     whyLabel: "لماذا هذا مهم",
+    comparisonLabel: "ما تغيّر من المسودة {{from}} إلى المسودة {{to}}",
+    comparisonWordsUnit: "كلمة",
+    comparisonImproved: "أصبح أقوى",
+    comparisonUnresolved: "ما زال يحتاج عملًا",
+    comparisonNewIssues: "انتبه إلى",
+    comparisonSections: "جزءًا بجزء",
+    comparisonKind: { changed: "تغيّر", added: "جزء جديد", removed: "جزء محذوف" },
+    comparisonWinsLabel: "كلمات التهجئة التي استخدمتها",
     studentButton: "عرض كتابتي",
     parentButton: "عرض الملاحظات",
     statusSteps: ["أُرسلت", "الملاحظات", "المراجعة", "الكراس", "انتهى"],
@@ -392,6 +410,7 @@ export const buildFeedbackEmail = ({
   project = {},
   draft = {},
   assessment = {},
+  comparison = null,
   url = "",
   resend = false,
 } = {}) => {
@@ -449,6 +468,7 @@ export const buildFeedbackEmail = ({
   };
 
   const rubricBody = rubricHtml({ scores: rubricScores, language: lang, copy });
+  const comparisonBody = comparisonHtml({ comparison, language: lang, copy });
   const draftBody = draftHtml({
     rows: draftRows,
     language: lang,
@@ -509,6 +529,14 @@ export const buildFeedbackEmail = ({
             lang,
           ) + prioritiesHtml(priorities, lang)
         : "",
+      comparisonBlock: comparisonBody
+        ? labelHtml(
+            copy.comparisonLabel
+              .replace("{{from}}", draftNumber - 1)
+              .replace("{{to}}", draftNumber),
+            lang,
+          ) + comparisonBody
+        : "",
       draftBlock: draftBody ? labelHtml(draftLabel, lang) + draftBody : "",
       // The per-part cards are the fallback for a draft we cannot show (older
       // data, or sections the assignment no longer defines).
@@ -547,6 +575,14 @@ export const buildFeedbackEmail = ({
       : "",
     priorities.length
       ? `\n${fill(isParent ? copy.parentListLabel : copy.studentListLabel, values)}\n${priorities.map((item, index) => `${index + 1}. ${item}`).join("\n")}`
+      : "",
+    comparisonBody
+      ? `\n${comparisonText({
+          comparison,
+          copy,
+          fromNumber: draftNumber - 1,
+          toNumber: draftNumber,
+        })}`
       : "",
     draftBody
       ? `\n${draftLabel}\n${draftText({ rows: draftRows, language: lang, copy, truncated })}`
@@ -618,6 +654,21 @@ const prepareFeedbackDelivery = async ({
   }
 
   const language = languageOf(assessment.language);
+  // The published draft-to-draft comparison for the same draft, when the teacher
+  // has already published one, rides along in the same email.
+  const comparison =
+    project?._id && assessment.draft
+      ? await WritingAssessment.findOne({
+          school: schoolId,
+          project: project._id,
+          draft: assessment.draft,
+          kind: "comparison",
+          "publish.state": "published",
+        })
+          .select("-aiOriginal")
+          .sort({ "publish.publishedAt": -1, createdAt: -1 })
+          .lean()
+      : null;
   const base = String(env.CLIENT_URL || env.FRONTEND_URL || "").replace(
     /\/+$/,
     "",
@@ -631,6 +682,7 @@ const prepareFeedbackDelivery = async ({
     project,
     draft,
     assessment,
+    comparison,
     url:
       base && project._id
         ? `${base}/portal/writing/project/${project._id}`

@@ -678,6 +678,37 @@
   color: #3d5d84;
 }
 
+.book-toc-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.book-toc-questions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-block: 3px 8px;
+  margin-inline: 30px 6px;
+  padding: 3px 10px;
+  border: 1px solid rgba(166, 112, 36, 0.35);
+  border-radius: 999px;
+  background: rgba(226, 171, 95, 0.2);
+  color: #7a4d12;
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.book-toc-questions:hover {
+  background: rgba(226, 171, 95, 0.32);
+}
+
+.book-toc-questions:focus-visible {
+  outline: 2px solid rgba(166, 112, 36, 0.55);
+  outline-offset: 2px;
+}
+
 .book-toc-arrow {
   flex: 0 0 auto;
   color: var(--read-ink-3);
@@ -982,6 +1013,13 @@
   color: var(--read-ink-3);
 }
 
+.book-page-note {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--read-ink-3);
+}
+
 .book-gate-page,
 .book-results-page,
 .book-locked-page,
@@ -1147,11 +1185,25 @@
 .book-submit {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   flex: 0 0 auto;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid rgba(122, 96, 56, 0.18);
+}
+
+.book-submit-reason,
+.book-submit-error {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--read-ink-2);
+}
+
+.book-submit-error {
+  color: #a3402c;
 }
 
 .book-submit-progress {
@@ -1174,6 +1226,40 @@
 .book-submit-state {
   flex: 0 0 auto;
   margin: 10px 0 0;
+}
+
+.book-question-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(122, 96, 56, 0.18);
+  background: rgba(122, 96, 56, 0.08);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--read-ink-2);
+}
+
+.book-question-banner-action {
+  margin-inline-start: auto;
+}
+
+.book-question-banner.is-locked {
+  background: rgba(201, 143, 67, 0.14);
+}
+
+.book-question-banner.is-submitted {
+  border-color: rgba(47, 107, 88, 0.25);
+  background: rgba(47, 107, 88, 0.1);
+}
+
+.book-question-note {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--read-ink-3);
 }
 
 .book-result-line {

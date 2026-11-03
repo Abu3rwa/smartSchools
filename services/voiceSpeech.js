@@ -5,6 +5,8 @@
 import logger from '../utils/logger.js';
 
 const timeoutMs = () => Number(process.env.OPENAI_TIMEOUT_MS) || 120000;
+// One hung clip must not freeze a whole turn, so speech has its own shorter ceiling.
+const speechTimeoutMs = () => Number(process.env.VOICE_TTS_TIMEOUT_MS) || 25000;
 const baseUrl = () => String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
 const apiKey = () => process.env.OPENAI_API_KEY;
 
@@ -136,23 +138,48 @@ export const transcribeWithWordTimes = async ({
 
 const CACHE_LIMIT = 40;
 const CACHE_TTL_MS = 60 * 60 * 1000;
+// The cache holds MP3 bytes, so entries alone are not enough: cap the total memory too.
+const cacheMaxBytes = () => Number(process.env.VOICE_SPEECH_CACHE_BYTES) || 64 * 1024 * 1024;
 const speechCache = new Map();
+let cachedBytes = 0;
 
 const cacheGet = (key) => {
     const hit = speechCache.get(key);
     if (!hit) return null;
     if (Date.now() - hit.at > CACHE_TTL_MS) {
         speechCache.delete(key);
+        cachedBytes -= hit.bytes;
         return null;
     }
     return hit.value;
 };
 
+const cacheDrop = (key) => {
+    const hit = speechCache.get(key);
+    if (!hit) return;
+    speechCache.delete(key);
+    cachedBytes -= hit.bytes;
+};
+
 const cacheSet = (key, value) => {
-    speechCache.set(key, { at: Date.now(), value });
-    while (speechCache.size > CACHE_LIMIT) {
-        speechCache.delete(speechCache.keys().next().value);
+    cacheDrop(key);
+    const bytes = value.buffer.length;
+    // A single clip larger than the budget is returned but never cached.
+    if (bytes > cacheMaxBytes()) return;
+    speechCache.set(key, { at: Date.now(), value, bytes });
+    cachedBytes += bytes;
+    while (speechCache.size > CACHE_LIMIT || cachedBytes > cacheMaxBytes()) {
+        const oldest = speechCache.keys().next().value;
+        if (oldest === undefined) break;
+        cacheDrop(oldest);
     }
+};
+
+/** Test seam: the cache is process-wide, so a test can read and reset it. */
+export const speechCacheStats = () => ({ entries: speechCache.size, bytes: cachedBytes, maxBytes: cacheMaxBytes() });
+export const clearSpeechCache = () => {
+    speechCache.clear();
+    cachedBytes = 0;
 };
 
 /** The spoken reply as MP3 bytes. Repeated text costs nothing the second time. */
@@ -188,7 +215,7 @@ export const synthesizeSpeech = async ({
                 response_format: 'mp3',
                 ...(direction ? { instructions: direction } : {})
             }),
-            signal: AbortSignal.timeout(timeoutMs())
+            signal: AbortSignal.timeout(speechTimeoutMs())
         });
     } catch (error) {
         logger.warn('voice_speech_failed', { message: error?.message });
@@ -212,7 +239,7 @@ export const synthesizeSpeech = async ({
 const toDataUri = ({ contentType, buffer }) => `data:${contentType};base64,${buffer.toString('base64')}`;
 
 /** A provider hiccup gets one retry; missing config or empty text never will. */
-const synthesizeWithRetry = async (options) => {
+export const synthesizeWithRetry = async (options) => {
     try {
         return await synthesizeSpeech(options);
     } catch (error) {

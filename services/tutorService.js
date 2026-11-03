@@ -47,6 +47,7 @@ import {
     readTutorReply,
     resolveAccess,
     resolveLanguageLevel,
+    scoreLesson,
     selectLessons,
     summarizeLessonsByUnit,
     validateLessonImport,
@@ -524,7 +525,23 @@ const lessonSearchScope = async ({ schoolId, subjectId, grade }) => TutorLesson.
     isActive: true
 }).select(LESSON_SEARCH_FIELDS).lean();
 
-export const pickLessons = async ({ schoolId, subjectId, grade, question, lessonId }) => {
+export const pickLessons = async ({ schoolId, subjectId, grade, question, lessonId, pinned = false }) => {
+    // A voice session is pinned to one lesson: read that lesson only, and open the
+    // whole library only when the turn clearly moved away from it.
+    if (pinned && lessonId) {
+        const row = await TutorLesson.findOne({
+            _id: lessonId,
+            school: schoolId,
+            subject: subjectId,
+            grade,
+            isActive: true
+        })
+            .select(`${LESSON_LIST_FIELDS} content`)
+            .lean();
+        if (!row) return [];
+        const terms = words(question);
+        if (!terms.length || scoreLesson(row, terms) > 0) return [row];
+    }
     const candidates = await lessonSearchScope({ schoolId, subjectId, grade });
     if (!candidates.length) return [];
     const chosen = selectLessons({ lessons: candidates, question, selectedLessonId: lessonId });

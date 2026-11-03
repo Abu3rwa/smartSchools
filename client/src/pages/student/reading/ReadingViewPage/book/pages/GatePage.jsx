@@ -8,6 +8,11 @@ const GatePage = ({ gate, onFinish, onContents }) => {
   const remaining = Math.max(0, Number(gate?.remainingSeconds) || 0);
   const percent = required > 0 ? Math.min(100, Math.round((elapsed / required) * 100)) : 100;
   const canFinish = Boolean(gate?.canFinish) && !gate?.finishing;
+  const hint = !gate?.reachedEnd
+    ? t('reading:questions.lockedScrollToEnd')
+    : remaining > 0
+      ? t('reading:questions.lockedTimeLeft', { seconds: remaining })
+      : t('reading:gate.ready');
 
   return (
     <section className="book-gate-page">
@@ -24,19 +29,16 @@ const GatePage = ({ gate, onFinish, onContents }) => {
         <div className="progress-fill" style={{ width: `${percent}%` }} />
       </div>
 
-      <p className="book-page-hint">
-        {remaining > 0
-          ? t('reading:gate.timeLeft', { seconds: remaining })
-          : !gate?.reachedEnd
-            ? t('reading:book.gateHint')
-            : t('reading:gate.ready')}
-      </p>
+      <p className="book-page-hint" id="book-gate-hint">{hint}</p>
+      <p className="book-page-note">{t('reading:questions.tabVisibleNote')}</p>
+      <p className="book-page-note">{t('reading:questions.listeningNote')}</p>
 
       <button
         type="button"
         className="btn btn-primary"
         disabled={!canFinish}
         onClick={onFinish}
+        aria-describedby="book-gate-hint"
       >
         {gate?.finishing ? t('reading:gate.confirming') : t('reading:gate.finish')}
       </button>

@@ -113,7 +113,11 @@ export const fetchSimplified = createAsyncThunk(
       const res = await readingService.getSimplified(textId, assignmentId);
       return res.data.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to load text');
+      const data = err.response?.data;
+      return rejectWithValue({
+        message: data?.message || 'Failed to load text',
+        code: data?.code || null,
+      });
     }
   }
 );
@@ -126,7 +130,12 @@ export const updateProgress = createAsyncThunk(
       const res = await readingService.updateProgress(body);
       return res.data.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to update progress');
+      const data = err.response?.data;
+      return rejectWithValue({
+        message: data?.message || 'Failed to update progress',
+        code: data?.code || null,
+        data: data?.data || null,
+      });
     }
   }
 );

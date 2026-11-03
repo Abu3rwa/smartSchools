@@ -1,8 +1,18 @@
 import { useTranslation } from 'react-i18next';
-import { HiOutlineLockClosed, HiOutlineChevronRight } from 'react-icons/hi';
+import {
+  HiOutlineLockClosed,
+  HiOutlineQuestionMarkCircle,
+  HiOutlineChevronRight,
+} from 'react-icons/hi';
 import { chapterStatus } from '../chapterStatus.js';
 
-const ContentsPage = ({ chapters = [], onOpen, highlightChapterId = null, unlockedChapterId = null }) => {
+const ContentsPage = ({
+  chapters = [],
+  onOpen,
+  onAnswerQuestions,
+  highlightChapterId = null,
+  unlockedChapterId = null,
+}) => {
   const { t, i18n } = useTranslation(['reading']);
 
   const formatDate = (value) => {
@@ -35,6 +45,10 @@ const ContentsPage = ({ chapters = [], onOpen, highlightChapterId = null, unlock
             const status = chapterStatus(chapter);
             const due = formatDate(chapter.dueDate);
             const opens = formatDate(chapter.publishAt);
+            const counts = chapter.questionCounts || {};
+            const questionTotal =
+              (Number(counts.comprehension) || 0) +
+              (Number(counts.criticalThinking) || 0);
             const classes = [
               'book-toc-row',
               `is-${status}`,
@@ -42,7 +56,7 @@ const ContentsPage = ({ chapters = [], onOpen, highlightChapterId = null, unlock
               unlockedChapterId === chapter._id ? 'is-unlocked' : '',
             ].filter(Boolean).join(' ');
             return (
-              <li key={chapter._id}>
+              <li key={chapter._id} className="book-toc-item">
                 <button type="button" className={classes} onClick={() => onOpen?.(chapter)}>
                   <span className="book-toc-number" aria-hidden="true">{chapter.chapterNumber}</span>
                   <span className="book-toc-main">
@@ -75,6 +89,16 @@ const ContentsPage = ({ chapters = [], onOpen, highlightChapterId = null, unlock
                   </span>
                   <HiOutlineChevronRight size={16} className="book-toc-arrow" aria-hidden="true" />
                 </button>
+                {onAnswerQuestions && !chapter.locked && questionTotal > 0 && (
+                  <button
+                    type="button"
+                    className="book-toc-questions"
+                    onClick={() => onAnswerQuestions?.(chapter)}
+                  >
+                    <HiOutlineQuestionMarkCircle size={14} aria-hidden="true" />
+                    {t('reading:questions.answerQuestions')}
+                  </button>
+                )}
               </li>
             );
           })}

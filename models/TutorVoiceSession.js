@@ -17,9 +17,21 @@ const voiceBlockSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const voiceSegmentSchema = new mongoose.Schema(
+  {
+    kind: { type: String, default: "" },
+    index: { type: Number, default: 0 },
+    text: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
 const voiceMessageSchema = new mongoose.Schema(
   {
     role: { type: String, enum: ["student", "tutor"], required: true },
+    // A tutor turn can be replayed clip by clip after the response has gone out.
+    turnId: { type: mongoose.Schema.Types.ObjectId },
+    segments: { type: [voiceSegmentSchema], default: [] },
     text: { type: String, default: "" },
     spoken: { type: String, default: "" },
     lead: { type: String, default: "" },

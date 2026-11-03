@@ -52,6 +52,7 @@ import QuizPage from "./pages/QuizPage.jsx";
 import ResultsPage from "./pages/ResultsPage.jsx";
 import LockedPage from "./pages/LockedPage.jsx";
 import EndPage from "./pages/EndPage.jsx";
+import QuestionsModal from "./QuestionsModal.jsx";
 import {
   ChapterLoadingPage,
   ChapterErrorPage,
@@ -486,6 +487,17 @@ const BookShell = ({
     (chapterData.ctAnswers[String(question._id)] || "").trim(),
   ).length;
 
+  const questionCounts = chapterContent?.questionCounts || {};
+  const thinkingTotal = Math.max(
+    thinking.length,
+    Number(questionCounts.criticalThinking) || 0,
+  );
+  const quizTotal = Math.max(
+    quiz.length,
+    Number(questionCounts.comprehension) || 0,
+  );
+  const hasQuestions = thinkingTotal > 0 || quizTotal > 0;
+
   const gateEnabled = Boolean(
     chapterData.readingGate?.enabled && !chapterData.readingGate?.unlocked,
   );
@@ -508,6 +520,7 @@ const BookShell = ({
   const gateElapsed = gateEnabled ? chapterData.gateElapsedSeconds : 0;
   const gateRemaining = Math.max(0, Math.ceil(gateRequired - gateElapsed));
   const gateCanFinish = gateEnabled && gateRemaining <= 0 && reachedEnd;
+  const quizLocked = gateEnabled && quizTotal > 0;
 
   const result =
     chapterData.quizSubmitted && chapterData.score?.totalCount > 0
@@ -559,6 +572,7 @@ const BookShell = ({
           pages: passagePages,
           thinking,
           quiz,
+          questionCounts: chapterContent?.questionCounts,
           gate,
           result,
         },
@@ -571,6 +585,7 @@ const BookShell = ({
       passagePages,
       thinking,
       quiz,
+      chapterContent?.questionCounts,
       gate,
       result,
     ],
@@ -578,6 +593,11 @@ const BookShell = ({
 
   const [pageIndex, setPageIndex] = useState(0);
   const [visibleIndexes, setVisibleIndexes] = useState([]);
+  const [questionsChapterId, setQuestionsChapterId] = useState(null);
+  const questionsModalOpen =
+    Boolean(questionsChapterId) &&
+    String(questionsChapterId) === String(activeChapterId) &&
+    Boolean(chapterContent);
   const currentChapterId = pages[pageIndex]?.chapterId || activeChapterId;
   // The spread start is reported by the book; until it lands, fall back to the page
   // the reader is on so a chapter switch never uses the previous chapter's spread.
@@ -589,6 +609,7 @@ const BookShell = ({
   const restoreTarget = useRef(null);
   const deepLinkHandled = useRef(false);
   const pendingResultsJump = useRef(false);
+  const pendingUnlockJump = useRef(false);
 
   const contentsIndex = useMemo(() => {
     const index = pages.findIndex((page) => page.kind === "contents");
@@ -611,6 +632,13 @@ const BookShell = ({
     setPageIndex(contentsIndex);
   }, [contentsIndex, stopReadingAloud, closeVocabulary]);
 
+  const goToGate = useCallback(() => {
+    const index = pages.findIndex(
+      (page) => page.kind === "gate" && page.chapterId === activeChapterId,
+    );
+    if (index >= 0) setPageIndex(index);
+  }, [pages, activeChapterId]);
+
   const openChapter = useCallback(
     (chapter) => {
       if (!chapter) return;
@@ -631,6 +659,63 @@ const BookShell = ({
       setPageIndex(titleIndexFor(chapter._id));
     },
     [pages, contentsIndex, stopReadingAloud, closeVocabulary, titleIndexFor],
+  );
+
+  useEffect(() => {
+    setQuestionsChapterId((current) =>
+      current && String(current) === String(activeChapterId) ? current : null,
+    );
+  }, [activeChapterId]);
+
+  const openQuestionsModal = useCallback(
+    (chapter = null) => {
+      const targetId = chapter?._id || activeChapterId;
+      if (!targetId) return;
+      stopReadingAloud();
+      closeVocabulary();
+      setQuestionsChapterId(targetId);
+      if (String(targetId) !== String(activeChapterId)) {
+        openChapter(chapter || chapters.find((item) => item._id === targetId));
+      }
+    },
+    [
+      activeChapterId,
+      chapters,
+      openChapter,
+      stopReadingAloud,
+      closeVocabulary,
+    ],
+  );
+
+  const closeQuestionsModal = useCallback(() => {
+    chapterData.flushDraft();
+    setQuestionsChapterId(null);
+  }, [chapterData]);
+
+  const backToStoryFromQuestions = useCallback(() => {
+    closeQuestionsModal();
+    let lastPassage = -1;
+    pages.forEach((page, index) => {
+      if (page.kind === "passage" && page.chapterId === activeChapterId) {
+        lastPassage = index;
+      }
+    });
+    if (lastPassage >= 0) setPageIndex(lastPassage);
+  }, [closeQuestionsModal, pages, activeChapterId]);
+
+  const changeAnswer = useCallback(
+    (key, value, kind) => {
+      const nextQuiz = kind === "quiz"
+        ? { ...chapterData.quizAnswers, [key]: value }
+        : chapterData.quizAnswers;
+      const nextCt = kind === "thinking"
+        ? { ...chapterData.ctAnswers, [key]: value }
+        : chapterData.ctAnswers;
+      if (kind === "quiz") chapterData.setQuizAnswers(nextQuiz);
+      else chapterData.setCtAnswers(nextCt);
+      chapterData.saveDraft({ quizAnswers: nextQuiz, ctAnswers: nextCt });
+    },
+    [chapterData],
   );
 
   useEffect(() => {
@@ -731,6 +816,7 @@ const BookShell = ({
 
   useEffect(() => {
     pendingResultsJump.current = false;
+    pendingUnlockJump.current = false;
   }, [activeChapterId]);
 
   const passageKey = `${activeChapterId}|${activeLevel?.targetLevel ?? ""}|${passagePages.length}|${metrics.textHeight}`;
@@ -759,7 +845,7 @@ const BookShell = ({
   }, [passageKey, pages, anchorIndex]);
 
   useEffect(() => {
-    if (!pendingResultsJump.current || !chapterData.quizSubmitted) return;
+    if (!pendingResultsJump.current || !chapterData.quizSubmitted || questionsModalOpen) return;
     pendingResultsJump.current = false;
     const destination = pages.find(
       (page) =>
@@ -768,7 +854,20 @@ const BookShell = ({
     );
     if (!destination) return;
     setPageIndex(pages.findIndex((page) => page.id === destination.id));
-  }, [chapterData.quizSubmitted, pages, activeChapterId]);
+  }, [chapterData.quizSubmitted, pages, activeChapterId, questionsModalOpen]);
+
+  // Unlocking refetches the chapter; when the question pages arrive, open the first one.
+  useEffect(() => {
+    if (!pendingUnlockJump.current || gateEnabled || !hasQuestions) return;
+    const destination = pages.find(
+      (page) =>
+        (page.kind === "thinking" || page.kind === "quiz") &&
+        page.chapterId === activeChapterId,
+    );
+    if (!destination) return;
+    pendingUnlockJump.current = false;
+    setPageIndex(pages.findIndex((page) => page.id === destination.id));
+  }, [gateEnabled, hasQuestions, pages, activeChapterId]);
 
   useEffect(() => {
     stopReadingAloud();
@@ -787,17 +886,31 @@ const BookShell = ({
   const handleSubmit = async () => {
     const saved = await chapterData.handleQuizSubmit();
     if (saved) pendingResultsJump.current = true;
+    return saved;
+  };
+
+  const handleFinishReading = async () => {
+    const unlocked = await chapterData.handleFinishReading();
+    if (unlocked && gateEnabled) {
+      pendingUnlockJump.current = true;
+      toast.success(t("reading:questions.unlockedToast"));
+    }
+    return unlocked;
   };
 
   const handleComplete = async () => {
+    if (hasQuestions) return;
     await chapterData.handleQuizSubmit();
   };
 
-  const questionPages = pages.filter(
-    (page) => page.kind === "thinking" || page.kind === "quiz",
-  );
-  const lastQuestionPageId =
-    questionPages[questionPages.length - 1]?.id || null;
+  const lastThinkingPageId =
+    [...pages].reverse().find(
+      (page) => page.kind === "thinking" && page.chapterId === activeChapterId,
+    )?.id || null;
+  const lastQuizPageId =
+    [...pages].reverse().find(
+      (page) => page.kind === "quiz" && page.chapterId === activeChapterId,
+    )?.id || null;
   const studentName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     user?.fullName ||
@@ -820,6 +933,7 @@ const BookShell = ({
           <ContentsPage
             chapters={chapters}
             onOpen={openChapter}
+            onAnswerQuestions={openQuestionsModal}
             highlightChapterId={highlightChapterId}
             unlockedChapterId={unlockedFlashId}
           />
@@ -867,7 +981,12 @@ const BookShell = ({
             vocabulary={vocabulary}
             onWordClick={openVocabulary}
             onListen={toggleReadAloud}
-            onFinish={() => chapterData.handleFinishReading()}
+            onFinish={handleFinishReading}
+            onAnswerQuestions={
+              page.isLast && hasQuestions
+                ? () => openQuestionsModal()
+                : undefined
+            }
             gate={page.isLast && gateEnabled ? gate : null}
             speaking={speakingKey === page.id}
             listenAvailable={listenAvailable}
@@ -879,7 +998,7 @@ const BookShell = ({
         return (
           <GatePage
             gate={{ ...page.gate, chapterNumber: page.chapterNumber }}
-            onFinish={() => chapterData.handleFinishReading()}
+            onFinish={handleFinishReading}
             onContents={goToContents}
           />
         );
@@ -896,12 +1015,22 @@ const BookShell = ({
             feedback={chapterData.ctFeedback}
             submitted={chapterData.quizSubmitted}
             submitting={chapterData.progressSubmitting}
-            showSubmit={page.id === lastQuestionPageId}
-            canSubmit
-            onAnswerChange={(key, value) =>
-              chapterData.setCtAnswers((prev) => ({ ...prev, [key]: value }))
+            showSubmit={
+              page.id === lastThinkingPageId &&
+              quizTotal === 0 &&
+              !gateEnabled
             }
+            canSubmit
+            gateLocked={page.id === lastThinkingPageId && quizLocked}
+            onGoToGate={goToGate}
+            error={chapterData.submitError}
+            questionState={chapterData.questionState}
+            completedAt={chapterData.completedAt}
+            score={chapterData.score}
+            savedAnswersMatched={chapterData.savedAnswersMatched}
+            onAnswerChange={(key, value) => changeAnswer(key, value, "thinking")}
             onGetFeedback={chapterData.handleGetFeedback}
+            onAnswerQuestions={() => openQuestionsModal()}
             onSubmit={handleSubmit}
             onContents={goToContents}
             passageText={passageText}
@@ -919,11 +1048,23 @@ const BookShell = ({
             answers={chapterData.quizAnswers}
             submitted={chapterData.quizSubmitted}
             submitting={chapterData.progressSubmitting}
-            showSubmit={page.id === lastQuestionPageId}
+            showSubmit={page.id === lastQuizPageId}
             canSubmit={answeredQuiz >= quiz.length}
-            onAnswerChange={(key, value) =>
-              chapterData.setQuizAnswers((prev) => ({ ...prev, [key]: value }))
+            blockedReason={
+              answeredQuiz < quiz.length
+                ? t("reading:questions.submitNeedsAll", {
+                    n: quiz.length,
+                    left: quiz.length - answeredQuiz,
+                  })
+                : null
             }
+            error={chapterData.submitError}
+            questionState={chapterData.questionState}
+            completedAt={chapterData.completedAt}
+            score={chapterData.score}
+            savedAnswersMatched={chapterData.savedAnswersMatched}
+            onAnswerChange={(key, value) => changeAnswer(key, value, "quiz")}
+            onAnswerQuestions={() => openQuestionsModal()}
             onSubmit={handleSubmit}
             onContents={goToContents}
             passageText={passageText}
@@ -944,7 +1085,7 @@ const BookShell = ({
             title={activeChapter?.text?.title}
             submitted={chapterData.quizSubmitted}
             submitting={chapterData.progressSubmitting}
-            canComplete={!chapterData.quizSubmitted && !chapterData.error}
+            canComplete={!chapterData.quizSubmitted && !chapterData.error && !hasQuestions}
             onComplete={handleComplete}
             onContents={goToContents}
           />
@@ -1100,6 +1241,31 @@ const BookShell = ({
             </>
           )}
         </Popover>
+
+        <QuestionsModal
+          open={questionsModalOpen}
+          onClose={closeQuestionsModal}
+          chapterNumber={activeChapter?.chapterNumber || null}
+          chapterTitle={activeChapter?.text?.title || ""}
+          questionState={chapterData.questionState}
+          gate={gate}
+          thinking={thinking}
+          quiz={quiz}
+          answers={{ ...chapterData.quizAnswers, ...chapterData.ctAnswers }}
+          feedback={chapterData.ctFeedback}
+          onAnswerChange={changeAnswer}
+          onGetFeedback={chapterData.handleGetFeedback}
+          draftStatus={chapterData.draftStatus}
+          submitError={chapterData.submitError}
+          submitting={chapterData.progressSubmitting}
+          onSubmit={handleSubmit}
+          onReload={chapterData.reload}
+          result={chapterData.score}
+          completedAt={chapterData.completedAt}
+          savedAnswersMatched={chapterData.savedAnswersMatched}
+          passageText={passageText}
+          onBackToStory={backToStoryFromQuestions}
+        />
       </div>
     </div>
   );

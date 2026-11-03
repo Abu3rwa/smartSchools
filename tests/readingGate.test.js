@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import ReadingAssignment from "../models/ReadingAssignment.js";
+import ReadingAnswerDraft from "../models/ReadingAnswerDraft.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
 import ReadingProgressState from "../models/ReadingProgressState.js";
 import SimplifiedText from "../models/SimplifiedText.js";
@@ -445,11 +446,13 @@ test("the quiz saves once the reading is finished", async (t) => {
   }));
   t.mock.method(ReadingProgressState, "findOne", () => query({ readFinishedAt: new Date() }));
   t.mock.method(ReadingCompletion, "exists", async () => null);
+  t.mock.method(ReadingCompletion, "findOne", () => query(null));
   t.mock.method(StudentReadingProfile, "findOneAndUpdate", async () => ({
     currentReadingLevel: 5,
     comprehensionAccuracy: 100
   }));
   t.mock.method(ReadingCompletion, "findOneAndUpdate", async () => ({}));
+  t.mock.method(ReadingAnswerDraft, "deleteOne", async () => ({ deletedCount: 0 }));
 
   const profile = await updateProgress(
     studentId,

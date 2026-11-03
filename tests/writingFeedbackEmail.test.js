@@ -326,6 +326,86 @@ test('section feedback alone is enough to send an email', () => {
     assert.match(message.html, /Clear reason\./);
 });
 
+const emailComparison = {
+    kind: 'comparison',
+    language: 'en',
+    comparison: {
+        wordDelta: 3,
+        encouragement: 'You kept your opinion clear, and that is a strong start.',
+        criteriaImproved: ['Ideas and content', 'Conclusion focus'],
+        criteriaUnresolved: ['Introduction names both reasons'],
+        newIssues: ['The conclusion introduces a new reason about learning.'],
+        changedBySection: [
+            { key: 'intro', index: 0, label: 'Introduction', summary: 'Still does not name both reasons.', kind: 'changed' },
+            { key: 'extra', index: 3, label: 'Extra', summary: 'A new closing idea.', kind: 'added' }
+        ],
+        feedbackApplied: [],
+        taskResults: []
+    },
+    spellingWins: [{ word: 'friends' }]
+};
+
+test('a published draft comparison rides along in the same email', () => {
+    const message = build({ comparison: emailComparison });
+    assert.match(message.html, /What changed from draft 1 to draft 2/);
+    assert.match(message.html, /\+3 words/);
+    assert.match(message.html, /You kept your opinion clear, and that is a strong start\./);
+    assert.match(message.html, /Stronger now/);
+    assert.match(message.html, /Ideas and content/);
+    assert.match(message.html, /Still to work on/);
+    assert.match(message.html, /Introduction names both reasons/);
+    assert.match(message.html, /Watch out for/);
+    assert.match(message.html, /Part by part/);
+    assert.match(message.html, /Still does not name both reasons\./);
+    assert.match(message.html, /New part/);
+    assert.match(message.html, /Spelling words you used/);
+    assert.match(message.html, /friends/);
+    assert.match(message.text, /What changed from draft 1 to draft 2/);
+    assert.match(message.text, /- Introduction names both reasons/);
+    assert.match(message.text, /- Introduction \(Changed\): Still does not name both reasons\./);
+    // A comparison alone is never a reason to change the parent wording.
+    const parent = build({ role: 'parent', comparison: emailComparison });
+    assert.match(parent.html, /What changed from draft 1 to draft 2/);
+});
+
+test('no comparison, or an empty one, adds nothing to the email', () => {
+    const without = build();
+    assert.equal(without.html.includes('What changed'), false);
+    assert.equal(without.text.includes('What changed'), false);
+    const empty = build({
+        comparison: {
+            kind: 'comparison',
+            comparison: { wordDelta: 0, encouragement: '', criteriaImproved: [], criteriaUnresolved: [], newIssues: [], changedBySection: [], feedbackApplied: [], taskResults: [] },
+            spellingWins: []
+        }
+    });
+    assert.equal(empty.html.includes('What changed'), false);
+});
+
+test('an arabic comparison keeps its arabic labels', () => {
+    const message = build({
+        language: 'ar',
+        assessment: { ...assessment, language: 'ar' },
+        comparison: emailComparison
+    });
+    assert.match(message.html, /ما تغيّر من المسودة 1 إلى المسودة 2/);
+    assert.match(message.html, /أصبح أقوى/);
+    assert.match(message.html, /جزءًا بجزء/);
+    assert.match(message.text, /ما تغيّر من المسودة 1 إلى المسودة 2/);
+});
+
+test('comparison text is escaped before it reaches the inbox', () => {
+    const message = build({
+        comparison: {
+            kind: 'comparison',
+            comparison: { wordDelta: 1, encouragement: '<script>alert(1)</script>', criteriaImproved: ['<b>bold</b>'] }
+        }
+    });
+    assert.equal(message.html.includes('<script>'), false);
+    assert.equal(message.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), true);
+    assert.equal(message.html.includes('<b>bold</b>'), false);
+});
+
 test('a parent email speaks in the teacher own voice instead of a third-person digest', () => {
     const message = build({ role: 'parent' });
     assert.match(message.html, /I have read Areen&#39;s draft 2/);
@@ -383,9 +463,36 @@ const query = (value) => ({
     select() { return this; },
     populate() { return this; },
     setOptions() { return this; },
+    sort() { return this; },
     lean: async () => value,
     then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
 });
+
+const publishedComparison = {
+    _id: 'comparison1',
+    kind: 'comparison',
+    aiStatus: 'done',
+    publish: { state: 'published', publishedAt: new Date('2026-11-03T10:00:00.000Z') },
+    project: 'project1',
+    assignment: 'assignment1',
+    draft: 'draft1',
+    student: 'student1',
+    previousDraft: 'draft0',
+    language: 'en',
+    comparison: {
+        wordDelta: 3,
+        encouragement: 'You kept your opinion clear.',
+        criteriaImproved: ['Ideas and content'],
+        criteriaUnresolved: ['Introduction names both reasons'],
+        newIssues: ['The conclusion introduces a new reason about learning.'],
+        changedBySection: [
+            { key: 'intro', index: 0, label: 'Introduction', summary: 'Still does not name both reasons.', kind: 'changed' }
+        ],
+        feedbackApplied: [],
+        taskResults: []
+    },
+    spellingWins: [{ word: 'friends' }]
+};
 
 const stubDelivery = (t, overrides = {}) => {
     const sent = [];
@@ -395,11 +502,18 @@ const stubDelivery = (t, overrides = {}) => {
         project: { ...project, _id: 'project1', student: 'student1', latestDraft: 'newer-draft' },
         draft: { ...draft, _id: 'draft1' },
         student: { firstName: 'Areen', email: 'student@example.test', getAllContactEmailEntries: () => [{ type: 'mother', email: 'parent@example.test' }] },
+        comparison: publishedComparison,
         ...overrides
     };
     for (const [model, key] of [[WritingAssessment, 'assessment'], [WritingAssignment, 'assignment'], [WritingProject, 'project'], [WritingDraft, 'draft'], [Student, 'student']]) {
         t.mock.method(model, 'findOne', (filter) => {
             assert.equal(filter.school, ids.schoolId);
+            if (key === 'assessment' && filter.kind === 'comparison') {
+                assert.equal(filter.draft, 'draft1');
+                assert.equal(filter.project, 'project1');
+                assert.equal(filter['publish.state'], 'published');
+                return query(records.comparison);
+            }
             const expectedId = { assessment: ids.assessmentId, assignment: 'assignment1', project: 'project1', draft: 'draft1', student: 'student1' }[key];
             assert.equal(filter._id, expectedId);
             if (key === 'project' || key === 'draft') {
@@ -475,6 +589,23 @@ test('resending old feedback does not tell a finished student to start an old dr
     const arabic = build({ resend: true, language: 'ar', role: 'parent' });
     assert.match(arabic.text, /مرة أخرى/);
     assert.doesNotMatch(arabic.html, /الآن: كتابة المسودة/);
+});
+
+test('the resend email carries the published draft comparison with the feedback', async (t) => {
+    const { sent } = stubDelivery(t);
+    await resendPublishedFeedbackEmail(resendContext);
+    assert.equal(sent.length, 2);
+    assert.ok(sent.every((message) => message.html.includes('What changed from draft 1 to draft 2')));
+    assert.ok(sent.every((message) => message.html.includes('You kept your opinion clear.')));
+    assert.ok(sent.every((message) => message.text.includes('- Introduction names both reasons')));
+});
+
+test('a comparison the teacher has not published never reaches the email', async (t) => {
+    const { sent } = stubDelivery(t, { comparison: null });
+    await resendPublishedFeedbackEmail(resendContext);
+    assert.equal(sent.length, 2);
+    assert.ok(sent.every((message) => !message.html.includes('What changed')));
+    assert.ok(sent.every((message) => !message.text.includes('What changed')));
 });
 
 test('resend preview uses exactly the same saved email content without sending', async (t) => {

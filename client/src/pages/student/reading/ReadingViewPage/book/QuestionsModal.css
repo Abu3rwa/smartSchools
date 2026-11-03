@@ -1,0 +1,307 @@
+/* Question modal: a paper sheet over the night reading theme. */
+.book-questions-paper {
+  --qm-ink: #2b241b;
+  --qm-ink-2: #6a5c48;
+  --qm-ink-3: #8b7c66;
+  --qm-line: rgba(122, 96, 56, 0.22);
+  --qm-gold: #a67024;
+  --qm-green: #3f7d69;
+  --qm-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, "Times New Roman", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8f2e4 0%, #f4ecda 60%, #efe5cf 100%);
+  color: var(--qm-ink);
+}
+
+@media (max-width: 599.95px) {
+  .book-questions-paper {
+    border-radius: 0;
+  }
+}
+
+.book-qm-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 18px 12px;
+  padding-inline: 20px 12px;
+  border-bottom: 1px dashed var(--qm-line);
+}
+
+.book-qm-heading h2 {
+  margin: 0;
+  font-family: var(--qm-serif);
+  font-size: 1.3rem;
+  line-height: 1.25;
+  color: var(--qm-ink);
+}
+
+.book-qm-heading p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-close {
+  flex: 0 0 auto;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-content {
+  padding-block: 16px 20px;
+  padding-inline: 20px;
+  color: var(--qm-ink);
+}
+
+.book-qm-content .thinking-answer {
+  width: 100%;
+  color: var(--qm-ink);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.book-qm-content .quiz-option {
+  color: var(--qm-ink);
+}
+
+.book-qm-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.book-qm-dot {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 1px solid rgba(122, 96, 56, 0.4);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.book-qm-dot.is-answered {
+  border-color: var(--qm-green);
+  background: var(--qm-green);
+}
+
+.book-qm-dot.is-current {
+  outline: 2px solid rgba(166, 112, 36, 0.55);
+  outline-offset: 2px;
+}
+
+.book-qm-question {
+  padding: 14px;
+  border: 1px solid var(--qm-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.book-qm-prompt {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--qm-ink);
+}
+
+.book-qm-label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-count {
+  margin: 4px 0 10px;
+  font-size: 0.68rem;
+  color: var(--qm-ink-3);
+  text-align: end;
+}
+
+.book-qm-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.book-qm-submit {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.book-qm-draft {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--qm-ink-3);
+  text-align: end;
+}
+
+.book-qm-draft.is-failed {
+  color: #9a4a2e;
+}
+
+.book-qm-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-block: 18px;
+  text-align: center;
+}
+
+.book-qm-state h3 {
+  margin: 0;
+  font-family: var(--qm-serif);
+  font-size: 1.1rem;
+  color: var(--qm-ink);
+}
+
+.book-qm-state p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-state .progress-track {
+  width: 100%;
+  max-width: 320px;
+}
+
+.book-qm-state.is-done .book-qm-state-icon {
+  color: var(--qm-green);
+}
+
+.book-qm-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(226, 171, 95, 0.22);
+  color: var(--qm-gold);
+}
+
+.book-qm-state.is-busy {
+  min-height: 220px;
+  justify-content: center;
+}
+
+.book-qm-review-head h3 {
+  margin: 0 0 2px;
+  font-family: var(--qm-serif);
+  font-size: 1.05rem;
+  color: var(--qm-ink);
+}
+
+.book-qm-review-head p {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-review,
+.book-qm-answers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-qm-review-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 9px 4px;
+  border-bottom: 1px dashed var(--qm-line);
+}
+
+.book-qm-review-number {
+  font-family: var(--qm-serif);
+  font-weight: 700;
+  color: var(--qm-gold);
+}
+
+.book-qm-review-text {
+  font-size: 0.84rem;
+  color: var(--qm-ink);
+}
+
+.book-qm-review-status {
+  grid-column: 2;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.book-qm-review-status.is-answered {
+  color: var(--qm-green);
+}
+
+.book-qm-review-status.is-missing {
+  color: #9a4a2e;
+}
+
+.book-qm-review-row .book-text-link {
+  grid-column: 2;
+  justify-self: start;
+  padding: 0;
+  font-size: 0.7rem;
+}
+
+.book-qm-review-row.is-flagged {
+  background: rgba(190, 80, 50, 0.09);
+  border-radius: 6px;
+}
+
+.book-qm-answer {
+  padding: 10px 4px;
+  border-bottom: 1px dashed var(--qm-line);
+}
+
+.book-qm-answer-question {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--qm-ink-2);
+}
+
+.book-qm-answer-value {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--qm-ink);
+  white-space: pre-wrap;
+}
+
+.book-qm-answer .thinking-feedback {
+  margin-top: 8px;
+}
+
+.book-submit-reason {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--qm-ink-2);
+}
+
+.book-submit-error {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #9a4a2e;
+}

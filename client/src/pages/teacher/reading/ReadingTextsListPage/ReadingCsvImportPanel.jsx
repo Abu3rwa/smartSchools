@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
+import { Menu, MenuItem } from '@mui/material';
 import {
   HiOutlineChevronDown,
-  HiOutlineDownload,
+  HiOutlineDotsVertical,
   HiOutlineInformationCircle,
   HiOutlineUpload,
 } from 'react-icons/hi';
@@ -13,11 +14,15 @@ import { buildReadingCsvTemplate, parseReadingCsv } from './readingCsvImport.js'
 export default function ReadingCsvImportPanel({ onImported }) {
   const { t } = useTranslation(['reading']);
   const inputRef = useRef(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [reading, setReading] = useState(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [importing, setImporting] = useState(false);
   const [isShared, setIsShared] = useState(false);
+
+  const closeMenu = () => setMenuAnchor(null);
 
   const downloadTemplate = () => {
     const blob = new Blob([buildReadingCsvTemplate()], { type: 'text/csv;charset=utf-8' });
@@ -66,20 +71,13 @@ export default function ReadingCsvImportPanel({ onImported }) {
     <section className="reading-import" aria-labelledby="reading-import-title">
       <div className="reading-import-intro">
         <span className="reading-import-icon" aria-hidden="true">
-          <HiOutlineUpload size={20} />
+          <HiOutlineUpload size={15} />
         </span>
-        <div>
-          <h2 id="reading-import-title">{t('reading:texts.importTitle')}</h2>
-          <p>{t('reading:texts.importDescription')}</p>
-        </div>
+        <h2 id="reading-import-title">{t('reading:texts.importTitle')}</h2>
       </div>
       <div className="reading-import-actions">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={downloadTemplate}>
-          <HiOutlineDownload size={16} aria-hidden="true" />
-          {t('reading:texts.downloadCsvTemplate')}
-        </button>
         <label className="btn btn-secondary btn-sm reading-csv-file-label">
-          <HiOutlineUpload size={16} aria-hidden="true" />
+          <HiOutlineUpload size={15} aria-hidden="true" />
           {t('reading:texts.chooseCsv')}
           <input
             ref={inputRef}
@@ -90,6 +88,41 @@ export default function ReadingCsvImportPanel({ onImported }) {
           />
         </label>
         {fileName && <span className="reading-csv-file-name">{fileName}</span>}
+        <button
+          type="button"
+          className="reading-kebab"
+          aria-label={t('reading:texts.importMenuAria')}
+          aria-haspopup="menu"
+          aria-expanded={Boolean(menuAnchor)}
+          onClick={(event) => setMenuAnchor(event.currentTarget)}
+        >
+          <HiOutlineDotsVertical size={18} />
+        </button>
+        <Menu
+          open={Boolean(menuAnchor)}
+          anchorEl={menuAnchor}
+          onClose={closeMenu}
+          slotProps={{ paper: { className: 'reading-row-menu' } }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              downloadTemplate();
+            }}
+          >
+            {t('reading:texts.downloadCsvTemplate')}
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              setHelpOpen(true);
+            }}
+          >
+            {t('reading:texts.importHelpSummary')}
+          </MenuItem>
+        </Menu>
       </div>
       {error && <p className="reading-csv-error" role="alert">{error}</p>}
       {reading && (
@@ -113,12 +146,17 @@ export default function ReadingCsvImportPanel({ onImported }) {
           </button>
         </div>
       )}
-      <details className="reading-import-help">
+      <details
+        className="reading-import-help"
+        open={helpOpen}
+        onToggle={(event) => setHelpOpen(event.currentTarget.open)}
+      >
         <summary>
-          <HiOutlineInformationCircle size={15} aria-hidden="true" />
+          <HiOutlineInformationCircle size={14} aria-hidden="true" />
           {t('reading:texts.importHelpSummary')}
-          <HiOutlineChevronDown size={14} className="reading-help-caret" aria-hidden="true" />
+          <HiOutlineChevronDown size={13} className="reading-help-caret" aria-hidden="true" />
         </summary>
+        <p>{t('reading:texts.importDescription')}</p>
         <p>{t('reading:texts.csvHelp')}</p>
       </details>
     </section>

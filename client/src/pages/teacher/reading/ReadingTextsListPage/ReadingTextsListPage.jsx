@@ -184,28 +184,28 @@ export default function ReadingTextsListPage() {
     <div className="reading-texts-list-page">
       <div className="page-header-row">
         <div className="page-header">
-          <button type="button" className="reading-back" onClick={onBack}>
-            <HiOutlineArrowLeft size={15} aria-hidden="true" />
-            {t("reading:common.back")}
-          </button>
-          <h1>{t("reading:texts.title")}</h1>
-          <p className="text-muted">
-            {t("reading:texts.subtitle")}
+          <div className="reading-title-row">
+            <button type="button" className="reading-back" onClick={onBack}>
+              <HiOutlineArrowLeft size={14} aria-hidden="true" />
+              {t("reading:common.back")}
+            </button>
+            <h1>{t("reading:texts.title")}</h1>
             {academicYear && (
               <span className="reading-year-chip">
-                <HiOutlineCalendar size={13} aria-hidden="true" />
+                <HiOutlineCalendar size={12} aria-hidden="true" />
                 {t("reading:texts.academicYearChip", { year: academicYear })}
               </span>
             )}
-          </p>
+          </div>
+          <p className="text-muted">{t("reading:texts.subtitle")}</p>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="btn btn-secondary" onClick={() => onResults()}>
-            <HiOutlineFolderOpen size={18} />
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onResults()}>
+            <HiOutlineFolderOpen size={16} />
             {t("reading:texts.results")}
           </button>
-          <button type="button" className="btn btn-primary" onClick={onUpload}>
-            <HiOutlineDocumentAdd size={18} />
+          <button type="button" className="btn btn-primary btn-sm" onClick={onUpload}>
+            <HiOutlineDocumentAdd size={16} />
             {t("reading:texts.uploadText")}
           </button>
         </div>

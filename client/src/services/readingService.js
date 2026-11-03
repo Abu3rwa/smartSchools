@@ -65,6 +65,9 @@ export const readingService = {
   // Student: update progress after quiz
   updateProgress: (body) => api.patch("/reading/update-progress", body),
 
+  // Student: save answers in progress before submitting
+  saveAnswersDraft: (body) => api.put("/reading/answers-draft", body),
+
   // Student: get AI feedback on critical thinking answer
   evaluateAnswer: (body) => api.post("/reading/evaluate-answer", body),
 

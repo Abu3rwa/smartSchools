@@ -34,6 +34,7 @@ const PassagePage = ({
   onWordClick,
   onListen,
   onFinish,
+  onAnswerQuestions,
   gate = null,
   speaking = false,
   listenAvailable = false,
@@ -63,7 +64,7 @@ const PassagePage = ({
         ))}
       </div>
 
-      {(gate || listenAvailable) && (
+      {(gate || listenAvailable || onAnswerQuestions) && (
         <div className="book-page-footer">
           {gate && (
             <>
@@ -83,6 +84,15 @@ const PassagePage = ({
                 </span>
               )}
             </>
+          )}
+          {onAnswerQuestions && (
+            <button
+              type="button"
+              className={`btn ${gate ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+              onClick={onAnswerQuestions}
+            >
+              {t('reading:questions.answerQuestions')}
+            </button>
           )}
           {listenAvailable && (
             <button

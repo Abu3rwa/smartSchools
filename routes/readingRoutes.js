@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
-import { aiFeatureRateLimiter, fluencyAttemptRateLimiter, fluencyListenRateLimiter, readingHeartbeatRateLimiter } from '../middleware/rateLimiters.js';
+import { aiFeatureRateLimiter, fluencyAttemptRateLimiter, fluencyListenRateLimiter, readingAnswerDraftRateLimiter, readingHeartbeatRateLimiter } from '../middleware/rateLimiters.js';
 import { uploadFluencyAudio } from '../middleware/uploadReadingFluencyAudio.js';
 import {
   getFluencyAssignment,
@@ -31,6 +31,7 @@ import {
   finishReading,
   recordReadingHeartbeat,
   updateProgress,
+  saveAnswersDraft,
   evaluateCriticalThinkingAnswer,
   createAssignment,
   myAssignments,
@@ -89,6 +90,8 @@ router.get('/student-level/:studentId', authorize('student', 'teacher', 'admin')
 
 // Student: update progress after comprehension quiz
 router.patch('/update-progress', authorize('student'), updateProgress);
+// Student: save answers in progress before submitting
+router.put('/answers-draft', authorize('student'), readingAnswerDraftRateLimiter, saveAnswersDraft);
 
 // Student: get AI feedback on critical thinking answer
 router.post('/evaluate-answer', authorize('student'), aiFeatureRateLimiter, evaluateCriticalThinkingAnswer);

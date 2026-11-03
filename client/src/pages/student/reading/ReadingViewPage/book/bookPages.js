@@ -108,7 +108,12 @@ export const buildBookPages = ({
     const gate = content?.gate || { enabled: false, locked: false };
     const thinking = Array.isArray(content?.thinking) ? content.thinking : [];
     const quiz = Array.isArray(content?.quiz) ? content.quiz : [];
-    const hasQuestions = thinking.length > 0 || quiz.length > 0;
+    // A gated student gets stripped question arrays, so the server's counts decide
+    // whether the chapter has questions and whether its gate page is needed.
+    const counts = content?.questionCounts || {};
+    const thinkingTotal = Math.max(thinking.length, Number(counts.criticalThinking) || 0);
+    const quizTotal = Math.max(quiz.length, Number(counts.comprehension) || 0);
+    const hasQuestions = thinkingTotal > 0 || quizTotal > 0;
 
     if (!hasQuestions) {
       pages.push({
@@ -135,7 +140,7 @@ export const buildBookPages = ({
 
     if (thinking.length) pages.push(...questionPages('thinking', chapter, thinking));
     if (gate.enabled && gate.locked) {
-      pages.push(gatePage);
+      if (quizTotal > 0) pages.push(gatePage);
     } else if (quiz.length) {
       pages.push(...questionPages('quiz', chapter, quiz));
     }

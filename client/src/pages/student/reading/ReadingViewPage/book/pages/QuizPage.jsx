@@ -18,14 +18,34 @@ const QuizPage = ({
   submitting = false,
   showSubmit = false,
   canSubmit = true,
+  blockedReason = null,
+  gateLocked = false,
+  error = null,
+  questionState = null,
+  completedAt = null,
+  score = null,
+  savedAnswersMatched = null,
   onAnswerChange,
   onGetFeedback,
+  onAnswerQuestions,
   onSubmit,
+  onGoToGate,
   onContents,
   passageText = '',
 }) => {
-  const { t } = useTranslation(['reading']);
+  const { t, i18n } = useTranslation(['reading']);
   const isThinking = kind === 'thinking';
+  const state = questionState?.state || 'ready';
+  const submittedDate = completedAt
+    ? new Date(completedAt).toLocaleDateString(i18n.language, {
+        month: 'short',
+        day: 'numeric',
+      })
+    : null;
+  const answersChanged =
+    savedAnswersMatched &&
+    savedAnswersMatched.total > 0 &&
+    savedAnswersMatched.matched < savedAnswersMatched.total;
 
   return (
     <section className="book-quiz-page">
@@ -41,6 +61,48 @@ const QuizPage = ({
             : t('reading:view.quizProgress', { answered: answeredCount, total })}
         </span>
       </div>
+
+      {state !== 'ready' && (
+        <div className={`book-question-banner is-${state}`} role="status">
+          {state === 'locked' && <span>{t('reading:questions.lockedReason')}</span>}
+          {state === 'submitted' && (
+            <>
+              <span>
+                {submittedDate
+                  ? t('reading:questions.submittedOn', { date: submittedDate })
+                  : t('reading:questions.answered')}
+              </span>
+              {score?.totalCount > 0 && (
+                <span>
+                  {t('reading:questions.scoreLine', {
+                    correct: score.correctCount,
+                    total: score.totalCount,
+                  })}
+                </span>
+              )}
+            </>
+          )}
+          {state === 'closed' && (
+            <>
+              <strong>{t('reading:questions.closedTitle')}</strong>
+              <span>{t('reading:questions.closedReason')}</span>
+            </>
+          )}
+          {onAnswerQuestions && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm book-question-banner-action"
+              onClick={onAnswerQuestions}
+            >
+              {t('reading:questions.answerQuestions')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {state === 'submitted' && answersChanged && (
+        <p className="book-question-note">{t('reading:questions.updatedByTeacher')}</p>
+      )}
 
       <div className="book-task-head">
         {isThinking ? <HiOutlineLightBulb size={20} /> : <HiOutlineQuestionMarkCircle size={20} />}
@@ -125,6 +187,15 @@ const QuizPage = ({
         })}
       </ol>
 
+      {gateLocked && !submitted && (
+        <div className="book-submit book-submit-locked">
+          <p className="book-page-hint">{t('reading:questions.quizLockedNote')}</p>
+          <button type="button" className="btn btn-secondary" onClick={onGoToGate}>
+            {t('reading:questions.goToGate')}
+          </button>
+        </div>
+      )}
+
       {showSubmit && (
         submitted ? (
           <p className="reading-done book-submit-state">
@@ -152,6 +223,12 @@ const QuizPage = ({
             >
               {submitting ? t('reading:common.submitting') : t('reading:view.submitAnswers')}
             </button>
+            {!canSubmit && blockedReason && (
+              <p className="book-submit-reason">{blockedReason}</p>
+            )}
+            {error?.message && (
+              <p className="book-submit-error" role="alert">{error.message}</p>
+            )}
           </div>
         )
       )}

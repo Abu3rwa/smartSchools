@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import {
@@ -8,6 +8,8 @@ import {
 import readingService from '../../../../../services/readingService';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { mergeSavedAnswers } from './mergeSavedAnswers.js';
+import { deriveQuestionState } from '../book/questionState.js';
 
 /**
  * Chapter content and handlers. Call with explicit ids for the book, or without
@@ -37,15 +39,31 @@ export function useReadingViewData(options = {}) {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [progressSubmitting, setProgressSubmitting] = useState(false);
   const [submittedScore, setSubmittedScore] = useState(null);
+  const [completedAt, setCompletedAt] = useState(null);
+  const [savedAnswersMatched, setSavedAnswersMatched] = useState(null);
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [readingGate, setReadingGate] = useState(null);
   const [gateBaselineSeconds, setGateBaselineSeconds] = useState(0);
   const [gateRequiredSeconds, setGateRequiredSeconds] = useState(null);
   const [gateVisibleSeconds, setGateVisibleSeconds] = useState(0);
   const [gateFinishing, setGateFinishing] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [draftStatus, setDraftStatus] = useState('idle');
+  const draftTimer = useRef(null);
+  const draftPayload = useRef(null);
+  const draftRequest = useRef(0);
+  const submittedRef = useRef(false);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   useEffect(() => {
+    if (draftTimer.current) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = null;
+    }
+    draftPayload.current = null;
+    setDraftStatus('idle');
+    submittedRef.current = false;
     if (!enabled) {
       setContent(null);
       setLoading(false);
@@ -58,11 +76,15 @@ export function useReadingViewData(options = {}) {
     setQuizAnswers({});
     setQuizSubmitted(false);
     setSubmittedScore(null);
+    setCompletedAt(null);
+    setSavedAnswersMatched(null);
+    setLoadErrorCode(null);
     setReadingGate(null);
     setGateBaselineSeconds(0);
     setGateRequiredSeconds(null);
     setGateVisibleSeconds(0);
     setGateFinishing(false);
+    setSubmitError(null);
     return undefined;
   }, [enabled, textId, routeAssignmentId]);
 
@@ -76,16 +98,25 @@ export function useReadingViewData(options = {}) {
         if (!active) return;
         if (fetchSimplified.fulfilled.match(action)) {
           const payload = action.payload;
+          const savedAnswers = { ...(payload.savedAnswers || {}), ...(payload.draftAnswers || {}) };
           setContent(payload);
-          setCtAnswers(payload.savedAnswers || {});
-          setQuizAnswers(payload.savedAnswers || {});
+          setCtAnswers((prev) => mergeSavedAnswers(prev, savedAnswers));
+          setQuizAnswers((prev) => mergeSavedAnswers(prev, savedAnswers));
           setQuizSubmitted(Boolean(payload.completed));
+          submittedRef.current = Boolean(payload.completed);
+          setCompletedAt(payload.completedAt || null);
+          setSavedAnswersMatched(payload.savedAnswersMatched || null);
+          setLoadErrorCode(null);
           setGateBaselineSeconds(Number(payload.readingGate?.readSeconds) || 0);
           setGateRequiredSeconds(Number.isFinite(Number(payload.readingGate?.requiredSeconds))
             ? Number(payload.readingGate.requiredSeconds)
             : null);
         } else {
-          setError(action.payload || t('reading:view.loadFailed'));
+          const message = typeof action.payload === 'string'
+            ? action.payload
+            : action.payload?.message;
+          setError(message || t('reading:view.loadFailed'));
+          setLoadErrorCode(typeof action.payload === 'object' ? action.payload?.code || null : null);
         }
       })
       .finally(() => {
@@ -101,6 +132,16 @@ export function useReadingViewData(options = {}) {
   }, [error]);
 
   const assignmentId = routeAssignmentId || content?.assignmentId;
+  const questionState = useMemo(
+    () => deriveQuestionState({
+      gateEnabled: Boolean(
+        readingGate?.enabled && !readingGate?.unlocked && assignmentId
+      ),
+      completed: quizSubmitted,
+      closedCode: loadErrorCode,
+    }),
+    [readingGate, quizSubmitted, loadErrorCode, assignmentId]
+  );
   const criticalThinkingQuestions = useMemo(() => content?.criticalThinkingQuestions || [], [content]);
   const comprehensionQuestions = useMemo(() => content?.comprehensionQuestions || [], [content]);
   const score = submittedScore || content?.score || null;
@@ -243,6 +284,7 @@ export function useReadingViewData(options = {}) {
       ]).filter(([, answer]) => answer.trim())
     );
     setProgressSubmitting(true);
+    setSubmitError(null);
     return dispatch(
       updateProgress({
         textId: content?.text?._id,
@@ -253,18 +295,101 @@ export function useReadingViewData(options = {}) {
     )
       .then((result) => {
         if (result.type === 'reading/updateProgress/fulfilled') {
+          submittedRef.current = true;
+          if (draftTimer.current) {
+            clearTimeout(draftTimer.current);
+            draftTimer.current = null;
+          }
+          draftPayload.current = null;
+          setDraftStatus('idle');
           setQuizSubmitted(true);
           setSubmittedScore(result.payload?.score || null);
           toast.success(t('reading:view.answersSaved'));
           return true;
         }
         if (result.type === 'reading/updateProgress/rejected') {
-          toast.error(result.payload || t('reading:view.toasts.saveFailed'));
+          const payload = result.payload;
+          const rawMessage = typeof payload === 'string' ? payload : payload?.message;
+          const code = typeof payload === 'object' ? payload?.code || null : null;
+          const inferredCode = code || (/^Answer every objective question/.test(rawMessage || '')
+            ? 'READING_ANSWERS_INCOMPLETE'
+            : null);
+          const inlineMessage = inferredCode
+            ? t(`reading:questions.errors.${inferredCode}`, {
+                seconds: payload?.data?.remainingSeconds ?? 0,
+              })
+            : rawMessage || t('reading:view.toasts.saveFailed');
+          setSubmitError({
+            code: inferredCode || 'GENERIC',
+            message: inlineMessage,
+            missing: payload?.data?.missing || [],
+          });
+          toast.error(inlineMessage);
         }
         return false;
       })
       .finally(() => setProgressSubmitting(false));
   }, [content, comprehensionQuestions, criticalThinkingQuestions, quizAnswers, ctAnswers, assignmentId, dispatch, t]);
+
+  const clearSubmitError = useCallback(() => setSubmitError(null), []);
+
+  const flushDraft = useCallback(() => {
+    if (draftTimer.current) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = null;
+    }
+    const answers = draftPayload.current;
+    if (!answers || !assignmentId || submittedRef.current) return Promise.resolve(null);
+    const requestId = draftRequest.current + 1;
+    draftRequest.current = requestId;
+    setDraftStatus('saving');
+    return readingService
+      .saveAnswersDraft({ assignmentId, textId: content?.text?._id, answers })
+      .then((res) => {
+        if (draftRequest.current === requestId) {
+          draftPayload.current = null;
+          setDraftStatus('saved');
+        }
+        return res.data?.data || null;
+      })
+      .catch(() => {
+        if (draftRequest.current === requestId) setDraftStatus('failed');
+        return null;
+      });
+  }, [assignmentId, content]);
+
+  const saveDraft = useCallback((overrides = {}) => {
+    if (!assignmentId || submittedRef.current) return;
+    const nextQuiz = overrides.quizAnswers || quizAnswers;
+    const nextCt = overrides.ctAnswers || ctAnswers;
+    const answers = {};
+    comprehensionQuestions.forEach((question) => {
+      const value = String(nextQuiz[String(question._id)] ?? '');
+      if (value) answers[String(question._id)] = value;
+    });
+    criticalThinkingQuestions.forEach((question) => {
+      const value = String(nextCt[String(question._id)] || '');
+      if (value.trim()) answers[String(question._id)] = value;
+    });
+    draftPayload.current = answers;
+    setDraftStatus('saving');
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      flushDraft();
+    }, 1500);
+  }, [assignmentId, comprehensionQuestions, criticalThinkingQuestions, quizAnswers, ctAnswers, flushDraft]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushDraft();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [flushDraft]);
+
+  useEffect(() => () => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+  }, []);
 
   return {
     content,
@@ -285,6 +410,14 @@ export function useReadingViewData(options = {}) {
     setQuizAnswers,
     quizSubmitted,
     progressSubmitting,
+    submitError,
+    clearSubmitError,
+    draftStatus,
+    saveDraft,
+    flushDraft,
+    questionState,
+    completedAt,
+    savedAnswersMatched,
     readingGate,
     gateElapsedSeconds: gateEnabled ? gateBaselineSeconds + gateVisibleSeconds : 0,
     gateRequiredSeconds,

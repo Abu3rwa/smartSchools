@@ -10,12 +10,13 @@ export const tutorService = {
   submitPractice: (id, answers) => api.post(`/tutor/practice/${id}/submit`, { answers }),
 
   // Student voice tutor
-  voiceHome: (params) => api.get('/tutor/voice', { params }),
+  voiceHome: (params, options = {}) => api.get('/tutor/voice', { params, ...options }),
   startVoiceSession: (body) => api.post('/tutor/voice/sessions', body),
   voiceSession: (id) => api.get(`/tutor/voice/sessions/${id}`),
-  voiceTurn: (id, { audio, text, durationMs } = {}) => {
+  voiceTurn: (id, { audio, text, durationMs, lazy = false } = {}) => {
     const form = new FormData();
     if (audio) form.append('audio', audio, `turn-${Date.now()}.webm`);
+    if (lazy) form.append('audio', 'lazy');
     if (text) form.append('text', text);
     if (durationMs) form.append('durationMs', String(durationMs));
     return api.post(`/tutor/voice/sessions/${id}/turn`, form, {
@@ -23,6 +24,10 @@ export const tutorService = {
       timeout: 180000
     });
   },
+  voiceClip: (id, turnId, clipIndex, options = {}) => api.get(
+    `/tutor/voice/sessions/${id}/turns/${turnId}/clips/${clipIndex}`,
+    { responseType: 'blob', timeout: 30000, ...options }
+  ),
   endVoiceSession: (id) => api.post(`/tutor/voice/sessions/${id}/end`),
 
   // Teacher

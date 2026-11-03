@@ -14,6 +14,7 @@ const toEditorData = (reading) => ({
   vocabularySubstitutions: (reading.vocabularySubstitutions || []).map((item) => ({ ...item })),
   questions: [
     ...(reading.comprehensionQuestions || []).map((question) => ({
+      _id: question._id ? String(question._id) : '',
       type: question.type === 'true_false' ? 'true_false' : 'multiple_choice',
       question: question.question || '',
       options: (question.options || []).join('|'),
@@ -23,6 +24,7 @@ const toEditorData = (reading) => ({
       prompt: '',
     })),
     ...(reading.criticalThinkingQuestions || []).map((question) => ({
+      _id: question._id ? String(question._id) : '',
       type: 'short_answer',
       question: question.question || '',
       options: '',
@@ -57,15 +59,16 @@ export default function ReadingEditorModal({ reading, saving, onClose, onSave })
     setError('');
     const sections = form.sections.map((section, index) => ({ ...section, order: index + 1 }));
     const questions = form.questions.map((question, index) => {
+      const storedId = question._id ? { _id: question._id } : {};
       if (question.type === 'short_answer') {
-        return { type: question.type, question: question.question, prompt: question.prompt, order: index + 1 };
+        return { ...storedId, type: question.type, question: question.question, prompt: question.prompt, order: index + 1 };
       }
       if (question.type === 'true_false') {
-        return { type: question.type, question: question.question, correctAnswer: question.correctAnswer === 'True', order: index + 1 };
+        return { ...storedId, type: question.type, question: question.question, correctAnswer: question.correctAnswer === 'True', order: index + 1 };
       }
       const options = question.options.split('|').map((option) => option.trim()).filter(Boolean);
       const correctIndex = options.findIndex((option) => option.toLocaleLowerCase() === question.correctAnswer.trim().toLocaleLowerCase());
-      return { type: question.type, question: question.question, options, correctIndex, order: index + 1 };
+      return { ...storedId, type: question.type, question: question.question, options, correctIndex, order: index + 1 };
     });
     const payload = {
       title: form.title,

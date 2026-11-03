@@ -3,7 +3,7 @@ import multer from 'multer';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { requireFeature } from '../middleware/featureGate.js';
-import { tutorRateLimiter } from '../middleware/rateLimiters.js';
+import { tutorRateLimiter, voiceClipRateLimiter } from '../middleware/rateLimiters.js';
 import {
     adminLessons,
     adminOverview,
@@ -33,6 +33,7 @@ import {
     teacherConversations,
     updateClassAccess,
     updateSettings,
+    voiceClip,
     voiceTurn
 } from '../controllers/tutorController.js';
 
@@ -87,6 +88,7 @@ router.get('/voice', authorize('student'), myVoiceHome);
 router.post('/voice/sessions', authorize('student'), tutorRateLimiter, startVoiceSession);
 router.get('/voice/sessions/:sessionId', authorize('student'), getVoiceSession);
 router.post('/voice/sessions/:sessionId/turn', authorize('student'), tutorRateLimiter, voiceUpload.single('audio'), voiceTurn);
+router.get('/voice/sessions/:sessionId/turns/:turnId/clips/:clipIndex', authorize('student'), voiceClipRateLimiter, voiceClip);
 router.post('/voice/sessions/:sessionId/end', authorize('student'), endVoiceSession);
 
 export default router;

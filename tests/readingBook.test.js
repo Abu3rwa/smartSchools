@@ -111,6 +111,11 @@ test("the book hides every locked chapter behind a stub", async (t) => {
     readFinishedAt: new Date("2026-09-04T08:10:00.000Z")
   }]));
   t.mock.method(ReadingFluencyProgress, "find", () => query([]));
+  t.mock.method(SimplifiedText, "find", () => query([{
+    _id: "t-open",
+    comprehensionQuestions: [{ _id: "q1" }, { _id: "q2" }],
+    criticalThinkingQuestions: [{ _id: "s1" }]
+  }]));
 
   const chapters = await getBookForStudent(studentId, schoolId, "2026-2027");
   assert.equal(chapters.length, 3);
@@ -131,6 +136,7 @@ test("the book hides every locked chapter behind a stub", async (t) => {
   assert.equal(openChapter.text.title, "Open title");
   assert.deepEqual(openChapter.score, { correctCount: 2, totalCount: 3 });
   assert.equal(openChapter.completed, true);
+  assert.deepEqual(openChapter.questionCounts, { comprehension: 2, criticalThinking: 1 });
   assert.equal(openChapter.readingGate.unlocked, true);
   assert.equal(openChapter.readingGate.minReadSeconds, 45);
 });

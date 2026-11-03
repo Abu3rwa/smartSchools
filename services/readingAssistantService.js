@@ -15,6 +15,7 @@ import StudentReadingProfile from "../models/StudentReadingProfile.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
+import ReadingAnswerDraft from "../models/ReadingAnswerDraft.js";
 import ReadingFluencyProgress from "../models/ReadingFluencyProgress.js";
 import ReadingProgressState from "../models/ReadingProgressState.js";
 import Student from "../models/Student.js";
@@ -1206,6 +1207,89 @@ export async function getStudentLevel(studentId, schoolId) {
 }
 
 /**
+ * Save answers in progress. Keys a locked gate has not opened yet are dropped
+ * silently so an early draft never becomes a way around the gate.
+ */
+export async function saveAnswerDraft(schoolId, studentId, payload = {}) {
+  const {
+    assignmentId,
+    textId,
+    answers,
+    academicYear = null
+  } = payload;
+  const assignmentQuery = {
+    _id: assignmentId,
+    school: schoolId,
+    students: studentId,
+    isActive: true,
+  };
+  if (academicYear) assignmentQuery.academicYear = academicYear;
+  const assignment = await ReadingAssignment.findOne(assignmentQuery)
+    .select("_id text readingGate isPublished publishAt")
+    .lean();
+  if (!assignment) {
+    throw Object.assign(new Error("Active reading assignment not found"), {
+      statusCode: 404,
+      code: "READING_ASSIGNMENT_NOT_FOUND"
+    });
+  }
+  if (isAssignmentLocked(assignment)) throw readingLockedError();
+  if (String(assignment.text) !== String(textId)) {
+    throw Object.assign(new Error("Assignment does not match this reading."), { statusCode: 400 });
+  }
+  const completion = await ReadingCompletion.exists({
+    school: schoolId,
+    student: studentId,
+    assignment: assignment._id,
+    completedAt: { $ne: null },
+  });
+  if (completion) {
+    throw Object.assign(new Error("You already submitted these answers."), {
+      statusCode: 409,
+      code: "READING_ALREADY_SUBMITTED"
+    });
+  }
+
+  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId })
+    .select("comprehensionQuestions criticalThinkingQuestions")
+    .lean();
+  if (!text) {
+    throw Object.assign(new Error("Reading not found"), {
+      statusCode: 404,
+      code: "READING_ASSIGNMENT_NOT_FOUND"
+    });
+  }
+  const objectiveIds = new Set(
+    (text.comprehensionQuestions || []).map((question) => String(question._id))
+  );
+  const thinkingIds = new Set(
+    (text.criticalThinkingQuestions || []).map((question) => String(question._id))
+  );
+  const gate = mergeReadingGate(assignment.readingGate);
+  const unlocked = !gate.enabled
+    || (await readingIsFinished(schoolId, studentId, assignment._id));
+  const thinkingAllowed = !gate.enabled || gate.lockScope !== "quiz_and_thinking" || unlocked;
+
+  const allowed = {};
+  for (const [questionId, rawAnswer] of Object.entries(answers || {})) {
+    if (objectiveIds.has(questionId) && !unlocked) continue;
+    if (!objectiveIds.has(questionId) && !thinkingIds.has(questionId)) continue;
+    if (thinkingIds.has(questionId) && !thinkingAllowed) continue;
+    allowed[questionId] = String(rawAnswer ?? "");
+  }
+
+  const draft = await ReadingAnswerDraft.findOneAndUpdate(
+    { school: schoolId, student: studentId, assignment: assignment._id },
+    { $set: { text: textId, answers: allowed, updatedAt: new Date() } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
+  return {
+    answers: allowed,
+    updatedAt: draft?.updatedAt || new Date(),
+  };
+}
+
+/**
  * Update progress after comprehension quiz; optionally create completion record.
  */
 export async function updateProgress(
@@ -1253,6 +1337,17 @@ export async function updateProgress(
         await assertReadingUnlocked(schoolId, studentId, assignment);
       }
     }
+    const existingCompletion = await ReadingCompletion.findOne({
+      school: schoolId,
+      student: studentId,
+      assignment: assignment._id,
+    }).select("completedAt").lean();
+    if (existingCompletion?.completedAt) {
+      throw Object.assign(new Error("You already submitted these answers."), {
+        statusCode: 409,
+        code: "READING_ALREADY_SUBMITTED"
+      });
+    }
   }
 
   let profile;
@@ -1290,6 +1385,11 @@ export async function updateProgress(
       },
       { upsert: true }
     );
+    await ReadingAnswerDraft.deleteOne({
+      school: schoolId,
+      student: studentId,
+      assignment: assignmentId,
+    });
   }
 
   return profile || { currentReadingLevel: null, comprehensionAccuracy: null, progressHistory: [] };
@@ -1747,6 +1847,24 @@ export async function getBookForStudent(studentId, schoolId, academicYear = null
     fluencyByAssignment.set(key, list);
   }
 
+  const textIds = published
+    .map((assignment) => assignment.text?._id || assignment.text)
+    .filter(Boolean);
+  const textRows = textIds.length
+    ? await SimplifiedText.find({ _id: { $in: textIds }, school: schoolId })
+      .select("comprehensionQuestions._id criticalThinkingQuestions._id")
+      .lean()
+    : [];
+  const countsByText = new Map(
+    textRows.map((row) => [
+      String(row._id),
+      {
+        comprehension: (row.comprehensionQuestions || []).length,
+        criticalThinking: (row.criticalThinkingQuestions || []).length,
+      },
+    ])
+  );
+
   return assignments.map((assignment, index) => {
     const chapterNumber = index + 1;
     if (isAssignmentLocked(assignment, now)) {
@@ -1777,6 +1895,10 @@ export async function getBookForStudent(studentId, schoolId, academicYear = null
         : null,
       dueDate: assignment.dueDate || null,
       instructions: assignment.instructions || "",
+      questionCounts: countsByText.get(String(assignment.text?._id)) || {
+        comprehension: 0,
+        criticalThinking: 0,
+      },
       completed: Boolean(completion?.completedAt),
       score: completion?.completedAt && completion.totalCount > 0
         ? { correctCount: completion.correctCount, totalCount: completion.totalCount }
@@ -1822,6 +1944,60 @@ export async function getTexts(schoolId, filters = {}) {
     .lean();
   return list;
 }
+
+const QUESTION_ID_PATTERN = /^[a-f\d]{24}$/i;
+
+const normalizeQuestionText = (value) => String(value || "")
+  .replace(/\s+/g, " ")
+  .trim()
+  .toLocaleLowerCase();
+
+/**
+ * Reuse the stored id for questions the teacher kept, so student responses made
+ * before an edit still resolve. Matching runs by text first, then by kind + order.
+ */
+const reconcileQuestionIds = (incoming = [], stored = []) => {
+  const storedQuestions = (stored || [])
+    .map((question) => ({
+      id: String(question._id || ""),
+      text: normalizeQuestionText(question.question),
+      order: Number(question.order) || 0,
+    }))
+    .filter((question) => question.id);
+  const owned = new Set(storedQuestions.map((question) => question.id));
+  const used = new Set();
+
+  for (const question of incoming) {
+    const id = String(question?._id || "");
+    if (id && owned.has(id) && !used.has(id)) {
+      used.add(id);
+    } else {
+      delete question._id;
+    }
+  }
+
+  for (const question of incoming) {
+    if (question._id) continue;
+    const text = normalizeQuestionText(question.question);
+    const match = storedQuestions.find(
+      (storedQuestion) => !used.has(storedQuestion.id) && storedQuestion.text === text
+    );
+    if (!match) continue;
+    question._id = match.id;
+    used.add(match.id);
+  }
+
+  for (const question of incoming) {
+    if (question._id) continue;
+    const order = Number(question.order) || 0;
+    const match = storedQuestions.find(
+      (storedQuestion) => !used.has(storedQuestion.id) && storedQuestion.order === order
+    );
+    if (!match) continue;
+    question._id = match.id;
+    used.add(match.id);
+  }
+};
 
 function buildReadingPayload(payload = {}) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -1915,11 +2091,21 @@ function buildReadingPayload(payload = {}) {
 
   const comprehensionQuestions = [];
   const criticalThinkingQuestions = [];
+  const seenQuestionIds = new Set();
   for (const [index, item] of questions.entries()) {
     const question = String(item?.question || "").trim();
     const type = String(item?.type || "").trim();
     if (!question || question.length > 2000) {
       throw Object.assign(new Error(`Question ${index + 1} must contain up to 2,000 characters.`), { statusCode: 400 });
+    }
+    const rawQuestionId = String(item?._id || "").trim();
+    let questionId = null;
+    if (rawQuestionId && QUESTION_ID_PATTERN.test(rawQuestionId)) {
+      if (seenQuestionIds.has(rawQuestionId)) {
+        throw Object.assign(new Error("Question ids must be unique."), { statusCode: 400 });
+      }
+      seenQuestionIds.add(rawQuestionId);
+      questionId = rawQuestionId;
     }
     const rawOrder = item.order == null ? "" : String(item.order).trim();
     const order = rawOrder ? Number(rawOrder) : index + 1;
@@ -1932,6 +2118,7 @@ function buildReadingPayload(payload = {}) {
         throw Object.assign(new Error(`Short-answer prompt ${index + 1} cannot exceed 2,000 characters.`), { statusCode: 400 });
       }
       criticalThinkingQuestions.push({
+        ...(questionId ? { _id: questionId } : {}),
         question,
         prompt,
         type,
@@ -1961,7 +2148,14 @@ function buildReadingPayload(payload = {}) {
     } else {
       throw Object.assign(new Error(`Question ${index + 1} has an unsupported question type.`), { statusCode: 400 });
     }
-    comprehensionQuestions.push({ question, type, options, correctIndex, order });
+    comprehensionQuestions.push({
+      ...(questionId ? { _id: questionId } : {}),
+      question,
+      type,
+      options,
+      correctIndex,
+      order,
+    });
   }
 
   return {
@@ -2021,6 +2215,8 @@ export async function updateReading(textId, schoolId, userId, isAdmin, payload) 
     throw Object.assign(new Error("Only the reading owner or a school admin can edit this reading."), { statusCode: 403 });
   }
   const document = buildReadingPayload(payload);
+  reconcileQuestionIds(document.comprehensionQuestions, reading.comprehensionQuestions);
+  reconcileQuestionIds(document.criticalThinkingQuestions, reading.criticalThinkingQuestions);
   if (document.originalText === reading.originalText) {
     document.simplifiedVersions = reading.simplifiedVersions;
     if (document.language === reading.language) {

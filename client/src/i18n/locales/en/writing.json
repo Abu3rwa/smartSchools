@@ -338,7 +338,7 @@
       "resend": {
         "open": "Resend email",
         "close": "Close",
-        "hint": "Send saved, published feedback again. This does not run AI, use credit or change the student's stage. The email contains a feedback summary and next steps, not the full draft.",
+        "hint": "Send saved, published feedback again. This does not run AI, use credit or change the student's stage. The email contains the feedback summary, next steps, and the draft-to-draft comparison when one is published — not the full draft.",
         "feedback": "Published feedback for",
         "recipients": "Send to",
         "chooseRecipients": "Choose the student, parents, or both.",

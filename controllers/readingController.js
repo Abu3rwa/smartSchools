@@ -4,6 +4,7 @@ import Student from "../models/Student.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
+import ReadingAnswerDraft from "../models/ReadingAnswerDraft.js";
 import { stripLockedQuestions } from "../services/readingGate/response.js";
 import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 
@@ -164,10 +165,36 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
     student: student._id,
     assignment: result.assignmentId,
   }).select("responses completedAt correctCount totalCount").lean();
+  const savedResponses = completion?.responses || [];
+  const currentQuestionIds = new Set([
+    ...(result.comprehensionQuestions || []).map((question) => String(question._id)),
+    ...(result.criticalThinkingQuestions || []).map((question) => String(question._id)),
+  ]);
   result.savedAnswers = Object.fromEntries(
-    (completion?.responses || []).map(({ questionId, answer }) => [questionId, answer])
+    savedResponses.map(({ questionId, answer }) => [questionId, answer])
   );
   result.completed = Boolean(completion?.completedAt);
+  result.completedAt = completion?.completedAt
+    ? new Date(completion.completedAt).toISOString()
+    : null;
+  result.savedAnswersMatched = {
+    matched: savedResponses.filter(({ questionId }) => currentQuestionIds.has(String(questionId))).length,
+    total: currentQuestionIds.size,
+  };
+  let draftAnswers = {};
+  if (!completion?.completedAt) {
+    const draft = await ReadingAnswerDraft.findOne({
+      school: req.schoolId,
+      student: student._id,
+      assignment: result.assignmentId,
+    }).select("answers").lean();
+    draftAnswers = draft?.answers
+      ? Object.fromEntries(
+        draft.answers instanceof Map ? draft.answers.entries() : Object.entries(draft.answers)
+      )
+      : {};
+  }
+  result.draftAnswers = draftAnswers;
   result.score = completion?.completedAt && completion.totalCount > 0
     ? { correctCount: completion.correctCount, totalCount: completion.totalCount }
     : null;
@@ -431,8 +458,15 @@ export const updateProgress = asyncHandler(async (req, res) => {
   );
   const expectedIds = new Set(questions.map((question) => String(question._id)));
   const providedIds = Object.keys(answers);
-  if (providedIds.length !== expectedIds.size || providedIds.some((id) => !expectedIds.has(id))) {
-    return res.status(400).json({ success: false, message: "Answer every objective question before submitting." });
+  const missing = [...expectedIds].filter((id) => !providedIds.includes(id));
+  const extra = providedIds.filter((id) => !expectedIds.has(id));
+  if (missing.length || extra.length) {
+    return res.status(400).json({
+      success: false,
+      message: "Answer every objective question before submitting.",
+      code: "READING_ANSWERS_INCOMPLETE",
+      data: { missing },
+    });
   }
   let correctCount = 0;
   for (const question of questions) {
@@ -472,6 +506,54 @@ export const updateProgress = asyncHandler(async (req, res) => {
       score: { correctCount, totalCount: questions.length },
     },
   });
+});
+
+/**
+ * @desc    Save the student's answers in progress
+ * @route   PUT /api/reading/answers-draft
+ * @access  Private (Student)
+ */
+export const saveAnswersDraft = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  }).select("_id");
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+
+  const { assignmentId, textId, answers } = req.body || {};
+  if (!assignmentId || !textId || !answers || typeof answers !== "object" || Array.isArray(answers)) {
+    return res.status(400).json({
+      success: false,
+      message: "assignmentId, textId, and answers are required",
+    });
+  }
+  const entries = Object.entries(answers);
+  if (entries.length > 60) {
+    return res.status(400).json({
+      success: false,
+      message: "answers can include at most 60 entries",
+    });
+  }
+  if (entries.some(([, answer]) => typeof answer !== "string" || answer.length > 10000)) {
+    return res.status(400).json({
+      success: false,
+      message: "One or more answers are invalid.",
+    });
+  }
+
+  const data = await readingAssistantService.saveAnswerDraft(
+    req.schoolId,
+    student._id,
+    { assignmentId, textId, answers, academicYear: effectiveAcademicYear }
+  );
+  res.status(200).json({ success: true, data });
 });
 
 /**

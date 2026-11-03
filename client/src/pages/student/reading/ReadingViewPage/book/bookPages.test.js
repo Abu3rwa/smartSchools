@@ -98,6 +98,80 @@ test('a quiz-only gate still shows the critical-thinking pages', () => {
   assert.deepEqual(kinds, ['chapter-title', 'passage', 'passage', 'thinking', 'gate']);
 });
 
+test('a stripped gated chapter still ends with its gate page', () => {
+  for (const lockScope of ['quiz_and_thinking', 'quiz']) {
+    const pages = buildBookPages({
+      chapters,
+      activeChapterId: 'a3',
+      content: readyContent({
+        thinking: [],
+        quiz: [],
+        questionCounts: { comprehension: 2, criticalThinking: 1 },
+        gate: { enabled: true, locked: true, lockScope },
+      }),
+    });
+    const chapterPages = pages.filter((page) => page.chapterId === 'a3');
+    const kinds = chapterPages.map((page) => page.kind);
+    assert.deepEqual(kinds, ['chapter-title', 'passage', 'passage', 'gate']);
+    const gate = chapterPages[chapterPages.length - 1];
+    assert.equal(gate.kind, 'gate');
+    assert.equal('questions' in gate, false);
+  }
+});
+
+test('a stripped quiz-only gate keeps the thinking pages and skips the quiz pages', () => {
+  const pages = buildBookPages({
+    chapters,
+    activeChapterId: 'a3',
+    content: readyContent({
+      thinking: [{ _id: 't1' }, { _id: 't2' }, { _id: 't3' }, { _id: 't4' }],
+      quiz: [],
+      questionCounts: { comprehension: 3, criticalThinking: 4 },
+      gate: { enabled: true, locked: true, lockScope: 'quiz' },
+    }),
+  });
+  const kinds = pages.filter((page) => page.chapterId === 'a3').map((page) => page.kind);
+  assert.deepEqual(kinds, [
+    'chapter-title',
+    'passage',
+    'passage',
+    'thinking',
+    'thinking',
+    'gate',
+  ]);
+});
+
+test('a quiz-only gate with no objective questions ends on the last thinking page', () => {
+  const pages = buildBookPages({
+    chapters,
+    activeChapterId: 'a3',
+    content: readyContent({
+      thinking: [{ _id: 't1' }],
+      quiz: [],
+      questionCounts: { comprehension: 0, criticalThinking: 1 },
+      gate: { enabled: true, locked: true, lockScope: 'quiz' },
+    }),
+  });
+  const kinds = pages.filter((page) => page.chapterId === 'a3').map((page) => page.kind);
+  assert.deepEqual(kinds, ['chapter-title', 'passage', 'passage', 'thinking']);
+});
+
+test('zero question counts leave the chapter on its end page', () => {
+  const pages = buildBookPages({
+    chapters,
+    activeChapterId: 'a3',
+    content: readyContent({
+      thinking: [],
+      quiz: [],
+      questionCounts: { comprehension: 0, criticalThinking: 0 },
+      gate: { enabled: true, locked: true, lockScope: 'quiz_and_thinking' },
+    }),
+  });
+  const kinds = pages.filter((page) => page.chapterId === 'a3').map((page) => page.kind);
+  assert.deepEqual(kinds, ['chapter-title', 'passage', 'passage', 'end']);
+});
+
+
 test('a chapter with no questions ends without a quiz or gate', () => {
   const pages = buildBookPages({ chapters, activeChapterId: 'a3', content: readyContent() });
   const kinds = pages.filter((page) => page.chapterId === 'a3').map((page) => page.kind);

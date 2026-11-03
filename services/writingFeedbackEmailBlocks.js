@@ -159,3 +159,102 @@ export const rubricText = ({ scores, language = 'en', copy }) => {
         return `- ${row.label}: ${copy.rubricLevel[row.level]}${text ? ` — ${text}` : ''}`;
     }).join('\n');
 };
+
+const listHtml = (title, items, language, accent) => {
+    if (!items.length) return '';
+    const pad = language === 'ar' ? 'padding-right' : 'padding-left';
+    const list = items.map((item) => `<li style="margin:0 0 3px;">${escapeHtml(item)}</li>`).join('');
+    return `<p style="margin:10px 0 2px;font-size:11px;font-weight:700;color:${accent};${language === 'ar' ? '' : 'letter-spacing:.6px;text-transform:uppercase;'}">${escapeHtml(title)}</p>`
+        + `<ul style="margin:3px 0 0;${pad}:18px;font-size:13px;line-height:${lineHeight(language)};color:#334155;">${list}</ul>`;
+};
+
+/**
+ * What changed between the two drafts, as the teacher published it. The same
+ * content the student sees in the workspace comparison card, in email form.
+ */
+export const comparisonHtml = ({ comparison, language, copy }) => {
+    const detail = comparison?.comparison;
+    if (!detail) return '';
+
+    const wordDelta = Number(detail.wordDelta) || 0;
+    const improved = (detail.criteriaImproved || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const unresolved = (detail.criteriaUnresolved || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const newIssues = (detail.newIssues || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const spellingWins = (comparison.spellingWins || []).map((row) => String(row?.word || '').trim()).filter(Boolean);
+    const changedSections = (detail.changedBySection || [])
+        .map((row) => ({
+            label: String(row?.label || row?.key || '').trim(),
+            summary: String(row?.summary || '').trim(),
+            kind: copy.comparisonKind[row?.kind] || copy.comparisonKind.changed
+        }))
+        .filter((row) => row.label || row.summary);
+
+    if (!detail.encouragement && wordDelta === 0 && !improved.length && !unresolved.length
+        && !newIssues.length && !changedSections.length && !spellingWins.length) return '';
+
+    const sign = wordDelta < 0 ? '−' : '+';
+    const chips = spellingWins.map((word) => `<span style="display:inline-block;margin:0 4px 4px 0;padding:3px 10px;border-radius:999px;background-color:#ecfdf5;border:1px solid #a7f3d0;font-size:12px;font-weight:700;color:#047857;">${escapeHtml(word)}</span>`).join('');
+
+    const sectionRows = changedSections
+        .map((row) => '<tr>'
+            + `<td style="padding:8px 0;border-bottom:1px dashed #e2e8f0;">`
+            + `<p dir="auto" style="margin:0 0 2px;font-size:12px;font-weight:700;color:#0f172a;text-align:start;">${escapeHtml(row.label)} <span style="font-weight:400;color:#94a3b8;">· ${escapeHtml(row.kind)}</span></p>`
+            + (row.summary ? `<p dir="auto" style="margin:0;font-size:13px;line-height:${lineHeight(language)};color:#334155;text-align:start;">${escapeHtml(row.summary)}</p>` : '')
+            + '</td></tr>')
+        .join('');
+
+    // The section heading is drawn by the caller; the body starts with the length delta.
+    return [
+        `<p dir="auto" style="margin:0;font-size:12px;font-weight:700;color:#64748b;">${sign}${Math.abs(wordDelta)} ${escapeHtml(copy.comparisonWordsUnit)}</p>`,
+        detail.encouragement
+            ? `<p dir="auto" style="margin:8px 0 0;font-size:14px;line-height:${lineHeight(language)};color:#0f172a;text-align:start;">${escapeHtml(detail.encouragement)}</p>`
+            : '',
+        listHtml(copy.comparisonImproved, improved, language, '#047857'),
+        listHtml(copy.comparisonUnresolved, unresolved, language, '#0f766e'),
+        listHtml(copy.comparisonNewIssues, newIssues, language, '#b45309'),
+        sectionRows
+            ? `<p style="margin:14px 0 2px;font-size:11px;font-weight:700;color:#0f766e;${language === 'ar' ? '' : 'letter-spacing:.6px;text-transform:uppercase;'}">${escapeHtml(copy.comparisonSections)}</p>`
+              + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${sectionRows}</table>`
+            : '',
+        chips
+            ? `<p style="margin:14px 0 2px;font-size:11px;font-weight:700;color:#047857;${language === 'ar' ? '' : 'letter-spacing:.6px;text-transform:uppercase;'}">${escapeHtml(copy.comparisonWinsLabel)}</p>${chips}`
+            : '',
+    ].filter(Boolean).join('');
+};
+
+export const comparisonText = ({ comparison, copy, fromNumber, toNumber }) => {
+    const detail = comparison?.comparison;
+    if (!detail) return '';
+
+    const wordDelta = Number(detail.wordDelta) || 0;
+    const improved = (detail.criteriaImproved || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const unresolved = (detail.criteriaUnresolved || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const newIssues = (detail.newIssues || []).map((item) => String(item || '').trim()).filter(Boolean);
+    const spellingWins = (comparison.spellingWins || []).map((row) => String(row?.word || '').trim()).filter(Boolean);
+    const changedSections = (detail.changedBySection || [])
+        .map((row) => ({
+            label: String(row?.label || row?.key || '').trim(),
+            summary: String(row?.summary || '').trim(),
+            kind: copy.comparisonKind[row?.kind] || copy.comparisonKind.changed
+        }))
+        .filter((row) => row.label || row.summary);
+
+    if (!detail.encouragement && wordDelta === 0 && !improved.length && !unresolved.length
+        && !newIssues.length && !changedSections.length && !spellingWins.length) return '';
+
+    const sign = wordDelta < 0 ? '-' : '+';
+    const lines = [copy.comparisonLabel.replace('{{from}}', fromNumber).replace('{{to}}', toNumber)];
+    lines.push(`${sign}${Math.abs(wordDelta)} ${copy.comparisonWordsUnit}`);
+    if (detail.encouragement) lines.push(detail.encouragement);
+    if (improved.length) lines.push(`${copy.comparisonImproved}:\n${improved.map((item) => `- ${item}`).join('\n')}`);
+    if (unresolved.length) lines.push(`${copy.comparisonUnresolved}:\n${unresolved.map((item) => `- ${item}`).join('\n')}`);
+    if (newIssues.length) lines.push(`${copy.comparisonNewIssues}:\n${newIssues.map((item) => `- ${item}`).join('\n')}`);
+    if (changedSections.length) {
+        lines.push(`${copy.comparisonSections}:`);
+        for (const row of changedSections) {
+            lines.push(`- ${row.label} (${row.kind})${row.summary ? `: ${row.summary}` : ''}`);
+        }
+    }
+    if (spellingWins.length) lines.push(`${copy.comparisonWinsLabel}: ${spellingWins.join(', ')}`);
+    return lines.join('\n');
+};
