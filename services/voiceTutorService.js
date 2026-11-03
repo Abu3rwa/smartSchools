@@ -14,7 +14,12 @@ import AiCreditAccount from "../models/AiCreditAccount.js";
 
 import { connectAi } from "../utils/connectAi.js";
 import logger from "../utils/logger.js";
-import { allocateCredit, chargeUsage, reclaimCredit, tokenCounts } from "./aiCreditService.js";
+import {
+  allocateCredit,
+  chargeUsage,
+  reclaimCredit,
+  tokenCounts,
+} from "./aiCreditService.js";
 import {
   countTries,
   buildVoicePrompt,
@@ -91,7 +96,8 @@ export const logVoiceTurnTiming = ({ schoolId, timing, responseBytes = 0 }) => {
   logger.info("voice_tutor_turn_timing", {
     schoolId: String(schoolId || ""),
     responseBytes: Math.max(0, Number(responseBytes) || 0),
-    totalMs: Math.round(rows.reduce((total, row) => total + row.ms, 0) * 100) / 100,
+    totalMs:
+      Math.round(rows.reduce((total, row) => total + row.ms, 0) * 100) / 100,
     steps,
   });
 };
@@ -137,10 +143,8 @@ const sessionConfig = (schoolId) =>
   configCache.get(String(schoolId), () => voiceConfig(schoolId));
 
 const sessionStandards = ({ schoolId, subjectId, grade }) =>
-  standardsCache.get(
-    `${schoolId}|${subjectId}|${grade}`,
-    () =>
-      standardsForGrade({ schoolId, subjectId, grade, limit: 15 }),
+  standardsCache.get(`${schoolId}|${subjectId}|${grade}`, () =>
+    standardsForGrade({ schoolId, subjectId, grade, limit: 15 }),
   );
 
 /** The clip list a lazy client fetches by index, in board order. */
@@ -435,7 +439,9 @@ export const takeBackVoiceCredit = async ({
   if (!students.length)
     throw badRequest("No students with a sign-in were found for this choice.");
 
-  const trimmed = String(note || "").trim().slice(0, 300);
+  const trimmed = String(note || "")
+    .trim()
+    .slice(0, 300);
   const rows = [];
   let takenTotal = 0;
   for (const student of students) {
@@ -445,7 +451,10 @@ export const takeBackVoiceCredit = async ({
     })
       .select("balanceCents schoolCents")
       .lean();
-    const available = Math.max(0, Math.floor(Number(account?.schoolCents) || 0));
+    const available = Math.max(
+      0,
+      Math.floor(Number(account?.schoolCents) || 0),
+    );
     if (available < 1) continue;
     const take =
       requested === null
@@ -789,8 +798,7 @@ export const startVoiceSession = async ({
   }
   // In lazy mode the voice is priced from its estimated length, not from a
   // synthesis that has not happened yet.
-  message.speechSeconds =
-    lazy || clips.length || speech ? speechSeconds : 0;
+  message.speechSeconds = lazy || clips.length || speech ? speechSeconds : 0;
   marks.step("speech");
 
   // The opening is free to the student, but its real provider cost still lands
@@ -927,9 +935,8 @@ const findTurnSession = async ({ schoolId, student, sessionId }) => {
     school: schoolId,
     student: student._id,
   })
-    .select(
-      "status classId language languageLevel grade subject lesson messages.role messages.text messages.spoken messages.stage messages.questionType",
-    )
+    // $slice cannot be combined with "messages.<field>" paths (path collision).
+    .select("status classId language languageLevel grade subject lesson")
     .slice("messages", -8)
     .lean();
   if (!session) throw notFound("This voice session is not yours.");
