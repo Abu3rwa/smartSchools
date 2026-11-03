@@ -41,15 +41,15 @@
      surface so cards read as layered paper, never as floating stickers. */
   --vt-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
   --vt-shadow-sm:
-    0 1px 2px rgba(15, 23, 42, 0.05),
-    0 3px 8px -4px rgba(15, 23, 42, 0.1);
+    0 1px 2px rgba(15, 23, 42, 0.05), 0 3px 8px -4px rgba(15, 23, 42, 0.1);
   --vt-shadow-md:
     0 2px 4px -2px rgba(15, 23, 42, 0.07),
     0 14px 28px -18px rgba(15, 23, 42, 0.22);
   --vt-shadow-lg:
     0 4px 10px -6px rgba(15, 23, 42, 0.08),
     0 28px 56px -28px rgba(15, 23, 42, 0.26);
-  --vt-ring: 0 0 0 3px color-mix(in srgb, var(--primary, #0d9488) 26%, transparent);
+  --vt-ring: 0 0 0 3px
+    color-mix(in srgb, var(--primary, #0d9488) 26%, transparent);
   --vt-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   width: 100%;
@@ -87,14 +87,11 @@
   --vt-orb-listen-deep: #9f1239;
   --vt-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
   --vt-shadow-sm:
-    0 1px 2px rgba(0, 0, 0, 0.3),
-    0 3px 8px -4px rgba(0, 0, 0, 0.45);
+    0 1px 2px rgba(0, 0, 0, 0.3), 0 3px 8px -4px rgba(0, 0, 0, 0.45);
   --vt-shadow-md:
-    0 2px 4px -2px rgba(0, 0, 0, 0.35),
-    0 14px 28px -18px rgba(0, 0, 0, 0.6);
+    0 2px 4px -2px rgba(0, 0, 0, 0.35), 0 14px 28px -18px rgba(0, 0, 0, 0.6);
   --vt-shadow-lg:
-    0 4px 10px -6px rgba(0, 0, 0, 0.4),
-    0 28px 56px -28px rgba(0, 0, 0, 0.7);
+    0 4px 10px -6px rgba(0, 0, 0, 0.4), 0 28px 56px -28px rgba(0, 0, 0, 0.7);
 }
 
 /* Keyboard focus is always visible, and always the same ring. */
@@ -223,10 +220,13 @@
   max-width: 1020px;
   margin-inline: auto;
   padding: 22px 32px 34px;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 20%, var(--vt-line));
+  border: 1px solid
+    color-mix(in srgb, var(--primary, #0d9488) 20%, var(--vt-line));
   border-radius: 22px;
   background: var(--vt-surface);
-  box-shadow: var(--vt-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow:
+    var(--vt-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
   margin-top: -21px;
 }
 
@@ -373,7 +373,8 @@
   margin-top: 22px;
   padding: 12px 16px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 22%, var(--vt-line));
+  border: 1px solid
+    color-mix(in srgb, var(--primary, #0d9488) 22%, var(--vt-line));
   background: color-mix(in srgb, var(--primary, #0d9488) 6%, var(--vt-surface));
 }
 .vt-resume-text {
@@ -433,7 +434,8 @@
   height: 2px;
   border-radius: 2px;
   background: var(--vt-teal);
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary, #0d9488) 60%, transparent);
+  box-shadow: 0 2px 8px -2px
+    color-mix(in srgb, var(--primary, #0d9488) 60%, transparent);
 }
 
 .vt-lessons {
@@ -525,7 +527,8 @@
 }
 .vt-entry .vt-lesson.is-selected {
   background: var(--vt-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #0d9488) 18%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--primary, #0d9488) 18%, transparent);
 }
 .vt-entry .vt-lesson-num {
   flex: none;
@@ -584,7 +587,9 @@
   font-weight: 650;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: var(--vt-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  box-shadow:
+    var(--vt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
   transition:
     transform 0.18s var(--vt-ease),
     box-shadow 0.18s var(--vt-ease),
@@ -592,11 +597,15 @@
 }
 .vt-start-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: var(--vt-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow:
+    var(--vt-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .vt-start-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: var(--vt-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow:
+    var(--vt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 .vt-start-btn:disabled {
   opacity: 0.35;
@@ -689,6 +698,7 @@
   max-width: none;
   margin: calc(-1 * var(--spacing-xl, 24px)) calc(-1 * var(--spacing-xl, 24px))
     calc(-1 * var(--spacing-xl, 24px));
+  height: calc(100vh - var(--header-height, 56px));
   height: calc(100dvh - var(--header-height, 56px));
   min-height: 0;
   background-color: var(--vt-paper);
@@ -1162,7 +1172,9 @@
   border-end-start-radius: 10px;
   background: var(--vt-surface);
   border: 1px solid var(--vt-line);
-  box-shadow: var(--vt-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow:
+    var(--vt-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .vt-bullets ul,
@@ -1265,7 +1277,9 @@
   min-width: 0;
   border: 1px solid;
   padding: 14px 18px 15px;
-  box-shadow: var(--vt-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow:
+    var(--vt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 .vt-join-word {
   display: block;
@@ -1331,7 +1345,9 @@
   padding: 14px 18px 16px;
   border: 1px solid;
   border-radius: 20px;
-  box-shadow: var(--vt-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow:
+    var(--vt-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 .vt-compare-col strong {
   display: block;
@@ -2185,7 +2201,8 @@
 }
 
 /* A hidden tab or a reduced-motion request stops every endless loop. */
-.vt-board[data-hidden="true"] :is(
+.vt-board[data-hidden="true"]
+  :is(
     .vt-halo,
     .vt-wave i,
     .vt-wait-dots i,
@@ -2277,6 +2294,7 @@
     width: calc(100% + 2 * var(--spacing-md, 16px));
     margin: calc(-1 * var(--spacing-md, 16px))
       calc(-1 * var(--spacing-md, 16px)) calc(-1 * var(--spacing-md, 16px));
+    height: calc(100vh - var(--header-height, 56px));
     height: calc(100dvh - var(--header-height, 56px));
     min-height: 0;
     background-size: 22px 22px;
@@ -2470,5 +2488,249 @@
   }
   .vt-halo.second {
     inset: -22px;
+  }
+}
+
+/* ---------------- fully responsive additions ---------------- */
+
+/* Floating labels never run past the screen, whatever the language. */
+.vt-rec-pill,
+.vt-hint,
+.vt-preparing {
+  max-width: calc(100% - 24px);
+  white-space: normal;
+  text-align: center;
+}
+.vt-join p {
+  overflow-wrap: anywhere;
+}
+
+/* The app layout switches to its small gutter at 899px, so the board must too. */
+@media (max-width: 899px) {
+  .vt-board {
+    width: calc(100% + 2 * var(--spacing-md, 16px));
+    margin: calc(-1 * var(--spacing-md, 16px))
+      calc(-1 * var(--spacing-md, 16px)) calc(-1 * var(--spacing-md, 16px));
+  }
+  .vt-entry {
+    margin-top: -5px;
+  }
+}
+
+/* Tablet portrait: one column keeps the lead and the board readable. */
+@media (min-width: 761px) and (max-width: 900px) {
+  .vt-turn {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 16px;
+  }
+  .vt-lead,
+  .vt-turn.is-solo .vt-lead {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  /* The three steps become one compact row of titles. */
+  .vt-head-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .vt-head-step {
+    gap: 6px;
+  }
+  .vt-head-step-text span {
+    display: none;
+  }
+  .vt-head-step-text b {
+    font-size: 0.76rem;
+    line-height: 1.25;
+  }
+  .vt-filter input,
+  .vt-answer input {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/* Keep Start in reach on a long lesson list. */
+@media (max-width: 760px) and (min-height: 560px) {
+  .vt-entry .vt-start {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 16px;
+    padding-block: 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to bottom, transparent, var(--vt-surface) 16px);
+  }
+}
+
+/* Phones: the dock's two sides stack their text so the orb keeps its room. */
+@media (max-width: 560px) {
+  .vt-dock {
+    gap: 8px;
+  }
+  .vt-dock-side {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+  }
+  .vt-dock-side.is-right {
+    align-items: flex-end;
+  }
+  .vt-dot-sep {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .vt-entry {
+    padding: 14px;
+  }
+  .vt-head-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .vt-head-title {
+    flex: 1 1 0;
+  }
+  .vt-premium {
+    display: none;
+  }
+  .vt-rail {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .vt-context {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .vt-rail-lesson {
+    max-width: none;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .vt-sep,
+  .vt-mic-ready span {
+    display: none;
+  }
+  .vt-chip,
+  .vt-mic-ready {
+    flex: none;
+  }
+  .vt-board-main {
+    padding-inline: 14px;
+  }
+  .vt-dock {
+    padding-inline: 12px;
+  }
+  .vt-notice {
+    flex-wrap: wrap;
+    margin-inline: 12px;
+  }
+  .vt-notice-text {
+    flex: 1 1 100%;
+  }
+  .vt-feed-error {
+    inset-inline: 12px;
+    flex-wrap: wrap;
+  }
+  .vt-resume-actions {
+    width: 100%;
+  }
+  .vt-resume-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* Very narrow phones (320 to 360px). */
+@media (max-width: 360px) {
+  .vt-lead {
+    font-size: clamp(1.15rem, 6.4vw, 1.4rem);
+  }
+  .vt-orb {
+    width: 58px;
+    height: 58px;
+  }
+  .vt-yesno button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 12px;
+  }
+}
+
+/* Landscape phones and any short window: spend the height on the lesson. */
+@media (max-height: 520px) {
+  .vt-rail {
+    height: 44px;
+  }
+  .vt-feed-page {
+    padding-block: 8px;
+  }
+  .vt-lead {
+    font-size: clamp(1.1rem, 4.2vh, 1.5rem);
+  }
+  .vt-bullets li,
+  .vt-steps li,
+  .vt-example p,
+  .vt-keyIdea p,
+  .vt-check-text p {
+    font-size: 0.92rem;
+  }
+  .vt-dock {
+    padding-block: 2px 8px;
+    gap: 12px;
+  }
+  .vt-orb {
+    width: 54px;
+    height: 54px;
+  }
+  .vt-halo {
+    inset: -8px;
+  }
+  .vt-halo.second {
+    inset: -14px;
+  }
+  .vt-orb-wrap.is-listening .vt-orb {
+    box-shadow:
+      0 0 0 7px color-mix(in srgb, var(--vt-rose) 12%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+}
+
+/* Fingers need bigger targets than a mouse. */
+@media (pointer: coarse) {
+  .vt-subject-tab,
+  .vt-link-btn,
+  .vt-replay,
+  .vt-tap-toggle {
+    min-height: 44px;
+  }
+  .vt-back {
+    width: 44px;
+    height: 44px;
+  }
+  .vt-error-x,
+  .vt-notice-x {
+    width: 40px;
+    height: 40px;
+  }
+  .vt-retry,
+  .vt-stop,
+  .vt-notice-play,
+  .vt-earlier,
+  .vt-jump {
+    min-height: 40px;
+  }
+  .vt-yesno button,
+  .vt-answer input,
+  .vt-answer button {
+    min-height: 44px;
+  }
+  .vt-choice {
+    min-height: 48px;
+  }
+  .vt-tap-toggle input {
+    width: 20px;
+    height: 20px;
   }
 }

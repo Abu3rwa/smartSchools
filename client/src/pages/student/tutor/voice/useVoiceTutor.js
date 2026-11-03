@@ -301,6 +301,9 @@ export const useVoiceTutor = () => {
       setPhase("idle");
       return { failed: false };
     }
+    if (dev) {
+      console.debug(`[voice] playLazy: ${clips.length} clips for turn ${turnId}`);
+    }
     setSoundFailed(false);
     setPreparing(true);
     const result = await queueRef.current.play({
@@ -310,6 +313,9 @@ export const useVoiceTutor = () => {
         blobOf(tutorService.voiceClip(id, turnId, index, { signal })),
       onState: (state) => {
         if (!mountedRef.current) return;
+        if (dev) {
+          console.debug(`[voice] clip state:`, state);
+        }
         if (state.type === "waiting") {
           setSpeakingIndex(state.index);
         } else if (state.type === "playing") {
@@ -319,6 +325,9 @@ export const useVoiceTutor = () => {
           if (state.index === 0) {
             measure("voice.boardToFirstSound", "voice-board");
           }
+        } else if (state.type === "failed") {
+          // A failed clip still advances the reveal so the next part appears.
+          setSpeakingIndex(state.index);
         } else if (state.type === "done") {
           setPreparing(false);
           setSpeakingIndex(null);

@@ -12,6 +12,7 @@ export const createClipQueue = ({
   maxTurns = 2,
   timers = { setTimeout, clearTimeout },
 } = {}) => {
+  const { setTimeout: setTimeoutFn, clearTimeout: clearTimeoutFn } = timers;
   let token = 0;
   let current = null;
   let turns = [];
@@ -36,7 +37,7 @@ export const createClipQueue = ({
     current = null;
     if (!state) return;
     state.controller.abort();
-    if (state.timer) timers.clearTimeout(state.timer);
+    if (state.timer) clearTimeoutFn(state.timer);
     state.timer = null;
     if (state.audio) {
       state.audio.onended = null;
@@ -96,7 +97,12 @@ export const createClipQueue = ({
             loaded.add(position);
             return url;
           })
-          .catch(() => null),
+          .catch((error) => {
+            if (import.meta.env?.DEV) {
+              console.warn(`[voice] clip ${index} failed:`, error?.message || error);
+            }
+            return null;
+          }),
       );
     });
 
@@ -130,15 +136,28 @@ export const createClipQueue = ({
           };
           state.settleAudio = () => finish(false);
           audio.onended = () => finish(true);
-          audio.onerror = () => finish(false);
+          audio.onerror = () => {
+            if (import.meta.env?.DEV) {
+              console.warn(`[voice] clip ${position} audio error`);
+            }
+            finish(false);
+          };
           let started;
           try {
             started = audio.play();
-          } catch {
+          } catch (error) {
+            if (import.meta.env?.DEV) {
+              console.warn(`[voice] clip ${position} play() threw:`, error?.message);
+            }
             finish(false);
           }
           if (started && typeof started.catch === "function") {
-            started.catch(() => finish(false));
+            started.catch((error) => {
+              if (import.meta.env?.DEV) {
+                console.warn(`[voice] clip ${position} play() rejected:`, error?.message);
+              }
+              finish(false);
+            });
           }
         });
         state.audio = null;
@@ -155,7 +174,7 @@ export const createClipQueue = ({
         if (next < clips.length && loaded.has(next)) {
           await new Promise((resolve) => {
             state.settleWait = resolve;
-            state.timer = timers.setTimeout(() => {
+            state.timer = setTimeoutFn(() => {
               state.timer = null;
               state.settleWait = null;
               resolve();
