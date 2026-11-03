@@ -51,12 +51,7 @@ export const createClipQueue = ({
     state.settleWait?.();
   };
 
-  const play = async ({
-    turnId = "",
-    clips = [],
-    loadClip,
-    onState,
-  } = {}) => {
+  const play = async ({ turnId = "", clips = [], loadClip, onState } = {}) => {
     cancel();
     const my = token;
     const live = () => my === token;
@@ -109,6 +104,9 @@ export const createClipQueue = ({
     let played = 0;
     for (let position = 0; position < clips.length; position += 1) {
       if (!live()) return { cancelled: true, failed, played };
+      // The board part is shown while its clip is still downloading.
+      if (!loaded.has(position))
+        onState?.({ type: "waiting", index: position });
       const url = await ready.get(position);
       if (!live()) return { cancelled: true, failed, played };
       if (!url) {

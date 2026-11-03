@@ -180,7 +180,10 @@ export const useVoiceTutor = () => {
     (async () => {
       try {
         const data = unwrap(
-          await tutorService.voiceHome({ subjectId }, { signal: controller.signal }),
+          await tutorService.voiceHome(
+            { subjectId },
+            { signal: controller.signal },
+          ),
         );
         if (!active || !mountedRef.current) return;
         setHome(data);
@@ -292,40 +295,39 @@ export const useVoiceTutor = () => {
     [releaseMic, stopAutoStop, stopPlayback],
   );
 
-  const playLazy = useCallback(
-    async ({ turnId, clips, sessionId: id }) => {
-      if (!id || !turnId || !clips?.length) {
-        setPhase("idle");
-        return { failed: false };
-      }
-      setSoundFailed(false);
-      setPreparing(true);
-      const result = await queueRef.current.play({
-        turnId,
-        clips,
-        loadClip: ({ index, signal }) =>
-          blobOf(tutorService.voiceClip(id, turnId, index, { signal })),
-        onState: (state) => {
-          if (!mountedRef.current) return;
-          if (state.type === "playing") {
-            setPreparing(false);
-            setPhase("speaking");
-            setSpeakingIndex(state.index);
-            if (state.index === 0) {
-              measure("voice.boardToFirstSound", "voice-board");
-            }
-          } else if (state.type === "done") {
-            setPreparing(false);
-            setSpeakingIndex(null);
-            setPhase("idle");
-            if (state.failed) setSoundFailed(true);
+  const playLazy = useCallback(async ({ turnId, clips, sessionId: id }) => {
+    if (!id || !turnId || !clips?.length) {
+      setPhase("idle");
+      return { failed: false };
+    }
+    setSoundFailed(false);
+    setPreparing(true);
+    const result = await queueRef.current.play({
+      turnId,
+      clips,
+      loadClip: ({ index, signal }) =>
+        blobOf(tutorService.voiceClip(id, turnId, index, { signal })),
+      onState: (state) => {
+        if (!mountedRef.current) return;
+        if (state.type === "waiting") {
+          setSpeakingIndex(state.index);
+        } else if (state.type === "playing") {
+          setPreparing(false);
+          setPhase("speaking");
+          setSpeakingIndex(state.index);
+          if (state.index === 0) {
+            measure("voice.boardToFirstSound", "voice-board");
           }
-        },
-      });
-      return result;
-    },
-    [],
-  );
+        } else if (state.type === "done") {
+          setPreparing(false);
+          setSpeakingIndex(null);
+          setPhase("idle");
+          if (state.failed) setSoundFailed(true);
+        }
+      },
+    });
+    return result;
+  }, []);
 
   /** A whole reply in one clip: the board shows it in full while it plays. */
   const play = useCallback(
@@ -604,10 +606,7 @@ export const useVoiceTutor = () => {
       });
     } catch {
       // Speech needs far less than the default, but not every browser takes the option.
-      recorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType } : undefined,
-      );
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     }
     chunksRef.current = [];
     recorder.ondataavailable = (event) => {
@@ -797,19 +796,16 @@ export const useVoiceTutor = () => {
         const lastTutor = [...(data.messages || [])]
           .reverse()
           .find((message) => message.role === "tutor");
-        lastTurnRef.current =
-          lastTutor?.turnId
-            ? { turnId: lastTutor.turnId, clips: lastTutor.clips || [] }
-            : null;
+        lastTurnRef.current = lastTutor?.turnId
+          ? { turnId: lastTutor.turnId, clips: lastTutor.clips || [] }
+          : null;
         lastSegmentsRef.current = [];
         lastSourceRef.current = "";
         setPhase("idle");
         return data;
       } catch (resumeError) {
         if (mountedRef.current) {
-          setError(
-            errorText(resumeError) || i18n.t("tutor:voice.errors.load"),
-          );
+          setError(errorText(resumeError) || i18n.t("tutor:voice.errors.load"));
         }
         return null;
       } finally {
@@ -819,21 +815,18 @@ export const useVoiceTutor = () => {
     [ensureMic, starting],
   );
 
-  const endActiveSession = useCallback(
-    async (activeId) => {
-      if (!activeId) return null;
-      try {
-        await tutorService.endVoiceSession(activeId);
-        setHome((current) =>
-          current ? { ...current, activeSession: null } : current,
-        );
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
+  const endActiveSession = useCallback(async (activeId) => {
+    if (!activeId) return null;
+    try {
+      await tutorService.endVoiceSession(activeId);
+      setHome((current) =>
+        current ? { ...current, activeSession: null } : current,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const leaveSession = useCallback(async () => {
     const id = session?.id;
