@@ -645,12 +645,13 @@ export const buildVoicePrompt = ({
         `- ${standard.code}: ${clip(standard.description || standard.name || "", 300)}`,
     )
     .join("\n");
-  const boardBlock = board
-    .slice(-8)
-    .map((message) =>
+  const recent = board.slice(-8);
+  const boardBlock = recent
+    .map((message, index) =>
       message.role === "student"
         ? `Student said: ${shorten(message.text, 300)}`
-        : `You said: ${shorten(message.spoken || message.text, 400)}`,
+        : // The last tutor turn keeps its closing question, the one the student answers next.
+          `You said: ${shorten(message.spoken || message.text, index === recent.length - 1 ? 900 : 400)}`,
     )
     .join("\n");
   const attempts = Math.min(
@@ -677,11 +678,17 @@ Then ask a different question that checks understanding, such as why or how the 
 Do NOT reveal the final answer in the lead, blocks or follow-up.`
       : attempts === 1
         ? `The student has tried once. First say plainly, in one short sentence, whether their answer is right, partly right, or not right — for a matching answer, say which pairs were right and which were not.
-Then give ONE hint and ask one more check question. Do NOT reveal the final answer.`
-        : `The student has tried ${attempts} times. Say plainly in one short sentence whether their answer was right, partly right, or not right, then give a small scaffold.
-Keep the final answer hidden, then ask a fresh check question that tests the same idea.`;
+If it is right, say so, add one short reason it works, and ask a NEW check question.
+If it is not fully right, stay on the SAME question: name what they got right, give ONE hint about what is missing (never list the missing parts), and ask them to try that same question again. Do NOT reveal the final answer.`
+        : `The student has tried ${attempts} times. Say plainly in one short sentence whether their answer was right, partly right, or not right.
+If it is right, say so and ask a NEW check question.
+If it is still not right, stay on the SAME question and give a bigger scaffold, such as the first letter or one missing part, but never the whole answer, and ask the same question again.`;
 
-  const ladder = assessmentMode ? guidedCheckLadder : teachingLadder;
+  const ladder = `${
+    attempts > 0
+      ? `FIRST CHECK: if "STUDENT SAID" is a question or a request to explain (for example "what does glory mean?", "can you explain", "I don't understand"), it is NOT an answer. Skip the steps below: do not say right, partly right or not right. Answer it briefly from the lesson material, then ask your last question again.\nOtherwise it is an answer, so:\n`
+      : ""
+  }${assessmentMode ? guidedCheckLadder : teachingLadder}`;
 
   return `You are a warm, patient ${subjectName} tutor talking out loud with one student in grade ${grade}.
 Everything you write is spoken aloud by a voice. Never write anything that only works on a screen.
@@ -694,6 +701,7 @@ ${lessonBlocks || "(no lesson material matched this question)"}
 
 ${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ""}
 ${boardBlock ? `BOARD SO FAR (this session)\n${boardBlock}\n\n` : ""}HOW THIS TURN MUST GO
+First decide what the student just said. It is an ANSWER only if they are trying to answer the last question you asked. If instead they ask you something, ask you to repeat or explain, say they do not understand, or talk about something else, it is NOT an answer: do not say right or not right, and do not count it as a try. Reply to what they asked in one or two short sentences (for "what is your question?" or "repeat that", say your last question again in simpler words), then invite them to answer. Only when it is an ANSWER, follow the steps below.
 ${ladder}
 
 HOW YOU TALK
@@ -702,10 +710,11 @@ ${languageLevelGuidance(languageLevel)}
 - Short spoken sentences. Contractions are welcome. Sound like a kind teacher, not a textbook.
 - Numbers, symbols and formulas are said in words, except the screen text of a math block. No markdown, no bullet characters, no emoji, no code.
 - If the lesson material does not cover the question, say exactly that in one short sentence, name the closest lesson, and offer what it does cover.
+- Questions about this session itself are always allowed and are answered from the lesson name above and BOARD SO FAR: what the lesson is called, what you are talking about now, what your last question was, what the student's last question or answer was. Answer them plainly and briefly, then invite the student back to your last question.
 - If the student asks about another subject or something personal, say you only help with ${subjectName} lessons for grade ${grade}.
 - Never mention the student's name, class, school, teacher or any personal detail.
 - Do not hand over finished homework. Guide, then check.
-- When the student has just answered a question, "lead" opens with a clear verdict — right, partly right, or not right. For a matching answer, name which pairs were right. Never answer an attempt with only praise or "try again".
+- When the student has just ANSWERED a question (not asked one), "lead" opens with a clear verdict — right, partly right, or not right. For a matching answer, name which pairs were right. Never answer an attempt with only praise or "try again".
 
 REPLY FORMAT
 Return exactly one JSON object and nothing else:
@@ -735,7 +744,7 @@ ${
 ${
   assessmentMode
     ? `- Guided check mode rules: evaluate what the student just answered, then ask exactly one new check question.
-- Rotate question types across turns: short answer, multiple-choice, yes/no, and matching.${VOICE_QUESTION_TYPES.includes(questionType) ? ` This turn, ask a ${VOICE_QUESTION_LABELS[questionType]} question and set "questionType" to "${questionType}".` : ""}
+- Rotate question types across turns: short answer, multiple-choice, yes/no, and matching.${VOICE_QUESTION_TYPES.includes(questionType) ? ` Only when you move on to a NEW question, ask a ${VOICE_QUESTION_LABELS[questionType]} question and set "questionType" to "${questionType}". When the student must try the same question again, keep that question and its type.` : ""}
 - For multiple-choice, write the question itself in "followUp" and give three or four possible answers in "options": a JSON array of short strings, a few words each, with no letters or numbers in front. Every option must be a possible answer to the question. Never put the question, a hint, an explanation or a statement in "options", and never use a "steps" block for them.
 - For yes/no, make the follow-up one statement or question the student answers with yes or no, and leave "options" out. They may then explain why aloud.
 - For matching, put two or three pairs in one "contrast" block.
