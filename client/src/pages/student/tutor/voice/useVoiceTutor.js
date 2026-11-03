@@ -71,6 +71,7 @@ export const useVoiceTutor = () => {
   const [micOpen, setMicOpen] = useState(false);
   const [tapToToggle, setTapToToggleState] = useState(readTapMode);
   const [canRetry, setCanRetry] = useState(false);
+  const [pendingStudentText, setPendingStudentText] = useState("");
 
   const recorderRef = useRef(null);
   // A press can end while the browser is still asking for microphone access.
@@ -477,6 +478,7 @@ export const useVoiceTutor = () => {
       setError("");
       retryRef.current = { blob, durationMs, text };
       setCanRetry(true);
+      setPendingStudentText(text || "");
       mark("voice-upload");
       try {
         const data = unwrap(
@@ -490,6 +492,7 @@ export const useVoiceTutor = () => {
         if (!mountedRef.current) return null;
         retryRef.current = null;
         setCanRetry(false);
+        setPendingStudentText("");
         const at = new Date().toISOString();
         const said = {
           role: "student",
@@ -529,6 +532,7 @@ export const useVoiceTutor = () => {
       } catch (turnError) {
         if (mountedRef.current) {
           setPhase("idle");
+          setPendingStudentText("");
           setError(errorText(turnError) || i18n.t("tutor:voice.errors.turn"));
         }
         return null;
@@ -690,9 +694,11 @@ export const useVoiceTutor = () => {
   const sessionActive = Boolean(session);
   useEffect(() => {
     if (!sessionActive) return undefined;
-    const typing = (target) =>
+    const interactive = (target) =>
       Boolean(
-        target?.closest?.('input, textarea, select, [contenteditable="true"]'),
+        target?.closest?.(
+          'input, textarea, select, [contenteditable="true"], button, a, [role="dialog"]',
+        ),
       );
     const release = () => {
       const { cancelled } = ctrlRef.current;
@@ -709,7 +715,7 @@ export const useVoiceTutor = () => {
         if (ctrlRef.current.held) ctrlRef.current.cancelled = true;
         return;
       }
-      if (event.repeat || typing(event.target)) return;
+      if (event.repeat || interactive(event.target)) return;
       if (toggleMode && event.key !== "Control") {
         event.preventDefault();
         if (holdingRef.current) stopListeningRef.current?.();
@@ -907,6 +913,7 @@ export const useVoiceTutor = () => {
     tapToToggle,
     setTapToToggle,
     canRetry,
+    pendingStudentText,
     chooseSubject,
     startSession,
     resumeSession,

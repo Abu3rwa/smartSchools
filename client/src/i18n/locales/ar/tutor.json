@@ -124,6 +124,8 @@
     "backToLatest": "العودة إلى الأحدث",
     "holdToTalk": "اضغط مع الاستمرار لتتحدّث",
     "releaseSend": "أفلت للإرسال",
+    "tapToTalk": "اضغط للتحدّث",
+    "tapToSend": "اضغط للإرسال",
     "replayHint": "أعد تشغيل الصوت",
     "listeningTimer": "جارٍ الاستماع · {{seconds}} ث من {{limit}} ث",
     "status": {

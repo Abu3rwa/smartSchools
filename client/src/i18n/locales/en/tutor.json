@@ -124,6 +124,8 @@
     "backToLatest": "Back to latest",
     "holdToTalk": "Hold to talk",
     "releaseSend": "Release to send",
+    "tapToTalk": "Tap to talk",
+    "tapToSend": "Tap to send",
     "replayHint": "Play it again",
     "listeningTimer": "Listening · {{seconds}}s of {{limit}}s",
     "status": {

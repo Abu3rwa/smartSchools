@@ -69,6 +69,7 @@ export default function VoiceTutorPage() {
     tapToToggle,
     setTapToToggle,
     canRetry,
+    pendingStudentText,
     chooseSubject,
     startSession,
     resumeSession,
@@ -176,6 +177,7 @@ export default function VoiceTutorPage() {
         tapToToggle={tapToToggle}
         setTapToToggle={setTapToToggle}
         canRetry={canRetry}
+        pendingStudentText={pendingStudentText}
         onLeave={leaveSession}
         onStart={startListening}
         onStop={stopListening}
@@ -507,6 +509,7 @@ function Board({
   tapToToggle,
   setTapToToggle,
   canRetry,
+  pendingStudentText,
   onLeave,
   onStart,
   onStop,
@@ -642,8 +645,12 @@ function Board({
     : outOfCredit
       ? t("tutor:voice.status.outOfCredit")
       : holding
-        ? t("tutor:voice.releaseSend")
-        : t("tutor:voice.holdToTalk");
+        ? tapToToggle
+          ? t("tutor:voice.tapToSend")
+          : t("tutor:voice.releaseSend")
+        : tapToToggle
+          ? t("tutor:voice.tapToTalk")
+          : t("tutor:voice.holdToTalk");
 
   return (
     <div
@@ -749,7 +756,7 @@ function Board({
           )}
 
           {pageWindow.visible.map((page, index) => {
-            const latest = !thinking && index === pageWindow.visible.length - 1;
+            const latest = index === pageWindow.visible.length - 1;
             return (
               <FeedPage
                 key={page.id}
@@ -767,6 +774,15 @@ function Board({
 
           {thinking && (
             <section className="vt-feed-page is-latest" ref={latestRef}>
+              {pendingStudentText && (
+                <div className="vt-your-words">
+                  <span className="vt-your-words-tag">
+                    <HiOutlineMicrophone size={11} aria-hidden="true" />
+                    {t("tutor:voice.youSaid")}
+                  </span>
+                  <q dir="auto">{pendingStudentText}</q>
+                </div>
+              )}
               <Waiting />
             </section>
           )}
@@ -954,7 +970,11 @@ function Board({
                   {t("tutor:voice.stop")}
                 </button>
               ) : (
-                <span>{t("tutor:voice.releaseSend")}</span>
+                <span>
+                  {tapToToggle
+                    ? t("tutor:voice.tapToSend")
+                    : t("tutor:voice.releaseSend")}
+                </span>
               )}
               <span className="vt-dot-sep" aria-hidden="true">
                 ·
