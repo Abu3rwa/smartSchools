@@ -18,6 +18,7 @@ const FEATURES = [
     ['/api/social-studies', 'social_studies'],
     ['/api/newsletters', 'newsletter'],
     ['/api/writing', 'writing_assistant'],
+    ['/api/inbox-assistant', 'inbox_assistant'],
     ['/api/reading', 'reading_assistant'],
     ['/api/standards', 'standards_practice'],
     ['/api/analytics', 'class_analytics'],

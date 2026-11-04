@@ -104,6 +104,12 @@ export const FEATURES = {
         description: 'Guide students through drafts, revisions and notebook checks with rubric-based feedback.',
         plans: ['professional', 'enterprise']
     },
+    inboxAssistant: {
+        key: 'inboxAssistant',
+        label: 'Inbox Assistant',
+        description: "Scan the teacher's Gmail inbox, find deadlines and draft replies for the teacher to review.",
+        plans: ['professional', 'enterprise']
+    },
     studentAiTutor: {
         key: 'studentAiTutor',
         label: 'Student AI Tutor',

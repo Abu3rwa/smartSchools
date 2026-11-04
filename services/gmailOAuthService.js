@@ -5,9 +5,23 @@ import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { getPlatformBranding } from './platformBrandingService.js';
 import { GOOGLE_SUITE_SCOPES } from '../config/googleSuiteOAuthScopes.js';
+import { deleteAllInboxDataForUser } from './inbox/inboxDataService.js';
 
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+
+/** Gmail request body for a raw message; threadId only when the caller asked for a thread reply. */
+export const buildGmailRequestBody = (raw, mailOptions = {}) => {
+    const requestBody = { raw };
+    const threadId = typeof mailOptions.threadId === 'string' ? mailOptions.threadId.trim() : '';
+    if (threadId) requestBody.threadId = threadId;
+    return requestBody;
+};
+
+export const sendRawGmailMessage = (gmail, raw, mailOptions = {}) => gmail.users.messages.send({
+    userId: 'me',
+    requestBody: buildGmailRequestBody(raw, mailOptions)
+});
 
 class GmailOAuthService {
     constructor() {
@@ -221,6 +235,9 @@ class GmailOAuthService {
             from: message.from,
             to: message.to,
             ...(message.cc ? { cc: message.cc } : {}),
+            ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+            ...(message.inReplyTo ? { inReplyTo: message.inReplyTo } : {}),
+            ...(message.references ? { references: message.references } : {}),
             subject: message.subject || '',
             text: message.text || '',
             html: message.html || message.text || '',
@@ -252,18 +269,56 @@ class GmailOAuthService {
             from,
             to,
             cc: mailOptions.cc,
+            replyTo: mailOptions.replyTo,
+            inReplyTo: mailOptions.inReplyTo,
+            references: mailOptions.references,
             subject: mailOptions.subject || '',
             text: mailOptions.text || '',
             html: mailOptions.html || mailOptions.text || '',
             attachments: mailOptions.attachments || []
         });
 
-        return gmail.users.messages.send({
-            userId: 'me',
-            requestBody: {
-                raw: encodedEmail
-            }
+        return sendRawGmailMessage(gmail, encodedEmail, mailOptions);
+    }
+
+    /** Creates a Gmail draft so the teacher can finish or send it inside Gmail. */
+    async createGmailDraft(userId, mailOptions = {}) {
+        const { gmail, accountEmail } = await this.getAuthorizedGmailClient(userId, { requireModify: true });
+        const raw = await this.buildRawGmailMessage({
+            from: mailOptions.from || accountEmail,
+            to: mailOptions.to,
+            cc: mailOptions.cc,
+            replyTo: mailOptions.replyTo,
+            inReplyTo: mailOptions.inReplyTo,
+            references: mailOptions.references,
+            subject: mailOptions.subject || '',
+            text: mailOptions.text || '',
+            html: mailOptions.html || mailOptions.text || '',
+            attachments: mailOptions.attachments || []
         });
+
+        const response = await gmail.users.drafts.create({
+            userId: 'me',
+            requestBody: { message: buildGmailRequestBody(raw, mailOptions) }
+        });
+
+        return {
+            draftId: response.data.id,
+            messageId: response.data.message?.id || null,
+            threadId: response.data.message?.threadId || null
+        };
+    }
+
+    /** A draft already removed in Gmail is not an error: the app only needs it gone. */
+    async deleteGmailDraft(userId, draftId) {
+        const { gmail } = await this.getAuthorizedGmailClient(userId, { requireModify: true });
+        try {
+            await gmail.users.drafts.delete({ userId: 'me', id: draftId });
+            return true;
+        } catch (error) {
+            if (error?.code === 404 || error?.response?.status === 404) return true;
+            throw error;
+        }
     }
 
     /**
@@ -497,6 +552,15 @@ class GmailOAuthService {
 
             // The shared Google grant includes Classroom and Forms permissions as well.
             await user.clearGoogleSuiteTokens();
+        }
+
+        try {
+            await deleteAllInboxDataForUser(userId);
+        } catch (error) {
+            logger.warn('inbox_data_delete_failed', {
+                userId: String(userId),
+                error: error?.message
+            });
         }
     }
 }

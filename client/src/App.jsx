@@ -140,6 +140,7 @@ const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingW
 const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
+const InboxAssistantPage = lazy(() => import("./pages/teacher/inbox/InboxAssistantPage"));
 const TutorPage = lazy(() => import("./pages/student/tutor"));
 const VoiceTutorPage = lazy(() => import("./pages/student/tutor/voice"));
 const TutorConversationsPage = lazy(() => import("./pages/teacher/tutor/TutorConversationsPage"));
@@ -1511,6 +1512,17 @@ function App() {
                 <RoleRoute roles={["teacher", "admin"]}>
                   <FeatureGate feature="writingAssistant" showUpgradePrompt>
                     <WritingAssignmentBuilderPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            {/* Inbox Assistant: teacher reads and sorts incoming school mail */}
+            <Route
+              path="inbox"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="inboxAssistant" showUpgradePrompt>
+                    <InboxAssistantPage />
                   </FeatureGate>
                 </RoleRoute>
               }

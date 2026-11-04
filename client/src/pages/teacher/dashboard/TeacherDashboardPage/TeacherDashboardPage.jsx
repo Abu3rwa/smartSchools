@@ -10,6 +10,7 @@ import SummaryStat from './components/SummaryStat';
 import TodayScheduleCard from './components/TodayScheduleCard';
 import SubRequestsCard from './components/SubRequestsCard';
 import QuickActionsCard from './components/QuickActionsCard';
+import InboxBadge from './components/InboxBadge';
 import TeacherAnalyticsSection from './components/TeacherAnalyticsSection';
 import useTeacherDashboardData from './hooks/useTeacherDashboardData';
 import { QUICK_ACTIONS } from './constants';
@@ -54,6 +55,8 @@ const TeacherDashboardPage = () => {
                     <SummaryStat icon={HiOutlineClipboardList} label={t('dashboard:teacherDashboard.summary.pendingSubRequests')} value={pendingSubsCount || '0'} />
                 </Grid>
             </Grid>
+
+            <InboxBadge />
 
             {pendingSubsCount > 0 && (
                 <Alert

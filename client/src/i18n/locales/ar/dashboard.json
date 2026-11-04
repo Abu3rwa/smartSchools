@@ -63,6 +63,9 @@
       "classesToday": "حصص اليوم",
       "pendingSubRequests": "طلبات البديل المعلقة"
     },
+    "inbox": {
+      "badge": "البريد الوارد: {{n}} بحاجة إليك"
+    },
     "loading": {
       "message": "جارٍ تحميل لوحة المعلم..."
     },

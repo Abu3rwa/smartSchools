@@ -63,6 +63,9 @@
       "classesToday": "Classes today",
       "pendingSubRequests": "Pending sub requests"
     },
+    "inbox": {
+      "badge": "Inbox: {{n}} need you"
+    },
     "loading": {
       "message": "Loading your dashboard..."
     },

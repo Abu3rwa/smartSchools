@@ -21,6 +21,16 @@ const aiCreditSettingSchema = new mongoose.Schema(
         maxTranscriptSeconds: { type: Number, default: 30, min: 5, max: 300 },
         maxSpeechSeconds: { type: Number, default: 60, min: 5, max: 300 }
     },
+    // Inbox Assistant limits. Platform-wide like the voice block: one school-wide cap.
+    inbox: {
+        enabled: { type: Boolean, default: true },
+        defaultScanSize: { type: Number, default: 25, min: 10, max: 50 },
+        maxScanSize: { type: Number, default: 50, min: 10, max: 100 },
+        maxScansPerDay: { type: Number, default: 20, min: 1, max: 200 },
+        maxDraftsPerDay: { type: Number, default: 100, min: 1, max: 1000 },
+        freeScansPerDay: { type: Number, default: 0, min: 0, max: 50 },
+        rawTextRetentionDays: { type: Number, default: 14, min: 1, max: 90 }
+    },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   { timestamps: true }

@@ -10,6 +10,9 @@ export const platformAiCreditService = {
   getVoiceSettings: () => api.get('/platform/ai-credit/voice-settings').then(unwrap),
   updateVoiceSettings: (body) =>
     api.patch('/platform/ai-credit/voice-settings', body).then(unwrap),
+  getInboxSettings: () => api.get('/platform/ai-credit/inbox-settings').then(unwrap),
+  updateInboxSettings: (body) =>
+    api.patch('/platform/ai-credit/inbox-settings', body).then(unwrap),
   getSchools: () => api.get('/platform/ai-credit/schools').then(unwrap),
   fundSchool: (schoolId, body) =>
     api.post(`/platform/ai-credit/schools/${schoolId}/fund`, body).then(unwrap),

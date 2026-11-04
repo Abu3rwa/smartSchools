@@ -40,6 +40,8 @@ export const NOTIFICATION_TYPES = {
     // PLP / Character Development
     PLP_TASK_ASSIGNED: 'plp_task_assigned',
     PLP_TASK_REVIEWED: 'plp_task_reviewed',
+    // Inbox Assistant
+    INBOX_DEADLINE_REMINDER: 'inbox_deadline_reminder',
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));

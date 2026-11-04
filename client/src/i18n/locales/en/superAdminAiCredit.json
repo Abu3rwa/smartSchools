@@ -44,6 +44,26 @@
     "saveFailed": "Couldn't save the voice pricing.",
     "loadFailed": "Couldn't load the voice pricing."
   },
+  "inbox": {
+    "title": "Inbox Assistant",
+    "subtitle": "One set of limits for every school. A scan reads only new mail since the last one, and a draft is never sent unless the teacher sends it.",
+    "statusOn": "Available",
+    "statusOff": "Turned off",
+    "fields": {
+      "enabled": "Allow teachers to use Inbox Assistant",
+      "defaultScanSize": "Emails read per scan",
+      "maxScanSize": "Most emails one teacher can ask for",
+      "maxScansPerDay": "Scans per teacher per day",
+      "maxDraftsPerDay": "Drafts per teacher per day",
+      "freeScansPerDay": "Scans that don't use credit",
+      "rawTextRetentionDays": "Days the email text is kept"
+    },
+    "note": "When the text is cleared, the summary, deadline and draft stay; only the original message text is removed.",
+    "save": "Save limits",
+    "saved": "Inbox limits saved. New scans use them.",
+    "saveFailed": "Couldn't save the inbox limits.",
+    "loadFailed": "Couldn't load the inbox settings."
+  },
   "schools": {
     "loadFailed": "Couldn't load the school credit list.",
     "title": "Schools",

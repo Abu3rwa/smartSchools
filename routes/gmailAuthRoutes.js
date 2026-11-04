@@ -28,7 +28,7 @@ const buildSignedState = (
 ) => {
   const payload = {
     userId,
-    returnTo: ["notifications", "spelling"].includes(returnTo)
+    returnTo: ["notifications", "spelling", "inbox"].includes(returnTo)
       ? returnTo
       : "settings",
     cleanupAccess,
@@ -83,7 +83,7 @@ const parseSignedState = (state) => {
 router.get("/url", protect, async (req, res) => {
   try {
     const cleanupAccess = req.query.cleanup === "true";
-    const returnTo = ["notifications", "spelling"].includes(req.query.returnTo)
+    const returnTo = ["notifications", "spelling", "inbox"].includes(req.query.returnTo)
       ? req.query.returnTo
       : "settings";
     const state = buildSignedState(
@@ -124,7 +124,9 @@ router.get("/callback", async (req, res) => {
         ? "/portal/notifications"
         : parsedState?.returnTo === "spelling"
           ? "/portal/spelling"
-          : "/settings";
+          : parsedState?.returnTo === "inbox"
+            ? "/portal/inbox"
+            : "/settings";
     cleanupAccess = Boolean(parsedState?.cleanupAccess);
 
     if (error) {

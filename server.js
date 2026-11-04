@@ -62,6 +62,7 @@ import newsletterTemplateRoutes from "./routes/newsletterTemplateRoutes.js";
 import revisionRoutes from "./routes/revisionRoutes.js";
 import readingRoutes from "./routes/readingRoutes.js";
 import writingRoutes from "./routes/writingRoutes.js";
+import inboxAssistantRoutes from "./routes/inboxAssistantRoutes.js";
 import tutorRoutes from "./routes/tutorRoutes.js";
 import aiCreditRoutes from "./routes/aiCreditRoutes.js";
 import platformAiCreditRoutes from "./routes/platformAiCreditRoutes.js";
@@ -126,6 +127,7 @@ import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { runBehaviorStatusJob } from "./jobs/behaviorStatusJob.js";
 import { runReadingTranscriptPurgeJob } from "./jobs/readingTranscriptPurgeJob.js";
+import { runInboxAssistantJob } from "./jobs/inboxAssistantJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processDueSpellingEmails } from "./services/spellingEmailService.js";
 import { scheduleDueSpellingRetestQuizzes } from "./services/spellingRetestQuizSchedulerService.js";
@@ -375,6 +377,7 @@ app.use("/api/practice", practiceRoutes);
 app.use("/api/revision", revisionRoutes);
 app.use("/api/reading", readingRoutes);
 app.use("/api/writing", writingRoutes);
+app.use("/api/inbox-assistant", inboxAssistantRoutes);
 app.use("/api/tutor", tutorRoutes);
 app.use("/api/ai-credit", aiCreditRoutes);
 app.use("/api/platform/ai-credit", platformAiCreditRoutes);
@@ -447,6 +450,7 @@ const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS = 15 * 1000; // 15 seconds
 const ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const READING_TRANSCRIPT_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const INBOX_ASSISTANT_JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
@@ -680,6 +684,19 @@ const server = httpServer.listen(PORT, () => {
     // First run 5 minutes after startup, then every 24 hours.
     setTimeout(runReadingTranscriptPurge, 5 * 60 * 1000);
     activeIntervals.push(setInterval(runReadingTranscriptPurge, READING_TRANSCRIPT_PURGE_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_INBOX_ASSISTANT_JOB !== "false") {
+    const runInboxAssistant = async () => {
+      try {
+        await runInboxAssistantJob({ env: process.env });
+      } catch (err) {
+        logger.error("Inbox Assistant job error:", err?.message || err);
+      }
+    };
+    // First run 6 minutes after startup, then every hour.
+    setTimeout(runInboxAssistant, 6 * 60 * 1000);
+    activeIntervals.push(setInterval(runInboxAssistant, INBOX_ASSISTANT_JOB_INTERVAL_MS));
   }
 });
 

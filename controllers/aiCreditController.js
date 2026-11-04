@@ -4,6 +4,10 @@ import {
   getVoiceConfig,
   saveVoiceConfig,
 } from "../services/voiceTutorConfig.js";
+import {
+  getPlatformInboxSettings,
+  saveInboxSettings,
+} from "../services/inboxSettingsService.js";
 
 export const getMyCredit = asyncHandler(async (req, res) => {
   const summary = await creditService.getCreditSummary({
@@ -146,6 +150,18 @@ export const getVoiceSettings = asyncHandler(async (_req, res) => {
 
 export const updateVoiceSettings = asyncHandler(async (req, res) => {
   const data = await saveVoiceConfig({
+    patch: req.body || {},
+    updatedBy: req.user._id,
+  });
+  res.json({ success: true, data });
+});
+
+export const getInboxSettings = asyncHandler(async (_req, res) => {
+  res.json({ success: true, data: await getPlatformInboxSettings() });
+});
+
+export const updateInboxSettings = asyncHandler(async (req, res) => {
+  const data = await saveInboxSettings({
     patch: req.body || {},
     updatedBy: req.user._id,
   });

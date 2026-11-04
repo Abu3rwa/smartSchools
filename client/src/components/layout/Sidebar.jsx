@@ -295,6 +295,14 @@ const Sidebar = () => {
       badgeCount: displayUnreadCount,
     },
     {
+      path: "/portal/inbox",
+      icon: HiOutlineInboxArrowDown,
+      labelKey: "inbox",
+      roles: ["admin", "teacher"],
+      feature: "inboxAssistant",
+      section: "communication",
+    },
+    {
       path: "/portal/email-composer",
       icon: HiOutlineEnvelope,
       labelKey: "emailComposer",

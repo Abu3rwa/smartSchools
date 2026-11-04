@@ -151,3 +151,29 @@
 .voice-config-grid .ai-credit-field {
     max-width: none;
 }
+
+.inbox-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-sm);
+    max-width: 900px;
+}
+
+.inbox-config-grid .ai-credit-field {
+    max-width: none;
+}
+
+.ai-credit-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.ai-credit-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-500);
+}

@@ -44,6 +44,9 @@ const SuperAdminAiCreditPage = () => {
     const [voice, setVoice] = useState(null);
     const [voiceDraft, setVoiceDraft] = useState(null);
     const [savingVoice, setSavingVoice] = useState(false);
+    const [inbox, setInbox] = useState(null);
+    const [inboxDraft, setInboxDraft] = useState(null);
+    const [savingInbox, setSavingInbox] = useState(false);
     const [schools, setSchools] = useState(null);
     const [selectedId, setSelectedId] = useState('');
     const [fundAmount, setFundAmount] = useState('10');
@@ -98,6 +101,21 @@ const SuperAdminAiCreditPage = () => {
         return () => { active = false; };
     }, [reloadKey, t]);
 
+    useEffect(() => {
+        let active = true;
+        platformAiCreditService.getInboxSettings()
+            .then((next) => {
+                if (!active) return;
+                setInbox(next);
+                setInboxDraft(next);
+            })
+            .catch(() => {
+                if (!active) return;
+                toast.error(t('superAdminAiCredit:inbox.loadFailed'));
+            });
+        return () => { active = false; };
+    }, [reloadKey, t]);
+
     const selected = (schools?.schools || []).find((row) => row.id === selectedId) || null;
 
     const saveVoice = async () => {
@@ -122,6 +140,29 @@ const SuperAdminAiCreditPage = () => {
             toast.error(error?.response?.data?.message || t('superAdminAiCredit:voice.saveFailed'));
         } finally {
             setSavingVoice(false);
+        }
+    };
+
+    const saveInbox = async () => {
+        if (!inboxDraft || savingInbox) return;
+        setSavingInbox(true);
+        try {
+            const next = await platformAiCreditService.updateInboxSettings({
+                enabled: Boolean(inboxDraft.enabled),
+                defaultScanSize: Number(inboxDraft.defaultScanSize),
+                maxScanSize: Number(inboxDraft.maxScanSize),
+                maxScansPerDay: Number(inboxDraft.maxScansPerDay),
+                maxDraftsPerDay: Number(inboxDraft.maxDraftsPerDay),
+                freeScansPerDay: Number(inboxDraft.freeScansPerDay),
+                rawTextRetentionDays: Number(inboxDraft.rawTextRetentionDays)
+            });
+            setInbox(next);
+            setInboxDraft(next);
+            toast.success(t('superAdminAiCredit:inbox.saved'));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('superAdminAiCredit:inbox.saveFailed'));
+        } finally {
+            setSavingInbox(false);
         }
     };
 
@@ -618,6 +659,67 @@ const SuperAdminAiCreditPage = () => {
                                     onClick={saveVoice}
                                 >
                                     {t('superAdminAiCredit:voice.save')}
+                                </button>
+                            </div>
+                        </section>
+                    )}
+
+                    {inbox && inboxDraft && (
+                        <section className="admin-section">
+                            <div className="admin-section-header">
+                                <div>
+                                    <h2>{t('superAdminAiCredit:inbox.title')}</h2>
+                                    <p className="admin-section-subtitle">{t('superAdminAiCredit:inbox.subtitle')}</p>
+                                </div>
+                                <span className="ai-credit-current">
+                                    {t(inboxDraft.enabled
+                                        ? 'superAdminAiCredit:inbox.statusOn'
+                                        : 'superAdminAiCredit:inbox.statusOff')}
+                                </span>
+                            </div>
+                            <div className="ai-credit-settings">
+                                <label className="ai-credit-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(inboxDraft.enabled)}
+                                        onChange={(event) => setInboxDraft({
+                                            ...inboxDraft, enabled: event.target.checked
+                                        })}
+                                    />
+                                    <span>{t('superAdminAiCredit:inbox.fields.enabled')}</span>
+                                </label>
+                                <div className="inbox-config-grid">
+                                    {[
+                                        ['defaultScanSize', 10, 50],
+                                        ['maxScanSize', 10, 100],
+                                        ['maxScansPerDay', 1, 200],
+                                        ['maxDraftsPerDay', 1, 1000],
+                                        ['freeScansPerDay', 0, 50],
+                                        ['rawTextRetentionDays', 1, 90],
+                                    ].map(([field, min, max]) => (
+                                        <label className="ai-credit-field" key={field}>
+                                            <span>{t(`superAdminAiCredit:inbox.fields.${field}`)}</span>
+                                            <input
+                                                type="number"
+                                                min={min}
+                                                max={max}
+                                                step={1}
+                                                value={inboxDraft[field] ?? ''}
+                                                onChange={(event) => setInboxDraft({
+                                                    ...inboxDraft, [field]: event.target.value
+                                                })}
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="ai-credit-note">{t('superAdminAiCredit:inbox.note')}</p>
+                                <button
+                                    type="button"
+                                    className="admin-action-btn primary"
+                                    disabled={savingInbox}
+                                    onClick={saveInbox}
+                                >
+                                    {t('superAdminAiCredit:inbox.save')}
                                 </button>
                             </div>
                         </section>
