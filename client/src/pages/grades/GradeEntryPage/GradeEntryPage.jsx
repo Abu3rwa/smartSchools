@@ -44,6 +44,7 @@ const GradeEntryPage = () => {
     const user = useSelector(selectUser);
     const myClasses = useSelector(selectMyClasses);
     const [behaviorStudent, setBehaviorStudent] = useState(null);
+    const [selfCheckRows, setSelfCheckRows] = useState([]);
     const [emailLanguage, setEmailLanguage] = useState(() => (
         getEmailLanguagePreference(user?._id || user?.id)
     ));
@@ -239,6 +240,11 @@ const GradeEntryPage = () => {
         });
     }, [setGrades]);
 
+    const selfCheckRowFor = (student) => {
+        const studentId = String(student?._id || student?.id || '');
+        return selfCheckRows.find((row) => String(row.student?.id) === studentId && row.submitted) || null;
+    };
+
     return (
         <div className="grade-entry-page">
             <GradeEntryHeader editMode={editMode} />
@@ -304,6 +310,7 @@ const GradeEntryPage = () => {
                     maxMarks={maxMarks}
                     grades={grades}
                     onApplyMarks={applySelfCheckMarks}
+                    onStudentsChange={setSelfCheckRows}
                 />
             )}
 
@@ -318,6 +325,8 @@ const GradeEntryPage = () => {
                     currentRow={grades[behaviorStudent._id]}
                     maxMarks={maxMarks}
                     userId={user?.id || user?._id}
+                    initialSelectedRuleIds={selfCheckRowFor(behaviorStudent)?.selectedRules.map((rule) => rule.id)}
+                    initialRemark={selfCheckRowFor(behaviorStudent)?.remark}
                     onClose={() => setBehaviorStudent(null)}
                     onApply={(result) => {
                         applyBehaviorScore(behaviorStudent, result);

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../../../config/api';
-import { buildSelfCheckPatch } from '../utils/selfCheckMarks';
+import { buildSelfCheckPatch, withRemovedTicks } from '../utils/selfCheckMarks';
 import './ClassworkSelfCheckPanel.css';
 
 const ClassworkSelfCheckPanel = ({
@@ -12,6 +12,7 @@ const ClassworkSelfCheckPanel = ({
     maxMarks,
     grades,
     onApplyMarks,
+    onStudentsChange,
     disabled = false
 }) => {
     const { t, i18n } = useTranslation(['grades']);
@@ -21,6 +22,8 @@ const ClassworkSelfCheckPanel = ({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [lastRefreshed, setLastRefreshed] = useState(null);
+    // Ticks the teacher removed, by student id; they survive Refresh until the class, subject or date changes.
+    const [removed, setRemoved] = useState({});
 
     const load = useCallback(async () => {
         if (!classId || !subjectId) return;
@@ -31,8 +34,9 @@ const ClassworkSelfCheckPanel = ({
                 params: { classId, subjectId, date }
             });
             const data = response.data?.data || {};
+            const rows = Array.isArray(data.students) ? data.students : [];
             setCheck(data.check || null);
-            setStudents(Array.isArray(data.students) ? data.students : []);
+            setStudents(rows);
             setLastRefreshed(new Date());
         } catch {
             setError(t('grades:selfCheck.loadFailed'));
@@ -44,10 +48,30 @@ const ClassworkSelfCheckPanel = ({
     useEffect(() => {
         setCheck(null);
         setStudents([]);
+        setRemoved({});
         setLastRefreshed(null);
         setError('');
         load();
     }, [load]);
+
+    const adjusted = useMemo(
+        () => students.map((row) => withRemovedTicks(row, removed[row.student?.id], check?.maxMarks ?? maxMarks)),
+        [students, removed, check?.maxMarks, maxMarks]
+    );
+
+    useEffect(() => {
+        onStudentsChange?.(adjusted);
+    }, [adjusted, onStudentsChange]);
+
+    const toggleTick = (studentId, ruleId) => {
+        setRemoved((current) => {
+            const list = current[studentId] || [];
+            return {
+                ...current,
+                [studentId]: list.includes(ruleId) ? list.filter((id) => id !== ruleId) : [...list, ruleId]
+            };
+        });
+    };
 
     const isOpen = check?.status === 'open';
     const submittedCount = students.filter((row) => row.submitted).length;
@@ -69,7 +93,6 @@ const ClassworkSelfCheckPanel = ({
             if (nextOpen) {
                 await load();
             } else {
-                setStudents([]);
                 setLastRefreshed(new Date());
             }
         } catch {
@@ -80,7 +103,7 @@ const ClassworkSelfCheckPanel = ({
     };
 
     const useMarks = () => {
-        const rows = students
+        const rows = adjusted
             .filter((row) => row.submitted)
             .map((row) => ({
                 studentId: row.student.id,
@@ -176,7 +199,10 @@ const ClassworkSelfCheckPanel = ({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {students.map((row) => (
+                                    {students.map((row, index) => {
+                                        const view = adjusted[index] || row;
+                                        const removedIds = removed[row.student.id] || [];
+                                        return (
                                         <tr
                                             key={row.student.id}
                                             className={row.submitted ? '' : 'is-pending'}
@@ -185,14 +211,32 @@ const ClassworkSelfCheckPanel = ({
                                             <td>
                                                 {row.submitted && row.selectedRules.length > 0 && (
                                                     <span className="self-check-chips">
-                                                        {row.selectedRules.map((rule) => (
-                                                            <span
-                                                                key={rule.id}
-                                                                className={`self-check-chip ${rule.value > 0 ? 'positive' : 'negative'}`}
-                                                            >
-                                                                {rule.label}
-                                                            </span>
-                                                        ))}
+                                                        {row.selectedRules.map((rule) => {
+                                                            const isRemoved = removedIds.includes(rule.id);
+                                                            return (
+                                                                <span
+                                                                    key={rule.id}
+                                                                    className={`self-check-chip ${rule.value > 0 ? 'positive' : 'negative'}${isRemoved ? ' is-removed' : ''}`}
+                                                                >
+                                                                    {rule.label}
+                                                                    <button
+                                                                        type="button"
+                                                                        className="self-check-chip-x"
+                                                                        onClick={() => toggleTick(row.student.id, rule.id)}
+                                                                        aria-label={t(
+                                                                            isRemoved ? 'grades:selfCheck.restoreTick' : 'grades:selfCheck.removeTick',
+                                                                            { label: rule.label }
+                                                                        )}
+                                                                        title={t(
+                                                                            isRemoved ? 'grades:selfCheck.restoreTick' : 'grades:selfCheck.removeTick',
+                                                                            { label: rule.label }
+                                                                        )}
+                                                                    >
+                                                                        {isRemoved ? '↺' : '×'}
+                                                                    </button>
+                                                                </span>
+                                                            );
+                                                        })}
                                                     </span>
                                                 )}
                                                 {row.submitted && row.selectedRules.length === 0 && (
@@ -208,11 +252,17 @@ const ClassworkSelfCheckPanel = ({
                                             </td>
                                             <td className="self-check-mark">
                                                 {row.submitted
-                                                    ? `${row.score} / ${check.maxMarks}`
+                                                    ? `${view.score} / ${check.maxMarks}`
                                                     : '—'}
+                                                {row.submitted && view.originalScore !== undefined && (
+                                                    <span className="self-check-was">
+                                                        {t('grades:selfCheck.wasMark', { n: view.originalScore })}
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

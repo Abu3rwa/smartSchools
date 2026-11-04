@@ -50,6 +50,8 @@ const ClassworkBehaviorModal = ({
     currentRow = {},
     maxMarks,
     userId,
+    initialSelectedRuleIds,
+    initialRemark,
     onApply,
     onClose,
     onApplyNext,
@@ -62,11 +64,16 @@ const ClassworkBehaviorModal = ({
         const entry = appliedSelections.get(studentKey);
         return entry && entry.remarks === (currentRow?.remarks || '') ? entry : null;
     });
-    const [selectedRuleIds, setSelectedRuleIds] = useState(() => saved?.selectedRuleIds || []);
-    const [baseScore, setBaseScore] = useState(() => saved?.baseScore ?? 0);
-    const [personalNote, setPersonalNote] = useState(() => (
-        saved ? saved.personalNote : (currentRow?.remarks || '')
+    const [selectedRuleIds, setSelectedRuleIds] = useState(() => (
+        saved?.selectedRuleIds || (Array.isArray(initialSelectedRuleIds) ? initialSelectedRuleIds : [])
     ));
+    const [baseScore, setBaseScore] = useState(() => saved?.baseScore ?? 0);
+    const [personalNote, setPersonalNote] = useState(() => {
+        if (saved) return saved.personalNote;
+        const rowRemark = currentRow?.remarks || '';
+        // The row may already hold the self-check remark; don't append it twice
+        return initialRemark && rowRemark === initialRemark ? '' : rowRemark;
+    });
     const [configuring, setConfiguring] = useState(false);
 
     // Server copy follows the teacher across browsers; push local rules up once if none are saved yet
