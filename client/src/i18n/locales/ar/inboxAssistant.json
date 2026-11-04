@@ -1,7 +1,21 @@
 {
-  "eyebrow": "مساعد البريد الوارد",
+  "eyebrow": "التواصل",
   "title": "مساعد البريد الوارد",
   "subtitle": "أحدث بريدك المدرسي، مرتّبًا حسب ما يحتاج إليك.",
+  "stats": {
+    "label": "لمحة سريعة",
+    "needsReplyOne": "بحاجة إلى ردّ",
+    "needsReplyMany": "بحاجة إلى ردّ",
+    "deadlinesOne": "موعد هذا الأسبوع",
+    "deadlinesMany": "مواعيد هذا الأسبوع",
+    "waitingOne": "بانتظار أكثر من يوم",
+    "waitingTwo": "بانتظار أكثر من يومين",
+    "waitingFew": "بانتظار أكثر من {{n}} أيام",
+    "waitingMany": "بانتظار أكثر من {{n}} يومًا"
+  },
+  "footer": {
+    "safety": "لا يُرسَل أي شيء دون نقرك. ولا تتم أرشفة أي شيء أو حذفه."
+  },
   "loading": "جارٍ تحميل مساعد البريد الوارد…",
   "loadFailed": "تعذّر تحميل مساعد البريد الوارد.",
   "retry": "حاول مجددًا",
@@ -50,7 +64,12 @@
     "reanalyze": "إعادة تحليل كل شيء",
     "lastScan": "آخر فحص {{when}}",
     "neverScanned": "لم يُجرَ فحص بعد",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "scanOptionOne": "فحص رسالة واحدة",
+    "scanOptionTwo": "فحص رسالتين",
+    "scanOptionFew": "فحص {{n}} رسائل",
+    "scanOptionMany": "فحص {{n}} رسالة",
+    "justNow": "الآن"
   },
   "tabs": {
     "label": "مجموعات البريد",
@@ -60,7 +79,9 @@
     "ignored": "مُتجاهَلة",
     "sent": "المرسلة",
     "showIgnored": "عرض البريد المتجاهَل",
-    "hideIgnored": "إخفاء البريد المتجاهَل"
+    "hideIgnored": "إخفاء البريد المتجاهَل",
+    "showIgnoredCount": "عرض البريد المتجاهَل ({{n}})",
+    "hideIgnoredCount": "إخفاء البريد المتجاهَل ({{n}})"
   },
   "deadlines": {
     "loading": "جارٍ تحميل المواعيد…",
@@ -93,7 +114,10 @@
     "add": "إضافة الموعد",
     "empty": "لا توجد مواعيد مؤكَّدة بعد.",
     "saveFailed": "تعذّر تحديث هذا الموعد. حاول مجددًا.",
-    "addFailed": "تعذّر إضافة هذا الموعد. حاول مجددًا."
+    "addFailed": "تعذّر إضافة هذا الموعد. حاول مجددًا.",
+    "foundInEmail": "وُجد في الرسالة",
+    "quote": "«{{quote}}»",
+    "confirmedFrom": "مؤكَّد من {{sender}}"
   },
   "estimate": {
     "title": "هل تريد الفحص الآن؟",
@@ -120,7 +144,8 @@
       "fyi": "لا توجد رسائل للعلم بعد.",
       "ignored": "لا توجد رسائل متجاهَلة."
     },
-    "emptyHint": "شغّل فحصًا لجلب أحدث بريدك."
+    "emptyHint": "شغّل فحصًا لجلب أحدث بريدك.",
+    "failureKeep": "تبقى الملخّصات الحالية ظاهرة حتى ينجح التحديث."
   },
   "row": {
     "unknownSender": "مرسل غير معروف",
@@ -132,6 +157,14 @@
     "draftReply": "اكتب ردًّا",
     "markDone": "تمّ",
     "notImportant": "غير مهم",
+    "addDeadline": "إضافة موعد",
+    "more": "خيارات أخرى لهذه الرسالة",
+    "yesterday": "أمس",
+    "hasDeadline": "له موعد",
+    "whyUrgent": "تبدو عاجلة، لذلك هي في الأعلى.",
+    "whyNeedsReply": "هناك من ينتظر ردًّا منك.",
+    "whyFyi": "لا شيء مطلوب. محفوظة للعلم.",
+    "whyIgnored": "عُلّمت كغير مهمة.",
     "saveFailed": "تعذّر تحديث هذه الرسالة. حاول مجددًا."
   },
   "roles": {
@@ -227,7 +260,13 @@
     "subject": "الموضوع",
     "body": "الرد",
     "assumedTitle": "ما افترضته",
+    "draftNotSent": "مسودة ذكاء اصطناعي · لم تُرسل",
+    "replyingIn": "الردّ باللغة {{language}}",
+    "toneLine": "النبرة: {{tone}}",
+    "sendThread": "يُرسل الرد داخل محادثة Gmail الأصلية.",
+    "sendNoAiRecipients": "لم يضف الذكاء الاصطناعي أي مستلم.",
     "placeholderBanner": "املأ {{list}} قبل الإرسال.",
+    "placeholderNote": "املأ الأجزاء المميّزة قبل الإرسال.",
     "placeholderCountOne": "جزء واحد للملء",
     "placeholderCountTwo": "جزآن للملء",
     "placeholderCountFew": "{{n}} أجزاء للملء",
@@ -271,7 +310,7 @@
     "loadMore": "تحميل المزيد",
     "loadingMore": "جارٍ التحميل…",
     "emptyTitle": "إفراغ سجل الإرسال؟",
-    "emptyBody": "يزيل هذا القائمة داخل التطبيق فقط. لا يتغير مجلد \"المرسلة\" في Gmail.",
+    "emptyBody": "يزيل هذا السجلات من GradeBook Pro فقط. لا يتغير مجلد \"المرسلة\" في Gmail.",
     "cleanupLine": "لنقل رسائلك المرسلة فعليًا إلى المهملات، استخدم",
     "cleanupLink": "تنظيف Gmail",
     "cancel": "إلغاء",

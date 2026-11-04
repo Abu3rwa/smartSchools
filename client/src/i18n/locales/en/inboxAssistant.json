@@ -1,7 +1,21 @@
 {
-  "eyebrow": "Inbox Assistant",
+  "eyebrow": "Communication",
   "title": "Inbox Assistant",
   "subtitle": "Your newest school mail, sorted by what needs you.",
+  "stats": {
+    "label": "At a glance",
+    "needsReplyOne": "needs a reply",
+    "needsReplyMany": "need a reply",
+    "deadlinesOne": "deadline this week",
+    "deadlinesMany": "deadlines this week",
+    "waitingOne": "waiting over 1 day",
+    "waitingTwo": "waiting over {{n}} days",
+    "waitingFew": "waiting over {{n}} days",
+    "waitingMany": "waiting over {{n}} days"
+  },
+  "footer": {
+    "safety": "Nothing is sent without your click. Nothing is archived or deleted."
+  },
   "loading": "Loading Inbox Assistant…",
   "loadFailed": "Could not load Inbox Assistant.",
   "retry": "Try again",
@@ -50,7 +64,12 @@
     "reanalyze": "Re-analyze everything",
     "lastScan": "Last scanned {{when}}",
     "neverScanned": "Not scanned yet",
-    "settings": "Settings"
+    "settings": "Settings",
+    "scanOptionOne": "Scan {{n}} email",
+    "scanOptionTwo": "Scan {{n}} emails",
+    "scanOptionFew": "Scan {{n}} emails",
+    "scanOptionMany": "Scan {{n}} emails",
+    "justNow": "just now"
   },
   "tabs": {
     "label": "Email groups",
@@ -60,7 +79,9 @@
     "ignored": "Ignored",
     "sent": "Sent",
     "showIgnored": "Show ignored emails",
-    "hideIgnored": "Hide ignored emails"
+    "hideIgnored": "Hide ignored emails",
+    "showIgnoredCount": "Show ignored emails ({{n}})",
+    "hideIgnoredCount": "Hide ignored emails ({{n}})"
   },
   "deadlines": {
     "loading": "Loading deadlines…",
@@ -93,7 +114,10 @@
     "add": "Add deadline",
     "empty": "No confirmed deadlines yet.",
     "saveFailed": "Could not update this deadline. Try again.",
-    "addFailed": "Could not add this deadline. Try again."
+    "addFailed": "Could not add this deadline. Try again.",
+    "foundInEmail": "Found in email",
+    "quote": "“{{quote}}”",
+    "confirmedFrom": "Confirmed from {{sender}}"
   },
   "estimate": {
     "title": "Scan now?",
@@ -120,7 +144,8 @@
       "fyi": "No FYI emails yet.",
       "ignored": "No ignored emails."
     },
-    "emptyHint": "Run a scan to bring in your newest mail."
+    "emptyHint": "Run a scan to bring in your newest mail.",
+    "failureKeep": "Existing summaries stay visible until the reload succeeds."
   },
   "row": {
     "unknownSender": "Unknown sender",
@@ -132,6 +157,14 @@
     "draftReply": "Draft reply",
     "markDone": "Mark done",
     "notImportant": "Not important",
+    "addDeadline": "Add deadline",
+    "more": "More actions for this email",
+    "yesterday": "Yesterday",
+    "hasDeadline": "Has a deadline",
+    "whyUrgent": "This looks urgent, so it is at the top.",
+    "whyNeedsReply": "Someone is waiting for a reply from you.",
+    "whyFyi": "Nothing to do. Kept for your records.",
+    "whyIgnored": "Marked as not important.",
     "saveFailed": "Could not update that email. Try again."
   },
   "roles": {
@@ -227,7 +260,13 @@
     "subject": "Subject",
     "body": "Reply",
     "assumedTitle": "What I assumed",
+    "draftNotSent": "AI draft · not sent",
+    "replyingIn": "Replying in {{language}}",
+    "toneLine": "Tone: {{tone}}",
+    "sendThread": "It goes into the original Gmail thread.",
+    "sendNoAiRecipients": "No recipient was added by the AI.",
     "placeholderBanner": "Fill in {{list}} before sending.",
+    "placeholderNote": "Fill in the highlighted parts before sending.",
     "placeholderCountOne": "1 part to fill",
     "placeholderCountTwo": "{{n}} parts to fill",
     "placeholderCountFew": "{{n}} parts to fill",
@@ -271,7 +310,7 @@
     "loadMore": "Load more",
     "loadingMore": "Loading…",
     "emptyTitle": "Empty the sent history?",
-    "emptyBody": "This removes the list inside this app. Your Gmail Sent folder is not changed.",
+    "emptyBody": "This removes the records from GradeBook Pro only. Your Gmail Sent folder is not changed.",
     "cleanupLine": "To move your real sent emails to Trash, use",
     "cleanupLink": "Gmail cleanup",
     "cancel": "Cancel",

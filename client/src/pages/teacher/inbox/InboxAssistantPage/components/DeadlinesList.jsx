@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   HiOutlineCalendarDays,
   HiOutlineCheck,
-  HiOutlineClock,
   HiOutlinePlus,
 } from "react-icons/hi2";
 import {
@@ -15,8 +14,26 @@ import {
   reminderFromOption,
   reminderOptionFor,
 } from "../inboxUi.js";
+import { datePillParts, formatClock } from "./display.js";
 
 const REMIND_OPTIONS = ["none", "oneDay", "twoHours", "custom"];
+
+function DatePill({ dueAt, language }) {
+  const parts = datePillParts(dueAt, language);
+  return (
+    <span className="ia-date-pill">
+      {parts ? (
+        <>
+          <b aria-hidden="true">{parts.day}</b>
+          <span aria-hidden="true">{parts.month}</span>
+        </>
+      ) : null}
+      <span className="ia-sr-only">
+        {formatDeadlineDate(dueAt, { language })}
+      </span>
+    </span>
+  );
+}
 
 function EditDateForm({ deadline, saving, onSave, onCancel }) {
   const { t } = useTranslation(["inboxAssistant"]);
@@ -54,19 +71,21 @@ function EditDateForm({ deadline, saving, onSave, onCancel }) {
   );
 }
 
-function ProposedRow({ deadline, language, index = 0, saving, onConfirm, onDismiss, onUpdateDue }) {
+function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm, onDismiss, onUpdateDue }) {
   const { t } = useTranslation(["inboxAssistant"]);
   const [editing, setEditing] = useState(false);
+  const source = [
+    deadline.quote ? t("inboxAssistant:deadlines.quote", { quote: deadline.quote }) : "",
+    sender,
+  ].filter(Boolean).join(" · ");
 
   return (
     <li className="ia-deadline is-proposed" style={{ "--ia-i": index }}>
+      <DatePill dueAt={deadline.dueAt} language={language} />
       <div className="ia-deadline-main">
         <strong className="ia-deadline-title">{deadline.title}</strong>
-        <span className="ia-deadline-date">
-          <HiOutlineClock size={14} aria-hidden="true" />
-          {formatDeadlineDate(deadline.dueAt, { language, dueDateOnly: deadline.dueDateOnly })}
-        </span>
-        {deadline.quote && <blockquote className="ia-deadline-quote">{deadline.quote}</blockquote>}
+        {source && <span className="ia-deadline-meta">{source}</span>}
+        <span className="ia-chip is-found">{t("inboxAssistant:deadlines.foundInEmail")}</span>
         {editing && (
           <EditDateForm
             deadline={deadline}
@@ -86,7 +105,7 @@ function ProposedRow({ deadline, language, index = 0, saving, onConfirm, onDismi
           disabled={saving}
           onClick={() => onConfirm(deadline.id)}
         >
-          <HiOutlineCheck size={15} aria-hidden="true" />
+          <HiOutlineCheck size={14} aria-hidden="true" />
           {t("inboxAssistant:deadlines.confirm")}
         </button>
         <button
@@ -110,7 +129,7 @@ function ProposedRow({ deadline, language, index = 0, saving, onConfirm, onDismi
   );
 }
 
-function ConfirmedRow({ deadline, language, index = 0, saving, onDone, onRemind }) {
+function ConfirmedRow({ deadline, language, index = 0, saving, sender, onDone, onRemind }) {
   const { t } = useTranslation(["inboxAssistant"]);
   const initialOption = reminderOptionFor(deadline);
   const [option, setOption] = useState(initialOption);
@@ -121,6 +140,10 @@ function ConfirmedRow({ deadline, language, index = 0, saving, onDone, onRemind 
   const chipClass = chipKey === "deadlines.overdue"
     ? "is-overdue"
     : (chipKey === "deadlines.today" ? "is-today" : "is-tomorrow");
+  const meta = [
+    sender ? t("inboxAssistant:deadlines.confirmedFrom", { sender }) : "",
+    deadline.dueDateOnly ? "" : formatClock(deadline.dueAt, language),
+  ].filter(Boolean).join(" · ");
 
   const changeOption = (next) => {
     setOption(next);
@@ -139,19 +162,17 @@ function ConfirmedRow({ deadline, language, index = 0, saving, onDone, onRemind 
       className={`ia-deadline is-confirmed ${chipKey ? chipClass : ""}`}
       style={{ "--ia-i": index }}
     >
+      <DatePill dueAt={deadline.dueAt} language={language} />
       <div className="ia-deadline-main">
         <strong className="ia-deadline-title">{deadline.title}</strong>
-        <span className="ia-deadline-date">
-          <HiOutlineClock size={14} aria-hidden="true" />
-          {formatDeadlineDate(deadline.dueAt, { language, dueDateOnly: deadline.dueDateOnly })}
-        </span>
-        {chipKey && <span className={`ia-chip ia-deadline-chip ${chipClass}`}>{t(`inboxAssistant:${chipKey}`)}</span>}
+        {meta && <span className="ia-deadline-meta">{meta}</span>}
+        {chipKey && <span className={`ia-chip ${chipClass}`}>{t(`inboxAssistant:${chipKey}`)}</span>}
       </div>
       <div className="ia-deadline-actions">
         <label className="ia-remind">
           <span>{t("inboxAssistant:deadlines.remindLabel")}</span>
           <select
-            className="input"
+            className="ia-select"
             value={option}
             disabled={saving}
             onChange={(event) => changeOption(event.target.value)}
@@ -177,11 +198,11 @@ function ConfirmedRow({ deadline, language, index = 0, saving, onDone, onRemind 
         )}
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className="btn btn-secondary btn-sm"
           disabled={saving}
           onClick={() => onDone(deadline.id)}
         >
-          <HiOutlineCheck size={15} aria-hidden="true" />
+          <HiOutlineCheck size={14} aria-hidden="true" />
           {t("inboxAssistant:deadlines.done")}
         </button>
       </div>
@@ -189,9 +210,9 @@ function ConfirmedRow({ deadline, language, index = 0, saving, onDone, onRemind 
   );
 }
 
-function AddDeadlineForm({ creating, onAdd }) {
+function AddDeadlineForm({ creating, seedTitle = "", onAdd, onSeedUsed }) {
   const { t } = useTranslation(["inboxAssistant"]);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(seedTitle);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
@@ -204,6 +225,7 @@ function AddDeadlineForm({ creating, onAdd }) {
       setTitle("");
       setDate("");
       setTime("");
+      onSeedUsed?.();
     }
   };
 
@@ -253,7 +275,7 @@ function AddDeadlineForm({ creating, onAdd }) {
   );
 }
 
-export default function DeadlinesList({ list, language, onRetry }) {
+export default function DeadlinesList({ list, language, onRetry, seedTitle = "", onSeedUsed, senderFor }) {
   const { t } = useTranslation(["inboxAssistant"]);
 
   const proposed = list.deadlines
@@ -270,8 +292,11 @@ export default function DeadlinesList({ list, language, onRetry }) {
         <div className="ia-skeleton-list" aria-hidden="true">
           {[0, 1, 2].map((row) => (
             <div key={row} className="ia-skeleton-row" style={{ "--ia-i": row }}>
-              <span className="ia-skeleton-line is-title" />
-              <span className="ia-skeleton-line is-meta" />
+              <span className="ia-skeleton-avatar" />
+              <div className="ia-skeleton-lines">
+                <span className="ia-skeleton-line is-short" />
+                <span className="ia-skeleton-line" />
+              </div>
             </div>
           ))}
         </div>
@@ -311,6 +336,7 @@ export default function DeadlinesList({ list, language, onRetry }) {
                 language={language}
                 index={index}
                 saving={list.savingId === deadline.id}
+                sender={senderFor?.(deadline.emailId) || ""}
                 onConfirm={list.confirm}
                 onDismiss={list.dismiss}
                 onUpdateDue={list.updateDue}
@@ -323,7 +349,7 @@ export default function DeadlinesList({ list, language, onRetry }) {
       <section aria-label={t("inboxAssistant:deadlines.confirmedTitle")}>
         <h3 className="ia-deadline-section-title">
           {t("inboxAssistant:deadlines.confirmedTitle")}
-          {confirmed.length > 0 && <span className="ia-count">{confirmed.length}</span>}
+          {confirmed.length > 0 && <span className="ia-tab-count">{confirmed.length}</span>}
         </h3>
         {confirmed.length === 0 ? (
           <div className="ia-list-state ia-empty">
@@ -341,6 +367,7 @@ export default function DeadlinesList({ list, language, onRetry }) {
                 language={language}
                 index={index}
                 saving={list.savingId === deadline.id}
+                sender={senderFor?.(deadline.emailId) || ""}
                 onDone={list.markDone}
                 onRemind={list.setReminder}
               />
@@ -349,7 +376,12 @@ export default function DeadlinesList({ list, language, onRetry }) {
         )}
       </section>
 
-      <AddDeadlineForm creating={list.creating} onAdd={list.add} />
+      <AddDeadlineForm
+        creating={list.creating}
+        seedTitle={seedTitle}
+        onAdd={list.add}
+        onSeedUsed={onSeedUsed}
+      />
     </div>
   );
 }

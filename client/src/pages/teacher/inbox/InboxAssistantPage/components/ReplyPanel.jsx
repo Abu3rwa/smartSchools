@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { HiOutlinePencilSquare } from "react-icons/hi2";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 import DraftEditor from "./DraftEditor.jsx";
 import ReplyTypePicker from "./ReplyTypePicker.jsx";
-import { formatEstimate } from "../inboxUi.js";
+import { formatEstimate, senderRoleKey } from "../inboxUi.js";
+import { formatEmailTime } from "./display.js";
 
 export default function ReplyPanel({ reply, language, defaultTone }) {
   const { t, i18n } = useTranslation(["inboxAssistant"]);
@@ -15,8 +17,12 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
 
   const email = reply.email;
   const draft = reply.draft;
+  const detail = reply.detail;
   const sender = email.fromName || email.fromEmail || t("inboxAssistant:row.unknownSender");
   const busy = reply.sending || reply.gmailSaving || reply.discarding;
+  const roleKey = senderRoleKey(detail?.senderRole);
+  const draftLanguage = draft?.language === "ar" ? "ar" : "en";
+  const draftTone = draft?.tone || defaultTone || "professional";
 
   const doSend = async () => {
     if (sendLockRef.current) return;
@@ -41,20 +47,23 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
   };
 
   return (
-    <section className="ia-reply" aria-labelledby="ia-reply-title">
-      <header className="ia-reply-head">
-        <div>
-          <p className="ia-eyebrow">{t("inboxAssistant:reply.eyebrow")}</p>
+    <section className="ia-panel ia-reply" aria-labelledby="ia-reply-title">
+      <header className="ia-panel-head ia-reply-head">
+        <span className="ia-reply-heading">
+          <HiOutlinePencilSquare size={15} aria-hidden="true" />
           <h2 id="ia-reply-title">{t("inboxAssistant:reply.title", { sender })}</h2>
+        </span>
+        <div className="ia-panel-tools">
+          {draft && <span className="ia-chip is-fyi">{t("inboxAssistant:reply.draftNotSent")}</span>}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={reply.sending || reply.discarding}
+            onClick={() => reply.close()}
+          >
+            {t("inboxAssistant:reply.close")}
+          </button>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={reply.sending || reply.discarding}
-          onClick={() => reply.close()}
-        >
-          {t("inboxAssistant:reply.close")}
-        </button>
       </header>
 
       {reply.errorKey && (
@@ -65,8 +74,8 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
       )}
 
       <div className="ia-reply-grid">
-        <article className="ia-original">
-          <h3>{t("inboxAssistant:reply.original")}</h3>
+        <article className="ia-reply-col ia-original">
+          <p className="ia-col-label">{t("inboxAssistant:reply.original")}</p>
           {reply.detailState === "loading" && (
             <p className="ia-list-state" role="status">{t("inboxAssistant:reply.loading")}</p>
           )}
@@ -80,21 +89,45 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
           )}
           {reply.detailState === "ready" && (
             <>
-              <p className="ia-original-meta">
-                <strong>{sender}</strong>
-                {reply.detail?.subject && <span>{reply.detail.subject}</span>}
+              <p className="ia-orig-meta">{sender}</p>
+              <p className="ia-orig-time">
+                {formatEmailTime(detail?.receivedAt, {
+                  language,
+                  yesterday: t("inboxAssistant:row.yesterday"),
+                })}
+                {roleKey ? ` · ${t(`inboxAssistant:${roleKey}`)}` : ""}
               </p>
-              {reply.detail?.summary && (
-                <p className="ia-original-summary">{reply.detail.summary}</p>
-              )}
-              {reply.detail?.bodyText
-                ? <div className="ia-original-text">{reply.detail.bodyText}</div>
+              {detail?.subject && <p className="ia-orig-subject">{detail.subject}</p>}
+              {detail?.summary && <p className="ia-original-summary">{detail.summary}</p>}
+              {detail?.bodyText
+                ? <div className="ia-orig-body">{detail.bodyText}</div>
                 : <p className="ia-hint">{t("inboxAssistant:reply.noText")}</p>}
             </>
           )}
+
+          {draft?.assumptions?.length > 0 && (
+            <div className="ia-assumed">
+              <p className="ia-col-label">{t("inboxAssistant:reply.assumedTitle")}</p>
+              <ul>
+                {draft.assumptions.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          )}
         </article>
 
-        <div className="ia-reply-draft">
+        <div className="ia-reply-col ia-reply-draft">
+          <p className="ia-col-label">{t("inboxAssistant:reply.body")}</p>
+          {draft && (
+            <p className="ia-draft-meta">
+              {t("inboxAssistant:reply.replyingIn", {
+                language: t(`inboxAssistant:reply.languages.${draftLanguage}`),
+              })}
+              {" · "}
+              {t("inboxAssistant:reply.toneLine", {
+                tone: t(`inboxAssistant:toolbar.tones.${draftTone}`),
+              })}
+            </p>
+          )}
           {!draft && (
             <ReplyTypePicker
               key={email.id}
@@ -142,19 +175,20 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
               <dt>{t("inboxAssistant:reply.to")}</dt>
               <dd>{draft.to?.join(", ") || t("inboxAssistant:reply.noRecipient")}</dd>
             </div>
-            <div>
-              <dt>{t("inboxAssistant:reply.cc")}</dt>
-              <dd>
-                {draft.includeCc
-                  ? (draft.cc?.join(", ") || t("inboxAssistant:reply.noCc"))
-                  : t("inboxAssistant:reply.noCc")}
-              </dd>
-            </div>
+            {draft.cc?.length > 0 && (
+              <div>
+                <dt>{t("inboxAssistant:reply.cc")}</dt>
+                <dd>{draft.cc.join(", ")}</dd>
+              </div>
+            )}
             <div>
               <dt>{t("inboxAssistant:reply.subject")}</dt>
               <dd>{draft.subject}</dd>
             </div>
           </dl>
+          <p className="ia-dialog-note">
+            {t("inboxAssistant:reply.sendThread")} {t("inboxAssistant:reply.sendNoAiRecipients")}
+          </p>
           <div className="ia-send-body">{draft.body}</div>
           <div className="ia-dialog-actions">
             <button

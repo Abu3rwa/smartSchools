@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { HiOutlineArrowPath } from "react-icons/hi2";
 import { isSendAllowed, placeholderCountKey } from "../inboxUi.js";
 
 export default function DraftEditor({
@@ -17,20 +18,23 @@ export default function DraftEditor({
 }) {
   const { t } = useTranslation(["inboxAssistant"]);
   const busy = sending || gmailSaving || discarding;
-  const sendable = isSendAllowed(draft) && !busy;
+  const sendable = isSendAllowed(draft) && placeholders.length === 0 && !busy;
   const showSendHint = !sendable && !busy && placeholders.length === 0;
   const hasText = Boolean(String(draft.subject || "").trim() && String(draft.body || "").trim());
   const ccList = Array.isArray(draft.cc) ? draft.cc : [];
 
   return (
     <section className="ia-draft" aria-label={t("inboxAssistant:reply.body")}>
-      <div className="ia-draft-recipients">
-        <p>
-          <span className="ia-chip-label">{t("inboxAssistant:reply.to")}</span>
+      <div className="ia-field">
+        <span className="ia-field-label">{t("inboxAssistant:reply.to")}</span>
+        <div className="ia-field-box">
           {draft.to?.length
             ? <span className="ia-addresses">{draft.to.join(", ")}</span>
             : <span className="ia-warning">{t("inboxAssistant:reply.noRecipient")}</span>}
-        </p>
+        </div>
+      </div>
+
+      <div className="ia-draft-cc">
         <label className="ia-check ia-check-inline">
           <input
             type="checkbox"
@@ -41,19 +45,19 @@ export default function DraftEditor({
           <span>{t("inboxAssistant:reply.includeCc")}</span>
         </label>
         {draft.includeCc && (
-          <p>
-            <span className="ia-chip-label">{t("inboxAssistant:reply.cc")}</span>
+          <div className="ia-field-box is-inline">
             {ccList.length
               ? <span className="ia-addresses">{ccList.join(", ")}</span>
               : <span className="ia-hint">{t("inboxAssistant:reply.noCc")}</span>}
-          </p>
+          </div>
         )}
       </div>
 
       <label className="ia-field">
-        <span>{t("inboxAssistant:reply.subject")}</span>
+        <span className="ia-field-label">{t("inboxAssistant:reply.subject")}</span>
         <input
           type="text"
+          className="ia-field-box"
           maxLength={300}
           value={draft.subject}
           disabled={busy}
@@ -62,8 +66,9 @@ export default function DraftEditor({
       </label>
 
       <label className="ia-field">
-        <span>{t("inboxAssistant:reply.body")}</span>
+        <span className="ia-field-label">{t("inboxAssistant:reply.body")}</span>
         <textarea
+          className="ia-field-box is-area"
           rows={12}
           maxLength={8000}
           value={draft.body}
@@ -79,23 +84,17 @@ export default function DraftEditor({
               n: placeholders.length,
             })}
           </strong>
-          <p>{t("inboxAssistant:reply.placeholderBanner", { list: placeholders.join(", ") })}</p>
-        </div>
-      )}
-
-      {draft.assumptions?.length > 0 && (
-        <div className="ia-assumed">
-          <h3>{t("inboxAssistant:reply.assumedTitle")}</h3>
-          <ul>
-            {draft.assumptions.map((item) => <li key={item}>{item}</li>)}
-          </ul>
+          <p>{t("inboxAssistant:reply.placeholderNote")}</p>
+          <p className="ia-placeholder-tokens">
+            {placeholders.map((token) => <mark key={token}>{token}</mark>)}
+          </p>
         </div>
       )}
 
       <div className="ia-draft-actions">
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary btn-sm"
           disabled={!sendable}
           aria-describedby={showSendHint ? "ia-send-hint" : undefined}
           onClick={onRequestSend}
@@ -104,16 +103,17 @@ export default function DraftEditor({
         </button>
         <button
           type="button"
-          className="btn btn-secondary"
+          className="btn btn-secondary btn-sm"
           disabled={busy || !hasText}
           onClick={onSaveGmail}
         >
           {t(gmailSaving ? "inboxAssistant:reply.savingGmail" : "inboxAssistant:reply.saveGmail")}
         </button>
-        <button type="button" className="btn btn-secondary" disabled={busy} onClick={onRequestRegenerate}>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onRequestRegenerate}>
+          <HiOutlineArrowPath size={13} aria-hidden="true" />
           {t("inboxAssistant:reply.regenerate")}
         </button>
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={onRequestDiscard}>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onRequestDiscard}>
           {t("inboxAssistant:reply.discard")}
         </button>
       </div>
