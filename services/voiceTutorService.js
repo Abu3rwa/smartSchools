@@ -21,14 +21,16 @@ import {
   tokenCounts,
 } from "./aiCreditService.js";
 import {
-  countTries,
+  countVoiceTries,
   buildVoicePrompt,
   buildVoiceOpeningPrompt,
+  lessonFocus,
   lessonLabel,
   nextQuestionType,
   readVoiceReply,
   resolveAccess,
   voiceSpeechSegments,
+  WRAP_UP_AFTER_RIGHT,
 } from "./tutorCore.js";
 import {
   getClassAccess,
@@ -165,6 +167,20 @@ const objectId = (value) =>
   mongoose.isValidObjectId(value)
     ? new mongoose.Types.ObjectId(String(value))
     : null;
+
+/**
+ * The lesson's own essential question travels with the session so the board can
+ * show the through-line the whole conversation is built around.
+ */
+const publicLesson = (lesson) => {
+  if (!lesson) return null;
+  const focus = lessonFocus(lesson.content || "");
+  return {
+    id: String(lesson._id),
+    label: lessonLabel(lesson),
+    essentialQuestion: focus.essentialQuestion,
+  };
+};
 const creditsOf = (account) =>
   Math.max(0, Math.floor(Number(account?.balanceCents) || 0));
 
@@ -607,6 +623,8 @@ const publicMessage = (message = {}) => ({
   options: Array.isArray(message.options) ? message.options : [],
   questionType: message.questionType || "",
   stage: message.stage || "",
+  wrapUp: Boolean(message.wrapUp),
+  verdict: message.verdict || "",
   at: message.at || null,
 });
 
@@ -858,7 +876,7 @@ export const startVoiceSession = async ({
   const base = {
     ...shaped,
     subject: { id: String(subject), name: subjectDoc.name },
-    lesson: { id: String(lesson._id), label: lessonLabel(lesson) },
+    lesson: publicLesson(lesson),
     turnId: String(turnId),
     audioFailed,
   };
@@ -886,7 +904,7 @@ export const getVoiceSession = async ({ schoolId, student, sessionId }) => {
     session.lesson
       ? TutorLesson.findOne({ _id: session.lesson, school: schoolId })
           .select(
-            "unitNumber unitTitle chapterNumber chapterTitle lessonNumber title",
+            "unitNumber unitTitle chapterNumber chapterTitle lessonNumber title content",
           )
           .lean()
       : null,
@@ -897,10 +915,8 @@ export const getVoiceSession = async ({ schoolId, student, sessionId }) => {
       : null,
   ]);
   const shaped = shapeSession(session.toObject(), wallet, config);
-  if (lesson)
-    shaped.lesson = { id: String(lesson._id), label: lessonLabel(lesson) };
-  if (subject)
-    shaped.subject = { id: String(session.subject), name: subject.name };
+  if (lesson) shaped.lesson = publicLesson(lesson);
+  if (subject) shaped.subject = { id: String(session.subject), name: subject.name };
   return shaped;
 };
 
@@ -936,7 +952,7 @@ const findTurnSession = async ({ schoolId, student, sessionId }) => {
     student: student._id,
   })
     // $slice cannot be combined with "messages.<field>" paths (path collision).
-    .select("status classId language languageLevel grade subject lesson")
+    .select("status classId language languageLevel grade subject lesson rightCount")
     .slice("messages", -8)
     .lean();
   if (!session) throw notFound("This voice session is not yours.");
@@ -985,6 +1001,8 @@ export const buildTurnMessages = ({
         options: parsed.options,
         questionType: parsed.questionType,
         stage: parsed.stage,
+        verdict: parsed.verdict || "",
+        wrapUp: Boolean(parsed.wrapUp),
         lessonIds: lessons.map((lesson) => lesson._id),
         tokens: Number(reply?.totalTokenCount) || 0,
         credits: price,
@@ -1080,8 +1098,12 @@ export const askVoice = async ({
     text: message.text,
     spoken: message.spoken,
     stage: message.stage || null,
+    verdict: message.verdict || "",
     questionType: message.questionType || "",
   }));
+  const lastTutor = [...prior].reverse().find((row) => row.role === "tutor");
+  const firstReply = lastTutor?.stage === "opening";
+  const rightSoFar = Number(session.rightCount) || 0;
   // Everything a child said is scrubbed on its way into the prompt only; the
   // stored turn and the "You said" line keep the original words.
   const safe = scrubVoiceTurn({
@@ -1100,8 +1122,10 @@ export const askVoice = async ({
     languageLevel: session.languageLevel,
     lesson: lessonRow,
     board: safe.prior,
-    tries: countTries(prior),
+    tries: countVoiceTries(prior),
     assessmentMode: true,
+    firstReply,
+    rightSoFar,
     questionType: nextQuestionType(prior),
   });
 
@@ -1142,6 +1166,9 @@ export const askVoice = async ({
   }
 
   const speechSegments = speechSegmentsFor(parsed);
+  const rightNow = parsed.verdict === "right" ? 1 : 0;
+  parsed.wrapUp =
+    parsed.wrapUp && rightNow === 1 && rightSoFar + 1 >= WRAP_UP_AFTER_RIGHT;
   const speechSeconds = Math.min(
     config.maxSpeechSeconds,
     speechSecondsFor(speechSegments, parsed.spoken),
@@ -1217,6 +1244,7 @@ export const askVoice = async ({
         },
         $inc: {
           messageCount: 1,
+          rightCount: rightNow,
           creditsSpent: price,
           providerCostCents,
           chargedCents: price,
@@ -1240,6 +1268,7 @@ export const askVoice = async ({
     sessionId: String(session._id),
     transcript,
     stage: parsed.stage,
+    wrapUp: Boolean(parsed.wrapUp),
     lead: parsed.lead,
     emphasis: parsed.emphasis,
     blocks: parsed.blocks,
@@ -1247,9 +1276,7 @@ export const askVoice = async ({
     options: parsed.options,
     questionType: parsed.questionType,
     spoken: parsed.spoken,
-    lesson: lessonRow
-      ? { id: String(lessonRow._id), label: lessonLabel(lessonRow) }
-      : null,
+    lesson: publicLesson(lessonRow),
     turnId: String(turnId),
     audioFailed,
     voice: walletCopy(after, price),

@@ -72,6 +72,8 @@ export const useVoiceTutor = () => {
   const [tapToToggle, setTapToToggleState] = useState(readTapMode);
   const [canRetry, setCanRetry] = useState(false);
   const [pendingStudentText, setPendingStudentText] = useState("");
+  // What the student just said: { text, status: "sending" | "sent" | "failed", voice }
+  const [lastSaid, setLastSaid] = useState(null);
 
   const recorderRef = useRef(null);
   // A press can end while the browser is still asking for microphone access.
@@ -485,6 +487,7 @@ export const useVoiceTutor = () => {
       stopPlayback({ reveal: false });
       setPhase("thinking");
       setError("");
+      setLastSaid({ text: text || "", status: "sending", voice: !text });
       retryRef.current = { blob, durationMs, text };
       setCanRetry(true);
       setPendingStudentText(text || "");
@@ -501,6 +504,11 @@ export const useVoiceTutor = () => {
         if (!mountedRef.current) return null;
         retryRef.current = null;
         setCanRetry(false);
+        setLastSaid({
+          text: data.transcript || text || "",
+          status: "sent",
+          voice: false,
+        });
         setPendingStudentText("");
         const at = new Date().toISOString();
         const said = {
@@ -519,6 +527,7 @@ export const useVoiceTutor = () => {
           options: data.options,
           questionType: data.questionType,
           stage: data.stage,
+          wrapUp: Boolean(data.wrapUp),
           turnId: data.turnId,
           clips: data.clips || [],
           at,
@@ -542,6 +551,9 @@ export const useVoiceTutor = () => {
         if (mountedRef.current) {
           setPhase("idle");
           setPendingStudentText("");
+          setLastSaid((current) =>
+            current ? { ...current, status: "failed" } : current,
+          );
           setError(errorText(turnError) || i18n.t("tutor:voice.errors.turn"));
         }
         return null;
@@ -594,6 +606,7 @@ export const useVoiceTutor = () => {
     // Talking over the tutor stops the clip and shows the rest of the turn.
     stopPlayback();
     setError("");
+    setLastSaid(null);
     setShortTap(false);
     retryRef.current = null;
     setCanRetry(false);
@@ -776,6 +789,7 @@ export const useVoiceTutor = () => {
         );
         if (mountedRef.current) {
           setSession(data);
+          setLastSaid(null);
           lastSegmentsRef.current = [];
           lastSourceRef.current = "";
           lastTurnRef.current = {
@@ -808,6 +822,14 @@ export const useVoiceTutor = () => {
         const data = unwrap(await tutorService.voiceSession(activeId));
         if (!mountedRef.current) return null;
         setSession(data);
+        const lastStudent = [...(data.messages || [])]
+          .reverse()
+          .find((message) => message.role === "student");
+        setLastSaid(
+          lastStudent?.text
+            ? { text: lastStudent.text, status: "sent", voice: false }
+            : null,
+        );
         const lastTutor = [...(data.messages || [])]
           .reverse()
           .find((message) => message.role === "tutor");
@@ -866,6 +888,7 @@ export const useVoiceTutor = () => {
     setPreparing(false);
     setListeningStartedAt(0);
     setSession(null);
+    setLastSaid(null);
     if (!id) return;
     try {
       const data = unwrap(await tutorService.endVoiceSession(id));
@@ -923,6 +946,7 @@ export const useVoiceTutor = () => {
     setTapToToggle,
     canRetry,
     pendingStudentText,
+    lastSaid,
     chooseSubject,
     startSession,
     resumeSession,

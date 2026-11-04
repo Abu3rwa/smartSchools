@@ -28,9 +28,11 @@
   --vt-error: #dc2626;
   --vt-error-ink: #b91c1c;
   --vt-rail: color-mix(in srgb, var(--vt-surface) 96%, transparent);
-  --vt-start-from: #24322f;
-  --vt-start-to: #16211f;
-  --vt-start-ink: #f7f6f1;
+  --vt-warm-btn: #7c4a12;
+  --vt-warm-btn-ink: #fff8ef;
+  /* Gradient stops stay dark in both themes so white text keeps its contrast. */
+  --vt-brand-from: color-mix(in srgb, var(--primary, #0d9488) 82%, #063f38);
+  --vt-brand-to: color-mix(in srgb, var(--primary, #0d9488) 55%, #04211d);
   --vt-on-accent: #ffffff;
   --vt-orb-light: #2dd4bf;
   --vt-orb-deep: #0f766e;
@@ -81,6 +83,8 @@
   --vt-rose-ink: #ff9db1;
   --vt-error-ink: #ff9b9b;
   --vt-rail: color-mix(in srgb, var(--vt-surface) 94%, transparent);
+  --vt-warm-btn: #f0b45f;
+  --vt-warm-btn-ink: #2a1a05;
   --vt-orb-light: #2dd4bf;
   --vt-orb-deep: #0b5d52;
   --vt-orb-listen-light: #fb7185;
@@ -216,95 +220,174 @@
 
 /* ---------------- entry ---------------- */
 
+/* The picker is a stack of cards on a tinted panel, not one long sheet. */
 .vt-entry {
-  max-width: 1020px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1080px;
   margin-inline: auto;
-  padding: 22px 32px 34px;
-  border: 1px solid
-    color-mix(in srgb, var(--primary, #0d9488) 20%, var(--vt-line));
-  border-radius: 22px;
-  background: var(--vt-surface);
-  box-shadow:
-    var(--vt-shadow-lg),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
   margin-top: -21px;
+  padding: 18px;
+  border: 1px solid
+    color-mix(in srgb, var(--primary, #0d9488) 16%, var(--vt-line));
+  border-radius: 22px;
+  background-color: var(--vt-paper);
+  background-image:
+    radial-gradient(
+      760px 320px at 4% -14%,
+      color-mix(in srgb, var(--primary, #0d9488) 16%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      620px 300px at 100% -8%,
+      color-mix(in srgb, var(--vt-indigo) 12%, transparent),
+      transparent 74%
+    );
+  box-shadow: var(--vt-shadow-sm);
+}
+
+.vt-head,
+.vt-subjects,
+.vt-lessons,
+.vt-start {
+  padding: 18px 20px;
+  border: 1px solid var(--vt-line);
+  border-radius: 16px;
+  background: var(--vt-surface);
+  box-shadow: var(--vt-shadow-sm);
+}
+
+.vt-card-label {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vt-muted);
 }
 
 .vt-head {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  /* padding-bottom: 16px; */
-  border-bottom: 1px solid var(--vt-line);
+  gap: 16px;
 }
 .vt-head-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  justify-content: space-between;
+  gap: 10px;
 }
 .vt-back {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
+  gap: 6px;
   flex: none;
-  margin-inline-start: -8px;
-  border-radius: 50%;
-  color: var(--vt-muted);
+  margin-inline-start: -6px;
+  padding-block: 6px;
+  padding-inline: 10px 6px;
+  border-radius: 999px;
+  color: var(--vt-teal-deep);
+  font-size: 0.8rem;
+  font-weight: 650;
   text-decoration: none;
 }
 .vt-back:hover {
-  color: var(--vt-ink);
-  background: var(--vt-surface-2);
+  background: var(--vt-soft);
 }
 .vt-head-title {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex: 1;
   min-width: 0;
-}
-.vt-head-title strong {
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.vt-head-meta {
-  /* margin-inline-start: auto; */
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  white-space: nowrap;
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--vt-ink);
 }
 .vt-premium {
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--vt-teal-deep);
-}
-.vt-credits {
   display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--vt-rose), var(--vt-violet));
+  box-shadow: var(--vt-shadow-xs);
+  color: var(--vt-on-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vt-credit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--vt-brand-from), var(--vt-brand-to));
+  box-shadow: var(--vt-shadow-sm);
+  color: var(--vt-on-accent);
+}
+.vt-credit-card.is-empty {
+  background: linear-gradient(
+    135deg,
+    var(--vt-amber),
+    color-mix(in srgb, var(--vt-amber) 70%, #000000)
+  );
+}
+.vt-credit-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.vt-credit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+.vt-credit-text {
+  display: flex;
   flex-direction: column;
-  font-size: 0.8rem;
-  color: var(--vt-muted);
+  min-width: 0;
+}
+.vt-credit-text strong {
+  font-size: 1.15rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.vt-credits.is-empty {
-  color: var(--vt-amber);
+.vt-credit-text span {
+  font-size: 0.78rem;
+  opacity: 0.92;
 }
-.vt-about {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--vt-muted);
+.vt-credit-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  text-align: end;
+}
+.vt-credit-price strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.vt-credit-price span {
+  font-size: 0.7rem;
+  opacity: 0.92;
 }
 
 .vt-head-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -312,186 +395,285 @@
 .vt-head-step {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 10px;
   min-width: 0;
-}
-.vt-head-step + .vt-head-step {
-  padding-inline-start: 14px;
-  border-inline-start: 1px solid var(--vt-line);
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--vt-surface-2);
 }
 .vt-head-step-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  margin-top: 1px;
-  border: 1px solid var(--vt-line);
   border-radius: 50%;
-  font-size: 0.66rem;
-  font-weight: 700;
-  color: var(--vt-muted);
+  background: var(--vt-teal);
+  color: var(--vt-on-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .vt-head-step-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 .vt-head-step-text b {
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--vt-ink);
 }
 .vt-head-step-text span {
-  font-size: 0.72rem;
-  line-height: 1.35;
+  font-size: 0.76rem;
+  line-height: 1.4;
   color: var(--vt-muted);
 }
 
-.vt-entry > .vt-blocked {
-  margin-top: 24px;
-}
-
 .vt-main {
-  max-width: 720px;
-  margin-inline: auto;
-  /* padding-top: 44px; */
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 .vt-main > .vt-error {
-  margin: 0 0 20px;
+  margin: 0;
 }
 
 .vt-resume {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 22px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  border: 1px solid
-    color-mix(in srgb, var(--primary, #0d9488) 22%, var(--vt-line));
-  background: color-mix(in srgb, var(--primary, #0d9488) 6%, var(--vt-surface));
+  flex-direction: column;
+  gap: 11px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--vt-amber) 30%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--vt-amber) 13%, var(--vt-surface)),
+    color-mix(in srgb, var(--vt-amber) 26%, var(--vt-surface))
+  );
+  box-shadow: var(--vt-shadow-sm);
+  color: var(--vt-amber-ink);
 }
-.vt-resume-text {
-  flex: 1 1 200px;
-  min-width: 0;
+.vt-resume-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vt-resume-head strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.vt-resume-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vt-surface) 62%, transparent);
+}
+.vt-resume-lesson {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vt-surface) 66%, transparent);
 }
-.vt-resume-text strong {
-  font-size: 0.92rem;
+.vt-resume-lesson strong {
+  font-size: 0.9rem;
   font-weight: 700;
+  color: var(--vt-amber-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.vt-resume-text span {
+.vt-resume-lesson span {
   font-size: 0.78rem;
-  color: var(--vt-muted);
+  color: color-mix(in srgb, var(--vt-amber-ink) 76%, transparent);
 }
 .vt-resume-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+.vt-resume-go {
+  flex: 1 1 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--vt-warm-btn);
+  color: var(--vt-warm-btn-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--vt-shadow-xs);
+  transition:
+    transform 0.16s var(--vt-ease),
+    box-shadow 0.16s var(--vt-ease);
+}
+.vt-resume-go:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--vt-shadow-sm);
+}
+.vt-resume-new {
+  flex: none;
+  padding: 10px 16px;
+  border: 2px solid color-mix(in srgb, var(--vt-amber-ink) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vt-surface) 40%, transparent);
+  color: var(--vt-amber-ink);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vt-resume-new:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vt-surface) 66%, transparent);
+}
+.vt-resume-go:disabled,
+.vt-resume-new:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .vt-subjects {
   display: flex;
-  gap: 26px;
+  flex-direction: column;
+}
+.vt-subject-tabs {
+  display: flex;
   flex-wrap: wrap;
-  margin-top: 34px;
-  border-bottom: 1px solid var(--vt-line);
+  gap: 10px;
 }
 .vt-subject-tab {
-  position: relative;
-  padding: 0 0 12px;
-  border: 0;
-  background: transparent;
-  color: var(--vt-muted);
+  padding: 9px 18px;
+  border: 2px solid var(--vt-line);
+  border-radius: 999px;
+  background: var(--vt-surface);
+  color: var(--vt-body-soft);
   font: inherit;
   font-size: 0.86rem;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
+  transition:
+    border-color 0.16s var(--vt-ease),
+    background-color 0.16s var(--vt-ease),
+    color 0.16s var(--vt-ease);
 }
-.vt-subject-tab:hover {
-  color: var(--vt-ink);
+.vt-subject-tab:hover:not(.is-active) {
+  border-color: color-mix(in srgb, var(--primary, #0d9488) 45%, transparent);
+  color: var(--vt-teal-deep);
 }
 .vt-subject-tab.is-active {
-  color: var(--vt-ink);
-}
-.vt-subject-tab.is-active::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--vt-teal);
-  box-shadow: 0 2px 8px -2px
-    color-mix(in srgb, var(--primary, #0d9488) 60%, transparent);
+  border-color: var(--vt-brand-from);
+  background: linear-gradient(135deg, var(--vt-brand-from), var(--vt-brand-to));
+  color: var(--vt-on-accent);
+  box-shadow: var(--vt-shadow-xs);
 }
 
 .vt-lessons {
   display: flex;
   flex-direction: column;
-  max-height: 43vh;
+  max-height: min(56vh, 560px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.vt-lessons-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -18px -20px 4px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--vt-line);
+  background: var(--vt-surface);
+}
+.vt-lessons-title {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--vt-ink);
 }
 .vt-list-note {
-  padding: 18px 0;
+  padding: 14px 2px;
 }
 
 .vt-filter {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-inline: -6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--vt-line);
-  background: var(--vt-surface);
+  width: 240px;
+  max-width: 100%;
+  padding: 7px 12px;
+  border: 2px solid var(--vt-line);
+  border-radius: 10px;
+  background: var(--vt-surface-2);
   color: var(--vt-muted);
+  transition: border-color 0.16s var(--vt-ease);
+}
+.vt-filter:focus-within {
+  border-color: color-mix(in srgb, var(--primary, #0d9488) 50%, transparent);
 }
 .vt-filter input {
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: var(--vt-surface-2);
+  background: transparent;
   color: var(--vt-ink);
   font: inherit;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
 }
-.vt-filter input:focus {
+.vt-filter input:focus,
+.vt-filter input:focus-visible {
   outline: none;
-  box-shadow: var(--vt-ring);
+  box-shadow: none;
+}
+
+.vt-lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  padding-block: 6px 2px;
 }
 
 .vt-group {
-  margin: 14px 0 2px;
+  grid-column: 1 / -1;
   display: flex;
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 0.7rem;
+  margin: 8px 0 0;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: var(--vt-surface-2);
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vt-teal-deep);
 }
 .vt-group.is-chapter {
-  margin-top: 10px;
   color: var(--vt-muted);
+  background: color-mix(in srgb, var(--vt-surface-2) 60%, transparent);
 }
 .vt-group em {
   font-style: normal;
@@ -504,111 +686,129 @@
 
 .vt-entry .vt-lesson {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 11px;
   width: 100%;
-  max-width: none;
-  overflow: visible;
-  padding: 14px 10px;
-  border: 0;
-  border-bottom: 1px solid var(--vt-line);
-  background: transparent;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 2px solid var(--vt-line);
+  border-radius: 12px;
+  background: var(--vt-surface);
   color: var(--vt-ink);
   font: inherit;
   text-align: start;
   cursor: pointer;
-}
-.vt-entry .vt-lesson {
-  border-radius: 12px;
-  transition: background-color 0.16s var(--vt-ease);
+  transition:
+    border-color 0.16s var(--vt-ease),
+    background-color 0.16s var(--vt-ease),
+    transform 0.16s var(--vt-ease),
+    box-shadow 0.16s var(--vt-ease);
 }
 .vt-entry .vt-lesson:hover {
-  background: color-mix(in srgb, var(--primary, #0d9488) 6%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #0d9488) 50%, transparent);
+  transform: translateY(-2px);
+  box-shadow: var(--vt-shadow-md);
 }
 .vt-entry .vt-lesson.is-selected {
-  background: var(--vt-soft);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--primary, #0d9488) 18%, transparent);
+  border-color: var(--vt-teal);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary, #0d9488) 8%, var(--vt-surface)),
+    color-mix(in srgb, var(--primary, #0d9488) 16%, var(--vt-surface))
+  );
 }
 .vt-entry .vt-lesson-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   flex: none;
-  min-width: 22px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--vt-muted);
+  border-radius: 9px;
+  background: var(--vt-soft);
+  color: var(--vt-teal-deep);
+  font-size: 0.8rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .vt-entry .vt-lesson.is-selected .vt-lesson-num {
-  color: var(--vt-teal-deep);
+  background: var(--vt-teal);
+  color: var(--vt-on-accent);
 }
 .vt-entry .vt-lesson-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .vt-entry .vt-lesson-main strong {
-  font-size: 0.93rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.4;
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 .vt-entry .vt-lesson-main span {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   color: var(--vt-muted);
 }
 .vt-entry .vt-lesson-mark {
   flex: none;
   display: inline-flex;
-  color: var(--vt-muted);
-}
-.vt-entry .vt-lesson.is-selected .vt-lesson-mark {
-  color: var(--vt-teal-deep);
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--vt-teal);
+  color: var(--vt-on-accent);
 }
 
 .vt-start {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 30px;
+  gap: 12px;
 }
 .vt-start-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 10px;
+  width: 100%;
   padding: 15px 22px;
   border: 0;
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--vt-start-from), var(--vt-start-to));
-  color: var(--vt-start-ink);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--vt-brand-from), var(--vt-brand-to));
+  color: var(--vt-on-accent);
   font: inherit;
-  font-size: 0.95rem;
-  font-weight: 650;
+  font-size: 0.98rem;
+  font-weight: 750;
   letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow:
     var(--vt-shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition:
     transform 0.18s var(--vt-ease),
     box-shadow 0.18s var(--vt-ease),
     opacity 0.18s var(--vt-ease);
 }
 .vt-start-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow:
     var(--vt-shadow-lg),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .vt-start-btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow:
     var(--vt-shadow-sm),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .vt-start-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -616,12 +816,12 @@
 .vt-foot-note {
   margin: 0;
   text-align: center;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   color: var(--vt-muted);
   line-height: 1.45;
 }
 .vt-foot-note.is-warn {
-  color: var(--vt-amber);
+  color: var(--vt-amber-ink);
 }
 
 .vt-mic-check {
@@ -631,23 +831,32 @@
   justify-content: center;
   gap: 8px 12px;
   min-height: 32px;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--vt-line);
 }
 .vt-link-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--vt-teal-deep);
+  gap: 7px;
+  padding: 9px 14px;
+  border: 2px solid var(--vt-line);
+  border-radius: 10px;
+  background: var(--vt-surface-2);
+  color: var(--vt-body-soft);
   font: inherit;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
+  transition:
+    border-color 0.16s var(--vt-ease),
+    background-color 0.16s var(--vt-ease),
+    color 0.16s var(--vt-ease);
 }
 .vt-link-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary, #0d9488) 45%, transparent);
   background: var(--vt-soft);
+  color: var(--vt-teal-deep);
 }
 .vt-link-btn:disabled {
   opacity: 0.5;
@@ -705,22 +914,22 @@
   background-image:
     radial-gradient(
       900px 420px at 12% -8%,
-      color-mix(in srgb, var(--primary, #0d9488) 9%, transparent),
+      color-mix(in srgb, var(--primary, #0d9488) 10%, transparent),
       transparent 70%
     ),
     radial-gradient(
       700px 380px at 96% 108%,
-      color-mix(in srgb, var(--vt-indigo) 6%, transparent),
+      color-mix(in srgb, var(--vt-indigo) 7%, transparent),
       transparent 72%
     ),
     radial-gradient(
-      color-mix(in srgb, var(--vt-ink) 6%, transparent) 1px,
+      color-mix(in srgb, var(--vt-ink) 10%, transparent) 1px,
       transparent 1px
     );
   background-size:
     auto,
     auto,
-    28px 28px;
+    26px 26px;
   overflow: hidden;
 }
 
@@ -733,6 +942,42 @@
   padding: 0 26px;
   background: var(--vt-rail);
   border-bottom: 1px solid color-mix(in srgb, var(--vt-line) 70%, transparent);
+}
+
+/* The lesson's own essential question: the through-line of the whole board. */
+.vt-focus {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 9px;
+  padding-inline: 26px;
+  background: color-mix(in srgb, var(--vt-surface) 74%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--vt-line) 70%, transparent);
+}
+.vt-focus-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vt-amber) 10%, var(--vt-surface));
+  border: 1px solid color-mix(in srgb, var(--vt-amber) 28%, var(--vt-line));
+  color: var(--vt-amber-ink);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.vt-focus-q {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--vt-wait-ink);
 }
 
 .vt-context {
@@ -799,17 +1044,21 @@
 .vt-mic-ready {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #16a34a 9%, var(--vt-surface));
+  border: 1px solid color-mix(in srgb, #16a34a 26%, var(--vt-line));
+  color: color-mix(in srgb, #16a34a 58%, var(--vt-ink));
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--vt-teal-deep);
   white-space: nowrap;
 }
 .vt-mic-ready i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--vt-teal);
+  background: #22c55e;
 }
 
 .vt-exit {
@@ -820,12 +1069,12 @@
   gap: 6px;
   min-width: 38px;
   height: 38px;
-  padding-inline: 10px;
+  padding-inline: 12px;
   border-radius: 999px;
-  border: 1px solid var(--vt-line);
-  background: var(--vt-surface);
+  border: 1px solid color-mix(in srgb, var(--vt-rose) 26%, var(--vt-line));
+  background: color-mix(in srgb, var(--vt-rose) 7%, var(--vt-surface));
   box-shadow: var(--vt-shadow-xs);
-  color: var(--vt-exit-ink);
+  color: color-mix(in srgb, var(--vt-rose) 62%, var(--vt-ink));
   font: inherit;
   cursor: pointer;
   transition:
@@ -839,8 +1088,8 @@
   white-space: nowrap;
 }
 .vt-exit:hover {
-  color: var(--vt-ink);
-  border-color: var(--vt-line-strong);
+  color: color-mix(in srgb, var(--vt-rose) 74%, var(--vt-ink));
+  border-color: color-mix(in srgb, var(--vt-rose) 42%, var(--vt-line));
   box-shadow: var(--vt-shadow-sm);
 }
 
@@ -919,16 +1168,15 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: clamp(10px, 1.8vh, 20px);
-  padding: 14px 0;
+  gap: clamp(12px, 1.6vh, 18px);
+  padding: 12px 0 26px;
 }
 .vt-feed-page.is-latest {
   min-height: max(100%, 280px);
   justify-content: center;
 }
 .vt-feed-page.is-archived {
-  opacity: 0.55;
-  border-bottom: 1px dashed var(--vt-line);
+  opacity: 0.72;
   transition: opacity 0.4s ease;
   /* Code below the fold skips layout and paint until it is scrolled near. */
   content-visibility: auto;
@@ -937,16 +1185,10 @@
 }
 .vt-feed-page.is-archived:hover,
 .vt-feed-page.is-archived:focus-within {
-  opacity: 0.9;
-}
-.vt-feed-page.is-archived .vt-turn {
-  flex: none;
+  opacity: 0.94;
 }
 .vt-feed-page.is-archived .vt-lead {
-  font-size: clamp(1.15rem, 2vw, 1.6rem);
-}
-.vt-feed-page.is-archived .vt-check {
-  padding-bottom: 0;
+  font-size: 1.12rem;
 }
 
 .vt-earlier {
@@ -1011,13 +1253,13 @@
 .vt-yesno button {
   min-width: 96px;
   padding: 11px 22px;
-  border: 1px solid var(--vt-line-strong);
+  border: 1px solid color-mix(in srgb, #16a34a 24%, var(--vt-line-strong));
   border-radius: 999px;
   background: var(--vt-surface);
   box-shadow: var(--vt-shadow-xs);
   font: inherit;
   font-weight: 800;
-  color: var(--vt-teal-deep);
+  color: color-mix(in srgb, #16a34a 58%, var(--vt-ink));
   cursor: pointer;
   transition:
     transform 0.16s var(--vt-ease),
@@ -1026,8 +1268,8 @@
     background-color 0.16s var(--vt-ease);
 }
 .vt-yesno button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--primary, #0d9488) 45%, transparent);
-  background: var(--vt-soft);
+  border-color: color-mix(in srgb, #22c55e 48%, transparent);
+  background: color-mix(in srgb, #22c55e 7%, var(--vt-surface));
   transform: translateY(-1px);
   box-shadow: var(--vt-shadow-sm);
 }
@@ -1039,7 +1281,7 @@
   font-size: 0.8rem;
   color: var(--vt-muted);
 }
-.vt-check-text .vt-choices {
+.vt-check .vt-choices {
   margin-top: 8px;
   max-width: 520px;
 }
@@ -1057,65 +1299,62 @@
   }
 }
 
-.vt-your-words {
+/* The tutor's turn is one card; the question below it is its own card. */
+.vt-tutor {
+  position: relative;
   flex: none;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  max-width: 84ch;
+  width: min(100%, 690px);
+  padding: 18px 22px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--vt-line);
+  background: var(--vt-surface);
+  box-shadow: var(--vt-shadow-sm);
 }
-.vt-your-words-tag {
+.vt-tutor-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+.vt-tutor-avatar {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.69rem;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--vt-on-accent);
+  background: radial-gradient(
+    circle at 32% 28%,
+    var(--vt-orb-light),
+    var(--vt-teal) 58%,
+    var(--vt-orb-deep)
+  );
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--vt-teal) 35%, transparent);
+}
+.vt-tutor-name {
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--vt-muted);
+  color: var(--vt-teal-deep);
   white-space: nowrap;
-}
-.vt-your-words q {
-  quotes: "“" "”";
-  font-size: clamp(0.92rem, 1.35vw, 1.12rem);
-  line-height: 1.45;
-  color: var(--vt-body-soft);
-}
-.vt-converted {
-  font-size: 0.72rem;
-  color: var(--vt-faint);
-  white-space: nowrap;
-}
-
-.vt-turn {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: clamp(24px, 4vw, 48px);
-  align-items: center;
-}
-.vt-turn.is-solo {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .vt-lead {
   margin: 0;
-  max-width: 22ch;
-  font-size: clamp(1.5rem, 3vw, 2.85rem);
-  line-height: 1.16;
-  letter-spacing: -0.022em;
-  font-weight: 800;
+  font-size: clamp(1.12rem, 1.7vw, 1.32rem);
+  line-height: 1.42;
+  letter-spacing: -0.005em;
+  font-weight: 700;
   overflow-wrap: anywhere;
-}
-.vt-turn.is-solo .vt-lead {
-  max-width: 26ch;
 }
 .vt-lead mark {
   background: linear-gradient(
-    transparent 60%,
-    color-mix(in srgb, var(--primary, #0d9488) 30%, transparent) 60%
+    transparent 58%,
+    color-mix(in srgb, var(--vt-amber) 24%, transparent) 58%
   );
   color: inherit;
   padding: 0 2px;
@@ -1161,8 +1400,42 @@
 .vt-side {
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 1.8vh, 22px);
+  gap: 12px;
   min-width: 0;
+  margin-top: 14px;
+}
+
+/* Inside the tutor card the parts read as notes on the card, not cards in a card. */
+.vt-tutor .vt-bubble {
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.vt-tutor .vt-example,
+.vt-tutor .vt-keyIdea,
+.vt-tutor .vt-recap,
+.vt-tutor .vt-evidence,
+.vt-tutor .vt-mistake,
+.vt-tutor .vt-math {
+  padding: 11px 14px;
+  border: 1px solid var(--vt-line);
+  border-radius: 12px;
+}
+.vt-tutor .vt-example {
+  background: color-mix(in srgb, var(--vt-amber) 6%, var(--vt-surface));
+  border-color: color-mix(in srgb, var(--vt-amber) 20%, var(--vt-line));
+}
+.vt-tutor .vt-keyIdea,
+.vt-tutor .vt-recap {
+  background: color-mix(in srgb, var(--primary, #0d9488) 8%, var(--vt-surface));
+  border-color: color-mix(in srgb, var(--primary, #0d9488) 22%, var(--vt-line));
+}
+.vt-tutor .vt-bullets li,
+.vt-tutor .vt-steps li {
+  font-size: 1rem;
 }
 
 .vt-bubble {
@@ -1518,46 +1791,64 @@
   overflow-wrap: anywhere;
 }
 
+/* The question gets its own card, indented under the tutor card. */
 .vt-check {
+  --vt-check-green: #16a34a;
   flex: none;
+  align-self: flex-start;
+  width: min(100%, 620px);
+  margin-inline-start: clamp(10px, 3vw, 46px);
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  max-width: 92ch;
-  padding-bottom: clamp(10px, 2vh, 18px);
+  flex-direction: column;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid
+    color-mix(in srgb, var(--vt-check-green) 26%, var(--vt-line));
+  background: color-mix(in srgb, var(--vt-check-green) 8%, var(--vt-surface));
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--vt-check-green) 6%, transparent),
+    0 10px 24px color-mix(in srgb, var(--vt-check-green) 7%, transparent);
+}
+.vt-check-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
 }
 .vt-check-icon {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin-top: 1px;
-  border-radius: 11px;
-  background: var(--vt-soft);
-  color: var(--vt-teal-deep);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--primary, #0d9488) 14%, transparent);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, #22c55e 35%, transparent);
 }
-.vt-check-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.vt-check-text strong {
+.vt-check-head strong {
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--vt-teal-deep);
+  color: color-mix(in srgb, var(--vt-check-green) 58%, var(--vt-ink));
 }
-.vt-check-text p {
+.vt-check-q {
   margin: 0;
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  font-size: clamp(1rem, 1.5vw, 1.08rem);
   line-height: 1.45;
-  color: var(--vt-body);
+  font-weight: 650;
+  color: color-mix(in srgb, var(--vt-check-green) 32%, var(--vt-ink));
+}
+.vt-check-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--vt-check-green) 40%, var(--vt-muted));
+}
+.vt-check > .vt-choices,
+.vt-check > .vt-yesno {
+  margin-top: 10px;
 }
 
 .vt-answer {
@@ -1569,7 +1860,7 @@
   flex: 1;
   min-width: 0;
   padding: 10px 14px;
-  border: 1px solid var(--vt-line-strong);
+  border: 1px solid color-mix(in srgb, #16a34a 32%, var(--vt-line-strong));
   border-radius: 12px;
   background: var(--vt-surface);
   font: inherit;
@@ -1583,8 +1874,8 @@
 }
 .vt-answer input:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--primary, #0d9488) 55%, transparent);
-  box-shadow: var(--vt-ring);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 16%, transparent);
 }
 .vt-answer button {
   padding: 10px 18px;
@@ -1592,8 +1883,8 @@
   border-radius: 12px;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--primary, #0d9488) 88%, #ffffff),
-    var(--vt-teal-deep)
+    color-mix(in srgb, #22c55e 88%, #ffffff),
+    #15803d
   );
   color: var(--vt-on-accent);
   font-weight: 700;
@@ -1792,7 +2083,9 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 20px;
-  padding: 4px clamp(20px, 4vw, 56px) clamp(16px, 3vh, 24px);
+  padding: 10px clamp(20px, 4vw, 56px) clamp(14px, 2.8vh, 22px);
+  background: color-mix(in srgb, var(--vt-surface) 96%, transparent);
+  border-top: 1px solid var(--vt-line);
 }
 .vt-dock-side {
   display: flex;
@@ -1840,20 +2133,20 @@
   gap: 8px;
   padding: 7px 14px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--vt-rose) 8%, var(--vt-surface));
-  border: 1px solid color-mix(in srgb, var(--vt-rose) 24%, transparent);
-  color: var(--vt-rose-ink);
+  background: var(--vt-rose);
+  border: 0;
+  color: #fff;
   font-size: 0.76rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  box-shadow: var(--vt-shadow-sm);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--vt-rose) 30%, transparent);
 }
 .vt-rec-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--vt-rose);
+  background: #fff;
   animation: vt-blink 1s infinite;
 }
 
@@ -2223,28 +2516,24 @@
   }
 }
 
-[dir="rtl"] .vt-back svg,
-[dir="rtl"] .vt-entry .vt-lesson-mark svg {
+[dir="rtl"] .vt-back svg {
   transform: scaleX(-1);
 }
 
 /* ---------------- responsive ---------------- */
 
-@media (max-width: 1080px) {
-  .vt-entry {
-    max-width: none;
-  }
-}
-
 @media (max-height: 720px) and (min-width: 761px) {
   .vt-rail {
     height: 50px;
+  }
+  .vt-focus {
+    padding-block: 6px;
   }
   .vt-board-main {
     gap: 8px;
   }
   .vt-lead {
-    font-size: clamp(1.3rem, 2.4vw, 2.1rem);
+    font-size: clamp(1.05rem, 1.5vw, 1.2rem);
   }
   .vt-bullets li,
   .vt-steps li,
@@ -2266,29 +2555,49 @@
 
 @media (max-width: 760px) {
   .vt-entry {
-    padding: 18px;
+    gap: 12px;
+    padding: 12px;
     border-radius: 16px;
   }
-  .vt-main {
-    padding-top: 32px;
+  .vt-head,
+  .vt-subjects,
+  .vt-lessons,
+  .vt-start {
+    padding: 14px;
+    border-radius: 14px;
   }
-  .vt-subjects {
-    gap: 18px;
-  }
-  .vt-head-meta {
-    gap: 10px;
+  .vt-head-title {
+    font-size: 1.12rem;
   }
   .vt-entry .vt-lessons {
     max-height: none;
+    overflow-y: visible;
+  }
+  .vt-lessons-head {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    margin: -14px -14px 4px;
+    padding: 12px 14px;
+  }
+  .vt-filter {
+    width: 100%;
+  }
+  .vt-lesson-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .vt-head-steps {
     grid-template-columns: 1fr;
-    gap: 10px;
-    color: var(--vt-muted);
+    gap: 8px;
   }
-  .vt-head-step + .vt-head-step {
-    padding-inline-start: 0;
-    border-inline-start: 0;
+  .vt-credit-card {
+    padding: 12px 14px;
+  }
+  .vt-credit-text strong {
+    font-size: 1.02rem;
+  }
+  .vt-credit-price strong {
+    font-size: 1.3rem;
   }
   .vt-board {
     width: calc(100% + 2 * var(--spacing-md, 16px));
@@ -2303,6 +2612,22 @@
     height: 54px;
     padding: 0 14px;
     gap: 8px;
+  }
+  .vt-focus {
+    gap: 8px;
+    padding: 8px 16px;
+  }
+  .vt-focus-label {
+    padding: 3px 8px;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+  }
+  .vt-focus-label svg {
+    width: 11px;
+    height: 11px;
+  }
+  .vt-focus-q {
+    font-size: 0.82rem;
   }
   .vt-context {
     padding-block: 6px;
@@ -2336,32 +2661,26 @@
     padding: 0 16px;
     gap: 0;
   }
-  .vt-your-words {
-    gap: 6px;
-  }
-  .vt-your-words q {
-    font-size: 0.85rem;
-  }
-  .vt-converted {
-    display: none;
-  }
 
-  .vt-turn {
-    flex: none;
-    grid-template-columns: minmax(0, 1fr);
-    align-content: start;
-    align-items: stretch;
-    gap: 12px;
+  .vt-tutor {
+    padding: 14px 16px 16px;
+    border-radius: 17px;
   }
   .vt-lead {
-    max-width: none;
-    font-size: clamp(1.3rem, 6vw, 1.75rem);
-  }
-  .vt-turn.is-solo .vt-lead {
-    max-width: none;
+    font-size: 1.1rem;
+    line-height: 1.4;
   }
   .vt-side {
     gap: 10px;
+    margin-top: 12px;
+  }
+  .vt-tutor .vt-example,
+  .vt-tutor .vt-keyIdea,
+  .vt-tutor .vt-recap,
+  .vt-tutor .vt-evidence,
+  .vt-tutor .vt-mistake,
+  .vt-tutor .vt-math {
+    padding: 9px 12px;
   }
   .vt-bubble {
     width: 100%;
@@ -2405,19 +2724,27 @@
   }
 
   .vt-check {
+    width: calc(100% - 10px);
+    margin-inline-start: 10px;
+    padding: 13px 15px;
+    border-radius: 16px;
+  }
+  .vt-check-head {
+    margin-bottom: 6px;
     gap: 8px;
-    padding-bottom: 8px;
   }
   .vt-check-icon {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 24px;
+    height: 24px;
   }
-  .vt-check-text strong {
-    font-size: 0.6rem;
+  .vt-check-head strong {
+    font-size: 0.62rem;
   }
-  .vt-check-text p {
-    font-size: 0.88rem;
+  .vt-check-q {
+    font-size: 0.95rem;
+  }
+  .vt-check-hint {
+    font-size: 0.75rem;
   }
   .vt-empty {
     flex-wrap: wrap;
@@ -2517,34 +2844,8 @@
   }
 }
 
-/* Tablet portrait: one column keeps the lead and the board readable. */
-@media (min-width: 761px) and (max-width: 900px) {
-  .vt-turn {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 16px;
-  }
-  .vt-lead,
-  .vt-turn.is-solo .vt-lead {
-    max-width: none;
-  }
-}
-
 @media (max-width: 760px) {
-  /* The three steps become one compact row of titles. */
-  .vt-head-steps {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .vt-head-step {
-    gap: 6px;
-  }
-  .vt-head-step-text span {
-    display: none;
-  }
-  .vt-head-step-text b {
-    font-size: 0.76rem;
-    line-height: 1.25;
-  }
+  /* 16px stops iOS Safari from zooming the page when a field is focused. */
   .vt-filter input,
   .vt-answer input {
     font-size: max(16px, 1rem);
@@ -2557,9 +2858,8 @@
     position: sticky;
     bottom: 0;
     z-index: 2;
-    margin-top: 16px;
-    padding-block: 14px calc(10px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(to bottom, transparent, var(--vt-surface) 16px);
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    box-shadow: var(--vt-shadow-lg);
   }
 }
 
@@ -2584,17 +2884,31 @@
 
 @media (max-width: 480px) {
   .vt-entry {
-    padding: 14px;
+    padding: 10px;
+  }
+  .vt-head,
+  .vt-subjects,
+  .vt-lessons,
+  .vt-start {
+    padding: 12px;
   }
   .vt-head-row {
     flex-wrap: wrap;
     row-gap: 6px;
   }
   .vt-head-title {
-    flex: 1 1 0;
+    flex: 1 1 auto;
   }
-  .vt-premium {
+  /* Icon-only back link; the aria-label still names it. */
+  .vt-back {
+    padding-inline: 6px;
+  }
+  .vt-back span {
     display: none;
+  }
+  .vt-lessons-head {
+    margin: -12px -12px 4px;
+    padding: 10px 12px;
   }
   .vt-rail {
     padding: 0 10px;
@@ -2634,10 +2948,8 @@
     inset-inline: 12px;
     flex-wrap: wrap;
   }
-  .vt-resume-actions {
-    width: 100%;
-  }
-  .vt-resume-actions .btn {
+  .vt-resume-go,
+  .vt-resume-new {
     flex: 1 1 auto;
   }
 }
@@ -2673,7 +2985,7 @@
   .vt-steps li,
   .vt-example p,
   .vt-keyIdea p,
-  .vt-check-text p {
+  .vt-check-q {
     font-size: 0.92rem;
   }
   .vt-dock {
@@ -2702,12 +3014,14 @@
   .vt-subject-tab,
   .vt-link-btn,
   .vt-replay,
-  .vt-tap-toggle {
+  .vt-tap-toggle,
+  .vt-back,
+  .vt-resume-go,
+  .vt-resume-new {
     min-height: 44px;
   }
-  .vt-back {
-    width: 44px;
-    height: 44px;
+  .vt-entry .vt-lesson {
+    min-height: 56px;
   }
   .vt-error-x,
   .vt-notice-x {
@@ -2734,3 +3048,83 @@
     height: 20px;
   }
 }
+
+/* The student's own words live beside the mic; the board stays the tutor's. */
+.vt-said {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--vt-line);
+  border-radius: 14px;
+  background: var(--vt-surface);
+  color: var(--vt-body-soft);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: var(--vt-shadow-xs);
+}
+.vt-said-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vt-muted);
+  white-space: nowrap;
+}
+.vt-said q {
+  quotes: "“" "”";
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vt-said.is-open q {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+.vt-said.is-sending {
+  opacity: 0.7;
+}
+.vt-said.is-failed {
+  border-color: color-mix(in srgb, var(--vt-error) 35%, transparent);
+}
+.vt-text-dock .vt-said {
+  flex: 1 1 100%;
+}
+
+/* Phones: the bubble floats just above the dock, and the small pills rise above it. */
+@media (max-width: 560px) {
+  .vt-dock .vt-said {
+    position: absolute;
+    inset-inline: 12px;
+    bottom: calc(100% + 6px);
+    z-index: 1;
+  }
+  .vt-text-dock .vt-said {
+    position: static;
+  }
+  .vt-dock.has-said .vt-hint,
+  .vt-dock.has-said .vt-preparing,
+  .vt-dock.has-said .vt-rec-pill {
+    bottom: calc(100% + 56px);
+  }
+}
+@media (max-height: 520px) {
+  .vt-said q {
+    -webkit-line-clamp: 1;
+  }
+}
+
+.vt-done { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 18px; border-radius:16px; border:1px solid color-mix(in srgb, var(--primary,#0d9488) 25%, var(--vt-line)); background: var(--vt-soft); }
+.vt-done strong { flex: 1 1 200px; font-size: 1rem; }
+.vt-done-actions { display:flex; flex-wrap:wrap; gap:8px; }

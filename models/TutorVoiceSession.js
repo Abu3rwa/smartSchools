@@ -43,6 +43,9 @@ const voiceMessageSchema = new mongoose.Schema(
     options: [{ type: String }],
     questionType: { type: String, default: "" },
     stage: { type: String, default: "" },
+    // Set by the tutor for each graded turn: right | partly | wrong | none.
+    verdict: { type: String, default: "" },
+    wrapUp: { type: Boolean, default: false },
     lessonIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "TutorLesson" }],
     tokens: { type: Number, default: 0 },
     credits: { type: Number, default: 0 },
@@ -86,6 +89,7 @@ const tutorVoiceSessionSchema = new mongoose.Schema(
     startedAt: { type: Date, default: Date.now },
     endedAt: { type: Date },
     messageCount: { type: Number, default: 0 },
+    rightCount: { type: Number, default: 0 },
     creditsSpent: { type: Number, default: 0 },
     providerCostCents: { type: Number, default: 0 },
     chargedCents: { type: Number, default: 0 },

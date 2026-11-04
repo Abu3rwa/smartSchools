@@ -351,6 +351,24 @@ const shorten = (value, limit) => {
 };
 
 /**
+ * The focus lines imported lesson texts carry at the top ("Big Idea:" and
+ * "Essential Question:"). A lesson without them simply has no focus line.
+ */
+export const lessonFocus = (content = "") => {
+  const source = String(content ?? "");
+  const read = (label) => {
+    const match = source.match(
+      new RegExp(`^[ \\t]*(?:${label})[ \\t]*:[ \\t]*(.+)$`, "im"),
+    );
+    return match ? shorten(match[1], 240) : "";
+  };
+  return {
+    bigIdea: read("big idea|الفكرة الكبرى"),
+    essentialQuestion: read("essential questions?|السؤال الأساسي"),
+  };
+};
+
+/**
  * Every tutor reply opens with a stage tag on its own line. The tag is how the
  * server knows whether the ladder moved on; it is stripped before the student
  * ever sees the text. A reply without a tag is treated as "not a final answer",
@@ -392,6 +410,34 @@ export const countTries = (messages = []) => {
   }
   return Math.min(MAX_TRIES_BEFORE_ANSWER, Math.max(0, students - 1));
 };
+
+/**
+ * Failed attempts on the question the student is answering now, read from the
+ * tutor's own verdicts. A right answer, an explanation or the opening ends the
+ * question; a clarifying turn (verdict "none") neither counts nor resets.
+ * Sessions saved before verdicts existed keep the old counting.
+ */
+export const countVoiceTries = (messages = []) => {
+  const graded = messages.some((m) => m?.role === "tutor" && m.verdict);
+  if (!graded) return countTries(messages);
+  let tries = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "tutor") continue;
+    if (
+      message.stage === "answer" ||
+      message.stage === "opening" ||
+      message.verdict === "right"
+    ) {
+      break;
+    }
+    if (message.verdict === "partly" || message.verdict === "wrong") tries += 1;
+  }
+  return Math.min(MAX_TRIES_BEFORE_ANSWER, tries);
+};
+
+/** How many answers the student must get right before the lesson wraps up. */
+export const WRAP_UP_AFTER_RIGHT = 3;
 
 /* ------------------------------------------------------------------ */
 /* Prompt                                                              */
@@ -572,7 +618,7 @@ export const VOICE_COMPARE_COLUMNS_MAX = 3;
 export const VOICE_COMPARE_POINTS_MAX = 3;
 export const VOICE_TIMELINE_MAX = 5;
 export const VOICE_POINT_WORDS = 15;
-export const VOICE_REPLY_MAX_CHARS = 700;
+export const VOICE_REPLY_MAX_CHARS = 450;
 
 const VOICE_BLOCK_TYPES = [
   "bullets",
@@ -626,6 +672,8 @@ export const buildVoicePrompt = ({
   board = [],
   tries = 0,
   assessmentMode = false,
+  firstReply = false,
+  rightSoFar = 0,
   questionType = "",
 }) => {
   const languageName =
@@ -645,6 +693,7 @@ export const buildVoicePrompt = ({
         `- ${standard.code}: ${clip(standard.description || standard.name || "", 300)}`,
     )
     .join("\n");
+  const focus = lessonFocus(lesson?.content || "");
   const recent = board.slice(-8);
   const boardBlock = recent
     .map((message, index) =>
@@ -672,23 +721,39 @@ Do NOT explain the whole idea or reveal the answer in the lead or blocks. Ask th
 Then you may explain the idea fully, one step at a time.
 Then ask a different question that checks understanding, such as why or how the idea works.`;
 
-  const guidedCheckLadder =
-    attempts === 0
-      ? `You are in guided check mode. Start with a short understanding check question.
-Do NOT reveal the final answer in the lead, blocks or follow-up.`
+  const guidedCheckLadder = firstReply
+    ? `This is the student's reply to your warm-up question. It is NOT a graded answer: set "verdict" to "none" and do not say right or not right.
+Open "lead" by reacting warmly to what they said in a few words, then link it to the lesson in one short sentence.
+Then ask ONE short check question about the first small idea of the lesson. Do NOT reveal the answer.`
+    : attempts === 0
+      ? `The student is answering your last question for the first time. First decide if they are right, partly right, or not right, and say it plainly in one short sentence.
+- If RIGHT: set "verdict" to "right". Celebrate in a few words, teach the NEXT small piece of the lesson in one or two short sentences (prefer a keyIdea or example block), then ask ONE new check question about that piece.
+- If PARTLY right or not right: set "verdict" to "partly" or "wrong". Stay on the SAME question. Name what they got right, give ONE hint about what is missing (never list the missing parts), and ask the same question again. Do NOT reveal the answer.`
       : attempts === 1
-        ? `The student has tried once. First say plainly, in one short sentence, whether their answer is right, partly right, or not right — for a matching answer, say which pairs were right and which were not.
-If it is right, say so, add one short reason it works, and ask a NEW check question.
-If it is not fully right, stay on the SAME question: name what they got right, give ONE hint about what is missing (never list the missing parts), and ask them to try that same question again. Do NOT reveal the final answer.`
-        : `The student has tried ${attempts} times. Say plainly in one short sentence whether their answer was right, partly right, or not right.
-If it is right, say so and ask a NEW check question.
-If it is still not right, stay on the SAME question and give a bigger scaffold, such as the first letter or one missing part, but never the whole answer, and ask the same question again.`;
+        ? `The student was already told "not right" once on this question. Say plainly in one short sentence whether this new answer is right, partly right, or not right.
+- If RIGHT: set "verdict" to "right" and continue exactly as for a right answer (celebrate, teach the next small piece, ask one new check question).
+- If still not right: set "verdict" to "partly" or "wrong". Stay on the SAME question with a bigger scaffold (for example the first letter, or one missing part), but never the whole answer. Ask the same question again.`
+        : `The student was already told "not right" twice on this question.
+- If this answer is RIGHT: set "verdict" to "right" and continue as for a right answer.
+- If it is still not right: STOP hinting. Set "verdict" to "wrong" and "stage" to "answer". Say the answer in one clear sentence, add one short reason it is so, then ask ONE simple yes or no or short fact question that checks they followed it.`;
 
-  const ladder = `${
-    attempts > 0
-      ? `FIRST CHECK: if "STUDENT SAID" is a question or a request to explain (for example "what does glory mean?", "can you explain", "I don't understand"), it is NOT an answer. Skip the steps below: do not say right, partly right or not right. Answer it briefly from the lesson material, then ask your last question again.\nOtherwise it is an answer, so:\n`
-      : ""
-  }${assessmentMode ? guidedCheckLadder : teachingLadder}`;
+  const ladder = `FIRST CHECK: if "STUDENT SAID" is a question or a request to explain (for example "what does glory mean?", "can you explain", "I don't understand"), it is NOT an answer. Skip the steps below: set "verdict" to "none", do not say right, partly right or not right, and do not count it as a try. Answer it briefly from the lesson material, then ask your last question again. If they ask for help a second time, follow WHEN THE STUDENT IS STUCK instead.
+Otherwise it is an answer, so:
+${assessmentMode ? guidedCheckLadder : teachingLadder}`;
+
+  const stuckRules = `WHEN THE STUDENT IS STUCK
+- "I don't know", "I give up", "just tell me", "give me a clue", "give me the answer" and questions about the answer are requests for help, not wrong answers. These rules win over the ladder above.
+- If the student asks you to tell them the answer, or asks for help again after you gave one hint, stop hinting. Give the answer in two or three short sentences, say why it is so, then ask ONE simpler yes or no or short fact question about it.
+- Never answer a request for the answer with another clue only. Every turn that keeps the answer back must move the student one step closer to it.
+- Never repeat the same hint or the same question word for word. If the student is still stuck, ask a simpler, more concrete version.
+- When you give the answer, set "stage" to "answer". The check question after it may use "questionType" "yesno" even when that is not the next type in the rotation.`;
+
+  const wrapUpRules = assessmentMode
+    ? `WRAP UP
+The student has answered ${rightSoFar} questions right so far in this lesson. If their answer NOW is right and that makes ${WRAP_UP_AFTER_RIGHT} or more, finish the lesson this turn: celebrate warmly, give one "recap" block of what they learned, set "wrapUp" to true, set "verdict" to "right", and leave "followUp" empty (no new question). Otherwise "wrapUp" stays false.
+
+`
+    : "";
 
   return `You are a warm, patient ${subjectName} tutor talking out loud with one student in grade ${grade}.
 Everything you write is spoken aloud by a voice. Never write anything that only works on a screen.
@@ -699,10 +764,16 @@ ${lesson ? `The student chose this lesson: ${lessonLabel(lesson)}.\n` : ""}
 LESSON MATERIAL
 ${lessonBlocks || "(no lesson material matched this question)"}
 
-${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ""}
+${
+  focus.essentialQuestion
+    ? `THIS LESSON'S ESSENTIAL QUESTION\n${focus.essentialQuestion}\n${focus.bigIdea ? `Big idea: ${focus.bigIdea}\n` : ""}Build your checks and follow-ups toward this question. Never swap in a different main question.\n\n`
+    : ""
+}${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ""}
 ${boardBlock ? `BOARD SO FAR (this session)\n${boardBlock}\n\n` : ""}HOW THIS TURN MUST GO
 First decide what the student just said. It is an ANSWER only if they are trying to answer the last question you asked. If instead they ask you something, ask you to repeat or explain, say they do not understand, or talk about something else, it is NOT an answer: do not say right or not right, and do not count it as a try. Reply to what they asked in one or two short sentences (for "what is your question?" or "repeat that", say your last question again in simpler words), then invite them to answer. Only when it is an ANSWER, follow the steps below.
 ${ladder}
+
+${stuckRules}
 
 HOW YOU TALK
 ${languageLevelGuidance(languageLevel)}
@@ -715,16 +786,22 @@ ${languageLevelGuidance(languageLevel)}
 - Never mention the student's name, class, school, teacher or any personal detail.
 - Do not hand over finished homework. Guide, then check.
 - When the student has just ANSWERED a question (not asked one), "lead" opens with a clear verdict — right, partly right, or not right. For a matching answer, name which pairs were right. Never answer an attempt with only praise or "try again".
+- The student's words come from speech recognition and may be misheard. If a word sounds close to the expected answer or makes sense in context, accept it and say the correct word. Only ask them to repeat when the meaning is truly unclear.
+- A short, child-friendly meaning of any word that appears in the lesson material is always allowed, even if the lesson does not define it. Never add new facts, dates or names.
+- Keep what you SAY short: at most about 40 words in the lead plus the question. Put detail in the board blocks, not in the spoken lead.
+- If a turn has nothing to show, use no blocks.
 
 REPLY FORMAT
 Return exactly one JSON object and nothing else:
 ${
   assessmentMode
-    ? '{"stage":"prompt|hint|answer","questionType":"short|mcq|yesno|match","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question","options":["only for multiple-choice: three or four short answers"]}'
+    ? '{"stage":"prompt|hint|answer","verdict":"right|partly|wrong|none","wrapUp":false,"questionType":"short|mcq|yesno|match","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question","options":["only for multiple-choice: three or four short answers"]}'
     : '{"stage":"prompt|hint|answer","lead":"one or two short sentences","emphasis":"a few words copied from lead, or empty","blocks":[{"type":"bullets","items":["short point"]}],"followUp":"one short question"}'
 }
-- "stage" follows how this turn must go: prompt for an invitation to try, hint for one hint, answer for a full explanation.${assessmentMode ? ' In guided check mode, use "prompt" or "hint" by default; use "answer" only if the student explicitly asks for the full answer.' : ""}
-- "lead" reacts to what the student just said, in one or two sentences. The board shows it largest.
+- "stage" follows how this turn must go: prompt for an invitation to try, hint for one hint, answer for a full explanation.${assessmentMode ? ' In guided check mode, use "prompt" or "hint" by default; use "answer" when the student explicitly asks for the full answer, asks for help again after a hint, or is still stuck after two tries.' : ""}
+- "verdict" says how you judged the student's last words: right, partly, wrong, or none when they were not an answer (a question, a request to repeat, "I don't know", a greeting).
+- "wrapUp" is false unless the WRAP UP rule below tells you to finish.
+- "lead" reacts to what the student just said, in one or two sentences, or up to three when you give the answer. The board shows it largest.
 - "emphasis" repeats the one word or phrase inside "lead" that the board should underline. Copy it exactly. Leave it empty when nothing deserves the underline.
 - "blocks" holds up to three blocks, each a different type. A turn that teaches (explains, corrects or wraps up) uses two or three. A turn that only gives a hint or asks a check question uses one or none, so the blocks never give away what you ask. Never pad with a block that adds nothing.
   {"type":"bullets","items":["...","..."]} — two to four short parallel points.
@@ -749,11 +826,11 @@ ${
 - For yes/no, make the follow-up one statement or question the student answers with yes or no, and leave "options" out. They may then explain why aloud.
 - For matching, put two or three pairs in one "contrast" block.
 - Never use compare, timeline, evidence, mistake, recap or math to show the answer to the question you are asking.
-- Never reveal the final answer key, the correct option letter, or a full model answer unless the student explicitly asks for it.`
+- Never reveal the final answer key, the correct option letter, or a full model answer unless the student explicitly asks for it, asks for help again after a hint, or has tried twice and is still stuck.`
     : ""
 }
 
-STUDENT SAID
+${wrapUpRules}STUDENT SAID
 ${text(transcript)}`;
 };
 
@@ -789,6 +866,8 @@ export const buildVoiceOpeningPrompt = ({
     )
     .join("\n");
 
+  const focus = lessonFocus(lesson?.content || "");
+
   return `You are a warm, patient ${subjectName} tutor opening a spoken lesson with one student in grade ${grade}.
 This is the very first thing the student hears. Everything you write is spoken aloud by a voice.
 
@@ -798,7 +877,11 @@ ${lesson ? `The student chose this lesson: ${lessonLabel(lesson)}.\n` : ""}
 LESSON MATERIAL
 ${lessonBlocks || "(no lesson material matched)"}
 
-${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ""}
+${
+  focus.essentialQuestion
+    ? `THIS LESSON'S ESSENTIAL QUESTION\n${focus.essentialQuestion}\n${focus.bigIdea ? `Big idea: ${focus.bigIdea}\n` : ""}The warm-up should point toward this question without asking it yet.\n\n`
+    : ""
+}${standardsBlock ? `STANDARDS THIS GRADE MUST MASTER\n${standardsBlock}\n` : ""}
 HOW THIS OPENING MUST GO
 - Greet the student warmly in one short sentence. No name, no personal detail.
 - Give ONE hook: a single interesting idea or observation drawn from this lesson's material, to make them curious.
@@ -812,6 +895,8 @@ ${languageLevelGuidance(languageLevel)}
 - Short spoken sentences. Contractions are welcome. Sound like a kind teacher, not a textbook.
 - Numbers, symbols and formulas are said in words. No markdown, no bullet characters, no emoji, no code.
 - Never mention the student's name, class, school, teacher or any personal detail.
+- The student's words come from speech recognition and may be misheard. If a word sounds close to the expected answer or makes sense in context, accept it and say the correct word. Only ask them to repeat when the meaning is truly unclear.
+- A short, child-friendly meaning of any word that appears in the lesson material is always allowed, even if the lesson does not define it. Never add new facts, dates or names.
 
 REPLY FORMAT
 Return exactly one JSON object and nothing else:
@@ -1035,6 +1120,10 @@ export const readVoiceReply = (value, { lessons = [] } = {}) => {
   const stage = ["opening", "prompt", "hint", "answer"].includes(parsed?.stage)
     ? parsed.stage
     : "hint";
+  const verdict = ["right", "partly", "wrong", "none"].includes(parsed?.verdict)
+    ? parsed.verdict
+    : "none";
+  const wrapUp = parsed?.wrapUp === true;
   if (!lead && !blocks.length && !followUp) return null;
   // Choices need their own options list; without one the question is a plain short answer.
   const asked = text(parsed?.questionType);
@@ -1056,6 +1145,8 @@ export const readVoiceReply = (value, { lessons = [] } = {}) => {
   const spoken = segments.map((segment) => segment.text).join(" ");
   return {
     stage,
+    verdict,
+    wrapUp,
     questionType,
     lead,
     emphasis,

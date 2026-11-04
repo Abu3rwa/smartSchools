@@ -14,7 +14,6 @@ import {
   HiOutlineChatAlt2,
   HiOutlineCheck,
   HiOutlineChevronDown,
-  HiOutlineChevronRight,
   HiOutlineGlobe,
   HiOutlineLockClosed,
   HiOutlineMicrophone,
@@ -69,7 +68,7 @@ export default function VoiceTutorPage() {
     tapToToggle,
     setTapToToggle,
     canRetry,
-    pendingStudentText,
+    lastSaid,
     chooseSubject,
     startSession,
     resumeSession,
@@ -133,6 +132,8 @@ export default function VoiceTutorPage() {
   const price = session?.voice?.price ?? home?.voice?.price ?? 0;
   const wallet = creditCopy({ credits, price });
   const direction = i18n.dir?.() === "rtl" ? "rtl" : "ltr";
+  const subjectName =
+    home?.subjects?.find((row) => row.id === subjectId)?.name || "";
 
   if (loading) {
     return (
@@ -177,7 +178,7 @@ export default function VoiceTutorPage() {
         tapToToggle={tapToToggle}
         setTapToToggle={setTapToToggle}
         canRetry={canRetry}
-        pendingStudentText={pendingStudentText}
+        lastSaid={lastSaid}
         onLeave={leaveSession}
         onStart={startListening}
         onStop={stopListening}
@@ -207,36 +208,53 @@ export default function VoiceTutorPage() {
             to="/portal/tutor"
             aria-label={t("tutor:voice.backToTutor")}
           >
-            <HiOutlineArrowLeft size={17} aria-hidden="true" />
+            <HiOutlineArrowLeft size={15} aria-hidden="true" />
+            <span>{t("tutor:voice.backToTutor")}</span>
           </Link>
-          <div className="vt-head-title">
-            <strong>{t("tutor:voice.title")}</strong>
-          </div>
-          <ol className="vt-head-steps">
-            {["pick", "talk", "board"].map((key, index) => (
-              <li key={key} className="vt-head-step">
-                <span className="vt-head-step-num" aria-hidden="true">
-                  {index + 1}
-                </span>
-                <span className="vt-head-step-text">
-                  <b>{t(`tutor:voice.how.${key}`)}</b>
-                  <span>{t(`tutor:voice.how.${key}Body`)}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="vt-head-meta">
-            <span className="vt-premium">{t("tutor:voice.premium")}</span>
-            <span
-              className={`vt-credits${wallet.credits === 0 ? " is-empty" : ""}`}
-            >
-              {t("tutor:voice.creditsChip", { n: wallet.credits })}
-              <span className="vt-about">
+          <h1 className="vt-head-title">{t("tutor:voice.title")}</h1>
+          <span className="vt-premium">
+            <HiOutlineSparkles size={12} aria-hidden="true" />
+            {t("tutor:voice.premium")}
+          </span>
+        </div>
+
+        <div
+          className={`vt-credit-card${wallet.credits === 0 ? " is-empty" : ""}`}
+        >
+          <div className="vt-credit-main">
+            <span className="vt-credit-icon" aria-hidden="true">
+              <HiOutlineChatAlt2 size={19} />
+            </span>
+            <span className="vt-credit-text">
+              <strong>
+                {t("tutor:voice.creditsCount", { n: wallet.credits })}
+              </strong>
+              <span>
                 {t("tutor:voice.aboutMessages", { n: wallet.messages })}
               </span>
             </span>
           </div>
+          {wallet.price > 0 && (
+            <div className="vt-credit-price">
+              <strong>{wallet.price}</strong>
+              <span>{t("tutor:voice.perMessage")}</span>
+            </div>
+          )}
         </div>
+
+        <ol className="vt-head-steps">
+          {["pick", "talk", "board"].map((key, index) => (
+            <li key={key} className="vt-head-step">
+              <span className="vt-head-step-num" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="vt-head-step-text">
+                <b>{t(`tutor:voice.how.${key}`)}</b>
+                <span>{t(`tutor:voice.how.${key}Body`)}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </header>
 
       {home.access?.allowed === false && (
@@ -270,76 +288,90 @@ export default function VoiceTutorPage() {
           )}
 
           {home.activeSession && (
-            <div className="vt-resume">
-              <div className="vt-resume-text">
+            <section className="vt-resume">
+              <div className="vt-resume-head">
+                <span className="vt-resume-icon" aria-hidden="true">
+                  <HiOutlineRefresh size={16} />
+                </span>
+                <strong>{t("tutor:voice.resumeTitle")}</strong>
+              </div>
+              <div className="vt-resume-lesson">
                 <strong dir="auto">
                   {home.activeSession.lessonLabel ||
                     home.activeSession.subjectName}
                 </strong>
-                <span>{home.activeSession.subjectName}</span>
+                <span dir="auto">{home.activeSession.subjectName}</span>
               </div>
               <div className="vt-resume-actions">
                 <button
                   type="button"
-                  className="btn btn-primary btn-sm"
+                  className="vt-resume-go"
                   disabled={starting}
                   onClick={() => resumeSession(home.activeSession.id)}
                 >
-                  <HiOutlineRefresh size={14} aria-hidden="true" />
-                  {t("tutor:voice.continueLesson", {
-                    lesson:
-                      home.activeSession.lessonLabel ||
-                      home.activeSession.subjectName,
-                  })}
+                  <HiOutlinePlay size={13} aria-hidden="true" />
+                  {t("tutor:voice.continueLesson")}
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="vt-resume-new"
                   disabled={starting}
                   onClick={() => endActiveSession(home.activeSession.id)}
                 >
                   {t("tutor:voice.startNew")}
                 </button>
               </div>
-            </div>
+            </section>
           )}
 
-          <div
-            className="vt-subjects"
-            role="group"
-            aria-label={t("tutor:pickSubject")}
-          >
-            {home.subjects.map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                aria-pressed={row.id === subjectId}
-                className={`vt-subject-tab${row.id === subjectId ? " is-active" : ""}`}
-                onClick={() => {
-                  chooseSubject(row.id);
-                  setLessonId(null);
-                  setQuery("");
-                  setSearch("");
-                }}
-              >
-                {row.name}
-              </button>
-            ))}
-          </div>
+          <section className="vt-subjects">
+            <p className="vt-card-label" id="vt-subjects-label">
+              {t("tutor:voice.subjectsLabel")}
+            </p>
+            <div
+              className="vt-subject-tabs"
+              role="group"
+              aria-labelledby="vt-subjects-label"
+            >
+              {home.subjects.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  aria-pressed={row.id === subjectId}
+                  className={`vt-subject-tab${row.id === subjectId ? " is-active" : ""}`}
+                  onClick={() => {
+                    chooseSubject(row.id);
+                    setLessonId(null);
+                    setQuery("");
+                    setSearch("");
+                  }}
+                >
+                  {row.name}
+                </button>
+              ))}
+            </div>
+          </section>
 
-          <div className="vt-lessons" aria-busy={outlineLoading}>
-            {lessonCount > FILTER_AFTER && (
-              <label className="vt-filter">
-                <HiOutlineSearch size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("tutor:voice.filterLessons")}
-                  aria-label={t("tutor:voice.filterLessons")}
-                />
-              </label>
-            )}
+          <section className="vt-lessons" aria-busy={outlineLoading}>
+            <div className="vt-lessons-head">
+              <h2 className="vt-lessons-title" dir="auto">
+                {subjectName
+                  ? t("tutor:voice.subjectLessons", { subject: subjectName })
+                  : t("tutor:lessonsTitle")}
+              </h2>
+              {lessonCount > FILTER_AFTER && (
+                <label className="vt-filter">
+                  <HiOutlineSearch size={14} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t("tutor:voice.filterLessons")}
+                    aria-label={t("tutor:voice.filterLessons")}
+                  />
+                </label>
+              )}
+            </div>
             {outlineLoading && (
               <p className="vt-muted vt-list-note">
                 {t("tutor:loadingLessons")}
@@ -359,38 +391,40 @@ export default function VoiceTutorPage() {
               lessonRows.length === 0 && (
                 <p className="vt-muted vt-list-note">{t("tutor:noLessons")}</p>
               )}
-            {subjectId &&
-              lessonRows.map((row) => {
-                if (row.kind === "unit") {
+            <div className="vt-lesson-grid">
+              {subjectId &&
+                lessonRows.map((row) => {
+                  if (row.kind === "unit") {
+                    return (
+                      <p key={row.key} className="vt-group">
+                        <span>{t("tutor:unit", { n: row.unitNumber })}</span>
+                        {row.unitTitle && <em dir="auto">{row.unitTitle}</em>}
+                      </p>
+                    );
+                  }
+                  if (row.kind === "chapter") {
+                    return (
+                      <p key={row.key} className="vt-group is-chapter">
+                        <span>
+                          {t("tutor:chapter", { n: row.chapterNumber })}
+                        </span>
+                        {row.chapterTitle && (
+                          <em dir="auto">{row.chapterTitle}</em>
+                        )}
+                      </p>
+                    );
+                  }
                   return (
-                    <p key={row.key} className="vt-group">
-                      <span>{t("tutor:unit", { n: row.unitNumber })}</span>
-                      {row.unitTitle && <em dir="auto">{row.unitTitle}</em>}
-                    </p>
+                    <LessonRow
+                      key={row.key}
+                      row={row}
+                      selected={row.lesson.id === lessonId}
+                      onPick={pickLesson}
+                    />
                   );
-                }
-                if (row.kind === "chapter") {
-                  return (
-                    <p key={row.key} className="vt-group is-chapter">
-                      <span>
-                        {t("tutor:chapter", { n: row.chapterNumber })}
-                      </span>
-                      {row.chapterTitle && (
-                        <em dir="auto">{row.chapterTitle}</em>
-                      )}
-                    </p>
-                  );
-                }
-                return (
-                  <LessonRow
-                    key={row.key}
-                    row={row}
-                    selected={row.lesson.id === lessonId}
-                    onPick={pickLesson}
-                  />
-                );
-              })}
-          </div>
+                })}
+            </div>
+          </section>
 
           <div className="vt-start">
             <button
@@ -464,7 +498,7 @@ export default function VoiceTutorPage() {
   );
 }
 
-/** One picker row. Its props stay stable so typing in the filter does not redraw the list. */
+/** One picker card. Its props stay stable so typing in the filter does not redraw the list. */
 const LessonRow = memo(function LessonRow({ row, selected, onPick }) {
   const { t } = useTranslation(["tutor"]);
   const lesson = row.lesson;
@@ -475,23 +509,50 @@ const LessonRow = memo(function LessonRow({ row, selected, onPick }) {
       aria-pressed={selected}
       onClick={() => onPick(lesson.id)}
     >
-      <span className="vt-lesson-num">{lesson.lessonNumber}</span>
+      <span className="vt-lesson-num" aria-hidden="true">
+        {lesson.lessonNumber}
+      </span>
       <span className="vt-lesson-main">
         <strong dir="auto">{lesson.title}</strong>
         {row.chapterNumber != null && (
           <span>{t("tutor:chapter", { n: row.chapterNumber })}</span>
         )}
       </span>
-      <span className="vt-lesson-mark" aria-hidden="true">
-        {selected ? (
-          <HiOutlineCheck size={15} />
-        ) : (
-          <HiOutlineChevronRight size={15} />
-        )}
-      </span>
+      {selected && (
+        <span className="vt-lesson-mark" aria-hidden="true">
+          <HiOutlineCheck size={13} />
+        </span>
+      )}
     </button>
   );
 });
+
+/** The student's own words, kept beside the mic so the board stays the tutor's. */
+function SaidBubble({ said }) {
+  const { t } = useTranslation(["tutor"]);
+  const [open, setOpen] = useState(false);
+  if (!said) return null;
+  const text =
+    said.status === "sending" && said.voice
+      ? t("tutor:voice.sendingVoice")
+      : said.status === "failed" && !said.text
+        ? t("tutor:voice.voiceNotSent")
+        : said.text;
+  return (
+    <button
+      type="button"
+      className={`vt-said is-${said.status}${open ? " is-open" : ""}`}
+      aria-expanded={open}
+      onClick={() => setOpen((current) => !current)}
+    >
+      <span className="vt-said-tag">
+        <HiOutlineMicrophone size={11} aria-hidden="true" />
+        {t("tutor:voice.youSaid")}
+      </span>
+      <q dir="auto">{text}</q>
+    </button>
+  );
+}
 
 function Board({
   session,
@@ -509,7 +570,7 @@ function Board({
   tapToToggle,
   setTapToToggle,
   canRetry,
-  pendingStudentText,
+  lastSaid,
   onLeave,
   onStart,
   onStop,
@@ -538,6 +599,8 @@ function Board({
   const [expanded, setExpanded] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [practising, setPractising] = useState(false);
+  const keepPractising = useCallback(() => setPractising(true), []);
 
   // The server sends one clip per board part: lead, each block, then follow-up.
   const spokenStep =
@@ -697,6 +760,18 @@ function Board({
         </button>
       </header>
 
+      {session.lesson?.essentialQuestion && (
+        <div className="vt-focus">
+          <span className="vt-focus-label">
+            <HiOutlineQuestionMarkCircle size={13} aria-hidden="true" />
+            {t("tutor:voice.essentialQuestion")}
+          </span>
+          <p className="vt-focus-q" dir="auto">
+            {session.lesson.essentialQuestion}
+          </p>
+        </div>
+      )}
+
       <div className="vt-feed-wrap">
         {error && (
           <div className="vt-error vt-feed-error" role="alert">
@@ -768,21 +843,15 @@ function Board({
                 blocked={latest ? blocked : false}
                 outOfCredit={latest ? outOfCredit : false}
                 onAnswer={onAnswer}
+                practising={practising}
+                onKeepPracticing={keepPractising}
+                onPickAnother={onLeave}
               />
             );
           })}
 
           {thinking && (
             <section className="vt-feed-page is-latest" ref={latestRef}>
-              {pendingStudentText && (
-                <div className="vt-your-words">
-                  <span className="vt-your-words-tag">
-                    <HiOutlineMicrophone size={11} aria-hidden="true" />
-                    {t("tutor:voice.youSaid")}
-                  </span>
-                  <q dir="auto">{pendingStudentText}</q>
-                </div>
-              )}
               <Waiting />
             </section>
           )}
@@ -823,7 +892,7 @@ function Board({
         </button>
       </div>
 
-      <footer className="vt-dock">
+      <footer className={`vt-dock${lastSaid ? " has-said" : ""}`}>
         {shortTap && (
           <p className="vt-hint" role="status">
             {t("tutor:voice.holdLonger")}
@@ -843,6 +912,7 @@ function Board({
 
         {textOnly ? (
           <div className="vt-text-dock">
+            <SaidBubble said={lastSaid} />
             <p className="vt-text-note">{t("tutor:voice.textOnlyNote")}</p>
             <AnswerBox
               disabled={thinking || outOfCredit}
@@ -873,6 +943,7 @@ function Board({
         ) : (
           <>
             <div className="vt-dock-side">
+              <SaidBubble said={lastSaid} />
               {!tapToToggle && (
                 <>
                   <kbd className="vt-kbd">Ctrl</kbd>
@@ -1063,7 +1134,10 @@ const FeedPage = memo(function FeedPage({
   spokenStep,
   blocked,
   outOfCredit,
+  practising,
   onAnswer,
+  onKeepPracticing,
+  onPickAnother,
 }) {
   const { t } = useTranslation(["tutor"]);
   const message = page.tutor;
@@ -1099,22 +1173,13 @@ const FeedPage = memo(function FeedPage({
       className={`vt-feed-page${latest ? " is-latest" : " is-archived"}`}
       aria-current={latest ? "true" : undefined}
     >
-      {page.said?.text && (
-        <div className="vt-your-words">
-          <span className="vt-your-words-tag">
-            <HiOutlineMicrophone size={11} aria-hidden="true" />
-            {t("tutor:voice.youSaid")}
+      <div className="vt-tutor" dir="auto">
+        <header className="vt-tutor-head">
+          <span className="vt-tutor-avatar" aria-hidden="true">
+            <HiOutlineSparkles size={15} />
           </span>
-          <q dir="auto">{page.said.text}</q>
-        </div>
-      )}
-
-      <div
-        className={`vt-turn${blocks.length ? "" : " is-solo"}${
-          revealActive ? " is-revealing" : ""
-        }`}
-        dir="auto"
-      >
+          <span className="vt-tutor-name">{t("tutor:voice.tutorName")}</span>
+        </header>
         <h2 className={`vt-lead${stepClass(0)}`}>
           {markAt < 0 ? (
             lead
@@ -1143,29 +1208,48 @@ const FeedPage = memo(function FeedPage({
         )}
       </div>
 
+      {latest && message?.wrapUp && !practising && (
+        <div className="vt-done" role="status">
+          <strong>{t("tutor:voice.lessonDone")}</strong>
+          <div className="vt-done-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={onPickAnother}>
+              {t("tutor:voice.pickAnother")}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onKeepPracticing}>
+              {t("tutor:voice.keepPracticing")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {followUp && !(latest && outOfCredit) && (
         <div className={`vt-check${stepClass(blocks.length + 1)}`}>
-          <span className="vt-check-icon" aria-hidden="true">
-            <HiOutlineQuestionMarkCircle size={17} />
-          </span>
-          <div className="vt-check-text">
+          <div className="vt-check-head">
+            <span className="vt-check-icon" aria-hidden="true">
+              <HiOutlineQuestionMarkCircle size={15} />
+            </span>
             <strong>{t("tutor:voice.yourTurn")}</strong>
-            <p dir="auto">{followUp}</p>
-            {options.length > 0 && (
-              <Choices
-                items={options}
-                picked={picked}
-                disabled={!interactive || blocked}
-                onChoose={onAnswer}
-              />
-            )}
-            {interactive && asksYesNo && (
-              <YesNo disabled={blocked} onSend={onAnswer} />
-            )}
-            {interactive && !asksChoice && !asksYesNo && (
-              <AnswerBox disabled={blocked} onSend={onAnswer} />
-            )}
           </div>
+          <p className="vt-check-q" dir="auto">
+            {followUp}
+          </p>
+          {options.length > 0 && (
+            <Choices
+              items={options}
+              picked={picked}
+              disabled={!interactive || blocked}
+              onChoose={onAnswer}
+            />
+          )}
+          {interactive && asksYesNo && (
+            <YesNo disabled={blocked} onSend={onAnswer} />
+          )}
+          {interactive && !asksChoice && !asksYesNo && (
+            <>
+              <AnswerBox disabled={blocked} onSend={onAnswer} />
+              <p className="vt-check-hint">{t("tutor:voice.answerHint")}</p>
+            </>
+          )}
         </div>
       )}
     </section>

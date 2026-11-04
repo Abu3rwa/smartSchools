@@ -57,6 +57,22 @@ export const voiceClipRateLimiter = rateLimit({
 });
 
 /**
+ * The student's self-check loads on every app open and a teacher may refresh a
+ * full class a few times, so the ceiling is generous but still bounded.
+ */
+export const classworkSelfCheckRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many self-check requests. Please wait a few minutes and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Reading recordings follow the tutor's ceiling: one student can legitimately
  * make a handful of attempts, but not an unbounded stream of paid transcripts.
  */

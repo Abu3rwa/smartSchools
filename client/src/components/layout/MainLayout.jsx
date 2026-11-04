@@ -14,6 +14,7 @@ import StudentHomeButton from './StudentHomeButton';
 import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
 import SubscriptionExpiredBanner from '../SubscriptionExpiredBanner';
 import StudentLiveLessonPopup from '../liveLessons/StudentLiveLessonPopup';
+import StudentClassworkSelfCheckModal from '../grades/StudentClassworkSelfCheckModal';
 import './MainLayout.css';
 
 const MainLayout = () => {
@@ -99,6 +100,7 @@ const MainLayout = () => {
                 import.meta.env.VITE_LIVE_LESSONS_ENABLED === 'true' && (
                     <StudentLiveLessonPopup />
                 )}
+            {isStudent && <StudentClassworkSelfCheckModal />}
             {shouldShowWall && <SubscriptionExpiredWall />}
         </div>
     );

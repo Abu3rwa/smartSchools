@@ -9,9 +9,11 @@ import {
   buildTutorPrompt,
   buildVoicePrompt,
   buildVoiceOpeningPrompt,
+  lessonFocus,
   nextQuestionType,
   readVoiceReply,
   countTries,
+  countVoiceTries,
   gradePractice,
   normalizePracticeQuestions,
   readTutorReply,
@@ -346,7 +348,7 @@ test("both tutors must say plainly whether an attempt was right or not", () => {
     tries: 1,
     assessmentMode: true,
   });
-  assert.match(guided, /say which pairs were right and which were not/);
+  assert.match(guided, /whether this new answer is right, partly right, or not right/);
 });
 
 test("the spoken tutor answers in the student language", () => {
@@ -376,6 +378,82 @@ test("guided check mode keeps answers hidden and asks structured checks", () => 
   assert.match(prompt, /Never reveal the final answer key/i);
   assert.match(prompt, /"questionType":"short\|mcq\|yesno\|match"/);
   assert.match(prompt, /yes\/no/);
+});
+
+test("the guided voice prompt grades every turn and can wrap the lesson up", () => {
+  const prompt = buildVoicePrompt({
+    transcript: "the explorers wanted gold",
+    lessons: [lesson("a")],
+    assessmentMode: true,
+    tries: 0,
+    rightSoFar: 2,
+  });
+  assert.match(prompt, /speech recognition/);
+  assert.match(prompt, /child-friendly meaning/);
+  assert.match(prompt, /"verdict"/);
+  assert.match(prompt, /WRAP UP/);
+  assert.match(prompt, /answered 2 questions right/);
+  assert.match(prompt, /Never mention the student's name/);
+
+  const warmUp = buildVoicePrompt({
+    transcript: "I saw a globe once",
+    lessons: [lesson("a")],
+    assessmentMode: true,
+    firstReply: true,
+  });
+  assert.match(warmUp, /warm-up question/);
+  assert.match(warmUp, /verdict" to "none/);
+});
+
+test("a stuck student gets the answer instead of another clue", () => {
+  const prompt = buildVoicePrompt({
+    transcript: "I don't know. Just tell me the answer.",
+    lessons: [lesson("a")],
+    assessmentMode: true,
+    tries: 2,
+  });
+  assert.match(prompt, /WHEN THE STUDENT IS STUCK/);
+  assert.match(prompt, /stop hinting/i);
+  assert.match(prompt, /Give the answer in two or three short sentences/);
+  assert.match(
+    prompt,
+    /Never answer a request for the answer with another clue only/,
+  );
+  assert.match(
+    prompt,
+    /STOP hinting\. Set "verdict" to "wrong" and "stage" to "answer"/,
+  );
+  assert.match(prompt, /has tried twice and is still stuck/);
+});
+
+test("the lesson's essential question travels into both voice prompts", () => {
+  const content =
+    "Lesson 2.1\nBig Idea: People's motivations shape the risks they take.\n" +
+    "Essential Question: Why were explorers willing to risk so much?\n\nReading...";
+  assert.deepEqual(lessonFocus(content), {
+    bigIdea: "People's motivations shape the risks they take.",
+    essentialQuestion: "Why were explorers willing to risk so much?",
+  });
+  assert.deepEqual(lessonFocus("No focus lines here."), {
+    bigIdea: "",
+    essentialQuestion: "",
+  });
+
+  const focused = lesson("a", { content });
+  const turn = buildVoicePrompt({
+    transcript: "I think they wanted gold",
+    lessons: [focused],
+    lesson: focused,
+  });
+  assert.match(turn, /THIS LESSON'S ESSENTIAL QUESTION/);
+  assert.match(turn, /Why were explorers willing to risk so much\?/);
+
+  const opening = buildVoiceOpeningPrompt({
+    lessons: [focused],
+    lesson: focused,
+  });
+  assert.match(opening, /THIS LESSON'S ESSENTIAL QUESTION/);
+  assert.match(opening, /point toward this question without asking it yet/);
 });
 
 test("the server picks the next check-question type and the prompt asks for it", () => {
@@ -829,6 +907,44 @@ test("a malformed or empty spoken reply is rejected instead of guessed", () => {
   assert.equal(single.blocks.length, 0);
 });
 
+test("a spoken reply carries its verdict and wrap-up flag", () => {
+  const reply = readVoiceReply(
+    '{"stage":"prompt","verdict":"right","wrapUp":false,"lead":"Yes!","followUp":"What comes next?"}',
+  );
+  assert.equal(reply.verdict, "right");
+  assert.equal(reply.wrapUp, false);
+
+  const partly = readVoiceReply(
+    '{"lead":"Close.","verdict":"partly","followUp":"Try again?"}',
+  );
+  assert.equal(partly.verdict, "partly");
+
+  const wrong = readVoiceReply(
+    '{"lead":"Not quite.","verdict":"wrong","followUp":"Again?"}',
+  );
+  assert.equal(wrong.verdict, "wrong");
+
+  const none = readVoiceReply(
+    '{"lead":"A question.","verdict":"none","followUp":"Now?"}',
+  );
+  assert.equal(none.verdict, "none");
+
+  const missing = readVoiceReply('{"lead":"Hm.","followUp":"Again?"}');
+  assert.equal(missing.verdict, "none");
+  const invalid = readVoiceReply(
+    '{"lead":"Hm.","verdict":"maybe","followUp":"Again?"}',
+  );
+  assert.equal(invalid.verdict, "none");
+
+  const done = readVoiceReply(
+    '{"stage":"prompt","verdict":"right","wrapUp":true,"lead":"You finished the lesson.","blocks":[{"type":"recap","items":["one","two"]}]}',
+  );
+  assert.notEqual(done, null);
+  assert.equal(done.verdict, "right");
+  assert.equal(done.wrapUp, true);
+  assert.equal(done.followUp, "");
+});
+
 test("no student name is ever part of the tutor prompts", () => {
   const ask = buildTutorPrompt({ question: "q", lessons: [lesson("a")] });
   const practice = buildPracticePrompt({ lessons: [lesson("a")] });
@@ -949,6 +1065,61 @@ test("tries count the attempts after the question and restart after an explanati
       { role: "student", text: "next question" },
     ]),
     0,
+  );
+});
+
+test("voice tries follow the tutor's verdicts, not the raw message count", () => {
+  const opening = { role: "tutor", stage: "opening" };
+  const said = { role: "student", text: "a guess" };
+  const wrong = { role: "tutor", stage: "hint", verdict: "wrong" };
+  const right = { role: "tutor", stage: "prompt", verdict: "right" };
+  const none = { role: "tutor", stage: "prompt", verdict: "none" };
+
+  const legacy = [
+    { role: "student", text: "How does this work?" },
+    { role: "tutor", stage: "prompt" },
+    { role: "student", text: "a guess" },
+  ];
+  assert.equal(countVoiceTries(legacy), countTries(legacy));
+
+  assert.equal(countVoiceTries([opening, said, wrong]), 1);
+  assert.equal(countVoiceTries([opening, said, wrong, said, right]), 0);
+  assert.equal(countVoiceTries([opening, said, wrong, said, none]), 1);
+  assert.equal(countVoiceTries([opening, said, wrong, said, wrong]), 2);
+  assert.equal(
+    countVoiceTries([opening, said, wrong, said, wrong, said, wrong]),
+    2,
+  );
+  assert.equal(
+    countVoiceTries([
+      opening,
+      said,
+      wrong,
+      said,
+      { role: "tutor", stage: "answer", verdict: "wrong" },
+    ]),
+    0,
+  );
+});
+
+test("a new question after two right answers starts with an empty try count", () => {
+  const opening = { role: "tutor", stage: "opening" };
+  const said = { role: "student", text: "a" };
+  const wrong = { role: "tutor", stage: "hint", verdict: "wrong" };
+  const right = { role: "tutor", stage: "prompt", verdict: "right" };
+  assert.equal(
+    countVoiceTries([
+      opening,
+      said,
+      wrong,
+      said,
+      right,
+      said,
+      right,
+      said,
+      wrong,
+    ]),
+    1,
   );
 });
 

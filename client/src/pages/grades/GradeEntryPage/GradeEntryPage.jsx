@@ -14,6 +14,7 @@ import GradeEntryHeader from './components/GradeEntryHeader';
 import GradeEntrySelectionForm from './components/GradeEntrySelectionForm';
 import GradeEntryTable from './components/GradeEntryTable';
 import GradeEntryEmptyState from './components/GradeEntryEmptyState';
+import ClassworkSelfCheckPanel from './components/ClassworkSelfCheckPanel';
 import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
 import EmailLanguageControl from '../../../components/shared/EmailLanguageControl';
 import {
@@ -228,6 +229,16 @@ const GradeEntryPage = () => {
         setBehaviorStudent(classStudents[currentIndex + 1] || null);
     };
 
+    const applySelfCheckMarks = useCallback((patch) => {
+        setGrades((current) => {
+            const next = { ...current };
+            Object.entries(patch).forEach(([studentId, values]) => {
+                next[studentId] = { ...current[studentId], ...values };
+            });
+            return next;
+        });
+    }, [setGrades]);
+
     return (
         <div className="grade-entry-page">
             <GradeEntryHeader editMode={editMode} />
@@ -281,6 +292,19 @@ const GradeEntryPage = () => {
 
             {selectedClass && selectedSubject && classStudents.length === 0 && (
                 <GradeEntryEmptyState message={t('grades:entry.empty.noStudents')} />
+            )}
+
+            {selectedClass && selectedSubject
+                && selectedCategory?.toLowerCase() === 'classwork'
+                && !editMode && (
+                <ClassworkSelfCheckPanel
+                    classId={selectedClass}
+                    subjectId={selectedSubject}
+                    date={selectedDate}
+                    maxMarks={maxMarks}
+                    grades={grades}
+                    onApplyMarks={applySelfCheckMarks}
+                />
             )}
 
             {(!selectedClass || !selectedSubject) && (
