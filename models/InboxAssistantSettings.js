@@ -13,6 +13,26 @@ const customReplyTypeSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/** Reminder minutes Google counts backwards from the start of the event. */
+const calendarSettingsSchema = new mongoose.Schema(
+  {
+    syncOn: { type: Boolean, default: true },
+    autoAdd: { type: Boolean, default: false },
+    autoAddSenders: {
+      staff: { type: Boolean, default: true },
+      parents: { type: Boolean, default: true },
+      others: { type: Boolean, default: true },
+    },
+    meetingLengthMinutes: { type: Number, default: 60, min: 15, max: 240 },
+    // 960 minutes before midnight of the due day is 08:00 the day before.
+    deadlineReminderDateOnlyMinutes: { type: Number, default: 960, min: 0, max: 4320 },
+    deadlineReminderTimedMinutes: { type: Number, default: 120, min: 0, max: 1440 },
+    meetingReminderMinutes: { type: Number, default: 30, min: 0, max: 1440 },
+    overlapEmail: { type: Boolean, default: true },
+  },
+  { _id: false },
+);
+
 /** One row per teacher: opt-in state and the defaults every scan and draft starts from. */
 const inboxAssistantSettingsSchema = new mongoose.Schema(
   {
@@ -42,6 +62,7 @@ const inboxAssistantSettingsSchema = new mongoose.Schema(
       },
     },
     lastScanAt: { type: Date, default: null },
+    calendar: { type: calendarSettingsSchema, default: () => ({}) },
   },
   { timestamps: true },
 );

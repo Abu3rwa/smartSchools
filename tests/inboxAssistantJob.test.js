@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test, { after, beforeEach } from 'node:test';
 
 import AiCreditSetting from '../models/AiCreditSetting.js';
+import InboxAssistantSettings from '../models/InboxAssistantSettings.js';
 import InboxDeadline from '../models/InboxDeadline.js';
 import InboxEmail from '../models/InboxEmail.js';
+import InboxEvent from '../models/InboxEvent.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import { runInboxAssistantJob } from '../jobs/inboxAssistantJob.js';
@@ -15,18 +17,22 @@ const NOW = new Date('2026-11-20T00:00:00.000Z');
 
 const originals = {
     creditFindOne: AiCreditSetting.findOne,
+    settingsFindOne: InboxAssistantSettings.findOne,
     emailUpdateMany: InboxEmail.updateMany,
     deadlineFind: InboxDeadline.find,
     deadlineFindOneAndUpdate: InboxDeadline.findOneAndUpdate,
+    eventFind: InboxEvent.find,
     notificationCreate: Notification.create,
     userFind: User.find
 };
 
 const restore = () => {
     AiCreditSetting.findOne = originals.creditFindOne;
+    InboxAssistantSettings.findOne = originals.settingsFindOne;
     InboxEmail.updateMany = originals.emailUpdateMany;
     InboxDeadline.find = originals.deadlineFind;
     InboxDeadline.findOneAndUpdate = originals.deadlineFindOneAndUpdate;
+    InboxEvent.find = originals.eventFind;
     Notification.create = originals.notificationCreate;
     User.find = originals.userFind;
 };
@@ -34,6 +40,16 @@ const restore = () => {
 const chain = (value) => {
     const wrapper = {
         select: () => wrapper,
+        lean: async () => value
+    };
+    return wrapper;
+};
+
+const queryChain = (value) => {
+    const wrapper = {
+        select: () => wrapper,
+        sort: () => wrapper,
+        limit: () => wrapper,
         lean: async () => value
     };
     return wrapper;
@@ -51,6 +67,8 @@ beforeEach(() => {
     restore();
     installPlatformRetention();
     noDeadlines();
+    InboxEvent.find = () => chain([]);
+    InboxAssistantSettings.findOne = () => chain(null);
     InboxEmail.updateMany = async () => ({ modifiedCount: 0 });
     Notification.create = async (doc) => doc;
     User.find = () => chain([]);
@@ -141,7 +159,8 @@ test('a confirmed deadline reminds exactly once across two job runs', async () =
         _id: 'deadline-1',
         state: 'confirmed',
         reminderSentAt: null,
-        remindAt: { $lte: NOW }
+        remindAt: { $lte: NOW },
+        'calendar.status': { $ne: 'synced' }
     });
     assert.equal(claimCalls[0].update.$set.reminderSentAt.toISOString(), NOW.toISOString());
 
@@ -156,6 +175,50 @@ test('a confirmed deadline reminds exactly once across two job runs', async () =
     assert.equal(pushes.length, 1);
     assert.equal(pushes[0].schoolId, SCHOOL);
     assert.deepEqual(pushes[0].userIds, [TEACHER]);
+});
+
+test('a deadline that is on Google Calendar is left to Google', async () => {
+    const filters = [];
+    InboxDeadline.find = (filter) => {
+        filters.push(filter);
+        return chain([]);
+    };
+    const pushes = [];
+
+    await runInboxAssistantJob({
+        now: NOW,
+        env: {},
+        pushSender: async (payload) => { pushes.push(payload); }
+    });
+
+    assert.deepEqual(filters[0]['calendar.status'], { $ne: 'synced' });
+    assert.equal(pushes.length, 0);
+});
+
+test('owed calendar calls are retried only while the platform switch is on', async () => {
+    const seen = [];
+    const watch = (Model) => {
+        Model.find = (filter) => {
+            seen.push(filter);
+            return queryChain([]);
+        };
+    };
+
+    watch(InboxDeadline);
+    watch(InboxEvent);
+    await runInboxAssistantJob({ now: NOW, env: {}, pushSender: async () => {} });
+    assert.equal(seen.some((filter) => filter['calendar.attempts']), false);
+
+    seen.length = 0;
+    AiCreditSetting.findOne = () => chain({
+        inbox: { rawTextRetentionDays: 14, calendarEnabled: true }
+    });
+    InboxAssistantSettings.findOne = () => chain({ calendar: { syncOn: true } });
+    await runInboxAssistantJob({ now: NOW, env: {}, pushSender: async () => {} });
+
+    const retries = seen.filter((filter) => filter['calendar.attempts']);
+    assert.equal(retries.length, 2);
+    assert.deepEqual(retries[0]['calendar.attempts'], { $lt: 5 });
 });
 
 test('the job can be switched off without touching any inbox row', async () => {

@@ -14,7 +14,10 @@ export const INBOX_DEFAULTS = Object.freeze({
     maxScansPerDay: 20,
     maxDraftsPerDay: 100,
     freeScansPerDay: 0,
-    rawTextRetentionDays: 14
+    rawTextRetentionDays: 14,
+    // Off until the owner enables the Calendar API and finishes Google verification.
+    calendarEnabled: false,
+    autoAddCapPerScan: 10
 });
 
 const NUMBER_FIELDS = [
@@ -23,7 +26,13 @@ const NUMBER_FIELDS = [
     ['maxScansPerDay', 1, 200, 'scans per day'],
     ['maxDraftsPerDay', 1, 1000, 'drafts per day'],
     ['freeScansPerDay', 0, 50, 'free scans per day'],
-    ['rawTextRetentionDays', 1, 90, 'days the email text is kept']
+    ['rawTextRetentionDays', 1, 90, 'days the email text is kept'],
+    ['autoAddCapPerScan', 1, 50, 'automatic calendar adds per scan']
+];
+
+const BOOLEAN_FIELDS = [
+    ['enabled', 'Inbox Assistant'],
+    ['calendarEnabled', 'Google Calendar']
 ];
 
 export const readInboxSettings = async () => {
@@ -36,11 +45,12 @@ export const getPlatformInboxSettings = async () => readInboxSettings();
 export const saveInboxSettings = async ({ patch = {}, updatedBy } = {}) => {
     const next = { ...await readInboxSettings() };
 
-    if (patch.enabled !== undefined) {
-        if (typeof patch.enabled !== 'boolean') {
-            throw badRequest('Turn Inbox Assistant on or off.');
+    for (const [field, label] of BOOLEAN_FIELDS) {
+        if (patch[field] === undefined) continue;
+        if (typeof patch[field] !== 'boolean') {
+            throw badRequest(`Turn ${label} on or off.`);
         }
-        next.enabled = patch.enabled;
+        next[field] = patch[field];
     }
     for (const [field, min, max, label] of NUMBER_FIELDS) {
         if (patch[field] === undefined) continue;

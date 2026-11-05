@@ -1,10 +1,13 @@
 import process from 'node:process';
 import logger from '../utils/logger.js';
+import InboxAssistantSettings from '../models/InboxAssistantSettings.js';
 import InboxEmail from '../models/InboxEmail.js';
 import InboxDeadline from '../models/InboxDeadline.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import { getPlatformInboxSettings } from '../services/inboxSettingsService.js';
+import { INBOX_CALENDAR_MODELS } from '../services/inbox/inboxDataService.js';
+import inboxCalendarService from '../services/inbox/inboxCalendarService.js';
 import { sendPushToUsers } from '../services/pushNotificationService.js';
 import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 import { buildPortalLink } from '../helpers/portalUrl.js';
@@ -42,10 +45,13 @@ const reminderContent = (deadline) => {
 
 /** One reminder per confirmed deadline, even if two job runs overlap. */
 const sendDueReminders = async (now, pushSender) => {
+    // A deadline on Google Calendar is reminded by Google; a second notice from
+    // the app would only be noise. Off the calendar, this runs exactly as before.
     const due = await InboxDeadline.find({
         state: 'confirmed',
         reminderSentAt: null,
         remindAt: { $ne: null, $lte: now },
+        'calendar.status': { $ne: 'synced' },
     }).select('_id school user title dueAt dueDateOnly timeZone').lean();
     if (!due.length) return 0;
 
@@ -59,7 +65,13 @@ const sendDueReminders = async (now, pushSender) => {
         if (!user?.email) continue;
 
         const claimed = await InboxDeadline.findOneAndUpdate(
-            { _id: deadline._id, state: 'confirmed', reminderSentAt: null, remindAt: { $lte: now } },
+            {
+                _id: deadline._id,
+                state: 'confirmed',
+                reminderSentAt: null,
+                remindAt: { $lte: now },
+                'calendar.status': { $ne: 'synced' },
+            },
             { $set: { reminderSentAt: now } },
             { new: true },
         ).lean();
@@ -102,6 +114,52 @@ const sendDueReminders = async (now, pushSender) => {
     return sent;
 };
 
+/**
+ * Google calls the app still owes: an add that failed and a removal that did not
+ * go through. Each row carries its own teacher's settings and email context, and
+ * a teacher who turned sync off is skipped before any call is made.
+ */
+export const retryCalendarSync = async (now = new Date()) => {
+    const platform = await getPlatformInboxSettings();
+    if (!platform.calendarEnabled) return null;
+
+    const settingsCache = new Map();
+    const settingsFor = (row) => {
+        const key = `${row.school}:${row.user}`;
+        if (!settingsCache.has(key)) {
+            settingsCache.set(key, InboxAssistantSettings.findOne({
+                school: row.school,
+                user: row.user,
+            }).select('calendar').lean());
+        }
+        return settingsCache.get(key);
+    };
+
+    const contextFor = async (row) => {
+        if (!row.email) return {};
+        const email = await InboxEmail.findOne({
+            _id: row.email,
+            school: row.school,
+            user: row.user,
+        }).select('threadId gmailMessageId summary fromName senderRole').lean();
+        if (!email) return {};
+        return {
+            threadId: email.threadId || '',
+            gmailMessageId: email.gmailMessageId || '',
+            summary: email.summary || '',
+            senderName: email.fromName || '',
+            senderRole: email.senderRole || '',
+        };
+    };
+
+    return inboxCalendarService.retryFailed({
+        models: INBOX_CALENDAR_MODELS,
+        settingsFor,
+        contextFor,
+        now,
+    });
+};
+
 export async function runInboxAssistantJob({
     now = new Date(),
     env = process.env,
@@ -113,6 +171,7 @@ export async function runInboxAssistantJob({
 
     let purged = 0;
     let remindersSent = 0;
+    let calendarRetried = null;
     try {
         purged = await purgeOldInboxBodies(now);
     } catch (error) {
@@ -123,7 +182,12 @@ export async function runInboxAssistantJob({
     } catch (error) {
         logger.error('inbox_assistant_reminders_failed', { error: error?.message || String(error) });
     }
+    try {
+        calendarRetried = await retryCalendarSync(now);
+    } catch (error) {
+        logger.error('inbox_assistant_calendar_retry_failed', { error: error?.message || String(error) });
+    }
 
-    logger.info('inbox_assistant_job_completed', { purged, remindersSent });
-    return { purged, remindersSent };
+    logger.info('inbox_assistant_job_completed', { purged, remindersSent, calendarRetried });
+    return { purged, remindersSent, calendarRetried };
 }

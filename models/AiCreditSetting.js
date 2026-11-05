@@ -29,7 +29,9 @@ const aiCreditSettingSchema = new mongoose.Schema(
         maxScansPerDay: { type: Number, default: 20, min: 1, max: 200 },
         maxDraftsPerDay: { type: Number, default: 100, min: 1, max: 1000 },
         freeScansPerDay: { type: Number, default: 0, min: 0, max: 50 },
-        rawTextRetentionDays: { type: Number, default: 14, min: 1, max: 90 }
+        rawTextRetentionDays: { type: Number, default: 14, min: 1, max: 90 },
+        calendarEnabled: { type: Boolean, default: false },
+        autoAddCapPerScan: { type: Number, default: 10, min: 1, max: 50 }
     },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },

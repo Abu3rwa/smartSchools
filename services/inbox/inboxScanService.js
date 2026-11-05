@@ -4,7 +4,6 @@
  */
 import InboxAssistantSettings from '../../models/InboxAssistantSettings.js';
 import InboxEmail from '../../models/InboxEmail.js';
-import InboxDeadline from '../../models/InboxDeadline.js';
 import InboxScanRun from '../../models/InboxScanRun.js';
 import { getPlatformInboxSettings } from '../inboxSettingsService.js';
 import {
@@ -21,6 +20,14 @@ import { hashBody } from './inboxHash.js';
 import { estimateScanCents } from './inboxCostEstimator.js';
 import { trimBody } from './inboxBodyText.js';
 import { lookupSenderRoles } from './inboxSenderRoles.js';
+import { getCalendarContext } from './inboxCalendarContext.js';
+import {
+    applyItemChanges,
+    autoAddItems,
+    loadKnownItems,
+    saveItemsForEmail,
+    sendOverlapEmail
+} from './inboxScanCalendar.js';
 
 const SCAN_MODES = new Set(['refresh', 'full']);
 const RUN_LOCK_MS = 10 * 60 * 1000;
@@ -228,12 +235,6 @@ const freeAllowanceApplies = async (user, platform, timeZone) => {
     return freeUsed < allowance;
 };
 
-const deadlineDueAt = (deadline, timeZone) => {
-    const [year, month, day] = deadline.dueDate.split('-').map(Number);
-    const [hour, minute] = (deadline.dueTime || '00:00').split(':').map(Number);
-    return zonedDateTimeToUtc({ year, month, day, hour, minute }, timeZone);
-};
-
 const saveEmail = async (user, message, classification, extra, scanRun) => {
     const fields = {
         school: user.school,
@@ -267,31 +268,6 @@ const saveEmail = async (user, message, classification, extra, scanRun) => {
         { $set: { ...fields, school: user.school } },
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-};
-
-const saveDeadlines = async (user, email, deadlines, timeZone) => {
-    for (const deadline of deadlines) {
-        const exists = await InboxDeadline.findOne({
-            school: user.school,
-            user: user._id,
-            email: email._id,
-            quote: deadline.quote
-        }).select('_id').lean();
-        if (exists) continue;
-
-        await InboxDeadline.create({
-            school: user.school,
-            user: user._id,
-            email: email._id,
-            title: deadline.title,
-            dueAt: deadlineDueAt(deadline, timeZone),
-            dueDateOnly: !deadline.dueTime,
-            timeZone,
-            quote: deadline.quote,
-            state: 'proposed',
-            source: 'ai'
-        });
-    }
 };
 
 const detectReplies = async (user) => {
@@ -349,6 +325,7 @@ const runScan = async (user, {
         throw createError('Get a fresh estimate before scanning.', 400, 'ESTIMATE_REQUIRED');
     }
     const tz = safeTimeZone(timeZone);
+    const scanStartedAt = new Date();
     const { platform, scanSize } = await loadContext(user);
 
     const todayCount = await InboxScanRun.countDocuments({
@@ -373,7 +350,11 @@ const runScan = async (user, {
         aiClassifiedCount: 0,
         aiFailedCount: 0,
         estimateCents: 0,
-        charged: false
+        charged: false,
+        calendarAdded: 0,
+        calendarWaiting: 0,
+        calendarFailed: 0,
+        overlapsFound: 0
     };
 
     try {
@@ -420,7 +401,7 @@ const runScan = async (user, {
         const frozen = plan.refetchAll
             ? messages.filter((message) => {
                 const stored = plan.storedById.get(message.id);
-                return !stored || stored.bodyHash !== hashBody(message.subject, trimBody(message.bodyText));
+                return !stored || stored.bodyHash !== hashBody(message.subject, trimBody(message.bodyText, 3000, message.subject));
             })
             : messages;
 
@@ -431,7 +412,7 @@ const runScan = async (user, {
             frozen.map((message) => message.fromEmail)
         );
         const prepared = frozen.map((message) => {
-            const bodyText = trimBody(message.bodyText);
+            const bodyText = trimBody(message.bodyText, 3000, message.subject);
             const senderRole = roles[message.fromEmail] || '';
             return {
                 message,
@@ -453,16 +434,29 @@ const runScan = async (user, {
                 reason: entry.rule.reason || '',
                 language: 'other',
                 suggestedReplyType: null,
-                deadlines: []
+                deadlines: [],
+                events: [],
+                changes: []
             });
         }
+
+        // The calendar context is only worth reading when there is mail to sort.
+        const calendarContext = frozen.length ? await getCalendarContext(user) : null;
+        const calendarSettings = calendarContext?.calendar || {};
+
+        // Items already saved in these threads, so the model can say that a new
+        // email moves or cancels one instead of proposing a second copy.
+        const knownByThread = aiReady.length
+            ? await loadKnownItems(user, aiReady.map((entry) => entry.message.threadId))
+            : new Map();
 
         if (aiReady.length) {
             const result = await inboxAiService.classifyBatch({
                 emails: aiReady.map((entry) => ({
                     ...entry.message,
                     bodyText: entry.bodyText,
-                    senderRole: entry.senderRole
+                    senderRole: entry.senderRole,
+                    knownItems: knownByThread.get(entry.message.threadId) || []
                 })),
                 uiLanguage,
                 timeZone: tz,
@@ -479,6 +473,7 @@ const runScan = async (user, {
             counts.aiFailedCount = result.aiFailedCount || 0;
         }
 
+        const autoCandidates = [];
         for (const entry of prepared) {
             const classification = classifications.get(entry.message.id);
             if (!classification) continue;
@@ -490,7 +485,58 @@ const runScan = async (user, {
             }, run);
             if (entry.rule) counts.ruleClassifiedCount += 1;
             else counts.aiClassifiedCount += 1;
-            await saveDeadlines(user, email, classification.deadlines, tz);
+
+            const knownItems = knownByThread.get(entry.message.threadId) || [];
+            const changes = classification.changes || [];
+            const created = await saveItemsForEmail({
+                user,
+                email,
+                deadlines: classification.deadlines,
+                events: classification.events,
+                timeZone: tz,
+                meetingLengthMinutes: calendarSettings.meetingLengthMinutes,
+                now: scanStartedAt
+            });
+            if (changes.length) {
+                await applyItemChanges({
+                    user,
+                    email,
+                    changes,
+                    knownItems,
+                    meetingLengthMinutes: calendarSettings.meetingLengthMinutes,
+                    now: scanStartedAt
+                });
+            }
+            // An email that is editing a saved item is not the moment to add a
+            // second one, so its new items wait for the teacher.
+            if (!changes.length) autoCandidates.push(...created);
+        }
+
+        if (autoCandidates.length && calendarContext?.active && calendarSettings.autoAdd) {
+            try {
+                const auto = await autoAddItems({
+                    user,
+                    context: calendarContext,
+                    candidates: autoCandidates,
+                    uiLanguage,
+                    cap: Number(platform.autoAddCapPerScan) || 10,
+                    now: scanStartedAt
+                });
+                counts.calendarAdded = auto.added;
+                counts.calendarWaiting = auto.waiting;
+                counts.calendarFailed = auto.failed;
+                counts.overlapsFound = auto.overlaps.length;
+                if (auto.overlaps.length && calendarSettings.overlapEmail !== false) {
+                    await sendOverlapEmail({ user, overlaps: auto.overlaps, uiLanguage });
+                }
+            } catch (error) {
+                // A calendar problem is the teacher's to see later, never a failed scan.
+                logger.warn('inbox_calendar_auto_add_failed', {
+                    user: String(user._id),
+                    run: String(run._id),
+                    error: error?.message
+                });
+            }
         }
 
         await detectReplies(user);

@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "crypto";
 import gmailOAuthService from "../services/gmailOAuthService.js";
 import googleClassroomOAuthService from "../services/googleClassroomOAuthService.js";
+import { GOOGLE_CALENDAR_EVENTS_SCOPE } from "../config/googleCalendarScopes.js";
 import { getPlatformBranding } from "../services/platformBrandingService.js";
 import { protect } from "../middleware/auth.js";
 import logger from "../utils/logger.js";
@@ -25,6 +26,7 @@ const buildSignedState = (
   userId,
   returnTo = "settings",
   cleanupAccess = false,
+  calendarAccess = false,
 ) => {
   const payload = {
     userId,
@@ -32,6 +34,7 @@ const buildSignedState = (
       ? returnTo
       : "settings",
     cleanupAccess,
+    calendarAccess,
     nonce: crypto.randomBytes(16).toString("hex"),
     exp: Date.now() + OAUTH_STATE_TTL_MS,
   };
@@ -83,6 +86,7 @@ const parseSignedState = (state) => {
 router.get("/url", protect, async (req, res) => {
   try {
     const cleanupAccess = req.query.cleanup === "true";
+    const calendarAccess = req.query.calendar === "true";
     const returnTo = ["notifications", "spelling", "inbox"].includes(req.query.returnTo)
       ? req.query.returnTo
       : "settings";
@@ -90,9 +94,10 @@ router.get("/url", protect, async (req, res) => {
       req.user._id.toString(),
       returnTo,
       cleanupAccess,
+      calendarAccess,
     );
     const authUrl = gmailOAuthService.getAuthUrl(state, {
-      includeModifyScope: cleanupAccess,
+      calendarAccess,
     });
 
     res.json({
@@ -108,6 +113,17 @@ router.get("/url", protect, async (req, res) => {
   }
 });
 
+/** One query shape per connect flow, so each page reads only its own key. */
+const flowKeys = ({ calendarAccess, cleanupAccess }) => (calendarAccess
+  ? { error: "calendar_error", connected: "calendar_connected", prefix: "" }
+  : cleanupAccess
+    ? {
+      error: "gmail_cleanup_error",
+      connected: "gmail_cleanup_connected",
+      prefix: "tab=gmail-cleanup&",
+    }
+    : { error: "gmail_error", connected: "gmail_connected", prefix: "" });
+
 /**
  * @route   GET /api/auth/gmail/callback
  * @desc    Handle OAuth callback from Google
@@ -116,6 +132,7 @@ router.get("/url", protect, async (req, res) => {
 router.get("/callback", async (req, res) => {
   let redirectPath = "/settings";
   let cleanupAccess = false;
+  let calendarAccess = false;
   try {
     const { code, state, error } = req.query;
     const parsedState = parseSignedState(state);
@@ -128,22 +145,19 @@ router.get("/callback", async (req, res) => {
             ? "/portal/inbox"
             : "/settings";
     cleanupAccess = Boolean(parsedState?.cleanupAccess);
+    calendarAccess = Boolean(parsedState?.calendarAccess);
+    const keys = flowKeys({ calendarAccess, cleanupAccess });
 
     if (error) {
-      const queryKey = parsedState?.cleanupAccess
-        ? "gmail_cleanup_error"
-        : "gmail_error";
       return res.redirect(
-        `${process.env.CLIENT_URL}${redirectPath}?${queryKey}=${encodeURIComponent(error)}`,
+        `${process.env.CLIENT_URL}${redirectPath}?${keys.prefix}${keys.error}=${encodeURIComponent(error)}`,
       );
     }
 
     if (!code || !state) {
-      const queryKey = cleanupAccess ? "gmail_cleanup_error" : "gmail_error";
-      const query = cleanupAccess
-        ? `?tab=gmail-cleanup&${queryKey}=missing_parameters`
-        : `?${queryKey}=missing_parameters`;
-      return res.redirect(`${process.env.CLIENT_URL}${redirectPath}${query}`);
+      return res.redirect(
+        `${process.env.CLIENT_URL}${redirectPath}?${keys.prefix}${keys.error}=missing_parameters`,
+      );
     }
 
     if (!parsedState?.userId) {
@@ -163,26 +177,26 @@ router.get("/callback", async (req, res) => {
         `${process.env.CLIENT_URL}${redirectPath}?tab=gmail-cleanup&gmail_cleanup_error=missing_scope`,
       );
     }
+    if (calendarAccess && !grantedScopes.includes(GOOGLE_CALENDAR_EVENTS_SCOPE)) {
+      return res.redirect(
+        `${process.env.CLIENT_URL}${redirectPath}?${keys.prefix}${keys.error}=missing_scope`,
+      );
+    }
 
     // The shared OAuth grant supplies Gmail, Classroom, and Forms permissions.
+    // With include_granted_scopes Google returns the union, so a Calendar-only
+    // consent still carries every suite scope this call requires.
     await googleClassroomOAuthService.storeTokens(parsedState.userId, tokens);
 
     // Redirect back to client with success
-    const queryKey = parsedState.cleanupAccess
-      ? "gmail_cleanup_connected"
-      : "gmail_connected";
-    const query = parsedState.cleanupAccess
-      ? `?tab=gmail-cleanup&${queryKey}=true`
-      : `?${queryKey}=true`;
-    res.redirect(`${process.env.CLIENT_URL}${redirectPath}${query}`);
+    res.redirect(
+      `${process.env.CLIENT_URL}${redirectPath}?${keys.prefix}${keys.connected}=true`,
+    );
   } catch (error) {
     logger.error("Gmail OAuth callback error:", error);
-    const queryKey = cleanupAccess ? "gmail_cleanup_error" : "gmail_error";
-    const query = cleanupAccess
-      ? `?tab=gmail-cleanup&${queryKey}=`
-      : `?${queryKey}=`;
+    const keys = flowKeys({ calendarAccess, cleanupAccess });
     res.redirect(
-      `${process.env.CLIENT_URL}${redirectPath}${query}${encodeURIComponent(error.message)}`,
+      `${process.env.CLIENT_URL}${redirectPath}?${keys.prefix}${keys.error}=${encodeURIComponent(error.message)}`,
     );
   }
 });

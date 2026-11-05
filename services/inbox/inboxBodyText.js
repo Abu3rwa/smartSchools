@@ -76,14 +76,35 @@ export const extractPlainText = (gmailPayload) => {
     return '';
 };
 
-export const trimBody = (text, maxChars = 3000) => {
+/**
+ * Forwarded content is what the teacher chose to send on, so the AI keeps it;
+ * reply history is noise and is cut. "Original Message" is Outlook's wording for
+ * both, so only a forwarding subject makes that line count as a forward.
+ */
+const FORWARD_HEADER = /^-{2,}\s*(forwarded message|رسالة محولة|رسالة معاد توجيهها|رسالة إعادة توجيه)\s*-{2,}$/i;
+const FORWARD_START = /^(begin forwarded message:|---------- رسالة محولة|بدأت الرسالة المحولة:)/i;
+const AMBIGUOUS_HEADER = /^-{2,}\s*(original message|الرسالة الأصلية|رسالة أصلية)\s*-{2,}$/i;
+const REPLY_HEADER = /^(on .+ wrote:|في .+ كتب:|في .+ كتبت:|بتاريخ .+ كتب:)$/i;
+const FORWARDED_SUBJECT = /^(fw|fwd|f\.w\.|تحويل|إعادة توجيه|اعادة توجيه|تمرير)\s*:/i;
+
+export const trimBody = (text, maxChars = 3000, subject = '') => {
     const limit = Number(maxChars) > 0 ? Number(maxChars) : 3000;
-    const kept = [];
-    for (const line of String(text ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+    const forwarding = FORWARDED_SUBJECT.test(String(subject ?? '').trim());
+    // A forward marker anywhere in the body means the cuts below would throw the
+    // forwarded mail away, so the whole body is kept and only the cap applies.
+    const forwarded = forwarding || lines.some((line) => {
         const trimmed = line.trim();
-        if (/^On .+ wrote:$/.test(trimmed)) break;
-        if (trimmed === '-----Original Message-----') break;
-        if (line === '-- ') break;
+        return FORWARD_HEADER.test(trimmed)
+            || FORWARD_START.test(trimmed)
+            || (forwarding && AMBIGUOUS_HEADER.test(trimmed));
+    });
+
+    const kept = [];
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!forwarded && (REPLY_HEADER.test(trimmed) || trimmed === '-----Original Message-----')) break;
+        if (!forwarded && line === '-- ') break;
         if (line.trimStart().startsWith('>')) continue;
         if (trimmed === '' && kept.length && kept[kept.length - 1].trim() === '') continue;
         kept.push(line);

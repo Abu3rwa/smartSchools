@@ -28,12 +28,24 @@ import {
     sendDraft
 } from '../controllers/inboxReplyController.js';
 import {
+    addDeadlineToCalendar,
     createDeadline,
+    decideDeadlineChange,
     deleteDeadline,
     getSummary,
     listDeadlines,
+    removeDeadlineFromCalendar,
     updateDeadline
 } from '../controllers/inboxDeadlineController.js';
+import {
+    addEventToCalendar,
+    createEvent,
+    decideEventChange,
+    deleteEvent,
+    listEvents,
+    removeEventFromCalendar,
+    updateEvent
+} from '../controllers/inboxEventController.js';
 
 const router = express.Router();
 
@@ -57,6 +69,17 @@ router.get('/deadlines', staff, listDeadlines);
 router.post('/deadlines', staff, createDeadline);
 router.patch('/deadlines/:id', staff, updateDeadline);
 router.delete('/deadlines/:id', staff, deleteDeadline);
+router.post('/deadlines/:id/calendar', staff, addDeadlineToCalendar);
+router.delete('/deadlines/:id/calendar', staff, removeDeadlineFromCalendar);
+router.post('/deadlines/:id/change', staff, decideDeadlineChange);
+
+router.get('/events', staff, listEvents);
+router.post('/events', staff, createEvent);
+router.patch('/events/:id', staff, updateEvent);
+router.delete('/events/:id', staff, deleteEvent);
+router.post('/events/:id/calendar', staff, addEventToCalendar);
+router.delete('/events/:id/calendar', staff, removeEventFromCalendar);
+router.post('/events/:id/change', staff, decideEventChange);
 
 router.get('/summary', staff, getSummary);
 

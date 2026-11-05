@@ -2,9 +2,9 @@
 import { applyMarkup, costCents, creditRates } from '../aiCreditService.js';
 
 export const ESTIMATE_TOKENS = Object.freeze({
-    callOverheadInput: 400,
+    callOverheadInput: 750,
     emailInput: 700,
-    emailOutput: 220,
+    emailOutput: 300,
     draftInput: 1500,
     draftOutput: 450,
     chunkSize: 8

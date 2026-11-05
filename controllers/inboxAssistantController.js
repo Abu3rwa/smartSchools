@@ -7,6 +7,10 @@ import { getPlatformInboxSettings } from '../services/inboxSettingsService.js';
 import { getCreditBadge } from '../services/aiCreditService.js';
 import inboxScanService from '../services/inbox/inboxScanService.js';
 import { deleteAllInboxDataForUser } from '../services/inbox/inboxDataService.js';
+import {
+    calendarStatusFrom,
+    normalizeCalendarSettings,
+} from '../services/inbox/inboxCalendarContext.js';
 
 const TONES = new Set(['professional', 'short', 'warm', 'formal']);
 const STATUSES = new Set(['open', 'done', 'dismissed', 'replied']);
@@ -14,6 +18,12 @@ const EDITABLE_STATUSES = new Set(['open', 'done', 'dismissed']);
 const GROUPS = new Set(['needs_reply', 'deadline', 'fyi', 'ignored', 'all']);
 const PRIORITY_RANK = { urgent: 0, needs_reply: 1, fyi: 2, ignore: 3 };
 const MAX_LIST = 300;
+const MEETING_LENGTH = { min: 15, max: 240 };
+const REMINDER_LIMITS = {
+    deadlineReminderDateOnlyMinutes: { min: 0, max: 4320, label: 'deadline reminder' },
+    deadlineReminderTimedMinutes: { min: 0, max: 1440, label: 'deadline reminder' },
+    meetingReminderMinutes: { min: 0, max: 1440, label: 'meeting reminder' },
+};
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 
@@ -26,6 +36,7 @@ const defaultsFor = (platform) => ({
     includeCcByDefault: false,
     nudgeAfterDays: 2,
     customReplyTypes: [],
+    calendar: normalizeCalendarSettings(null),
     lastScanAt: null
 });
 
@@ -45,8 +56,67 @@ const shapeSettings = (settings) => ({
     includeCcByDefault: Boolean(settings.includeCcByDefault),
     nudgeAfterDays: settings.nudgeAfterDays,
     customReplyTypes: settings.customReplyTypes || [],
+    calendar: normalizeCalendarSettings(settings.calendar),
     lastScanAt: settings.lastScanAt || null
 });
+
+const clampMinutes = (value, { min, max, label }) => {
+    const minutes = Number(value);
+    if (!Number.isFinite(minutes)) throw badRequest(`Choose a number of minutes for the ${label}.`);
+    const whole = Math.round(minutes);
+    if (whole < min || whole > max) {
+        throw badRequest(`Choose between ${min} and ${max} minutes for the ${label}.`);
+    }
+    return whole;
+};
+
+const AUTO_ADD_SENDER_KEYS = ['staff', 'parents', 'others'];
+const CALENDAR_FLAGS = {
+    syncOn: 'calendar sync',
+    autoAdd: 'auto-add',
+    overlapEmail: 'overlap emails',
+};
+
+/** Calendar preferences arrive as a partial patch; anything absent keeps its value. */
+const calendarPatch = (incoming, current) => {
+    if (incoming === undefined) return null;
+    if (typeof incoming !== 'object' || incoming === null || Array.isArray(incoming)) {
+        throw badRequest('Send the calendar settings as an object.');
+    }
+    const base = normalizeCalendarSettings(current?.calendar);
+    const patch = {};
+
+    for (const [field, label] of Object.entries(CALENDAR_FLAGS)) {
+        if (incoming[field] === undefined) continue;
+        if (typeof incoming[field] !== 'boolean') throw badRequest(`Turn ${label} on or off.`);
+        patch[field] = incoming[field];
+    }
+
+    if (incoming.autoAddSenders !== undefined) {
+        const senders = incoming.autoAddSenders;
+        if (typeof senders !== 'object' || senders === null || Array.isArray(senders)) {
+            throw badRequest('Send the auto-add senders as an object.');
+        }
+        patch.autoAddSenders = { ...base.autoAddSenders };
+        for (const key of AUTO_ADD_SENDER_KEYS) {
+            if (senders[key] === undefined) continue;
+            if (typeof senders[key] !== 'boolean') throw badRequest('Turn each sender group on or off.');
+            patch.autoAddSenders[key] = senders[key];
+        }
+    }
+
+    if (incoming.meetingLengthMinutes !== undefined) {
+        patch.meetingLengthMinutes = clampMinutes(incoming.meetingLengthMinutes, {
+            ...MEETING_LENGTH,
+            label: 'default meeting length',
+        });
+    }
+    for (const [field, limit] of Object.entries(REMINDER_LIMITS)) {
+        if (incoming[field] !== undefined) patch[field] = clampMinutes(incoming[field], limit);
+    }
+
+    return patch;
+};
 
 const waitingDaysSince = (receivedAt) => {
     const day = 24 * 60 * 60 * 1000;
@@ -104,6 +174,8 @@ export const getStatus = asyncHandler(async (req, res) => {
     ]);
 
     const scopes = tokenStatus.grantedScopes || [];
+    const calendar = calendarStatusFrom(tokenStatus);
+    const calendarSettings = normalizeCalendarSettings(settings.calendar);
     res.json({
         gmailConnected: Boolean(tokenStatus.connected),
         requiresReauth: Boolean(
@@ -114,7 +186,15 @@ export const getStatus = asyncHandler(async (req, res) => {
         platform: {
             enabled: Boolean(platform.enabled),
             maxScanSize: platform.maxScanSize,
-            freeScansPerDay: platform.freeScansPerDay
+            freeScansPerDay: platform.freeScansPerDay,
+            calendarEnabled: Boolean(platform.calendarEnabled)
+        },
+        calendar: {
+            platformEnabled: Boolean(platform.calendarEnabled),
+            connected: calendar.connected,
+            needsReconnect: calendar.needsReconnect,
+            syncOn: calendarSettings.syncOn,
+            accountEmail: calendar.accountEmail
         },
         lastScanAt: settings.lastScanAt || null,
         creditBalanceCents: badge.balanceCents
@@ -167,6 +247,9 @@ export const updateSettings = asyncHandler(async (req, res) => {
         }
         patch.nudgeAfterDays = days;
     }
+
+    const calendar = calendarPatch(body.calendar, current);
+    if (calendar) patch.calendar = { ...normalizeCalendarSettings(current?.calendar), ...calendar };
 
     const saved = await InboxAssistantSettings.findOneAndUpdate(
         { school: user.school, user: user._id },
@@ -292,7 +375,8 @@ export const deleteData = asyncHandler(async (req, res) => {
         throw badRequest('Confirm that you want to delete your Inbox Assistant data.');
     }
     const result = await deleteAllInboxDataForUser(req.user._id, {
-        schoolId: req.user.school
+        schoolId: req.user.school,
+        removeCalendarEvents: req.body?.removeCalendarEvents === true
     });
     res.json(result);
 });

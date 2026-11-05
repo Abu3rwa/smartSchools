@@ -5,10 +5,12 @@ import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { getPlatformBranding } from './platformBrandingService.js';
 import { GOOGLE_SUITE_SCOPES } from '../config/googleSuiteOAuthScopes.js';
+import { GOOGLE_CALENDAR_EVENTS_SCOPE, GOOGLE_CALENDAR_SCOPES } from '../config/googleCalendarScopes.js';
 import { deleteAllInboxDataForUser } from './inbox/inboxDataService.js';
 
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+export const CALENDAR_EVENTS_SCOPE = GOOGLE_CALENDAR_EVENTS_SCOPE;
 
 /** Gmail request body for a raw message; threadId only when the caller asked for a thread reply. */
 export const buildGmailRequestBody = (raw, mailOptions = {}) => {
@@ -48,20 +50,26 @@ class GmailOAuthService {
     /**
      * Get the OAuth2 authorization URL
      * @param {string} state - State to pass through (userId or 'login')
+     * @param {object} options - calendarAccess adds the Calendar scope to the suite
      * @returns {string} Authorization URL
      */
-    getAuthUrl(state = 'login') {
+    getAuthUrl(state = 'login', { calendarAccess = false } = {}) {
         if (!this.oauth2Client) {
             throw new Error('Google OAuth not configured');
         }
 
+        // The login flow stays minimal: a sensitive scope there would be shown to
+        // parents and students who have no use for it, and would gate sign-in.
+        const wantsCalendar = calendarAccess === true && state !== 'login';
         const scopes = state === 'login'
             ? [
                 'https://www.googleapis.com/auth/gmail.send',
                 'https://www.googleapis.com/auth/userinfo.email',
                 'https://www.googleapis.com/auth/userinfo.profile'
             ]
-            : GOOGLE_SUITE_SCOPES;
+            : (wantsCalendar
+                ? [...GOOGLE_SUITE_SCOPES, ...GOOGLE_CALENDAR_SCOPES]
+                : GOOGLE_SUITE_SCOPES);
 
         // Use the Google login callback for login flow
         const redirectUri = state === 'login'
@@ -474,13 +482,49 @@ class GmailOAuthService {
         };
     }
 
+    /** Calendar shares the one stored Google token; only the granted scope differs. */
+    async getAuthorizedCalendarClient(userId) {
+        let user;
+        try {
+            user = await this.refreshTokenIfNeeded(userId, false);
+        } catch (error) {
+            const reason = error?.response?.data?.error || error?.message || '';
+            if (/invalid_grant/i.test(reason) || error?.code === 'GMAIL_REAUTH_REQUIRED') {
+                error.statusCode = 401;
+                error.code = 'CALENDAR_REAUTH_REQUIRED';
+                error.message = 'Google access expired or was revoked. Reconnect Google to keep using Calendar.';
+            }
+            throw error;
+        }
+        if (!user.gmailTokens?.grantedScopes?.includes(GOOGLE_CALENDAR_EVENTS_SCOPE)) {
+            const error = new Error('Google Calendar permission is required. Connect Calendar from the Inbox Assistant.');
+            error.statusCode = 403;
+            error.code = 'CALENDAR_SCOPE_REQUIRED';
+            throw error;
+        }
+
+        const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            process.env.GOOGLE_LOGIN_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+        );
+        oauth2Client.setCredentials({
+            access_token: user.gmailTokens.accessToken,
+            refresh_token: user.gmailTokens.refreshToken
+        });
+
+        return {
+            calendar: google.calendar({ version: 'v3', auth: oauth2Client }),
+            accountEmail: user.gmailTokens.email
+        };
+    }
+
     /**
      * Check if a user has valid Gmail tokens
      * @param {string} userId - User ID
      * @returns {boolean} Whether user has valid tokens
      */
-    async hasValidTokens(userId) {
-        try {
+    async hasValidTokens(userId) {        try {
             const user = await User.findById(userId);
             return user?.hasGmailConnected() || false;
         } catch {

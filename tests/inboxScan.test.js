@@ -7,6 +7,7 @@ import AiCreditSetting from '../models/AiCreditSetting.js';
 import InboxAssistantSettings from '../models/InboxAssistantSettings.js';
 import InboxDeadline from '../models/InboxDeadline.js';
 import InboxEmail from '../models/InboxEmail.js';
+import InboxEvent from '../models/InboxEvent.js';
 import InboxScanRun from '../models/InboxScanRun.js';
 import User from '../models/User.js';
 import inboxAiService, { buildClassifyPrompt, normalizeClassification } from '../services/inbox/inboxAiService.js';
@@ -28,6 +29,9 @@ const originals = {
     deadlineFindOne: InboxDeadline.findOne,
     deadlineCreate: InboxDeadline.create,
     deadlineFind: InboxDeadline.find,
+    eventFindOne: InboxEvent.findOne,
+    eventCreate: InboxEvent.create,
+    eventFind: InboxEvent.find,
     emailFind: InboxEmail.find,
     emailFindOne: InboxEmail.findOne,
     emailFindOneAndUpdate: InboxEmail.findOneAndUpdate,
@@ -51,6 +55,9 @@ const restore = () => {
     InboxDeadline.findOne = originals.deadlineFindOne;
     InboxDeadline.create = originals.deadlineCreate;
     InboxDeadline.find = originals.deadlineFind;
+    InboxEvent.findOne = originals.eventFindOne;
+    InboxEvent.create = originals.eventCreate;
+    InboxEvent.find = originals.eventFind;
     InboxEmail.find = originals.emailFind;
     InboxEmail.findOne = originals.emailFindOne;
     InboxEmail.findOneAndUpdate = originals.emailFindOneAndUpdate;
@@ -95,6 +102,8 @@ const installStubs = () => {
         pending: [],
         saved: [],
         deadlines: [],
+        events: [],
+        knownEmails: [],
         replyUpdates: [],
         runUpdates: [],
         fetchCalls: [],
@@ -108,7 +117,9 @@ const installStubs = () => {
             maxScanSize: 50,
             maxScansPerDay: 20,
             freeScansPerDay: 0,
-            rawTextRetentionDays: 14
+            rawTextRetentionDays: 14,
+            calendarEnabled: false,
+            autoAddCapPerScan: 10
         }
     };
 
@@ -122,8 +133,8 @@ const installStubs = () => {
     AiCreditAccount.findOne = () => ({
         select: () => ({ lean: async () => state.account })
     });
-    InboxAssistantSettings.findOne = () => ({
-        lean: async () => ({
+    InboxAssistantSettings.findOne = () => {
+        const row = {
             optedIn: true,
             scanSize: 25,
             tone: 'professional',
@@ -132,20 +143,33 @@ const installStubs = () => {
             nudgeAfterDays: 2,
             customReplyTypes: [],
             lastScanAt: null
-        })
-    });
+        };
+        return {
+            select: () => ({ lean: async () => row }),
+            lean: async () => row
+        };
+    };
     InboxAssistantSettings.updateOne = async () => ({});
     InboxDeadline.findOne = () => ({ select: () => ({ lean: async () => null }) });
     InboxDeadline.create = async (doc) => {
         state.deadlines.push(doc);
-        return doc;
+        return { _id: `deadline-${state.deadlines.length}`, ...doc };
     };
-    InboxDeadline.find = () => ({ distinct: async () => [] });
+    InboxDeadline.find = () => ({ select: () => ({ lean: async () => [] }) });
+    InboxEvent.findOne = () => ({ select: () => ({ lean: async () => null }) });
+    InboxEvent.create = async (doc) => {
+        state.events.push(doc);
+        return { _id: `event-${state.events.length}`, ...doc };
+    };
+    InboxEvent.find = () => ({ select: () => ({ lean: async () => [] }) });
 
-    InboxEmail.find = () => ({
-        select: () => ({ lean: async () => state.stored }),
-        sort: () => ({ limit: () => ({ select: () => ({ lean: async () => state.pending }) }) })
-    });
+    InboxEmail.find = (filter) => {
+        if (filter?.threadId) return { select: () => ({ lean: async () => state.knownEmails }) };
+        if (filter?.gmailMessageId) return { select: () => ({ lean: async () => state.stored }) };
+        return {
+            sort: () => ({ limit: () => ({ select: () => ({ lean: async () => state.pending }) }) })
+        };
+    };
     InboxEmail.findOne = async () => null;
     InboxEmail.findOneAndUpdate = async (filter, update) => {
         const saved = { _id: `email-${state.saved.length + 1}`, ...update.$set };
@@ -187,7 +211,11 @@ const installStubs = () => {
     inboxGmailReader.getThread = async () => [];
 
     inboxAiService.classifyBatch = async ({ emails, billable }) => {
-        state.classifyCalls.push({ ids: emails.map((email) => email.id), billable });
+        state.classifyCalls.push({
+            ids: emails.map((email) => email.id),
+            knownItems: emails.map((email) => email.knownItems || []),
+            billable
+        });
         return {
             classifications: emails.map((email) => ({
                 gmailMessageId: email.id,
@@ -196,7 +224,9 @@ const installStubs = () => {
                 reason: '',
                 language: 'en',
                 suggestedReplyType: null,
-                deadlines: []
+                deadlines: [],
+                events: [],
+                changes: []
             })),
             aiFailedCount: 0
         };

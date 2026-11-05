@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test, { after, beforeEach } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import AiCreditSetting from '../models/AiCreditSetting.js';
 import InboxAssistantSettings from '../models/InboxAssistantSettings.js';
 import InboxDeadline from '../models/InboxDeadline.js';
 import InboxEmail from '../models/InboxEmail.js';
+import InboxEvent from '../models/InboxEvent.js';
 import inboxAiService from '../services/inbox/inboxAiService.js';
 import inboxGmailReader from '../services/inbox/inboxGmailReader.js';
 import {
@@ -28,7 +30,9 @@ const originals = {
     deadlineCreate: InboxDeadline.create,
     deadlineCount: InboxDeadline.countDocuments,
     emailCount: InboxEmail.countDocuments,
+    eventCount: InboxEvent.countDocuments,
     settingsFindOne: InboxAssistantSettings.findOne,
+    creditFindOne: AiCreditSetting.findOne,
     listInboxIds: inboxGmailReader.listInboxIds,
     fetchMessages: inboxGmailReader.fetchMessages,
     classifyBatch: inboxAiService.classifyBatch
@@ -41,7 +45,9 @@ const restore = () => {
     InboxDeadline.create = originals.deadlineCreate;
     InboxDeadline.countDocuments = originals.deadlineCount;
     InboxEmail.countDocuments = originals.emailCount;
+    InboxEvent.countDocuments = originals.eventCount;
     InboxAssistantSettings.findOne = originals.settingsFindOne;
+    AiCreditSetting.findOne = originals.creditFindOne;
     inboxGmailReader.listInboxIds = originals.listInboxIds;
     inboxGmailReader.fetchMessages = originals.fetchMessages;
     inboxAiService.classifyBatch = originals.classifyBatch;
@@ -57,6 +63,9 @@ const chain = (value) => {
 
 beforeEach(() => {
     restore();
+    // Calendar is off at the platform level by default, so no token is read.
+    AiCreditSetting.findOne = () => chain({ inbox: {} });
+    InboxAssistantSettings.findOne = () => chain(null);
 });
 
 after(() => {
@@ -204,14 +213,21 @@ test('the summary endpoint counts only and never calls Gmail or AI', async () =>
 
     const emailFilters = [];
     const deadlineFilters = [];
+    const eventFilters = [];
     InboxEmail.countDocuments = async (filter) => {
         emailFilters.push(filter);
         return filter.receivedAt ? 2 : 5;
     };
     InboxDeadline.countDocuments = async (filter) => {
         deadlineFilters.push(filter);
+        if (filter.$or) return 2;
         if (filter.state === 'proposed') return 3;
         return filter.dueAt.$lt ? 1 : 4;
+    };
+    InboxEvent.countDocuments = async (filter) => {
+        eventFilters.push(filter);
+        if (filter.$or) return 1;
+        return filter.state === 'proposed' ? 6 : 7;
     };
     InboxAssistantSettings.findOne = () => chain({ nudgeAfterDays: 2 });
 
@@ -221,7 +237,10 @@ test('the summary endpoint counts only and never calls Gmail or AI', async () =>
         waiting: 2,
         deadlinesDueSoon: 4,
         overdue: 1,
-        proposedDeadlines: 3
+        proposedDeadlines: 3,
+        proposedEvents: 6,
+        upcomingEvents: 7,
+        calendarAttention: 3
     });
 
     assert.equal(gmailCalls, 0);
@@ -230,11 +249,13 @@ test('the summary endpoint counts only and never calls Gmail or AI', async () =>
     assert.ok(emailFilters[0].school === SCHOOL && emailFilters[0].user === TEACHER);
     assert.equal(emailFilters[1].receivedAt.$lte.toISOString(), '2026-11-02T10:00:00.000Z');
     assert.ok(deadlineFilters.every((filter) => filter.school === SCHOOL && filter.user === TEACHER));
+    assert.ok(eventFilters.every((filter) => filter.school === SCHOOL && filter.user === TEACHER));
 });
 
 test('the summary controller returns the counts as JSON', async () => {
     InboxEmail.countDocuments = async () => 0;
     InboxDeadline.countDocuments = async () => 0;
+    InboxEvent.countDocuments = async () => 0;
     InboxAssistantSettings.findOne = () => chain(null);
 
     const res = {
@@ -249,6 +270,9 @@ test('the summary controller returns the counts as JSON', async () => {
         waiting: 0,
         deadlinesDueSoon: 0,
         overdue: 0,
-        proposedDeadlines: 0
+        proposedDeadlines: 0,
+        proposedEvents: 0,
+        upcomingEvents: 0,
+        calendarAttention: 0
     });
 });

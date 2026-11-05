@@ -42,6 +42,7 @@ export const NOTIFICATION_TYPES = {
     PLP_TASK_REVIEWED: 'plp_task_reviewed',
     // Inbox Assistant
     INBOX_DEADLINE_REMINDER: 'inbox_deadline_reminder',
+    INBOX_CALENDAR_OVERLAP: 'inbox_calendar_overlap',
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));
