@@ -154,7 +154,9 @@ const SuperAdminAiCreditPage = () => {
                 maxScansPerDay: Number(inboxDraft.maxScansPerDay),
                 maxDraftsPerDay: Number(inboxDraft.maxDraftsPerDay),
                 freeScansPerDay: Number(inboxDraft.freeScansPerDay),
-                rawTextRetentionDays: Number(inboxDraft.rawTextRetentionDays)
+                rawTextRetentionDays: Number(inboxDraft.rawTextRetentionDays),
+                calendarEnabled: Boolean(inboxDraft.calendarEnabled),
+                autoAddCapPerScan: Number(inboxDraft.autoAddCapPerScan)
             });
             setInbox(next);
             setInboxDraft(next);
@@ -688,6 +690,19 @@ const SuperAdminAiCreditPage = () => {
                                     />
                                     <span>{t('superAdminAiCredit:inbox.fields.enabled')}</span>
                                 </label>
+                                <label className="ai-credit-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(inboxDraft.calendarEnabled)}
+                                        onChange={(event) => setInboxDraft({
+                                            ...inboxDraft, calendarEnabled: event.target.checked
+                                        })}
+                                    />
+                                    <span>{t('superAdminAiCredit:inbox.fields.calendarEnabled')}</span>
+                                </label>
+                                <p className="ai-credit-note">
+                                    {t('superAdminAiCredit:inbox.calendarNote')}
+                                </p>
                                 <div className="inbox-config-grid">
                                     {[
                                         ['defaultScanSize', 10, 50],
@@ -696,6 +711,7 @@ const SuperAdminAiCreditPage = () => {
                                         ['maxDraftsPerDay', 1, 1000],
                                         ['freeScansPerDay', 0, 50],
                                         ['rawTextRetentionDays', 1, 90],
+                                        ['autoAddCapPerScan', 1, 50],
                                     ].map(([field, min, max]) => (
                                         <label className="ai-credit-field" key={field}>
                                             <span>{t(`superAdminAiCredit:inbox.fields.${field}`)}</span>

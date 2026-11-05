@@ -57,6 +57,32 @@ export const formatClock = (value, language = "en") => {
   return new Intl.DateTimeFormat(localeFor(language), { timeStyle: "short" }).format(date);
 };
 
+/** One line for an event's date and time; an all-day event has no clock to show. */
+export const eventRangeText = (event, language = "en") => {
+  const start = new Date(event?.startAt);
+  if (Number.isNaN(start.getTime())) return "";
+  const locale = localeFor(language);
+  const day = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(start);
+  if (event?.allDay) return day;
+  const end = new Date(event?.endAt);
+  const from = formatClock(start, language);
+  if (Number.isNaN(end.getTime())) return `${day} · ${from}`;
+  return `${day} · ${from} – ${formatClock(end, language)}`;
+};
+
+/**
+ * The short "12 Nov 10:00" used in a change banner. Kept as two parts so the caller
+ * can put each in its own bidi run instead of letting the arrow flip in Arabic.
+ */
+export const whenParts = (value, { language = "en", allDay = true } = {}) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    day: new Intl.DateTimeFormat(localeFor(language), { day: "numeric", month: "short" }).format(date),
+    time: allDay ? "" : formatClock(date, language),
+  };
+};
+
 /** "22 min ago" style text for the last scan. */
 export const relativeScanTime = (value, { language = "en", justNow = "" } = {}) => {
   const date = new Date(value);

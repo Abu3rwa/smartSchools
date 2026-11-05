@@ -18,7 +18,12 @@ export default function ReplyPanel({ reply, language, defaultTone }) {
   const email = reply.email;
   const draft = reply.draft;
   const detail = reply.detail;
-  const sender = email.fromName || email.fromEmail || t("inboxAssistant:row.unknownSender");
+  // An item row only knows its email id, so the fetched detail fills the name in.
+  const sender = email.fromName
+    || email.fromEmail
+    || detail?.fromName
+    || detail?.fromEmail
+    || t("inboxAssistant:row.unknownSender");
   const busy = reply.sending || reply.gmailSaving || reply.discarding;
   const roleKey = senderRoleKey(detail?.senderRole);
   const draftLanguage = draft?.language === "ar" ? "ar" : "en";

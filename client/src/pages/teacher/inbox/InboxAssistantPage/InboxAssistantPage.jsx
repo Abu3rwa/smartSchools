@@ -11,6 +11,7 @@ import {
 import CreditChip from "../../writing/components/CreditChip.jsx";
 import { useInboxData } from "./hooks/useInboxData.js";
 import { useDeadlines } from "./hooks/useDeadlines.js";
+import { useEvents } from "./hooks/useEvents.js";
 import { useReplyDraft } from "./hooks/useReplyDraft.js";
 import { useSent } from "./hooks/useSent.js";
 import PlatformOffScreen from "./components/PlatformOffScreen.jsx";
@@ -19,15 +20,17 @@ import FirstRunScreen from "./components/FirstRunScreen.jsx";
 import ScanToolbar from "./components/ScanToolbar.jsx";
 import EmailList from "./components/EmailList.jsx";
 import DeadlinesList from "./components/DeadlinesList.jsx";
+import EventsList from "./components/EventsList.jsx";
+import CalendarBanner from "./components/CalendarBanner.jsx";
 import SentList from "./components/SentList.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import EstimateDialog from "./components/EstimateDialog.jsx";
 import ReplyPanel from "./components/ReplyPanel.jsx";
 import { countLabelKey, waitingOverKey } from "./components/display.js";
-import { estimateNotice } from "./inboxUi.js";
+import { estimateNotice, eventsTabCount, isCalendarUsable } from "./inboxUi.js";
 import "./inboxAssistant.css";
 
-const TAB_KEYS = ["needs_reply", "deadlines", "fyi", "sent"];
+const TAB_KEYS = ["needs_reply", "deadlines", "events", "fyi", "sent"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const countText = (value) => (value === null ? "—" : value);
@@ -57,6 +60,18 @@ export default function InboxAssistantPage() {
     enabled: optedIn && data.activeGroup === "deadlines",
     onError: reportError,
   });
+  const events = useEvents({
+    enabled: optedIn && data.activeGroup === "events",
+    onError: reportError,
+  });
+
+  const calendar = status?.calendar || {};
+  const calendarUsable = isCalendarUsable(calendar);
+  const connectCalendar = useCallback(() => data.connectGoogle(true), [data]);
+  const turnSyncOn = useCallback(
+    () => data.saveSettings({ calendar: { syncOn: true } }),
+    [data],
+  );
 
   const { reload: reloadSent } = sent;
   const handleSent = useCallback(async () => {
@@ -84,6 +99,7 @@ export default function InboxAssistantPage() {
     if (outcome.outcome !== "changed") {
       setDialogOpen(false);
       if (data.activeGroup === "deadlines") await deadlines.reload();
+      if (data.activeGroup === "events") await events.reload();
     }
   };
 
@@ -111,10 +127,12 @@ export default function InboxAssistantPage() {
   const ignored = data.lists.ignored;
   const needsReplyReady = needsReply.state === "ready";
   const deadlinesReady = deadlines.state === "ready";
+  const eventsReady = events.state === "ready";
 
   const needsReplyCount = needsReplyReady ? needsReply.emails.length : null;
   const fyiCount = fyi.state === "ready" ? fyi.emails.length : null;
   const deadlinesCount = deadlinesReady ? deadlines.deadlines.length : null;
+  const eventsCount = eventsReady ? eventsTabCount(events.events) : null;
   const ignoredCount = ignored.state === "ready" ? ignored.emails.length : null;
   const waitingCount = needsReplyReady ? needsReply.emails.filter((email) => email.isWaiting).length : null;
   const nudgeAfterDays = status?.settings?.nudgeAfterDays ?? 2;
@@ -132,19 +150,36 @@ export default function InboxAssistantPage() {
   const tabCount = {
     needs_reply: needsReplyCount,
     deadlines: deadlinesCount,
+    events: eventsCount,
     fyi: fyiCount,
     sent: null,
   };
-  const senderFor = useMemo(() => {
-    const byEmail = new Map();
+  /** Item rows only know their email id, so the loaded lists supply the sender. */
+  const emailsById = useMemo(() => {
+    const byId = new Map();
     [needsReply, fyi, ignored].forEach((list) => {
-      (list.emails || []).forEach((email) => {
-        byEmail.set(String(email.id), email.fromName || email.fromEmail || "");
-      });
+      (list.emails || []).forEach((email) => byId.set(String(email.id), email));
     });
-    return (emailId) => byEmail.get(String(emailId)) || "";
+    return byId;
   }, [needsReply, fyi, ignored]);
-  const isEmailTab = data.activeGroup !== "sent" && data.activeGroup !== "deadlines";
+  const senderFor = useCallback(
+    (emailId) => {
+      const email = emailsById.get(String(emailId));
+      return email?.fromName || email?.fromEmail || "";
+    },
+    [emailsById],
+  );
+  const roleFor = useCallback(
+    (emailId) => emailsById.get(String(emailId))?.senderRole || "",
+    [emailsById],
+  );
+  const openEmailFrom = useCallback((emailId) => {
+    const row = emailsById.get(String(emailId));
+    void reply.open(row || { id: emailId });
+  }, [emailsById, reply]);
+  const isEmailTab = data.activeGroup !== "sent"
+    && data.activeGroup !== "deadlines"
+    && data.activeGroup !== "events";
   const lastScanAt = status?.lastScanAt || status?.settings?.lastScanAt || null;
 
   const openDeadlineFromRow = (email) => {
@@ -208,7 +243,7 @@ export default function InboxAssistantPage() {
         <ConnectScreen
           requiresReauth={status.requiresReauth}
           connecting={data.connecting}
-          onConnect={data.connectGoogle}
+          onConnect={() => data.connectGoogle(false)}
         />
       )}
 
@@ -260,6 +295,7 @@ export default function InboxAssistantPage() {
               <div id="ia-settings">
                 <SettingsPanel
                   settings={status.settings}
+                  calendar={calendar}
                   saving={data.saving}
                   onClose={() => setSettingsOpen(false)}
                   onSave={(patch) => data.saveSettings(patch, { announce: true })}
@@ -339,6 +375,14 @@ export default function InboxAssistantPage() {
                     onEmpty={sent.empty}
                   />
                 )}
+                {(data.activeGroup === "deadlines" || data.activeGroup === "events") && (
+                  <CalendarBanner
+                    calendar={calendar}
+                    connecting={data.connecting}
+                    onConnect={connectCalendar}
+                    onEnableSync={turnSyncOn}
+                  />
+                )}
                 {data.activeGroup === "deadlines" && (
                   <DeadlinesList
                     list={deadlines}
@@ -347,6 +391,18 @@ export default function InboxAssistantPage() {
                     seedTitle={deadlineSeed}
                     onSeedUsed={() => setDeadlineSeed("")}
                     senderFor={senderFor}
+                    usable={calendarUsable}
+                  />
+                )}
+                {data.activeGroup === "events" && (
+                  <EventsList
+                    list={events}
+                    language={i18n.language}
+                    onRetry={events.reload}
+                    senderFor={senderFor}
+                    roleFor={roleFor}
+                    calendarUsable={calendarUsable}
+                    actions={{ ...events, openEmail: openEmailFrom }}
                   />
                 )}
                 {isEmailTab && (

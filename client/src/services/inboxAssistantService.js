@@ -39,6 +39,43 @@ export const inboxAssistantService = {
   deleteDeadline: (deadlineId) =>
     api.delete(`/inbox-assistant/deadlines/${deadlineId}`).then(unwrap),
 
+  addDeadlineToCalendar: (deadlineId, body) =>
+    api.post(`/inbox-assistant/deadlines/${deadlineId}/calendar`, body || {}).then(unwrap),
+
+  removeDeadlineFromCalendar: (deadlineId, dismiss = false) =>
+    api
+      .delete(`/inbox-assistant/deadlines/${deadlineId}/calendar`, {
+        params: dismiss ? { dismiss: "true" } : {},
+      })
+      .then(unwrap),
+
+  decideDeadlineChange: (deadlineId, body) =>
+    api.post(`/inbox-assistant/deadlines/${deadlineId}/change`, body).then(unwrap),
+
+  listEvents: (params) =>
+    api.get("/inbox-assistant/events", { params }).then(unwrap),
+
+  createEvent: (body) => api.post("/inbox-assistant/events", body).then(unwrap),
+
+  updateEvent: (eventId, body) =>
+    api.patch(`/inbox-assistant/events/${eventId}`, body).then(unwrap),
+
+  deleteEvent: (eventId) =>
+    api.delete(`/inbox-assistant/events/${eventId}`).then(unwrap),
+
+  addEventToCalendar: (eventId) =>
+    api.post(`/inbox-assistant/events/${eventId}/calendar`).then(unwrap),
+
+  removeEventFromCalendar: (eventId, dismiss = false) =>
+    api
+      .delete(`/inbox-assistant/events/${eventId}/calendar`, {
+        params: dismiss ? { dismiss: "true" } : {},
+      })
+      .then(unwrap),
+
+  decideEventChange: (eventId, body) =>
+    api.post(`/inbox-assistant/events/${eventId}/change`, body).then(unwrap),
+
   getSummary: () => api.get("/inbox-assistant/summary").then(unwrap),
 
   getReplyTypes: (lang = "en") =>
@@ -77,15 +114,23 @@ export const inboxAssistantService = {
   deleteReplyType: (id) =>
     api.delete(`/inbox-assistant/settings/reply-types/${id}`).then(unwrap),
 
-  deleteData: (confirm) =>
+  deleteData: (confirm, removeCalendarEvents = false) =>
     api
-      .delete("/inbox-assistant/data", { data: { confirm: confirm === true } })
+      .delete("/inbox-assistant/data", {
+        data: {
+          confirm: confirm === true,
+          removeCalendarEvents: removeCalendarEvents === true,
+        },
+      })
       .then(unwrap),
 
   // Reuses the existing Google reconnect flow; no new OAuth handling here.
-  googleAuthUrl: (returnTo = "inbox") =>
+  // Asking for calendar adds one scope to the same client and the same callback.
+  googleAuthUrl: (returnTo = "inbox", calendar = false) =>
     api
-      .get("/auth/gmail/url", { params: { returnTo } })
+      .get("/auth/gmail/url", {
+        params: { returnTo, ...(calendar ? { calendar: "true" } : {}) },
+      })
       .then((response) => response?.data?.authUrl),
 };
 

@@ -23,7 +23,11 @@ const InboxBadge = () => {
                 const status = await inboxAssistantService.getStatus();
                 if (cancelled || !status?.optedIn || !status?.platform?.enabled) return;
                 const summary = await inboxAssistantService.getSummary();
-                if (!cancelled) setCount(Number(summary?.needsReply) || 0);
+                if (!cancelled) {
+                    // Both counts are things waiting on the teacher: a reply, or a date decision.
+                    setCount((Number(summary?.needsReply) || 0)
+                        + (Number(summary?.calendarAttention) || 0));
+                }
             } catch {
                 // The badge is optional; a failed call leaves it hidden.
             }

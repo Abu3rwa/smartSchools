@@ -56,8 +56,11 @@
       "maxScansPerDay": "Scans per teacher per day",
       "maxDraftsPerDay": "Drafts per teacher per day",
       "freeScansPerDay": "Scans that don't use credit",
-      "rawTextRetentionDays": "Days the email text is kept"
+      "rawTextRetentionDays": "Days the email text is kept",
+      "calendarEnabled": "Allow teachers to connect Google Calendar",
+      "autoAddCapPerScan": "Dates added automatically per scan"
     },
+    "calendarNote": "Calendar stays off until the Calendar API is enabled in the Google Cloud project and Google's verification is finished. Once it is on, each teacher connects their own calendar. Events are private, have no guests, and the teacher can remove any of them.",
     "note": "When the text is cleared, the summary, deadline and draft stay; only the original message text is removed.",
     "save": "Save limits",
     "saved": "Inbox limits saved. New scans use them.",

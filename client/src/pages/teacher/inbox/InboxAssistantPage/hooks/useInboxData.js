@@ -134,11 +134,11 @@ export function useInboxData() {
     }
   }, [estimate, i18n.language, loadStatus, emails]);
 
-  const deleteData = useCallback(async () => {
+  const deleteData = useCallback(async (removeCalendarEvents = false) => {
     setSaving(true);
     setNotice(null);
     try {
-      await inboxAssistantService.deleteData(true);
+      await inboxAssistantService.deleteData(true, removeCalendarEvents);
       emails.reset();
       setEstimate(null);
       await loadStatus({ silent: true });
@@ -151,11 +151,12 @@ export function useInboxData() {
     }
   }, [emails, loadStatus]);
 
-  const connectGoogle = useCallback(async () => {
+  /** One Google flow for both: asking for Calendar adds a scope to the same client. */
+  const connectGoogle = useCallback(async (withCalendar = false) => {
     setConnecting(true);
     setNotice(null);
     try {
-      const authUrl = await inboxAssistantService.googleAuthUrl("inbox");
+      const authUrl = await inboxAssistantService.googleAuthUrl("inbox", withCalendar);
       if (!authUrl) throw new Error("missing auth url");
       window.location.assign(authUrl);
       return true;

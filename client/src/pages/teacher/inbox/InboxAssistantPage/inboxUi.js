@@ -61,6 +61,12 @@ const ERROR_KEYS = {
   DRAFT_DAILY_LIMIT: "errors.draftLimit",
   DRAFT_PLACEHOLDERS: "errors.placeholders",
   INBOX_NOT_OPTED_IN: "errors.notOptedIn",
+  CALENDAR_NOT_CONNECTED: "errors.calendarNotConnected",
+  CALENDAR_SCOPE_REQUIRED: "errors.calendarScope",
+  CALENDAR_REAUTH_REQUIRED: "errors.calendarReauth",
+  CALENDAR_DISABLED: "errors.calendarDisabled",
+  CALENDAR_RATE_LIMITED: "errors.rateLimited",
+  CALENDAR_EVENT_CHANGED: "errors.calendarEventChanged",
 };
 
 export const errorMessageKey = (error, fallbackKey = "errors.generic") => {
@@ -156,14 +162,20 @@ export const localDateInputValue = (value) => {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 };
 
+export const localTimeInputValue = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+};
+
 export const localDateTimeInputValue = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return `${localDateInputValue(date)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  return `${localDateInputValue(date)}T${localTimeInputValue(date)}`;
 };
 
 /** Builds the UTC instant for a date (and optional local time) the teacher picked. */
-export const dueAtFromLocalInput = ({ date, time = "" } = {}) => {
+export const instantFromLocalInput = ({ date, time = "" } = {}) => {
   const match = String(date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return "";
   const [hour, minute] = String(time || "00:00").split(":").map(Number);
@@ -224,3 +236,103 @@ export const formatDeadlineDate = (dueAt, { language = "en", dueDateOnly = true 
     ...(dueDateOnly ? {} : { timeStyle: "short" }),
   }).format(date);
 };
+
+export const CALENDAR_SENDER_GROUPS = ["staff", "parents", "others"];
+
+export const MEETING_LENGTH_LIMITS = { min: 15, max: 240 };
+
+export const clampMeetingLength = (value) => {
+  const minutes = Math.round(Number(value) || 0);
+  return Math.min(Math.max(minutes, MEETING_LENGTH_LIMITS.min), MEETING_LENGTH_LIMITS.max);
+};
+
+/** The banner only makes sense while the platform allows Calendar and it is not on yet. */
+export const showCalendarBanner = (calendar = {}) => (
+  Boolean(calendar.platformEnabled)
+  && (!calendar.connected || calendar.syncOn === false)
+);
+
+export const isCalendarUsable = (calendar = {}) => (
+  Boolean(calendar.platformEnabled) && Boolean(calendar.connected) && calendar.syncOn !== false
+);
+
+const localDayStart = (value = new Date()) => {
+  const date = new Date(value);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+};
+
+/** The Events tab counts what still needs a look: proposed, plus confirmed and ahead. */
+export const eventsTabCount = (events = [], now = new Date()) => (
+  (Array.isArray(events) ? events : [])
+    .filter((event) => (event.state === "proposed"
+      || (event.state === "confirmed" && new Date(event.startAt).getTime() >= localDayStart(now))))
+    .length
+);
+
+const FAILURE_KEYS = {
+  notConnected: "calendar.reasons.notConnected",
+  scopeMissing: "calendar.reasons.scopeMissing",
+  reauth: "calendar.reasons.reauth",
+  apiNotEnabled: "calendar.reasons.apiNotEnabled",
+  rateLimited: "calendar.reasons.rateLimited",
+  eventChanged: "calendar.reasons.eventChanged",
+};
+
+/** The server stores a fixed set of short reason keys, never a raw Google message. */
+export const calendarFailureKey = (lastError) => (
+  FAILURE_KEYS[lastError] || "calendar.reasons.other"
+);
+
+/**
+ * Everything one row says about its calendar link, in reading order: what needs a
+ * click, then what happened, then a warning about the day.
+ */
+export const calendarChips = (item = {}) => {
+  const calendar = item.calendar || {};
+  const change = item.pendingChange;
+  const chips = [];
+
+  if (change?.kind === "move") chips.push({ key: "calendar.chips.dateChanged", tone: "is-change" });
+  if (change?.kind === "cancel") chips.push({ key: "calendar.chips.cancelled", tone: "is-change" });
+
+  if (calendar.status === "failed") {
+    chips.push({
+      key: calendar.givenUp ? "calendar.chips.gaveUp" : "calendar.chips.failed",
+      tone: "is-failed",
+      reasonKey: calendarFailureKey(calendar.lastError),
+      link: calendar.htmlLink || "",
+    });
+  }
+  if (calendar.status === "lost") {
+    chips.push({ key: "calendar.chips.lost", tone: "is-lost" });
+  }
+  if (calendar.status === "synced") {
+    chips.push({
+      key: calendar.autoAdded ? "calendar.chips.autoAdded" : "calendar.chips.added",
+      tone: calendar.autoAdded ? "is-auto" : "is-added",
+      link: calendar.htmlLink || "",
+    });
+  }
+  if (item.autoAddWaiting && calendar.status !== "synced") {
+    chips.push({ key: "calendar.chips.waiting", tone: "is-waiting" });
+  }
+
+  const overlap = (Array.isArray(item.overlaps) ? item.overlaps : [])[0];
+  if (overlap?.title) {
+    chips.push({ key: "calendar.chips.overlap", tone: "is-overlap", title: overlap.title });
+  }
+  return chips;
+};
+
+/** A row already on the calendar is reminded by Google, so the in-app selector goes. */
+export const isCalendarSynced = (item = {}) => item.calendar?.status === "synced";
+
+export const eventWindowFromInput = ({ date, startTime = "", endTime = "", allDay = false } = {}) => {
+  const startAt = instantFromLocalInput({ date, time: allDay ? "" : startTime });
+  if (!startAt) return null;
+  if (allDay || !endTime) return { startAt, endAt: null };
+  const endAt = instantFromLocalInput({ date, time: endTime });
+  if (!endAt || endAt <= startAt) return null;
+  return { startAt, endAt };
+};
+

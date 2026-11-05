@@ -1898,17 +1898,422 @@ textarea.ia-field-box.is-area {
   overflow-wrap: anywhere;
 }
 
+/* ---------- Calendar ---------- */
+
+.ia-cal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.ia-cal-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--ia-surface-2);
+  color: var(--ia-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ia-cal-chip svg {
+  flex: none;
+}
+
+.ia-cal-chip.is-added,
+.ia-cal-chip.is-auto {
+  border-color: color-mix(in srgb, var(--ia-teal) 34%, transparent);
+  background: var(--ia-teal-soft);
+  color: var(--ia-teal-ink);
+}
+
+.ia-cal-chip.is-waiting {
+  border-color: var(--ia-blue-line);
+  background: var(--ia-blue-soft);
+  color: var(--ia-blue-ink);
+}
+
+.ia-cal-chip.is-change,
+.ia-cal-chip.is-overlap {
+  border-color: var(--ia-amber-line);
+  background: var(--ia-amber-soft);
+  color: var(--ia-amber-ink);
+}
+
+.ia-cal-chip.is-failed {
+  border-color: var(--ia-rose-line);
+  background: var(--ia-rose-soft);
+  color: var(--ia-rose-ink);
+}
+
+.ia-cal-chip.is-lost {
+  border-color: var(--ia-line-strong);
+  background: var(--ia-surface-2);
+  color: var(--ia-muted);
+}
+
+.ia-cal-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+.ia-cal-text em {
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.82;
+}
+
+.ia-cal-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ia-cal-action:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.ia-cal-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ia-cal-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ia-teal-line);
+  border-radius: 12px;
+  background: var(--ia-teal-soft);
+}
+
+.ia-cal-banner-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--ia-teal-ink);
+}
+
+.ia-cal-banner p {
+  flex: 1 1 240px;
+  margin: 0;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ia-ink);
+}
+
+.ia-cal-banner .btn {
+  flex: none;
+}
+
+.ia-change {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--ia-amber-line);
+  border-radius: 11px;
+  background: var(--ia-amber-soft);
+}
+
+.ia-change.is-cancel {
+  border-color: var(--ia-rose-line);
+  background: var(--ia-rose-soft);
+}
+
+.ia-change-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ia-ink);
+}
+
+.ia-change-head svg {
+  flex: none;
+  color: var(--ia-amber-ink);
+}
+
+.ia-change.is-cancel .ia-change-head svg {
+  color: var(--ia-rose-ink);
+}
+
+.ia-change-head strong {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.ia-change-when {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ia-change-arrow {
+  color: var(--ia-muted);
+  font-weight: 700;
+}
+
+.ia-change-quote {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ia-muted);
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+.ia-change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.ia-remind-note {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--ia-line);
+  border-radius: 999px;
+  background: var(--ia-surface-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ia-muted);
+}
+
+/* ---------- Events ---------- */
+
+.ia-event-time {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ia-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.ia-event-time em {
+  margin-inline-start: 6px;
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ia-faint);
+}
+
+.ia-event-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--ia-line);
+  border-radius: 11px;
+  background: var(--ia-surface-2);
+}
+
+.ia-event-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 1 150px;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ia-muted);
+}
+
+.ia-event-edit label:first-child {
+  flex: 1 1 220px;
+}
+
+.ia-event-edit .input {
+  height: 34px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ia-event-edit .ia-check {
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+  gap: 6px;
+}
+
+.ia-event-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 180px;
+}
+
+.ia-event-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ia-event-add-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 1 140px;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ia-muted);
+}
+
+.ia-event-add-row label:first-child {
+  flex: 1 1 220px;
+}
+
+.ia-event-add-row .input {
+  height: 34px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ia-event-add-row .ia-check {
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+  gap: 6px;
+}
+
+.ia-event-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 200px;
+}
+
+.ia-deadline-add.is-collapsed {
+  margin: 12px 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.ia-deadline-add.is-collapsed:focus-within {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ---------- Settings groups ---------- */
+
+.ia-settings-group {
+  min-inline-size: 0;
+  margin: 0 0 14px;
+  padding: 12px 14px 2px;
+  border: 1px solid var(--ia-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ia-surface-2) 55%, transparent);
+}
+
+.ia-settings-group legend {
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ia-faint);
+}
+
+.ia-settings-group > .ia-hint {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.ia-settings-group .ia-field select {
+  max-width: 260px;
+}
+
+.ia-check-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ia-line);
+  border-radius: 11px;
+  background: var(--ia-surface-2);
+}
+
+.ia-check-group-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ia-faint);
+}
+
+.ia-settings-note {
+  display: block;
+  max-width: 60ch;
+  margin: -4px 0 14px;
+}
+
+.ia-danger .ia-check {
+  margin: 8px 0 0;
+}
+
 /* ---------- RTL ---------- */
 
 [dir="rtl"] .ia-eyebrow,
 [dir="rtl"] .ia-col-label,
 [dir="rtl"] .ia-deadline-section-title,
-[dir="rtl"] .ia-type-group h3 {
+[dir="rtl"] .ia-type-group h3,
+[dir="rtl"] .ia-settings-group legend,
+[dir="rtl"] .ia-check-group-title {
   letter-spacing: 0;
 }
 
 [dir="rtl"] .ia-date-pill span:not(.ia-sr-only) {
   letter-spacing: 0;
+}
+
+[dir="rtl"] .ia-change-arrow {
+  transform: scaleX(-1);
 }
 
 /* ---------- Motion ---------- */
@@ -2124,8 +2529,47 @@ textarea.ia-field-box.is-area {
     margin: 10px;
   }
 
+  .ia-deadline-add.is-collapsed {
+    margin: 10px 12px;
+  }
+
   .ia-deadline-banner {
     margin: 10px;
+  }
+
+  .ia-cal-banner {
+    margin: 10px;
+    gap: 8px;
+  }
+
+  .ia-cal-banner .btn {
+    flex: 1 1 100%;
+  }
+
+  .ia-cal-chip {
+    font-size: 10px;
+  }
+
+  .ia-change {
+    padding: 9px 10px;
+  }
+
+  .ia-change-actions .btn-sm {
+    flex: 1 1 auto;
+  }
+
+  .ia-event-edit label,
+  .ia-event-add-row label {
+    flex: 1 1 140px;
+  }
+
+  .ia-event-edit-actions,
+  .ia-event-add-actions {
+    flex: 1 1 100%;
+  }
+
+  .ia-settings-group {
+    padding: 10px 12px 2px;
   }
 
   .ia-reply-col {
@@ -2198,5 +2642,84 @@ textarea.ia-field-box.is-area {
 
   .ia-sent-actions {
     width: 100%;
+  }
+
+  .ia-cal-chips {
+    gap: 4px;
+  }
+
+  .ia-cal-chip {
+    width: 100%;
+  }
+
+  .ia-cal-action {
+    height: 26px;
+    padding: 0 9px;
+  }
+
+  .ia-change-head {
+    font-size: 11px;
+  }
+
+  .ia-change-actions {
+    flex-direction: column;
+  }
+
+  .ia-change-actions .btn {
+    width: 100%;
+  }
+
+  .ia-event-edit label,
+  .ia-event-add-row label,
+  .ia-event-edit .ia-check,
+  .ia-event-add-row .ia-check {
+    flex: 1 1 100%;
+  }
+
+  .ia-event-edit .ia-check,
+  .ia-event-add-row .ia-check {
+    padding-bottom: 0;
+  }
+
+  .ia-event-time em {
+    display: block;
+    margin-inline-start: 0;
+  }
+
+  .ia-remind-note {
+    width: 100%;
+  }
+
+  .ia-check-group {
+    padding: 10px;
+  }
+
+  .ia-settings-group .ia-field select,
+  .ia-settings-group .ia-field input[type="number"] {
+    max-width: none;
+    width: 100%;
+  }
+
+  .ia-deadline {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .ia-date-pill {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+
+  .ia-date-pill b {
+    font-size: 14px;
+  }
+
+  .ia-deadline-actions {
+    padding-inline-start: 48px;
+  }
+
+  .ia-deadline-section-title {
+    padding-inline: 12px;
   }
 }

@@ -7,33 +7,18 @@ import {
 } from "react-icons/hi2";
 import {
   deadlineDateKey,
-  dueAtFromLocalInput,
-  formatDeadlineDate,
+  instantFromLocalInput,
   localDateInputValue,
   localDateTimeInputValue,
   reminderFromOption,
   reminderOptionFor,
 } from "../inboxUi.js";
-import { datePillParts, formatClock } from "./display.js";
+import { formatClock } from "./display.js";
+import CalendarChips from "./CalendarChips.jsx";
+import ChangeBanner from "./ChangeBanner.jsx";
+import DatePill from "./DatePill.jsx";
 
 const REMIND_OPTIONS = ["none", "oneDay", "twoHours", "custom"];
-
-function DatePill({ dueAt, language }) {
-  const parts = datePillParts(dueAt, language);
-  return (
-    <span className="ia-date-pill">
-      {parts ? (
-        <>
-          <b aria-hidden="true">{parts.day}</b>
-          <span aria-hidden="true">{parts.month}</span>
-        </>
-      ) : null}
-      <span className="ia-sr-only">
-        {formatDeadlineDate(dueAt, { language })}
-      </span>
-    </span>
-  );
-}
 
 function EditDateForm({ deadline, saving, onSave, onCancel }) {
   const { t } = useTranslation(["inboxAssistant"]);
@@ -46,7 +31,7 @@ function EditDateForm({ deadline, saving, onSave, onCancel }) {
   const save = () => {
     const parsed = new Date(value);
     const dueAt = deadline.dueDateOnly
-      ? dueAtFromLocalInput({ date: value })
+      ? instantFromLocalInput({ date: value })
       : (Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString());
     if (!dueAt) return;
     onSave({ dueAt, dueDateOnly: deadline.dueDateOnly });
@@ -71,7 +56,15 @@ function EditDateForm({ deadline, saving, onSave, onCancel }) {
   );
 }
 
-function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm, onDismiss, onUpdateDue }) {
+function ProposedRow({
+  deadline,
+  language,
+  index = 0,
+  saving,
+  sender,
+  usable,
+  actions,
+}) {
   const { t } = useTranslation(["inboxAssistant"]);
   const [editing, setEditing] = useState(false);
   const source = [
@@ -81,18 +74,37 @@ function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm,
 
   return (
     <li className="ia-deadline is-proposed" style={{ "--ia-i": index }}>
-      <DatePill dueAt={deadline.dueAt} language={language} />
+      <DatePill at={deadline.dueAt} allDay={deadline.dueDateOnly} language={language} />
       <div className="ia-deadline-main">
         <strong className="ia-deadline-title">{deadline.title}</strong>
         {source && <span className="ia-deadline-meta">{source}</span>}
         <span className="ia-chip is-found">{t("inboxAssistant:deadlines.foundInEmail")}</span>
+
+        <CalendarChips
+          item={deadline}
+          saving={saving}
+          usable={usable}
+          hideAddAction={Boolean(deadline.pendingChange?.kind)}
+          onAdd={actions.addToCalendar}
+          onRemove={actions.removeFromCalendar}
+          onUndo={(id) => actions.removeFromCalendar(id, true)}
+        />
+
+        <ChangeBanner
+          item={deadline}
+          kind="deadline"
+          language={language}
+          saving={saving}
+          onDecide={actions.decideChange}
+        />
+
         {editing && (
           <EditDateForm
             deadline={deadline}
             saving={saving}
             onCancel={() => setEditing(false)}
             onSave={async (patch) => {
-              const saved = await onUpdateDue(deadline.id, patch);
+              const saved = await actions.updateDue(deadline.id, patch);
               if (saved) setEditing(false);
             }}
           />
@@ -103,10 +115,12 @@ function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm,
           type="button"
           className="btn btn-primary btn-sm"
           disabled={saving}
-          onClick={() => onConfirm(deadline.id)}
+          onClick={() => actions.confirm(deadline.id)}
         >
           <HiOutlineCheck size={14} aria-hidden="true" />
-          {t("inboxAssistant:deadlines.confirm")}
+          {t(usable
+            ? "inboxAssistant:deadlines.confirmAndAdd"
+            : "inboxAssistant:deadlines.confirm")}
         </button>
         <button
           type="button"
@@ -120,7 +134,7 @@ function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm,
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={saving}
-          onClick={() => onDismiss(deadline.id)}
+          onClick={() => actions.dismiss(deadline.id)}
         >
           {t("inboxAssistant:deadlines.notDeadline")}
         </button>
@@ -129,7 +143,7 @@ function ProposedRow({ deadline, language, index = 0, saving, sender, onConfirm,
   );
 }
 
-function ConfirmedRow({ deadline, language, index = 0, saving, sender, onDone, onRemind }) {
+function ConfirmedRow({ deadline, language, index = 0, saving, sender, usable, actions }) {
   const { t } = useTranslation(["inboxAssistant"]);
   const initialOption = reminderOptionFor(deadline);
   const [option, setOption] = useState(initialOption);
@@ -140,6 +154,9 @@ function ConfirmedRow({ deadline, language, index = 0, saving, sender, onDone, o
   const chipClass = chipKey === "deadlines.overdue"
     ? "is-overdue"
     : (chipKey === "deadlines.today" ? "is-today" : "is-tomorrow");
+  // On Google Calendar the reminder is Google's job, so the selector goes away and
+  // comes back on its own if the event is removed.
+  const synced = deadline.calendar?.status === "synced";
   const meta = [
     sender ? t("inboxAssistant:deadlines.confirmedFrom", { sender }) : "",
     deadline.dueDateOnly ? "" : formatClock(deadline.dueAt, language),
@@ -148,13 +165,13 @@ function ConfirmedRow({ deadline, language, index = 0, saving, sender, onDone, o
   const changeOption = (next) => {
     setOption(next);
     if (next === "custom") return;
-    onRemind(deadline.id, reminderFromOption(next, deadline));
+    actions.setReminder(deadline.id, reminderFromOption(next, deadline));
   };
 
   const saveCustom = () => {
     const date = new Date(customValue);
     if (Number.isNaN(date.getTime())) return;
-    onRemind(deadline.id, date.toISOString());
+    actions.setReminder(deadline.id, date.toISOString());
   };
 
   return (
@@ -162,45 +179,89 @@ function ConfirmedRow({ deadline, language, index = 0, saving, sender, onDone, o
       className={`ia-deadline is-confirmed ${chipKey ? chipClass : ""}`}
       style={{ "--ia-i": index }}
     >
-      <DatePill dueAt={deadline.dueAt} language={language} />
+      <DatePill at={deadline.dueAt} allDay={deadline.dueDateOnly} language={language} />
       <div className="ia-deadline-main">
         <strong className="ia-deadline-title">{deadline.title}</strong>
         {meta && <span className="ia-deadline-meta">{meta}</span>}
         {chipKey && <span className={`ia-chip ${chipClass}`}>{t(`inboxAssistant:${chipKey}`)}</span>}
+
+        <CalendarChips
+          item={deadline}
+          saving={saving}
+          usable={usable}
+          hideAddAction={Boolean(deadline.pendingChange?.kind)}
+          onAdd={actions.addToCalendar}
+          onRemove={actions.removeFromCalendar}
+          onUndo={(id) => actions.removeFromCalendar(id, true)}
+        />
+
+        <ChangeBanner
+          item={deadline}
+          kind="deadline"
+          language={language}
+          saving={saving}
+          onDecide={actions.decideChange}
+        />
       </div>
       <div className="ia-deadline-actions">
-        <label className="ia-remind">
-          <span>{t("inboxAssistant:deadlines.remindLabel")}</span>
-          <select
-            className="ia-select"
-            value={option}
-            disabled={saving}
-            onChange={(event) => changeOption(event.target.value)}
-          >
-            {REMIND_OPTIONS.map((key) => (
-              <option key={key} value={key}>{t(`inboxAssistant:deadlines.remind.${key}`)}</option>
-            ))}
-          </select>
-        </label>
-        {option === "custom" && (
-          <span className="ia-remind-custom">
-            <input
-              type="datetime-local"
-              className="input"
-              aria-label={t("inboxAssistant:deadlines.remindAt")}
-              value={customValue}
-              onChange={(event) => setCustomValue(event.target.value)}
-            />
-            <button type="button" className="btn btn-secondary btn-sm" disabled={saving} onClick={saveCustom}>
-              {t("inboxAssistant:deadlines.save")}
-            </button>
+        {synced ? (
+          <span className="ia-remind-note">
+            {t("inboxAssistant:deadlines.remindInGoogle")}
           </span>
+        ) : (
+          <>
+            <label className="ia-remind">
+              <span>{t("inboxAssistant:deadlines.remindLabel")}</span>
+              <select
+                className="ia-select"
+                value={option}
+                disabled={saving}
+                onChange={(event) => changeOption(event.target.value)}
+              >
+                {REMIND_OPTIONS.map((key) => (
+                  <option key={key} value={key}>{t(`inboxAssistant:deadlines.remind.${key}`)}</option>
+                ))}
+              </select>
+            </label>
+            {option === "custom" && (
+              <span className="ia-remind-custom">
+                <input
+                  type="datetime-local"
+                  className="input"
+                  aria-label={t("inboxAssistant:deadlines.remindAt")}
+                  value={customValue}
+                  onChange={(event) => setCustomValue(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={saving}
+                  onClick={saveCustom}
+                >
+                  {t("inboxAssistant:deadlines.save")}
+                </button>
+              </span>
+            )}
+          </>
+        )}
+        {!synced && usable
+          && deadline.calendar?.status !== "failed"
+          && !deadline.pendingChange?.kind && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={saving}
+            onClick={() => actions.addToCalendar(deadline.id)}
+          >
+            <HiOutlineCalendarDays size={14} aria-hidden="true" />
+            {t("inboxAssistant:calendar.addToCalendar")}
+          </button>
         )}
         <button
           type="button"
           className="btn btn-secondary btn-sm"
           disabled={saving}
-          onClick={() => onDone(deadline.id)}
+          onClick={() => actions.markDone(deadline.id)}
         >
           <HiOutlineCheck size={14} aria-hidden="true" />
           {t("inboxAssistant:deadlines.done")}
@@ -218,7 +279,7 @@ function AddDeadlineForm({ creating, seedTitle = "", onAdd, onSeedUsed }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    const dueAt = dueAtFromLocalInput({ date, time });
+    const dueAt = instantFromLocalInput({ date, time });
     if (!title.trim() || !dueAt) return;
     const created = await onAdd({ title: title.trim(), dueAt, dueDateOnly: !time });
     if (created) {
@@ -275,7 +336,7 @@ function AddDeadlineForm({ creating, seedTitle = "", onAdd, onSeedUsed }) {
   );
 }
 
-export default function DeadlinesList({ list, language, onRetry, seedTitle = "", onSeedUsed, senderFor }) {
+export default function DeadlinesList({ list, language, onRetry, seedTitle = "", onSeedUsed, senderFor, usable }) {
   const { t } = useTranslation(["inboxAssistant"]);
 
   const proposed = list.deadlines
@@ -284,6 +345,18 @@ export default function DeadlinesList({ list, language, onRetry, seedTitle = "",
   const confirmed = list.deadlines
     .filter((deadline) => deadline.state === "confirmed")
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
+
+  /** The hook is the row's action set; every calendar call lives on it too. */
+  const rowProps = (deadline, index) => ({
+    key: deadline.id,
+    deadline,
+    language,
+    index,
+    saving: list.savingId === deadline.id,
+    sender: senderFor?.(deadline.emailId) || "",
+    usable,
+    actions: list,
+  });
 
   if (list.state === "loading" || list.state === "idle") {
     return (
@@ -329,19 +402,7 @@ export default function DeadlinesList({ list, language, onRetry, seedTitle = "",
             </div>
           </div>
           <ul className="ia-deadline-rows">
-            {proposed.map((deadline, index) => (
-              <ProposedRow
-                key={deadline.id}
-                deadline={deadline}
-                language={language}
-                index={index}
-                saving={list.savingId === deadline.id}
-                sender={senderFor?.(deadline.emailId) || ""}
-                onConfirm={list.confirm}
-                onDismiss={list.dismiss}
-                onUpdateDue={list.updateDue}
-              />
-            ))}
+            {proposed.map((deadline, index) => <ProposedRow {...rowProps(deadline, index)} />)}
           </ul>
         </section>
       )}
@@ -360,18 +421,7 @@ export default function DeadlinesList({ list, language, onRetry, seedTitle = "",
           </div>
         ) : (
           <ul className="ia-deadline-rows">
-            {confirmed.map((deadline, index) => (
-              <ConfirmedRow
-                key={deadline.id}
-                deadline={deadline}
-                language={language}
-                index={index}
-                saving={list.savingId === deadline.id}
-                sender={senderFor?.(deadline.emailId) || ""}
-                onDone={list.markDone}
-                onRemind={list.setReminder}
-              />
-            ))}
+            {confirmed.map((deadline, index) => <ConfirmedRow {...rowProps(deadline, index)} />)}
           </ul>
         )}
       </section>
