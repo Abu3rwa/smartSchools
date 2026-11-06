@@ -1,5 +1,6 @@
 import HomeworkAssignment from '../../models/HomeworkAssignment.js';
 import HomeworkSubmission from '../../models/HomeworkSubmission.js';
+import { endOfDay } from './dateRange.js';
 
 /**
  * Evidence collector for homework.
@@ -16,7 +17,7 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
 
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    if (endDate) dateFilter.$lte = endOfDay(endDate);
     if (Object.keys(dateFilter).length > 0) assignmentQuery.dueDate = dateFilter;
 
     const assignments = await HomeworkAssignment.find(assignmentQuery)

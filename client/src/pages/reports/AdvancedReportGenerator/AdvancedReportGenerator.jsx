@@ -169,7 +169,7 @@ const AdvancedReportGenerator = () => {
                           : 'is-amber'
                         }`}
                         title={
-                          ev.status === 'failed' ? 'Could not be read'
+                          ev.status === 'failed' ? `Could not be read: ${ev.error || 'unknown error'}`
                             : ev.status === 'no_data' ? 'No records in this period'
                             : `${ev.recordCount} records`
                         }
@@ -251,7 +251,11 @@ const AdvancedReportGenerator = () => {
                     </p>
                   )}
                   {Object.entries(report.evidence.sources).map(([key, val]) => (
-                    <div key={key} className="rg-data-row">
+                    <div
+                      key={key}
+                      className="rg-data-row"
+                      title={val.status === 'failed' ? val.error || 'Unknown error' : undefined}
+                    >
                       <span className={`rg-dot ${
                         val.status === 'failed' ? 'is-red'
                           : val.status === 'no_data' ? 'is-grey'

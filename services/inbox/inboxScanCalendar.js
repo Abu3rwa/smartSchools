@@ -155,7 +155,8 @@ const deadlineFields = (user, email, deadline, timeZone) => ({
     timeZone,
     quote: cleanText(deadline.quote, MAX_QUOTE),
     state: 'proposed',
-    source: 'ai'
+    source: 'ai',
+    category: deadline.category === 'newsletter' ? 'newsletter' : 'other'
 });
 
 const eventFields = (user, email, event, timeZone, meetingLengthMinutes) => {

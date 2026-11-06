@@ -600,6 +600,12 @@
   padding: 2px 6px;
 }
 
+.assignments-type-chip--muted {
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-color, var(--bg-tertiary));
+}
+
 .assignments-meta-dot {
   width: 3px;
   height: 3px;

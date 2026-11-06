@@ -82,7 +82,12 @@ export default function SentList({ list, language, onRetry, onDelete, onLoadMore
             {list.items.map((item, index) => (
               <li key={item.id} className="ia-sent-row" style={{ "--ia-i": index }}>
                 <div className="ia-sent-main">
-                  <h3>{item.subject || t("inboxAssistant:sent.noSubject")}</h3>
+                  <h3>
+                    {item.subject || t("inboxAssistant:sent.noSubject")}
+                    {item.source === "auto" && (
+                      <span className="ia-sent-auto">{t("inboxAssistant:sent.autoSent")}</span>
+                    )}
+                  </h3>
                   <p className="ia-sent-to">
                     {t("inboxAssistant:sent.to")}: {item.to?.join(", ") || "—"}
                     {item.cc?.length ? ` · ${t("inboxAssistant:reply.cc")}: ${item.cc.join(", ")}` : ""}

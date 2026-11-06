@@ -35,12 +35,15 @@ const inboxDeadlineSchema = new mongoose.Schema(
     remindAt: { type: Date, default: null },
     reminderSentAt: { type: Date, default: null },
     source: { type: String, enum: ["ai", "manual"], required: true },
+    category: { type: String, enum: ["newsletter", "other"], default: "other" },
+    autoReplySentAt: { type: Date, default: null },
     ...inboxCalendarItemFields(),
   },
   { timestamps: true },
 );
 
 inboxDeadlineSchema.index({ user: 1, state: 1, dueAt: 1 });
+inboxDeadlineSchema.index({ category: 1, state: 1, dueAt: 1, autoReplySentAt: 1 });
 inboxDeadlineSchema.index({ state: 1, remindAt: 1, reminderSentAt: 1 });
 // The retry job only ever looks at items that still owe Google a call.
 inboxDeadlineSchema.index({ "calendar.status": 1, "calendar.attempts": 1 });

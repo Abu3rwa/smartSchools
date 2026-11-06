@@ -1,6 +1,7 @@
 import MasteryRecord from '../../models/MasteryRecord.js';
 import StandardsGradebookEntry from '../../models/StandardsGradebookEntry.js';
 import Standard from '../../models/Standard.js';
+import { startOfDay, endOfDay } from './dateRange.js';
 
 /**
  * Evidence collector for standards mastery.
@@ -32,12 +33,15 @@ export async function collect({ schoolId, studentId, startDate, endDate, subject
     const masteryRecords = allMasteryRecords.filter(inSubject);
     const entries = allEntries.filter(inSubject);
 
+    const rangeStart = startOfDay(startDate);
+    const rangeEnd = endOfDay(endDate);
+
     const dateFilteredEntries = entries.filter(e => {
         const d = e.submittedAt || e.releasedAt || e.createdAt;
         if (!d) return true;
         const date = new Date(d);
-        if (startDate && date < new Date(startDate)) return false;
-        if (endDate && date > new Date(`${endDate}T23:59:59.999Z`)) return false;
+        if (rangeStart && date < rangeStart) return false;
+        if (rangeEnd && date > rangeEnd) return false;
         return true;
     });
 

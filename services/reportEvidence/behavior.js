@@ -1,4 +1,5 @@
 import BehaviorIncident from '../../models/BehaviorIncident.js';
+import { endOfDay } from './dateRange.js';
 
 /**
  * Evidence collector for behavior.
@@ -13,7 +14,7 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
 
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    if (endDate) dateFilter.$lte = endOfDay(endDate);
     if (Object.keys(dateFilter).length > 0) query.occurredAt = dateFilter;
 
     const incidents = await BehaviorIncident.find(query)

@@ -43,7 +43,7 @@ const assignmentTypeSchema = new mongoose.Schema(
             maxMarks: {
                 type: Number,
                 default: 10,
-                min: 1
+                min: 0
             },
             allowLateSubmission: {
                 type: Boolean,

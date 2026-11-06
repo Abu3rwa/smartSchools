@@ -118,6 +118,7 @@ For each email below:
 - Detect the language of the email body: "en", "ar" or "other".
 - Suggest a reply type from this list, or null when none fits: ${replyIds}.
 - List deadlines: a date or time by which the teacher must do something. Resolve relative words such as "tomorrow" or "Thursday" using the email's received date and the teacher's time zone, ${timeZone}. If the date is not stated or cannot be resolved, return no deadline for that email.
+- For each deadline, also decide "category": "newsletter" if the email is asking the teacher to submit content, articles, photos, or a summary for a school or class newsletter by that date; otherwise "other". Only use "newsletter" when the email clearly asks for newsletter content — do not guess.
 - List events: a meeting, appointment, class, exam or gathering the teacher is expected to attend. Give the start date, the start and end time when the email states them, and a place or meeting link when the email gives one. Return null for a time or a place that is not stated. If the date is not stated or cannot be resolved, return no event for that email.
 - For every deadline and every event: "dateExplicit" is true only when the email itself writes the date, as "12 November" or "next Thursday" does. It is false when you worked the date out. "conflictingDates" is true when the email gives two different dates for the same item.
 - Some blocks list items already saved for that thread. If this email moves one of them to another date or says it is cancelled, report it in "changes" with the id that was given. Never invent an id and never report a change for an item that is not listed. A block with no list gets an empty "changes".
@@ -127,7 +128,7 @@ Return JSON only, in exactly this shape:
   "emails": [
     {
       "index": 0, "priority": "needs_reply", "summary": "...", "reason": "...", "language": "en", "suggestedReplyType": "ask_more_time",
-      "deadlines": [ { "title": "...", "dueDate": "YYYY-MM-DD", "dueTime": "HH:MM" or null, "quote": "exact words copied from the email", "dateExplicit": true, "conflictingDates": false } ],
+      "deadlines": [ { "title": "...", "dueDate": "YYYY-MM-DD", "dueTime": "HH:MM" or null, "category": "newsletter" or "other", "quote": "exact words copied from the email", "dateExplicit": true, "conflictingDates": false } ],
       "events": [ { "title": "...", "startDate": "YYYY-MM-DD", "startTime": "HH:MM" or null, "endTime": "HH:MM" or null, "location": "..." or null, "quote": "exact words copied from the email", "dateExplicit": true, "conflictingDates": false } ],
       "changes": [ { "itemId": "an id from the list", "action": "move" or "cancel", "newDate": "YYYY-MM-DD" or null, "newTime": "HH:MM" or null, "quote": "exact words copied from the email" } ]
     }
@@ -166,6 +167,7 @@ const normalizeDeadline = (deadline, email) => {
         title: clean(deadline.title, 200) || quote.slice(0, 200),
         dueDate: dateOnlyText(dueDate),
         dueTime: parseTimeOnly(deadline.dueTime),
+        category: deadline.category === 'newsletter' ? 'newsletter' : 'other',
         quote,
         ...dateFlags(deadline, quote)
     };

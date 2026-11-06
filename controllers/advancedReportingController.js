@@ -72,6 +72,9 @@ const summarizeEvidence = (evidencePack) => ({
         recordCount: val.recordCount,
         trend: val.trend,
         metrics: compactMetrics(key, val.metrics),
+        // Kept so the teacher can see why a source failed instead of a bare
+        // "Could not be read" with no way to tell what happened.
+        error: val.status === "failed" ? val.error || "Unknown error" : null,
       },
     ]),
   ),

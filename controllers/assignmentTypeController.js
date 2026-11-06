@@ -9,6 +9,12 @@ const DEFAULT_ASSIGNMENT_TYPES = [
         defaults: { maxMarks: 10, allowLateSubmission: true, notifyOnAssign: true, notifyOnGrade: true }
     },
     {
+        key: 'lesson_summary',
+        name: 'Lesson Summary',
+        sortOrder: 15,
+        defaults: { maxMarks: 0, allowLateSubmission: false, notifyOnAssign: true, notifyOnGrade: false }
+    },
+    {
         key: 'classwork',
         name: 'Classwork',
         sortOrder: 20,
@@ -108,7 +114,7 @@ const mapType = (row) => ({
     isActive: row.isActive !== false,
     sortOrder: Number(row.sortOrder || 0),
     defaults: {
-        maxMarks: Number(row.defaults?.maxMarks || 10),
+        maxMarks: Number(row.defaults?.maxMarks ?? 10),
         allowLateSubmission: row.defaults?.allowLateSubmission === true,
         notifyOnAssign: row.defaults?.notifyOnAssign !== false,
         notifyOnGrade: row.defaults?.notifyOnGrade !== false

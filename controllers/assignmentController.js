@@ -36,6 +36,7 @@ import {
     draftQuestionsFromText,
     normalizeDraftTypes
 } from '../services/assignmentQuestionAiService.js';
+import { draftLessonSummaryFromText } from '../services/lessonSummaryAiService.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 const refId = (value) => (value && typeof value === 'object'
@@ -201,7 +202,8 @@ const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission
                 url: att.url || ''
             }))
             : [],
-        maxMarks: Number(assignment.maxMarks || 10),
+        maxMarks: Number(assignment.maxMarks ?? 10),
+        isGraded: assignment.isGraded !== false,
         allowLateSubmission: assignment.allowLateSubmission === true,
         notifyOnAssign: assignment.notifyOnAssign !== false,
         notifyAudience: parseNotifyAudience(assignment.notifyAudience, 'both'),
@@ -891,6 +893,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
     const publishNow = parseBoolean(body.publishNow, false) || String(body.status || '').trim().toLowerCase() === 'published';
     const notifyAudience = parseNotifyAudience(body.notifyAudience, 'both');
+    const isGraded = type.key !== 'lesson_summary';
     const assignment = await Assignment.create({
         school: req.schoolId,
         academicYear,
@@ -910,7 +913,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
         lessonPlanIds: normalizedLessonPlanIds ?? [],
         links: validatedLinks,
         attachments: [],
-        maxMarks: parsePositiveNumber(body.maxMarks, Number(type.defaults?.maxMarks || 10)),
+        maxMarks: isGraded ? parsePositiveNumber(body.maxMarks, Number(type.defaults?.maxMarks || 10)) : 0,
+        isGraded,
         allowLateSubmission: body.allowLateSubmission === undefined
             ? type.defaults?.allowLateSubmission === true
             : parseBoolean(body.allowLateSubmission, false),
@@ -918,9 +922,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
             ? type.defaults?.notifyOnAssign !== false
             : parseBoolean(body.notifyOnAssign, true),
         notifyAudience,
-        notifyOnGrade: body.notifyOnGrade === undefined
+        notifyOnGrade: !isGraded ? false : (body.notifyOnGrade === undefined
             ? type.defaults?.notifyOnGrade !== false
-            : parseBoolean(body.notifyOnGrade, true),
+            : parseBoolean(body.notifyOnGrade, true)),
         publishedAt: publishNow && !createGoogleForm ? new Date() : null,
         publishedBy: publishNow && !createGoogleForm ? req.user._id : null,
         metadata
@@ -1210,6 +1214,7 @@ export const getAssignmentGradebook = asyncHandler(async (req, res) => {
         success: true,
         data: {
             assignment: mapAssignmentSummary(assignment),
+            isGraded: assignment.isGraded !== false,
             rows: students.map((student) => {
                 const studentId = toId(student._id);
                 return {
@@ -1294,6 +1299,9 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
             success: false,
             message: 'Assignment must be published or closed before grading'
         });
+    }
+    if (assignment.isGraded === false) {
+        return res.status(400).json({ success: false, message: 'This assignment is not graded.' });
     }
 
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
@@ -1493,6 +1501,15 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         }
     }
     const nextTypeKey = type?.key || assignment.assignmentTypeKey;
+    if (nextTypeKey === 'lesson_summary' && assignment.assignmentTypeKey !== 'lesson_summary') {
+        const hasGrades = await Grade.exists({ school: req.schoolId, assignment: assignment._id });
+        if (hasGrades) {
+            return res.status(400).json({
+                success: false,
+                message: 'This assignment has grades and cannot become ungraded.'
+            });
+        }
+    }
     let metadata = assignment.metadata;
     if (body.metadata !== undefined) {
         metadata = body.metadata;
@@ -1609,9 +1626,16 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.scope = scope;
     assignment.studentIds = scope === 'selected_students' ? validSelectedStudentIds : [];
     assignment.lessonPlanIds = normalizedLessonPlanIds ?? [];
-    assignment.maxMarks = body.maxMarks === undefined
+    const nextIsGraded = nextTypeKey !== 'lesson_summary';
+    const maxMarksFallback = assignment.maxMarks > 0
         ? assignment.maxMarks
-        : parsePositiveNumber(body.maxMarks, assignment.maxMarks);
+        : Number(type?.defaults?.maxMarks || 10);
+    assignment.maxMarks = !nextIsGraded
+        ? 0
+        : body.maxMarks === undefined
+            ? maxMarksFallback
+            : parsePositiveNumber(body.maxMarks, maxMarksFallback);
+    assignment.isGraded = nextIsGraded;
     assignment.allowLateSubmission = body.allowLateSubmission === undefined
         ? assignment.allowLateSubmission
         : parseBoolean(body.allowLateSubmission, assignment.allowLateSubmission);
@@ -1621,9 +1645,11 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.notifyAudience = body.notifyAudience === undefined
         ? parseNotifyAudience(assignment.notifyAudience, 'both')
         : parseNotifyAudience(body.notifyAudience, assignment.notifyAudience);
-    assignment.notifyOnGrade = body.notifyOnGrade === undefined
-        ? assignment.notifyOnGrade
-        : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
+    assignment.notifyOnGrade = !nextIsGraded
+        ? false
+        : body.notifyOnGrade === undefined
+            ? assignment.notifyOnGrade
+            : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
     assignment.metadata = metadata;
 
     if (status === 'published' && isGoogleFormAssignment && !assignment.metadata?.googleForm?.formId) {
@@ -1881,6 +1907,42 @@ export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
                 kind: 'lesson_plans',
                 lessonCount: lessons.length,
                 truncated: result.truncatedSource
+            }
+        }
+    });
+});
+
+/**
+ * Draft a title and summary for an ungraded Lesson Summary assignment from one
+ * ephemeral PDF/photo. Nothing is saved — the teacher edits the draft in the
+ * form before creating the assignment.
+ */
+export const draftAssignmentSummary = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_SOURCE_REQUIRED',
+            message: 'Upload a PDF or photo of the lesson.'
+        });
+    }
+
+    const usage = { feature: 'assignment_lesson_summary_draft' };
+    const extracted = await extractDocumentText({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        usage
+    });
+    const result = await draftLessonSummaryFromText({ sourceText: extracted.text, usage });
+
+    res.json({
+        success: true,
+        data: {
+            title: result.title,
+            instructions: result.instructions,
+            source: {
+                kind: extracted.sourceType,
+                characters: extracted.text.length,
+                truncated: extracted.truncated
             }
         }
     });

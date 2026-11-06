@@ -3,6 +3,7 @@ import {
     createAssignment,
     deleteAssignment,
     draftAssignmentQuestions,
+    draftAssignmentSummary,
     getAssignmentAttachmentUrl,
     getAssignmentGradebook,
     getAssignments,
@@ -36,6 +37,15 @@ router.post(
     aiFeatureRateLimiter,
     uploadAssignmentDraftSource,
     draftAssignmentQuestions
+);
+
+router.post(
+    '/ai/draft-summary',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    aiFeatureRateLimiter,
+    uploadAssignmentDraftSource,
+    draftAssignmentSummary
 );
 
 router.post(

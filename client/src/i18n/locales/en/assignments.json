@@ -442,6 +442,33 @@
       "disconnected": "Google Forms disconnected."
     }
   },
+  "lessonSummary": {
+    "notGradedBadge": "Not graded",
+    "drafter": {
+      "title": "Draft a lesson summary with AI",
+      "help": "Upload a PDF or photo of the lesson. AI drafts a title and a summary for students and parents — review and edit it before saving. This assignment is never graded.",
+      "chooseFile": "Choose file",
+      "removeFile": "Remove file",
+      "fileTypes": "PDF, JPG, PNG or WebP, up to 10 MB.",
+      "fileNotSaved": "The file is used only to write the summary and is not saved. To share it with students, add it again under Attachments.",
+      "generate": "Draft with AI",
+      "generating": "Drafting summary...",
+      "done": "Draft added. Review and edit the title and summary before saving.",
+      "needFile": "Choose a PDF or photo.",
+      "errors": {
+        "sourceRequired": "Upload a PDF or photo of the lesson.",
+        "sourceEmpty": "There is no content in the file to write a summary from. Try a clearer photo or a different PDF.",
+        "invalidDraft": "The AI did not return a usable summary. Try again with a clearer file.",
+        "noText": "We could not read any text in this file. Try a clearer photo or a different PDF.",
+        "pdfUnreadable": "We could not open this PDF. Try another PDF, or upload a photo of the pages.",
+        "unsupportedFile": "Upload a PDF, JPG, PNG or WebP file.",
+        "fileTooLarge": "The file is too large. Upload a file under 10 MB.",
+        "emptyFile": "The file is empty. Choose the file again.",
+        "rateLimited": "Too many requests in a short time. Wait a moment and try again.",
+        "failed": "Could not draft the summary. Try again."
+      }
+    }
+  },
   "common": {
     "empty": "-",
     "close": "Close",

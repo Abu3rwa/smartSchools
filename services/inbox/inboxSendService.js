@@ -55,6 +55,7 @@ export const buildSendMailOptions = (draft, email, recipients) => {
 const shapeSent = (draft) => ({
     id: String(draft._id),
     emailId: String(draft.email),
+    source: draft.source === 'auto' ? 'auto' : 'manual',
     to: draft.to || [],
     cc: draft.cc || [],
     subject: draft.subject || '',

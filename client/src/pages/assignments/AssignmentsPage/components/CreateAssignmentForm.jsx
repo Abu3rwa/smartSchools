@@ -13,6 +13,7 @@ import LinkEditor from './LinkEditor';
 import AttachmentEditor from './AttachmentEditor';
 import GoogleFormQuestionEditor from './GoogleFormQuestionEditor';
 import AssignmentQuestionDrafter from './AssignmentQuestionDrafter';
+import LessonSummaryDrafter from './LessonSummaryDrafter';
 import { buildAssignmentCsvTemplate, parseAssignmentCsv } from '../utils/assignmentCsvImport';
 
 const uniqueById = (items = []) => (
@@ -91,6 +92,8 @@ const CreateAssignmentForm = ({
     if (!open) return null;
 
     const isGoogleForm = Boolean(form.createGoogleForm || googleFormPublished);
+    const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
+    const isLessonSummary = selectedType?.key === 'lesson_summary';
     const classes = uniqueById(availableClasses);
     const subjects = uniqueById(availableSubjects);
 
@@ -322,20 +325,34 @@ const CreateAssignmentForm = ({
                                     ))}
                                 </select>
                             </div>
-                            <div className="assignments-field">
-                                <label>{t('assignments:form.maxMarks')}</label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={1000}
-                                    value={form.maxMarks}
-                                    onChange={(event) => setForm((prev) => ({
-                                        ...prev,
-                                        maxMarks: event.target.value
-                                    }))}
-                                    disabled={submitting}
-                                />
-                            </div>
+                            {!isLessonSummary && (
+                                <div className="assignments-field">
+                                    <label>{t('assignments:form.maxMarks')}</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={1000}
+                                        value={form.maxMarks}
+                                        onChange={(event) => setForm((prev) => ({
+                                            ...prev,
+                                            maxMarks: event.target.value
+                                        }))}
+                                        disabled={submitting}
+                                    />
+                                </div>
+                            )}
+                            {isLessonSummary && (
+                                <div className="assignments-field assignments-form-grid__full">
+                                    <LessonSummaryDrafter
+                                        disabled={submitting}
+                                        onDrafted={({ title, instructions }) => setForm((prev) => ({
+                                            ...prev,
+                                            title,
+                                            instructions
+                                        }))}
+                                    />
+                                </div>
+                            )}
                             <div className="assignments-field assignments-form-grid__full">
                                 <label>{t('assignments:form.title')}</label>
                                 <input
@@ -534,24 +551,26 @@ const CreateAssignmentForm = ({
                                     </select>
                                 </div>
                             )}
-                            <div className="assignments-option-row">
-                                <div className="assignments-option-row__copy">
-                                    <strong>{t('assignments:drawer.notifyOnGrade')}</strong>
-                                    <span>{t('assignments:drawer.notifyOnGradeHelp')}</span>
+                            {!isLessonSummary && (
+                                <div className="assignments-option-row">
+                                    <div className="assignments-option-row__copy">
+                                        <strong>{t('assignments:drawer.notifyOnGrade')}</strong>
+                                        <span>{t('assignments:drawer.notifyOnGradeHelp')}</span>
+                                    </div>
+                                    <label className="assignments-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.notifyOnGrade}
+                                            disabled={submitting}
+                                            onChange={(event) => setForm((prev) => ({
+                                                ...prev,
+                                                notifyOnGrade: event.target.checked
+                                            }))}
+                                        />
+                                        <span className="assignments-switch__track" aria-hidden="true" />
+                                    </label>
                                 </div>
-                                <label className="assignments-switch">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.notifyOnGrade}
-                                        disabled={submitting}
-                                        onChange={(event) => setForm((prev) => ({
-                                            ...prev,
-                                            notifyOnGrade: event.target.checked
-                                        }))}
-                                    />
-                                    <span className="assignments-switch__track" aria-hidden="true" />
-                                </label>
-                            </div>
+                            )}
                             {classroom?.canUse && (
                                 existingClassroomLink ? (
                                     <div className="assignments-option-row">

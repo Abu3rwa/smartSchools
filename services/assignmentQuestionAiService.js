@@ -137,7 +137,7 @@ ${shape}
 - Do not add fields that are not in the shape above.`;
 };
 
-const parseJsonObject = (text) => {
+export const parseJsonObject = (text) => {
     const trimmed = String(text || '').trim();
     const attempts = [trimmed, trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1], trimmed.match(/\{[\s\S]*\}/)?.[0]];
     for (const candidate of attempts) {

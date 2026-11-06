@@ -1,6 +1,7 @@
 import LiveSession from '../../models/LiveSession.js';
 import LiveResponse from '../../models/LiveResponse.js';
 import { liveAnswerCredit } from '../liveSessionGradebookService.js';
+import { endOfDay } from './dateRange.js';
 
 /**
  * Evidence collector for live lessons.
@@ -16,7 +17,7 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
 
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    if (endDate) dateFilter.$lte = endOfDay(endDate);
     if (Object.keys(dateFilter).length > 0) sessionQuery.startedAt = dateFilter;
 
     const sessions = await LiveSession.find(sessionQuery).sort({ startedAt: -1 }).lean();

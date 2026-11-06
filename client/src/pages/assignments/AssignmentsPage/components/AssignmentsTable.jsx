@@ -163,6 +163,11 @@ const AssignmentsTable = ({
                                                     {assignment.assignmentType?.name || assignment.assignmentType?.key}
                                                 </span>
                                             )}
+                                            {assignment.isGraded === false && (
+                                                <span className="assignments-type-chip assignments-type-chip--muted">
+                                                    {t('assignments:lessonSummary.notGradedBadge')}
+                                                </span>
+                                            )}
                                             {assignment.class?.name && (
                                                 <>
                                                     <span className="assignments-meta-dot" aria-hidden="true" />
@@ -253,6 +258,11 @@ const AssignmentsTable = ({
                                             {(assignment.assignmentType?.name || assignment.assignmentType?.key) && (
                                                 <span className="assignments-type-chip">
                                                     {assignment.assignmentType?.name || assignment.assignmentType?.key}
+                                                </span>
+                                            )}
+                                            {assignment.isGraded === false && (
+                                                <span className="assignments-type-chip assignments-type-chip--muted">
+                                                    {t('assignments:lessonSummary.notGradedBadge')}
                                                 </span>
                                             )}
                                             {assignment.class?.name && (

@@ -13,6 +13,18 @@ import {
   calendarStatusFrom,
   normalizeCalendarSettings,
 } from "../services/inbox/inboxCalendarContext.js";
+import {
+  CHECK_TIME_PATTERN,
+  MAX_CHECK_TIMES,
+  NEWSLETTER_SEND_ENABLED,
+  effectiveDeliveryMode,
+  normalizeNewsletterAutoReply,
+} from "../services/inbox/inboxNewsletterSettings.js";
+import {
+  HOMEWORK_SEND_ENABLED,
+  effectiveHomeworkDeliveryMode,
+  normalizeHomeworkAutoReply,
+} from "../services/inbox/inboxHomeworkSettings.js";
 
 const TONES = new Set(["professional", "short", "warm", "formal"]);
 const STATUSES = new Set(["open", "done", "dismissed", "replied"]);
@@ -48,6 +60,8 @@ const defaultsFor = (platform) => ({
   nudgeAfterDays: 2,
   customReplyTypes: [],
   calendar: normalizeCalendarSettings(null),
+  newsletterAutoReply: normalizeNewsletterAutoReply(null),
+  homeworkAutoReply: normalizeHomeworkAutoReply(null),
   lastScanAt: null,
 });
 
@@ -71,6 +85,14 @@ const shapeSettings = (settings) => ({
   nudgeAfterDays: settings.nudgeAfterDays,
   customReplyTypes: settings.customReplyTypes || [],
   calendar: normalizeCalendarSettings(settings.calendar),
+  newsletterAutoReply: {
+    ...normalizeNewsletterAutoReply(settings.newsletterAutoReply),
+    sendAvailable: NEWSLETTER_SEND_ENABLED,
+  },
+  homeworkAutoReply: {
+    ...normalizeHomeworkAutoReply(settings.homeworkAutoReply),
+    sendAvailable: HOMEWORK_SEND_ENABLED,
+  },
   lastScanAt: settings.lastScanAt || null,
 });
 
@@ -141,6 +163,146 @@ const calendarPatch = (incoming, current) => {
   for (const [field, limit] of Object.entries(REMINDER_LIMITS)) {
     if (incoming[field] !== undefined)
       patch[field] = clampMinutes(incoming[field], limit);
+  }
+
+  return patch;
+};
+
+/** Newsletter auto-reply arrives as a partial patch; enabling needs the risk tick in the same request. */
+const newsletterPatch = (incoming, current) => {
+  if (incoming === undefined) return null;
+  if (
+    typeof incoming !== "object" ||
+    incoming === null ||
+    Array.isArray(incoming)
+  ) {
+    throw badRequest("Send the newsletter auto-reply settings as an object.");
+  }
+  const base = normalizeNewsletterAutoReply(current?.newsletterAutoReply);
+  const patch = {};
+
+  for (const field of ["enabled", "confirmedRisk"]) {
+    if (incoming[field] === undefined) continue;
+    if (typeof incoming[field] !== "boolean") {
+      throw badRequest("Turn the newsletter auto-reply options on or off.");
+    }
+    patch[field] = incoming[field];
+  }
+
+  // Explicitly turning it on always needs the risk tick in the same request.
+  if (patch.enabled === true && incoming.confirmedRisk !== true) {
+    throw badRequest(
+      "Tick the confirmation that replies can be sent automatically in your name, in the same request.",
+    );
+  }
+  // Withdrawing the risk confirmation is a kill switch, not a half-on state.
+  if (patch.confirmedRisk === false) patch.enabled = false;
+  const nextEnabled =
+    patch.enabled !== undefined ? patch.enabled : base.enabled;
+  const nextConfirmed =
+    patch.confirmedRisk !== undefined
+      ? patch.confirmedRisk
+      : base.confirmedRisk;
+  if (nextEnabled && !nextConfirmed) {
+    throw badRequest(
+      "Tick the confirmation that replies can be sent automatically in your name, in the same request.",
+    );
+  }
+
+  if (incoming.hoursBeforeDeadline !== undefined) {
+    const hours = Number(incoming.hoursBeforeDeadline);
+    if (!Number.isInteger(hours) || hours < 0 || hours > 24) {
+      throw badRequest("Choose between 0 and 24 hours before the deadline.");
+    }
+    patch.hoursBeforeDeadline = hours;
+  }
+
+  if (incoming.deliveryMode !== undefined) {
+    if (!["send", "draft_only"].includes(incoming.deliveryMode)) {
+      throw badRequest("Choose a delivery mode from the list.");
+    }
+    patch.deliveryMode = effectiveDeliveryMode(incoming.deliveryMode);
+  }
+
+  if (incoming.checkTimes !== undefined) {
+    if (!Array.isArray(incoming.checkTimes) || !incoming.checkTimes.length) {
+      throw badRequest("Keep at least one check time.");
+    }
+    if (incoming.checkTimes.length > MAX_CHECK_TIMES) {
+      throw badRequest(`Keep at most ${MAX_CHECK_TIMES} check times.`);
+    }
+    for (const time of incoming.checkTimes) {
+      if (typeof time !== "string" || !CHECK_TIME_PATTERN.test(time)) {
+        throw badRequest("Write each check time as HH:MM, for example 07:00.");
+      }
+    }
+    patch.checkTimes = [...new Set(incoming.checkTimes)].sort();
+  }
+
+  return patch;
+};
+
+/** Homework auto-reply arrives as a partial patch; enabling needs the risk tick in the same request. */
+const homeworkPatch = (incoming, current) => {
+  if (incoming === undefined) return null;
+  if (
+    typeof incoming !== "object" ||
+    incoming === null ||
+    Array.isArray(incoming)
+  ) {
+    throw badRequest("Send the homework auto-reply settings as an object.");
+  }
+  const base = normalizeHomeworkAutoReply(current?.homeworkAutoReply);
+  const patch = {};
+
+  for (const field of ["enabled", "confirmedRisk"]) {
+    if (incoming[field] === undefined) continue;
+    if (typeof incoming[field] !== "boolean") {
+      throw badRequest("Turn the homework auto-reply options on or off.");
+    }
+    patch[field] = incoming[field];
+  }
+
+  // Explicitly turning it on always needs the risk tick in the same request.
+  if (patch.enabled === true && incoming.confirmedRisk !== true) {
+    throw badRequest(
+      "Tick the confirmation that replies can be sent automatically in your name, in the same request.",
+    );
+  }
+  // Withdrawing the risk confirmation is a kill switch, not a half-on state.
+  if (patch.confirmedRisk === false) patch.enabled = false;
+  const nextEnabled =
+    patch.enabled !== undefined ? patch.enabled : base.enabled;
+  const nextConfirmed =
+    patch.confirmedRisk !== undefined
+      ? patch.confirmedRisk
+      : base.confirmedRisk;
+  if (nextEnabled && !nextConfirmed) {
+    throw badRequest(
+      "Tick the confirmation that replies can be sent automatically in your name, in the same request.",
+    );
+  }
+
+  if (incoming.scope !== undefined) {
+    if (!["own_subject", "whole_class"].includes(incoming.scope)) {
+      throw badRequest("Choose a homework scope from the list.");
+    }
+    patch.scope = incoming.scope;
+  }
+
+  if (incoming.daysAhead !== undefined) {
+    const days = Number(incoming.daysAhead);
+    if (!Number.isInteger(days) || days < 1 || days > 14) {
+      throw badRequest("Choose between 1 and 14 days ahead.");
+    }
+    patch.daysAhead = days;
+  }
+
+  if (incoming.deliveryMode !== undefined) {
+    if (!["send", "draft_only"].includes(incoming.deliveryMode)) {
+      throw badRequest("Choose a delivery mode from the list.");
+    }
+    patch.deliveryMode = effectiveHomeworkDeliveryMode(incoming.deliveryMode);
   }
 
   return patch;
@@ -291,6 +453,20 @@ export const updateSettings = asyncHandler(async (req, res) => {
     patch.calendar = {
       ...normalizeCalendarSettings(current?.calendar),
       ...calendar,
+    };
+
+  const newsletter = newsletterPatch(body.newsletterAutoReply, current);
+  if (newsletter)
+    patch.newsletterAutoReply = {
+      ...normalizeNewsletterAutoReply(current?.newsletterAutoReply),
+      ...newsletter,
+    };
+
+  const homework = homeworkPatch(body.homeworkAutoReply, current);
+  if (homework)
+    patch.homeworkAutoReply = {
+      ...normalizeHomeworkAutoReply(current?.homeworkAutoReply),
+      ...homework,
     };
 
   const saved = await InboxAssistantSettings.findOneAndUpdate(

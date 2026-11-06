@@ -125,6 +125,15 @@ const assignmentService = {
             types
         });
         return response.data;
+    },
+
+    draftSummary: async (file) => {
+        const formData = new FormData();
+        formData.append('materialFile', file);
+        const response = await api.post('/assignments/ai/draft-summary', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
     }
 };
 

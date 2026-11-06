@@ -1,5 +1,6 @@
 import SpellingSession from '../../models/SpellingSession.js';
 import SpellingRetestItem from '../../models/SpellingRetestItem.js';
+import { endOfDay } from './dateRange.js';
 
 /**
  * Evidence collector for spelling.
@@ -15,7 +16,7 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
 
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    if (endDate) dateFilter.$lte = endOfDay(endDate);
     if (Object.keys(dateFilter).length > 0) sessionQuery.startedAt = dateFilter;
 
     const [sessions, retestItems] = await Promise.all([

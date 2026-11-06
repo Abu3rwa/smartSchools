@@ -101,8 +101,12 @@ const assignmentSchema = new mongoose.Schema(
         maxMarks: {
             type: Number,
             required: true,
-            min: 1,
+            min: 0,
             default: 10
+        },
+        isGraded: {
+            type: Boolean,
+            default: true
         },
         allowLateSubmission: {
             type: Boolean,

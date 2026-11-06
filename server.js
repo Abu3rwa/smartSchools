@@ -128,6 +128,8 @@ import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js"
 import { runBehaviorStatusJob } from "./jobs/behaviorStatusJob.js";
 import { runReadingTranscriptPurgeJob } from "./jobs/readingTranscriptPurgeJob.js";
 import { runInboxAssistantJob } from "./jobs/inboxAssistantJob.js";
+import { runInboxNewsletterAutoReplyJob } from "./jobs/inboxNewsletterAutoReplyJob.js";
+import { runInboxHomeworkAutoReplyJob } from "./jobs/inboxHomeworkAutoReplyJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processDueSpellingEmails } from "./services/spellingEmailService.js";
 import { scheduleDueSpellingRetestQuizzes } from "./services/spellingRetestQuizSchedulerService.js";
@@ -697,6 +699,44 @@ const server = httpServer.listen(PORT, () => {
     // First run 6 minutes after startup, then every hour.
     setTimeout(runInboxAssistant, 6 * 60 * 1000);
     activeIntervals.push(setInterval(runInboxAssistant, INBOX_ASSISTANT_JOB_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_INBOX_NEWSLETTER_AUTOREPLY_JOB !== "false") {
+    const INBOX_NEWSLETTER_AUTOREPLY_INTERVAL_MS = 15 * 60 * 1000;
+    let newsletterAutoReplyRunning = false;
+    const runInboxNewsletterAutoReply = async () => {
+      if (newsletterAutoReplyRunning) return;
+      newsletterAutoReplyRunning = true;
+      try {
+        await runInboxNewsletterAutoReplyJob();
+      } catch (err) {
+        logger.error("Inbox newsletter auto-reply job error:", err?.message || err);
+      } finally {
+        newsletterAutoReplyRunning = false;
+      }
+    };
+    // First run 7 minutes after startup (staggered from the inbox job), then every 15 minutes.
+    setTimeout(runInboxNewsletterAutoReply, 7 * 60 * 1000);
+    activeIntervals.push(setInterval(runInboxNewsletterAutoReply, INBOX_NEWSLETTER_AUTOREPLY_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_INBOX_HOMEWORK_AUTOREPLY_JOB !== "false") {
+    const INBOX_HOMEWORK_AUTOREPLY_INTERVAL_MS = 15 * 60 * 1000;
+    let homeworkAutoReplyRunning = false;
+    const runInboxHomeworkAutoReply = async () => {
+      if (homeworkAutoReplyRunning) return;
+      homeworkAutoReplyRunning = true;
+      try {
+        await runInboxHomeworkAutoReplyJob();
+      } catch (err) {
+        logger.error("Inbox homework auto-reply job error:", err?.message || err);
+      } finally {
+        homeworkAutoReplyRunning = false;
+      }
+    };
+    // First run 8 minutes after startup (staggered from the newsletter job), then every 15 minutes.
+    setTimeout(runInboxHomeworkAutoReply, 8 * 60 * 1000);
+    activeIntervals.push(setInterval(runInboxHomeworkAutoReply, INBOX_HOMEWORK_AUTOREPLY_INTERVAL_MS));
   }
 });
 

@@ -654,10 +654,6 @@ class EmailService {
         );
 
         const titleLabel = isArabic ? 'تقرير تقدم الطالب' : 'Student Progress Report';
-        const greetingLabel = isArabic ? 'ولي الأمر المحترم،' : 'Dear Parent,';
-        const introLine = isArabic
-            ? `يسعدنا أن نشارككم تقرير تقدم ${studentName || 'الطالب'} لهذه الفترة. يستند هذا الملخص إلى أعماله في الفصل والتقييمات والمشاركة.`
-            : `We are pleased to share ${studentName ? studentName + "'s" : 'the student\'s'} progress report for this period. This summary is based on classwork, assessments, and participation.`;
         const closingLine = isArabic
             ? 'شكرًا لدعمكم المستمر في المنزل. لا تترددوا في التواصل معنا إذا كانت لديكم أي أسئلة.'
             : 'Thank you for your continued support at home. Please feel free to reach out if you have any questions or would like to discuss this report further.';
@@ -799,8 +795,6 @@ class EmailService {
 
           <tr>
             <td class="em-card" style="padding:28px 32px 4px;">
-              <p style="margin:0 0 10px;font-size:16px;line-height:1.5;font-weight:600;color:#0f172a;text-align:${align};">${greetingLabel}</p>
-              <p style="margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid #e2e8f0;font-size:15px;line-height:1.75;color:#475569;text-align:${align};">${introLine}</p>
               <div dir="${direction}" style="text-align:${align};">${bodyHtml}</div>
             </td>
           </tr>

@@ -25,10 +25,56 @@ const calendarSettingsSchema = new mongoose.Schema(
     },
     meetingLengthMinutes: { type: Number, default: 60, min: 15, max: 240 },
     // 960 minutes before midnight of the due day is 08:00 the day before.
-    deadlineReminderDateOnlyMinutes: { type: Number, default: 960, min: 0, max: 4320 },
-    deadlineReminderTimedMinutes: { type: Number, default: 120, min: 0, max: 1440 },
+    deadlineReminderDateOnlyMinutes: {
+      type: Number,
+      default: 960,
+      min: 0,
+      max: 4320,
+    },
+    deadlineReminderTimedMinutes: {
+      type: Number,
+      default: 120,
+      min: 0,
+      max: 1440,
+    },
     meetingReminderMinutes: { type: Number, default: 30, min: 0, max: 1440 },
     overlapEmail: { type: Boolean, default: true },
+  },
+  { _id: false },
+);
+
+/** The newsletter auto-reply opt-in: off until the teacher confirms the risk. */
+const newsletterAutoReplySchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    confirmedRisk: { type: Boolean, default: false },
+    hoursBeforeDeadline: { type: Number, default: 3, min: 0, max: 24 },
+    deliveryMode: {
+      type: String,
+      enum: ["send", "draft_only"],
+      default: "draft_only",
+    },
+    checkTimes: { type: [String], default: ["07:00", "18:00", "00:00"] },
+  },
+  { _id: false },
+);
+
+/** The "what's due" auto-reply opt-in: off until the teacher confirms the risk. */
+const homeworkAutoReplySchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    confirmedRisk: { type: Boolean, default: false },
+    scope: {
+      type: String,
+      enum: ["own_subject", "whole_class"],
+      default: "own_subject",
+    },
+    daysAhead: { type: Number, default: 7, min: 1, max: 14 },
+    deliveryMode: {
+      type: String,
+      enum: ["send", "draft_only"],
+      default: "draft_only",
+    },
   },
   { _id: false },
 );
@@ -63,6 +109,11 @@ const inboxAssistantSettingsSchema = new mongoose.Schema(
     },
     lastScanAt: { type: Date, default: null },
     calendar: { type: calendarSettingsSchema, default: () => ({}) },
+    newsletterAutoReply: {
+      type: newsletterAutoReplySchema,
+      default: () => ({}),
+    },
+    homeworkAutoReply: { type: homeworkAutoReplySchema, default: () => ({}) },
   },
   { timestamps: true },
 );

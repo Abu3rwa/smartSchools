@@ -36,9 +36,11 @@ export const getStatusCounts = (assignments = []) => {
     return counts;
 };
 
-export const getUngradedCount = (assignment) => Math.max(
-    0,
-    Number(assignment?.progress?.studentCount || 0) - Number(assignment?.progress?.gradedCount || 0)
+export const getUngradedCount = (assignment) => (
+    assignment?.isGraded === false ? 0 : Math.max(
+        0,
+        Number(assignment?.progress?.studentCount || 0) - Number(assignment?.progress?.gradedCount || 0)
+    )
 );
 
 export const getAssignmentMetrics = (assignments = [], now = new Date()) => {
@@ -186,6 +188,15 @@ export const getAssignmentProgressPresentation = (assignment, { language, t }) =
     if (assignment.status === 'draft') {
         return {
             label: t('assignments:progress.notPublished'),
+            percentLabel: '',
+            percent: 0,
+            tone: 'empty'
+        };
+    }
+
+    if (assignment.isGraded === false) {
+        return {
+            label: t('assignments:lessonSummary.notGradedBadge'),
             percentLabel: '',
             percent: 0,
             tone: 'empty'

@@ -35,6 +35,7 @@ const inboxReplyDraftSchema = new mongoose.Schema(
     cc: { type: [String], default: [] },
     gmailDraftId: { type: String, trim: true, default: null },
     status: { type: String, enum: STATUSES, default: "draft" },
+    source: { type: String, enum: ["manual", "auto"], default: "manual" },
     sendIdempotencyKey: { type: String, trim: true, default: null },
     sentMessageId: { type: String, trim: true, default: null },
     threadId: { type: String, trim: true, default: null },

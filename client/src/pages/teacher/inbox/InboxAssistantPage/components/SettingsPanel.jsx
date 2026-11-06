@@ -177,6 +177,353 @@ function CalendarSection({ settings, calendar, saving, onSave }) {
   );
 }
 
+const CHECK_TIME_PRESETS = [
+  { time: "07:00", key: "morning" },
+  { time: "18:00", key: "evening" },
+  { time: "00:00", key: "midnight" },
+];
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function NewsletterSection({ settings, saving, onSave }) {
+  const { t } = useTranslation(["inboxAssistant"]);
+  const cfg = settings.newsletterAutoReply || {};
+  const times = cfg.checkTimes || [];
+  const [hours, setHours] = useState(String(cfg.hoursBeforeDeadline ?? 3));
+  const [knownHours, setKnownHours] = useState(cfg.hoursBeforeDeadline ?? 3);
+  const [customTime, setCustomTime] = useState("");
+  const [timeError, setTimeError] = useState(false);
+
+  if ((cfg.hoursBeforeDeadline ?? 3) !== knownHours) {
+    setKnownHours(cfg.hoursBeforeDeadline ?? 3);
+    setHours(String(cfg.hoursBeforeDeadline ?? 3));
+  }
+
+  const commitHours = () => {
+    const value = Math.min(Math.max(Math.round(Number(hours) || 0), 0), 24);
+    setHours(String(value));
+    if (value !== cfg.hoursBeforeDeadline) {
+      onSave({ newsletterAutoReply: { hoursBeforeDeadline: value } });
+    }
+  };
+
+  const addTime = () => {
+    if (!TIME_PATTERN.test(customTime) || times.includes(customTime)) {
+      setTimeError(true);
+      return;
+    }
+    setTimeError(false);
+    setCustomTime("");
+    onSave({ newsletterAutoReply: { checkTimes: [...times, customTime].sort() } });
+  };
+
+  const removeTime = (time) => {
+    if (times.length <= 1) return;
+    onSave({ newsletterAutoReply: { checkTimes: times.filter((entry) => entry !== time) } });
+  };
+
+  const presetKey = (time) => CHECK_TIME_PRESETS.find((preset) => preset.time === time)?.key;
+
+  return (
+    <fieldset className="ia-settings-group" disabled={saving}>
+      <legend>{t("inboxAssistant:settings.newsletterAutoReply.title")}</legend>
+      <p className="ia-hint">{t("inboxAssistant:settings.newsletterAutoReply.intro")}</p>
+
+      <label className="ia-check">
+        <input
+          type="checkbox"
+          checked={cfg.confirmedRisk === true}
+          disabled={saving}
+          onChange={(event) => onSave({ newsletterAutoReply: { confirmedRisk: event.target.checked } })}
+        />
+        <span>{t("inboxAssistant:settings.newsletterAutoReply.risk")}</span>
+      </label>
+
+      <label className="ia-check">
+        <input
+          type="checkbox"
+          checked={cfg.enabled === true}
+          disabled={saving || cfg.confirmedRisk !== true}
+          onChange={(event) => onSave({
+            newsletterAutoReply: event.target.checked
+              ? { enabled: true, confirmedRisk: true }
+              : { enabled: false },
+          })}
+        />
+        <span>
+          {t("inboxAssistant:settings.newsletterAutoReply.enabled")}
+          {cfg.confirmedRisk !== true && (
+            <small className="ia-hint">
+              {t("inboxAssistant:settings.newsletterAutoReply.enabledLocked")}
+            </small>
+          )}
+        </span>
+      </label>
+
+      <div className="ia-check-group" aria-label={t("inboxAssistant:settings.newsletterAutoReply.deliveryMode")}>
+        <span className="ia-check-group-title">
+          {t("inboxAssistant:settings.newsletterAutoReply.deliveryMode")}
+        </span>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-newsletter-delivery"
+            checked={(cfg.deliveryMode || "draft_only") === "draft_only"}
+            disabled={saving}
+            onChange={() => onSave({ newsletterAutoReply: { deliveryMode: "draft_only" } })}
+          />
+          <span>{t("inboxAssistant:settings.newsletterAutoReply.deliveryDraft")}</span>
+        </label>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-newsletter-delivery"
+            checked={cfg.deliveryMode === "send"}
+            disabled={saving || cfg.sendAvailable !== true}
+            onChange={() => onSave({ newsletterAutoReply: { deliveryMode: "send" } })}
+          />
+          <span>
+            {t("inboxAssistant:settings.newsletterAutoReply.deliverySend")}
+            {cfg.sendAvailable !== true && (
+              <small className="ia-hint">
+                {t("inboxAssistant:settings.newsletterAutoReply.deliverySendLocked")}
+              </small>
+            )}
+          </span>
+        </label>
+      </div>
+
+      <label className="ia-field">
+        <span>{t("inboxAssistant:settings.newsletterAutoReply.hoursBeforeDeadline")}</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={24}
+          step="1"
+          value={hours}
+          disabled={saving}
+          onChange={(event) => setHours(event.target.value)}
+          onBlur={commitHours}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            commitHours();
+            event.currentTarget.blur();
+          }}
+          aria-describedby="ia-newsletter-hours-hint"
+        />
+        <small id="ia-newsletter-hours-hint" className="ia-hint">
+          {t("inboxAssistant:settings.newsletterAutoReply.hoursHint")}
+        </small>
+      </label>
+
+      <div className="ia-field">
+        <span>{t("inboxAssistant:settings.newsletterAutoReply.checkTimes")}</span>
+        <div className="ia-time-chips">
+          {times.map((time) => (
+            <span key={time} className="ia-time-chip">
+              {presetKey(time)
+                ? t(`inboxAssistant:settings.newsletterAutoReply.presets.${presetKey(time)}`)
+                : time}
+              <button
+                type="button"
+                disabled={saving || times.length <= 1}
+                aria-label={t("inboxAssistant:settings.newsletterAutoReply.removeTime", { time })}
+                title={times.length <= 1
+                  ? t("inboxAssistant:settings.newsletterAutoReply.lastTime")
+                  : t("inboxAssistant:settings.newsletterAutoReply.removeTime", { time })}
+                onClick={() => removeTime(time)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="ia-time-add">
+          <input
+            type="time"
+            value={customTime}
+            disabled={saving}
+            aria-label={t("inboxAssistant:settings.newsletterAutoReply.addTimeLabel")}
+            onChange={(event) => {
+              setCustomTime(event.target.value);
+              setTimeError(false);
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={saving || !customTime}
+            onClick={addTime}
+          >
+            {t("inboxAssistant:settings.newsletterAutoReply.addTime")}
+          </button>
+        </div>
+        {timeError && (
+          <small className="ia-hint ia-time-error">
+            {t("inboxAssistant:settings.newsletterAutoReply.invalidTime")}
+          </small>
+        )}
+        <small className="ia-hint">
+          {t("inboxAssistant:settings.newsletterAutoReply.checkTimesHint")}
+        </small>
+      </div>
+    </fieldset>
+  );
+}
+
+function HomeworkSection({ settings, saving, onSave }) {
+  const { t } = useTranslation(["inboxAssistant"]);
+  const cfg = settings.homeworkAutoReply || {};
+  const [days, setDays] = useState(String(cfg.daysAhead ?? 7));
+  const [knownDays, setKnownDays] = useState(cfg.daysAhead ?? 7);
+
+  if ((cfg.daysAhead ?? 7) !== knownDays) {
+    setKnownDays(cfg.daysAhead ?? 7);
+    setDays(String(cfg.daysAhead ?? 7));
+  }
+
+  const commitDays = () => {
+    const value = Math.min(Math.max(Math.round(Number(days) || 7), 1), 14);
+    setDays(String(value));
+    if (value !== cfg.daysAhead) {
+      onSave({ homeworkAutoReply: { daysAhead: value } });
+    }
+  };
+
+  return (
+    <fieldset className="ia-settings-group" disabled={saving}>
+      <legend>{t("inboxAssistant:settings.homeworkAutoReply.title")}</legend>
+      <p className="ia-hint">{t("inboxAssistant:settings.homeworkAutoReply.intro")}</p>
+
+      <label className="ia-check">
+        <input
+          type="checkbox"
+          checked={cfg.confirmedRisk === true}
+          disabled={saving}
+          onChange={(event) => onSave({ homeworkAutoReply: { confirmedRisk: event.target.checked } })}
+        />
+        <span>{t("inboxAssistant:settings.homeworkAutoReply.risk")}</span>
+      </label>
+
+      <label className="ia-check">
+        <input
+          type="checkbox"
+          checked={cfg.enabled === true}
+          disabled={saving || cfg.confirmedRisk !== true}
+          onChange={(event) => onSave({
+            homeworkAutoReply: event.target.checked
+              ? { enabled: true, confirmedRisk: true }
+              : { enabled: false },
+          })}
+        />
+        <span>
+          {t("inboxAssistant:settings.homeworkAutoReply.enabled")}
+          {cfg.confirmedRisk !== true && (
+            <small className="ia-hint">
+              {t("inboxAssistant:settings.homeworkAutoReply.enabledLocked")}
+            </small>
+          )}
+        </span>
+      </label>
+
+      <div className="ia-check-group" aria-label={t("inboxAssistant:settings.homeworkAutoReply.deliveryMode")}>
+        <span className="ia-check-group-title">
+          {t("inboxAssistant:settings.homeworkAutoReply.deliveryMode")}
+        </span>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-homework-delivery"
+            checked={(cfg.deliveryMode || "draft_only") === "draft_only"}
+            disabled={saving}
+            onChange={() => onSave({ homeworkAutoReply: { deliveryMode: "draft_only" } })}
+          />
+          <span>{t("inboxAssistant:settings.homeworkAutoReply.deliveryDraft")}</span>
+        </label>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-homework-delivery"
+            checked={cfg.deliveryMode === "send"}
+            disabled={saving || cfg.sendAvailable !== true}
+            onChange={() => onSave({ homeworkAutoReply: { deliveryMode: "send" } })}
+          />
+          <span>
+            {t("inboxAssistant:settings.homeworkAutoReply.deliverySend")}
+            {cfg.sendAvailable !== true && (
+              <small className="ia-hint">
+                {t("inboxAssistant:settings.homeworkAutoReply.deliverySendLocked")}
+              </small>
+            )}
+          </span>
+        </label>
+      </div>
+
+      <div className="ia-check-group" aria-label={t("inboxAssistant:settings.homeworkAutoReply.scope")}>
+        <span className="ia-check-group-title">
+          {t("inboxAssistant:settings.homeworkAutoReply.scope")}
+        </span>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-homework-scope"
+            checked={(cfg.scope || "own_subject") === "own_subject"}
+            disabled={saving}
+            onChange={() => onSave({ homeworkAutoReply: { scope: "own_subject" } })}
+          />
+          <span>
+            {t("inboxAssistant:settings.homeworkAutoReply.scopeOwn")}
+            <small className="ia-hint">
+              {t("inboxAssistant:settings.homeworkAutoReply.scopeOwnHint")}
+            </small>
+          </span>
+        </label>
+        <label className="ia-check">
+          <input
+            type="radio"
+            name="ia-homework-scope"
+            checked={cfg.scope === "whole_class"}
+            disabled={saving}
+            onChange={() => onSave({ homeworkAutoReply: { scope: "whole_class" } })}
+          />
+          <span>
+            {t("inboxAssistant:settings.homeworkAutoReply.scopeWhole")}
+            <small className="ia-hint">
+              {t("inboxAssistant:settings.homeworkAutoReply.scopeWholeHint")}
+            </small>
+          </span>
+        </label>
+      </div>
+
+      <label className="ia-field">
+        <span>{t("inboxAssistant:settings.homeworkAutoReply.daysAhead")}</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={14}
+          step="1"
+          value={days}
+          disabled={saving}
+          onChange={(event) => setDays(event.target.value)}
+          onBlur={commitDays}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            commitDays();
+            event.currentTarget.blur();
+          }}
+          aria-describedby="ia-homework-days-hint"
+        />
+        <small id="ia-homework-days-hint" className="ia-hint">
+          {t("inboxAssistant:settings.homeworkAutoReply.daysHint")}
+        </small>
+      </label>
+    </fieldset>
+  );
+}
+
 export default function SettingsPanel({ settings, calendar, saving, onClose, onSave, onDelete }) {
   const { t } = useTranslation(["inboxAssistant"]);
   const [signature, setSignature] = useState(settings.signature || "");
@@ -297,6 +644,10 @@ export default function SettingsPanel({ settings, calendar, saving, onClose, onS
           {t("inboxAssistant:settings.calendar.disconnectHow")}
         </p>
       )}
+
+      <NewsletterSection settings={settings} saving={saving} onSave={onSave} />
+
+      <HomeworkSection settings={settings} saving={saving} onSave={onSave} />
 
       <div className="ia-danger">
         <div>

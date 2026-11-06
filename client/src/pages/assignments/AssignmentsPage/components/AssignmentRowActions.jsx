@@ -65,7 +65,7 @@ const AssignmentRowActions = ({
     const canPostToClassroom = Boolean(classroom?.canUse && classroom?.connection?.connected);
     const canManageAssignment = Boolean(canCreateAssignments);
     const isDraft = assignment.status === 'draft';
-    const canGrade = assignment.status === 'published' || assignment.status === 'closed';
+    const canGrade = (assignment.status === 'published' || assignment.status === 'closed') && assignment.isGraded !== false;
     const isPublishing = publishingAssignment === assignment.id;
     const isReminding = sendingReminder === assignment.id;
 
