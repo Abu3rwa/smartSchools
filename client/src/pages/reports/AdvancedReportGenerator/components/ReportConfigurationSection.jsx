@@ -1,9 +1,18 @@
 const ReportConfigurationSection = ({ reportTypes, languages, formData, onChange }) => (
-  <div className="form-section">
-    <h3>Report Configuration</h3>
-    <div className="form-group">
-      <label htmlFor="reportType">Report Type</label>
-      <select id="reportType" name="reportType" value={formData.reportType} onChange={onChange}>
+  <div className="rg-panel">
+    <div className="rg-panel-head">
+      <h3>Report Configuration</h3>
+    </div>
+
+    <div className="rg-field">
+      <label className="rg-label" htmlFor="reportType">Report Type</label>
+      <select
+        id="reportType"
+        name="reportType"
+        className="rg-select"
+        value={formData.reportType}
+        onChange={onChange}
+      >
         {reportTypes.map((type) => (
           <option key={type.value} value={type.value}>
             {type.label}
@@ -12,11 +21,12 @@ const ReportConfigurationSection = ({ reportTypes, languages, formData, onChange
       </select>
     </div>
 
-    <div className="form-group">
-      <label htmlFor="primaryLanguage">Primary Language</label>
+    <div className="rg-field">
+      <label className="rg-label" htmlFor="primaryLanguage">Primary Language</label>
       <select
         id="primaryLanguage"
         name="primaryLanguage"
+        className="rg-select"
         value={formData.primaryLanguage}
         onChange={onChange}
       >
@@ -28,11 +38,12 @@ const ReportConfigurationSection = ({ reportTypes, languages, formData, onChange
       </select>
     </div>
 
-    <div className="form-group">
-      <label htmlFor="secondaryLanguage">Secondary Language (Optional)</label>
+    <div className="rg-field">
+      <label className="rg-label" htmlFor="secondaryLanguage">Secondary Language</label>
       <select
         id="secondaryLanguage"
         name="secondaryLanguage"
+        className="rg-select"
         value={formData.secondaryLanguage}
         onChange={onChange}
       >
@@ -48,25 +59,26 @@ const ReportConfigurationSection = ({ reportTypes, languages, formData, onChange
     </div>
 
     {formData.reportType === 'custom' && (
-      <div className="date-range-inputs">
-        <div className="form-group">
-          <label htmlFor="dateRange.startDate">Start Date</label>
+      <div className="rg-field">
+        <label className="rg-label">Date Range</label>
+        <div className="rg-date-row">
           <input
             type="date"
+            className="rg-input"
             id="dateRange.startDate"
             name="dateRange.startDate"
             value={formData.dateRange.startDate}
             onChange={onChange}
+            title="Start date"
           />
-        </div>
-        <div className="form-group">
-          <label htmlFor="dateRange.endDate">End Date</label>
           <input
             type="date"
+            className="rg-input"
             id="dateRange.endDate"
             name="dateRange.endDate"
             value={formData.dateRange.endDate}
             onChange={onChange}
+            title="End date"
           />
         </div>
       </div>

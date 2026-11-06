@@ -10,9 +10,22 @@ import {
     getReportHistory,
     getEmailStatus,
     retryFailedEmails,
-    testEmailConfiguration
+    testEmailConfiguration,
+    getReportProfiles,
+    getEffectiveProfile,
+    createReportProfile,
+    updateReportProfile,
+    deleteReportProfile,
+    getReportDrafts,
+    getReportDraft,
+    updateReportDraft,
+    approveReportDraft,
+    sendReportDraft,
+    getDraftEmailPreview,
+    cancelReportDraft
 } from '../controllers/advancedReportingController.js';
 import { protect, authorize, authorizeWithPermission } from '../middleware/auth.js';
+import { emailSendRateLimiter } from '../middleware/rateLimiters.js';
 import { PERMISSIONS } from '../config/permissions.js';
 
 const router = express.Router();
@@ -22,22 +35,22 @@ router.use(protect);
 
 // Advanced report generation
 router.post('/generate-advanced', authorizeWithPermission(
-    ['teacher', 'admin', 'report_viewer'],
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), generateAdvancedReport);
 
 // Report templates
 router.get('/templates', authorizeWithPermission(
-    ['teacher', 'admin', 'report_viewer'],
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), getReportTemplates);
-router.post('/templates', authorize('teacher', 'admin'), createReportTemplate);
-router.put('/templates/:id', authorize('teacher', 'admin'), updateReportTemplate);
-router.delete('/templates/:id', authorize('teacher', 'admin'), deleteReportTemplate);
+router.post('/templates', authorize('teacher', 'admin', 'super_admin'), createReportTemplate);
+router.put('/templates/:id', authorize('teacher', 'admin', 'super_admin'), updateReportTemplate);
+router.delete('/templates/:id', authorize('teacher', 'admin', 'super_admin'), deleteReportTemplate);
 
 // Token usage analytics
 router.get('/token-usage/:userId?', authorizeWithPermission(
-    ['teacher', 'admin', 'report_viewer'],
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), getTokenUsage);
 router.get('/token-usage/school/:schoolId', authorizeWithPermission(
@@ -47,18 +60,49 @@ router.get('/token-usage/school/:schoolId', authorizeWithPermission(
 
 // Report history
 router.get('/history', authorizeWithPermission(
-    ['teacher', 'admin', 'report_viewer'],
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), getReportHistory);
 
 // Email management
 router.get('/email-status/:reportId', authorizeWithPermission(
-    ['teacher', 'admin', 'report_viewer'],
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), getEmailStatus);
-router.post('/retry-emails/:reportId', authorize('teacher', 'admin'), retryFailedEmails);
+router.post('/retry-emails/:reportId', authorize('teacher', 'admin', 'super_admin'), emailSendRateLimiter, retryFailedEmails);
 
 // Email configuration test (admin only)
-router.get('/test-email', authorize('admin'), testEmailConfiguration);
+router.get('/test-email', authorize('admin', 'super_admin'), testEmailConfiguration);
+
+// Report profiles
+router.get('/profiles', authorizeWithPermission(
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getReportProfiles);
+router.get('/profiles/effective', authorizeWithPermission(
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getEffectiveProfile);
+router.post('/profiles', authorize('teacher', 'admin', 'super_admin'), createReportProfile);
+router.put('/profiles/:id', authorize('teacher', 'admin', 'super_admin'), updateReportProfile);
+router.delete('/profiles/:id', authorize('teacher', 'admin', 'super_admin'), deleteReportProfile);
+
+// Report drafts (draft → approve → send workflow)
+router.get('/drafts', authorizeWithPermission(
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getReportDrafts);
+router.get('/drafts/:id', authorizeWithPermission(
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getReportDraft);
+router.patch('/drafts/:id', authorize('teacher', 'admin', 'super_admin'), updateReportDraft);
+router.post('/drafts/:id/approve', authorize('teacher', 'admin', 'super_admin'), approveReportDraft);
+router.get('/drafts/:id/email-preview', authorizeWithPermission(
+    ['teacher', 'admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getDraftEmailPreview);
+router.post('/drafts/:id/send', authorize('teacher', 'admin', 'super_admin'), emailSendRateLimiter, sendReportDraft);
+router.delete('/drafts/:id', authorize('teacher', 'admin', 'super_admin'), cancelReportDraft);
 
 export default router;

@@ -1,15 +1,21 @@
 const CustomPromptSection = ({ value, onChange }) => (
-  <div className="form-section">
-    <h3>Custom Prompt (Optional)</h3>
-    <div className="form-group">
-      <label htmlFor="customPrompt">Customize the AI prompt for this report</label>
+  <div className="rg-panel">
+    <div className="rg-panel-head">
+      <h3>Custom Prompt</h3>
+      <span className="rg-hint">Optional</span>
+    </div>
+    <div className="rg-field">
+      <label className="rg-label" htmlFor="customPrompt">
+        Additional instructions for the AI
+      </label>
       <textarea
         id="customPrompt"
         name="customPrompt"
-        className="custom-prompt-editor"
+        className="rg-textarea"
         value={value}
         onChange={onChange}
-        placeholder="Leave empty to use default prompt..."
+        placeholder="Leave empty to use the default prompt..."
+        rows={4}
       />
     </div>
   </div>

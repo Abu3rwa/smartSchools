@@ -154,10 +154,12 @@ export const protect = async (req, res, next) => {
 // Authorize specific roles
 export const authorize = (...roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
+        const userRoles = [req.user.role, ...(req.user.roles || [])];
+        const hasRole = roles.some(role => userRoles.includes(role));
+        if (!hasRole) {
             return res.status(403).json({
                 success: false,
-                message: process.env.NODE_ENV === 'production' 
+                message: process.env.NODE_ENV === 'production'
                     ? 'Not authorized to access this route'
                     : `Role '${req.user.role}' is not authorized to access this route`
             });
@@ -191,16 +193,17 @@ export const requirePermission = (permission) => {
  */
 export const authorizeWithPermission = (roles = [], permissions = []) => {
     return (req, res, next) => {
-        // Check if user has one of the allowed roles
-        if (roles.includes(req.user.role)) {
+        // Check if user has one of the allowed roles (check both role and roles array)
+        const userRoles = [req.user.role, ...(req.user.roles || [])];
+        if (roles.some(role => userRoles.includes(role))) {
             return next();
         }
-        
+
         // Check if user has any of the allowed permissions
         if (permissions.length > 0 && hasAnyPermission(req.user, permissions)) {
             return next();
         }
-        
+
         return res.status(403).json({
             success: false,
             message: 'Not authorized to access this route'

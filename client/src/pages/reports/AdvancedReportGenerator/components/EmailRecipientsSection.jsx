@@ -1,35 +1,37 @@
 const EmailRecipientsSection = ({ formData, onChange }) => (
-  <div className="form-section">
-    <h3>Email Recipients</h3>
-    <div className="form-group">
-      <label>
-        <input
-          type="checkbox"
-          name="sendEmail"
-          checked={formData.sendEmail}
-          onChange={onChange}
-          style={{ marginRight: '8px' }}
-        />
-        Send report via email
-      </label>
+  <div className="rg-panel">
+    <div className="rg-panel-head">
+      <h3>Email Recipients</h3>
     </div>
 
+    <label className="rg-check" style={{ marginBottom: '8px' }}>
+      <input
+        type="checkbox"
+        name="sendEmail"
+        checked={formData.sendEmail}
+        onChange={onChange}
+      />
+      <span>Send report via email</span>
+    </label>
+
     {formData.sendEmail && (
-      <div className="recipient-checkboxes">
-        <p className="text-muted" style={{ margin: '0 0 12px' }}>
-          The report will always be sent to every student-related email on file, including student, mother, father, and guardian addresses when available.
+      <>
+        <p className="rg-data-summary" style={{ marginBottom: '8px' }}>
+          The report always goes to every student-related email on file (student, mother, father, guardian).
         </p>
-        <div className="recipient-checkbox">
-          <input
-            type="checkbox"
-            id="recipients.teacher"
-            name="recipients.teacher"
-            checked={formData.recipients.teacher}
-            onChange={onChange}
-          />
-          <label htmlFor="recipients.teacher">Teacher (CC)</label>
+        <div className="rg-recipients">
+          <label className="rg-check">
+            <input
+              type="checkbox"
+              id="recipients.teacher"
+              name="recipients.teacher"
+              checked={formData.recipients.teacher}
+              onChange={onChange}
+            />
+            <span>Teacher (CC)</span>
+          </label>
         </div>
-      </div>
+      </>
     )}
   </div>
 );

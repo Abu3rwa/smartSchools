@@ -1,6 +1,7 @@
 import gmailOAuthService from './gmailOAuthService.js';
 import { EmailReport } from '../models/EmailReport.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
+import { ReportDraft } from '../models/ReportDraft.js';
 import Notification from '../models/Notification.js';
 import School from '../models/School.js';
 import xss from 'xss';
@@ -96,6 +97,93 @@ const escapeHtml = (value) =>
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+
+// Only real, measured figures reach the email. A source that was not read
+// simply does not appear — the email never fills a gap with a guess.
+const KPI_DEFINITIONS = [
+    { key: 'grades', metric: 'average', en: 'Overall Average', ar: 'المعدل العام' },
+    { key: 'attendance', metric: 'attendanceRate', en: 'Attendance', ar: 'نسبة الحضور' },
+    { key: 'homework', metric: 'completionRate', en: 'Homework Completed', ar: 'إنجاز الواجبات' },
+    { key: 'standards', metric: 'overallPct', en: 'Standards Mastery', ar: 'إتقان المعايير' },
+    { key: 'spelling', metric: 'accuracy', en: 'Spelling Accuracy', ar: 'دقة الإملاء' },
+    { key: 'liveLessons', metric: 'participationRate', en: 'Live Lesson Participation', ar: 'مشاركة الدروس المباشرة' }
+];
+
+const buildKpiHighlights = (evidenceSnapshot, isArabic) => {
+    const sources = evidenceSnapshot?.sources || {};
+    return KPI_DEFINITIONS
+        .map((definition) => {
+            const value = sources[definition.key]?.metrics?.[definition.metric];
+            if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+            return {
+                key: definition.key,
+                label: isArabic ? definition.ar : definition.en,
+                value: `${Math.round(value)}%`
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 3);
+};
+
+const formatDateRangeLabel = (range) => {
+    if (!range?.startDate || !range?.endDate) return '';
+    const format = (value) => {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+    const start = format(range.startDate);
+    const end = format(range.endDate);
+    return start && end ? `${start} \u2013 ${end}` : '';
+};
+
+// Email clients strip <style> and ignore most modern CSS, so the AI body is
+// styled attribute-by-attribute on the tags the sanitizer already allows.
+const inlineReportContentStyles = (html, direction) => {
+    const align = direction === 'rtl' ? 'right' : 'left';
+    const edge = direction === 'rtl' ? 'right' : 'left';
+    const headingBase = `line-height:1.4;font-weight:700;color:#0f172a;text-align:${align};`;
+    return String(html || '')
+        .replace(/<h1>/g, `<h1 style="margin:26px 0 10px;font-size:20px;${headingBase}">`)
+        .replace(/<h2>/g, `<h2 style="margin:26px 0 10px;padding-${edge}:12px;border-${edge}:4px solid #14b8a6;font-size:17px;${headingBase}">`)
+        .replace(/<h3>/g, `<h3 style="margin:22px 0 8px;font-size:15.5px;${headingBase}">`)
+        .replace(/<h4>/g, `<h4 style="margin:18px 0 8px;font-size:14.5px;${headingBase}">`)
+        .replace(/<p>/g, '<p style="margin:0 0 12px;font-size:15px;line-height:1.75;color:#334155;">')
+        .replace(/<ul>/g, `<ul style="margin:8px 0 16px;padding-${edge}:22px;">`)
+        .replace(/<ol>/g, `<ol style="margin:8px 0 16px;padding-${edge}:22px;">`)
+        .replace(/<li>/g, '<li style="margin:0 0 8px;font-size:14.5px;line-height:1.7;color:#334155;">');
+};
+
+const remarkToHtml = (remark) =>
+    escapeHtml(remark).replace(/\n/g, '<br />');
+
+const ARABIC_MONTHS = {
+    January: 'يناير',
+    February: 'فبراير',
+    March: 'مارس',
+    April: 'أبريل',
+    May: 'مايو',
+    June: 'يونيو',
+    July: 'يوليو',
+    August: 'أغسطس',
+    September: 'سبتمبر',
+    October: 'أكتوبر',
+    November: 'نوفمبر',
+    December: 'ديسمبر'
+};
+
+const localizePeriod = (label, isArabic) =>
+    isArabic
+        ? String(label).replace(
+            /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g,
+            (month) => ARABIC_MONTHS[month] || month
+        )
+        : String(label);
+
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
@@ -203,7 +291,11 @@ class EmailService {
             language,
             requestedLanguages = [],
             recipients,
-            teacher
+            teacher,
+            teacherRemark = '',
+            period = '',
+            dateRange = null,
+            evidenceSnapshot = null
         } = options;
 
         const normalizedRequestedLanguages = normalizeRequestedLanguages(
@@ -238,19 +330,28 @@ class EmailService {
                 requestedLanguages: normalizedRequestedLanguages,
                 studentData,
                 teacherId: teacher._id,
-                schoolName
+                schoolName,
+                teacher,
+                teacherRemark,
+                period,
+                dateRange,
+                evidenceSnapshot
             });
 
             // Log to Notification history so teachers/admins can see sent AI reports in /portal/notifications
             try {
-                const subject = sanitizeSubject(
-                    this.getEmailSubject(studentData, normalizedLanguage, normalizedRequestedLanguages)
-                );
-                const htmlContent = this.formatEmailContent(
+                const { subject, html: htmlContent } = this.renderReportEmail({
                     reportContent,
-                    normalizedLanguage,
-                    { schoolName, requestedLanguages: normalizedRequestedLanguages }
-                );
+                    language: normalizedLanguage,
+                    requestedLanguages: normalizedRequestedLanguages,
+                    studentData,
+                    schoolName,
+                    teacher,
+                    teacherRemark,
+                    period,
+                    dateRange,
+                    evidenceSnapshot
+                });
 
                 const notification = new Notification({
                     school: studentData.school,
@@ -306,7 +407,11 @@ class EmailService {
     prepareRecipientList({ studentData, recipients, teacher }) {
         const recipientMap = new Map();
 
-        buildStudentContactRecipients(studentData).forEach((recipient) => {
+        const allContacts = buildStudentContactRecipients(studentData);
+
+        allContacts.forEach((recipient) => {
+            const typeFlag = recipient.type;
+            if (recipients && recipients[typeFlag] === false) return;
             addRecipientToMap(recipientMap, recipient);
         });
 
@@ -333,7 +438,12 @@ class EmailService {
             requestedLanguages = [],
             studentData,
             teacherId,
-            schoolName
+            schoolName,
+            teacher = null,
+            teacherRemark = '',
+            period = '',
+            dateRange = null,
+            evidenceSnapshot = null
         } = options;
 
         // Student-related contacts are primary recipients; teacher stays optional CC.
@@ -344,12 +454,17 @@ class EmailService {
             throw new Error('No student-related email recipients found');
         }
 
-        const subject = sanitizeSubject(
-            this.getEmailSubject(studentData, language, requestedLanguages)
-        );
-        const htmlContent = this.formatEmailContent(reportContent, language, {
+        const { subject, html: htmlContent } = this.renderReportEmail({
+            reportContent,
+            language,
+            requestedLanguages,
+            studentData,
             schoolName,
-            requestedLanguages
+            teacher,
+            teacherRemark,
+            period,
+            dateRange,
+            evidenceSnapshot
         });
 
         // Prepare recipient list for Gmail API
@@ -426,6 +541,48 @@ class EmailService {
     }
 
     /**
+     * Render the subject and body exactly as a real send would deliver them.
+     * The teacher's preview and the delivery path both go through here so they
+     * cannot drift apart.
+     */
+    renderReportEmail({
+        reportContent,
+        language,
+        requestedLanguages = [],
+        studentData,
+        schoolName = 'School',
+        teacher = null,
+        teacherRemark = '',
+        period = '',
+        dateRange = null,
+        evidenceSnapshot = null
+    }) {
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
+            { max: 2, fallback: ['en'] }
+        );
+        const normalizedLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
+
+        return {
+            subject: sanitizeSubject(
+                this.getEmailSubject(studentData, normalizedLanguage, normalizedRequestedLanguages)
+            ),
+            html: this.formatEmailContent(reportContent, normalizedLanguage, {
+                schoolName,
+                requestedLanguages: normalizedRequestedLanguages,
+                studentData,
+                teacher,
+                teacherRemark,
+                period,
+                dateRange,
+                evidenceSnapshot
+            }),
+            language: normalizedLanguage,
+            requestedLanguages: normalizedRequestedLanguages
+        };
+    }
+
+    /**
      * Get email subject based on language (plain ASCII text)
      */
     getEmailSubject(studentData, language, requestedLanguages = []) {
@@ -449,9 +606,22 @@ class EmailService {
     }
 
     /**
-     * Format email content with proper styling
+     * Format the full email document.
+     *
+     * Table-based layout with inline styles: Outlook drops <style> blocks and
+     * ignores grid/flex, so every structural style lives on the element itself.
+     * The <style> block only carries the mobile tweaks modern clients support.
      */
-    formatEmailContent(content, language, { schoolName = 'School', requestedLanguages = [] } = {}) {
+    formatEmailContent(content, language, {
+        schoolName = 'School',
+        requestedLanguages = [],
+        studentData = null,
+        teacher = null,
+        teacherRemark = '',
+        period = '',
+        dateRange = null,
+        evidenceSnapshot = null
+    } = {}) {
         const normalizedRequestedLanguages = normalizeRequestedLanguages(
             requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
             { max: 2, fallback: ['en'] }
@@ -460,44 +630,217 @@ class EmailService {
             normalizedRequestedLanguages.length === 1 &&
             isRtlLanguageCode(normalizedRequestedLanguages[0]);
         const direction = isRTL ? 'rtl' : 'ltr';
+        const isArabic = normalizedRequestedLanguages.includes('ar');
+        const align = isRTL ? 'right' : 'left';
+        const edge = isRTL ? 'right' : 'left';
 
         const normalizedContent = normalizeAiHtml(content, language, normalizedRequestedLanguages);
+        const bodyHtml = inlineReportContentStyles(normalizedContent, direction);
+        const highlights = buildKpiHighlights(evidenceSnapshot, isArabic);
+
+        const rawStudentName = studentData
+            ? `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim()
+            : '';
+        const studentName = escapeHtml(rawStudentName);
+        const studentClass = escapeHtml(studentData?.currentClass?.name || studentData?.currentClass || '');
+        const teacherName = escapeHtml(
+            teacher ? `${teacher.firstName || ''} ${teacher.lastName || ''}`.trim() : ''
+        );
+        const teacherEmail = normalizeEmail(teacher?.email);
+        const schoolLabel = escapeHtml(schoolName);
+        const periodLabel = localizePeriod(
+            String(period || '').trim() || formatDateRangeLabel(dateRange),
+            isArabic
+        );
+
+        const titleLabel = isArabic ? 'تقرير تقدم الطالب' : 'Student Progress Report';
+        const greetingLabel = isArabic ? 'ولي الأمر المحترم،' : 'Dear Parent,';
+        const introLine = isArabic
+            ? `يسعدنا أن نشارككم تقرير تقدم ${studentName || 'الطالب'} لهذه الفترة. يستند هذا الملخص إلى أعماله في الفصل والتقييمات والمشاركة.`
+            : `We are pleased to share ${studentName ? studentName + "'s" : 'the student\'s'} progress report for this period. This summary is based on classwork, assessments, and participation.`;
+        const closingLine = isArabic
+            ? 'شكرًا لدعمكم المستمر في المنزل. لا تترددوا في التواصل معنا إذا كانت لديكم أي أسئلة.'
+            : 'Thank you for your continued support at home. Please feel free to reach out if you have any questions or would like to discuss this report further.';
+        const privacyLabel = isArabic
+            ? 'هذا التقرير سري ومخصص لولي الأمر فقط.'
+            : 'This report is confidential and intended for the parent or guardian only.';
+        const noteLabel = isArabic ? 'كلمة من المعلم' : 'A Note from the Teacher';
+        const metaLabels = {
+            student: isArabic ? 'الطالب' : 'Student',
+            class: isArabic ? 'الصف' : 'Class',
+            period: isArabic ? 'الفترة' : 'Reporting Period',
+            teacher: isArabic ? 'أعدّه' : 'Prepared By'
+        };
+        const teacherRole = studentClass
+            ? (isArabic ? `معلم ${studentClass}` : `${studentClass} Teacher`)
+            : (isArabic ? 'المعلم' : 'Teacher');
+
+        const remarkHtml = remarkToHtml(String(teacherRemark || '').trim());
+        const preheader = [
+            rawStudentName,
+            periodLabel,
+            isArabic ? 'تقرير التقدم' : 'Progress report'
+        ].filter(Boolean).join(' \u00b7 ');
+
+        const metaItems = [
+            { label: metaLabels.student, value: studentName },
+            { label: metaLabels.class, value: studentClass },
+            { label: metaLabels.period, value: escapeHtml(periodLabel) },
+            { label: metaLabels.teacher, value: teacherName }
+        ].filter((item) => item.value);
+
+        const metaRows = [];
+        for (let i = 0; i < metaItems.length; i += 2) {
+            metaRows.push(metaItems.slice(i, i + 2));
+        }
+
+        const metaHtml = metaRows.map((row) => `
+                  <tr>
+                    ${row.map((item) => `
+                    <td width="50%" valign="top" style="padding:6px 8px;">
+                      <div style="font-size:10.5px;line-height:1.4;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;font-weight:700;">${item.label}</div>
+                      <div class="em-meta-value" style="font-size:14px;line-height:1.5;color:#0f172a;font-weight:600;margin-top:2px;">${item.value}</div>
+                    </td>`).join('')}
+                    ${row.length === 1 ? '<td width="50%">&nbsp;</td>' : ''}
+                  </tr>`).join('');
+
+        const kpiHtml = highlights.length > 0 ? `
+          <tr>
+            <td style="padding:24px 24px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  ${highlights.map((item) => `
+                  <td width="${Math.floor(100 / highlights.length)}%" valign="top" style="padding:0 4px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                      <tr>
+                        <td align="center" style="padding:16px 8px;">
+                          <div class="em-kpi-value" style="font-size:24px;line-height:1.2;font-weight:700;color:#0d9488;">${item.value}</div>
+                          <div style="font-size:10.5px;line-height:1.4;letter-spacing:.6px;text-transform:uppercase;color:#64748b;font-weight:700;margin-top:4px;">${escapeHtml(item.label)}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>`).join('')}
+                </tr>
+              </table>
+            </td>
+          </tr>` : '';
+
+        const noteHtml = remarkHtml ? `
+          <tr>
+            <td class="em-pad" style="padding:8px 32px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdfa;border:1px solid #99f6e4;border-${edge}:4px solid #14b8a6;border-radius:12px;">
+                <tr>
+                  <td style="padding:22px 24px;text-align:${align};">
+                    <div style="font-size:11px;line-height:1.4;letter-spacing:.9px;text-transform:uppercase;color:#0f766e;font-weight:700;margin-bottom:10px;">${noteLabel}</div>
+                    <div style="font-size:15px;line-height:1.8;color:#134e4a;font-style:italic;">${remarkHtml}</div>
+                    ${teacherName ? `<div style="margin-top:12px;font-size:13.5px;color:#0f766e;font-weight:600;">&mdash; ${teacherName}</div>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>` : '';
 
         return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    line-height: 1.6;
-                    color: #0f172a;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background-color: #f8fafc;
-                }
-                .container {
-                    background-color: white;
-                    padding: 30px;
-                    border-radius: 12px;
-                    border: 1px solid #e5e7eb;
-                }
-            </style>
-        </head>
-        <body dir="${direction}">
-            <div class="container">
-                <div class="content">
-                    ${normalizedContent}
-                </div>
-                <p style="margin-top: 18px; font-size: 12px; color: #334155;">
-                    School: ${escapeHtml(schoolName)}
-                </p>
-            </div>
-        </body>
-        </html>
+<!DOCTYPE html>
+<html lang="${normalizedRequestedLanguages[0] || 'en'}" dir="${direction}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="color-scheme" content="light" />
+  <title>${titleLabel}${studentName ? ' \u2014 ' + studentName : ''}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td, p, a, h1, h2, h3, h4, li { font-family: Arial, Helvetica, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style>
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, Arial, sans-serif; }
+    table { border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    td, p, div, li, a { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, Arial, sans-serif; }
+    a { color: #0d9488; }
+    @media only screen and (max-width: 600px) {
+      .em-shell { padding: 16px 8px !important; }
+      .em-header { padding: 28px 20px !important; }
+      .em-title { font-size: 22px !important; }
+      .em-card { padding: 22px 20px 4px !important; }
+      .em-pad { padding-inline: 20px !important; }
+      .em-kpi-value { font-size: 20px !important; }
+      .em-meta-value { font-size: 13px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#eef2f6;font-family:'Segoe UI',Tahoma,Geneva,Verdana,Arial,sans-serif;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#eef2f6;">${escapeHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="em-shell" bgcolor="#eef2f6" dir="${direction}" style="background-color:#eef2f6;padding:24px 12px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,Arial,sans-serif;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+
+          <tr>
+            <td class="em-header" bgcolor="#0d9488" style="background-color:#0d9488;background-image:linear-gradient(135deg,#14b8a6 0%,#0d9488 100%);padding:36px 32px;text-align:center;">
+              <div style="font-size:12px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;color:#ccfbf1;font-weight:700;">${schoolLabel}</div>
+              <h1 class="em-title" style="margin:10px 0 0;font-size:26px;line-height:1.25;color:#ffffff;font-weight:700;letter-spacing:-0.3px;">${titleLabel}</h1>
+              ${periodLabel ? `<div style="margin-top:14px;"><span style="display:inline-block;padding:6px 16px;border-radius:999px;background-color:#0f766e;color:#ecfeff;font-size:12.5px;line-height:1.6;font-weight:600;">${escapeHtml(periodLabel)}</span></div>` : ''}
+              ${studentName ? `<div style="margin-top:12px;font-size:15px;line-height:1.6;color:#ecfeff;">${studentName}</div>` : ''}
+            </td>
+          </tr>
+
+          ${kpiHtml}
+
+          ${metaHtml ? `
+          <tr>
+            <td class="em-pad" style="padding:20px 24px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${metaHtml}
+              </table>
+            </td>
+          </tr>` : ''}
+
+          <tr>
+            <td class="em-card" style="padding:28px 32px 4px;">
+              <p style="margin:0 0 10px;font-size:16px;line-height:1.5;font-weight:600;color:#0f172a;text-align:${align};">${greetingLabel}</p>
+              <p style="margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid #e2e8f0;font-size:15px;line-height:1.75;color:#475569;text-align:${align};">${introLine}</p>
+              <div dir="${direction}" style="text-align:${align};">${bodyHtml}</div>
+            </td>
+          </tr>
+
+          ${noteHtml}
+
+          <tr>
+            <td class="em-pad" style="padding:26px 32px 0;">
+              <p style="margin:0;font-size:15px;line-height:1.75;color:#334155;text-align:${align};">${closingLine}</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="em-pad" style="padding:24px 32px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:2px solid #e2e8f0;">
+                <tr>
+                  <td style="padding-top:20px;text-align:${align};">
+                    <div style="font-size:16px;line-height:1.4;font-weight:700;color:#0f172a;">${teacherName || schoolLabel}</div>
+                    <div style="font-size:13.5px;line-height:1.5;color:#64748b;margin-top:3px;">${teacherRole}</div>
+                    <div style="font-size:13px;line-height:1.5;color:#94a3b8;margin-top:2px;">${schoolLabel}</div>
+                    ${teacherEmail ? `<div style="margin-top:10px;font-size:13px;"><a href="mailto:${teacherEmail}" style="color:#0d9488;text-decoration:none;">${teacherEmail}</a></div>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td bgcolor="#f8fafc" style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 32px;text-align:center;">
+              <div style="font-size:13px;line-height:1.5;color:#64748b;font-weight:600;">${schoolLabel}</div>
+              <div style="font-size:11.5px;line-height:1.6;color:#94a3b8;margin-top:6px;">${privacyLabel}</div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
         `;
     }
 
@@ -560,11 +903,14 @@ class EmailService {
      * Retry failed emails
      */
     async retryFailedEmails(reportId) {
-        const failedEmails = await EmailReport.find({ 
-            reportId, 
+        const failedEmails = await EmailReport.find({
+            reportId,
             status: 'failed',
-            retryCount: { $lt: 3 } // Max 3 retries
+            retryCount: { $lt: 3 }
         });
+
+        const draft = await ReportDraft.findById(reportId).select('teacher');
+        const teacherId = draft?.teacher;
 
         const results = {
             retried: 0,
@@ -574,27 +920,27 @@ class EmailService {
 
         for (const emailRecord of failedEmails) {
             try {
-                // Resend the email
+                if (!teacherId) {
+                    throw new Error('No teacher associated with this report for retry.');
+                }
+
                 const mailOptions = {
-                    from: process.env.EMAIL_USER,
                     to: emailRecord.email,
                     subject: emailRecord.subject,
                     html: emailRecord.content
                 };
 
-                const info = await this.transporter.sendMail(mailOptions);
+                const info = await this.gmailService.sendEmail(teacherId, mailOptions);
 
-                // Update record
                 await EmailReport.findByIdAndUpdate(emailRecord._id, {
                     status: 'sent',
-                    messageId: info.messageId,
+                    messageId: info.messageId || info.id,
                     sentAt: new Date(),
                     retryCount: emailRecord.retryCount + 1
                 });
 
                 results.successful++;
             } catch (error) {
-                // Update retry count
                 await EmailReport.findByIdAndUpdate(emailRecord._id, {
                     retryCount: emailRecord.retryCount + 1,
                     lastRetryAt: new Date()

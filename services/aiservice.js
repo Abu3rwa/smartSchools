@@ -193,6 +193,9 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             reportType = 'monthly',
             dateRange,
             customPrompt,
+            evidencePack,
+            profile,
+            sections,
             userId = teacher?._id || teacher?.id,
             schoolId = teacher?.school || studentData?.school
         } = options;
@@ -205,18 +208,38 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
         const primaryLanguage = normalizedRequestedLanguages[0] || 'en';
         const languageSuffix = this.buildCustomPromptLanguageSuffix(normalizedRequestedLanguages);
 
-        const prompt = customPrompt
-            ? `${scrubForPrompt(customPrompt, { name: [studentData?.firstName, studentData?.lastName].filter(Boolean).join(' ') })}${languageSuffix ? `\n\n${languageSuffix}` : ''}\n\n${PRIVACY_RULES}\n\n${CONTENT_RULES}`
-            : this.constructAdvancedPrompt({
-                studentData,
-                grades,
-                period,
-                teacher,
-                language: normalizedLanguage,
-                requestedLanguages: normalizedRequestedLanguages,
-                reportType,
-                dateRange
-            });
+        const basePrompt = this.constructAdvancedPrompt({
+            studentData,
+            grades,
+            period,
+            teacher,
+            language: normalizedLanguage,
+            requestedLanguages: normalizedRequestedLanguages,
+            reportType,
+            dateRange
+        });
+
+        // Evidence pack context from multiple data sources (spelling, attendance, etc.)
+        const evidenceContext = evidencePack?.promptContext
+            ? `\n\n---\n\n${evidencePack.promptContext}`
+            : '';
+
+        // Profile template prompt (school/teacher/class level guidance)
+        const profileContext = profile?.templatePrompt
+            ? `\n\n---\n\nReport template guidance:\n${profile.templatePrompt}`
+            : '';
+
+        // Sections configuration (which sections to include and word limits)
+        const sectionsContext = sections && sections.length > 0
+            ? `\n\n---\n\nRequired sections (in order):\n${sections.map(s => `- ${s.key}: max ${s.maxWords} words`).join('\n')}`
+            : '';
+
+        // Custom instructions are appended, never replacing the data-bearing prompt.
+        const teacherInstructions = customPrompt
+            ? `\n\n---\n\nTeacher's instructions:\n${scrubForPrompt(customPrompt, { name: [studentData?.firstName, studentData?.lastName].filter(Boolean).join(' ') })}`
+            : '';
+
+        const prompt = `${basePrompt}${evidenceContext}${profileContext}${sectionsContext}${teacherInstructions}${languageSuffix ? `\n\n${languageSuffix}` : ''}\n\n${PRIVACY_RULES}\n\n${CONTENT_RULES}`;
 
         try {
             let response = await connectAi(prompt);
