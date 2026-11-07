@@ -483,6 +483,7 @@
     "anyoneWithLink": "الملفات المرفوعة تصبح قابلة للعرض من قبل أي شخص يملك الرابط. لا ترفع أي ملفات خاصة.",
     "postedWarning": "تم نشر هذا الواجب بالفعل في Classroom. لن تظهر ملفات Drive الجديدة في ذلك المنشور حتى تعيد نشره.",
     "saveFirst": "احفظ الواجب أولًا، ثم أضف ملفات Drive هنا قبل النشر إلى Classroom.",
+    "queuedNotice": "سيتم رفع هذه الملفات إلى Google Drive بعد حفظ الواجب.",
     "upload": "رفع إلى Google Drive",
     "uploading": "جارٍ الرفع...",
     "uploaded": "تم الرفع إلى Google Drive.",

@@ -483,6 +483,7 @@
     "anyoneWithLink": "Uploaded files become viewable by anyone with the link. Don't upload anything private.",
     "postedWarning": "This assignment is already posted to Classroom. New Drive files won't appear in that post until you post it again.",
     "saveFirst": "Save the assignment first, then add Drive files here before posting to Classroom.",
+    "queuedNotice": "These files will upload to Google Drive after you save the assignment.",
     "upload": "Upload to Google Drive",
     "uploading": "Uploading...",
     "uploaded": "Uploaded to Google Drive.",

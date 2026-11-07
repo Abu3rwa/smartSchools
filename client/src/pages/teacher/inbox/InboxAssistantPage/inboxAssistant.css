@@ -1714,41 +1714,41 @@ textarea.ia-field-box.is-area {
 
 .ia-danger {
   display: flex;
-    padding: 0 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 0 8px;
   margin: 0 0 4px;
-  font-size: 12.5px;
-  font-weight: 650;
-    color: var(--ia-ink);
+  color: var(--ia-ink);
+}
 
 .ia-danger p {
   margin: 0;
-    display: inline-flex;
+  flex: 1 1 260px;
   font-size: 11px;
-    gap: 9px;
-    width: auto;
-    max-width: 100%;
-    min-height: 34px;
-    padding: 5px 8px 5px 2px;
+  line-height: 1.55;
+  color: var(--ia-body);
+}
 
 /* ---------- Intro panels ---------- */
-    color: var(--ia-body);
 .ia-intro {
-    font-size: 12px;
-    font-weight: 650;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   padding: 26px 24px;
-    transition: color 0.15s ease, background 0.15s ease;
+  color: var(--ia-ink);
+  background:
     linear-gradient(
       158deg,
       color-mix(in srgb, var(--ia-accent) 8%, transparent),
-    color: var(--ia-ink);
-    background: transparent;
+      transparent 65%
     ),
     var(--ia-surface);
 }
 
-    outline-offset: 3px;
-    border-radius: 5px;
+.ia-intro-icon {
+  display: grid;
   place-items: center;
   width: 50px;
   height: 50px;
@@ -1756,19 +1756,25 @@ textarea.ia-field-box.is-area {
   border-radius: 16px;
   color: var(--on-accent, #fff);
   background: linear-gradient(
-    width: 25px;
-    height: 25px;
-    border-radius: 50%;
-    background: var(--ia-surface-2);
-    color: var(--ia-faint);
-    transition: background 0.18s ease, color 0.18s ease;
+    135deg,
+    var(--ia-accent),
+    color-mix(in srgb, var(--ia-accent) 72%, var(--ia-teal))
+  );
   box-shadow: 0 12px 26px -16px var(--ia-accent);
 }
 
-    background: var(--ia-teal-soft);
-    color: var(--ia-teal-ink);
-  color: var(--ia-muted);
+.ia-first-run .ia-intro-icon {
+  background: var(--ia-teal-soft);
+  color: var(--ia-teal-ink);
+  box-shadow: none;
+}
+
+.ia-intro-icon.is-muted {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
   background: var(--ia-surface-2);
+  color: var(--ia-muted);
   border: 1px solid var(--ia-line);
   box-shadow: none;
 }
@@ -1854,7 +1860,7 @@ textarea.ia-field-box.is-area {
   backdrop-filter: blur(3px);
 }
 
-.ia-overlay * ,
+.ia-overlay *,
 .ia-overlay *::before,
 .ia-overlay *::after {
   box-sizing: border-box;
