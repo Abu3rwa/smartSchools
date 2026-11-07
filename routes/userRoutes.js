@@ -194,6 +194,14 @@ router.delete('/:id', async (req, res) => {
                 expiryDate: null,
                 isActive: false,
             };
+            user.googleDriveFileTokens = {
+                email: null,
+                accessToken: null,
+                refreshToken: null,
+                grantedScopes: [],
+                expiryDate: null,
+                isActive: false,
+            };
             user.googleClassroomTokens = {
                 email: null,
                 accessToken: null,

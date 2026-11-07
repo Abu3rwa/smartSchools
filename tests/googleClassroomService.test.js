@@ -114,6 +114,37 @@ test('buildCourseWorkMaterials ignores invalid Google Form responder URLs', () =
     assert.deepEqual(buildCourseWorkMaterials(assignment), []);
 });
 
+test('buildCourseWorkMaterials appends Drive attachments as read-only driveFile materials', () => {
+    const assignment = baseAssignment({
+        links: [{ type: 'external_url', title: 'Video', url: 'https://example.com/v' }],
+        driveAttachments: [
+            { fileId: 'drive-1', fileName: 'Worksheet.pdf', webViewLink: 'https://drive.google.com/file/d/drive-1/view' },
+            { fileId: 'drive-2', fileName: 'Rubric.pdf', webViewLink: 'https://drive.google.com/file/d/drive-2/view' },
+            { fileId: 'drive-1', fileName: 'Duplicate row' },
+            { fileName: 'No id', webViewLink: 'https://drive.google.com/file/d/orphan/view' }
+        ]
+    });
+
+    assert.deepEqual(buildCourseWorkMaterials(assignment), [
+        { link: { url: 'https://example.com/v', title: 'Video' } },
+        { driveFile: { id: 'drive-1', shareMode: 'VIEW' } },
+        { driveFile: { id: 'drive-2', shareMode: 'VIEW' } }
+    ]);
+});
+
+test('buildCourseWorkPatch never carries materials, even with Drive attachments present', () => {
+    const { requestBody, updateMask } = buildCourseWorkPatch({
+        assignment: baseAssignment({
+            driveAttachments: [{ fileId: 'drive-1' }]
+        }),
+        timeZone: 'UTC',
+        link: { syncState: 'published', dueDateSynced: false }
+    });
+
+    assert.equal(requestBody.materials, undefined);
+    assert.doesNotMatch(updateMask, /materials/);
+});
+
 test('buildCourseWorkPayload maps app fields to Classroom coursework', () => {
     const payload = buildCourseWorkPayload({
         assignment: baseAssignment({

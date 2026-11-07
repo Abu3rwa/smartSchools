@@ -20,6 +20,10 @@ const getExternalUrl = (value) => {
 const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
   const { t } = useTranslation(['assignments']);
   const links = Array.isArray(assignment?.links) ? assignment.links : [];
+  const driveLinks = (Array.isArray(assignment?.driveAttachments) ? assignment.driveAttachments : [])
+    .filter((att) => att?.webViewLink)
+    .map((att) => ({ _id: att.fileId, type: 'drive', title: att.fileName || 'Drive file', url: att.webViewLink }));
+  const allLinks = [...links, ...driveLinks];
   const parsedGoogleFormUrl = getExternalUrl(assignment?.googleForm?.responderUri);
   const googleFormUrl = parsedGoogleFormUrl && new URL(parsedGoogleFormUrl).hostname === 'docs.google.com'
     && new URL(parsedGoogleFormUrl).pathname.startsWith('/forms/')
@@ -72,11 +76,11 @@ const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
           )}
         </section>
 
-        {links.length > 0 ? (
+        {allLinks.length > 0 ? (
           <section className="detail-section">
             <h2>Assignment links</h2>
             <ul className="assignment-link-list">
-              {links.map((link, index) => {
+              {allLinks.map((link, index) => {
                 const url = getExternalUrl(link?.url);
                 const label = link?.title || link?.url || 'Assignment resource';
 

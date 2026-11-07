@@ -403,14 +403,18 @@ test('a deadline due in 2 hours with a 3-hour window is drafted, never sent', as
     assert.equal(calls.pushes.length, 1);
 });
 
-test('the send delivery mode is forced to drafts during rollout', async (t) => {
-    assert.equal(effectiveDeliveryMode('send'), 'draft_only');
+test('the send delivery mode really sends when the teacher chose send', async (t) => {
+    assert.equal(effectiveDeliveryMode('send'), 'send');
     const { calls, pushSender } = mockDraftPath(t);
 
     const result = await runNewsletterAutoReplyForUser(USER, enabledSettings({ deliveryMode: 'send' }), { now: NOW, pushSender });
-    assert.equal(result.drafted, 1);
-    assert.equal(result.sent, 0);
-    assert.equal(calls.sentMail.length, 0);
+    assert.equal(result.sent, 1);
+    assert.equal(result.drafted, 0);
+    assert.equal(calls.sentMail.length, 1);
+    assert.equal(calls.gmailDrafts.length, 0);
+    assert.equal(calls.createdDrafts[0].status, 'sent');
+    assert.equal(calls.deadlineUpdates.length, 1);
+    assert.equal(calls.emailUpdates.length, 1);
 });
 
 test('a deadline due in 5 hours is left alone with a 3-hour window', async (t) => {
@@ -570,13 +574,13 @@ test('enabling with the risk tick persists both', async (t) => {
     const response = await invoke(updateSettings, settingsReq({ enabled: true, confirmedRisk: true }));
     assert.equal(writes[0].newsletterAutoReply.enabled, true);
     assert.equal(writes[0].newsletterAutoReply.confirmedRisk, true);
-    assert.equal(response.body.newsletterAutoReply.sendAvailable, false);
+    assert.equal(response.body.newsletterAutoReply.sendAvailable, true);
 });
 
-test('a send request is stored as draft_only during rollout', async (t) => {
+test('a send request is stored as send while the gate is open', async (t) => {
     const writes = mockSettingsStore(t);
     await invoke(updateSettings, settingsReq({ deliveryMode: 'send' }));
-    assert.equal(writes[0].newsletterAutoReply.deliveryMode, 'draft_only');
+    assert.equal(writes[0].newsletterAutoReply.deliveryMode, 'send');
 });
 
 test('withdrawing the risk confirmation switches the feature off', async (t) => {

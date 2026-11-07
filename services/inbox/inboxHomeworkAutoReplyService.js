@@ -32,9 +32,14 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Only consider recent, still-open emails — an old thread re-surfacing isn't "ask and auto-reply".
 const RECENT_EMAIL_WINDOW_MS = 48 * 60 * 60 * 1000;
+// Conservative: only match clear questions about what's due, not bare mentions of "assignment" or "homework".
+// Matches: "what's the homework", "what homework is due", "what's due?", "any assignments due", "due this week/today"
 const HOMEWORK_KEYWORDS =
-  /\b(homework|homeworks|assignment|assignments|what'?s\s+due|due\s+(this\s+week|today|date)|classwork)\b/i;
-const HOMEWORK_KEYWORDS_AR = /(واجب|الواجبات|وظيفة|وظائف|موعد التسليم)/;
+  /\b(what('?s|\s+is|\s+are)\s+(the\s+)?(homework|assignment|classwork)|what('?s|\s+is)\s+due|(any|is\s+there)\s+(homework|assignments|classwork)|(homework|assignments|classwork)\s+(is\s+)?due|due\s+(this\s+week|today|tomorrow|date))\b/i;
+// Arabic: only clear questions like "ما هو الواجب" (what is the homework), "ما الواجبات" (what are the assignments)
+// Avoid bare terms that match statements like "I submitted the homework"
+const HOMEWORK_KEYWORDS_AR =
+  /(ما\s+هو\s+الواجب|ما\s+الواجبات|ما\s+هي\s+الواجبات)/;
 
 export const senderFirstNameOf = (email) => {
   const named = String(email?.fromName || "")
@@ -51,6 +56,11 @@ export const senderFirstNameOf = (email) => {
 /** A rough, conservative signal — real intent classification can replace this later. */
 const looksLikeHomeworkInquiry = (email) => {
   const text = `${email.subject || ""} ${email.bodyText || ""}`;
+  return HOMEWORK_KEYWORDS.test(text) || HOMEWORK_KEYWORDS_AR.test(text);
+};
+
+/** Exported for testing: check if text matches homework inquiry patterns. */
+export const isHomeworkInquiryText = (text) => {
   return HOMEWORK_KEYWORDS.test(text) || HOMEWORK_KEYWORDS_AR.test(text);
 };
 
@@ -137,18 +147,18 @@ const composeHomeworkReplyBody = ({
   if (language === "ar") {
     return [
       `مرحبًا ${senderFirstName}،`,
-      `أنا مساعد ${teacherFirstName}. إليك ما هو مطلوب حاليًا وموعد تسليمه خلال الفترة القادمة لصف ${className}:`,
+      `إليك الواجبات المطلوبة حاليًا ومواعيد تسليمها لصف ${className}:`,
       lines,
-      `سيتابع ${teacherFirstName} معك شخصيًا إذا تغيّر أي شيء.`,
-      `— مساعد ${teacherFirstName}`,
+      `سأخبرك إذا طرأ أي تغيير.`,
+      `تحياتي،\n${teacherFirstName}`,
     ].join("\n\n");
   }
   return [
     `Hello ${senderFirstName},`,
-    `This is ${teacherFirstName}'s Assistant. Here is what's currently assigned and due soon for ${className}:`,
+    `Here is what's currently assigned and due soon for ${className}:`,
     lines,
-    `${teacherFirstName} will follow up personally if anything changes.`,
-    `— ${teacherFirstName}'s Assistant`,
+    `I'll let you know if anything changes.`,
+    `Best,\n${teacherFirstName}`,
   ].join("\n\n");
 };
 
@@ -267,6 +277,16 @@ export const runHomeworkAutoReplyForUser = async (
   if (!eligible.length) return result;
 
   const teacherProfile = await getTeacherProfile(user._id);
+  // Fail closed: under own_subject, a missing profile would remove the teacher
+  // filter and return every published assignment for the class. Skip entirely.
+  if (cfg.scope === "own_subject" && !teacherProfile) {
+    logger.warn("homework_auto_reply_skipped_missing_teacher_profile", {
+      userId: String(user._id),
+      schoolId: String(user.school),
+    });
+    result.skipped += eligible.length;
+    return result;
+  }
   const teacherFirstName =
     user.firstName ||
     String(user.fullName || "")

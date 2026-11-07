@@ -130,6 +130,7 @@ import { runReadingTranscriptPurgeJob } from "./jobs/readingTranscriptPurgeJob.j
 import { runInboxAssistantJob } from "./jobs/inboxAssistantJob.js";
 import { runInboxNewsletterAutoReplyJob } from "./jobs/inboxNewsletterAutoReplyJob.js";
 import { runInboxHomeworkAutoReplyJob } from "./jobs/inboxHomeworkAutoReplyJob.js";
+import { runInboxAutoScanJob } from "./jobs/inboxAutoScanJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processDueSpellingEmails } from "./services/spellingEmailService.js";
 import { scheduleDueSpellingRetestQuizzes } from "./services/spellingRetestQuizSchedulerService.js";
@@ -737,6 +738,25 @@ const server = httpServer.listen(PORT, () => {
     // First run 8 minutes after startup (staggered from the newsletter job), then every 15 minutes.
     setTimeout(runInboxHomeworkAutoReply, 8 * 60 * 1000);
     activeIntervals.push(setInterval(runInboxHomeworkAutoReply, INBOX_HOMEWORK_AUTOREPLY_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_INBOX_AUTO_SCAN_JOB !== "false") {
+    const INBOX_AUTO_SCAN_INTERVAL_MS = 15 * 60 * 1000;
+    let autoScanRunning = false;
+    const runInboxAutoScan = async () => {
+      if (autoScanRunning) return;
+      autoScanRunning = true;
+      try {
+        await runInboxAutoScanJob();
+      } catch (err) {
+        logger.error("Inbox auto-scan job error:", err?.message || err);
+      } finally {
+        autoScanRunning = false;
+      }
+    };
+    // First run 9 minutes after startup (staggered from the homework job), then every 15 minutes.
+    setTimeout(runInboxAutoScan, 9 * 60 * 1000);
+    activeIntervals.push(setInterval(runInboxAutoScan, INBOX_AUTO_SCAN_INTERVAL_MS));
   }
 });
 

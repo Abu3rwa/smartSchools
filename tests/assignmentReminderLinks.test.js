@@ -37,3 +37,36 @@ test('assignment reminder omits unsupported and credentialed URLs', () => {
 
     assert.deepEqual(result, { notificationText: 'Reminder.', links: [] });
 });
+
+test('assignment reminder appends Drive attachment links after external links', () => {
+    const result = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: {
+            links: [{ type: 'external_url', title: 'Guide', url: 'https://example.com/guide' }],
+            driveAttachments: [
+                { fileId: 'd1', fileName: 'Worksheet.pdf', webViewLink: 'https://drive.google.com/file/d/d1/view' },
+                { fileId: 'd2', fileName: 'Unsafe', webViewLink: 'javascript:alert(1)' },
+                { fileId: 'd3', fileName: 'No link' }
+            ]
+        }
+    });
+
+    assert.deepEqual(result.links, [
+        { title: 'Guide', url: 'https://example.com/guide' },
+        { title: 'Worksheet.pdf', url: 'https://drive.google.com/file/d/d1/view' }
+    ]);
+    assert.match(result.notificationText, /Worksheet\.pdf: https:\/\/drive\.google\.com\/file\/d\/d1\/view/);
+});
+
+test('a Drive-only assignment still gets a links block in the reminder', () => {
+    const result = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: {
+            driveAttachments: [{ fileId: 'd1', fileName: '', webViewLink: 'https://drive.google.com/file/d/d1/view' }]
+        }
+    });
+
+    assert.equal(result.links.length, 1);
+    assert.equal(result.links[0].title, 'drive.google.com');
+    assert.match(result.notificationText, /Assignment links:/);
+});

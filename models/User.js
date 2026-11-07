@@ -315,6 +315,34 @@ const userSchema = new mongoose.Schema({
             default: false
         }
     },
+    // Separate drive.file connection for assignment attachments; never mixed
+    // with the read-only curriculum import tokens above.
+    googleDriveFileTokens: {
+        email: {
+            type: String,
+            lowercase: true,
+            trim: true
+        },
+        accessToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
+        refreshToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
+        grantedScopes: {
+            type: [String],
+            default: []
+        },
+        expiryDate: Date,
+        isActive: {
+            type: Boolean,
+            default: false
+        }
+    },
     // Separate OAuth credentials for publishing assignments to Google Classroom
     googleClassroomTokens: {
         email: {
@@ -482,6 +510,49 @@ userSchema.methods.clearGoogleDriveTokens = async function () {
         email: null,
         accessToken: null,
         refreshToken: null,
+        expiryDate: null,
+        isActive: false
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Check if the drive.file attachment connection is active
+userSchema.methods.hasGoogleDriveFileConnected = function () {
+    return Boolean(this.googleDriveFileTokens?.isActive && this.googleDriveFileTokens?.refreshToken);
+};
+
+// Check if the drive.file token needs refresh (5 minutes before expiry)
+userSchema.methods.googleDriveFileTokenNeedsRefresh = function () {
+    if (!this.googleDriveFileTokens?.expiryDate) return true;
+    const fiveMinutes = 5 * 60 * 1000;
+    return new Date() >= new Date(this.googleDriveFileTokens.expiryDate.getTime() - fiveMinutes);
+};
+
+// Update drive.file tokens, recording the scopes Google actually granted
+userSchema.methods.updateGoogleDriveFileTokens = async function (tokens, email) {
+    const grantedScopes = String(tokens.scope || '')
+        .split(/\s+/)
+        .filter(Boolean);
+    this.googleDriveFileTokens = {
+        email: email || this.googleDriveFileTokens?.email,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || this.googleDriveFileTokens?.refreshToken,
+        grantedScopes: grantedScopes.length > 0
+            ? grantedScopes
+            : this.googleDriveFileTokens?.grantedScopes || [],
+        expiryDate: new Date(tokens.expiry_date),
+        isActive: true
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Clear drive.file tokens
+userSchema.methods.clearGoogleDriveFileTokens = async function () {
+    this.googleDriveFileTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        grantedScopes: [],
         expiryDate: null,
         isActive: false
     };

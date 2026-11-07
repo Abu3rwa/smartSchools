@@ -54,6 +54,8 @@ const defaultsFor = (platform) => ({
   optedIn: false,
   optedInAt: null,
   scanSize: platform.defaultScanSize,
+  autoScanEnabled: false,
+  autoScanIntervalMinutes: 60,
   tone: "professional",
   signature: "",
   includeCcByDefault: false,
@@ -79,6 +81,8 @@ const loadSettings = async (user) => {
 const shapeSettings = (settings) => ({
   optedIn: Boolean(settings.optedIn),
   scanSize: settings.scanSize,
+  autoScanEnabled: Boolean(settings.autoScanEnabled),
+  autoScanIntervalMinutes: settings.autoScanIntervalMinutes || 60,
   tone: settings.tone,
   signature: settings.signature || "",
   includeCcByDefault: Boolean(settings.includeCcByDefault),
@@ -422,6 +426,21 @@ export const updateSettings = asyncHandler(async (req, res) => {
       Math.max(Math.round(scanSize), 10),
       platform.maxScanSize,
     );
+  }
+  if (body.autoScanEnabled !== undefined) {
+    if (typeof body.autoScanEnabled !== "boolean")
+      throw badRequest("Turn automatic scanning on or off.");
+    patch.autoScanEnabled = body.autoScanEnabled;
+  }
+  if (body.autoScanIntervalMinutes !== undefined) {
+    const minutes = Number(body.autoScanIntervalMinutes);
+    if (!Number.isFinite(minutes))
+      throw badRequest("Choose how often to scan automatically.");
+    const whole = Math.round(minutes);
+    if (whole < 15 || whole > 1440) {
+      throw badRequest("Choose between 15 minutes and 24 hours for the scan interval.");
+    }
+    patch.autoScanIntervalMinutes = whole;
   }
   if (body.tone !== undefined) {
     if (!TONES.has(body.tone))

@@ -1044,6 +1044,11 @@ class NotificationService {
       label: link.title || link.type || "Link",
       url: link.url || "",
     }));
+    for (const att of assignment?.driveAttachments || []) {
+      if (att?.webViewLink) {
+        linkItems.push({ label: att.fileName || "Drive file", url: att.webViewLink });
+      }
+    }
 
     const attachmentItems = [];
     for (const att of assignment?.attachments || []) {

@@ -98,6 +98,30 @@ const assignmentService = {
         return response.data;
     },
 
+    getDriveConnection: async () => {
+        const response = await api.get('/auth/google-drive/status', { params: { purpose: 'attachments' } });
+        return response.data;
+    },
+
+    getDriveAuthUrl: async () => {
+        const response = await api.get('/auth/google-drive/url', { params: { purpose: 'attachments' } });
+        return response.data;
+    },
+
+    uploadDriveAttachments: async (assignmentId, files) => {
+        const formData = new FormData();
+        files.forEach((file) => formData.append('files', file));
+        const response = await api.post(`/assignments/${assignmentId}/drive-attachments`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    deleteDriveAttachment: async (assignmentId, fileId) => {
+        const response = await api.delete(`/assignments/${assignmentId}/drive-attachments/${fileId}`);
+        return response.data;
+    },
+
     sendReminder: async (id, payload = {}) => {
         const response = await api.post(`/assignments/${id}/remind`, payload);
         return response.data;

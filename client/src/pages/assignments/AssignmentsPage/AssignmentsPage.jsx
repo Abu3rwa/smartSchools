@@ -37,7 +37,7 @@ const PAGE_SIZE = 10;
 
 const AssignmentsPage = () => {
     const { t, i18n } = useTranslation(['assignments']);
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
     const subjects = useSelector(selectSubjects);
@@ -62,6 +62,19 @@ const AssignmentsPage = () => {
             setActiveTab('integrations');
         }
     }, [searchParams]);
+
+    useEffect(() => {
+        if (!searchParams.has('drive_connected') && !searchParams.has('drive_error')) return;
+        if (searchParams.has('drive_connected')) {
+            toast.success(t('assignments:driveAttachments.connected'));
+        } else {
+            toast.error(t('assignments:driveAttachments.connectFailed'));
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete('drive_connected');
+        next.delete('drive_error');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams, t]);
 
     const {
         assignmentTypes,
@@ -364,6 +377,7 @@ const AssignmentsPage = () => {
                     : [],
             links: Array.isArray(assignment.links) ? assignment.links : [],
             existingAttachments: Array.isArray(assignment.attachments) ? assignment.attachments : [],
+            existingDriveAttachments: Array.isArray(assignment.driveAttachments) ? assignment.driveAttachments : [],
             attachmentFiles: [],
             removeAttachmentIds: [],
             dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '',
@@ -859,9 +873,11 @@ const AssignmentsPage = () => {
                     onClassChange={handleClassChange}
                     onSubjectChange={handleSubjectChange}
                     isEditing={Boolean(editingAssignment)}
+                    editingAssignmentId={editingAssignment?.id || null}
                     onCancelEdit={onCancelEdit}
                     onClose={onCancelEdit}
                     onSubmit={onCreateAssignment}
+                    onDrivePersisted={fetchAssignments}
                     classroom={classroom}
                     existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
                     googleFormPublished={Boolean(editingAssignment?.googleForm?.responderUri)}

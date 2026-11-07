@@ -13,8 +13,8 @@ export const buildDescription = (assignment) => {
     return clip(String(assignment?.instructions || '').trim(), MAX_DESCRIPTION_LENGTH);
 };
 
-export const buildCourseWorkMaterials = (assignment) => (
-    [
+export const buildCourseWorkMaterials = (assignment) => {
+    const linkMaterials = [
         ...(Array.isArray(assignment?.links) ? assignment.links : [])
             .filter((link) => link?.type === 'external_url')
             .map((link) => ({ url: link.url, title: link.title })),
@@ -45,8 +45,18 @@ export const buildCourseWorkMaterials = (assignment) => (
         })
         .filter(Boolean)
         .filter((material, index, materials) =>
-            materials.findIndex((candidate) => candidate.link.url === material.link.url) === index)
-);
+            materials.findIndex((candidate) => candidate.link.url === material.link.url) === index);
+
+    // Real Drive attachments, read-only for students. Only set at creation
+    // time — Classroom materials can never be patched onto an existing post.
+    const driveMaterials = (Array.isArray(assignment?.driveAttachments) ? assignment.driveAttachments : [])
+        .filter((att) => att?.fileId)
+        .map((att) => ({ driveFile: { id: String(att.fileId), shareMode: 'VIEW' } }))
+        .filter((material, index, materials) =>
+            materials.findIndex((candidate) => candidate.driveFile.id === material.driveFile.id) === index);
+
+    return [...linkMaterials, ...driveMaterials];
+};
 
 export const desiredClassroomState = (assignment) =>
     assignment?.status === 'published' ? 'PUBLISHED' : 'DRAFT';

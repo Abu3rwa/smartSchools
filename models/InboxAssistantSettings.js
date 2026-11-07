@@ -95,6 +95,8 @@ const inboxAssistantSettingsSchema = new mongoose.Schema(
     optedIn: { type: Boolean, default: false },
     optedInAt: { type: Date, default: null },
     scanSize: { type: Number, default: 25 },
+    autoScanEnabled: { type: Boolean, default: false },
+    autoScanIntervalMinutes: { type: Number, default: 60, min: 15, max: 1440 },
     tone: { type: String, enum: TONES, default: "professional" },
     signature: { type: String, trim: true, maxlength: 500, default: "" },
     includeCcByDefault: { type: Boolean, default: false },

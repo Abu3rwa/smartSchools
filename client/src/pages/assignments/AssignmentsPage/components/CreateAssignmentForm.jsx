@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 import LinkEditor from './LinkEditor';
 import AttachmentEditor from './AttachmentEditor';
+import DriveAttachmentEditor from './DriveAttachmentEditor';
 import GoogleFormQuestionEditor from './GoogleFormQuestionEditor';
 import AssignmentQuestionDrafter from './AssignmentQuestionDrafter';
 import LessonSummaryDrafter from './LessonSummaryDrafter';
@@ -36,9 +37,11 @@ const CreateAssignmentForm = ({
     onClassChange,
     onSubjectChange,
     isEditing,
+    editingAssignmentId = null,
     onCancelEdit,
     onClose,
     onSubmit,
+    onDrivePersisted,
     classroom,
     existingClassroomLink,
     googleFormPublished,
@@ -652,6 +655,19 @@ const CreateAssignmentForm = ({
                                         removeAttachmentIds: [...(prev.removeAttachmentIds || []), id]
                                     }))}
                                     disabled={submitting}
+                                />
+                            </div>
+                            <div className="assignments-field assignments-form-grid__full">
+                                <DriveAttachmentEditor
+                                    assignmentId={editingAssignmentId}
+                                    driveAttachments={form.existingDriveAttachments || []}
+                                    onChange={(existingDriveAttachments) => setForm((prev) => ({
+                                        ...prev,
+                                        existingDriveAttachments
+                                    }))}
+                                    onPersisted={onDrivePersisted}
+                                    disabled={submitting}
+                                    postedToClassroom={Boolean(existingClassroomLink)}
                                 />
                             </div>
                         </div>

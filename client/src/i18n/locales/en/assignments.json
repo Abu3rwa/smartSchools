@@ -469,6 +469,29 @@
       }
     }
   },
+  "driveAttachments": {
+    "title": "Google Drive attachments",
+    "intro": "Upload files straight to your own Google Drive. They become real attachments in the Classroom post and links in family emails.",
+    "loading": "Checking your Google Drive connection...",
+    "loadFailed": "Couldn't check the Google Drive connection.",
+    "retry": "Try again",
+    "connect": "Connect Google Drive",
+    "connecting": "Opening Google...",
+    "connected": "Google Drive connected for attachments.",
+    "connectFailed": "Google Drive connection failed. Try again.",
+    "connectedAs": "Connected as {{email}}",
+    "anyoneWithLink": "Uploaded files become viewable by anyone with the link. Don't upload anything private.",
+    "postedWarning": "This assignment is already posted to Classroom. New Drive files won't appear in that post until you post it again.",
+    "saveFirst": "Save the assignment first, then add Drive files here before posting to Classroom.",
+    "upload": "Upload to Google Drive",
+    "uploading": "Uploading...",
+    "uploaded": "Uploaded to Google Drive.",
+    "uploadFailed": "Upload to Google Drive failed.",
+    "tooLarge": "Files must be 10 MB or smaller.",
+    "remove": "Remove {{name}}",
+    "removeFailed": "Couldn't remove the file.",
+    "openInDrive": "Open in Drive"
+  },
   "common": {
     "empty": "-",
     "close": "Close",

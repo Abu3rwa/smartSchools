@@ -82,17 +82,20 @@ export default function InboxAssistantPage() {
 
   const reply = useReplyDraft({ onSent: handleSent });
 
-  const startEstimate = useCallback(async (mode = "refresh", reanalyze = false) => {
-    if (data.scanning || data.estimating) return;
-    const entry = await data.requestEstimate(mode, reanalyze);
-    if (!entry) return;
-    const next = estimateNotice(entry, data.credit.balanceCents);
-    if (next === "empty") {
-      data.setNotice({ key: "scan.noNew", tone: "info" });
-      return;
-    }
-    setDialogOpen(true);
-  }, [data]);
+  const startEstimate = useCallback(
+    async (mode = "refresh", reanalyze = false) => {
+      if (data.scanning || data.estimating) return;
+      const entry = await data.requestEstimate(mode, reanalyze);
+      if (!entry) return;
+      const next = estimateNotice(entry, data.credit.balanceCents);
+      if (next === "empty") {
+        data.setNotice({ key: "scan.noNew", tone: "info" });
+        return;
+      }
+      setDialogOpen(true);
+    },
+    [data],
+  );
 
   const runScan = async () => {
     const outcome = await data.scan();
@@ -107,7 +110,8 @@ export default function InboxAssistantPage() {
     const index = TAB_KEYS.indexOf(key);
     let next = null;
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-      const step = (event.key === "ArrowRight" ? 1 : -1) * (i18n.dir() === "rtl" ? -1 : 1);
+      const step =
+        (event.key === "ArrowRight" ? 1 : -1) * (i18n.dir() === "rtl" ? -1 : 1);
       next = TAB_KEYS[(index + step + TAB_KEYS.length) % TAB_KEYS.length];
     } else if (event.key === "Home") {
       next = TAB_KEYS[0];
@@ -134,7 +138,9 @@ export default function InboxAssistantPage() {
   const deadlinesCount = deadlinesReady ? deadlines.deadlines.length : null;
   const eventsCount = eventsReady ? eventsTabCount(events.events) : null;
   const ignoredCount = ignored.state === "ready" ? ignored.emails.length : null;
-  const waitingCount = needsReplyReady ? needsReply.emails.filter((email) => email.isWaiting).length : null;
+  const waitingCount = needsReplyReady
+    ? needsReply.emails.filter((email) => email.isWaiting).length
+    : null;
   const nudgeAfterDays = status?.settings?.nudgeAfterDays ?? 2;
 
   const dayStart = new Date();
@@ -142,9 +148,9 @@ export default function InboxAssistantPage() {
   const weekEnd = dayStart.getTime() + 7 * DAY_MS;
   const dueThisWeek = deadlinesReady
     ? deadlines.deadlines.filter((deadline) => {
-      const due = new Date(deadline.dueAt).getTime();
-      return due >= dayStart.getTime() && due < weekEnd;
-    }).length
+        const due = new Date(deadline.dueAt).getTime();
+        return due >= dayStart.getTime() && due < weekEnd;
+      }).length
     : null;
 
   const tabCount = {
@@ -173,17 +179,23 @@ export default function InboxAssistantPage() {
     (emailId) => emailsById.get(String(emailId))?.senderRole || "",
     [emailsById],
   );
-  const openEmailFrom = useCallback((emailId) => {
-    const row = emailsById.get(String(emailId));
-    void reply.open(row || { id: emailId });
-  }, [emailsById, reply]);
-  const isEmailTab = data.activeGroup !== "sent"
-    && data.activeGroup !== "deadlines"
-    && data.activeGroup !== "events";
+  const openEmailFrom = useCallback(
+    (emailId) => {
+      const row = emailsById.get(String(emailId));
+      void reply.open(row || { id: emailId });
+    },
+    [emailsById, reply],
+  );
+  const isEmailTab =
+    data.activeGroup !== "sent" &&
+    data.activeGroup !== "deadlines" &&
+    data.activeGroup !== "events";
   const lastScanAt = status?.lastScanAt || status?.settings?.lastScanAt || null;
 
   const openDeadlineFromRow = (email) => {
-    setDeadlineSeed(email.subject || email.summary || t("inboxAssistant:row.noSubject"));
+    setDeadlineSeed(
+      email.subject || email.summary || t("inboxAssistant:row.noSubject"),
+    );
     data.setActiveGroup("deadlines");
   };
 
@@ -230,8 +242,16 @@ export default function InboxAssistantPage() {
 
       {data.statusState === "error" && (
         <section className="ia-panel" role="alert">
-          <p>{data.statusErrorKey ? t(`inboxAssistant:${data.statusErrorKey}`) : t("inboxAssistant:loadFailed")}</p>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => data.loadStatus()}>
+          <p>
+            {data.statusErrorKey
+              ? t(`inboxAssistant:${data.statusErrorKey}`)
+              : t("inboxAssistant:loadFailed")}
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => data.loadStatus()}
+          >
             {t("inboxAssistant:retry")}
           </button>
         </section>
@@ -239,16 +259,21 @@ export default function InboxAssistantPage() {
 
       {ready && !status.platform.enabled && <PlatformOffScreen />}
 
-      {ready && status.platform.enabled && (!status.gmailConnected || status.requiresReauth) && (
-        <ConnectScreen
-          requiresReauth={status.requiresReauth}
-          connecting={data.connecting}
-          onConnect={() => data.connectGoogle(false)}
-        />
-      )}
+      {ready &&
+        status.platform.enabled &&
+        (!status.gmailConnected || status.requiresReauth) && (
+          <ConnectScreen
+            requiresReauth={status.requiresReauth}
+            connecting={data.connecting}
+            onConnect={() => data.connectGoogle(false)}
+          />
+        )}
 
-      {ready && status.platform.enabled && status.gmailConnected
-        && !status.requiresReauth && !optedIn && (
+      {ready &&
+        status.platform.enabled &&
+        status.gmailConnected &&
+        !status.requiresReauth &&
+        !optedIn && (
           <FirstRunScreen
             saving={data.saving}
             onEnable={() => {
@@ -258,17 +283,39 @@ export default function InboxAssistantPage() {
           />
         )}
 
-      {ready && status.platform.enabled && status.gmailConnected
-        && !status.requiresReauth && optedIn && (
+      {ready &&
+        status.platform.enabled &&
+        status.gmailConnected &&
+        !status.requiresReauth &&
+        optedIn &&
+        (settingsVisible ? (
+          <div id="ia-settings" className="ia-settings-view">
+            <SettingsPanel
+              settings={status.settings}
+              calendar={calendar}
+              saving={data.saving}
+              onClose={() => setSettingsOpen(false)}
+              onSave={(patch) => data.saveSettings(patch, { announce: true })}
+              onDelete={data.deleteData}
+            />
+          </div>
+        ) : (
           <>
-            <section className="ia-stats" aria-label={t("inboxAssistant:stats.label")}>
+            <section
+              className="ia-stats"
+              aria-label={t("inboxAssistant:stats.label")}
+            >
               <div className="ia-stat is-rose">
                 <span className="ia-stat-icon" aria-hidden="true">
                   <HiOutlineInboxArrowDown size={18} />
                 </span>
                 <div>
                   <b>{countText(needsReplyCount)}</b>
-                  <span>{t(`inboxAssistant:${countLabelKey("stats.needsReply", needsReplyCount ?? 0)}`)}</span>
+                  <span>
+                    {t(
+                      `inboxAssistant:${countLabelKey("stats.needsReply", needsReplyCount ?? 0)}`,
+                    )}
+                  </span>
                 </div>
               </div>
               <div className="ia-stat is-amber">
@@ -277,7 +324,11 @@ export default function InboxAssistantPage() {
                 </span>
                 <div>
                   <b>{countText(dueThisWeek)}</b>
-                  <span>{t(`inboxAssistant:${countLabelKey("stats.deadlines", dueThisWeek ?? 0)}`)}</span>
+                  <span>
+                    {t(
+                      `inboxAssistant:${countLabelKey("stats.deadlines", dueThisWeek ?? 0)}`,
+                    )}
+                  </span>
                 </div>
               </div>
               <div className="ia-stat is-teal">
@@ -286,35 +337,35 @@ export default function InboxAssistantPage() {
                 </span>
                 <div>
                   <b>{countText(waitingCount)}</b>
-                  <span>{t(`inboxAssistant:${waitingOverKey(nudgeAfterDays)}`, { n: nudgeAfterDays })}</span>
+                  <span>
+                    {t(`inboxAssistant:${waitingOverKey(nudgeAfterDays)}`, {
+                      n: nudgeAfterDays,
+                    })}
+                  </span>
                 </div>
               </div>
             </section>
 
-            {settingsVisible && (
-              <div id="ia-settings">
-                <SettingsPanel
-                  settings={status.settings}
-                  calendar={calendar}
-                  saving={data.saving}
-                  onClose={() => setSettingsOpen(false)}
-                  onSave={(patch) => data.saveSettings(patch, { announce: true })}
-                  onDelete={data.deleteData}
-                />
-              </div>
-            )}
-
             {reply.email && (
               <ReplyPanel
                 reply={reply}
-                language={String(i18n.language || "").startsWith("ar") ? "ar" : "en"}
+                language={
+                  String(i18n.language || "").startsWith("ar") ? "ar" : "en"
+                }
                 defaultTone={status.settings.tone}
               />
             )}
 
-            <section className="ia-panel ia-main-panel" aria-label={t("inboxAssistant:tabs.label")}>
+            <section
+              className="ia-panel ia-main-panel"
+              aria-label={t("inboxAssistant:tabs.label")}
+            >
               <div className="ia-panel-head">
-                <div className="ia-tabs" role="tablist" aria-label={t("inboxAssistant:tabs.label")}>
+                <div
+                  className="ia-tabs"
+                  role="tablist"
+                  aria-label={t("inboxAssistant:tabs.label")}
+                >
                   {TAB_KEYS.map((key) => (
                     <button
                       key={key}
@@ -346,7 +397,9 @@ export default function InboxAssistantPage() {
                     tone={status.settings.tone}
                     lastScanAt={lastScanAt}
                     scanning={data.scanning}
-                    onScanSize={(value) => data.saveSettings({ scanSize: value })}
+                    onScanSize={(value) =>
+                      data.saveSettings({ scanSize: value })
+                    }
                     onTone={(value) => data.saveSettings({ tone: value })}
                     onRefresh={() => startEstimate("refresh", false)}
                     onFullRescan={() => startEstimate("full", false)}
@@ -375,7 +428,8 @@ export default function InboxAssistantPage() {
                     onEmpty={sent.empty}
                   />
                 )}
-                {(data.activeGroup === "deadlines" || data.activeGroup === "events") && (
+                {(data.activeGroup === "deadlines" ||
+                  data.activeGroup === "events") && (
                   <CalendarBanner
                     calendar={calendar}
                     connecting={data.connecting}
@@ -426,7 +480,9 @@ export default function InboxAssistantPage() {
                     type="button"
                     className="ia-ghost-link"
                     aria-expanded={data.ignoredOpen}
-                    aria-controls={data.ignoredOpen ? "ia-ignored-list" : undefined}
+                    aria-controls={
+                      data.ignoredOpen ? "ia-ignored-list" : undefined
+                    }
                     onClick={() => data.setIgnoredOpen(!data.ignoredOpen)}
                   >
                     <HiOutlineChevronDown
@@ -435,12 +491,16 @@ export default function InboxAssistantPage() {
                       className={`ia-ignored-chevron ${data.ignoredOpen ? "is-open" : ""}`}
                     />
                     {data.ignoredOpen
-                      ? (ignoredCount === null
+                      ? ignoredCount === null
                         ? t("inboxAssistant:tabs.hideIgnored")
-                        : t("inboxAssistant:tabs.hideIgnoredCount", { n: ignoredCount }))
-                      : (ignoredCount === null
+                        : t("inboxAssistant:tabs.hideIgnoredCount", {
+                            n: ignoredCount,
+                          })
+                      : ignoredCount === null
                         ? t("inboxAssistant:tabs.showIgnored")
-                        : t("inboxAssistant:tabs.showIgnoredCount", { n: ignoredCount }))}
+                        : t("inboxAssistant:tabs.showIgnoredCount", {
+                            n: ignoredCount,
+                          })}
                   </button>
                   <span className="ia-reassure">
                     <HiOutlineLockClosed size={13} aria-hidden="true" />
@@ -451,7 +511,11 @@ export default function InboxAssistantPage() {
             </section>
 
             {isEmailTab && data.ignoredOpen && (
-              <section id="ia-ignored-list" className="ia-panel ia-list" aria-label={t("inboxAssistant:tabs.ignored")}>
+              <section
+                id="ia-ignored-list"
+                className="ia-panel ia-list"
+                aria-label={t("inboxAssistant:tabs.ignored")}
+              >
                 <EmailList
                   group="ignored"
                   list={ignored}
@@ -466,7 +530,7 @@ export default function InboxAssistantPage() {
               </section>
             )}
           </>
-        )}
+        ))}
 
       {dialogOpen && data.estimate && (
         <EstimateDialog

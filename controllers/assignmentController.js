@@ -37,6 +37,7 @@ import {
     normalizeDraftTypes
 } from '../services/assignmentQuestionAiService.js';
 import { draftLessonSummaryFromText } from '../services/lessonSummaryAiService.js';
+import googleDriveFileService from '../services/googleDriveFileService.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 const refId = (value) => (value && typeof value === 'object'
@@ -200,6 +201,17 @@ const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission
                 size: att.size || 0,
                 storageKey: att.storageKey || '',
                 url: att.url || ''
+            }))
+            : [],
+        driveAttachments: Array.isArray(assignment.driveAttachments)
+            ? assignment.driveAttachments.map((att) => ({
+                fileId: att.fileId || '',
+                fileName: att.fileName || '',
+                mimeType: att.mimeType || '',
+                size: att.size || 0,
+                webViewLink: att.webViewLink || '',
+                iconLink: att.iconLink || '',
+                uploadedAt: att.uploadedAt || null
             }))
             : [],
         maxMarks: Number(assignment.maxMarks ?? 10),
@@ -1757,6 +1769,10 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
 
     // Clean up attachment files from storage
     await deleteAttachmentFiles(assignment.attachments);
+    await googleDriveFileService.trashFilesBestEffort(
+        req.user._id,
+        (assignment.driveAttachments || []).map((att) => att.fileId)
+    );
 
     await assignment.deleteOne();
 
@@ -1786,6 +1802,60 @@ export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
 
     const signedUrl = await getSignedUrl(attachment.storageKey);
     res.json({ success: true, data: { url: signedUrl, fileName: attachment.fileName, mimeType: attachment.mimeType } });
+});
+
+export const uploadDriveAttachments = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to modify this assignment' });
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length === 0) {
+        return res.status(400).json({ success: false, message: 'Choose at least one file to upload.' });
+    }
+    if (!(await googleDriveFileService.isConnected(req.user._id))) {
+        return res.status(403).json({
+            success: false,
+            code: 'DRIVE_FILE_NOT_CONNECTED',
+            message: 'Connect Google Drive for attachments before uploading files.'
+        });
+    }
+
+    const uploaded = [];
+    try {
+        for (const file of files) {
+            uploaded.push(await googleDriveFileService.uploadAttachmentFile(req.user._id, file));
+        }
+    } catch (error) {
+        // A half-finished batch must not leave shared files the app never lists.
+        await googleDriveFileService.trashFilesBestEffort(req.user._id, uploaded.map((att) => att.fileId));
+        throw error;
+    }
+
+    assignment.driveAttachments = [...(assignment.driveAttachments || []), ...uploaded];
+    await assignment.save();
+    res.json({ success: true, data: { driveAttachments: assignment.driveAttachments } });
+});
+
+export const deleteDriveAttachment = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to modify this assignment' });
+
+    const fileId = String(req.params.fileId || '');
+    const entry = (assignment.driveAttachments || []).find((att) => att.fileId === fileId);
+    if (!entry) return res.status(404).json({ success: false, message: 'Attachment not found' });
+
+    // Without a live connection the row still comes off the assignment; the
+    // file itself stays in the teacher's Drive until they remove it there.
+    if (await googleDriveFileService.isConnected(req.user._id)) {
+        await googleDriveFileService.trashFile(req.user._id, fileId);
+    }
+    assignment.driveAttachments = (assignment.driveAttachments || []).filter((att) => att.fileId !== fileId);
+    await assignment.save();
+    res.json({ success: true, data: { driveAttachments: assignment.driveAttachments } });
 });
 
 /**

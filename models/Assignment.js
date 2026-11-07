@@ -156,6 +156,17 @@ const assignmentSchema = new mongoose.Schema(
                 url: { type: String, trim: true, default: '' }
             }
         ],
+        driveAttachments: [
+            {
+                fileId: { type: String, required: true, trim: true },
+                fileName: { type: String, trim: true, default: '' },
+                mimeType: { type: String, trim: true, default: '' },
+                size: { type: Number, default: 0 },
+                webViewLink: { type: String, trim: true, default: '' },
+                iconLink: { type: String, trim: true, default: '' },
+                uploadedAt: { type: Date, default: Date.now }
+            }
+        ],
         metadata: {
             type: mongoose.Schema.Types.Mixed,
             default: null

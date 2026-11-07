@@ -469,6 +469,29 @@
       }
     }
   },
+  "driveAttachments": {
+    "title": "مرفقات Google Drive",
+    "intro": "ارفع الملفات مباشرة إلى حساب Google Drive الخاص بك. تظهر كمرفقات حقيقية في منشور Classroom وروابط في رسائل البريد للعائلات.",
+    "loading": "جارٍ التحقق من اتصال Google Drive...",
+    "loadFailed": "تعذّر التحقق من اتصال Google Drive.",
+    "retry": "حاول مجددًا",
+    "connect": "ربط Google Drive",
+    "connecting": "جارٍ فتح Google...",
+    "connected": "تم ربط Google Drive للمرفقات.",
+    "connectFailed": "فشل ربط Google Drive. حاول مجددًا.",
+    "connectedAs": "متصل باسم {{email}}",
+    "anyoneWithLink": "الملفات المرفوعة تصبح قابلة للعرض من قبل أي شخص يملك الرابط. لا ترفع أي ملفات خاصة.",
+    "postedWarning": "تم نشر هذا الواجب بالفعل في Classroom. لن تظهر ملفات Drive الجديدة في ذلك المنشور حتى تعيد نشره.",
+    "saveFirst": "احفظ الواجب أولًا، ثم أضف ملفات Drive هنا قبل النشر إلى Classroom.",
+    "upload": "رفع إلى Google Drive",
+    "uploading": "جارٍ الرفع...",
+    "uploaded": "تم الرفع إلى Google Drive.",
+    "uploadFailed": "فشل الرفع إلى Google Drive.",
+    "tooLarge": "يجب ألا يتجاوز حجم الملف 10 ميغابايت.",
+    "remove": "إزالة {{name}}",
+    "removeFailed": "تعذّرت إزالة الملف.",
+    "openInDrive": "فتح في Drive"
+  },
   "common": {
     "empty": "-",
     "close": "إغلاق",

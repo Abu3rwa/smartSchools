@@ -2,6 +2,7 @@ import express from 'express';
 import {
     createAssignment,
     deleteAssignment,
+    deleteDriveAttachment,
     draftAssignmentQuestions,
     draftAssignmentSummary,
     getAssignmentAttachmentUrl,
@@ -12,7 +13,8 @@ import {
     publishAssignment,
     sendAssignmentReminder,
     setAssignmentStudentExcuse,
-    updateAssignment
+    updateAssignment,
+    uploadDriveAttachments
 } from '../controllers/assignmentController.js';
 import { authorize, protect, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
@@ -125,6 +127,25 @@ router.get(
     validationRules.mongoId,
     validate,
     getAssignmentAttachmentUrl
+);
+
+router.post(
+    '/:id/drive-attachments',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    uploadAssignmentAttachments.array('files', 5),
+    uploadDriveAttachments
+);
+
+router.delete(
+    '/:id/drive-attachments/:fileId',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    deleteDriveAttachment
 );
 
 export default router;
