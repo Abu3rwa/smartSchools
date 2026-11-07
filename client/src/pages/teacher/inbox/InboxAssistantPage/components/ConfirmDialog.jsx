@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 const FOCUSABLE = [
   "button:not([disabled])",
@@ -55,7 +56,7 @@ export default function ConfirmDialog({ titleId, onClose, children }) {
     };
   }, []);
 
-  return (
+  return createPortal(
     <div
       className="ia-overlay"
       onMouseDown={(event) => {
@@ -72,6 +73,7 @@ export default function ConfirmDialog({ titleId, onClose, children }) {
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

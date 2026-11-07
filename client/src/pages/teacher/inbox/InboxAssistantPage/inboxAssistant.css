@@ -1854,6 +1854,23 @@ textarea.ia-field-box.is-area {
   backdrop-filter: blur(3px);
 }
 
+.ia-overlay * ,
+.ia-overlay *::before,
+.ia-overlay *::after {
+  box-sizing: border-box;
+}
+
+.ia-overlay :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary, #14b8a6);
+  outline-offset: 2px;
+}
+
+.ia-overlay .btn {
+  min-height: 40px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
 .ia-dialog {
   width: 100%;
   max-width: 480px;
@@ -3256,6 +3273,148 @@ textarea.ia-field-box.is-area {
 
   .ia-deadline-section-title {
     padding-inline: 12px;
+  }
+}
+
+.ia-settings-head {
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ia-line);
+}
+
+.ia-settings-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.ia-settings-body {
+  gap: 12px;
+}
+
+.ia-settings .ia-collapsible {
+  border-radius: 12px;
+  box-shadow: var(--ia-shadow);
+}
+
+.ia-settings .ia-collapsible-legend {
+  min-height: 54px;
+  padding: 12px 16px;
+}
+
+.ia-settings .ia-collapsible-toggle {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ia-settings .ia-collapsible-icon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ia-line);
+  border-radius: 9px;
+  background: var(--ia-surface);
+}
+
+.ia-settings .ia-collapsible-inner {
+  padding: 18px;
+}
+
+.ia-settings .ia-settings-grid {
+  align-items: stretch;
+  gap: 10px;
+}
+
+.ia-settings .ia-check--primary:has(input:checked) {
+  border-color: color-mix(in srgb, var(--ia-accent) 48%, var(--ia-line));
+  background: color-mix(in srgb, var(--ia-accent) 8%, var(--ia-surface));
+}
+
+.ia-settings .ia-check--primary:focus-within,
+.ia-settings .ia-radio:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--ia-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.ia-settings .ia-radio-group {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.ia-settings .ia-radio-group-title {
+  margin: 0 0 2px;
+}
+
+.ia-settings .ia-radio {
+  border: 1px solid var(--ia-line);
+  background: var(--ia-surface-2);
+}
+
+.ia-settings .ia-radio:has(input:checked) {
+  border-color: color-mix(in srgb, var(--ia-accent) 48%, var(--ia-line));
+  background: color-mix(in srgb, var(--ia-accent) 8%, var(--ia-surface));
+}
+
+.ia-settings .ia-field > span:first-child {
+  font-weight: 650;
+  color: var(--ia-ink);
+}
+
+.ia-settings .ia-time-chips {
+  gap: 7px;
+  margin-block: 4px 8px;
+}
+
+.ia-settings .ia-time-chip {
+  min-height: 34px;
+  padding: 4px 7px 4px 11px;
+  border-color: var(--ia-teal-line);
+  background: var(--ia-teal-soft);
+  color: var(--ia-teal-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ia-settings .ia-time-chip-remove {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.ia-settings .ia-time-add {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 6px 8px;
+}
+
+.ia-settings .ia-time-input {
+  min-height: 38px;
+}
+
+@media (max-width: 640px) {
+  .ia-settings-head {
+    align-items: flex-start;
+  }
+
+  .ia-settings .ia-collapsible-inner {
+    padding: 14px;
+  }
+
+  .ia-settings .ia-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ia-settings .ia-time-add > * {
+    flex: 1 1 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ia-settings .ia-collapsible,
+  .ia-settings .ia-collapsible-icon,
+  .ia-settings .ia-radio,
+  .ia-settings .ia-check--primary {
+    transition: none;
   }
 }
 
