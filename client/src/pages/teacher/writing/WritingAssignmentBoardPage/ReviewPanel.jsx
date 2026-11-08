@@ -19,6 +19,7 @@ import {
   isStaleAssessment,
   latestForDraft,
   payloadFromForm,
+  splitWordUse,
 } from "./assessmentPresentation.js";
 import { formatDateTime } from "./boardPresentation.js";
 import FeedbackEmailResend from "./FeedbackEmailResend.jsx";
@@ -86,6 +87,8 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
   }, [runningRun]);
 
   if (!project || !latestDraft) return null;
+
+  const wordUse = splitWordUse(form.wordUse);
 
   const run = async (key, action, successMessage) => {
     setPending(key);
@@ -456,61 +459,74 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
             </div>
           )}
 
-          {(form.wordUse || []).length > 0 && (
+          {(wordUse.active.length > 0 || wordUse.unused.length > 0) && (
             <div className="wa-review-words">
               <span className="wa-field-label">
                 {t("writing:teacher.review.wordUseTitle")}
               </span>
-              <ul className="wa-word-use">
-                {form.wordUse.map((row) => (
-                  <li
-                    key={`${row.source}:${row.word}`}
-                    className={`wa-word-use-row is-${row.decision || "open"}`}
-                  >
-                    <span className="wa-word-use-word">
-                      {row.word}
-                      <em>
-                        {row.source === "spelling"
-                          ? t("writing:teacher.review.wordUseSpelling")
-                          : t("writing:teacher.review.wordUseVocabulary")}
-                      </em>
-                    </span>
-                    <span className="wa-word-use-fact">
-                      {row.used
-                        ? t("writing:teacher.review.wordUseUsed")
-                        : row.nearMisses.length
-                          ? t("writing:teacher.review.wordUseNear", {
-                              words: row.nearMisses.join(", "),
-                            })
-                          : t("writing:teacher.review.wordUseMissing")}
-                    </span>
-                    {feedbackEditable && (
-                      <span className="wa-word-use-actions">
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          aria-pressed={row.decision === "confirmed"}
-                          onClick={() =>
-                            decideWordUse(row.source, row.word, "confirmed")
-                          }
-                        >
-                          {t("writing:teacher.review.wordUseConfirm")}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          aria-pressed={row.decision === "rejected"}
-                          onClick={() =>
-                            decideWordUse(row.source, row.word, "rejected")
-                          }
-                        >
-                          {t("writing:teacher.review.wordUseReject")}
-                        </button>
+              {wordUse.active.length > 0 && (
+                <ul className="wa-word-use">
+                  {wordUse.active.map((row) => (
+                    <li
+                      key={`${row.source}:${row.word}`}
+                      className={`wa-word-use-row is-${row.decision || "open"}`}
+                    >
+                      <span className="wa-word-use-word">
+                        {row.word}
+                        <em>
+                          {row.source === "spelling"
+                            ? t("writing:teacher.review.wordUseSpelling")
+                            : t("writing:teacher.review.wordUseVocabulary")}
+                        </em>
                       </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                      <span className="wa-word-use-fact">
+                        {row.used
+                          ? t("writing:teacher.review.wordUseUsed")
+                          : t("writing:teacher.review.wordUseNear", {
+                              words: row.nearMisses.join(", "),
+                            })}
+                      </span>
+                      {feedbackEditable && (
+                        <span className="wa-word-use-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            aria-pressed={row.decision === "confirmed"}
+                            onClick={() =>
+                              decideWordUse(row.source, row.word, "confirmed")
+                            }
+                          >
+                            {t("writing:teacher.review.wordUseConfirm")}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            aria-pressed={row.decision === "rejected"}
+                            onClick={() =>
+                              decideWordUse(row.source, row.word, "rejected")
+                            }
+                          >
+                            {t("writing:teacher.review.wordUseReject")}
+                          </button>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {wordUse.unused.length > 0 && (
+                <p className="wa-word-use-unused">
+                  <span>{t("writing:teacher.review.wordUseMissing")}</span>
+                  {wordUse.unused.map((row) => (
+                    <span
+                      key={`${row.source}:${row.word}`}
+                      className="wa-word-use-chip"
+                    >
+                      {row.word}
+                    </span>
+                  ))}
+                </p>
+              )}
               <p className="wa-hint">
                 {t("writing:teacher.review.wordUseHint")}
               </p>

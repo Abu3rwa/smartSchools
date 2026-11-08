@@ -28,6 +28,7 @@ import {
   myWriting,
   overrideProjectStage,
   previewFeedbackEmail,
+  previewWordSupport,
   publishAssessment,
   recordNotebookReview,
   reportPasteAttempt,
@@ -45,7 +46,6 @@ router.use(requireSchoolContext);
 router.use(requireFeature("writingAssistant"));
 
 const staff = authorize("teacher", "admin", "super_admin");
-const admin = authorize("admin", "super_admin");
 
 /* Teacher: assignment configuration */
 router.post("/assignments", staff, createAssignment);
@@ -53,6 +53,11 @@ router.get("/assignments", staff, listAssignments);
 router.get("/assignments/:assignmentId", staff, getAssignment);
 router.patch("/assignments/:assignmentId", staff, updateAssignment);
 router.delete("/assignments/:assignmentId", staff, deactivateAssignment);
+router.post(
+  "/assignments/:assignmentId/word-support/preview",
+  staff,
+  previewWordSupport,
+);
 
 /* Teacher: templates */
 router.get("/templates", staff, listTemplates);

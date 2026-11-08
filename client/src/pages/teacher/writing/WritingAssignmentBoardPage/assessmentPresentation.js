@@ -60,6 +60,17 @@ const wordUseRows = (assessment) => {
   return rows;
 };
 
+/** Rows worth a decision (used or a near miss) vs. words simply never used. */
+export const splitWordUse = (rows = []) => {
+  const active = [];
+  const unused = [];
+  for (const row of rows || []) {
+    if (row.used || (row.nearMisses || []).length) active.push(row);
+    else unused.push(row);
+  }
+  return { active, unused };
+};
+
 export const formFromAssessment = (assessment) => {
   if (!assessment) return null;
   const overall = assessment.overall || {};

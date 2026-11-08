@@ -18,6 +18,10 @@ export const writingService = {
     api.patch(`/writing/assignments/${assignmentId}`, body).then(unwrap),
   deactivateAssignment: (assignmentId) =>
     api.delete(`/writing/assignments/${assignmentId}`).then(unwrap),
+  previewWordSupport: (assignmentId, body) =>
+    api
+      .post(`/writing/assignments/${assignmentId}/word-support/preview`, body || {})
+      .then(unwrap),
 
   // Teacher: templates
   listTemplates: () => api.get("/writing/templates").then(unwrap),

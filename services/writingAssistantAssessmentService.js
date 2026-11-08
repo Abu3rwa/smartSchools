@@ -25,7 +25,6 @@ import { fillStudentTokensDeep } from "./aiPromptSafety.js";
 import {
   analyzeWordUse,
   applyWordUseDecisions,
-  resolveWritingWordSupport,
 } from "./writingWordSupportService.js";
 import {
   buildComparisonPrompt,
@@ -215,14 +214,9 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
     draft,
   });
   // The submitted draft carries the words the student was actually offered.
-  const wordSupport =
-    draft.configSnapshot?.wordSupport ||
-    (await resolveWritingWordSupport({
-      schoolId,
-      studentId: draft.student,
-      assignment,
-      priorTargets: priorSpellingTargets,
-    }));
+  // A draft that predates a snapshot gets no word evidence rather than
+  // evidence measured against today's word lists.
+  const wordSupport = draft.configSnapshot?.wordSupport || null;
 
   return {
     draft,

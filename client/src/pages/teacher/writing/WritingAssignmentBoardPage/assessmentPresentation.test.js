@@ -9,6 +9,7 @@ import {
   payloadFromForm,
   publishedFeedbackForEmail,
   splitLines,
+  splitWordUse,
 } from './assessmentPresentation.js';
 
 test('a run left behind by a restart is offered as a retry, a live one is not', () => {
@@ -202,4 +203,16 @@ test('word use evidence survives the form round trip and keeps decisions', () =>
     { source: 'spelling', word: 'beautiful', decision: 'confirmed' },
     { source: 'vocabulary', word: 'photosynthesis', decision: '' },
   ]);
+});
+
+test('word use splits words that need a look from words simply not used', () => {
+  const rows = [
+    { source: 'spelling', word: 'beautiful', used: true, nearMisses: [] },
+    { source: 'vocabulary', word: 'photosynthesis', used: false, nearMisses: ['photosyntesis'] },
+    { source: 'vocabulary', word: 'adapt', used: false, nearMisses: [] },
+  ];
+  const { active, unused } = splitWordUse(rows);
+  assert.deepEqual(active.map((row) => row.word), ['beautiful', 'photosynthesis']);
+  assert.deepEqual(unused.map((row) => row.word), ['adapt']);
+  assert.deepEqual(splitWordUse(), { active: [], unused: [] });
 });

@@ -1062,6 +1062,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: auto;
+  min-height: 0;
+  min-width: 0;
+  align-self: flex-start;
   padding: 14px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -1073,6 +1077,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .assignments-mobile-card__heading {
@@ -1080,6 +1085,21 @@
   align-items: flex-start;
   gap: 10px;
   min-width: 0;
+}
+
+.assignments-mobile-card__heading > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.assignments-mobile-card .assignments-row-title {
+  overflow-wrap: anywhere;
+}
+
+/* Wrap the meta line instead of leaning on manual bullets that can dangle
+   at the start or end of a wrapped line. */
+.assignments-mobile-card .assignments-meta-dot {
+  display: none;
 }
 
 .assignments-mobile-card__state {
@@ -1090,12 +1110,35 @@
   gap: 6px;
 }
 
+.assignments-mobile-card .assignments-classroom-badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .assignments-mobile-card__top {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .assignments-mobile-card__state {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+}
+
 .assignments-mobile-card__meta {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.assignments-mobile-card__meta:empty {
+  display: none;
 }
 
 .assignments-mobile-card__meta .assignments-progress {
@@ -1106,8 +1149,15 @@
   justify-content: flex-start;
 }
 
-.assignments-mobile-card > .assignments-row-actions .btn {
+.assignments-mobile-card > .assignments-row-actions .assignments-row-actions__primary {
   flex: 1;
+  min-height: 44px;
+}
+
+.assignments-mobile-card > .assignments-row-actions .assignments-icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
 }
 
 /* ── Drawer ────────────────────────────────────────────────── */

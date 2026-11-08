@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   HiOutlineCheck,
@@ -6,6 +6,7 @@ import {
   HiOutlineChevronUp,
   HiOutlinePlus,
 } from "react-icons/hi";
+import { wordIsUsed, wordMatches } from "./railLogic.js";
 
 function Block({ children, defaultOpen = false, forceOpen = false, title }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -49,14 +50,46 @@ const Lines = ({ items }) => (
   </ul>
 );
 
-const matches = (word, query) =>
-  !query || String(word || "").toLowerCase().includes(query);
+const matches = (row, query) => wordMatches(row, query);
 
-function WordButton({ row, used, onInsert, canInsert, insertLabel }) {
+function WordButton({
+  row,
+  used,
+  onInsert,
+  canInsert,
+  insertLabel,
+  meaningLabel,
+}) {
   const [open, setOpen] = useState(false);
-  const detail = row.meaning || row.example;
+  const detailId = useId();
+  const hasDetail = Boolean(row.meaning || row.arabicMeaning || row.example);
+  const label = (
+    <span className="ws-word-text">
+      {used && <HiOutlineCheck size={13} aria-hidden="true" />}
+      {row.word}
+    </span>
+  );
   return (
     <div className={`ws-word${used ? " is-used" : ""}`}>
+      {hasDetail ? (
+        <button
+          type="button"
+          className="ws-word-open"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-controls={open ? detailId : undefined}
+          aria-label={meaningLabel}
+        >
+          {label}
+          {open ? (
+            <HiOutlineChevronUp size={13} aria-hidden="true" />
+          ) : (
+            <HiOutlineChevronDown size={13} aria-hidden="true" />
+          )}
+        </button>
+      ) : (
+        <span className="ws-word-open ws-word-open--static">{label}</span>
+      )}
       <button
         type="button"
         className="ws-word-insert"
@@ -64,30 +97,19 @@ function WordButton({ row, used, onInsert, canInsert, insertLabel }) {
         disabled={!canInsert}
         aria-label={insertLabel}
       >
-        <span className="ws-word-text">
-          {used && <HiOutlineCheck size={13} aria-hidden="true" />}
-          {row.word}
-        </span>
-        <HiOutlinePlus size={13} aria-hidden="true" />
+        <HiOutlinePlus size={14} aria-hidden="true" />
       </button>
-      {detail && (
-        <>
-          <button
-            type="button"
-            className="ws-word-more"
-            onClick={() => setOpen(!open)}
-            aria-expanded={open}
-          >
-            {open ? "–" : "…"}
-          </button>
-          {open && (
-            <p className="ws-word-detail">
-              {row.partOfSpeech && <em>{row.partOfSpeech}</em>}
-              {row.meaning && <span>{row.meaning}</span>}
-              {row.example && <span className="ws-word-example">{row.example}</span>}
-            </p>
+      {open && (
+        <p className="ws-word-detail" id={detailId}>
+          {row.partOfSpeech && <em>{row.partOfSpeech}</em>}
+          {row.meaning && <span>{row.meaning}</span>}
+          {row.arabicMeaning && (
+            <span className="ws-word-arabic" dir="rtl" lang="ar">
+              {row.arabicMeaning}
+            </span>
           )}
-        </>
+          {row.example && <span className="ws-word-example">{row.example}</span>}
+        </p>
       )}
     </div>
   );
@@ -109,11 +131,15 @@ export default function SupportsRail({
   const used = usedWords || new Set();
   const needle = query.trim().toLowerCase();
   const insertLabel = (word) => t("writing:student.insertWord", { word });
+  const meaningLabel = (word) => t("writing:student.wordMeaning", { word });
+  // The server counts a word, its base form, and common inflections, so the
+  // tick has to use the same rule.
+  const isUsed = (row) => wordIsUsed(row, used);
   const spellingWords = (wordSupport?.spelling?.words || []).filter((row) =>
-    matches(row.word, needle),
+    matches(row, needle),
   );
   const vocabularyWords = (wordSupport?.vocabulary?.words || []).filter(
-    (row) => matches(row.word, needle),
+    (row) => matches(row, needle),
   );
   const wordBank = (supports.wordBank || []).filter((word) =>
     matches(word, needle),
@@ -121,6 +147,11 @@ export default function SupportsRail({
   const filterable = Boolean(
     wordSupport?.spelling?.enabled ||
       wordSupport?.vocabulary?.enabled ||
+      (supports.wordBank || []).length,
+  );
+  const hasWords = Boolean(
+    (wordSupport?.spelling?.words || []).length ||
+      (wordSupport?.vocabulary?.words || []).length ||
       (supports.wordBank || []).length,
   );
 
@@ -168,6 +199,10 @@ export default function SupportsRail({
         </label>
       )}
 
+      {!canInsert && hasWords && (
+        <p className="ws-rail-hint">{t("writing:student.readOnlyWordHint")}</p>
+      )}
+
       {wordSupport?.spelling?.enabled && (
         <Block
           title={t("writing:student.spellingWords")}
@@ -180,10 +215,11 @@ export default function SupportsRail({
                   <WordButton
                     key={`spelling:${row.word}`}
                     row={row}
-                    used={used.has(String(row.word).toLowerCase())}
+                    used={isUsed(row)}
                     onInsert={onInsertWord}
                     canInsert={canInsert}
                     insertLabel={insertLabel(row.word)}
+                    meaningLabel={meaningLabel(row.word)}
                   />
                 ))}
               </div>
@@ -223,16 +259,25 @@ export default function SupportsRail({
                         <WordButton
                           key={`vocab:${list.listId}:${row.word}`}
                           row={row}
-                          used={used.has(String(row.word).toLowerCase())}
+                          used={isUsed(row)}
                           onInsert={onInsertWord}
                           canInsert={canInsert}
                           insertLabel={insertLabel(row.word)}
+                          meaningLabel={meaningLabel(row.word)}
                         />
                       ))}
                     </div>
                   </div>
                 );
               })}
+              {!needle && wordSupport.vocabulary.truncated && (
+                <p className="ws-rail-hint">
+                  {t("writing:student.vocabularyWordsTruncated", {
+                    shown: wordSupport.vocabulary.shown,
+                    total: wordSupport.vocabulary.total,
+                  })}
+                </p>
+              )}
               <p className="ws-rail-hint">
                 {t("writing:student.vocabularyWordsHint")}
               </p>
@@ -256,10 +301,11 @@ export default function SupportsRail({
               <WordButton
                 key={`bank:${word}`}
                 row={{ word }}
-                used={used.has(String(word).toLowerCase())}
+                used={isUsed({ word })}
                 onInsert={onInsertWord}
                 canInsert={canInsert}
                 insertLabel={insertLabel(word)}
+                meaningLabel={meaningLabel(word)}
               />
             ))}
           </div>

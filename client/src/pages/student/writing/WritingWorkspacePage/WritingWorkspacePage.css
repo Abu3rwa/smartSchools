@@ -808,10 +808,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
-.ws-word-insert {
+.ws-word-open {
   flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -819,20 +821,51 @@
   border: 1px solid var(--ws-line);
   background: var(--ws-surface-2);
   border-radius: 8px;
-  padding: 5px 9px;
+  padding: 6px 9px;
   font: inherit;
   font-size: 0.82rem;
   color: var(--ws-ink);
   text-align: start;
   cursor: pointer;
 }
+.ws-word-open:hover {
+  border-color: var(--ws-teal);
+  background: var(--ws-soft);
+}
+.ws-word-open:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ws-teal) 45%, transparent);
+  outline-offset: 1px;
+}
+.ws-word-open--static {
+  cursor: default;
+}
+.ws-word-open--static:hover {
+  border-color: var(--ws-line);
+  background: var(--ws-surface-2);
+}
+.ws-word-insert {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-surface);
+  border-radius: 8px;
+  color: var(--ws-teal);
+  cursor: pointer;
+}
 .ws-word-insert:hover:not(:disabled) {
   border-color: var(--ws-teal);
   background: var(--ws-soft);
 }
+.ws-word-insert:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ws-teal) 45%, transparent);
+  outline-offset: 1px;
+}
 .ws-word-insert:disabled {
   cursor: default;
-  opacity: 0.7;
+  opacity: 0.5;
 }
 .ws-word-text {
   display: inline-flex;
@@ -842,18 +875,6 @@
 .ws-word.is-used .ws-word-text {
   color: #15803d;
   font-weight: 600;
-}
-.ws-word-more {
-  border: 0;
-  background: transparent;
-  color: var(--ws-muted);
-  cursor: pointer;
-  padding: 0 5px;
-  font-size: 0.9rem;
-  line-height: 1;
-}
-.ws-word-more:hover {
-  color: var(--ws-teal);
 }
 .ws-word-detail {
   flex: 1 1 100%;
@@ -871,6 +892,18 @@
 .ws-word-detail em {
   font-style: italic;
   color: var(--ws-teal);
+}
+.ws-word-arabic {
+  color: var(--ws-ink);
+}
+@media (pointer: coarse) {
+  .ws-word-open {
+    min-height: 44px;
+  }
+  .ws-word-insert {
+    width: 44px;
+    height: 44px;
+  }
 }
 .ws-word-example {
   font-style: italic;

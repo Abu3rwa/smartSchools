@@ -55,7 +55,7 @@ const LABELS = {
     spellingWins: "Spelling wins",
     wordUse: "Word support evidence",
     used: "used",
-    near: "near miss",
+    near: "possible near miss",
     notUsed: "not used",
     student: "Student",
     noFeedback: "Feedback has not been published yet.",
@@ -77,7 +77,7 @@ const LABELS = {
     spellingWins: "كلمات إملاء صحيحة",
     wordUse: "استخدام الكلمات المدعومة",
     used: "مستخدمة",
-    near: "قريبة من الصواب",
+    near: "كتابة قريبة محتملة",
     notUsed: "غير مستخدمة",
     student: "الطالب",
     noFeedback: "لم تُنشر الملاحظات بعد.",
@@ -129,22 +129,32 @@ const wordUseHtml = (evidence, L) => {
     })),
   ];
   if (!rows.length) return "";
+  // Unused words are the rail's whole list; printing them buries the evidence.
+  const activeRows = rows.filter(
+    (row) => row.used || row.nearMisses?.length,
+  );
+  const unusedCount = rows.length - activeRows.length;
   return `
     <section class="block">
       <h3>${L.wordUse}</h3>
-      <table>
+      ${
+        activeRows.length
+          ? `<table>
         <tbody>
-          ${rows
+          ${activeRows
             .map(
               (row) => `
             <tr>
               <td><strong>${escapeHtml(row.word)}</strong></td>
-              <td>${row.used ? `${L.used}${row.count ? ` ×${Number(row.count)}` : ""}` : row.nearMisses?.length ? `${L.near}: ${row.nearMisses.map(escapeHtml).join(", ")}` : L.notUsed}</td>
+              <td>${row.used ? `${L.used}${row.count ? ` ×${Number(row.count)}` : ""}` : `${L.near}: ${row.nearMisses.map(escapeHtml).join(", ")}`}</td>
             </tr>`,
             )
             .join("")}
         </tbody>
-      </table>
+      </table>`
+          : ""
+      }
+      ${unusedCount ? `<p class="muted">${L.notUsed} (${unusedCount})</p>` : ""}
     </section>`;
 };
 

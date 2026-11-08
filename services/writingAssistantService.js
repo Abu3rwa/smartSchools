@@ -216,7 +216,7 @@ const resolveStructure = (payload) => {
 const assertVisibleToTeacher = (assignment, userId, isAdmin) => {
   if (isAdmin || sameId(assignment.assignedBy, userId)) return;
   throw forbidden(
-    "Only the teacher who created this writing task or a school admin can change it.",
+    "Only the teacher who created this writing task or a school admin can view or change it.",
   );
 };
 
@@ -563,6 +563,61 @@ export const getAssignment = async ({ schoolId, assignmentId }) => {
 };
 
 /**
+ * What one student would see for a word-support config a teacher is still
+ * editing. Reads only: nothing is saved and no word record changes.
+ */
+export const previewWordSupport = async ({
+  schoolId,
+  assignmentId,
+  userId,
+  isAdmin = false,
+  studentId,
+  wordSupport,
+}) => {
+  const id = objectId(assignmentId);
+  if (!id) throw notFound("Writing task not found.");
+  const assignment = await WritingAssignment.findOne({
+    school: schoolId,
+    _id: id,
+  }).lean();
+  if (!assignment) throw notFound("Writing task not found.");
+  assertVisibleToTeacher(assignment, userId, isAdmin);
+
+  const student = objectId(studentId);
+  if (
+    !student ||
+    !(assignment.students || []).some((row) => sameId(row, student))
+  ) {
+    throw badRequest("Choose a student from this task's audience.");
+  }
+
+  const published = await WritingAssessment.find({
+    school: schoolId,
+    assignment: assignment._id,
+    student,
+    aiStatus: "done",
+    "publish.state": "published",
+    "spellingTargets.0": { $exists: true },
+  })
+    .sort({ createdAt: -1 })
+    .select("spellingTargets")
+    .lean();
+
+  return resolveWritingWordSupport({
+    schoolId,
+    studentId: student,
+    assignment: {
+      ...assignment,
+      supports: {
+        ...(assignment.supports || {}),
+        wordSupport: normalizeWordSupport(wordSupport),
+      },
+    },
+    priorTargets: published[0]?.spellingTargets || [],
+  });
+};
+
+/**
  * Hide the task from students without deleting any writing. Same convention as
  * the reading module: results stay reviewable by the teacher.
  */
@@ -828,23 +883,28 @@ export const submitDraft = async ({
     );
   }
 
-  // The words the student could see are frozen with the draft, so a later
-  // spelling or vocabulary change cannot rewrite what this draft was offered.
-  const prior = await WritingAssessment.findOne({
-    school: schoolId,
-    project: project._id,
-    "publish.state": "published",
-    "spellingTargets.0": { $exists: true },
-  })
-    .sort({ createdAt: -1 })
-    .select("spellingTargets")
-    .lean();
-  const wordSupport = await resolveWritingWordSupport({
-    schoolId,
-    studentId,
-    assignment,
-    priorTargets: prior?.spellingTargets || [],
-  });
+  // Freeze the words the rail actually showed this student. Re-resolving here
+  // would let a spelling or vocabulary change made while they were writing
+  // rewrite what the draft was offered. Projects opened before this snapshot
+  // existed fall back to resolving once.
+  let wordSupport = project.wordSupportSnapshot || null;
+  if (!wordSupport) {
+    const prior = await WritingAssessment.findOne({
+      school: schoolId,
+      project: project._id,
+      "publish.state": "published",
+      "spellingTargets.0": { $exists: true },
+    })
+      .sort({ createdAt: -1 })
+      .select("spellingTargets")
+      .lean();
+    wordSupport = await resolveWritingWordSupport({
+      schoolId,
+      studentId,
+      assignment,
+      priorTargets: prior?.spellingTargets || [],
+    });
+  }
 
   const number = (Number(project.draftCount) || 0) + 1;
   const draftSections = buildDraftSections({ assignment, sections: working });
@@ -1160,6 +1220,19 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       assessments.find((row) => row.spellingTargets?.length)?.spellingTargets ||
       [],
   });
+  // Keep the exact set this read serves so submit can freeze what the student
+  // actually saw, not what happens to resolve later.
+  if (JSON.stringify(project.wordSupportSnapshot) !== JSON.stringify(wordSupport)) {
+    await WritingProject.updateOne(
+      { school: schoolId, _id: project._id },
+      {
+        $set: {
+          wordSupportSnapshot: wordSupport,
+          wordSupportResolvedAt: new Date(),
+        },
+      },
+    );
+  }
 
   return {
     project: {

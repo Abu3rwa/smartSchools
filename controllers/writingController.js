@@ -97,6 +97,18 @@ export const deactivateAssignment = asyncHandler(async (req, res) => {
   res.json({ success: true, data: result });
 });
 
+export const previewWordSupport = asyncHandler(async (req, res) => {
+  const data = await writingService.previewWordSupport({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    studentId: req.body?.studentId,
+    wordSupport: req.body?.wordSupport,
+  });
+  res.json({ success: true, data });
+});
+
 export const saveAsTemplate = asyncHandler(async (req, res) => {
   const template = await writingService.saveAsTemplate({
     schoolId: req.schoolId,

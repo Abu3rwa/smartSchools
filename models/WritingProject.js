@@ -94,6 +94,13 @@ const writingProjectSchema = new mongoose.Schema(
       sections: { type: [workingSectionSchema], default: [] },
       updatedAt: { type: Date },
     },
+    // What the rail actually served, refreshed whenever a read resolves a
+    // different set and frozen into the draft at submit.
+    wordSupportSnapshot: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    wordSupportResolvedAt: { type: Date },
     wordCount: { type: Number, default: 0 },
     firstOpenedAt: { type: Date },
     lastEditedAt: { type: Date },

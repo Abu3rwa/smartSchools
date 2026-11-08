@@ -17,6 +17,7 @@ export default function WritingAssignmentBuilderPage() {
   const { t } = useTranslation(["writing"]);
   const [step, setStep] = useState(0);
   const {
+    assignmentId,
     classes,
     errors,
     form,
@@ -88,7 +89,9 @@ export default function WritingAssignmentBuilderPage() {
           {key === "structure" && <StructureStep errors={errors} form={form} update={update} />}
           {key === "supports" && (
             <SupportsStep
+              assignmentId={assignmentId}
               form={form}
+              roster={roster}
               update={update}
               vocabularyLists={vocabularyLists}
             />

@@ -131,6 +131,7 @@ export function useWritingBuilderData() {
   }, [assignmentId, form, isEdit, navigate, t]);
 
   return {
+    assignmentId,
     errors,
     form,
     isEdit,

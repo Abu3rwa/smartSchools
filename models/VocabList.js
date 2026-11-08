@@ -4,7 +4,7 @@ import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 const vocabListSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     // Stable identifier such as S1-L1; titles are display-only and may change.
-    listId: { type: String, required: true, trim: true, uppercase: true, match: /^S[12]-L\d{1,2}$/ },
+    listId: { type: String, required: true, trim: true, uppercase: true, match: /^S\d{1,2}-L\d{1,3}$/ },
     semester: { type: Number, enum: [1, 2], required: true },
     listNumber: { type: Number, required: true, min: 1 },
     title: { type: String, required: true, trim: true, maxlength: 200 },
