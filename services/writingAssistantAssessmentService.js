@@ -23,6 +23,11 @@ import { connectAi } from "../utils/connectAi.js";
 import logger from "../utils/logger.js";
 import { fillStudentTokensDeep } from "./aiPromptSafety.js";
 import {
+  analyzeWordUse,
+  applyWordUseDecisions,
+  resolveWritingWordSupport,
+} from "./writingWordSupportService.js";
+import {
   buildComparisonPrompt,
   buildFeedbackPrompt,
   decideRecommendation,
@@ -209,6 +214,15 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
     schoolId,
     draft,
   });
+  // The submitted draft carries the words the student was actually offered.
+  const wordSupport =
+    draft.configSnapshot?.wordSupport ||
+    (await resolveWritingWordSupport({
+      schoolId,
+      studentId: draft.student,
+      assignment,
+      priorTargets: priorSpellingTargets,
+    }));
 
   return {
     draft,
@@ -226,6 +240,7 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
       week: row.week,
     })),
     priorSpellingTargets,
+    wordSupport,
   };
 };
 
@@ -494,9 +509,14 @@ const runFeedback = async ({
     profile,
     spellingCandidates,
     priorSpellingTargets,
+    wordSupport,
   } = context;
   const snapshot = snapshotFor(draft, assignment);
   const stalledTasks = stalledTasksFrom(project?.revisionLedger || []);
+  const wordUse = analyzeWordUse({
+    draftText: draftTextOf(draft),
+    wordSupport,
+  });
   const prompt = buildFeedbackPrompt({
     snapshot,
     draft,
@@ -572,6 +592,7 @@ const runFeedback = async ({
       targets: priorSpellingTargets,
       draftText: draftTextOf(draft),
     }),
+    ...(wordUse ? { wordUseEvidence: wordUse } : {}),
     totalScore: normalized.totalScore,
     recommendation: { path: decision.path, reason: decision.reason },
     ...(checked
@@ -615,8 +636,13 @@ const runComparison = async ({
     profile,
     spellingCandidates,
     priorSpellingTargets,
+    wordSupport,
   } = context;
   const snapshot = snapshotFor(draft, assignment);
+  const wordUse = analyzeWordUse({
+    draftText: draftTextOf(draft),
+    wordSupport,
+  });
   const prompt = buildComparisonPrompt({
     snapshot,
     previousDraft,
@@ -674,6 +700,7 @@ const runComparison = async ({
     scores: normalized.scores,
     spellingTargets: normalized.spellingTargets,
     spellingWins: normalized.spellingWins,
+    ...(wordUse ? { wordUseEvidence: wordUse } : {}),
     totalScore: normalized.scores.reduce(
       (sum, row) => sum + (Number(row.score) || 0),
       0,
@@ -999,6 +1026,7 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
       totalScore: assessment.totalScore,
       comparison: plain(assessment.comparison),
       recommendation: plain(assessment.recommendation),
+      wordUseEvidence: plain(assessment.wordUseEvidence),
     };
   }
 
@@ -1134,6 +1162,23 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
     if (value.length !== before.length) {
       assessment.spellingTargets = value;
       mark("spellingTargets");
+    }
+  }
+
+  // A teacher can confirm or set aside a word-use observation. This never
+  // changes a score; it only records what the teacher verified.
+  if (Array.isArray(payload.wordUse) && assessment.wordUseEvidence) {
+    const plainEvidence =
+      typeof assessment.wordUseEvidence.toObject === "function"
+        ? assessment.wordUseEvidence.toObject()
+        : assessment.wordUseEvidence;
+    const touched = applyWordUseDecisions({
+      evidence: plainEvidence,
+      decisions: payload.wordUse,
+    });
+    if (touched.length) {
+      assessment.wordUseEvidence = plainEvidence;
+      touched.forEach((path) => mark(`wordUse.${path}`));
     }
   }
 

@@ -163,3 +163,43 @@ test('an assessment from before spelling targets existed sends an empty list, no
   const payload = payloadFromForm(formFromAssessment(assessment));
   assert.deepEqual(payload.spellingTargets, []);
 });
+
+test('word use evidence survives the form round trip and keeps decisions', () => {
+  const withEvidence = {
+    ...assessment,
+    wordUseEvidence: {
+      spelling: [
+        {
+          word: 'beautiful',
+          used: true,
+          count: 2,
+          nearMisses: [],
+          teacherDecision: 'confirmed',
+        },
+      ],
+      vocabulary: [
+        {
+          word: 'photosynthesis',
+          listId: 'S1-L1',
+          used: false,
+          count: 0,
+          nearMisses: ['photosyntesis'],
+          teacherDecision: '',
+        },
+      ],
+    },
+  };
+  const form = formFromAssessment(withEvidence);
+  assert.deepEqual(
+    form.wordUse.map((row) => [row.source, row.word, row.decision]),
+    [
+      ['spelling', 'beautiful', 'confirmed'],
+      ['vocabulary', 'photosynthesis', ''],
+    ],
+  );
+  const payload = payloadFromForm(form);
+  assert.deepEqual(payload.wordUse, [
+    { source: 'spelling', word: 'beautiful', decision: 'confirmed' },
+    { source: 'vocabulary', word: 'photosynthesis', decision: '' },
+  ]);
+});

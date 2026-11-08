@@ -27,6 +27,7 @@ export default function WritingAssignmentBuilderPage() {
     save,
     saving,
     update,
+    vocabularyLists,
   } = useWritingBuilderData();
 
   const applyCsv = useCallback((patch) => {
@@ -85,7 +86,13 @@ export default function WritingAssignmentBuilderPage() {
             <DetailsStep classes={classes} errors={errors} form={form} roster={roster} update={update} />
           )}
           {key === "structure" && <StructureStep errors={errors} form={form} update={update} />}
-          {key === "supports" && <SupportsStep form={form} update={update} />}
+          {key === "supports" && (
+            <SupportsStep
+              form={form}
+              update={update}
+              vocabularyLists={vocabularyLists}
+            />
+          )}
           {key === "rubric" && <RubricStep errors={errors} form={form} update={update} />}
 
           {step > 0 && key !== "rubric" && Object.keys(errors).length > 0 && (

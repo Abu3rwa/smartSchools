@@ -56,8 +56,10 @@ export default function SectionCard({
   note,
   onChange,
   onAdd,
+  onFocus,
   onRemove,
   readOnly,
+  registerEditor,
   section,
 }) {
   const { t } = useTranslation(["writing"]);
@@ -82,12 +84,14 @@ export default function SectionCard({
       )}
 
       <textarea
+        ref={registerEditor}
         value={section.text}
         readOnly={readOnly}
         rows={Math.min(14, Math.max(5, Math.ceil(words / 12)))}
         onChange={(event) =>
           onChange(section.key, section.index, event.target.value)
         }
+        onFocus={onFocus}
         data-paste-key={section.key}
         data-paste-index={section.index}
         placeholder={t("writing:student.sectionPlaceholder")}

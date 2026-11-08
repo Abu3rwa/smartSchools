@@ -62,6 +62,26 @@ const taskResultSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/** One supported word and whether the draft actually used it. */
+const wordUseRowSchema = new mongoose.Schema(
+  {
+    word: { type: String, trim: true, required: true },
+    listId: { type: String, trim: true, default: "" },
+    grade: { type: String, trim: true, default: "" },
+    week: { type: Number, default: null },
+    used: { type: Boolean, default: false },
+    count: { type: Number, default: 0, min: 0 },
+    nearMisses: [{ type: String, trim: true }],
+    // A teacher may confirm the evidence or set it aside; neither changes a score.
+    teacherDecision: {
+      type: String,
+      enum: ["", "confirmed", "rejected"],
+      default: "",
+    },
+  },
+  { _id: false },
+);
+
 /** A missed spelling word the AI suggested reusing, filtered to this topic. */
 const spellingTargetSchema = new mongoose.Schema(
   {
@@ -158,6 +178,12 @@ const writingAssessmentSchema = new mongoose.Schema(
     spellingWins: {
       type: [{ word: { type: String, trim: true } }],
       default: [],
+    },
+    // Deterministic evidence from the draft itself: which supported words the
+    // student used, and conservative near misses. Never scored by this field.
+    wordUseEvidence: {
+      spelling: { type: [wordUseRowSchema], default: undefined },
+      vocabulary: { type: [wordUseRowSchema], default: undefined },
     },
     comparison: {
       changedBySection: { type: [changedSectionSchema], default: [] },

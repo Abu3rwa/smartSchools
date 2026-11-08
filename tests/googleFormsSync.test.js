@@ -262,3 +262,69 @@ test('the response list exposes each student\'s grading status', async (t) => {
     assert.equal(rows[0].gradingStatus, 'stale');
     assert.equal(rows[1].gradingStatus, null);
 });
+
+test('the response list totals short answers only once the teacher approves them', async (t) => {
+    withFormsEnabled(t);
+    const questions = [
+        { questionId: 'q1', itemId: 'i1', title: 'Pick one', type: 'multiple_choice', points: 11 },
+        { questionId: 'q2', itemId: 'i2', title: 'Name a ship', type: 'short_answer', points: 2 },
+        { questionId: 'q3', itemId: 'i3', title: 'New World name', type: 'short_answer', points: 1 },
+        { questionId: 'q4', itemId: 'i4', title: 'Northwest Passage', type: 'short_answer', points: 3 },
+        { questionId: 'q5', itemId: 'i5', title: 'Columbian Exchange', type: 'short_answer', points: 2 }
+    ];
+    const submissions = ['student-1', 'student-2', 'student-3'].map((id) => ({
+        _id: `sub-${id}`,
+        student: { _id: id },
+        status: 'submitted',
+        score: 10,
+        possibleScore: 11,
+        answers: []
+    }));
+    const gradingRows = [
+        {
+            student: 'student-1',
+            status: 'approved',
+            questions: [
+                { questionId: 'q2', maxPoints: 2, approvedScore: 1 },
+                { questionId: 'q3', maxPoints: 1, approvedScore: 1 },
+                { questionId: 'q4', maxPoints: 3, approvedScore: 2 },
+                { questionId: 'q5', maxPoints: 2, approvedScore: 2 }
+            ]
+        },
+        { student: 'student-2', status: 'suggested', questions: [{ questionId: 'q2', maxPoints: 2, suggestedScore: 1 }] }
+    ];
+    t.mock.method(GoogleFormSubmission, 'find', () => ({
+        populate: () => ({ sort: () => ({ lean: async () => submissions }) })
+    }));
+    t.mock.method(GoogleFormGrading, 'find', () => ({
+        select: () => ({ lean: async () => gradingRows })
+    }));
+
+    const rows = await listGoogleQuizSubmissions({
+        assignmentId: 'assignment-1',
+        schoolId: 'school-1',
+        assignment: makeAssignment(questions, 11)
+    });
+
+    assert.equal(rows[0].shortAnswerMax, 8);
+    assert.equal(rows[0].shortAnswerScore, 6);
+    assert.equal(rows[0].totalScore, 16);
+    assert.equal(rows[0].totalMax, 19);
+    assert.equal(rows[0].score, 10, 'Google objective score is left untouched');
+
+    assert.equal(rows[1].shortAnswerMax, 8);
+    assert.equal(rows[1].shortAnswerScore, null, 'a suggestion is not a grade');
+    assert.equal(rows[1].totalScore, null);
+    assert.equal(rows[1].totalMax, 19);
+
+    assert.equal(rows[2].totalScore, null, 'ungraded short answers are not counted as zero');
+
+    const objectiveRows = await listGoogleQuizSubmissions({
+        assignmentId: 'assignment-1',
+        schoolId: 'school-1',
+        assignment: makeAssignment(objectiveQuestions, 11)
+    });
+    assert.equal(objectiveRows[0].shortAnswerMax, 0);
+    assert.equal(objectiveRows[0].totalScore, 10);
+    assert.equal(objectiveRows[0].totalMax, 11);
+});

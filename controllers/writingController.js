@@ -9,6 +9,7 @@ import {
   resendPublishedFeedbackEmail,
 } from "../services/writingFeedbackEmailService.js";
 import { getCreditBadge } from "../services/aiCreditService.js";
+import { renderWritingProjectPdf } from "../services/writingDraftPdfService.js";
 
 const studentForRequest = async (req) => {
   const academicYear = resolveAcademicYearForRequest(req);
@@ -30,6 +31,16 @@ const studentForRequest = async (req) => {
 
 const isAdminUser = (user) =>
   ["admin", "super_admin"].includes(String(user?.role || ""));
+
+const sendWritingPdf = (res, pdf) => {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="writing-draft.pdf"',
+  );
+  res.setHeader("Cache-Control", "no-store");
+  res.send(pdf);
+};
 
 /* ------------------------------------------------------------------ */
 /* Teacher                                                             */
@@ -138,6 +149,17 @@ export const getProgress = asyncHandler(async (req, res) => {
     assignmentId: req.params.assignmentId,
   });
   res.json({ success: true, data: progress });
+});
+
+export const exportProjectPdfForTeacher = asyncHandler(async (req, res) => {
+  const pdf = await renderWritingProjectPdf({
+    schoolId: req.schoolId,
+    projectId: req.params.projectId,
+    draftId: req.query.draft || null,
+    publishedOnly: false,
+    includeWordUse: true,
+  });
+  sendWritingPdf(res, pdf);
 });
 
 export const getProjectHistory = asyncHandler(async (req, res) => {
@@ -328,4 +350,18 @@ export const markNotebookWritten = asyncHandler(async (req, res) => {
     studentId: student._id,
   });
   res.json({ success: true, data: result });
+});
+
+/** A student can print their own draft; only published feedback is included. */
+export const exportProjectPdf = asyncHandler(async (req, res) => {
+  const student = await studentForRequest(req);
+  const pdf = await renderWritingProjectPdf({
+    schoolId: req.schoolId,
+    projectId: req.params.projectId,
+    draftId: req.query.draft || null,
+    studentId: student._id,
+    publishedOnly: true,
+    includeWordUse: false,
+  });
+  sendWritingPdf(res, pdf);
 });

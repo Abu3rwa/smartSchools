@@ -56,6 +56,7 @@ const AssignmentsPage = () => {
   const [loadingGoogleFormResults, setLoadingGoogleFormResults] =
     useState(false);
   const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("assignments");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState("dueDate");
@@ -307,6 +308,67 @@ const AssignmentsPage = () => {
 
   const onStartCreateAssignment = () => openCreateDrawer();
 
+  const buildAssignmentPayload = ({ publishNow, postToClassroom }) => {
+    const pendingDriveFiles = Array.isArray(form.pendingDriveFiles)
+      ? form.pendingDriveFiles
+      : [];
+    return {
+      classId: selectedClass,
+      subjectId: selectedSubject,
+      assignmentTypeId: form.assignmentTypeId,
+      title: form.title.trim(),
+      summary: (form.summary || "").trim(),
+      instructions: form.instructions.trim(),
+      lessonPlanIds:
+        Array.isArray(form.lessonPlanIds) && form.lessonPlanIds.length > 0
+          ? form.lessonPlanIds
+          : undefined,
+      links:
+        Array.isArray(form.links) && form.links.length > 0
+          ? form.links
+          : undefined,
+      dueDate: form.dueDate || undefined,
+      maxMarks: Number(form.maxMarks || 10),
+      publishNow,
+      classroomPublish:
+        pendingDriveFiles.length > 0 ? undefined : postToClassroom || undefined,
+      notifyOnAssign: form.notifyOnAssign,
+      notifyAudience: form.notifyAudience || "both",
+      notifyOnGrade: form.notifyOnGrade,
+      createGoogleForm: Boolean(form.createGoogleForm),
+      scope: form.createGoogleForm
+        ? form.scope || "class"
+        : editingAssignment?.scope || "class",
+      studentIds:
+        form.createGoogleForm && form.scope === "selected_students"
+          ? form.studentIds || []
+          : !form.createGoogleForm &&
+              editingAssignment?.scope === "selected_students"
+            ? editingAssignment.studentIds || []
+            : [],
+      ...(form.createGoogleForm && !editingAssignment?.googleForm?.responderUri
+        ? {
+            metadata: {
+              googleForm: {
+                questions: form.googleFormQuestions || [],
+              },
+            },
+          }
+        : {}),
+      ...(!form.createGoogleForm &&
+      editingAssignment?.googleForm &&
+      !editingAssignment.googleForm.responderUri
+        ? { metadata: null }
+        : {}),
+      academicYear,
+      removeAttachmentIds:
+        Array.isArray(form.removeAttachmentIds) &&
+        form.removeAttachmentIds.length > 0
+          ? form.removeAttachmentIds
+          : undefined,
+    };
+  };
+
   const onCreateAssignment = async (event) => {
     event.preventDefault();
     if (!selectedClass || !selectedSubject) {
@@ -383,62 +445,10 @@ const AssignmentsPage = () => {
 
     setSubmitting(true);
     try {
-      const payload = {
-        classId: selectedClass,
-        subjectId: selectedSubject,
-        assignmentTypeId: form.assignmentTypeId,
-        title: form.title.trim(),
-        summary: (form.summary || "").trim(),
-        instructions: form.instructions.trim(),
-        lessonPlanIds:
-          Array.isArray(form.lessonPlanIds) && form.lessonPlanIds.length > 0
-            ? form.lessonPlanIds
-            : undefined,
-        links:
-          Array.isArray(form.links) && form.links.length > 0
-            ? form.links
-            : undefined,
-        dueDate: form.dueDate || undefined,
-        maxMarks: Number(form.maxMarks || 10),
+      const payload = buildAssignmentPayload({
         publishNow: deferPublish ? false : publishNow,
-        classroomPublish:
-          pendingDriveFiles.length > 0
-            ? undefined
-            : postToClassroom || undefined,
-        notifyOnAssign: form.notifyOnAssign,
-        notifyAudience: form.notifyAudience || "both",
-        notifyOnGrade: form.notifyOnGrade,
-        createGoogleForm: Boolean(form.createGoogleForm),
-        scope: form.createGoogleForm
-          ? form.scope || "class"
-          : editingAssignment?.scope || "class",
-        studentIds:
-          form.createGoogleForm && form.scope === "selected_students"
-            ? form.studentIds || []
-            : !form.createGoogleForm &&
-                editingAssignment?.scope === "selected_students"
-              ? editingAssignment.studentIds || []
-              : [],
-        ...(form.createGoogleForm &&
-        !editingAssignment?.googleForm?.responderUri
-          ? {
-              metadata: {
-                googleForm: { questions: form.googleFormQuestions || [] },
-              },
-            }
-          : {}),
-        ...(!form.createGoogleForm &&
-        editingAssignment?.googleForm &&
-        !editingAssignment.googleForm.responderUri
-          ? { metadata: null }
-          : {}),
-        academicYear,
-        removeAttachmentIds:
-          Array.isArray(form.removeAttachmentIds) &&
-          form.removeAttachmentIds.length > 0
-            ? form.removeAttachmentIds
-            : undefined,
-      };
+        postToClassroom,
+      });
 
       const files = form.attachmentFiles || [];
 
@@ -579,10 +589,87 @@ const AssignmentsPage = () => {
     }));
   };
 
-  const onCancelEdit = () => {
+  const closeDrawer = () => {
     setEditingAssignment(null);
     resetForm();
     setCreateFormOpen(false);
+  };
+
+  const formHasDraftContent = () =>
+    Boolean(
+      form.title?.trim() ||
+      form.assignmentTypeId ||
+      form.summary?.trim() ||
+      form.instructions?.trim() ||
+      form.links?.length ||
+      form.attachmentFiles?.length ||
+      form.pendingDriveFiles?.length ||
+      form.googleFormQuestions?.length,
+    );
+
+  const onCancelEdit = async () => {
+    if (submitting || draftSaving) return;
+
+    // Only a new or already-draft assignment is safe to write on close. A
+    // published assignment must not change because the teacher clicked away.
+    const canAutosave =
+      canCreateAssignments &&
+      (!editingAssignment || editingAssignment.status === "draft") &&
+      Boolean(
+        selectedClass &&
+        selectedSubject &&
+        form.assignmentTypeId &&
+        form.title?.trim(),
+      ) &&
+      formHasDraftContent();
+
+    if (!canAutosave) {
+      closeDrawer();
+      return;
+    }
+
+    setDraftSaving(true);
+    let draftId = editingAssignment?.id || null;
+    let savedAssignment = null;
+    try {
+      const payload = buildAssignmentPayload({ publishNow: false });
+      const files = form.attachmentFiles || [];
+      const saved = draftId
+        ? await assignmentService.updateAssignment(draftId, payload, files)
+        : await assignmentService.createAssignment(payload, files);
+
+      savedAssignment = saved?.data?.assignment;
+      draftId = draftId || savedAssignment?.id || savedAssignment?._id;
+
+      const pendingDriveFiles = Array.isArray(form.pendingDriveFiles)
+        ? form.pendingDriveFiles
+        : [];
+      if (pendingDriveFiles.length > 0) {
+        if (!draftId) {
+          throw new Error(t("assignments:driveAttachments.uploadFailed"));
+        }
+        await assignmentService.uploadDriveAttachments(
+          draftId,
+          pendingDriveFiles,
+        );
+      }
+
+      toast.success(t("assignments:toasts.autoDraftSaved"));
+      closeDrawer();
+      await fetchAssignments();
+    } catch (error) {
+      if (!editingAssignment?.id && draftId) {
+        setEditingAssignment({ ...savedAssignment, id: draftId });
+      }
+      toast.error(
+        error.response?.data?.code === "FIREBASE_UPLOAD_DISABLED"
+          ? t("assignments:toasts.uploadsDisabled")
+          : error.response?.data?.message ||
+              t("assignments:toasts.autoDraftSaveFailed"),
+      );
+    } finally {
+      setDraftSaving(false);
+    }
   };
 
   const onDeleteAssignment = async (assignment) => {
@@ -600,7 +687,7 @@ const AssignmentsPage = () => {
           : t("assignments:toasts.deleted"),
       );
       if (editingAssignment?.id === assignment.id) {
-        onCancelEdit();
+        closeDrawer();
       }
       await fetchAssignments();
     } catch (error) {
@@ -850,12 +937,17 @@ const AssignmentsPage = () => {
 
   const gradeGoogleFormResponse = async (assignment, item) => {
     try {
-      const result = await googleFormsService.gradeResponse(assignment.id, item.id);
+      const result = await googleFormsService.gradeResponse(
+        assignment.id,
+        item.id,
+      );
       const summary = result?.data || {};
       toast.success(
         summary.skipped
           ? t("assignments:googleForms.grading.skipped")
-          : t("assignments:googleForms.grading.graded", { graded: summary.graded || 0 }),
+          : t("assignments:googleForms.grading.graded", {
+              graded: summary.graded || 0,
+            }),
       );
       const response = await googleFormsService.getResponses(assignment.id);
       setGoogleFormResults({ assignment, items: response?.data?.items || [] });
@@ -1171,7 +1263,7 @@ const AssignmentsPage = () => {
 
         <CreateAssignmentForm
           open={canCreateAssignments && createFormOpen}
-          submitting={submitting}
+          submitting={submitting || draftSaving}
           form={form}
           setForm={setForm}
           assignmentTypes={assignmentTypes}

@@ -1,7 +1,13 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { HiOutlineArrowLeft, HiOutlineCheckCircle } from "react-icons/hi";
+import toast from "react-hot-toast";
+import {
+  HiOutlineArrowLeft,
+  HiOutlineCheckCircle,
+  HiOutlineDownload,
+} from "react-icons/hi";
+import writingService from "../../../../services/writingService.js";
 import ComparisonCard from "./ComparisonCard.jsx";
 import DraftEssayView from "./DraftEssayView.jsx";
 import FeedbackCard from "./FeedbackCard.jsx";
@@ -37,6 +43,9 @@ export default function WritingWorkspacePage() {
   } = useWritingWorkspaceData();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const editors = useRef(new Map());
+  const activeEditor = useRef("");
   // null follows a deep link ("?draft=2" from My Writing) until the student picks a tab.
   const [picked, setPicked] = useState(null);
   const [searchParams] = useSearchParams();
@@ -50,6 +59,49 @@ export default function WritingWorkspacePage() {
   const readiness = useMemo(
     () => draftReadiness({ assignment, sections: working }),
     [assignment, working],
+  );
+  // The rail ticks a word locally; nothing about word use is sent with autosave.
+  const usedWords = useMemo(
+    () =>
+      new Set(
+        working
+          .map((row) => String(row.text || "").toLowerCase())
+          .join(" ")
+          .match(/[a-z0-9]+(?:['’][a-z]+)*/g) || [],
+      ),
+    [working],
+  );
+  const registerEditor = useCallback((id, node) => {
+    if (node) editors.current.set(id, node);
+    else editors.current.delete(id);
+  }, []);
+  const insertWord = useCallback(
+    (word) => {
+      const fallback = working[0];
+      if (!word || !fallback) return;
+      const id =
+        activeEditor.current || `${fallback.key}:${fallback.index}`;
+      const row =
+        working.find((item) => `${item.key}:${item.index}` === id) || fallback;
+      const node = editors.current.get(`${row.key}:${row.index}`);
+      const start = node?.selectionStart ?? row.text.length;
+      const end = node?.selectionEnd ?? start;
+      const before = row.text.slice(0, start);
+      const after = row.text.slice(end);
+      const lead = before && !/\s$/.test(before) ? " " : "";
+      const trail = after && !/^\s/.test(after) ? " " : "";
+      editSection(
+        `${row.key}:${row.index}`,
+        `${before}${lead}${word}${trail}${after}`,
+      );
+      window.requestAnimationFrame(() => {
+        if (!node) return;
+        node.focus();
+        const caret = before.length + lead.length + word.length;
+        node.setSelectionRange(caret, caret);
+      });
+    },
+    [editSection, working],
   );
 
   // A locked draft opens as the essay it is; the writing view comes back the moment it can be edited.
@@ -109,6 +161,34 @@ export default function WritingWorkspacePage() {
     if (result) reload();
   };
 
+  const exportPdf = async () => {
+    const draft = viewedDraft || data.drafts[data.drafts.length - 1];
+    if (!draft) return;
+    setExporting(true);
+    try {
+      const blob = await writingService.exportProjectPdf(
+        project.id || project._id,
+        draft.id,
+      );
+      const url = window.URL.createObjectURL(
+        new Blob([blob], { type: "application/pdf" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `writing-draft-${draft.number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || t("writing:student.exportFailed"),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const notebookDone = async () => {
     setBusy(true);
     const done = await markNotebook();
@@ -142,6 +222,17 @@ export default function WritingWorkspacePage() {
             {t(`writing:student.types.${assignment.writingType}`)}
           </p>
         </div>
+        {data.drafts.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={exporting}
+            onClick={exportPdf}
+          >
+            <HiOutlineDownload size={15} aria-hidden="true" />
+            {t("writing:student.exportPdf")}
+          </button>
+        )}
         {!readOnly && (
           <span className={`ws-saved is-${saveState}`} aria-live="polite">
             <span className="ws-dot" aria-hidden="true" />
@@ -333,6 +424,12 @@ export default function WritingWorkspacePage() {
                     onChange={(key, index, text) =>
                       editSection(`${key}:${index}`, text)
                     }
+                    onFocus={() => {
+                      activeEditor.current = `${section.key}:${section.index}`;
+                    }}
+                    registerEditor={(node) =>
+                      registerEditor(`${section.key}:${section.index}`, node)
+                    }
                     onAdd={() => addSlot(definition)}
                     onRemove={() =>
                       removeSlot(`${section.key}:${section.index}`)
@@ -362,7 +459,13 @@ export default function WritingWorkspacePage() {
           )}
         </main>
 
-        <SupportsRail assignment={assignment} goal={assignment.goal} />
+        <SupportsRail
+          assignment={assignment}
+          goal={assignment.goal}
+          usedWords={usedWords}
+          onInsertWord={insertWord}
+          canInsert={!readOnly}
+        />
       </div>
 
       <footer className="ws-bar">

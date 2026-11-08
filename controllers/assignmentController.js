@@ -1035,16 +1035,17 @@ const buildClassAssignmentProgress = ({
   }
 
   const maxScore =
-    grade?.maxMarks ??
-    submission?.possibleScore ??
-    row.maxMarks ??
-    null;
+    grade?.maxMarks ?? submission?.possibleScore ?? row.maxMarks ?? null;
 
   if (grading?.status === "failed") {
     return { ...base, state: "sync_failed", syncStatus: "failed", maxScore };
   }
   if (!submission) {
-    return { ...base, state: base.isClosed ? "closed" : "not_started", maxScore };
+    return {
+      ...base,
+      state: base.isClosed ? "closed" : "not_started",
+      maxScore,
+    };
   }
   if (grading && ["pending", "suggested"].includes(grading.status)) {
     return {
@@ -1139,7 +1140,9 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
     ? requestedYear
     : resolveAcademicYearForRequest(req);
   const requestedSemester = Number.parseInt(req.query?.semester, 10);
-  const semester = [1, 2].includes(requestedSemester) ? requestedSemester : null;
+  const semester = [1, 2].includes(requestedSemester)
+    ? requestedSemester
+    : null;
 
   const page = parsePageParam(req.query?.page);
   const limit = parseLimitParam(req.query?.limit);
@@ -1149,7 +1152,9 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
   const typeFilter = String(req.query?.type || "").toLowerCase();
   const stateFilter = String(req.query?.state || "").toLowerCase();
   const subjectFilter = toId(req.query?.subject);
-  const searchTerm = String(req.query?.q || "").trim().toLowerCase();
+  const searchTerm = String(req.query?.q || "")
+    .trim()
+    .toLowerCase();
 
   const student = await Student.findOne({
     user: req.user._id,
@@ -1275,25 +1280,36 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const [assignmentResult, grammarResult, practiceResult] = await Promise.all([
-    assignmentQuery.then((value) => ({ ok: true, value })),
-    grammarQuery.then((value) => ({ ok: true, value })),
-    practiceQuery.then((value) => ({ ok: true, value })),
-  ].map((promise) =>
-    promise.catch((error) => ({ ok: false, error })),
-  ));
+  const [assignmentResult, grammarResult, practiceResult] = await Promise.all(
+    [
+      assignmentQuery.then((value) => ({ ok: true, value })),
+      grammarQuery.then((value) => ({ ok: true, value })),
+      practiceQuery.then((value) => ({ ok: true, value })),
+    ].map((promise) => promise.catch((error) => ({ ok: false, error }))),
+  );
 
   const assignmentRows = assignmentResult.ok ? assignmentResult.value : [];
   const grammarRows = grammarResult.ok ? grammarResult.value : [];
   const practiceRows = practiceResult.ok ? practiceResult.value : [];
   if (!assignmentResult.ok)
-    sourceErrors.push({ source: "class_assignments", message: "Could not load class assignments" });
+    sourceErrors.push({
+      source: "class_assignments",
+      message: "Could not load class assignments",
+    });
   if (!grammarResult.ok)
-    sourceErrors.push({ source: "grammar_tests", message: "Could not load grammar tests" });
+    sourceErrors.push({
+      source: "grammar_tests",
+      message: "Could not load grammar tests",
+    });
   if (!practiceResult.ok)
-    sourceErrors.push({ source: "practice", message: "Could not load practice assignments" });
+    sourceErrors.push({
+      source: "practice",
+      message: "Could not load practice assignments",
+    });
 
-  const googleFormAssignmentIds = assignmentRows.filter(hasGoogleForm).map((row) => row._id);
+  const googleFormAssignmentIds = assignmentRows
+    .filter(hasGoogleForm)
+    .map((row) => row._id);
   const assignmentIds = assignmentRows.map((row) => row._id);
   const practiceAssignmentIds = practiceRows.map((row) => row._id);
 
@@ -1381,7 +1397,9 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
                     },
                   },
                   pendingReview: {
-                    $sum: { $cond: [{ $eq: ["$status", "pending_review"] }, 1, 0] },
+                    $sum: {
+                      $cond: [{ $eq: ["$status", "pending_review"] }, 1, 0],
+                    },
                   },
                 },
               },
@@ -1423,9 +1441,7 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
   const entryByAssignment = new Map(
     assessmentEntries.map((row) => [toId(row.assignment), row]),
   );
-  const practiceById = new Map(
-    practiceRows.map((row) => [toId(row._id), row]),
-  );
+  const practiceById = new Map(practiceRows.map((row) => [toId(row._id), row]));
 
   const excusedIds = new Set();
   for (const row of assignmentRows) {
@@ -1456,9 +1472,7 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
       feedType: feedTypeKeyOf({
         source: "assignment",
         assignmentTypeKey:
-          row.assignmentType?.key ||
-          row.assignmentTypeKey ||
-          "",
+          row.assignmentType?.key || row.assignmentTypeKey || "",
       }),
     });
   }
@@ -1539,17 +1553,23 @@ export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
         )
       )
         return false;
-      if (subjectFilter && toId(item.subject?.id) !== subjectFilter) return false;
+      if (subjectFilter && toId(item.subject?.id) !== subjectFilter)
+        return false;
       if (searchTerm) {
         const searchText =
-          item.searchText || buildFeedSearchText({ ...item, standard: item.standard });
+          item.searchText ||
+          buildFeedSearchText({ ...item, standard: item.standard });
         if (!searchText.includes(searchTerm)) return false;
       }
       return true;
     })
     .sort((a, b) => compareFeedItems(a, b, sort));
 
-  const { items: pageItems, pagination } = paginateFeedItems(filtered, page, limit);
+  const { items: pageItems, pagination } = paginateFeedItems(
+    filtered,
+    page,
+    limit,
+  );
 
   res.json({
     success: true,
@@ -1580,7 +1600,10 @@ const isStudentTargetedByAssignment = (student, assignment) => {
   const studentClassId = toId(
     student?.currentClass?._id || student?.currentClass,
   );
-  return Boolean(studentClassId) && studentClassId === assignmentClassIdOf(assignment);
+  return (
+    Boolean(studentClassId) &&
+    studentClassId === assignmentClassIdOf(assignment)
+  );
 };
 
 // One detail card shared by the student portal and the emailed parent link.
@@ -1624,9 +1647,10 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
       isStudentTargetedByAssignment(student, assignment),
     );
     if (students.length === 0) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized to view this assignment" });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to view this assignment",
+      });
     }
   } else {
     const student = await Student.findOne({
@@ -1644,9 +1668,10 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
         .json({ success: false, message: "Student profile not found" });
     }
     if (!isStudentTargetedByAssignment(student, assignment)) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized to view this assignment" });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to view this assignment",
+      });
     }
     students = [student];
   }
@@ -1804,8 +1829,7 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
   const googleFormSync = hasGoogleForm(assignment)
     ? {
         status:
-          primaryGrading?.status ||
-          (primarySubmission ? "synced" : "awaiting"),
+          primaryGrading?.status || (primarySubmission ? "synced" : "awaiting"),
         lastSyncedAt: primarySubmission?.submittedAt || null,
       }
     : null;
@@ -1820,19 +1844,19 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
       teacher: assignment.teacher
         ? `${assignment.teacher.firstName || ""} ${assignment.teacher.lastName || ""}`.trim()
         : "",
-      classroom:
-        classroomLink?.alternateLink
-          ? {
-              url: classroomLink.alternateLink,
-              courseId: classroomLink.courseId || "",
-            }
-          : null,
+      classroom: classroomLink?.alternateLink
+        ? {
+            url: classroomLink.alternateLink,
+            courseId: classroomLink.courseId || "",
+          }
+        : null,
       students: studentItems,
     },
   });
 });
 
-export const createAssignment = asyncHandler(async (req, res) => {  await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+export const createAssignment = asyncHandler(async (req, res) => {
+  await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
 
   const body = req.body || {};
   const classId = toId(body.classId || body.class);
@@ -1906,19 +1930,20 @@ export const createAssignment = asyncHandler(async (req, res) => {  await ensure
     Boolean(metadata?.googleForm);
   if (createGoogleForm) {
     if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Google Forms is not enabled for this school.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Google Forms is not enabled for this school.",
+      });
     }
     try {
       const questions = validateGoogleFormQuestions(
         metadata?.googleForm?.questions,
         { requireRubric: false },
       );
-      metadata = { ...(metadata || {}), googleForm: { questions } };
+      metadata = {
+        ...(metadata || {}),
+        googleForm: { questions },
+      };
     } catch (error) {
       return res.status(400).json({ success: false, message: error.message });
     }
@@ -1964,12 +1989,10 @@ export const createAssignment = asyncHandler(async (req, res) => {  await ensure
       .select("_id")
       .lean();
     if (!teacher)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Provided teacherId is invalid for this school",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Provided teacherId is invalid for this school",
+      });
 
     const authorized = await isTeacherAuthorizedForClassSubject(
       teacher._id,
@@ -1995,12 +2018,10 @@ export const createAssignment = asyncHandler(async (req, res) => {  await ensure
     ) &&
     requestedStudentIds.length === 0
   ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Select at least one student for this Google Form quiz.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Select at least one student for this Google Form quiz.",
+    });
   }
   const scope = normalizeScope(body.scope, requestedStudentIds);
   const validSelectedStudentIds =
@@ -2188,30 +2209,24 @@ export const publishAssignment = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to publish this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to publish this assignment",
+    });
   if (assignment.status === "archived") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Archived assignments cannot be published",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Archived assignments cannot be published",
+    });
   }
 
   if (hasGoogleForm(assignment) && !assignment.metadata?.googleForm?.formId) {
     try {
       if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Google Forms is not enabled for this school.",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Google Forms is not enabled for this school.",
+        });
       }
       const form = await createGoogleQuiz({
         assignment,
@@ -2301,12 +2316,10 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
 
   if (assignment.status !== "published") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Can only send reminders for published assignments",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Can only send reminders for published assignments",
+    });
   }
 
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
@@ -2318,12 +2331,10 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     : "both";
   const students = await resolveTargetStudentsForAssignment(assignment);
   if (students.length === 0) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "No students found for this assignment",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "No students found for this assignment",
+    });
   }
 
   const excusedStudentIds = new Set(
@@ -2449,12 +2460,10 @@ export const getAssignmentGradebook = asyncHandler(async (req, res) => {
 
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to view this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to view this assignment",
+    });
 
   const students = await resolveTargetStudentsForAssignment(assignment);
   const grades = await Grade.find({
@@ -2512,12 +2521,10 @@ export const setAssignmentStudentExcuse = asyncHandler(async (req, res) => {
 
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to excuse students for this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to excuse students for this assignment",
+    });
 
   if (!["published", "closed"].includes(String(assignment.status || ""))) {
     return res.status(400).json({
@@ -2541,12 +2548,10 @@ export const setAssignmentStudentExcuse = asyncHandler(async (req, res) => {
 
   const students = await resolveTargetStudentsForAssignment(assignment);
   if (!students.some((student) => toId(student._id) === studentId)) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Student is not part of this assignment",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Student is not part of this assignment",
+    });
   }
 
   if (excused) {
@@ -2587,12 +2592,10 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to grade this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to grade this assignment",
+    });
   if (!["published", "closed"].includes(String(assignment.status || ""))) {
     return res.status(400).json({
       success: false,
@@ -2645,12 +2648,10 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
   for (const row of rows) {
     const studentId = String(row?.studentId || row?.student || "").trim();
     if (!studentId || !eligibleStudentIds.has(studentId)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Invalid student in grading rows: ${studentId}`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Invalid student in grading rows: ${studentId}`,
+      });
     }
     const marks = Number(row.marks);
     const maxMarks =
@@ -2777,12 +2778,10 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to update this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to update this assignment",
+    });
 
   const body = req.body || {};
 
@@ -2900,12 +2899,10 @@ export const updateAssignment = asyncHandler(async (req, res) => {
   }
   if (isGoogleFormAssignment) {
     if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Google Forms is not enabled for this school.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Google Forms is not enabled for this school.",
+      });
     }
     if (
       assignment.metadata?.googleForm?.formId &&
@@ -2920,7 +2917,9 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     try {
       if (!assignment.metadata?.googleForm?.formId) {
         metadata = {
+          ...(metadata || {}),
           googleForm: {
+            ...metadata?.googleForm,
             questions: validateGoogleFormQuestions(
               metadata?.googleForm?.questions,
               { requireRubric: false },
@@ -2967,12 +2966,10 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     ) &&
     requestedStudentIds.length === 0
   ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Select at least one student for this Google Form quiz.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Select at least one student for this Google Form quiz.",
+    });
   }
   const scope =
     body.scope === undefined
@@ -3211,12 +3208,10 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
 
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to delete this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to delete this assignment",
+    });
 
   const gradeDeleteResult = await Grade.deleteMany({
     school: req.schoolId,
@@ -3277,12 +3272,16 @@ export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
       .select("_id currentClass")
       .lean();
     if (!student || !isStudentTargetedByAssignment(student, assignment)) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
     }
   } else {
     const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
     if (!canAccess)
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized" });
   }
 
   const attachmentId = req.params.attachmentId;
@@ -3316,12 +3315,10 @@ export const uploadDriveAttachments = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to modify this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to modify this assignment",
+    });
 
   const files = Array.isArray(req.files) ? req.files : [];
   if (files.length === 0) {
@@ -3375,12 +3372,10 @@ export const deleteDriveAttachment = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
   const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
   if (!canAccess)
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "Not authorized to modify this assignment",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to modify this assignment",
+    });
 
   const fileId = String(req.params.fileId || "");
   const entry = (assignment.driveAttachments || []).find(

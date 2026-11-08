@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import writingService from "../../../../../services/writingService.js";
 import classService from "../../../../../services/classService.js";
 import studentService from "../../../../../services/studentService.js";
+import api from "../../../../../config/api.js";
 import { buildPayload, emptyForm, formFromAssignment, validateForm } from "../form.js";
 
 const listFrom = (payload) => {
@@ -25,6 +26,7 @@ export function useWritingBuilderData() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [errors, setErrors] = useState({});
+  const [vocabularyLists, setVocabularyLists] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +36,30 @@ export function useWritingBuilderData() {
       })
       .catch(() => { if (active) setClasses([]); });
     return () => { active = false; };
+  }, []);
+
+  // The builder only offers lists; each student still sees just the lists they
+  // are assigned, resolved server-side at read time.
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/vocabulary/lists")
+      .then((response) => {
+        const raw = response?.data?.data ?? response?.data;
+        if (active) {
+          setVocabularyLists(
+            (Array.isArray(raw) ? raw : []).filter(
+              (row) => row?.visible !== false && row?.listId,
+            ),
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setVocabularyLists([]);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -110,6 +136,7 @@ export function useWritingBuilderData() {
     isEdit,
     classes,
     roster,
+    vocabularyLists,
     loading,
     saving,
     update,

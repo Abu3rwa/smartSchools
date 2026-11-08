@@ -119,7 +119,8 @@ export const getGoogleFormResponses = asyncHandler(async (req, res) => {
     if (result.error) return res.status(result.error.status).json({ success: false, message: result.error.message });
     const rows = await listGoogleQuizSubmissions({
         assignmentId: result.assignment._id,
-        schoolId: req.schoolId
+        schoolId: req.schoolId,
+        assignment: result.assignment
     });
     return res.json({ success: true, data: { items: rows } });
 });

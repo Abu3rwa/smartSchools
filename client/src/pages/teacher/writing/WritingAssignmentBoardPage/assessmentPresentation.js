@@ -42,6 +42,24 @@ export const isStaleAssessment = (assessment, now = Date.now()) => {
   return new Date(stamp).getTime() < now - STALE_ASSESSMENT_MS;
 };
 
+const wordUseRows = (assessment) => {
+  const evidence = assessment.wordUseEvidence || {};
+  const rows = [];
+  for (const source of ["spelling", "vocabulary"]) {
+    for (const row of evidence[source] || []) {
+      rows.push({
+        source,
+        word: row.word || "",
+        used: row.used === true,
+        count: Number(row.count) || 0,
+        nearMisses: row.nearMisses || [],
+        decision: row.teacherDecision || "",
+      });
+    }
+  }
+  return rows;
+};
+
 export const formFromAssessment = (assessment) => {
   if (!assessment) return null;
   const overall = assessment.overall || {};
@@ -88,6 +106,7 @@ export const formFromAssessment = (assessment) => {
     spellingWins: (assessment.spellingWins || [])
       .map((row) => row.word)
       .filter(Boolean),
+    wordUse: wordUseRows(assessment),
     comparison: {
       encouragement: comparison.encouragement || "",
       improvedText: joinLines(comparison.criteriaImproved),
@@ -160,6 +179,11 @@ export const payloadFromForm = (form) => {
     // The server keeps only the words it already approved; this list can shrink.
     spellingTargets: (form.spellingTargets || []).map((row) => ({
       word: row.word,
+    })),
+    wordUse: (form.wordUse || []).map((row) => ({
+      source: row.source,
+      word: row.word,
+      decision: row.decision,
     })),
     comparison: {
       encouragement: form.comparison?.encouragement || "",

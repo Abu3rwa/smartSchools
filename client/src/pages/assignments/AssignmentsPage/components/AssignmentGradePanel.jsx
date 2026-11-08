@@ -62,14 +62,16 @@ const AssignmentGradePanel = ({
           </div>
         )}
 
-        <div className="table-container">
-          <table className="assignment-table">
+        <div className="table-container grade-panel__table-wrap">
+          <table className="assignment-table grade-panel__table">
             <thead>
               <tr>
                 <th>{t("assignments:gradePanel.columns.student")}</th>
                 <th>{t("assignments:gradePanel.columns.marks")}</th>
                 <th>{t("assignments:gradePanel.columns.remarks")}</th>
-                {showBehaviorAction && <th>Behavior</th>}
+                {showBehaviorAction && (
+                  <th>{t("assignments:gradePanel.columns.behavior")}</th>
+                )}
                 <th>{t("assignments:gradePanel.columns.status")}</th>
               </tr>
             </thead>
@@ -82,19 +84,25 @@ const AssignmentGradePanel = ({
                   row.marks !== "" &&
                   row.marks !== null &&
                   row.marks !== undefined;
+                const studentName =
+                  student.fullName ||
+                  `${student.firstName} ${student.lastName}`;
 
                 return (
                   <tr
                     key={student.id}
                     className={isExcused ? "grade-row--excused" : undefined}
                   >
-                    <td>
-                      {student.fullName ||
-                        `${student.firstName} ${student.lastName}`}
+                    <td
+                      data-label={t("assignments:gradePanel.columns.student")}
+                      className="grade-panel__student"
+                    >
+                      {studentName}
                     </td>
-                    <td>
+                    <td data-label={t("assignments:gradePanel.columns.marks")}>
                       <input
                         type="number"
+                        inputMode="decimal"
                         min={0}
                         max={gradingAssignment.maxMarks}
                         value={row.marks ?? ""}
@@ -102,9 +110,10 @@ const AssignmentGradePanel = ({
                           onGradeChange(student.id, "marks", event.target.value)
                         }
                         disabled={isExcused}
+                        aria-label={`${t("assignments:gradePanel.columns.marks")}: ${studentName}`}
                       />
                     </td>
-                    <td>
+                    <td data-label={t("assignments:gradePanel.columns.remarks")}>
                       <input
                         type="text"
                         value={row.remarks ?? ""}
@@ -113,21 +122,24 @@ const AssignmentGradePanel = ({
                         }
                         placeholder={t("assignments:gradePanel.optional")}
                         disabled={isExcused}
+                        aria-label={`${t("assignments:gradePanel.columns.remarks")}: ${studentName}`}
                       />
                     </td>
                     {showBehaviorAction && (
-                      <td>
+                      <td
+                        data-label={t("assignments:gradePanel.columns.behavior")}
+                      >
                         <button
                           type="button"
-                          className="btn btn-outline btn-sm"
+                          className="btn btn-outline btn-sm grade-panel__behavior"
                           onClick={() => onOpenBehavior(student)}
                           disabled={isExcused}
                         >
-                          Score behavior
+                          {t("assignments:gradePanel.scoreBehavior")}
                         </button>
                       </td>
                     )}
-                    <td>
+                    <td data-label={t("assignments:gradePanel.columns.status")}>
                       {isExcused ? (
                         <div className="grade-excused">
                           <span className="grade-excused__badge">

@@ -28,8 +28,41 @@ const AssignmentRowActions = ({
     const { t } = useTranslation(['assignments']);
     const buttonRef = useRef(null);
     const menuRef = useRef(null);
+    const anchorRef = useRef(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+
+    // Runs before paint, so the menu is clamped against its measured size
+    // instead of an assumed height.
+    const positionMenu = (node) => {
+        menuRef.current = node;
+        if (!node) return;
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+
+        const margin = 8;
+        const gap = 6;
+        const box = node.getBoundingClientRect();
+        const height = Math.min(box.height, window.innerHeight - margin * 2);
+        const width = box.width;
+
+        let top;
+        if (anchor.bottom + gap + height <= window.innerHeight - margin) {
+            top = anchor.bottom + gap;
+        } else if (anchor.top - gap - height >= margin) {
+            top = anchor.top - gap - height;
+        } else {
+            top = Math.max(margin, window.innerHeight - height - margin);
+        }
+
+        let right = Math.max(margin, window.innerWidth - anchor.right);
+        if (window.innerWidth - right - width < margin) {
+            right = Math.max(margin, window.innerWidth - width - margin);
+        }
+
+        node.style.top = `${top}px`;
+        node.style.right = `${right}px`;
+    };
 
     useEffect(() => {
         if (!menuOpen) return undefined;
@@ -76,10 +109,9 @@ const AssignmentRowActions = ({
         }
         const rect = buttonRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const estimatedHeight = 330;
-        const openUpward = rect.bottom + 6 + estimatedHeight > window.innerHeight;
+        anchorRef.current = rect;
         setMenuPosition({
-            top: openUpward ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
+            top: rect.bottom + 6,
             right: Math.max(8, window.innerWidth - rect.right)
         });
         setMenuOpen(true);
@@ -114,7 +146,7 @@ const AssignmentRowActions = ({
 
     const menu = menuOpen ? createPortal(
         <div
-            ref={menuRef}
+            ref={positionMenu}
             className="assignments-action-menu"
             style={{ top: `${menuPosition.top}px`, right: `${menuPosition.right}px` }}
             role="menu"

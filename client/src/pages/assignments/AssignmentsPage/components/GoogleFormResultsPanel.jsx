@@ -36,6 +36,17 @@ const sortAnswersByQuestionOrder = (answers, orderById) => {
         .map((entry) => entry.answer);
 };
 
+const numeric = (value) => (
+    value === null || value === undefined || !Number.isFinite(Number(value))
+        ? null
+        : Number(value)
+);
+
+/** Short answers exist but no teacher has approved them, so their points are unclaimed. */
+const awaitingShortAnswers = (item) => (
+    Number(item?.shortAnswerMax || 0) > 0 && numeric(item?.shortAnswerScore) === null
+);
+
 const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, onApprove }) => {
     const { t } = useTranslation(['assignments']);
     const panelRef = useRef(null);
@@ -88,13 +99,15 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
 
     const stats = useMemo(() => {
         const late = items.filter((item) => item.status === 'late').length;
-        const needsReview = items.filter((item) => item.score === null).length;
-        const scored = items.filter((item) => item.score !== null && Number(item.possibleScore) > 0);
-        const average = scored.length > 0
-            ? Math.round(scored.reduce(
-                (total, item) => total + (Number(item.score) / Number(item.possibleScore)) * 100,
+        const needsReview = items.filter((item) => numeric(item.score) === null || awaitingShortAnswers(item)).length;
+        // The average follows the same basis as each row badge: the full quiz total once
+        // short answers are approved, and unfinished rows are left out rather than counted as zero.
+        const totals = items.filter((item) => numeric(item.totalScore) !== null && Number(item.totalMax) > 0);
+        const average = totals.length > 0
+            ? Math.round(totals.reduce(
+                (total, item) => total + (Number(item.totalScore) / Number(item.totalMax)) * 100,
                 0
-            ) / scored.length)
+            ) / totals.length)
             : null;
         return { late, needsReview, average };
     }, [items]);
@@ -103,7 +116,7 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
         const term = search.trim().toLowerCase();
         return items.filter((item) => {
             if (filter === 'late' && item.status !== 'late') return false;
-            if (filter === 'review' && item.score !== null) return false;
+            if (filter === 'review' && !(numeric(item.score) === null || awaitingShortAnswers(item))) return false;
             if (!term) return true;
             return [item.student?.name, item.student?.studentId]
                 .some((value) => String(value || '').toLowerCase().includes(term));
@@ -275,6 +288,11 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
                                     item.answers || [],
                                     questionOrderById
                                 );
+                                const objectiveScore = numeric(item.score);
+                                const shortAnswerMax = Number(item.shortAnswerMax || 0);
+                                const totalScore = numeric(item.totalScore);
+                                const totalMax = Number(item.totalMax || 0);
+                                const isCombined = shortAnswerMax > 0 && totalScore !== null;
                                 return (
                                     <article
                                         className={`gfr-response${expanded ? ' is-open' : ''}`}
@@ -301,13 +319,28 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
                                                         {t('assignments:googleForms.lateBadge')}
                                                     </span>
                                                 )}
-                                                {item.score === null ? (
+                                                {objectiveScore === null ? (
                                                     <span className="gfr-tag gfr-tag--review">
                                                         {t('assignments:googleForms.manualReview')}
                                                     </span>
                                                 ) : (
-                                                    <span className="gfr-tag gfr-tag--score" title={t('assignments:googleForms.score')}>
-                                                        {`${item.score} / ${item.possibleScore ?? '?'}`}
+                                                    <span
+                                                        className="gfr-tag gfr-tag--score"
+                                                        title={t(isCombined
+                                                            ? 'assignments:googleForms.scoreCombined'
+                                                            : 'assignments:googleForms.score')}
+                                                    >
+                                                        {isCombined
+                                                            ? `${totalScore} / ${totalMax}`
+                                                            : `${item.score} / ${item.possibleScore ?? '?'}`}
+                                                    </span>
+                                                )}
+                                                {objectiveScore !== null && awaitingShortAnswers(item) && (
+                                                    <span
+                                                        className="gfr-tag gfr-tag--pending"
+                                                        title={t('assignments:googleForms.shortAnswersPendingHint', { points: shortAnswerMax })}
+                                                    >
+                                                        {t('assignments:googleForms.shortAnswersPending', { points: shortAnswerMax })}
                                                     </span>
                                                 )}
                                                 {hasShortAnswer && item.gradingStatus && (

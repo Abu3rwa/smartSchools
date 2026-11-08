@@ -237,6 +237,9 @@ const AssignmentsTable = ({
                 {rows.map((assignment) => {
                     const due = getAssignmentDuePresentation(assignment, { language: i18n.language, t });
                     const progress = getAssignmentProgressPresentation(assignment, { language: i18n.language, t });
+                    const classroomLink = actions.classroom?.enabled
+                        ? actions.classroom.links?.[assignment.id]
+                        : null;
                     return (
                         <article className="assignments-mobile-card" key={assignment.id}>
                             <div className="assignments-mobile-card__top">
@@ -271,13 +274,31 @@ const AssignmentsTable = ({
                                                     <span>{assignment.class.name}</span>
                                                 </>
                                             )}
+                                            {assignment.subject?.name && (
+                                                <>
+                                                    <span className="assignments-meta-dot" aria-hidden="true" />
+                                                    <span>{assignment.subject.name}</span>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                                <span className={`assignments-status assignments-status--${assignment.status}`}>
-                                    <span className="assignments-status__dot" aria-hidden="true" />
-                                    {getStatusLabel(assignment.status)}
-                                </span>
+                                <div className="assignments-mobile-card__state">
+                                    <span className={`assignments-status assignments-status--${assignment.status}`}>
+                                        <span className="assignments-status__dot" aria-hidden="true" />
+                                        {getStatusLabel(assignment.status)}
+                                    </span>
+                                    {classroomLink && (
+                                        <span
+                                            className={`assignments-classroom-badge assignments-classroom-badge--${classroomLink.syncState}`}
+                                            title={classroomLink.lastError || undefined}
+                                        >
+                                            {t('assignments:classroom.badge', {
+                                                state: getClassroomState(classroomLink)
+                                            })}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="assignments-mobile-card__meta">

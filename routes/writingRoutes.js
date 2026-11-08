@@ -13,6 +13,8 @@ import {
   compareDraft,
   createAssignment,
   deactivateAssignment,
+  exportProjectPdf,
+  exportProjectPdfForTeacher,
   getAssignment,
   getBoard,
   getProgress,
@@ -61,6 +63,11 @@ router.post("/templates/:templateId/instantiate", staff, instantiateTemplate);
 router.get("/assignments/:assignmentId/board", staff, getBoard);
 router.get("/assignments/:assignmentId/progress", staff, getProgress);
 router.get("/projects/:projectId/history", staff, getProjectHistory);
+router.get(
+  "/projects/:projectId/export/teacher.pdf",
+  staff,
+  exportProjectPdfForTeacher,
+);
 
 /* Teacher: assessment, review and publication (the AI ones are rate limited) */
 router.post(
@@ -104,6 +111,11 @@ router.post("/projects/:projectId/notebook", staff, recordNotebookReview);
 router.get("/my", authorize("student"), myWriting);
 router.post("/assignments/:assignmentId/open", authorize("student"), myProject);
 router.get("/projects/:projectId", authorize("student"), myProjectById);
+router.get(
+  "/projects/:projectId/export.pdf",
+  authorize("student"),
+  exportProjectPdf,
+);
 router.put(
   "/projects/:projectId/autosave",
   authorize("student"),

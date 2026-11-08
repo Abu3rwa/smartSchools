@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import {
   HiOutlineBadgeCheck,
   HiOutlineCheckCircle,
+  HiOutlineDownload,
   HiOutlineRefresh,
   HiOutlineSparkles,
   HiOutlineX,
@@ -52,6 +53,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
   const [note, setNote] = useState("");
   const [finalScore, setFinalScore] = useState("");
   const [pending, setPending] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [notify, setNotify] = useState({ student: true, parents: true });
   const runningRun = feedback?.aiStatus === "running";
   const emailRecipients = {
@@ -131,6 +133,15 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
         (row) => row.word !== word,
       ),
     }));
+  const decideWordUse = (source, word, decision) =>
+    setForm((current) => ({
+      ...current,
+      wordUse: (current.wordUse || []).map((row) =>
+        row.source === source && row.word === word
+          ? { ...row, decision: row.decision === decision ? "" : decision }
+          : row,
+      ),
+    }));
 
   const assess = () =>
     run(
@@ -199,6 +210,33 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
       t("writing:teacher.review.stageMoved"),
     );
 
+  const exportPdf = async () => {
+    if (!latestDraft) return;
+    setExporting(true);
+    try {
+      const blob = await writingService.exportProjectPdfForTeacher(
+        project.id || project._id,
+        latestDraft._id,
+      );
+      const url = window.URL.createObjectURL(
+        new Blob([blob], { type: "application/pdf" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `writing-draft-${latestDraft.number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || t("writing:teacher.review.exportFailed"),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const notebook = (state) =>
     run(
       "notebook",
@@ -227,6 +265,15 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
     <section className="wa-review">
       <header className="wa-review-head">
         <h3>{t("writing:teacher.review.title")}</h3>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={exporting}
+          onClick={exportPdf}
+        >
+          <HiOutlineDownload size={15} aria-hidden="true" />
+          {t("writing:teacher.review.exportPdf")}
+        </button>
         {feedback?.publish?.state === "published" && (
           <span className="wa-badge is-published">
             <HiOutlineBadgeCheck size={15} aria-hidden="true" />
@@ -405,6 +452,67 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               </div>
               <p className="wa-hint">
                 {t("writing:teacher.review.spellingTargetsHint")}
+              </p>
+            </div>
+          )}
+
+          {(form.wordUse || []).length > 0 && (
+            <div className="wa-review-words">
+              <span className="wa-field-label">
+                {t("writing:teacher.review.wordUseTitle")}
+              </span>
+              <ul className="wa-word-use">
+                {form.wordUse.map((row) => (
+                  <li
+                    key={`${row.source}:${row.word}`}
+                    className={`wa-word-use-row is-${row.decision || "open"}`}
+                  >
+                    <span className="wa-word-use-word">
+                      {row.word}
+                      <em>
+                        {row.source === "spelling"
+                          ? t("writing:teacher.review.wordUseSpelling")
+                          : t("writing:teacher.review.wordUseVocabulary")}
+                      </em>
+                    </span>
+                    <span className="wa-word-use-fact">
+                      {row.used
+                        ? t("writing:teacher.review.wordUseUsed")
+                        : row.nearMisses.length
+                          ? t("writing:teacher.review.wordUseNear", {
+                              words: row.nearMisses.join(", "),
+                            })
+                          : t("writing:teacher.review.wordUseMissing")}
+                    </span>
+                    {feedbackEditable && (
+                      <span className="wa-word-use-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          aria-pressed={row.decision === "confirmed"}
+                          onClick={() =>
+                            decideWordUse(row.source, row.word, "confirmed")
+                          }
+                        >
+                          {t("writing:teacher.review.wordUseConfirm")}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          aria-pressed={row.decision === "rejected"}
+                          onClick={() =>
+                            decideWordUse(row.source, row.word, "rejected")
+                          }
+                        >
+                          {t("writing:teacher.review.wordUseReject")}
+                        </button>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="wa-hint">
+                {t("writing:teacher.review.wordUseHint")}
               </p>
             </div>
           )}

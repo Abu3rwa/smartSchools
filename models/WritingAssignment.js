@@ -36,7 +36,19 @@ const supportsSchema = new mongoose.Schema(
     sentenceStarters: [{ type: String, trim: true }],
     guidingQuestions: [{ type: String, trim: true }],
     modelText: { type: String, trim: true, default: '' },
-    plannerPrompt: { type: String, trim: true, default: '' }
+    plannerPrompt: { type: String, trim: true, default: '' },
+    // Per-student words drawn from their own spelling retests and vocabulary
+    // lists. The client sends only ids; the server resolves the words.
+    wordSupport: {
+      vocabulary: {
+        enabled: { type: Boolean, default: false },
+        listIds: [{ type: String, trim: true }]
+      },
+      spelling: {
+        enabled: { type: Boolean, default: false },
+        maxWords: { type: Number, default: 5, min: 1, max: 10 }
+      }
+    }
   },
   { _id: false }
 );

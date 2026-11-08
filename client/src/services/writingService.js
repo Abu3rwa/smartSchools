@@ -35,6 +35,20 @@ export const writingService = {
     api.get(`/writing/assignments/${assignmentId}/progress`).then(unwrap),
   getProjectHistory: (projectId) =>
     api.get(`/writing/projects/${projectId}/history`).then(unwrap),
+  exportProjectPdf: (projectId, draftId) =>
+    api
+      .get(`/writing/projects/${projectId}/export.pdf`, {
+        params: draftId ? { draft: draftId } : {},
+        responseType: "blob",
+      })
+      .then((response) => response.data),
+  exportProjectPdfForTeacher: (projectId, draftId) =>
+    api
+      .get(`/writing/projects/${projectId}/export/teacher.pdf`, {
+        params: draftId ? { draft: draftId } : {},
+        responseType: "blob",
+      })
+      .then((response) => response.data),
 
   // Teacher: assessment and publication (AI routes are rate limited server-side)
   assessDraft: (draftId, body) =>

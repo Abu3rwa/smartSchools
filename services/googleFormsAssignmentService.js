@@ -514,7 +514,56 @@ export const syncGoogleQuizResponses = async ({
   return { imported, unmatched, updatedGrades };
 };
 
-export const listGoogleQuizSubmissions = async ({ assignmentId, schoolId }) => {
+const round2 = (value) => Math.round(value * 100) / 100;
+
+/**
+ * Google's own total covers only the auto-graded questions, so a quiz with
+ * short answers has to be totalled here: the choice points plus the short
+ * answers the teacher has actually approved. Nothing is added to the total
+ * before approval — an AI suggestion is not a grade yet. Short-answer points
+ * come from the assignment's own question list, never from stored grading, so
+ * a removed question cannot inflate a total.
+ */
+const combinedScore = ({ row, grading, shortAnswerMax }) => {
+  const objectiveScore =
+    row.score === null ||
+    row.score === undefined ||
+    !Number.isFinite(Number(row.score))
+      ? null
+      : Number(row.score);
+  const objectiveMax = Number(row.possibleScore) || 0;
+  const totalMax = round2(objectiveMax + shortAnswerMax);
+  if (shortAnswerMax === 0) {
+    return { shortAnswerMax: 0, shortAnswerScore: null, totalScore: objectiveScore, totalMax };
+  }
+  const gradedQuestions = grading?.questions || [];
+  if (grading?.status !== "approved") {
+    return { shortAnswerMax, shortAnswerScore: null, totalScore: null, totalMax };
+  }
+  const shortAnswerScore = round2(
+    Math.min(
+      shortAnswerMax,
+      gradedQuestions.reduce(
+        (sum, entry) => sum + Number(entry.approvedScore ?? 0),
+        0,
+      ),
+    ),
+  );
+  const objectivePart = objectiveScore ?? (objectiveMax > 0 ? null : 0);
+  return {
+    shortAnswerMax,
+    shortAnswerScore,
+    totalScore:
+      objectivePart === null ? null : round2(objectivePart + shortAnswerScore),
+    totalMax,
+  };
+};
+
+export const listGoogleQuizSubmissions = async ({
+  assignmentId,
+  schoolId,
+  assignment = null,
+}) => {
   const rows = await GoogleFormSubmission.find({
     assignment: assignmentId,
     school: schoolId,
@@ -531,8 +580,14 @@ export const listGoogleQuizSubmissions = async ({ assignmentId, schoolId }) => {
   const gradingByStudent = new Map(
     gradingRows.map((row) => [toId(row.student), row]),
   );
+  const shortAnswerMax = round2(
+    (assignment?.metadata?.googleForm?.questions || [])
+      .filter((question) => question?.type === "short_answer")
+      .reduce((sum, question) => sum + Number(question.points || 0), 0),
+  );
   return rows.map((row) => {
     const grading = gradingByStudent.get(toId(row.student?._id)) || null;
+    const totals = combinedScore({ row, grading, shortAnswerMax });
     return {
       id: toId(row._id),
       student: {
@@ -544,6 +599,10 @@ export const listGoogleQuizSubmissions = async ({ assignmentId, schoolId }) => {
       status: row.status,
       score: row.score,
       possibleScore: row.possibleScore,
+      shortAnswerMax: totals.shortAnswerMax,
+      shortAnswerScore: totals.shortAnswerScore,
+      totalScore: totals.totalScore,
+      totalMax: totals.totalMax,
       answers: row.answers,
       gradingStatus: grading?.status || null,
       grading: grading

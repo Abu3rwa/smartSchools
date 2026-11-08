@@ -753,6 +753,135 @@
   padding: 10px;
 }
 
+/* Word support: a filter, then one tappable row per word. Ticking is local only. */
+.ws-rail-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ws-muted);
+}
+.ws-rail-search input {
+  font-size: 0.85rem;
+  color: var(--ws-ink);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.ws-rail-search input:focus {
+  outline: 2px solid color-mix(in srgb, var(--ws-teal) 45%, transparent);
+  outline-offset: 1px;
+}
+.ws-word-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ws-word-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.ws-word-group-title {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ws-ink);
+}
+.ws-word-group-title em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.68rem;
+  color: var(--ws-muted);
+}
+.ws-word {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.ws-word-insert {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-surface-2);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--ws-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.ws-word-insert:hover:not(:disabled) {
+  border-color: var(--ws-teal);
+  background: var(--ws-soft);
+}
+.ws-word-insert:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.ws-word-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ws-word.is-used .ws-word-text {
+  color: #15803d;
+  font-weight: 600;
+}
+.ws-word-more {
+  border: 0;
+  background: transparent;
+  color: var(--ws-muted);
+  cursor: pointer;
+  padding: 0 5px;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.ws-word-more:hover {
+  color: var(--ws-teal);
+}
+.ws-word-detail {
+  flex: 1 1 100%;
+  margin: 2px 0 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--ws-surface-2);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ws-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ws-word-detail em {
+  font-style: italic;
+  color: var(--ws-teal);
+}
+.ws-word-example {
+  font-style: italic;
+}
+.ws-rail-hint {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ws-muted);
+}
+
 .ws-bar {
   position: sticky;
   bottom: 0;

@@ -19,6 +19,24 @@ export const emptySupports = () => ({
   guidingQuestions: [],
   modelText: "",
   plannerPrompt: "",
+  wordSupport: {
+    vocabulary: { enabled: false, listIds: [] },
+    spelling: { enabled: false, maxWords: 5 },
+  },
+});
+
+const normalizeWordSupportForm = (input = {}) => ({
+  vocabulary: {
+    enabled: input?.vocabulary?.enabled === true,
+    listIds: (Array.isArray(input?.vocabulary?.listIds)
+      ? input.vocabulary.listIds
+      : []
+    ).map((id) => String(id || "").toUpperCase()),
+  },
+  spelling: {
+    enabled: input?.spelling?.enabled === true,
+    maxWords: Math.min(Math.max(Number(input?.spelling?.maxWords) || 5, 1), 10),
+  },
 });
 
 export const emptyForm = () => ({
@@ -77,7 +95,11 @@ export const formFromAssignment = (assignment) => {
       minWords: num(row.minWords),
       criteria: row.criteria || [],
     })),
-    supports: { ...emptySupports(), ...(assignment.supports || {}) },
+    supports: {
+      ...emptySupports(),
+      ...(assignment.supports || {}),
+      wordSupport: normalizeWordSupportForm(assignment.supports?.wordSupport),
+    },
     rubric: (assignment.rubric || presetRubric()).map((row) => ({
       key: row.key,
       label: row.label,
@@ -230,6 +252,7 @@ export const buildPayload = (form) => ({
     guidingQuestions: form.supports?.guidingQuestions || [],
     modelText: form.supports?.modelText || "",
     plannerPrompt: form.supports?.plannerPrompt || "",
+    wordSupport: normalizeWordSupportForm(form.supports?.wordSupport),
   },
   rubric: (form.rubric || []).map((row) => ({
     key: String(row.key || "").trim() || slugify(row.label),

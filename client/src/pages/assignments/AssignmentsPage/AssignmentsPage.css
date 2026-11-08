@@ -1082,6 +1082,14 @@
   min-width: 0;
 }
 
+.assignments-mobile-card__state {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .assignments-mobile-card__meta {
   display: flex;
   align-items: flex-end;
@@ -1125,6 +1133,12 @@
   display: flex;
   flex-direction: column;
   animation: assignmentsDrawerIn 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .assignments-drawer {
+    width: min(700px, 100vw);
+  }
 }
 
 [dir="rtl"] .assignments-drawer {
@@ -3320,6 +3334,72 @@
     width: calc(100vw - 20px);
     max-height: 92vh;
     padding: 14px;
+  }
+}
+
+/* Phones: one stacked card per student instead of a side-scrolling table. */
+@media (max-width: 640px) {
+  .assignments-page .grade-panel__table-wrap {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .assignments-page .grade-panel__table,
+  .assignments-page .grade-panel__table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .assignments-page .grade-panel__table thead {
+    display: none;
+  }
+
+  .assignments-page .grade-panel__table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .assignments-page .grade-panel__table td {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+  }
+
+  .assignments-page .grade-panel__table td::before {
+    content: attr(data-label);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .assignments-page .grade-panel__table td.grade-panel__student {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+
+  .assignments-page .grade-panel__table td.grade-panel__student::before {
+    display: none;
+  }
+
+  .assignments-page .grade-panel__table td:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .assignments-page .grade-panel__table input {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .assignments-page .grade-panel__behavior {
+    min-height: 40px;
+    justify-content: center;
   }
 }
 

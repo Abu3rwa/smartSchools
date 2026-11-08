@@ -73,6 +73,14 @@ const CreateAssignmentForm = ({
 
   useEffect(() => {
     if (!open) return undefined;
+    const previousFocus = document.activeElement;
+    return () => {
+      if (previousFocus instanceof HTMLElement) previousFocus.focus?.();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
     const focusTimer = window.setTimeout(() => {
       titleInputRef.current?.focus();
     }, 80);

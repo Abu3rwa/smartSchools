@@ -25,6 +25,7 @@ const STUDENT_HANDLERS = [
   "submitProject",
   "reportPasteAttempt",
   "markNotebookWritten",
+  "exportProjectPdf",
 ];
 
 // Only the student block of the controller, i.e. everything from myWriting on.
@@ -98,7 +99,7 @@ test("every student route is authorize(student) and maps to a student handler", 
     ...source.matchAll(/router\.(get|post|put)\('([^']+)',\s*([^;]+);/g),
   ].filter((match) => match[3].includes("authorize('student')"));
 
-  assert.equal(studentRoutes.length, 7, "all seven student routes must exist");
+  assert.equal(studentRoutes.length, 8, "all eight student routes must exist");
   for (const route of studentRoutes) {
     const handler = route[3].trim().replace(/\)$/, "").split(",").pop().trim();
     assert.ok(

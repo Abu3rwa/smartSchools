@@ -1388,6 +1388,111 @@
 .wa-spelling-remove:hover {
   color: #b91c1c;
 }
+.wa-list-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+.wa-list-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.wa-list-option input {
+  width: auto;
+  margin-top: 2px;
+}
+.wa-list-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.wa-list-option strong {
+  font-weight: 600;
+}
+.wa-list-option em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--wa-muted);
+}
+.wa-inline-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.wa-inline-number input {
+  width: 72px;
+}
+.wa-review-words {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wa-word-use {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wa-word-use-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(140px, 1.4fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+.wa-word-use-row.is-confirmed {
+  border-color: color-mix(in srgb, #16a34a 40%, transparent);
+  background: color-mix(in srgb, #16a34a 8%, transparent);
+}
+.wa-word-use-row.is-rejected {
+  opacity: 0.65;
+}
+.wa-word-use-word {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+.wa-word-use-word em {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--wa-muted);
+}
+.wa-word-use-fact {
+  color: var(--wa-muted);
+}
+.wa-word-use-row.is-confirmed .wa-word-use-fact {
+  color: #15803d;
+}
+.wa-word-use-actions {
+  display: flex;
+  gap: 4px;
+}
+.wa-word-use-actions .btn.is-active,
+.wa-word-use-actions .btn[aria-pressed="true"] {
+  color: var(--wa-primary, #0d9488);
+  background: color-mix(in srgb, var(--wa-primary, #0d9488) 10%, transparent);
+}
+@media (max-width: 700px) {
+  .wa-word-use-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .wa-review-check {
   display: flex;
   gap: 8px;

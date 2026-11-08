@@ -21,6 +21,10 @@ import {
   presetSections,
 } from "../constants/writingPresets.js";
 import {
+  normalizeWordSupport,
+  resolveWritingWordSupport,
+} from "./writingWordSupportService.js";
+import {
   STAGE_LABELS,
   buildDraftSections,
   buildTracker,
@@ -175,6 +179,7 @@ const normalizeSupports = (input = {}) => ({
   plannerPrompt: String(input.plannerPrompt || "")
     .trim()
     .slice(0, 2000),
+  wordSupport: normalizeWordSupport(input.wordSupport),
 });
 
 const normalizeWorkflow = (input = {}) => ({
@@ -823,6 +828,24 @@ export const submitDraft = async ({
     );
   }
 
+  // The words the student could see are frozen with the draft, so a later
+  // spelling or vocabulary change cannot rewrite what this draft was offered.
+  const prior = await WritingAssessment.findOne({
+    school: schoolId,
+    project: project._id,
+    "publish.state": "published",
+    "spellingTargets.0": { $exists: true },
+  })
+    .sort({ createdAt: -1 })
+    .select("spellingTargets")
+    .lean();
+  const wordSupport = await resolveWritingWordSupport({
+    schoolId,
+    studentId,
+    assignment,
+    priorTargets: prior?.spellingTargets || [],
+  });
+
   const number = (Number(project.draftCount) || 0) + 1;
   const draftSections = buildDraftSections({ assignment, sections: working });
   const draft = await WritingDraft.create({
@@ -847,7 +870,7 @@ export const submitDraft = async ({
         chars,
         text,
       })),
-    configSnapshot: configSnapshotFor(assignment),
+    configSnapshot: { ...configSnapshotFor(assignment), wordSupport },
   });
 
   project.draftCount = number;
@@ -1127,6 +1150,17 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
     ? project.autosave?.title || ""
     : project.latestDraft?.title || "";
 
+  // Only this student's own spelling words and assigned vocabulary lists reach
+  // the rail. Resolved on read, never stored on the assignment.
+  const wordSupport = await resolveWritingWordSupport({
+    schoolId,
+    studentId,
+    assignment,
+    priorTargets:
+      assessments.find((row) => row.spellingTargets?.length)?.spellingTargets ||
+      [],
+  });
+
   return {
     project: {
       id: String(project._id),
@@ -1156,6 +1190,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       goal,
       sections: assignment.sections,
       supports: assignment.supports,
+      wordSupport,
       rubric: assignment.rubric,
       totalPoints: (assignment.rubric || []).reduce(
         (sum, item) => sum + (Number(item.maxScore) || 0),
