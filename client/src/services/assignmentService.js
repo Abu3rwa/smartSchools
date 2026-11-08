@@ -26,6 +26,14 @@ const assignmentService = {
     return response.data;
   },
 
+  getMyAssignmentsPaginated: async (params = {}, config = {}) => {
+    const response = await api.get("/assignments/my-paginated", {
+      ...config,
+      params,
+    });
+    return response.data;
+  },
+
   getAssignmentById: async (id) => {
     const response = await api.get(`/assignments/${id}`);
     return response.data;

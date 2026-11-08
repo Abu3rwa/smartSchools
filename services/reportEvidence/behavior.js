@@ -58,10 +58,11 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
     const olderSerious = olderIncidents.filter(i => i.isSerious).length;
     const newerSerious = newerIncidents.filter(i => i.isSerious).length;
 
-    let trend = 'stable';
+    let trend = 'insufficient_data';
     if (incidents.length >= 4) {
         if (newerSerious < olderSerious) trend = 'improving';
         else if (newerSerious > olderSerious) trend = 'declining';
+        else trend = 'stable';
     }
 
     const facts = [];

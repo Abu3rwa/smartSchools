@@ -4,12 +4,12 @@ import { PRACTICE_TABLE_HEADERS } from "../constants";
 import { getMasteryColor, getScheduleView, getStatusBadge } from "../utils/practiceDashboardPresentation";
 import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
-const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now) => {
+const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now, t, locale) => {
   const badge = getStatusBadge(assignment);
   const sessionType = assignment.practiceConfig?.sessionType === "assessment"
     ? "assessment"
     : "practice";
-  const sessionTypeLabel = sessionType === "assessment" ? "Assessment" : "Practice";
+  const sessionTypeLabel = t(`dashboard.sessionTypes.${sessionType}`);
   const assessmentComplete = Boolean(assignment.assessmentProgress?.isComplete);
   const isReview = assignment.mastery?.masteryStatus === "needs_review" || assignment.mastery?.needsReview;
   const isMastered = assignment.mastery?.isMastered && !assignment.mastery?.needsReview;
@@ -28,30 +28,30 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now) 
     : Math.min(100, confidence);
 
   const progressText = assessmentComplete
-    ? "Assessment submitted"
+    ? t("dashboard.progress.assessmentSubmitted")
     : hasAssignmentLimit
-      ? `${completedCount}/${assignmentQuestionLimit} questions done`
+      ? t("dashboard.progress.questionsDone", { done: completedCount, total: assignmentQuestionLimit })
       : lifetimeTotal > 0
-        ? `${lifetimeTotal} questions answered`
-        : "No questions answered yet";
+        ? t("dashboard.progress.questionsAnswered", { answered: lifetimeTotal })
+        : t("dashboard.progress.noQuestions");
 
   const progressHint = assessmentComplete
-    ? "You can review your result"
+    ? t("dashboard.progress.reviewResult")
     : windowAttempts > 0
-      ? `${windowCorrect}/${windowAttempts} correct recently`
+      ? t("dashboard.progress.recentCorrect", { correct: windowCorrect, attempts: windowAttempts })
       : hasAssignmentLimit
-        ? `${assignmentQuestionLimit - completedCount} left`
-        : "Start when ready";
+        ? t("dashboard.progress.left", { remaining: assignmentQuestionLimit - completedCount })
+        : t("dashboard.progress.startWhenReady");
 
-  const schedule = assessmentComplete ? null : getScheduleView(assignment, now);
+  const schedule = assessmentComplete ? null : getScheduleView(assignment, now, locale);
 
   const actionLabel = isReview
-    ? "Review Now"
+    ? t("dashboard.actions.reviewNow")
     : assessmentComplete || (isMastered && !isReview)
-      ? "View Result"
+      ? t("dashboard.actions.viewResult")
       : lifetimeTotal > 0
-        ? "Continue"
-        : "Start";
+        ? t("dashboard.actions.continue")
+        : t("dashboard.actions.start");
 
   const actionIcon = isReview
     ? HiOutlineRefresh
@@ -64,7 +64,7 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now) 
     : onOpenPractice;
 
   return {
-    badge,
+    badge: { ...badge, label: t(badge.labelKey) },
     schedule,
     sessionType,
     sessionTypeLabel,
@@ -80,8 +80,9 @@ const getAssignmentViewModel = (assignment, onOpenPractice, onOpenHistory, now) 
 };
 
 const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }) => {
-  const { t } = useTranslation(['studentPractice']);
+  const { t, i18n } = useTranslation(['studentPractice']);
   const now = new Date();
+  const locale = i18n.language === "ar" ? "ar-EG" : "en-GB";
 
   const renderSchedule = (view) => {
     if (!view.schedule) return null;
@@ -118,23 +119,23 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
         <thead>
           <tr>
             {PRACTICE_TABLE_HEADERS.map((header) => (
-              <th key={header}>{header}</th>
+              <th key={header}>{t(header)}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {assignments.map((assignment) => {
-            const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now);
+            const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now, t, locale);
 
             return (
               <tr key={assignment._id} className={view.isMastered ? "mastered-row" : view.isReview ? "needs-review-row" : ""}>
                 <td>
                   <div className="standard-cell">
                     <span className="standard-name" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                      {assignment.title || "Standards Assignment"}
+                      {assignment.title || t("dashboard.untitled")}
                     </span>
                     <span className="standard-code">
-                      {formatStandardLabel(assignment.standard) || "N/A"}
+                      {formatStandardLabel(assignment.standard) || t("dashboard.notAvailable")}
                     </span>
                     <span className={`assignment-type-badge assignment-type-badge--${view.sessionType}`}>
                       {view.sessionTypeLabel}
@@ -174,16 +175,16 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
 
     <div className="mobile-assignment-list" role="list">
       {assignments.map((assignment) => {
-        const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now);
+        const view = getAssignmentViewModel(assignment, onOpenPractice, onOpenHistory, now, t, locale);
 
         return (
           <article key={assignment._id} className="assignment-card" role="listitem">
             <div className="assignment-card-top">
               <div className="standard-cell">
                 <span className="standard-name" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                  {assignment.title || "Standards Assignment"}
+                  {assignment.title || t("dashboard.untitled")}
                 </span>
-                <span className="standard-code">{formatStandardLabel(assignment.standard) || "N/A"}</span>
+                <span className="standard-code">{formatStandardLabel(assignment.standard) || t("dashboard.notAvailable")}</span>
               </div>
               <span className={`assignment-type-badge assignment-type-badge--${view.sessionType}`}>
                 {view.sessionTypeLabel}

@@ -1,13 +1,183 @@
 {
   "dashboard": {
+    "title": "Standards",
+    "subtitle": "Personalized questions, adaptive difficulty, and clear next steps.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "loading": "Loading your current standards...",
+    "errorTitle": "Unable to load standards",
+    "tryAgain": "Try Again",
+    "emptyTitle": "No standards assigned yet",
+    "emptyBody": "Your teacher will assign standards soon. Check back later.",
+    "untitled": "Standards Assignment",
+    "notAvailable": "N/A",
     "dueToday": "Due today",
     "dueTomorrow": "Due tomorrow",
     "dueOn": "Due {{date}}",
     "pastDue": "Past due {{date}}",
     "opensOn": "Opens {{date}}",
-    "windowClosed": "Answering window closed"
+    "windowClosed": "Answering window closed",
+    "table": {
+      "assignment": "Assignment",
+      "subject": "Subject",
+      "status": "Your Status",
+      "progress": "Your Progress",
+      "nextStep": "Next Step"
+    },
+    "stats": {
+      "assigned": "Assigned",
+      "completed": "Completed",
+      "ready": "Ready to Start",
+      "inProgress": "In Progress",
+      "needsReview": "Needs Review"
+    },
+    "status": {
+      "completed": "Completed",
+      "needsReview": "Needs Review",
+      "inProgress": "Keep Going",
+      "notStarted": "Ready to Start"
+    },
+    "sessionTypes": {
+      "practice": "Practice",
+      "assessment": "Assessment"
+    },
+    "progress": {
+      "assessmentSubmitted": "Assessment submitted",
+      "questionsDone": "{{done}}/{{total}} questions done",
+      "questionsAnswered": "{{answered}} questions answered",
+      "noQuestions": "No questions answered yet",
+      "reviewResult": "You can review your result",
+      "recentCorrect": "{{correct}}/{{attempts}} correct recently",
+      "left": "{{remaining}} left",
+      "startWhenReady": "Start when ready"
+    },
+    "actions": {
+      "reviewNow": "Review Now",
+      "viewResult": "View Result",
+      "continue": "Continue",
+      "start": "Start"
+    },
+    "review": {
+      "title": "Review Queue",
+      "dueAndUpcoming": "Due now: {{due}} · Upcoming: {{upcoming}}",
+      "refresh": "Refresh Queue",
+      "refreshing": "Refreshing...",
+      "loading": "Loading review queue...",
+      "error": "Unable to load review queue right now.",
+      "empty": "No review tasks due right now. Keep your streak going.",
+      "standardFallback": "Standard",
+      "roundDue": "Review round {{round}} · Due {{date}}",
+      "start": "Start Review"
+    }
+  },
+  "results": {
+    "title": "SB Assessment Results",
+    "subtitle": "Academic Year {{year}} · Semester {{semester}}",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "back": "Back to Practice",
+    "notAvailable": "N/A",
+    "empty": "No SB assessment results yet.",
+    "stats": {
+      "assessments": "Assessments",
+      "graded": "Graded",
+      "averagePercent": "Average %",
+      "averageScale": "Average 1-4"
+    },
+    "table": {
+      "assessment": "Assessment",
+      "standard": "Standard",
+      "status": "Status",
+      "score": "Score",
+      "percent": "Percent",
+      "scale": "Scale 1-4"
+    },
+    "status": {
+      "not_started": "Not started",
+      "in_progress": "In progress",
+      "submitted": "Submitted",
+      "released": "Released"
+    },
+    "standardAverages": {
+      "title": "Per-Standard Semester Averages",
+      "standard": "Standard",
+      "assessments": "Assessments",
+      "averagePercent": "Average %",
+      "averageScale": "Average 1-4",
+      "empty": "No graded standards yet."
+    }
+  },
+  "history": {
+    "back": "Back to Practice Dashboard",
+    "empty": "No practice attempts yet for this standard.",
+    "startPracticing": "Start Practicing",
+    "status": "Status",
+    "mastered": "Mastered",
+    "inProgress": "In Progress",
+    "score": "Score",
+    "accuracy": "Accuracy",
+    "attempt": "Attempt #{{number}} - {{difficulty}}",
+    "yourAnswer": "Your Answer",
+    "correctAnswer": "Correct"
   },
   "session": {
+    "header": {
+      "back": "Back to Standards"
+    },
+    "loading": {
+      "preparing": "Preparing a personalized question for you..."
+    },
+    "sessionTypes": {
+      "practice": "Practice",
+      "assessment": "Assessment",
+      "homework": "Homework"
+    },
+    "initial": {
+      "ready": "Ready for Practice, {{name}}?",
+      "sessionType": "Session Type: {{type}}",
+      "limit": "Limit: {{limit}} questions",
+      "progressToday": "Progress Today",
+      "progressCopy": "{{name}}, you got {{correct}} out of {{asked}} correct ({{percent}}%).",
+      "start": "Start Question"
+    },
+    "complete": {
+      "masteredTitle": "Standard Mastered!",
+      "title": "Session Complete",
+      "assessmentDefault": "This assessment session is complete and has been closed.",
+      "masteredDefault": "You have already mastered this standard.",
+      "practiceDefault": "You have completed this practice session.",
+      "summary": "Answered: {{answered}}{{limitSuffix}} | Correct: {{correct}}",
+      "returnToDashboard": "Return to Dashboard",
+      "submitFinal": "Submit Final Assessment",
+      "submittingFinal": "Submitting Assessment..."
+    },
+    "card": {
+      "questionOf": "Question {{step}} of {{limit}}",
+      "questionNumber": "Question #{{number}}",
+      "confidence": "Confidence: {{percent}}%",
+      "instructions": "Instructions:",
+      "quickTip": "Quick Tip: Let's strengthen the foundation first. Focus on accuracy, then move up in difficulty.",
+      "recentFocus": "Recent Focus",
+      "topics": "Topics: {{topics}}",
+      "improveNext": "Improve next: {{topics}}",
+      "correctStreak": "Correct Streak",
+      "learningStreak": "Learning Streak"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    },
+    "questionTypes": {
+      "multiple_choice": "Multiple choice",
+      "multiple_select": "Multiple select",
+      "true_false": "True or false",
+      "short_answer": "Short answer",
+      "matching": "Matching",
+      "ordering": "Ordering",
+      "fill_in_blank": "Fill in the blanks",
+      "numeric_response": "Numeric answer"
+    },
     "guidanceTitle": "How To Answer",
     "guidance": {
       "multipleChoice": "Choose one best answer. Read every option before you submit.",
@@ -22,6 +192,52 @@
     "teacherNote": "Teacher note: {{text}}",
     "timeLeft": "{{time}} left",
     "timeUp": "Time is up",
-    "timeAria": "Time remaining in this session"
+    "timeAria": "Time remaining in this session",
+    "feedback": {
+      "correctTitle": "Correct!",
+      "incorrectTitle": "Not quite",
+      "submittedTitle": "Answer submitted",
+      "reviewMessage": "Your teacher will review and score your answer.",
+      "resultsWithheld": "Your answer has been saved. Your result will be shown once your teacher releases it.",
+      "correctMessage": "Your answer is correct.",
+      "incorrectMessage": "Your answer is not correct.",
+      "bestAnswer": "Best answer",
+      "quickExplanation": "Quick explanation",
+      "notAvailable": "N/A",
+      "sessionComplete": "Session complete. Great work!",
+      "masteryProgress": "Mastery progress: {{correct}}/{{total}} correct ({{percent}}%)",
+      "masteryNeedsMore": "{{remaining}} more needed",
+      "nextQuestion": "Next Question",
+      "returnToDashboard": "Return to Dashboard",
+      "masteredBack": "Standard mastered. Go back",
+      "submitFinal": "Submit Final Assessment",
+      "submittingFinal": "Submitting assessment..."
+    },
+    "answerForm": {
+      "submit": "Submit Answer",
+      "submitting": "Submitting...",
+      "retrySubmit": "Try Again",
+      "submitFailed": "Your answer was not saved. Check your connection and try again.",
+      "optionsAria": "Answer options",
+      "shortAnswerPlaceholder": "Type your answer clearly and explain your thinking..."
+    },
+    "errors": {
+      "tryAgain": "Try Again"
+    },
+    "messages": {
+      "loadFailed": "Failed to load question. Please try again.",
+      "submitFailed": "Failed to submit answer. Please try again.",
+      "shortAnswerRequired": "Write your answer before submitting.",
+      "selectRequired": "Select one answer before submitting.",
+      "selectAtLeastOne": "Select at least one answer before submitting.",
+      "matchAtLeastOne": "Match at least one item before submitting.",
+      "orderAll": "Put every item in order before submitting.",
+      "fillAtLeastOne": "Fill at least one blank before submitting.",
+      "numericRequired": "Write your numeric answer before submitting.",
+      "tabSwitch": "Tab switch detected (time {{countInfo}}). This is recorded in your assessment progress.",
+      "finalizeSuccessReleased": "Assessment submitted. Final score: {{score}}/{{max}} ({{percent}}%).",
+      "finalizeSuccessPending": "Assessment submitted. Results will be released by your teacher.",
+      "finalizeFailed": "Failed to submit the final assessment. Please try again."
+    }
   }
 }

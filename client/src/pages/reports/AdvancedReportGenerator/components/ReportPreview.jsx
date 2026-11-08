@@ -11,15 +11,27 @@ const ReportPreview = ({
 }) => {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(rawHtml || '');
+  const [saving, setSaving] = useState(false);
 
   const handleStartEdit = useCallback(() => {
     setEditValue(rawHtml || '');
     setEditing(true);
   }, [rawHtml]);
 
-  const handleSave = useCallback(() => {
-    if (onContentChange) onContentChange(editValue);
-    setEditing(false);
+  // Stay in edit mode unless the server actually stored the text — otherwise
+  // the teacher thinks their correction is on the draft that gets sent.
+  const handleSave = useCallback(async () => {
+    if (!onContentChange) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await onContentChange(editValue);
+      if (saved !== false) setEditing(false);
+    } finally {
+      setSaving(false);
+    }
   }, [editValue, onContentChange]);
 
   const handleCancel = useCallback(() => {
@@ -52,6 +64,7 @@ const ReportPreview = ({
                 className="rg-btn rg-btn-ghost"
                 style={{ minHeight: '28px', padding: '0 10px', fontSize: '11px' }}
                 onClick={handleCancel}
+                disabled={saving}
               >
                 Cancel
               </button>
@@ -60,8 +73,9 @@ const ReportPreview = ({
                 className="rg-btn rg-btn-primary"
                 style={{ minHeight: '28px', padding: '0 10px', fontSize: '11px' }}
                 onClick={handleSave}
+                disabled={saving}
               >
-              Save
+              {saving ? 'Saving…' : 'Save'}
               </button>
             </>
           )}

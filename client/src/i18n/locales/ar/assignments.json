@@ -350,7 +350,17 @@
     "lessonPlans": "خطط الدروس المرتبطة",
     "lessonPlan": "خطة درس",
     "unavailableTitle": "الواجب غير متاح",
-    "unavailableBody": "هذا الواجب غير متاح أو تم حذفه."
+    "unavailableBody": "هذا الواجب غير متاح أو تم حذفه.",
+    "resultBanner": {
+      "released": "النتائج متاحة.",
+      "awaiting_review": "تسليمك بانتظار مراجعة المعلم.",
+      "submitted": "تم التسليم — بانتظار التصحيح.",
+      "closed_no_late": "أُغلق هذا الواجب في {{date}}. لا تُقبل التسليمات المتأخرة.",
+      "closed_late_allowed": "أُغلق هذا الواجب في {{date}}. تُقبل التسليمات المتأخرة."
+    },
+    "googleFormSync": "آخر مزامنة {{time}}",
+    "googleFormAwaitingSync": "بانتظار مزامنة المعلم",
+    "googleFormSyncFailed": "فشلت المزامنة — اضغط لإعادة المحاولة"
   },
   "googleForms": {
     "title": "نماذج Google",
@@ -599,5 +609,152 @@
     "studentExcused": "تم إعفاء الطالب",
     "excuseRemoved": "تم إلغاء الإعفاء",
     "excuseFailed": "تعذر تحديث الإعفاء"
+  },
+  "student": {
+    "header": {
+      "title": "واجباتي",
+      "subtitle": "افتح كل واجب لعرض التعليمات الكاملة وتاريخ الاستحقاق وروابط الدروس.",
+      "academicYear": "السنة الدراسية: {{year}}."
+    },
+    "status": {
+      "submitted": "تم التسليم",
+      "late": "متأخر",
+      "awaiting_review": "بانتظار مراجعة المعلم",
+      "graded": "تم التصحيح",
+      "sync_failed": "فشلت المزامنة",
+      "not_started": "لم يبدأ",
+      "in_progress": "قيد التقدم",
+      "mastered": "تم التمكن",
+      "needs_review": "يحتاج إلى مراجعة",
+      "completed": "مكتمل",
+      "awaiting_release": "بانتظار الإتاحة",
+      "released": "متاح",
+      "excused": "معذور",
+      "closed": "مغلق"
+    },
+    "actions": {
+      "start": "ابدأ",
+      "continue": "تابع",
+      "view_submission": "عرض التسليم",
+      "view_results": "عرض النتائج",
+      "open_form": "فتح النموذج",
+      "review": "راجع",
+      "retry_sync": "إعادة المزامنة",
+      "start_assessment": "ابدأ التقييم",
+      "view_result": "عرض النتيجة",
+      "view": "عرض"
+    },
+    "resultAvailability": {
+      "released_on": "ستُتاح النتائج في {{date}}",
+      "released_now": "النتائج متاحة — اضغط للعرض",
+      "awaiting_review": "بانتظار مراجعة المعلم",
+      "submitted": "تم التسليم — بانتظار التصحيح",
+      "closed_no_late": "أُغلق هذا الواجب في {{date}}. لا تُقبل التسليمات المتأخرة.",
+      "closed_late_allowed": "أُغلق هذا الواجب في {{date}}. تُقبل التسليمات المتأخرة."
+    },
+    "sync": {
+      "last_synced": "آخر مزامنة {{time}}",
+      "sync_failed": "فشلت المزامنة — اضغط لإعادة المحاولة",
+      "awaiting_sync": "بانتظار مزامنة المعلم"
+    },
+    "practice": {
+      "feedback_heading": "الملاحظات",
+      "next_question": "السؤال التالي",
+      "submit_final": "تسليم التقييم النهائي",
+      "session_complete": "اكتملت الجلسة",
+      "retry_generation": "إعادة المحاولة",
+      "retry_submission": "إعادة التسليم"
+    },
+    "card": {
+      "assignment": "واجب",
+      "untitled": "واجب صفي",
+      "subject": "المادة: {{name}}",
+      "due": "مستحق {{date}}",
+      "progress": "التقدم: {{percent}}%"
+    },
+    "filters": {
+      "search": "البحث في الواجبات",
+      "searchPlaceholder": "ابحث بالعنوان أو المادة أو النوع",
+      "type": "النوع",
+      "state": "الحالة",
+      "subject": "المادة",
+      "allTypes": "كل الأنواع",
+      "allStates": "كل الحالات",
+      "allSubjects": "كل المواد",
+      "subjectFallback": "المادة",
+      "semester": "الفصل الدراسي",
+      "allSemesters": "كل الفصول",
+      "semesters": {
+        "first": "الفصل الأول",
+        "second": "الفصل الثاني"
+      },
+      "year": "السنة الدراسية",
+      "sort": "الترتيب",
+      "types": {
+        "google_form": "نموذج Google",
+        "practice": "تدريب",
+        "assessment": "تقييم",
+        "homework": "واجب منزلي",
+        "classwork": "عمل صفي",
+        "grammar_test": "اختبار قواعد"
+      },
+      "states": {
+        "upcoming": "قادم",
+        "active": "جارٍ",
+        "needs_review": "يحتاج إلى مراجعة",
+        "completed": "مكتمل"
+      },
+      "sorts": {
+        "assignedDate": "الأحدث أولًا",
+        "dueDate": "الأقرب استحقاقًا",
+        "title": "العنوان"
+      }
+    },
+    "empty": {
+      "title": "لا توجد واجبات بعد",
+      "body": "سيشارك معلمك الواجبات هنا.",
+      "noMatchesTitle": "لا توجد واجبات مطابقة",
+      "noMatchesBody": "جرّب تعديل البحث أو إزالة عامل التصفية."
+    },
+    "error": {
+      "title": "تعذّر تحميل الواجبات",
+      "body": "حدثت مشكلة أثناء تحميل القائمة. حاول مرة أخرى.",
+      "retry": "إعادة المحاولة"
+    },
+    "pagination": {
+      "label": "صفحات الواجبات",
+      "showing": "عرض {{from}}–{{to}} من {{total}}",
+      "previous": "السابق",
+      "next": "التالي",
+      "pageOf": "الصفحة {{page}} من {{totalPages}}"
+    },
+    "sourceErrors": {
+      "partial": "تعذّر تحميل بعض الواجبات."
+    },
+    "results": {
+      "title": "نتيجة التقييم",
+      "back": "العودة إلى الواجبات",
+      "notReleased": "النتائج غير متاحة بعد",
+      "notReleasedBody": "سيتيح معلمك النتائج قريبًا.",
+      "submittedOn": "تم التسليم في {{date}}",
+      "releasedOn": "أُتيحت في {{date}}",
+      "score": "الدرجة",
+      "percentage": "النسبة المئوية",
+      "scale": "المقياس (1–4)",
+      "passed": "ناجح",
+      "failed": "غير ناجح",
+      "question": "السؤال",
+      "yourAnswer": "إجابتك",
+      "correctAnswer": "الإجابة الصحيحة",
+      "feedback": "ملاحظات المعلم",
+      "awaitingReview": "بانتظار مراجعة المعلم",
+      "noAnswer": "لم تُجب",
+      "correct": "صحيح",
+      "incorrect": "غير صحيح",
+      "summary": "{{correct}} من {{total}} صحيحة",
+      "unavailableTitle": "النتيجة غير متاحة",
+      "unavailableBody": "تعذّر تحميل هذه النتيجة.",
+      "retry": "إعادة المحاولة"
+    }
   }
 }

@@ -41,3 +41,7 @@
     align-items: flex-start;
   }
 }
+
+[dir="rtl"] .practice-assessment-results .back-link svg {
+    transform: scaleX(-1);
+}

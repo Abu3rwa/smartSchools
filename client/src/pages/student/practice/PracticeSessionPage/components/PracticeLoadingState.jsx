@@ -1,10 +1,13 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const PracticeLoadingState = () => {
+    const { t } = useTranslation('studentPractice');
+
     return (
         <div className="generating-state">
             <div className="spinner"></div>
-            <p>Preparing a personalized question for you...</p>
+            <p>{t('session.loading.preparing')}</p>
         </div>
     );
 };

@@ -1,13 +1,13 @@
 const MAX_LENGTH = 1200;
 
-const TeacherRemarkSection = ({ value, onChange, onBlur }) => {
-  const length = value.length;
+const TeacherRemarkSection = ({ value, onChange, onBlur, locked }) => {
+  const length = (value || '').length;
 
   return (
     <div className="rg-panel">
       <div className="rg-panel-head">
         <h3>Note from the Teacher</h3>
-        <span className="rg-hint">Optional</span>
+        <span className="rg-hint">{locked ? 'Frozen with the approved email' : 'Optional'}</span>
       </div>
       <div className="rg-field">
         <label className="rg-label" htmlFor="teacherRemark">
@@ -17,15 +17,20 @@ const TeacherRemarkSection = ({ value, onChange, onBlur }) => {
           id="teacherRemark"
           name="teacherRemark"
           className="rg-textarea"
-          value={value}
+          value={value || ''}
           onChange={onChange}
           onBlur={onBlur}
           maxLength={MAX_LENGTH}
+          disabled={locked}
           placeholder="Write your own words here. They appear in the email exactly as written."
           rows={4}
         />
         <div className="rg-field-foot">
-          <span>Sent word for word — the AI never edits this.</span>
+          <span>
+            {locked
+              ? 'Reopen the draft to change this note.'
+              : 'Sent word for word — the AI never edits this.'}
+          </span>
           <span>{length}/{MAX_LENGTH}</span>
         </div>
       </div>

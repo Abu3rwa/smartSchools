@@ -23,9 +23,14 @@ import {
   toLegacyLanguageValue,
 } from "../utils/aiLanguageUtils.js";
 import { buildEvidencePack } from "../services/reportEvidence/index.js";
+import { calculateReportDateRange } from "../utils/reportDateRange.js";
+import { ensureTeacherCanAccessStudent } from "../services/mapPracticeAccessService.js";
+import gmailOAuthService from "../services/gmailOAuthService.js";
 
 // req.user.school is populated by auth middleware, so compare by _id.
 const userSchoolId = (user) => (user.school?._id || user.school)?.toString();
+// Refs may arrive as ObjectId or populated doc depending on the query path.
+const refId = (ref) => (ref?._id || ref)?.toString();
 
 const ADMIN_ROLES = ["admin", "super_admin"];
 const userIsAdmin = (user) =>
@@ -72,9 +77,9 @@ const summarizeEvidence = (evidencePack) => ({
         recordCount: val.recordCount,
         trend: val.trend,
         metrics: compactMetrics(key, val.metrics),
-        // Kept so the teacher can see why a source failed instead of a bare
-        // "Could not be read" with no way to tell what happened.
-        error: val.status === "failed" ? val.error || "Unknown error" : null,
+        // Raw collector errors can carry connection strings and internal paths;
+        // the teacher gets an actionable label, the detail stays in server logs.
+        error: val.status === "failed" ? "This source could not be read. Try again, or contact your administrator if it persists." : null,
       },
     ]),
   ),
@@ -97,7 +102,6 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     dateRange,
     customPrompt,
     teacherRemark,
-    sendEmail = false,
     sources,
     sections: submittedSections,
     profileId,
@@ -112,6 +116,9 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
   } = req.body;
 
   // 1. Fetch Student
+  if (!studentId || !mongoose.isValidObjectId(studentId)) {
+    return res.status(400).json({ success: false, message: "A valid studentId is required." });
+  }
   const student = await Student.findById(studentId)
     .populate("school")
     .populate("currentClass")
@@ -128,14 +135,34 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Not authorized to access this student." });
   }
 
-  // 2. Calculate date range
-  const { startDate, endDate, period } = calculateDateRange(
-    reportType,
-    dateRange,
-  );
+  // 1b. Teachers may only report on students in their own assigned classes.
+  const canAccess = await ensureTeacherCanAccessStudent({ req, studentId });
+  if (!canAccess) {
+    return res.status(403).json({ success: false, message: "Not authorized to access this student." });
+  }
+
+  // 2. Calculate date range (validated; bad custom ranges are a 400, not a 500)
+  let range;
+  try {
+    range = calculateReportDateRange(reportType, dateRange);
+  } catch (rangeError) {
+    return res.status(400).json({ success: false, message: rangeError.message });
+  }
+  const { startDate, endDate, period } = range;
+
+  // 2a. A submitted class must be one the student is actually enrolled in.
+  const studentClassIds = [student.currentClass?._id, ...(student.enrolledClasses || [])]
+    .filter(Boolean)
+    .map(String);
+  if (submittedClassId && !studentClassIds.includes(String(submittedClassId))) {
+    return res.status(400).json({
+      success: false,
+      message: "The selected class is not one of this student's enrolled classes.",
+    });
+  }
 
   // 3. Resolve effective profile — explicit selection beats auto-resolution
-  const effectiveClassId = student.currentClass?._id || submittedClassId;
+  const effectiveClassId = submittedClassId || student.currentClass?._id;
   let effectiveProfile;
   if (profileId) {
     effectiveProfile = await ReportProfile.findById(profileId);
@@ -144,6 +171,23 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     }
     if (effectiveProfile.school.toString() !== userSchoolId(req.user)) {
       return res.status(403).json({ success: false, message: "Not authorized to use this profile." });
+    }
+    if (
+      effectiveProfile.scope === "teacher" &&
+      effectiveProfile.teacher?.toString() !== req.user._id.toString() &&
+      !userIsAdmin(req.user)
+    ) {
+      return res.status(403).json({ success: false, message: "Not authorized to use this profile." });
+    }
+    if (
+      effectiveProfile.scope === "class" &&
+      effectiveClassId &&
+      effectiveProfile.classId?.toString() !== String(effectiveClassId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "This template belongs to a different class.",
+      });
     }
   } else {
     effectiveProfile = await ReportProfile.resolveEffective({
@@ -158,6 +202,13 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     sources !== undefined
       ? sources
       : effectiveProfile?.sources || undefined;
+
+  if (Array.isArray(resolvedSources) && resolvedSources.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Select at least one data source. An empty selection would produce a report with no evidence.",
+    });
+  }
 
   // Sections: submitted overrides take precedence over profile sections
   const resolvedSections = submittedSections
@@ -174,6 +225,17 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     subjectId: subjectId || undefined,
     sources: resolvedSources,
   });
+
+  // A failed source is missing evidence, not "no data". The teacher must
+  // explicitly acknowledge it before the AI writes around the gap.
+  if (evidencePack.failedSources.length > 0 && !req.body.acknowledgeFailedSources) {
+    return res.status(409).json({
+      success: false,
+      code: "EVIDENCE_PARTIAL",
+      message: `Some data sources could not be read: ${evidencePack.failedSources.join(", ")}. Generate without them?`,
+      failedSources: evidencePack.failedSources,
+    });
+  }
 
   if (evidencePack.availableSources.length === 0) {
     const detail =
@@ -580,7 +642,12 @@ export const getReportHistory = asyncHandler(async (req, res) => {
 
   const query = {};
   if (studentId) query.student = studentId;
-  if (teacherId) query.user = teacherId;
+  // Teachers see only their own reports; only admins may browse by teacher.
+  if (userIsAdmin(req.user)) {
+    if (teacherId) query.user = teacherId;
+  } else {
+    query.user = req.user._id;
+  }
   if (reportType) query.reportType = reportType;
   if (language) {
     const normalized = normalizeLanguageCode(language);
@@ -628,12 +695,21 @@ export const getReportHistory = asyncHandler(async (req, res) => {
 export const getEmailStatus = asyncHandler(async (req, res) => {
   const { reportId } = req.params;
 
-  // Verify the report belongs to the requesting user's school
+  // Verify the report belongs to the requesting user's school and that the
+  // requester owns it (delivery details include family email addresses).
+  // Draft sends live in ReportDraft; legacy AI reports live in AITokenUsage.
   const draft = await ReportDraft.findById(reportId).select("school teacher");
-  if (!draft) {
+  const record = draft || (await AITokenUsage.findById(reportId).select("school user"));
+  if (!record) {
     return res.status(404).json({ success: false, message: "Report not found." });
   }
-  if (draft.school.toString() !== userSchoolId(req.user)) {
+  if (record.school.toString() !== userSchoolId(req.user)) {
+    return res.status(403).json({ success: false, message: "Not authorized." });
+  }
+  if (
+    refId(draft ? draft.teacher : record.user) !== req.user._id.toString() &&
+    !userIsAdmin(req.user)
+  ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
   }
 
@@ -653,16 +729,17 @@ export const getEmailStatus = asyncHandler(async (req, res) => {
 export const retryFailedEmails = asyncHandler(async (req, res) => {
   const { reportId } = req.params;
 
-  // Verify the report belongs to the requesting user's school
+  // Same ownership rules as email status; legacy AITokenUsage IDs still work.
   const draft = await ReportDraft.findById(reportId).select("school teacher");
-  if (!draft) {
+  const record = draft || (await AITokenUsage.findById(reportId).select("school user"));
+  if (!record) {
     return res.status(404).json({ success: false, message: "Report not found." });
   }
-  if (draft.school.toString() !== userSchoolId(req.user)) {
+  if (record.school.toString() !== userSchoolId(req.user)) {
     return res.status(403).json({ success: false, message: "Not authorized." });
   }
   if (
-    draft.teacher.toString() !== req.user._id.toString() &&
+    refId(draft ? draft.teacher : record.user) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
@@ -690,59 +767,6 @@ export const testEmailConfiguration = asyncHandler(async (req, res) => {
     data: result,
   });
 });
-
-/**
- * Helper function to calculate date range based on report type
- */
-function calculateDateRange(reportType, customRange) {
-  const now = new Date();
-  let startDate, endDate, period;
-
-  switch (reportType) {
-    case "weekly":
-      startDate = startOfWeek(now);
-      endDate = endOfWeek(now);
-      period = `Week of ${startDate.toLocaleDateString()}`;
-      break;
-    case "monthly":
-      startDate = startOfMonth(now);
-      endDate = endOfMonth(now);
-      period = now.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-      break;
-    case "quarterly":
-      const quarter = Math.floor(now.getMonth() / 3);
-      startDate = new Date(now.getFullYear(), quarter * 3, 1);
-      endDate = endOfMonth(new Date(now.getFullYear(), quarter * 3 + 2, 1));
-      period = `Q${quarter + 1} ${now.getFullYear()}`;
-      break;
-    case "yearly":
-      startDate = startOfYear(now);
-      endDate = endOfYear(now);
-      period = `Academic Year ${now.getFullYear()}`;
-      break;
-    case "custom":
-      if (customRange && customRange.startDate && customRange.endDate) {
-        startDate = new Date(customRange.startDate);
-        endDate = new Date(customRange.endDate);
-        period = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
-      } else {
-        throw new Error("Custom date range requires startDate and endDate");
-      }
-      break;
-    default:
-      startDate = startOfMonth(now);
-      endDate = endOfMonth(now);
-      period = now.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-  }
-
-  return { startDate, endDate, period };
-}
 
 /**
  * @desc    Update a report template
@@ -1091,7 +1115,7 @@ export const getReportDraft = asyncHandler(async (req, res) => {
   }
 
   if (
-    draft.teacher._id.toString() !== req.user._id.toString() &&
+    refId(draft.teacher) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
@@ -1107,7 +1131,7 @@ export const getReportDraft = asyncHandler(async (req, res) => {
  */
 export const updateReportDraft = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { content, recipients, teacherRemark } = req.body;
+  const { content, recipients, teacherRemark, revision } = req.body;
 
   const draft = await ReportDraft.findById(id);
   if (!draft) {
@@ -1121,7 +1145,7 @@ export const updateReportDraft = asyncHandler(async (req, res) => {
   }
 
   if (
-    draft.teacher.toString() !== req.user._id.toString() &&
+    refId(draft.teacher) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
@@ -1130,17 +1154,39 @@ export const updateReportDraft = asyncHandler(async (req, res) => {
   if (draft.status !== "draft") {
     return res.status(400).json({
       success: false,
-      message: `Cannot edit a ${draft.status} draft. Only drafts in "draft" status can be edited.`,
+      message: `Cannot edit a ${draft.status} draft. Only drafts in "draft" status can be edited. Reopen it first.`,
     });
   }
 
-  if (content !== undefined) draft.content = content;
-  if (recipients !== undefined) draft.recipients = recipients;
-  if (teacherRemark !== undefined) draft.teacherRemark = normalizeTeacherRemark(teacherRemark);
+  // Optimistic concurrency: a stale tab must not overwrite newer edits.
+  if (revision !== undefined && Number(revision) !== (draft.revision || 0)) {
+    return res.status(409).json({
+      success: false,
+      code: "REVISION_CONFLICT",
+      message: "This draft was changed elsewhere. Reload it before saving your edits.",
+    });
+  }
 
-  await draft.save();
+  const changes = {};
+  if (content !== undefined) changes.content = content;
+  if (recipients !== undefined) changes.recipients = recipients;
+  if (teacherRemark !== undefined) changes.teacherRemark = normalizeTeacherRemark(teacherRemark);
 
-  res.json({ success: true, data: draft });
+  const updated = await ReportDraft.findOneAndUpdate(
+    { _id: id, status: "draft", revision: draft.revision || 0 },
+    { $set: changes, $inc: { revision: 1 } },
+    { new: true }
+  );
+
+  if (!updated) {
+    return res.status(409).json({
+      success: false,
+      code: "REVISION_CONFLICT",
+      message: "This draft was changed elsewhere. Reload it before saving your edits.",
+    });
+  }
+
+  res.json({ success: true, data: updated });
 });
 
 /**
@@ -1152,7 +1198,7 @@ export const approveReportDraft = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { recipients } = req.body;
 
-  const draft = await ReportDraft.findById(id);
+  const draft = await loadSendableDraft(id);
   if (!draft) {
     return res
       .status(404)
@@ -1164,7 +1210,7 @@ export const approveReportDraft = asyncHandler(async (req, res) => {
   }
 
   if (
-    draft.teacher.toString() !== req.user._id.toString() &&
+    refId(draft.teacher) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
@@ -1177,11 +1223,122 @@ export const approveReportDraft = asyncHandler(async (req, res) => {
     });
   }
 
+  if (!draft.student) {
+    return res
+      .status(410)
+      .json({ success: false, message: "The student on this draft no longer exists." });
+  }
+
+  if (recipients !== undefined) draft.recipients = recipients;
+
+  const resolvedRecipients = emailService.prepareRecipientList({
+    studentData: draft.student,
+    recipients: draft.recipients,
+    teacher: draft.teacher,
+  });
+  if (!resolvedRecipients.some((r) => r.type !== "teacher")) {
+    return res.status(400).json({
+      success: false,
+      message: "Select at least one family recipient (student, mother, father or guardian) before approving.",
+    });
+  }
+
+  // Approval is a promise to send exactly this — fail early if the transport
+  // is not connected instead of discovering it after approval.
+  const senderId = refId(draft.teacher);
+  const connected = await gmailOAuthService.hasValidTokens(senderId);
+  if (!connected) {
+    return res.status(400).json({
+      success: false,
+      code: "GMAIL_NOT_CONNECTED",
+      message: "Gmail is not connected. Connect the sending account before approving.",
+    });
+  }
+
+  const schoolName = await emailService.resolveSchoolName(draft.student?.school);
+  const rendered = emailService.renderReportEmail({
+    reportContent: draft.content,
+    language: draft.language,
+    requestedLanguages: draft.requestedLanguages,
+    studentData: draft.student,
+    schoolName,
+    teacher: draft.teacher,
+    teacherRemark: draft.teacherRemark,
+    period: draft.period,
+    dateRange: draft.dateRange,
+    evidenceSnapshot: draft.evidenceSnapshot,
+  });
+
+  let senderEmail = null;
+  try {
+    const tokenStatus = await gmailOAuthService.getTokenStatus(senderId);
+    senderEmail = tokenStatus?.email || null;
+  } catch {
+    senderEmail = null;
+  }
+
+  draft.approvedSnapshot = {
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    recipients: resolvedRecipients.map((r) => ({ email: r.email, name: r.name, type: r.type })),
+    senderEmail,
+    senderName: `${draft.teacher?.firstName || ""} ${draft.teacher?.lastName || ""}`.trim() || null,
+    language: rendered.language,
+    requestedLanguages: rendered.requestedLanguages,
+    renderedAt: new Date(),
+    revision: draft.revision || 0,
+  };
   draft.status = "approved";
   draft.approvedAt = new Date();
   draft.approvedBy = req.user._id;
-  if (recipients !== undefined) draft.recipients = recipients;
 
+  await draft.save();
+
+  res.json({ success: true, data: draft });
+});
+
+/**
+ * @desc    Reopen an approved/failed draft for editing (clears the frozen snapshot)
+ * @route   POST /api/reports/drafts/:id/reopen
+ * @access  Private (Teacher/Admin)
+ */
+export const reopenReportDraft = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const draft = await ReportDraft.findById(id);
+  if (!draft) {
+    return res.status(404).json({ success: false, message: "Draft not found." });
+  }
+
+  if (draft.school.toString() !== userSchoolId(req.user)) {
+    return res.status(403).json({ success: false, message: "Not authorized." });
+  }
+
+  if (
+    refId(draft.teacher) !== req.user._id.toString() &&
+    !userIsAdmin(req.user)
+  ) {
+    return res.status(403).json({ success: false, message: "Not authorized." });
+  }
+
+  // Sent/unknown deliveries are immutable history; sending is in flight.
+  if (!["approved", "failed", "partial"].includes(draft.status)) {
+    return res.status(400).json({
+      success: false,
+      message:
+        draft.status === "unknown"
+          ? "Delivery outcome is unconfirmed. Check the delivery status before making changes."
+          : `Cannot reopen a ${draft.status} draft.`,
+    });
+  }
+
+  draft.status = "draft";
+  draft.approvedSnapshot = undefined;
+  draft.approvedAt = null;
+  draft.approvedBy = null;
+  draft.sendError = null;
+  draft.revision = (draft.revision || 0) + 1;
   await draft.save();
 
   res.json({ success: true, data: draft });
@@ -1220,6 +1377,14 @@ export const getDraftEmailPreview = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Not authorized." });
   }
 
+  // The preview contains the full report and family addresses — owner only.
+  if (
+    refId(draft.teacher) !== req.user._id.toString() &&
+    !userIsAdmin(req.user)
+  ) {
+    return res.status(403).json({ success: false, message: "Not authorized." });
+  }
+
   if (!draft.student) {
     return res
       .status(410)
@@ -1251,6 +1416,7 @@ export const getDraftEmailPreview = asyncHandler(async (req, res) => {
     data: {
       subject: rendered.subject,
       html: rendered.html,
+      text: rendered.text,
       language: rendered.language,
       requestedLanguages: rendered.requestedLanguages,
       recipients: recipients.map((r) => ({ email: r.email, name: r.name, type: r.type })),
@@ -1280,7 +1446,7 @@ export const sendReportDraft = asyncHandler(async (req, res) => {
   }
 
   if (
-    draft.teacher._id.toString() !== req.user._id.toString() &&
+    refId(draft.teacher) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });
@@ -1288,13 +1454,17 @@ export const sendReportDraft = asyncHandler(async (req, res) => {
 
   // "failed" is re-sendable: the content was already approved and the usual
   // cause (Gmail not connected, provider hiccup) is fixable in place.
+  // "partial" goes through per-recipient retry; "unknown" needs a human check.
   if (!["approved", "failed"].includes(draft.status)) {
+    const messages = {
+      sending: "This draft is already being sent.",
+      partial: "Some recipients already received this report. Use retry to deliver only to the failed recipients.",
+      unknown: "Delivery could not be confirmed for this report. Check the delivery status before sending again — the family may already have it.",
+      sent: "This report has already been sent.",
+    };
     return res.status(400).json({
       success: false,
-      message:
-        draft.status === "sending"
-          ? "This draft is already being sent."
-          : `Cannot send a ${draft.status} draft. It must be approved first.`,
+      message: messages[draft.status] || `Cannot send a ${draft.status} draft. It must be approved first.`,
     });
   }
 
@@ -1336,16 +1506,40 @@ export const sendReportDraft = asyncHandler(async (req, res) => {
       period: draft.period,
       dateRange: draft.dateRange,
       evidenceSnapshot: draft.evidenceSnapshot,
+      // Deliver exactly what was approved. Legacy drafts approved before
+      // snapshots existed fall back to a fresh render of the stored content.
+      frozen: draft.approvedSnapshot?.html ? draft.approvedSnapshot : null,
     });
   } catch (sendErr) {
     // Never leave a draft stranded in "sending" — the teacher must be able to retry.
-    emailResults = { success: false, message: sendErr.message };
+    emailResults = { success: false, sent: 0, failed: 0, unknown: 0, results: [], message: sendErr.message };
   }
 
-  if (!emailResults.success) {
+  const sentCount = emailResults.sent || 0;
+  const failedCount = emailResults.failed || 0;
+  const unknownCount = emailResults.unknown || 0;
+
+  if (unknownCount > 0) {
+    draft.status = "unknown";
+    draft.sendError = "Provider acceptance could not be confirmed for at least one recipient. Check delivery status before retrying.";
+  } else if (sentCount > 0 && failedCount > 0) {
+    draft.status = "partial";
+    draft.sendError = `Delivered to ${sentCount} recipient(s); ${failedCount} failed. Retry delivers only to the failed recipients.`;
+  } else if (sentCount > 0) {
+    draft.status = "sent";
+    draft.sendError = null;
+  } else {
     draft.status = "failed";
     draft.sendError = emailResults.message || emailResults.error || "Send failed";
-    await draft.save();
+  }
+  if (sentCount > 0) draft.sentAt = new Date();
+  await draft.save();
+
+  if (draft.status === "sent") {
+    return res.json({ success: true, data: { draft, emailResults } });
+  }
+
+  if (draft.status === "failed") {
     return res.status(502).json({
       success: false,
       message: emailResults.message || "Email delivery failed.",
@@ -1353,17 +1547,13 @@ export const sendReportDraft = asyncHandler(async (req, res) => {
     });
   }
 
-  draft.status = "sent";
-  draft.sentAt = new Date();
-  draft.sendError = null;
-  await draft.save();
-
-  res.json({
-    success: true,
-    data: {
-      draft,
-      emailResults,
-    },
+  // partial / unknown: the request succeeded but delivery is incomplete or
+  // unconfirmed — report that honestly instead of a blanket success/failure.
+  return res.json({
+    success: false,
+    code: draft.status === "unknown" ? "DELIVERY_UNKNOWN" : "DELIVERY_PARTIAL",
+    message: draft.sendError,
+    data: { draft, emailResults },
   });
 });
 
@@ -1387,7 +1577,7 @@ export const cancelReportDraft = asyncHandler(async (req, res) => {
   }
 
   if (
-    draft.teacher.toString() !== req.user._id.toString() &&
+    refId(draft.teacher) !== req.user._id.toString() &&
     !userIsAdmin(req.user)
   ) {
     return res.status(403).json({ success: false, message: "Not authorized." });

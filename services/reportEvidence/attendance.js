@@ -88,11 +88,12 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
         ? Math.round((countPresent(secondRecords) / secondRecords.length) * 100)
         : 0;
 
-    let trend = 'stable';
+    let trend = 'insufficient_data';
     if (records.length >= 6) {
         const diff = secondRate - firstRate;
         if (diff > 5) trend = 'improving';
         else if (diff < -5) trend = 'declining';
+        else trend = 'stable';
     }
 
     const facts = [];

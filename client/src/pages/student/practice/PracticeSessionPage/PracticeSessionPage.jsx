@@ -7,6 +7,7 @@ import PracticeInitialState from './components/PracticeInitialState';
 import PracticeSessionComplete from './components/PracticeSessionComplete';
 import PracticeQuestionCard from './components/PracticeQuestionCard';
 import PracticeAnswerForm from './components/PracticeAnswerForm';
+import PracticeResultFeedback from './components/PracticeResultFeedback';
 import PracticeLoadingState from './components/PracticeLoadingState';
 import './PracticeSessionPage.css';
 
@@ -42,6 +43,8 @@ const PracticeSessionPage = () => {
         isAssessmentSession,
         assessmentAutoClosed,
         showQuestion,
+        showFeedback,
+        submitError,
         displayName,
         combinedAsked,
         combinedCorrect,
@@ -89,6 +92,19 @@ const PracticeSessionPage = () => {
                 />
             )}
 
+            {showFeedback && (
+                <PracticeResultFeedback
+                    lastResult={lastResult}
+                    onNextQuestion={handleGenerate}
+                    onNavigateToPractice={() => navigate('/portal/practice')}
+                    onFinalizeAssessment={handleFinalizeAssessment}
+                    isGenerating={generating}
+                    isAssessmentSession={isAssessmentSession}
+                    assessmentAutoClosed={assessmentAutoClosed}
+                    finalizingAssessment={finalizingAssessment}
+                />
+            )}
+
             {(isMasteredResult || isSessionComplete) && !lastResult && !generating && (
                 <PracticeSessionComplete
                     isMastered={isMasteredResult}
@@ -127,6 +143,7 @@ const PracticeSessionPage = () => {
                         objectiveAnswer={objectiveAnswer}
                         onObjectiveAnswerChange={setObjectiveAnswer}
                         submittingAnswer={submittingAnswer}
+                        submitError={submitError}
                         onSubmit={handleSubmit}
                     />
                 </PracticeQuestionCard>

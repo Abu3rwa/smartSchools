@@ -4,6 +4,7 @@ import Assignment from '../models/Assignment.js';
 import Student from '../models/Student.js';
 import Grade from '../models/Grade.js';
 import GoogleFormSubmission from '../models/GoogleFormSubmission.js';
+import GoogleFormGrading from '../models/GoogleFormGrading.js';
 import AssignmentClassroomLink from '../models/AssignmentClassroomLink.js';
 import { getAssignmentDetail } from '../controllers/assignmentController.js';
 
@@ -61,14 +62,15 @@ const chain = (value) => {
     return proxy;
 };
 
-const invoke = async ({ assignmentRow = assignment, studentRow = student } = {}, t) => {
+const invoke = async ({ assignmentRow = assignment, studentRow = student, gradingRows = [], gradeRows } = {}, t) => {
     t.mock.method(Assignment, 'findOne', () => chain(assignmentRow));
     t.mock.method(Student, 'findOne', () => chain(studentRow));
     t.mock.method(GoogleFormSubmission, 'find', () => chain([
         { student: 'student-1', status: 'submitted', submittedAt: '2026-11-02T10:00:00.000Z' }
     ]));
-    t.mock.method(Grade, 'find', () => chain([
-        { student: 'student-1', marks: 8, maxMarks: 10, remarks: 'Good work', date: '2026-11-03T09:00:00.000Z' }
+    t.mock.method(GoogleFormGrading, 'find', () => chain(gradingRows));
+    t.mock.method(Grade, 'find', () => chain(gradeRows || [
+        { student: 'student-1', marks: 8, maxMarks: 10, remarks: 'Good work', date: '2026-11-03T09:00:00.000Z', gradingSource: 'google_forms_review' }
     ]));
     t.mock.method(AssignmentClassroomLink, 'findOne', () => chain({
         alternateLink: 'https://classroom.google.com/c/course-1/a/coursework-1',
@@ -136,4 +138,99 @@ test('a missing assignment returns a neutral not-found response', async (t) => {
 
     assert.equal(response.statusCode, 404);
     assert.equal(response.body.success, false);
+});
+
+test('a draft assignment is invisible even through a direct link', async (t) => {
+    const response = await invoke({
+        assignmentRow: { ...assignment, status: 'draft' }
+    }, t);
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.body.message, 'Assignment not found');
+});
+
+test('an archived assignment is invisible even through a direct link', async (t) => {
+    const response = await invoke({
+        assignmentRow: { ...assignment, status: 'archived' }
+    }, t);
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.body.message, 'Assignment not found');
+});
+
+test('a closed assignment stays readable for released work', async (t) => {
+    const response = await invoke({
+        assignmentRow: { ...assignment, status: 'closed' }
+    }, t);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.data.title, 'Water cycle quiz');
+});
+
+test('the student DTO never carries targeting or excusal lists', async (t) => {
+    const response = await invoke({
+        assignmentRow: {
+            ...assignment,
+            studentIds: ['student-1', 'student-2'],
+            excusedStudentIds: ['student-2']
+        }
+    }, t);
+
+    const data = response.body.data;
+    assert.equal(response.statusCode, 200);
+    assert.equal('studentIds' in data, false);
+    assert.equal('excusedStudentIds' in data, false);
+    assert.equal(data.isExcused, false);
+});
+
+test('an excused student learns only their own excusal', async (t) => {
+    const response = await invoke({
+        assignmentRow: {
+            ...assignment,
+            excusedStudentIds: ['student-1', 'student-2']
+        }
+    }, t);
+
+    const data = response.body.data;
+    assert.equal(response.statusCode, 200);
+    assert.equal(data.isExcused, true);
+    assert.equal(data.students[0].excused, true);
+    assert.equal('excusedStudentIds' in data, false);
+});
+
+test('a changed response hides the superseded review grade and says so', async (t) => {
+    const response = await invoke({
+        gradingRows: [{ student: 'student-1', status: 'stale' }]
+    }, t);
+
+    const item = response.body.data.students[0];
+    assert.equal(response.statusCode, 200);
+    assert.equal(item.resultState, 'changed');
+    assert.equal(item.grade, null);
+    assert.equal(item.submission.status, 'submitted');
+});
+
+test('a changed response never hides a teacher-entered grade', async (t) => {
+    const response = await invoke({
+        gradingRows: [{ student: 'student-1', status: 'stale' }],
+        gradeRows: [
+            { student: 'student-1', marks: 7, maxMarks: 10, remarks: '', date: '2026-11-03T09:00:00.000Z', gradingSource: 'manual' }
+        ]
+    }, t);
+
+    const item = response.body.data.students[0];
+    assert.equal(item.grade.marks, 7);
+});
+
+test('an approved review reads as graded; a pending one as awaiting review', async (t) => {
+    const approved = await invoke({
+        gradingRows: [{ student: 'student-1', status: 'approved' }]
+    }, t);
+    assert.equal(approved.body.data.students[0].resultState, 'graded');
+
+    const pending = await invoke({
+        gradingRows: [{ student: 'student-1', status: 'suggested' }],
+        gradeRows: []
+    }, t);
+    assert.equal(pending.body.data.students[0].resultState, 'awaiting_review');
 });

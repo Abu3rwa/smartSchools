@@ -19,6 +19,12 @@ const practiceService = {
         return response.data;
     },
 
+    // Student/Parent: Get a single released assessment result
+    getAssessmentResult: async (assignmentId, params = {}) => {
+        const response = await api.get(`/practice/assessment/${assignmentId}/my-results`, { params });
+        return response.data;
+    },
+
     // Student: Get practice history for a standard
     getPracticeHistory: async (standardId, params = {}) => {
         const response = await api.get(`/practice/history/${standardId}`, { params });

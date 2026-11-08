@@ -19,7 +19,10 @@ const reportDraftSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['draft', 'approved', 'sending', 'sent', 'failed', 'cancelled'],
+        // 'partial' = some recipients sent, some definitively failed;
+        // 'unknown' = provider acceptance could not be confirmed for at least
+        // one recipient — never auto-retried, a human must check first.
+        enum: ['draft', 'approved', 'sending', 'sent', 'partial', 'unknown', 'failed', 'cancelled'],
         default: 'draft'
     },
     reportType: {
@@ -85,6 +88,28 @@ const reportDraftSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         default: null
+    },
+    // Frozen at approval: exactly what was reviewed is what gets sent.
+    approvedSnapshot: {
+        subject: { type: String, default: null },
+        html: { type: String, default: null },
+        text: { type: String, default: null },
+        recipients: [{
+            email: String,
+            name: String,
+            type: String
+        }],
+        senderEmail: { type: String, default: null },
+        senderName: { type: String, default: null },
+        language: { type: String, default: null },
+        requestedLanguages: [String],
+        renderedAt: { type: Date, default: null },
+        revision: { type: Number, default: null }
+    },
+    // Optimistic concurrency for edits: a stale tab cannot overwrite newer work.
+    revision: {
+        type: Number,
+        default: 0
     },
     sentAt: {
         type: Date,

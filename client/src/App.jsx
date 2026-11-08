@@ -109,6 +109,7 @@ const PracticeSessionPage = lazy(() => import("./pages/student/practice/Practice
 const PracticeHistoryPage = lazy(() => import("./pages/student/practice/PracticeHistoryPage"));
 const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practice/PracticeAssessmentResultsPage"));
 const StudentMyAssignmentsPage = lazy(() => import("./pages/student/assignments/StudentMyAssignmentsPage"));
+const StudentAssessmentResultsPage = lazy(() => import("./pages/student/assignments/StudentAssessmentResultsPage"));
 const AssignmentDetailPage = lazy(() => import("./pages/assignments/AssignmentDetailPage"));
 const StudentAcademicExcellencePage = lazy(() => import("./pages/student/academicExcellence/StudentAcademicExcellencePage"));
 const TeacherAcademicExcellencePage = lazy(() => import("./pages/teacher/academicExcellence/TeacherAcademicExcellencePage"));
@@ -1219,10 +1220,26 @@ function App() {
               }
             />
             <Route
+              path="my-assignments/:assignmentId/results"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <StudentAssessmentResultsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
               path="assignments/:assignmentId"
               element={
                 <RoleRoute roles={["student", "parent"]}>
                   <AssignmentDetailPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="assignments/:assignmentId/results"
+              element={
+                <RoleRoute roles={["student", "parent"]}>
+                  <StudentAssessmentResultsPage />
                 </RoleRoute>
               }
             />

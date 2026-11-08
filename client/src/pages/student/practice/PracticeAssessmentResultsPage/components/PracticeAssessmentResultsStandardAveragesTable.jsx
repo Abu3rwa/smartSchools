@@ -1,8 +1,11 @@
+import { useTranslation } from "react-i18next";
 import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
 export default function PracticeAssessmentResultsStandardAveragesTable({
   standardAverages,
 }) {
+  const { t } = useTranslation("studentPractice");
+
   const formatNumber = (value, decimals = 2) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return '0';
@@ -14,20 +17,20 @@ export default function PracticeAssessmentResultsStandardAveragesTable({
 
   return (
     <div className="table-container" style={{ marginTop: "var(--spacing-lg)" }}>
-      <h3>Per-Standard Semester Averages</h3>
+      <h3>{t("results.standardAverages.title")}</h3>
       <table className="practice-table">
         <thead>
           <tr>
-            <th>Standard</th>
-            <th>Assessments</th>
-            <th>Average %</th>
-            <th>Average 1-4</th>
+            <th>{t("results.standardAverages.standard")}</th>
+            <th>{t("results.standardAverages.assessments")}</th>
+            <th>{t("results.standardAverages.averagePercent")}</th>
+            <th>{t("results.standardAverages.averageScale")}</th>
           </tr>
         </thead>
         <tbody>
           {standardAverages.length === 0 ? (
             <tr>
-              <td colSpan={4}>No graded standards yet.</td>
+              <td colSpan={4}>{t("results.standardAverages.empty")}</td>
             </tr>
           ) : (
             standardAverages.map((item) => (

@@ -1,0 +1,205 @@
+.student-result-page {
+  animation: fadeIn 0.3s ease;
+  padding: var(--spacing-lg);
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.student-result-page .back-btn {
+  margin-bottom: var(--spacing-md);
+}
+
+.result-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.result-card h1 {
+  margin: 0 0 6px 0;
+  font-size: 1.4rem;
+  color: var(--text-primary);
+}
+
+.result-error p {
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+.result-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.result-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+}
+
+.result-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.result-stat span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.result-stat strong {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.result-stat strong.pass {
+  color: var(--success-700, #166534);
+}
+
+.result-stat strong.fail {
+  color: var(--danger-700, #991b1b);
+}
+
+.result-questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.result-question {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-inline-start: 4px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+}
+
+.result-question.correct {
+  border-inline-start-color: var(--success-500, #22c55e);
+}
+
+.result-question.incorrect {
+  border-inline-start-color: var(--danger-400, #f87171);
+}
+
+.result-question-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.result-question-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.result-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.result-verdict.correct {
+  color: var(--success-700, #166534);
+  background: var(--success-100, #dcfce7);
+  border-color: var(--success-200, #bbf7d0);
+}
+
+.result-verdict.incorrect {
+  color: var(--danger-700, #991b1b);
+  background: var(--danger-100, #fee2e2);
+  border-color: var(--danger-200, #fecaca);
+}
+
+.result-verdict.review {
+  color: var(--warning-700, #92400e);
+  background: var(--warning-100, #fef3c7);
+  border-color: var(--warning-200, #fde68a);
+}
+
+.result-question-text {
+  margin: var(--spacing-sm) 0;
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+
+.result-answer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0;
+}
+
+.result-answer-grid dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.result-answer-grid dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.result-feedback {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.result-feedback p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.result-feedback .result-feedback-label {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+@media (max-width: 480px) {
+  .student-result-page {
+    padding: var(--spacing-md);
+  }
+
+  .result-card {
+    padding: var(--spacing-md);
+  }
+
+  .result-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

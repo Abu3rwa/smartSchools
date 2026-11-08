@@ -20,6 +20,7 @@ import {
     getReportDraft,
     updateReportDraft,
     approveReportDraft,
+    reopenReportDraft,
     sendReportDraft,
     getDraftEmailPreview,
     cancelReportDraft
@@ -33,11 +34,9 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
-// Advanced report generation
-router.post('/generate-advanced', authorizeWithPermission(
-    ['teacher', 'admin', 'super_admin', 'report_viewer'],
-    [PERMISSIONS.VIEW_ALL_REPORTS]
-), generateAdvancedReport);
+// Advanced report generation — generation spends AI credits and creates
+// sendable drafts, so read-only report viewers must not reach it.
+router.post('/generate-advanced', authorize('teacher', 'admin', 'super_admin'), generateAdvancedReport);
 
 // Report templates
 router.get('/templates', authorizeWithPermission(
@@ -98,6 +97,7 @@ router.get('/drafts/:id', authorizeWithPermission(
 ), getReportDraft);
 router.patch('/drafts/:id', authorize('teacher', 'admin', 'super_admin'), updateReportDraft);
 router.post('/drafts/:id/approve', authorize('teacher', 'admin', 'super_admin'), approveReportDraft);
+router.post('/drafts/:id/reopen', authorize('teacher', 'admin', 'super_admin'), reopenReportDraft);
 router.get('/drafts/:id/email-preview', authorizeWithPermission(
     ['teacher', 'admin', 'super_admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]

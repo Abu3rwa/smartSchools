@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
+import { resolvePracticeStatusAfterSubmit } from '../../utils/practiceFeedbackState';
 
 // ─── Practice Core Thunks ───
 
@@ -99,7 +100,9 @@ const practiceCoreSlice = createSlice({
                 state.error = action.payload;
             })
             // Generate question
-            .addCase(generateQuestion.pending, (state) => { state.generating = true; state.error = null; state.lastResult = null; })
+            // Keep lastResult while the next question loads so the previous
+            // answer/feedback stays on screen if generation fails.
+            .addCase(generateQuestion.pending, (state) => { state.generating = true; state.error = null; })
             .addCase(generateQuestion.fulfilled, (state, action) => {
                 state.generating = false;
                 state.practiceStatus = action.payload.status;
@@ -110,6 +113,9 @@ const practiceCoreSlice = createSlice({
                 state.assignmentInstructions = action.payload.assignmentInstructions || state.assignmentInstructions;
                 state.suggestRemediation = Boolean(action.payload.suggestRemediation);
                 state.currentQuestion = action.payload.question || null;
+                if (state.currentQuestion) {
+                    state.lastResult = null;
+                }
             })
             .addCase(generateQuestion.rejected, (state, action) => {
                 state.generating = false;
@@ -121,9 +127,7 @@ const practiceCoreSlice = createSlice({
                 state.submitting = false;
                 state.lastResult = action.payload;
                 state.currentQuestion = null;
-                if (action.payload.sessionComplete) {
-                    state.practiceStatus = 'session_complete';
-                }
+                state.practiceStatus = resolvePracticeStatusAfterSubmit(action.payload);
                 state.sessionInfo = action.payload.session || state.sessionInfo;
                 state.sessionContext = action.payload.sessionContext || state.sessionContext;
                 state.studentFirstName = action.payload.studentFirstName || state.studentFirstName;

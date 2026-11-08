@@ -2,18 +2,24 @@ import { useState, useEffect } from 'react';
 import api from '../../../../config/api';
 import { SOURCES, SECTIONS } from '../constants';
 
-const TemplateSettingsModal = ({ open, onClose, profiles, onProfilesChange }) => {
+// Teacher is the default scope: a school-wide template silently changing what
+// another teacher's reports look like is exactly the surprise we want to avoid.
+const emptyForm = () => ({
+  name: '',
+  scope: 'teacher',
+  classId: '',
+  isDefault: false,
+  sources: SOURCES.filter(s => s.default).map(s => s.key),
+  sections: SECTIONS.map(s => ({ key: s.key, enabled: true, maxWords: s.defaultMaxWords })),
+  templatePrompt: '',
+  defaultLanguage: 'en',
+  secondaryLanguage: ''
+});
+
+const TemplateSettingsModal = ({ open, onClose, profiles, onProfilesChange, classes = [], canUseSchoolScope = false }) => {
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    scope: 'school',
-    sources: SOURCES.filter(s => s.default).map(s => s.key),
-    sections: SECTIONS.map(s => ({ key: s.key, enabled: true, maxWords: s.defaultMaxWords })),
-    templatePrompt: '',
-    defaultLanguage: 'en',
-    secondaryLanguage: ''
-  });
+  const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -30,7 +36,10 @@ const TemplateSettingsModal = ({ open, onClose, profiles, onProfilesChange }) =>
     setCreating(false);
     setForm({
       name: profile.name,
+      // Scope is fixed at creation (the server does not accept changes to it).
       scope: profile.scope,
+      classId: profile.classId || '',
+      isDefault: !!profile.isDefault,
       sources: profile.sources || [],
       sections: profile.sections || SECTIONS.map(s => ({ key: s.key, enabled: true, maxWords: s.defaultMaxWords })),
       templatePrompt: profile.templatePrompt || '',
@@ -42,18 +51,14 @@ const TemplateSettingsModal = ({ open, onClose, profiles, onProfilesChange }) =>
   const handleCreate = () => {
     setCreating(true);
     setEditing(null);
-    setForm({
-      name: '',
-      scope: 'school',
-      sources: SOURCES.filter(s => s.default).map(s => s.key),
-      sections: SECTIONS.map(s => ({ key: s.key, enabled: true, maxWords: s.defaultMaxWords })),
-      templatePrompt: '',
-      defaultLanguage: 'en',
-      secondaryLanguage: ''
-    });
+    setForm(emptyForm());
   };
 
   const handleSave = async () => {
+    if (form.scope === 'class' && !form.classId) {
+      setError('Choose which class this template applies to.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -182,11 +187,51 @@ const TemplateSettingsModal = ({ open, onClose, profiles, onProfilesChange }) =>
                   className="rg-select"
                   value={form.scope}
                   onChange={(e) => setForm({ ...form, scope: e.target.value })}
+                  disabled={!!editing}
+                  title={editing ? 'Scope is fixed once a template is created.' : 'Who this template applies to'}
                 >
-                  <option value="school">School-wide</option>
+                  {canUseSchoolScope && <option value="school">School-wide</option>}
                   <option value="teacher">Teacher</option>
                   <option value="class">Class</option>
                 </select>
+                {editing && (
+                  <p className="rg-hint">Scope is fixed once a template is created — make a new template to change it.</p>
+                )}
+                {!canUseSchoolScope && (
+                  <p className="rg-hint">Only your own or class templates. School-wide templates are for administrators.</p>
+                )}
+              </div>
+
+              {form.scope === 'class' && (
+                <div className="rg-field">
+                  <label className="rg-label" htmlFor="tpl-class">Applies to Class</label>
+                  <select
+                    id="tpl-class"
+                    className="rg-select"
+                    value={form.classId}
+                    onChange={(e) => setForm({ ...form, classId: e.target.value })}
+                  >
+                    <option value="">Select a class…</option>
+                    {classes.map((cls) => (
+                      <option key={cls._id} value={cls._id}>{cls.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="rg-field">
+                <label className="rg-source-item">
+                  <input
+                    type="checkbox"
+                    checked={form.isDefault}
+                    onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
+                  />
+                  <span className="rg-source-name">Use as the default for this scope</span>
+                </label>
+                <p className="rg-hint">
+                  The generator preselects the default template instead of “Default (no profile)”.
+                  Only one template can be the default per scope.
+                </p>
               </div>
 
               <div className="rg-field">

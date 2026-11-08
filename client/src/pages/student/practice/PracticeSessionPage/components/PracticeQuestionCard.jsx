@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getQuestionTypeDisplay } from '../utils/practiceSessionPresentation';
 import PassagePanel from '../../../../../components/assessment/PassagePanel';
 import PracticeCountdown from './PracticeCountdown';
@@ -17,25 +18,45 @@ const PracticeQuestionCard = ({
     secondsRemaining,
     children 
 }) => {
+    const { t } = useTranslation('studentPractice');
+    const questionTypeLabel = currentQuestion.questionType
+        ? t(`session.questionTypes.${currentQuestion.questionType}`, {
+            defaultValue: getQuestionTypeDisplay(currentQuestion.questionType)
+        })
+        : '';
+    const difficultyLabel = currentQuestion.difficulty
+        ? t(`session.difficulty.${currentQuestion.difficulty}`, {
+            defaultValue: currentQuestion.difficulty
+        })
+        : '';
+
     return (
         <div className="question-card">
             <div className="question-meta">
                 {currentSessionStep != null && questionLimit > 0 ? (
-                    <span className="badge badge-attempt">Question {currentSessionStep} of {questionLimit}</span>
+                    <span className="badge badge-attempt">
+                        {t('session.card.questionOf', { step: currentSessionStep, limit: questionLimit })}
+                    </span>
                 ) : (
-                    <span className="badge badge-attempt">Question #{currentQuestion.attemptNumber}</span>
+                    <span className="badge badge-attempt">
+                        {t('session.card.questionNumber', { number: currentQuestion.attemptNumber })}
+                    </span>
                 )}
                 <PracticeCountdown secondsRemaining={secondsRemaining} />
                 <span className={`badge badge-difficulty ${currentQuestion.difficulty}`}>
-                    {currentQuestion.difficulty}
+                    {difficultyLabel}
                 </span>
-                <span className="badge">{getQuestionTypeDisplay(currentQuestion.questionType)}</span>
+                <span className="badge">{questionTypeLabel}</span>
                 <span className="badge">{streakLabel}: {streakValue || 0}</span>
-                <span className="badge">Confidence: {sessionAccuracy}%</span>
+                <span className="badge">
+                    {t('session.card.confidence', { percent: sessionAccuracy })}
+                </span>
             </div>
 
             {currentQuestion.instruction && (
-                <div className="question-instruction"> <span>Instructions:</span> {currentQuestion.instruction}</div>
+                <div className="question-instruction">
+                    {' '}<span>{t('session.card.instructions')}</span> {currentQuestion.instruction}
+                </div>
             )}
 
             <PassagePanel passage={currentQuestion.passage} />
@@ -56,21 +77,27 @@ const PracticeQuestionCard = ({
             
             {suggestRemediation && (
                 <div className="remediation-tip">
-                    Quick Tip: Let’s strengthen the foundation first. Focus on accuracy, then move up in difficulty.
+                    {t('session.card.quickTip')}
                 </div>
             )}
             
             {showContextHints && (
                 <div className="context-hints">
-                    <p className="context-hints-title">Recent Focus</p>
+                    <p className="context-hints-title">{t('session.card.recentFocus')}</p>
                     {usableTopics.length > 0 && (
                         <p className="context-hints-line">
-                            Topics: {usableTopics.slice(0, 3).map((t) => t.charAt(0).toUpperCase() + t.slice(1).trim()).join(', ')}
+                            {t('session.card.topics', {
+                                topics: usableTopics.slice(0, 3)
+                                    .map((topic) => topic.charAt(0).toUpperCase() + topic.slice(1).trim())
+                                    .join(', ')
+                            })}
                         </p>
                     )}
                     {recentMistakes?.length > 0 && (
                         <p className="context-hints-line">
-                            Improve next: {recentMistakes.slice(0, 2).join(', ')}
+                            {t('session.card.improveNext', {
+                                topics: recentMistakes.slice(0, 2).join(', ')
+                            })}
                         </p>
                     )}
                 </div>

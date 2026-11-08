@@ -88,7 +88,7 @@ export const sessionSchema = z.object({
     timeRemainingSeconds: z.number().nullable(),
     status: z.enum(['active', 'completed', 'expired']),
     questionsAnswered: z.number(),
-    correctCount: z.number()
+    correctCount: z.number().nullable()
 });
 
 export const sessionContextSchema = z.object({
@@ -177,7 +177,8 @@ export const generateQuestionResponseSchema = z.object({
         numericHint: studentNumericHintSchema,
         passage: studentPassageSchema
     }).nullable(),
-    session: sessionSchema.nullable().optional()
+    session: sessionSchema.nullable().optional(),
+    resultsVisible: z.boolean().optional()
 });
 
 export const submitAnswerResponseSchema = z.object({
@@ -193,7 +194,8 @@ export const submitAnswerResponseSchema = z.object({
     mastery: masterySchema.optional(),
     newlyMastered: z.boolean().optional(),
     sessionComplete: z.boolean().optional(),
-    session: sessionSchema.nullable().optional()
+    session: sessionSchema.nullable().optional(),
+    resultsVisible: z.boolean().optional()
 });
 
 export const integrityEventSchema = z.object({

@@ -11,6 +11,7 @@ import {
   getAssignmentGradebook,
   getAssignments,
   getMyAssignmentsForStudent,
+  getMyAssignmentsPaginated,
   gradeAssignment,
   publishAssignment,
   sendAssignmentReminder,
@@ -40,6 +41,11 @@ router.get(
   getAssignments,
 );
 router.get("/my", authorize("student"), getMyAssignmentsForStudent);
+router.get(
+  "/my-paginated",
+  authorize("student"),
+  getMyAssignmentsPaginated,
+);
 
 router.get(
   "/:id",

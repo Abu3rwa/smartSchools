@@ -1,67 +1,102 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineCheckCircle, HiOutlineXCircle, HiOutlineRefresh } from 'react-icons/hi';
 
-const PracticeResultFeedback = ({ 
-    lastResult, 
-    onNextQuestion, 
-    onNavigateToPractice, 
-    isGenerating 
+const PracticeResultFeedback = ({
+    lastResult,
+    onNextQuestion,
+    onNavigateToPractice,
+    onFinalizeAssessment,
+    isGenerating,
+    isAssessmentSession,
+    assessmentAutoClosed,
+    finalizingAssessment
 }) => {
+    const { t } = useTranslation('studentPractice');
     const resultParts = lastResult?.feedbackParts || {};
+    const resultsVisible = lastResult?.resultsVisible !== false;
     const answerDisplay = resultParts.displayAnswer || lastResult?.correctAnswerDisplay || lastResult?.correctAnswer;
     const quickExplanation = resultParts.explanation || resultParts.reasonSummary || lastResult?.explanation;
     const requiresTeacherReview = Boolean(lastResult?.requiresTeacherReview);
-    const resultHeading = requiresTeacherReview ? 'Submitted for Review' : lastResult?.isCorrect ? 'Correct!' : 'Incorrect';
+    const hiddenResult = !resultsVisible && !requiresTeacherReview;
+    const isCorrect = Boolean(lastResult?.isCorrect);
     const conciseFeedback = resultParts.correctionOrConfirmation || lastResult?.feedback;
 
+    const resultHeading = requiresTeacherReview || hiddenResult
+        ? t('session.feedback.submittedTitle')
+        : isCorrect
+            ? t('session.feedback.correctTitle')
+            : t('session.feedback.incorrectTitle');
+
+    const statusMessage = requiresTeacherReview
+        ? t('session.feedback.reviewMessage')
+        : hiddenResult
+            ? t('session.feedback.resultsWithheld')
+            : isCorrect
+                ? t('session.feedback.correctMessage')
+                : t('session.feedback.incorrectMessage');
+
+    const showAnswerDetails = !requiresTeacherReview && !hiddenResult;
+
+    const showFinalize = Boolean(lastResult?.sessionComplete && isAssessmentSession && !assessmentAutoClosed);
+    const showReturnToDashboard = Boolean(
+        lastResult?.newlyMastered ||
+        (lastResult?.sessionComplete && (!isAssessmentSession || assessmentAutoClosed))
+    );
+
     return (
-        <div className={`result-card ${requiresTeacherReview ? '' : lastResult.isCorrect ? 'correct' : 'incorrect'}`}>
+        <div className={`result-card ${requiresTeacherReview || hiddenResult ? '' : isCorrect ? 'correct' : 'incorrect'}`}>
             <div className="result-icon">
-                {requiresTeacherReview
+                {requiresTeacherReview || hiddenResult
                     ? <HiOutlineRefresh size={40} />
-                    : lastResult.isCorrect
-                    ? <HiOutlineCheckCircle size={40} />
-                    : <HiOutlineXCircle size={40} />
+                    : isCorrect
+                        ? <HiOutlineCheckCircle size={40} />
+                        : <HiOutlineXCircle size={40} />
                 }
             </div>
             <h3>{resultHeading}</h3>
             <p className="result-feedback" style={{ marginBottom: 'var(--spacing-sm)' }}>
-                {requiresTeacherReview
-                    ? 'Your teacher will review and score your answer.'
-                    : lastResult?.isCorrect ? 'Your answer is correct.' : 'Your answer is not correct.'}
+                {statusMessage}
             </p>
 
-            {!requiresTeacherReview && <div className="result-details">
-                <div className="result-section">
-                    <p><span className="label">Best Answer</span></p>
-                    <p>{answerDisplay || 'N/A'}</p>
+            {showAnswerDetails && (
+                <div className="result-details">
+                    <div className="result-section">
+                        <p><span className="label">{t('session.feedback.bestAnswer')}</span></p>
+                        <p>{answerDisplay || t('session.feedback.notAvailable')}</p>
+                    </div>
+
+                    {conciseFeedback && (
+                        <div className="result-section">
+                            <p>{conciseFeedback}</p>
+                        </div>
+                    )}
+
+                    {quickExplanation && (
+                        <div className="result-section">
+                            <p><span className="label">{t('session.feedback.quickExplanation')}</span></p>
+                            <p>{quickExplanation}</p>
+                        </div>
+                    )}
+
+                    {lastResult.sessionComplete && (
+                        <p style={{ marginTop: 'var(--spacing-sm)', fontWeight: 600 }}>
+                            {t('session.feedback.sessionComplete')}
+                        </p>
+                    )}
                 </div>
+            )}
 
-                {conciseFeedback && (
-                    <div className="result-section">
-                        <p>{conciseFeedback}</p>
-                    </div>
-                )}
-
-                {quickExplanation && (
-                    <div className="result-section">
-                        <p><span className="label">Quick Explanation</span></p>
-                        <p>{quickExplanation}</p>
-                    </div>
-                )}
-
-                {lastResult.sessionComplete && (
-                    <p style={{ marginTop: 'var(--spacing-sm)', fontWeight: 600 }}>
-                        Session complete. Great work!
-                    </p>
-                )}
-            </div>}
-
-            {lastResult.mastery && (
+            {lastResult.mastery && !hiddenResult && (
                 <div style={{ marginBottom: 'var(--spacing-md)' }}>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                        Mastery Progress: {lastResult.mastery.correctCount}/{lastResult.mastery.totalAttempts} correct ({lastResult.mastery.percentage}%)
-                        {lastResult.mastery.needsMore > 0 && ` - ${lastResult.mastery.needsMore} more needed`}
+                        {t('session.feedback.masteryProgress', {
+                            correct: lastResult.mastery.correctCount,
+                            total: lastResult.mastery.totalAttempts,
+                            percent: lastResult.mastery.percentage
+                        })}
+                        {lastResult.mastery.needsMore > 0 &&
+                            ` ${t('session.feedback.masteryNeedsMore', { remaining: lastResult.mastery.needsMore })}`}
                     </div>
                     <div style={{ height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
                         <div style={{
@@ -76,20 +111,28 @@ const PracticeResultFeedback = ({
             )}
 
             <div className="result-actions">
-                {lastResult.newlyMastered ? (
+                {showFinalize ? (
+                    <button
+                        className="btn btn-primary"
+                        onClick={onFinalizeAssessment}
+                        disabled={finalizingAssessment}
+                    >
+                        <HiOutlineCheckCircle size={18} style={{ marginRight: 6 }} />
+                        {finalizingAssessment
+                            ? t('session.feedback.submittingFinal')
+                            : t('session.feedback.submitFinal')}
+                    </button>
+                ) : showReturnToDashboard ? (
                     <button className="btn btn-success" onClick={onNavigateToPractice}>
                         <HiOutlineCheckCircle size={18} style={{ marginRight: 6 }} />
-                        Standard Mastered! Go Back
-                    </button>
-                ) : lastResult.sessionComplete ? (
-                    <button className="btn btn-primary" onClick={onNavigateToPractice}>
-                        <HiOutlineCheckCircle size={18} style={{ marginRight: 6 }} />
-                        Return to Dashboard
+                        {lastResult.newlyMastered
+                            ? t('session.feedback.masteredBack')
+                            : t('session.feedback.returnToDashboard')}
                     </button>
                 ) : (
                     <button className="btn btn-primary" onClick={onNextQuestion} disabled={isGenerating}>
                         <HiOutlineRefresh size={18} style={{ marginRight: 6 }} />
-                        Next Question
+                        {t('session.feedback.nextQuestion')}
                     </button>
                 )}
             </div>

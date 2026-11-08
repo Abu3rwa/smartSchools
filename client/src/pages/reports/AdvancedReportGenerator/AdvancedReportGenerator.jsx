@@ -13,20 +13,19 @@ import TeacherRemarkSection from './components/TeacherRemarkSection';
 import ReportPreview from './components/ReportPreview';
 import TemplateSettingsModal from './components/TemplateSettingsModal';
 import useAdvancedReportGenerator from './hooks/useAdvancedReportGenerator';
+import {
+  actionsFor,
+  canUseSchoolScope as userCanUseSchoolScope,
+  deliveryRowCopy,
+  deliveryRowDot,
+  deliveryRows,
+  statusChip
+} from './reportDeliveryUi';
+import { useSelector } from 'react-redux';
 import './AdvancedReportGenerator.css';
 
-const statusChip = (status) => {
-  switch (status) {
-    case DRAFT_STATUSES.DRAFT:    return { cls: 'is-draft',    label: 'Draft' };
-    case DRAFT_STATUSES.APPROVED: return { cls: 'is-approved', label: 'Approved' };
-    case DRAFT_STATUSES.SENT:     return { cls: 'is-sent',     label: 'Sent' };
-    case DRAFT_STATUSES.SENDING:  return { cls: 'is-sending',  label: 'Sending…' };
-    case DRAFT_STATUSES.FAILED:   return { cls: 'is-failed',   label: 'Delivery failed' };
-    default: return null;
-  }
-};
-
 const AdvancedReportGenerator = () => {
+  const { user } = useSelector((state) => state.auth);
   const {
     students,
     classes,
@@ -52,19 +51,20 @@ const AdvancedReportGenerator = () => {
     handleSendDraft,
     handleUpdateDraftContent,
     handleTeacherRemarkBlur,
+    handleReopenDraft,
+    handleRetryFailedEmails,
+    handleCheckDelivery,
     handleRegenerate,
     resetGeneratedReport,
     emailPreview,
     retryEmailPreview,
-    sendError
+    sendError,
+    deliveryInfo
   } = useAdvancedReportGenerator();
 
   const chip = statusChip(draftStatus);
-  const canApprove = draftStatus === DRAFT_STATUSES.DRAFT;
-  const canSend =
-    draftStatus === DRAFT_STATUSES.APPROVED ||
-    draftStatus === DRAFT_STATUSES.FAILED;
-  const isSent = draftStatus === DRAFT_STATUSES.SENT;
+  const actions = actionsFor(draftStatus);
+  const canUseSchoolScope = userCanUseSchoolScope(user);
 
   return (
     <div className="rg-page">
@@ -215,7 +215,11 @@ const AdvancedReportGenerator = () => {
           </div>
 
           {/* Recipients */}
-          <EmailRecipientsSection formData={formData} onChange={handleInputChange} />
+          <EmailRecipientsSection
+            formData={formData}
+            onChange={handleInputChange}
+            locked={!!draft && draftStatus !== DRAFT_STATUSES.DRAFT}
+          />
 
           {/* Custom Prompt */}
           <CustomPromptSection value={formData.customPrompt} onChange={handleInputChange} />
@@ -225,6 +229,7 @@ const AdvancedReportGenerator = () => {
             value={formData.teacherRemark}
             onChange={handleInputChange}
             onBlur={handleTeacherRemarkBlur}
+            locked={!!draft && draftStatus !== DRAFT_STATUSES.DRAFT}
           />
 
           {/* Data Used */}
@@ -322,7 +327,7 @@ const AdvancedReportGenerator = () => {
               </button>
             )}
 
-            {draft && canApprove && (
+            {draft && actions.canApprove && (
               <>
                 <button
                   type="button"
@@ -348,23 +353,81 @@ const AdvancedReportGenerator = () => {
               </>
             )}
 
-            {draft && canSend && (
-              <button
-                type="button"
-                className="rg-btn rg-btn-success"
-                onClick={handleSendDraft}
-                disabled={generating}
-              >
-                {generating ? (
-                  <>
-                    <span className="rg-spinner" />
-                    Sending…
-                  </>
-                ) : draftStatus === DRAFT_STATUSES.FAILED ? 'Try Sending Again' : 'Send to Recipients'}
-              </button>
+            {draft && actions.canSend && (
+              <>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-secondary"
+                  onClick={handleReopenDraft}
+                  disabled={generating}
+                  title="Edit the draft again before sending"
+                >
+                  Reopen
+                </button>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-success"
+                  onClick={handleSendDraft}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <>
+                      <span className="rg-spinner" />
+                      Sending…
+                    </>
+                  ) : draftStatus === DRAFT_STATUSES.FAILED ? 'Try Sending Again' : 'Send to Recipients'}
+                </button>
+              </>
             )}
 
-            {isSent && (
+            {draft && actions.canRetryFailed && (
+              <>
+                <span className="rg-sent-label">Some recipients did not receive the report</span>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-secondary"
+                  onClick={handleReopenDraft}
+                  disabled={generating}
+                >
+                  Reopen
+                </button>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-secondary"
+                  onClick={() => handleCheckDelivery()}
+                  disabled={generating}
+                  title="Reads the recorded provider outcome — this never sends anything"
+                >
+                  Check delivery status
+                </button>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-success"
+                  onClick={handleRetryFailedEmails}
+                  disabled={generating}
+                  title="Resends only to the addresses that definitely failed"
+                >
+                  {generating ? 'Retrying…' : 'Retry failed recipients'}
+                </button>
+              </>
+            )}
+
+            {draft && draftStatus === DRAFT_STATUSES.UNKNOWN && (
+              <>
+                <span className="rg-sent-label">Delivery could not be confirmed</span>
+                <button
+                  type="button"
+                  className="rg-btn rg-btn-secondary"
+                  onClick={() => handleCheckDelivery()}
+                  disabled={generating}
+                  title="Reads the recorded provider outcome — this never sends anything"
+                >
+                  Check delivery status
+                </button>
+              </>
+            )}
+
+            {actions.isSent && (
               <>
                 <span className="rg-sent-label">✓ Report sent successfully</span>
                 <button
@@ -378,9 +441,22 @@ const AdvancedReportGenerator = () => {
             )}
           </div>
           {sendError && (
-            <p className="rg-send-error">
-              {sendError} The delivery is marked as failed — use “Try Sending Again” to retry.
-            </p>
+            <p className="rg-send-error">{sendError}</p>
+          )}
+          {deliveryRows(deliveryInfo).length > 0 && (
+            <div className="rg-panel">
+              <div className="rg-panel-head">
+                <h3>Delivery</h3>
+                <span className="rg-hint">Per address, as recorded</span>
+              </div>
+              {deliveryRows(deliveryInfo).map((row, idx) => (
+                <div key={row.email || idx} className="rg-data-row">
+                  <span className={`rg-dot ${deliveryRowDot(row)}`} />
+                  <span>{row.name || row.email || row.recipientType}</span>
+                  <span className="rg-count">{deliveryRowCopy(row)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -415,6 +491,8 @@ const AdvancedReportGenerator = () => {
         onClose={() => setSettingsOpen(false)}
         profiles={profiles}
         onProfilesChange={setProfiles}
+        classes={classes}
+        canUseSchoolScope={canUseSchoolScope}
       />
     </div>
   );

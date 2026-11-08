@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { HiOutlineRefresh } from "react-icons/hi";
 
 export default function PracticeAssessmentResultsHeader({
@@ -6,12 +7,14 @@ export default function PracticeAssessmentResultsHeader({
   loading,
   onRefresh,
 }) {
+  const { t } = useTranslation("studentPractice");
+
   return (
     <div className="page-header">
       <div>
-        <h1>SB Assessment Results</h1>
+        <h1>{t("results.title")}</h1>
         <p className="text-muted">
-          Academic Year {academicYear} · Semester {selectedSemester}
+          {t("results.subtitle", { year: academicYear, semester: selectedSemester })}
         </p>
       </div>
       <button
@@ -21,7 +24,7 @@ export default function PracticeAssessmentResultsHeader({
         disabled={loading}
       >
         <HiOutlineRefresh size={16} />
-        <span>{loading ? "Refreshing..." : "Refresh"}</span>
+        <span>{loading ? t("results.refreshing") : t("results.refresh")}</span>
       </button>
     </div>
   );

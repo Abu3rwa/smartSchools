@@ -497,12 +497,6 @@
   color: var(--rg-amber-ink);
 }
 
-.rg-notice.is-ok {
-  background: var(--rg-teal-soft);
-  border: 1px solid var(--rg-teal-line);
-  color: var(--rg-teal-ink);
-}
-
 .rg-notice.is-error {
   background: var(--rg-rose-soft);
   border: 1px solid var(--rg-rose-line);
@@ -708,30 +702,6 @@
 .rg-preview-empty p {
   color: var(--rg-body);
   margin: 0 0 2px;
-}
-
-.rg-preview-content {
-  color: var(--rg-body);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.rg-preview-content p,
-.rg-preview-content li,
-.rg-preview-content strong,
-.rg-preview-content span {
-  color: var(--rg-body);
-}
-
-.rg-preview-content ul {
-  margin: 0;
-  padding-inline-start: 20px;
-}
-
-.rg-preview-content h2,
-.rg-preview-content h3,
-.rg-preview-content h4 {
-  color: var(--rg-ink);
 }
 
 .rg-preview-edit {

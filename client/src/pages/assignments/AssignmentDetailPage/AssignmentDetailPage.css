@@ -269,3 +269,36 @@
   margin: 0;
   color: var(--text-muted);
 }
+
+.detail-banner {
+  margin-bottom: var(--spacing-md);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  border-inline-start: 4px solid var(--border-color);
+}
+
+.detail-banner.info {
+  border-inline-start-color: var(--primary-500);
+  background: var(--primary-50, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.detail-banner.warning {
+  border-inline-start-color: var(--warning-500, #f59e0b);
+  background: var(--warning-50, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.detail-banner.success {
+  border-inline-start-color: var(--success-500, #22c55e);
+  background: var(--success-50, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.detail-sync-status {
+  margin-top: 4px;
+}

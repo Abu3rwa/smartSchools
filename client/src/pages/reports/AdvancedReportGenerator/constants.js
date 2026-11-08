@@ -1,4 +1,4 @@
-import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
+import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages.js';
 
 export const REPORT_TYPE_OPTIONS = [
   { value: 'weekly', label: 'Weekly Report' },
@@ -34,6 +34,8 @@ export const DRAFT_STATUSES = {
   APPROVED: 'approved',
   SENDING: 'sending',
   SENT: 'sent',
+  PARTIAL: 'partial',
+  UNKNOWN: 'unknown',
   FAILED: 'failed',
   CANCELLED: 'cancelled'
 };

@@ -404,6 +404,17 @@
     outline: none;
 }
 
+.practice-submit-error {
+    margin: 0 0 var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: var(--radius-md);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    text-align: start;
+}
+
 .question-actions {
     display: flex;
     justify-content: flex-end;
@@ -668,4 +679,9 @@
     background: rgba(239, 68, 68, 0.14);
     color: var(--error-500);
     border-color: rgba(239, 68, 68, 0.32);
+}
+
+/* The back arrow is a physical icon; mirror it for RTL layouts. */
+[dir="rtl"] .practice-session .back-link svg {
+    transform: scaleX(-1);
 }

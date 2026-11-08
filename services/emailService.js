@@ -161,6 +161,34 @@ const inlineReportContentStyles = (html, direction) => {
 const remarkToHtml = (remark) =>
     escapeHtml(remark).replace(/\n/g, '<br />');
 
+// A 4xx from the provider is a definite rejection (nothing was delivered).
+// Network errors and 5xx leave acceptance unconfirmed — those must never be
+// auto-retried, because the message may already be in the family's inbox.
+const isDefiniteProviderFailure = (error) => {
+    const status = Number(error?.response?.status ?? error?.code);
+    return Number.isFinite(status) && status >= 400 && status < 500;
+};
+
+const htmlToPlainText = (html) =>
+    String(html || '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<div style="display:none[\s\S]*?<\/div>/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|h[1-6]|li|tr|td)>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '- ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
 const ARABIC_MONTHS = {
     January: 'يناير',
     February: 'فبراير',
@@ -209,49 +237,6 @@ const addRecipientToMap = (map, { email, type, name }) => {
     }
 };
 
-const buildStudentContactRecipients = (studentData) => {
-    if (studentData && typeof studentData.getAllContactEmailEntries === 'function') {
-        return studentData.getAllContactEmailEntries();
-    }
-
-    const recipients = new Map();
-    const studentName = `${studentData?.firstName || ''} ${studentData?.lastName || ''}`.trim() || 'Student';
-    const parentInfo = studentData?.parentInfo || {};
-
-    addRecipientToMap(recipients, {
-        email: parentInfo.motherEmail,
-        type: 'mother',
-        name: parentInfo.motherName || `Mother of ${studentData?.firstName || 'Student'}`
-    });
-    addRecipientToMap(recipients, {
-        email: parentInfo.fatherEmail,
-        type: 'father',
-        name: parentInfo.fatherName || `Father of ${studentData?.firstName || 'Student'}`
-    });
-    addRecipientToMap(recipients, {
-        email: parentInfo.guardianEmail,
-        type: 'guardian',
-        name: parentInfo.guardianName || `Guardian of ${studentData?.firstName || 'Student'}`
-    });
-    addRecipientToMap(recipients, {
-        email: studentData?.studentEmail,
-        type: 'student',
-        name: studentName
-    });
-    addRecipientToMap(recipients, {
-        email: studentData?.email,
-        type: 'student',
-        name: studentName
-    });
-    addRecipientToMap(recipients, {
-        email: studentData?.user?.email,
-        type: 'student',
-        name: studentName
-    });
-
-    return Array.from(recipients.values());
-};
-
 class EmailService {
     constructor() {
         // Gmail OAuth service handles authentication
@@ -272,16 +257,21 @@ class EmailService {
     }
 
     /**
-     * Send report email to multiple recipients in one email
-     * @param {Object} options - Email sending options
-     * @param {String} options.reportId - Token usage record ID
-     * @param {Object} options.studentData - Student information
-     * @param {String} options.reportContent - Generated report content
-     * @param {String} options.language - Report language
-     * @param {String[]} options.requestedLanguages - Requested report language codes
-     * @param {Object} options.recipients - Recipient configuration
-     * @param {Object} options.teacher - Teacher information
-     * @returns {Promise<Object>} Email sending results
+     * Send a report email to each selected recipient as a separate message.
+     *
+     * Delivery truthfulness rules:
+     * - A pending EmailReport row is written BEFORE the provider call, so a
+     *   crash mid-send leaves an auditable trace instead of nothing.
+     * - Provider acceptance and bookkeeping are separate steps: if the message
+     *   was accepted but the 'sent' update fails, the outcome is 'unknown',
+     *   never a retryable 'failed' (a retry could double-send to the family).
+     * - A definite 4xx rejection is 'failed'; network/5xx uncertainty is 'unknown'.
+     *
+     * @param {Object} options
+     * @param {String} options.reportId - ReportDraft ID
+     * @param {Object} [options.frozen] - Approved snapshot {subject, html, text, recipients};
+     *   when present it is delivered verbatim instead of re-rendering live data.
+     * @returns {Promise<{success:boolean, sent:number, failed:number, unknown:number, results:Array}>}
      */
     async sendReportEmails(options) {
         const {
@@ -295,41 +285,63 @@ class EmailService {
             teacherRemark = '',
             period = '',
             dateRange = null,
-            evidenceSnapshot = null
+            evidenceSnapshot = null,
+            frozen = null
         } = options;
 
-        const normalizedRequestedLanguages = normalizeRequestedLanguages(
-            requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
-            { max: 2, fallback: ['en'] }
-        );
-        const normalizedLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
+        const emailList = Array.isArray(frozen?.recipients) && frozen.recipients.length > 0
+            ? frozen.recipients
+                .filter((r) => normalizeEmail(r.email))
+                .map((r) => ({ email: normalizeEmail(r.email), name: r.name || '', type: r.type || 'parents' }))
+            : this.prepareRecipientList({ studentData, recipients, teacher });
 
-        // Prepare recipient list (all in one email)
-        const emailList = this.prepareRecipientList({
-            studentData,
-            recipients,
-            teacher
-        });
-
-        if (emailList.length === 0) {
+        // A report goes to the family; a teacher-only send is not a delivery.
+        const familyRecipients = emailList.filter((r) => r.type !== 'teacher');
+        if (familyRecipients.length === 0) {
             return {
                 success: false,
-                message: 'No valid email recipients found'
+                message: 'No valid family email recipients found',
+                sent: 0,
+                failed: 0,
+                unknown: 0,
+                results: []
+            };
+        }
+
+        const hasValidTokens = await this.gmailService.hasValidTokens(teacher._id);
+        if (!hasValidTokens) {
+            return {
+                success: false,
+                message: 'Gmail not connected. Please authenticate with Google first.',
+                sent: 0,
+                failed: 0,
+                unknown: 0,
+                results: []
             };
         }
 
         const schoolName = await this.resolveSchoolName(studentData?.school);
 
-        try {
-            // Send ONE email to all recipients
-            const result = await this.sendSingleEmailToMultiple({
-                reportId,
-                recipients: emailList,
+        let subject;
+        let htmlContent;
+        let textContent;
+        let normalizedLanguage;
+        let normalizedRequestedLanguages;
+        if (frozen?.html) {
+            subject = frozen.subject;
+            htmlContent = frozen.html;
+            textContent = frozen.text || htmlToPlainText(frozen.html);
+            normalizedRequestedLanguages = normalizeRequestedLanguages(
+                frozen.requestedLanguages?.length ? frozen.requestedLanguages : (frozen.language || language),
+                { max: 2, fallback: ['en'] }
+            );
+            normalizedLanguage = frozen.language || toLegacyLanguageValue(normalizedRequestedLanguages);
+        } else {
+            const rendered = this.renderReportEmail({
                 reportContent,
-                language: normalizedLanguage,
-                requestedLanguages: normalizedRequestedLanguages,
+                language,
+                requestedLanguages,
                 studentData,
-                teacherId: teacher._id,
                 schoolName,
                 teacher,
                 teacherRemark,
@@ -337,207 +349,180 @@ class EmailService {
                 dateRange,
                 evidenceSnapshot
             });
+            subject = rendered.subject;
+            htmlContent = rendered.html;
+            textContent = rendered.text;
+            normalizedLanguage = rendered.language;
+            normalizedRequestedLanguages = rendered.requestedLanguages;
+        }
 
-            // Log to Notification history so teachers/admins can see sent AI reports in /portal/notifications
-            try {
-                const { subject, html: htmlContent } = this.renderReportEmail({
-                    reportContent,
+        const results = [];
+        for (const recipient of emailList) {
+            results.push(await this.deliverToRecipient({
+                reportId,
+                recipient,
+                subject,
+                htmlContent,
+                textContent,
+                language: normalizedLanguage,
+                requestedLanguages: normalizedRequestedLanguages,
+                teacherId: teacher._id
+            }));
+        }
+
+        const sent = results.filter((r) => r.status === 'sent').length;
+        const failed = results.filter((r) => r.status === 'failed').length;
+        const unknown = results.filter((r) => r.status === 'unknown').length;
+        const success = sent > 0 && failed === 0 && unknown === 0;
+
+        // Notification history is best-effort and must never change the
+        // delivery outcome.
+        try {
+            const notification = new Notification({
+                school: studentData.school,
+                recipientEmail: emailList.map((r) => r.email).join(','),
+                student: studentData._id,
+                type: 'ai_report',
+                subject,
+                message: textContent || (reportContent || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(),
+                htmlContent,
+                channels: ['email'],
+                status: success ? 'sent' : 'failed',
+                metadata: {
+                    reportId,
                     language: normalizedLanguage,
                     requestedLanguages: normalizedRequestedLanguages,
-                    studentData,
-                    schoolName,
-                    teacher,
-                    teacherRemark,
-                    period,
-                    dateRange,
-                    evidenceSnapshot
-                });
-
-                const notification = new Notification({
-                    school: studentData.school,
-                    recipientEmail: emailList.map(r => r.email).join(','),
-                    student: studentData._id,
-                    type: 'ai_report',
-                    subject,
-                    message: (reportContent || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(),
-                    htmlContent,
-                    channels: ['email'],
-                    status: result.success ? 'sent' : 'failed',
-                    metadata: {
-                        reportId,
-                        language: normalizedLanguage,
-                        requestedLanguages: normalizedRequestedLanguages,
-                        reportType: 'advanced_ai',
-                        primaryRecipients: result.primaryRecipients,
-                        ccRecipients: result.ccRecipients,
-                        error: result.success ? undefined : result.error
-                    },
-                    createdBy: teacher._id
-                });
-
-                await notification.save();
-                if (result.success) {
-                    await notification.markAsSent('email');
-                }
-            } catch (logError) {
-                // Don't fail the main flow if notification logging fails
-                console.error('Failed to log advanced report email to notifications:', logError);
-            }
-
-            // Update token usage record with email status
-            await this.updateEmailStatus(reportId, {
-                sent: result.success ? [result] : [],
-                failed: result.success ? [] : [result],
-                total: 1
+                    reportType: 'advanced_ai',
+                    delivered: sent,
+                    failed,
+                    unknown
+                },
+                createdBy: teacher._id
             });
-
-            return result;
-        } catch (error) {
-            return {
-                success: false,
-                message: error.message,
-                recipients: emailList
-            };
+            await notification.save();
+            if (success) {
+                await notification.markAsSent('email');
+            }
+        } catch (logError) {
+            console.error('Failed to log advanced report email to notifications:', logError);
         }
+
+        return {
+            success,
+            message: success ? undefined : 'Delivery incomplete — see per-recipient results',
+            sent,
+            failed,
+            unknown,
+            results
+        };
     }
 
     /**
-     * Prepare list of all recipients for one email
+     * Resolve recipients from the teacher's checkbox flags.
+     * Flags are applied to each contact role BEFORE addresses are deduplicated:
+     * a shared family address must still be delivered when any checked role
+     * uses it, even if another role sharing that address was unchecked.
      */
     prepareRecipientList({ studentData, recipients, teacher }) {
-        const recipientMap = new Map();
-
-        const allContacts = buildStudentContactRecipients(studentData);
-
-        allContacts.forEach((recipient) => {
-            const typeFlag = recipient.type;
-            if (recipients && recipients[typeFlag] === false) return;
-            addRecipientToMap(recipientMap, recipient);
-        });
-
+        const studentName = `${studentData?.firstName || ''} ${studentData?.lastName || ''}`.trim() || 'Student';
+        const parentInfo = studentData?.parentInfo || {};
+        const rawContacts = [
+            { email: parentInfo.motherEmail, type: 'mother', name: parentInfo.motherName || `Mother of ${studentData?.firstName || 'Student'}` },
+            { email: parentInfo.fatherEmail, type: 'father', name: parentInfo.fatherName || `Father of ${studentData?.firstName || 'Student'}` },
+            { email: parentInfo.guardianEmail, type: 'guardian', name: parentInfo.guardianName || `Guardian of ${studentData?.firstName || 'Student'}` },
+            { email: studentData?.studentEmail, type: 'student', name: studentName },
+            { email: studentData?.email, type: 'student', name: studentName },
+            { email: studentData?.user?.email, type: 'student', name: studentName }
+        ];
         if (recipients?.teacher && teacher?.email) {
-            addRecipientToMap(recipientMap, {
+            rawContacts.push({
                 email: teacher.email,
                 type: 'teacher',
                 name: `${teacher.firstName || ''} ${teacher.lastName || ''}`.trim()
             });
         }
 
+        const recipientMap = new Map();
+        for (const contact of rawContacts) {
+            if (recipients && recipients[contact.type] === false) continue;
+            addRecipientToMap(recipientMap, contact);
+        }
         return Array.from(recipientMap.values());
     }
 
     /**
-     * Send single email to multiple recipients using Gmail API
+     * Deliver one message to one address with truthful outcome bookkeeping.
      */
-    async sendSingleEmailToMultiple(options) {
-        const {
+    async deliverToRecipient({ reportId, recipient, subject, htmlContent, textContent, language, requestedLanguages, teacherId }) {
+        const record = new EmailReport({
             reportId,
-            recipients,
-            reportContent,
-            language,
-            requestedLanguages = [],
-            studentData,
-            teacherId,
-            schoolName,
-            teacher = null,
-            teacherRemark = '',
-            period = '',
-            dateRange = null,
-            evidenceSnapshot = null
-        } = options;
-
-        // Student-related contacts are primary recipients; teacher stays optional CC.
-        const primaryRecipients = recipients.filter((recipient) => recipient.type !== 'teacher');
-        const ccRecipients = recipients.filter((recipient) => recipient.type === 'teacher');
-
-        if (primaryRecipients.length === 0) {
-            throw new Error('No student-related email recipients found');
-        }
-
-        const { subject, html: htmlContent } = this.renderReportEmail({
-            reportContent,
+            sourceModel: 'ReportDraft',
+            recipientType: recipient.type,
+            email: recipient.email,
+            subject,
+            content: htmlContent,
             language,
             requestedLanguages,
-            studentData,
-            schoolName,
-            teacher,
-            teacherRemark,
-            period,
-            dateRange,
-            evidenceSnapshot
+            status: 'pending'
         });
 
-        // Prepare recipient list for Gmail API
-        const toEmails = primaryRecipients.map(r => r.email).join(', ');
-        const ccEmails = ccRecipients.length > 0 ? ccRecipients.map(r => r.email).join(', ') : undefined;
-
         try {
-            // Check if teacher has Gmail connected
-            const hasValidTokens = await this.gmailService.hasValidTokens(teacherId);
-            if (!hasValidTokens) {
-                throw new Error('Gmail not connected. Please authenticate with Google first.');
+            await record.save();
+        } catch (saveError) {
+            // No audit trail could be created; do not send blind.
+            return { email: recipient.email, status: 'failed', error: 'Could not create delivery record; message was not sent.' };
+        }
+
+        let providerResult;
+        try {
+            providerResult = await this.gmailService.sendEmail(teacherId, {
+                to: recipient.email,
+                subject,
+                html: htmlContent,
+                text: textContent
+            });
+        } catch (error) {
+            const definite = isDefiniteProviderFailure(error);
+            const status = definite ? 'failed' : 'unknown';
+            try {
+                await EmailReport.findByIdAndUpdate(record._id, {
+                    status,
+                    error: error.message,
+                    lastRetryAt: new Date()
+                });
+            } catch {
+                // Row stays 'pending'; the outcome is still reported truthfully.
             }
+            return { email: recipient.email, status, error: error.message };
+        }
 
-            // Send email using Gmail OAuth
-            const mailOptions = {
-                to: toEmails,
-                cc: ccEmails,
-                subject,
-                html: htmlContent
-            };
-
-            const result = await this.gmailService.sendEmail(teacherId, mailOptions);
-
-            // Save email record
-            const emailRecord = new EmailReport({
-                reportId,
-                recipientType: primaryRecipients.some((recipient) => ['mother', 'father', 'guardian'].includes(recipient.type))
-                    ? 'parents'
-                    : 'student',
-                email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
-                subject,
-                content: htmlContent,
-                language,
-                requestedLanguages,
-                messageId: result.messageId,
+        // Provider accepted the message. From here on, nothing may be labeled
+        // a retryable failure — at worst the outcome is unknown.
+        try {
+            await EmailReport.findByIdAndUpdate(record._id, {
                 status: 'sent',
+                messageId: providerResult.messageId,
                 sentAt: new Date()
             });
-
-            await emailRecord.save();
-
+        } catch (persistError) {
+            try {
+                await EmailReport.findByIdAndUpdate(record._id, {
+                    status: 'unknown',
+                    messageId: providerResult.messageId,
+                    error: 'Provider accepted the message but delivery bookkeeping failed.'
+                });
+            } catch {
+                // Row stays 'pending' with no messageId — still not 'failed'.
+            }
             return {
-                success: true,
-                messageId: result.messageId,
-                threadId: result.threadId,
-                recipients: recipients,
-                primaryRecipients: primaryRecipients.length,
-                ccRecipients: ccRecipients.length
-            };
-        } catch (error) {
-            // Save failed email record
-            const emailRecord = new EmailReport({
-                reportId,
-                recipientType: primaryRecipients.some((recipient) => ['mother', 'father', 'guardian'].includes(recipient.type))
-                    ? 'parents'
-                    : 'student',
-                email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
-                subject,
-                content: htmlContent,
-                language,
-                requestedLanguages,
-                status: 'failed',
-                error: error.message
-            });
-
-            await emailRecord.save();
-
-            return {
-                success: false,
-                error: error.message,
-                recipients: recipients
+                email: recipient.email,
+                status: 'unknown',
+                messageId: providerResult.messageId,
+                error: 'Provider accepted the message but delivery bookkeeping failed.'
             };
         }
+
+        return { email: recipient.email, status: 'sent', messageId: providerResult.messageId };
     }
 
     /**
@@ -563,20 +548,23 @@ class EmailService {
         );
         const normalizedLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
 
+        const html = this.formatEmailContent(reportContent, normalizedLanguage, {
+            schoolName,
+            requestedLanguages: normalizedRequestedLanguages,
+            studentData,
+            teacher,
+            teacherRemark,
+            period,
+            dateRange,
+            evidenceSnapshot
+        });
+
         return {
             subject: sanitizeSubject(
                 this.getEmailSubject(studentData, normalizedLanguage, normalizedRequestedLanguages)
             ),
-            html: this.formatEmailContent(reportContent, normalizedLanguage, {
-                schoolName,
-                requestedLanguages: normalizedRequestedLanguages,
-                studentData,
-                teacher,
-                teacherRemark,
-                period,
-                dateRange,
-                evidenceSnapshot
-            }),
+            html,
+            text: htmlToPlainText(html),
             language: normalizedLanguage,
             requestedLanguages: normalizedRequestedLanguages
         };
@@ -630,7 +618,9 @@ class EmailService {
             normalizedRequestedLanguages.length === 1 &&
             isRtlLanguageCode(normalizedRequestedLanguages[0]);
         const direction = isRTL ? 'rtl' : 'ltr';
-        const isArabic = normalizedRequestedLanguages.includes('ar');
+        // The wrapper follows the PRIMARY language. A bilingual en+ar report
+        // must not get Arabic chrome around an English-first body.
+        const isArabic = isRtlLanguageCode(normalizedRequestedLanguages[0] || 'en');
         const align = isRTL ? 'right' : 'left';
         const edge = isRTL ? 'right' : 'left';
 
@@ -839,47 +829,6 @@ class EmailService {
     }
 
     /**
-     * Update email status in token usage record
-     */
-    async updateEmailStatus(reportId, results) {
-        const updateData = {
-            emailRecipients: results.sent.length > 0 ? results.sent[0].recipients?.map(r => r.email) : [],
-            emailStatus: {}
-        };
-
-        // Initialize email status for all types
-        ['student', 'mother', 'father', 'guardian', 'teacher', 'parents'].forEach(type => {
-            updateData.emailStatus[type] = {
-                sent: false,
-                sentAt: null,
-                messageId: null
-            };
-        });
-
-        // If group email was sent successfully, mark 'parents' as sent
-        if (results.sent.length > 0) {
-            updateData.emailStatus.parents = {
-                sent: true,
-                sentAt: new Date(),
-                messageId: results.sent[0].messageId
-            };
-
-            // Also mark individual types as sent based on recipients
-            results.sent[0].recipients?.forEach(recipient => {
-                if (updateData.emailStatus[recipient.type]) {
-                    updateData.emailStatus[recipient.type] = {
-                        sent: true,
-                        sentAt: new Date(),
-                        messageId: results.sent[0].messageId
-                    };
-                }
-            });
-        }
-
-        await AITokenUsage.findByIdAndUpdate(reportId, updateData);
-    }
-
-    /**
      * Get email delivery status
      */
     async getEmailStatus(reportId) {
@@ -889,12 +838,14 @@ class EmailService {
             sent: emails.filter(e => e.status === 'sent').length,
             failed: emails.filter(e => e.status === 'failed').length,
             pending: emails.filter(e => e.status === 'pending').length,
+            unknown: emails.filter(e => e.status === 'unknown').length,
             details: emails
         };
     }
 
     /**
-     * Retry failed emails
+     * Retry only definitely-failed deliveries. 'unknown' and 'pending' rows are
+     * never retried automatically — the provider may already have accepted them.
      */
     async retryFailedEmails(reportId) {
         const failedEmails = await EmailReport.find({
@@ -903,46 +854,70 @@ class EmailService {
             retryCount: { $lt: 3 }
         });
 
-        const draft = await ReportDraft.findById(reportId).select('teacher');
-        const teacherId = draft?.teacher;
+        // Draft sends own the transport; legacy AI-report rows fall back to the
+        // token-usage record's teacher.
+        let teacherId = (await ReportDraft.findById(reportId).select('teacher'))?.teacher;
+        if (!teacherId) {
+            const legacy = await AITokenUsage.findById(reportId).select('teacher user');
+            teacherId = legacy?.teacher || legacy?.user;
+        }
 
         const results = {
             retried: 0,
             successful: 0,
-            failed: 0
+            failed: 0,
+            unknown: 0
         };
 
         for (const emailRecord of failedEmails) {
-            try {
-                if (!teacherId) {
-                    throw new Error('No teacher associated with this report for retry.');
-                }
+            if (!teacherId) {
+                results.failed++;
+                results.retried++;
+                continue;
+            }
 
-                const mailOptions = {
+            let info;
+            try {
+                info = await this.gmailService.sendEmail(teacherId, {
                     to: emailRecord.email,
                     subject: emailRecord.subject,
-                    html: emailRecord.content
-                };
+                    html: emailRecord.content,
+                    text: htmlToPlainText(emailRecord.content)
+                });
+            } catch (error) {
+                const definite = isDefiniteProviderFailure(error);
+                await EmailReport.findByIdAndUpdate(emailRecord._id, {
+                    status: definite ? 'failed' : 'unknown',
+                    error: error.message,
+                    retryCount: emailRecord.retryCount + 1,
+                    lastRetryAt: new Date()
+                });
+                if (definite) results.failed++;
+                else results.unknown++;
+                results.retried++;
+                continue;
+            }
 
-                const info = await this.gmailService.sendEmail(teacherId, mailOptions);
-
+            // Accepted: bookkeeping failure must not make it retryable again.
+            try {
                 await EmailReport.findByIdAndUpdate(emailRecord._id, {
                     status: 'sent',
                     messageId: info.messageId || info.id,
                     sentAt: new Date(),
-                    retryCount: emailRecord.retryCount + 1
-                });
-
-                results.successful++;
-            } catch (error) {
-                await EmailReport.findByIdAndUpdate(emailRecord._id, {
                     retryCount: emailRecord.retryCount + 1,
                     lastRetryAt: new Date()
                 });
-
-                results.failed++;
+                results.successful++;
+            } catch {
+                await EmailReport.findByIdAndUpdate(emailRecord._id, {
+                    status: 'unknown',
+                    messageId: info.messageId || info.id,
+                    error: 'Provider accepted the message but delivery bookkeeping failed.',
+                    retryCount: emailRecord.retryCount + 1,
+                    lastRetryAt: new Date()
+                }).catch(() => {});
+                results.unknown++;
             }
-
             results.retried++;
         }
 

@@ -3,8 +3,14 @@ import mongoose, { Schema, model } from 'mongoose';
 const emailReportSchema = new Schema({
     reportId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'AITokenUsage',
         required: true,
+    },
+    // Draft sends store ReportDraft IDs; legacy AI-report sends store
+    // AITokenUsage IDs. The ref is resolved by this discriminator, not populate.
+    sourceModel: {
+        type: String,
+        enum: ['ReportDraft', 'AITokenUsage'],
+        default: 'ReportDraft'
     },
     recipientType: {
         type: String,
@@ -46,7 +52,9 @@ const emailReportSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ['sent', 'failed', 'pending', 'bounced'],
+        // 'unknown' = provider may have accepted the message but the outcome
+        // could not be confirmed; it must never be auto-retried.
+        enum: ['sent', 'failed', 'pending', 'bounced', 'unknown'],
         default: 'pending'
     },
     error: {

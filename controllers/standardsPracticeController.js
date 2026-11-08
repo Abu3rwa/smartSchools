@@ -19,6 +19,8 @@ import { gradePracticeAnswer } from "../services/practiceAnswerGrading.js";
 import { renderStudentResultReportHtml } from "../services/studentResultReportService.js";
 import { buildPassageSnapshot } from "../services/assessment/passageService.js";
 import { describeObjectiveAnswer } from "../services/assessment/answerFormat.js";
+import { isAssessmentResultVisible } from "../services/assessment/resultVisibility.js";
+import { getParentLinkedStudents } from "../services/parentDashboardService.js";
 import {
   buildStudentPresentationFields,
   describeStudentResponse,
@@ -189,7 +191,7 @@ const calculateTimeRemaining = (session) => {
   return Math.max(session.timeLimitSeconds - elapsedSeconds, 0);
 };
 
-const buildSessionInfo = (session) => {
+const buildSessionInfo = (session, { hideCorrectness = false } = {}) => {
   if (!session) return null;
   const timeRemainingSeconds = calculateTimeRemaining(session);
   return {
@@ -200,7 +202,7 @@ const buildSessionInfo = (session) => {
     timeRemainingSeconds,
     status: session.status,
     questionsAnswered: session.questionsAnswered || 0,
-    correctCount: session.correctCount || 0,
+    correctCount: hideCorrectness ? null : session.correctCount || 0,
   };
 };
 
@@ -643,6 +645,40 @@ const selectPoolQuestion = ({ poolQuestions = [], attemptCount = 0 }) => {
   return poolQuestions[index] || null;
 };
 
+// One counting rule for every gradebook write: same session scope, same
+// teacher-override semantics, and pending-review answers tracked separately so
+// a provisional total is never mistaken for a final one.
+const countAssessmentAttempts = async ({
+  schoolId,
+  assignmentId,
+  studentId,
+  sessionId = null,
+}) => {
+  const attempts = await PracticeAttempt.find({
+    school: schoolId,
+    student: studentId,
+    assignment: assignmentId,
+    status: { $in: ["answered", "pending_review"] },
+    ...(sessionId ? { session: sessionId } : {}),
+  })
+    .select("isCorrect teacherOverride status")
+    .lean();
+
+  const answered = attempts.filter((attempt) => attempt.status === "answered");
+  const totalAnswered = answered.length;
+  const correctCount = answered.filter(
+    (attempt) =>
+      (attempt.teacherOverride?.isCorrect != null
+        ? attempt.teacherOverride.isCorrect
+        : attempt.isCorrect) === true,
+  ).length;
+  return {
+    totalAnswered,
+    correctCount,
+    pendingReviewCount: attempts.length - totalAnswered,
+  };
+};
+
 const upsertAssessmentGradebookProgress = async ({
   schoolId,
   assignment,
@@ -652,18 +688,13 @@ const upsertAssessmentGradebookProgress = async ({
   submittedAt = null,
   releasedAt = null,
 }) => {
-  const answeredAttempts = await PracticeAttempt.find({
-    school: schoolId,
-    student: studentId,
-    assignment: assignment._id,
-    status: "answered",
-    ...(sessionId ? { session: sessionId } : {}),
-  })
-    .select("isCorrect")
-    .lean();
-
-  const totalAnswered = answeredAttempts.length;
-  const correctCount = answeredAttempts.filter((a) => a.isCorrect).length;
+  const { totalAnswered, correctCount, pendingReviewCount } =
+    await countAssessmentAttempts({
+      schoolId,
+      assignmentId: assignment._id,
+      studentId,
+      sessionId,
+    });
   const assessmentConfig = getAssessmentConfig(assignment);
   const { score, percentage } = buildAssessmentScore({
     correctCount,
@@ -691,6 +722,7 @@ const upsertAssessmentGradebookProgress = async ({
       passMarks: assessmentConfig.passMarks,
       resultsVisibility: assessmentConfig.resultsVisibility,
       resultsReleaseAt: assessmentConfig.resultsReleaseAt || null,
+      pendingReviewCount,
       tabSwitchCount: await PracticeSession.findOne({
         school: schoolId,
         student: studentId,
@@ -743,26 +775,19 @@ const refreshAssessmentGradebookTotals = async ({
     assignment: assignmentId,
     student: studentId,
   })
-    .select("maxScore manualScore isManualEntry")
+    .select("maxScore manualScore isManualEntry session")
     .lean();
   if (!entry) return null;
 
-  const attempts = await PracticeAttempt.find({
-    school: schoolId,
-    student: studentId,
-    assignment: assignmentId,
-    status: "answered",
-  })
-    .select("isCorrect teacherOverride")
-    .lean();
-
-  const totalAnswered = attempts.length;
-  const correctCount = attempts.filter(
-    (attempt) =>
-      (attempt.teacherOverride?.isCorrect != null
-        ? attempt.teacherOverride.isCorrect
-        : attempt.isCorrect) === true,
-  ).length;
+  // Recount with the same scope the original total used (the recorded session,
+  // when there is one) so a review never silently widens or narrows the result.
+  const { totalAnswered, correctCount, pendingReviewCount } =
+    await countAssessmentAttempts({
+      schoolId,
+      assignmentId,
+      studentId,
+      sessionId: entry.session || null,
+    });
   const maxScore =
     Number(entry.maxScore) || getAssessmentConfig(assignment).maxMarks;
   const { score, percentage } = buildAssessmentScore({
@@ -779,6 +804,7 @@ const refreshAssessmentGradebookTotals = async ({
         correctCount,
         score,
         percentage,
+        "metadata.pendingReviewCount": pendingReviewCount,
         effectiveScore:
           entry.isManualEntry && entry.manualScore != null
             ? entry.manualScore
@@ -1318,13 +1344,22 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
       const assessmentIsComplete =
         isAssessment &&
         ["submitted", "released"].includes(assessmentEntry?.status);
+      const assessmentResultsVisible = isAssessment
+        ? isAssessmentResultVisible(getAssessmentConfig(a), assessmentEntry)
+        : true;
 
       return {
         ...a.toObject(),
-        mastery,
+        mastery: isAssessment && !assessmentResultsVisible ? null : mastery,
+        // Completing an assessment is not the same as mastering the standard;
+        // the label must not claim mastery the attempts never established.
         progressStatus: assessmentIsComplete
-          ? "mastered"
-          : resolveProgressStatus(mastery),
+          ? "completed"
+          : isAssessment
+            ? assessmentEntry
+              ? "in_progress"
+              : "not_started"
+            : resolveProgressStatus(mastery),
         assessmentProgress: isAssessment
           ? {
               status: assessmentEntry?.status || "not_started",
@@ -1332,6 +1367,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
               submittedAt: assessmentEntry?.submittedAt || null,
               releasedAt: assessmentEntry?.releasedAt || null,
               isComplete: assessmentIsComplete,
+              resultsVisible: assessmentResultsVisible,
             }
           : null,
       };
@@ -1433,8 +1469,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     });
   }
 
+  let assessmentEntry = null;
   if (isFormalAssessment) {
-    const assessmentEntry = await StandardsGradebookEntry.findOne({
+    assessmentEntry = await StandardsGradebookEntry.findOne({
       school: req.schoolId,
       assignment: assignment._id,
       student: student._id,
@@ -1456,6 +1493,12 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     }
   }
 
+  // Withheld assessment results must not leak through correctness hints, the
+  // mastery object or the session's running correct count either.
+  const assessmentResultsHidden =
+    isFormalAssessment &&
+    !isAssessmentResultVisible(getAssessmentConfig(assignment), assessmentEntry);
+
   // Check if already mastered (use persisted + rolling logic)
   const mastery = await PracticeAttempt.calculateMastery(
     student._id,
@@ -1467,7 +1510,10 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     [assignment._id],
   );
 
-  if (mastery.isMastered) {
+  // Formal assessments complete by their configured rules (question limit,
+  // expiry or explicit finalize), never by the practice mastery shortcut —
+  // returning "mastered" here would leave the assessment unfinalized.
+  if (mastery.isMastered && !isFormalAssessment) {
     const payload = generateQuestionResponseSchema.parse({
       status: "mastered",
       mastery,
@@ -1533,10 +1579,24 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       studentFirstName: student.firstName || null,
       assignmentInstructions: assignment.instructions || null,
       question: null,
-      session: buildSessionInfo(session),
+      session: buildSessionInfo(session, {
+        hideCorrectness: assessmentResultsHidden,
+      }),
+      resultsVisible: !assessmentResultsHidden,
     });
     return res.json({ success: true, data: payload });
   }
+
+  // A refresh, retry or double click must reuse the question already served
+  // for this session instead of minting a new pending attempt and advancing
+  // through the pool without answering.
+  let attempt = await PracticeAttempt.findOne({
+    school: req.schoolId,
+    student: student._id,
+    assignment: assignment._id,
+    session: session._id,
+    status: "pending",
+  }).sort({ createdAt: -1 });
 
   const sessionAttempts = await PracticeAttempt.find({
     school: req.schoolId,
@@ -1555,10 +1615,12 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   const previousQuestionFingerprints =
     sessionContext.previousQuestionFingerprints;
 
-  // Count attempt number
+  // Count attempt number. Only consumed questions advance the pool index;
+  // abandoned pending rows must not skip questions the student never saw.
   const attemptCount = await PracticeAttempt.countDocuments({
     student: student._id,
     assignment: assignment._id,
+    status: { $in: ["answered", "pending_review"] },
   });
 
   let recentAttempts = sessionAttempts.filter(
@@ -1594,153 +1656,157 @@ export const generateQuestion = asyncHandler(async (req, res) => {
         fallbackAll: true,
       })
     : [];
-  let question = null;
+  if (!attempt) {
+    let question = null;
 
-  if (publishedQuestionPool?.questions?.length > 0) {
-    const poolQuestion = selectPoolQuestion({
-      poolQuestions: publishedQuestionPool.questions,
-      attemptCount,
-    });
-    if (!poolQuestion) {
-      return res.status(503).json({
-        success: false,
-        message:
-          "Published question pool is empty. Please contact your teacher.",
+    if (publishedQuestionPool?.questions?.length > 0) {
+      const poolQuestion = selectPoolQuestion({
+        poolQuestions: publishedQuestionPool.questions,
+        attemptCount,
       });
-    }
-    question = {
-      instruction: poolQuestion.instruction || "",
-      questionText: poolQuestion.questionText,
-      questionType: poolQuestion.questionType,
-      options: poolQuestion.options || [],
-      // The authored definition is what the grader reads, so it travels with the question
-      // from the pool into the attempt instead of being re-derived at submit time.
-      matchingPairs: poolQuestion.matchingPairs || [],
-      orderingItems: poolQuestion.orderingItems || [],
-      blanks: poolQuestion.blanks || [],
-      numericRule: poolQuestion.numericRule || null,
-      passage: poolQuestion.passage || null,
-      passageId: poolQuestion.passageId || "",
-      passageTitle: poolQuestion.passageTitle || "",
-      passageText: poolQuestion.passageText || "",
-      correctAnswer: poolQuestion.correctAnswer,
-      explanation: poolQuestion.explanation || "",
-      difficulty: poolQuestion.difficulty || effectiveDifficulty,
-      grammarLevel: poolQuestion.grammarLevel || null,
-      skill: poolQuestion.skill || "",
-      subskill: poolQuestion.subskill || "",
-      gradingMode: poolQuestion.gradingMode || "conceptual",
-      acceptableAnswers: poolQuestion.acceptableAnswers || [],
-      evaluationCriteria: poolQuestion.evaluationCriteria || "",
-      tokenUsage: null,
-    };
-    question = sanitizeServedMultipleChoiceQuestion(question, {
-      seed: `${assignment._id}|${attemptCount + 1}|pool`,
-    });
-  } else {
-    if (grammarLevelingEnabled) {
-      const preferredLevel =
-        grammarLevels.length > 0
-          ? grammarLevels[attemptCount % grammarLevels.length]
-          : null;
-      question = generateGrammarQuestion({
-        levels: grammarLevels,
-        questionType: effectiveQuestionType,
-        difficulty: effectiveDifficulty,
-        preferredLevel,
-        index: attemptCount,
-        seed: `${assignment._id}|${student._id}|${attemptCount + 1}|runtime`,
+      if (!poolQuestion) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Published question pool is empty. Please contact your teacher.",
+        });
+      }
+      question = {
+        instruction: poolQuestion.instruction || "",
+        questionText: poolQuestion.questionText,
+        questionType: poolQuestion.questionType,
+        options: poolQuestion.options || [],
+        // The authored definition is what the grader reads, so it travels with the question
+        // from the pool into the attempt instead of being re-derived at submit time.
+        matchingPairs: poolQuestion.matchingPairs || [],
+        orderingItems: poolQuestion.orderingItems || [],
+        blanks: poolQuestion.blanks || [],
+        numericRule: poolQuestion.numericRule || null,
+        passage: poolQuestion.passage || null,
+        passageId: poolQuestion.passageId || "",
+        passageTitle: poolQuestion.passageTitle || "",
+        passageText: poolQuestion.passageText || "",
+        correctAnswer: poolQuestion.correctAnswer,
+        explanation: poolQuestion.explanation || "",
+        difficulty: poolQuestion.difficulty || effectiveDifficulty,
+        grammarLevel: poolQuestion.grammarLevel || null,
+        skill: poolQuestion.skill || "",
+        subskill: poolQuestion.subskill || "",
+        gradingMode: poolQuestion.gradingMode || "conceptual",
+        acceptableAnswers: poolQuestion.acceptableAnswers || [],
+        evaluationCriteria: poolQuestion.evaluationCriteria || "",
+        tokenUsage: null,
+      };
+      question = sanitizeServedMultipleChoiceQuestion(question, {
+        seed: `${assignment._id}|${attemptCount + 1}|pool`,
       });
     } else {
-      return res.status(403).json({
-        success: false,
-        message: "This practice requires a teacher-published question pool.",
+      if (grammarLevelingEnabled) {
+        const preferredLevel =
+          grammarLevels.length > 0
+            ? grammarLevels[attemptCount % grammarLevels.length]
+            : null;
+        question = generateGrammarQuestion({
+          levels: grammarLevels,
+          questionType: effectiveQuestionType,
+          difficulty: effectiveDifficulty,
+          preferredLevel,
+          index: attemptCount,
+          seed: `${assignment._id}|${student._id}|${attemptCount + 1}|runtime`,
+        });
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: "This practice requires a teacher-published question pool.",
+        });
+      }
+
+      if (!question) {
+        return res.status(503).json({
+          success: false,
+          message: "Could not generate a clear question. Please try again.",
+        });
+      }
+    }
+
+    question = sanitizeServedMultipleChoiceQuestion(question, {
+      seed: `${assignment._id}|${attemptCount + 1}|runtime`,
+    });
+
+    // Pedagogical validation gate: ensure instruction, skill, subskill are present
+    const preGateInstruction = question.instruction;
+    question = standardsPracticeAIService.ensureInstructionalCompleteness(
+      question,
+      {
+        standard: assignment.standard,
+        questionType: question.questionType,
+      },
+    );
+    if (!preGateInstruction || !preGateInstruction.trim()) {
+      logger.warn("question_instruction_synthesized", {
+        schoolId: req.schoolId,
+        assignmentId: assignment._id?.toString(),
+        studentId: student._id?.toString(),
+        questionType: question.questionType,
+        difficulty: question.difficulty,
       });
     }
 
-    if (!question) {
-      return res.status(503).json({
-        success: false,
-        message: "Could not generate a clear question. Please try again.",
-      });
-    }
-  }
-
-  question = sanitizeServedMultipleChoiceQuestion(question, {
-    seed: `${assignment._id}|${attemptCount + 1}|runtime`,
-  });
-
-  // Pedagogical validation gate: ensure instruction, skill, subskill are present
-  const preGateInstruction = question.instruction;
-  question = standardsPracticeAIService.ensureInstructionalCompleteness(
-    question,
-    {
-      standard: assignment.standard,
+    // Save the attempt (pending answer)
+    attempt = await PracticeAttempt.create({
+      school: req.schoolId,
+      student: student._id,
+      standard: assignment.standard._id,
+      assignment: assignment._id,
+      instruction: question.instruction || null,
+      questionText: question.questionText,
       questionType: question.questionType,
-    },
-  );
-  if (!preGateInstruction || !preGateInstruction.trim()) {
-    logger.warn("question_instruction_synthesized", {
-      schoolId: req.schoolId,
-      assignmentId: assignment._id?.toString(),
-      studentId: student._id?.toString(),
-      questionType: question.questionType,
+      options: question.options,
+      matchingPairs: question.matchingPairs || [],
+      orderingItems: question.orderingItems || [],
+      blanks: question.blanks || [],
+      numericRule: question.numericRule || null,
+      passageSnapshot: buildPassageSnapshot({
+        _id: question.passage || null,
+        passageKey: question.passageId || "",
+        title: question.passageTitle || "",
+        text: question.passageText || "",
+      }),
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
       difficulty: question.difficulty,
+      grammarLevel: question.grammarLevel || null,
+      skill: question.skill || null,
+      subskill: question.subskill || null,
+      gradingMode: question.gradingMode || "conceptual",
+      acceptableAnswers: question.acceptableAnswers || [],
+      evaluationCriteria: question.evaluationCriteria || "",
+      attemptNumber: attemptCount + 1,
+      status: "pending",
+      session: session._id,
+      sessionType: session.sessionType,
     });
   }
-
-  // Save the attempt (pending answer)
-  const attempt = await PracticeAttempt.create({
-    school: req.schoolId,
-    student: student._id,
-    standard: assignment.standard._id,
-    assignment: assignment._id,
-    instruction: question.instruction || null,
-    questionText: question.questionText,
-    questionType: question.questionType,
-    options: question.options,
-    matchingPairs: question.matchingPairs || [],
-    orderingItems: question.orderingItems || [],
-    blanks: question.blanks || [],
-    numericRule: question.numericRule || null,
-    passageSnapshot: buildPassageSnapshot({
-      _id: question.passage || null,
-      passageKey: question.passageId || "",
-      title: question.passageTitle || "",
-      text: question.passageText || "",
-    }),
-    correctAnswer: question.correctAnswer,
-    explanation: question.explanation,
-    difficulty: question.difficulty,
-    grammarLevel: question.grammarLevel || null,
-    skill: question.skill || null,
-    subskill: question.subskill || null,
-    gradingMode: question.gradingMode || "conceptual",
-    acceptableAnswers: question.acceptableAnswers || [],
-    evaluationCriteria: question.evaluationCriteria || "",
-    attemptNumber: attemptCount + 1,
-    status: "pending",
-    session: session._id,
-    sessionType: session.sessionType,
-  });
 
   // Don't send correctAnswer to the student
   const presentationSeed = `${assignment._id}|${student._id}|${attemptCount + 1}`;
   const payload = generateQuestionResponseSchema.parse({
     status: "question",
-    mastery,
+    mastery: assessmentResultsHidden ? undefined : mastery,
     message: null,
     studentFirstName: student.firstName || null,
     assignmentInstructions: assignment.instructions || null,
     suggestRemediation: suggestRemediation ?? false,
-    sessionContext: {
-      recentTopics: sessionContext.recentTopics,
-      recentMistakes: sessionContext.recentMistakes,
-      confidenceHint: sessionContext.confidenceHint,
-      recentAccuracy: sessionContext.recentAccuracy,
-      correctStreak: sessionContext.correctStreak,
-      incorrectStreak: sessionContext.incorrectStreak,
-    },
+    sessionContext: assessmentResultsHidden
+      ? {}
+      : {
+          recentTopics: sessionContext.recentTopics,
+          recentMistakes: sessionContext.recentMistakes,
+          confidenceHint: sessionContext.confidenceHint,
+          recentAccuracy: sessionContext.recentAccuracy,
+          correctStreak: sessionContext.correctStreak,
+          incorrectStreak: sessionContext.incorrectStreak,
+        },
     question: {
       attemptId: attempt._id.toString(),
       instruction: attempt.instruction || null,
@@ -1756,7 +1822,10 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       ...buildStudentPresentationFields(attempt.toObject(), presentationSeed),
       passage: attempt.passageSnapshot || null,
     },
-    session: buildSessionInfo(session),
+    session: buildSessionInfo(session, {
+      hideCorrectness: assessmentResultsHidden,
+    }),
+    resultsVisible: !assessmentResultsHidden,
   });
 
   res.json({ success: true, data: payload });
@@ -1821,6 +1890,21 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   const student = await Student.findOne({ user: req.user._id });
   if (!student || attempt.student.toString() !== student._id.toString()) {
     return res.status(403).json({ success: false, message: "Not authorized" });
+  }
+
+  // The session state is authoritative: an answer must never be graded into a
+  // session that already closed (expired, completed or finalized), even if the
+  // pending attempt was created while it was still active.
+  let session = null;
+  if (attempt.session) {
+    session = await PracticeSession.findById(attempt.session);
+    if (!session || session.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This session has closed, so the answer can no longer be submitted.",
+      });
+    }
   }
 
   if (attempt.questionType === "true_false") {
@@ -1910,55 +1994,55 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   );
   const newlyMastered = mastery.isMastered && !recordBefore?.isMastered;
 
-  let session = null;
-  if (attempt.session) {
-    session = await PracticeSession.findById(attempt.session);
-    if (session && session.status === "active") {
-      session.questionsAnswered = (session.questionsAnswered || 0) + 1;
-      if (evaluation.isCorrect)
-        session.correctCount = (session.correctCount || 0) + 1;
-      session.lastActivityAt = new Date();
+  if (session && session.status === "active") {
+    session.questionsAnswered = (session.questionsAnswered || 0) + 1;
+    if (evaluation.isCorrect)
+      session.correctCount = (session.correctCount || 0) + 1;
+    session.lastActivityAt = new Date();
 
-      const timeRemaining = calculateTimeRemaining(session);
-      if (session.timeLimitSeconds && timeRemaining === 0) {
-        session.status = "expired";
-        session.endedAt = new Date();
-      }
-
-      if (
-        session.questionLimit &&
-        session.questionsAnswered >= session.questionLimit
-      ) {
-        session.status = "completed";
-        session.endedAt = new Date();
-      }
-
-      await session.save();
+    const timeRemaining = calculateTimeRemaining(session);
+    if (session.timeLimitSeconds && timeRemaining === 0) {
+      session.status = "expired";
+      session.endedAt = new Date();
     }
+
+    if (
+      session.questionLimit &&
+      session.questionsAnswered >= session.questionLimit
+    ) {
+      session.status = "completed";
+      session.endedAt = new Date();
+    }
+
+    await session.save();
   }
 
+  let assessmentResultsHidden = false;
   if (attempt.sessionType === "assessment") {
     const assessmentAssignment = await StandardAssignment.findById(
       attempt.assignment?._id || attempt.assignment,
     ).select("assessmentConfig standard class subject academicYear semester");
     if (assessmentAssignment) {
-      if (session && session.status !== "active") {
-        await finalizeAssessmentSessionProgress({
-          schoolId: req.schoolId,
-          assignment: assessmentAssignment,
-          studentId: student._id,
-          session,
-          closedAt: session.endedAt || new Date(),
-        });
-      } else {
-        await upsertAssessmentGradebookProgress({
-          schoolId: req.schoolId,
-          assignment: assessmentAssignment,
-          studentId: student._id,
-          sessionId: attempt.session || session?._id || null,
-          status: "in_progress",
-        });
-      }
+      const gradebookEntry =
+        session && session.status !== "active"
+          ? await finalizeAssessmentSessionProgress({
+              schoolId: req.schoolId,
+              assignment: assessmentAssignment,
+              studentId: student._id,
+              session,
+              closedAt: session.endedAt || new Date(),
+            })
+          : await upsertAssessmentGradebookProgress({
+              schoolId: req.schoolId,
+              assignment: assessmentAssignment,
+              studentId: student._id,
+              sessionId: attempt.session || session?._id || null,
+              status: "in_progress",
+            });
+      assessmentResultsHidden = !isAssessmentResultVisible(
+        getAssessmentConfig(assessmentAssignment),
+        gradebookEntry,
+      );
     }
   }
 
@@ -2023,27 +2107,36 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
+  // While an assessment's results are withheld the response is a plain
+  // acknowledgement: no correctness, answer key, explanation, accuracy hints
+  // or mastery — any of those would reveal the score the teacher has not
+  // released yet.
   const payload = submitAnswerResponseSchema.parse({
-    isCorrect: evaluation.isCorrect,
+    isCorrect: assessmentResultsHidden ? null : evaluation.isCorrect,
     requiresTeacherReview,
-    correctAnswer: attempt.correctAnswer,
-    correctAnswerDisplay,
-    explanation: attempt.explanation || null,
-    feedback: evaluation.feedback || null,
-    feedbackParts,
+    correctAnswer: assessmentResultsHidden ? "" : attempt.correctAnswer,
+    correctAnswerDisplay: assessmentResultsHidden ? null : correctAnswerDisplay,
+    explanation: assessmentResultsHidden ? null : attempt.explanation || null,
+    feedback: assessmentResultsHidden ? null : evaluation.feedback || null,
+    feedbackParts: assessmentResultsHidden ? null : feedbackParts,
     studentFirstName: student.firstName || null,
-    sessionContext: {
-      recentTopics: sessionContext.recentTopics,
-      recentMistakes: sessionContext.recentMistakes,
-      confidenceHint: sessionContext.confidenceHint,
-      recentAccuracy: sessionContext.recentAccuracy,
-      correctStreak: sessionContext.correctStreak,
-      incorrectStreak: sessionContext.incorrectStreak,
-    },
-    mastery,
-    newlyMastered,
+    sessionContext: assessmentResultsHidden
+      ? {}
+      : {
+          recentTopics: sessionContext.recentTopics,
+          recentMistakes: sessionContext.recentMistakes,
+          confidenceHint: sessionContext.confidenceHint,
+          recentAccuracy: sessionContext.recentAccuracy,
+          correctStreak: sessionContext.correctStreak,
+          incorrectStreak: sessionContext.incorrectStreak,
+        },
+    mastery: assessmentResultsHidden ? undefined : mastery,
+    newlyMastered: assessmentResultsHidden ? false : newlyMastered,
     sessionComplete: session ? session.status !== "active" : false,
-    session: buildSessionInfo(session),
+    session: buildSessionInfo(session, {
+      hideCorrectness: assessmentResultsHidden,
+    }),
+    resultsVisible: !assessmentResultsHidden,
   });
 
   res.json({ success: true, data: payload });
@@ -2073,7 +2166,32 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     semester: effectiveSemester,
   });
 
-  if (yearAssignmentIds.length === 0) {
+  // History serves answer keys and correctness, so attempts belonging to an
+  // assessment whose results are still withheld stay out until release.
+  const scopedAssignments =
+    yearAssignmentIds.length > 0
+      ? await StandardAssignment.find({
+          school: req.schoolId,
+          _id: { $in: yearAssignmentIds },
+        })
+          .select("practiceConfig assessmentConfig")
+          .lean()
+      : [];
+  const hiddenAssessmentIds = new Set(
+    scopedAssignments
+      .filter(
+        (assignment) =>
+          getAssignmentPracticeConfig(assignment).sessionType ===
+            "assessment" &&
+          !isAssessmentResultVisible(getAssessmentConfig(assignment)),
+      )
+      .map((assignment) => String(assignment._id)),
+  );
+  const visibleAssignmentIds = yearAssignmentIds.filter(
+    (id) => !hiddenAssessmentIds.has(String(id)),
+  );
+
+  if (visibleAssignmentIds.length === 0) {
     return res.json({
       success: true,
       data: {
@@ -2103,7 +2221,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     school: req.schoolId,
     student: student._id,
     standard: req.params.standardId,
-    assignment: { $in: yearAssignmentIds },
+    assignment: { $in: visibleAssignmentIds },
     status: "answered",
   };
 
@@ -2134,7 +2252,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     5,
     3,
     req.schoolId,
-    yearAssignmentIds,
+    visibleAssignmentIds,
   );
 
   res.json({
@@ -2628,22 +2746,17 @@ export const finalizeAssessment = asyncHandler(async (req, res) => {
     releasedAt: releaseNow ? submittedAt : null,
   });
 
-  const now = new Date();
-  const hasReleaseDate = Boolean(assessmentConfig.resultsReleaseAt);
-  const isReleaseDateReached =
-    hasReleaseDate &&
-    now.getTime() >= new Date(assessmentConfig.resultsReleaseAt).getTime();
-  const canViewResult =
-    assessmentConfig.resultsVisibility === "immediate" || isReleaseDateReached;
+  const canViewResult = isAssessmentResultVisible(assessmentConfig, entry);
 
-  // Notify parents of completion (fire-and-forget)
+  // Notify parents of completion (fire-and-forget). The score travels with the
+  // email only when the release policy already allows the family to see it.
   if (assignment.notifyParents !== false) {
     notificationService
       .sendStandardAssignmentCompletedNotification({
         studentId: student._id,
         assignment,
-        score: entry.score ?? null,
-        maxScore: entry.maxScore ?? null,
+        score: canViewResult ? (entry.score ?? null) : null,
+        maxScore: canViewResult ? (entry.maxScore ?? null) : null,
       })
       .catch((err) =>
         logger.error("finalize_assessment_notif_failed", {
@@ -2859,7 +2972,7 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
     assignment: { $in: assignmentIds },
   })
     .select(
-      "assignment status score maxScore percentage submittedAt releasedAt totalAnswered correctCount",
+      "assignment status score maxScore percentage submittedAt releasedAt totalAnswered correctCount metadata",
     )
     .lean();
   const entryMap = new Map(
@@ -2872,14 +2985,7 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
     const assignmentId = assignment._id.toString();
     const entry = entryMap.get(assignmentId) || null;
     const assessmentConfig = getAssessmentConfig(assignment);
-    const hasReleaseDate = Boolean(assessmentConfig.resultsReleaseAt);
-    const releaseReached =
-      hasReleaseDate &&
-      now.getTime() >= new Date(assessmentConfig.resultsReleaseAt).getTime();
-    const isVisible =
-      assessmentConfig.resultsVisibility === "immediate" ||
-      releaseReached ||
-      entry?.status === "released";
+    const isVisible = isAssessmentResultVisible(assessmentConfig, entry, now);
 
     const score = isVisible ? (entry?.score ?? null) : null;
     const maxScore = isVisible
@@ -2909,8 +3015,11 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
         ? assignment.practiceConfig.grammarLevels
         : [],
       status: entry?.status || "not_started",
-      totalAnswered: entry?.totalAnswered ?? 0,
-      correctCount: entry?.correctCount ?? 0,
+      totalAnswered: isVisible ? (entry?.totalAnswered ?? 0) : null,
+      correctCount: isVisible ? (entry?.correctCount ?? 0) : null,
+      pendingReviewCount: isVisible
+        ? (entry?.metadata?.pendingReviewCount ?? 0)
+        : null,
       score,
       maxScore,
       percentage,
@@ -3005,6 +3114,193 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
       progressDocument,
       academicYear: effectiveAcademicYear,
       semester: effectiveSemester,
+    },
+  });
+});
+
+/**
+ * @desc    Get a single assessment's released result for the student or parent
+ * @route   GET /api/practice/assessment/:assignmentId/my-results
+ * @access  Private (Student, Parent)
+ */
+export const getMyAssessmentResultDetail = asyncHandler(async (req, res) => {
+  const academicYear = resolveAcademicYearForRequest(req);
+  const isParent = req.user?.role === "parent";
+
+  let student = null;
+  if (isParent) {
+    const requestedChildId = req.query?.childId ? String(req.query.childId) : "";
+    if (requestedChildId) {
+      const linked = await getParentLinkedStudents({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+      });
+      student = linked.find((row) => String(row._id) === requestedChildId) || null;
+    } else {
+      const linked = await getParentLinkedStudents({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+      });
+      student = linked.length === 1 ? linked[0] : null;
+    }
+    if (!student) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to view this result",
+      });
+    }
+  } else {
+    student = await Student.findOne({
+      user: req.user._id,
+      status: "active",
+    })
+      .populate("currentClass", "name grade section academicYear")
+      .lean();
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student profile not found" });
+    }
+  }
+
+  const assignment = await StandardAssignment.findById(req.params.assignmentId)
+    .populate("standard", "code name description")
+    .populate("class", "name grade section academicYear")
+    .populate("subject", "name code")
+    .lean();
+
+  if (!assignment || !assignment.isActive) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+  if (!isClassInAcademicYear(assignment.class, academicYear)) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
+  const assignmentClassId = String(
+    assignment.class?._id || assignment.class || "",
+  );
+  const studentClassId = String(
+    student.currentClass?._id || student.currentClass || "",
+  );
+  const isAssigned =
+    assignmentStudents.length === 0
+      ? studentClassId === assignmentClassId
+      : assignmentStudents.some((id) => String(id) === String(student._id));
+  if (!isAssigned) {
+    return res
+      .status(403)
+      .json({ success: false, message: "Not authorized to view this result" });
+  }
+
+  const practiceConfig = getAssignmentPracticeConfig(assignment);
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const entry = await StandardsGradebookEntry.findOne({
+    school: req.schoolId,
+    student: student._id,
+    assignment: assignment._id,
+  })
+    .select(
+      "status score maxScore percentage submittedAt releasedAt totalAnswered correctCount metadata",
+    )
+    .lean();
+
+  if (!isAssessmentResultVisible(assessmentConfig, entry)) {
+    return res.status(403).json({
+      success: false,
+      code: "RESULTS_NOT_RELEASED",
+      message: "Results not yet released",
+    });
+  }
+
+  const attempts = await PracticeAttempt.find({
+    school: req.schoolId,
+    student: student._id,
+    assignment: assignment._id,
+    status: { $in: ["answered", "pending_review"] },
+  })
+    .sort({ createdAt: 1 })
+    .select(
+      "questionText questionType studentAnswer studentResponse correctAnswer isCorrect score feedback explanation feedbackParts answeredAt status",
+    )
+    .lean();
+
+  const score = entry?.score ?? null;
+  const maxScore = entry?.maxScore ?? assessmentConfig.maxMarks;
+  const percentage = entry?.percentage ?? null;
+  const scale4 = Number.isFinite(percentage)
+    ? percentageToScale4(percentage)
+    : null;
+
+  res.json({
+    success: true,
+    data: {
+      assignmentId: String(assignment._id),
+      title:
+        assignment.title ||
+        `${assignment.standard?.code || "STD"} Assessment`,
+      standard: assignment.standard || null,
+      subject: assignment.subject || null,
+      class: assignment.class || null,
+      submittedAt: entry?.submittedAt || null,
+      releasedAt: entry?.releasedAt || null,
+      score,
+      maxScore,
+      percentage,
+      scale4,
+      passMarks: assessmentConfig.passMarks,
+      isPassed:
+        Number.isFinite(score) &&
+        Number.isFinite(assessmentConfig.passMarks) &&
+        score >= assessmentConfig.passMarks,
+      totalAnswered: entry?.totalAnswered ?? attempts.length,
+      correctCount:
+        entry?.correctCount ??
+        attempts.filter((attempt) => attempt.isCorrect === true).length,
+      resultsVisible: true,
+      questions: attempts.map((attempt) => {
+        const feedback = attempt.feedbackParts || {};
+        return {
+          id: String(attempt._id),
+          questionText: attempt.questionText || "",
+          questionType: attempt.questionType,
+          studentAnswer:
+            attempt.studentAnswer ||
+            describeStudentResponse({
+              questionType: attempt.questionType,
+              response:
+                attempt.studentResponse ??
+                attempt.studentAnswer ??
+                null,
+              question: attempt,
+            }),
+          correctAnswer: attempt.correctAnswer || "",
+          isCorrect: attempt.isCorrect === true,
+          score: attempt.score ?? null,
+          feedback:
+            feedback.correctionOrConfirmation ||
+            attempt.feedback ||
+            "",
+          explanation:
+            feedback.explanation ||
+            attempt.explanation ||
+            "",
+          requiresTeacherReview: attempt.status === "pending_review",
+          answeredAt: attempt.answeredAt || null,
+        };
+      }),
+      metadata: {
+        sessionType: practiceConfig.sessionType,
+        pendingReviewCount: entry?.metadata?.pendingReviewCount ?? 0,
+      },
     },
   });
 });

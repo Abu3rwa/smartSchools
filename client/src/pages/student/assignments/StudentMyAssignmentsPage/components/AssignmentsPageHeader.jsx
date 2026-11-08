@@ -1,10 +1,15 @@
+import { useTranslation } from 'react-i18next';
+
 const AssignmentsPageHeader = ({ academicYear }) => {
+  const { t } = useTranslation(['assignments']);
   return (
     <div className="page-header">
-      <h1>My assignments</h1>
+      <h1>{t('student.header.title')}</h1>
       <p className="subtitle">
-        Open each assignment to view full instructions, due date, and lesson links.
-        {academicYear ? ` Academic Year: ${academicYear}.` : ''}
+        {t('student.header.subtitle')}
+        {academicYear
+          ? ` ${t('student.header.academicYear', { year: academicYear })}`
+          : ''}
       </p>
     </div>
   );

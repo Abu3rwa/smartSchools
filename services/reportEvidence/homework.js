@@ -21,10 +21,17 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
     if (Object.keys(dateFilter).length > 0) assignmentQuery.dueDate = dateFilter;
 
     const assignments = await HomeworkAssignment.find(assignmentQuery)
-        .select('_id title dueDate maxMarks')
+        .select('_id title dueDate maxMarks scope studentIds')
+        .sort({ dueDate: 1 })
         .lean();
 
-    if (assignments.length === 0) {
+    // selected-student work only counts for the students it was assigned to.
+    const audienceAssignments = assignments.filter(a =>
+        a.scope !== 'selected_students' ||
+        (a.studentIds || []).some(id => String(id) === String(studentId))
+    );
+
+    if (audienceAssignments.length === 0) {
         return {
             source: 'homework',
             available: false,
@@ -35,7 +42,7 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
         };
     }
 
-    const assignmentIds = assignments.map(a => a._id);
+    const assignmentIds = audienceAssignments.map(a => a._id);
     const submissions = await HomeworkSubmission.find({
         school: schoolId,
         student: studentId,
@@ -46,18 +53,26 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
         submissions.map(s => [String(s.homeworkAssignment), s])
     );
 
+    const now = new Date();
     let submitted = 0;
     let late = 0;
     let graded = 0;
     let notSubmitted = 0;
+    let overdueCount = 0;
+    let upcomingCount = 0;
+    let dueSoFar = 0;
     let totalScore = 0;
     let totalMax = 0;
     let gradedCount = 0;
 
-    for (const assignment of assignments) {
+    for (const assignment of audienceAssignments) {
+        const isDue = new Date(assignment.dueDate) <= now;
+        if (isDue) dueSoFar += 1;
         const sub = submissionMap.get(String(assignment._id));
         if (!sub) {
             notSubmitted += 1;
+            if (isDue) overdueCount += 1;
+            else upcomingCount += 1;
             continue;
         }
 
@@ -79,49 +94,58 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
             case 'not_submitted':
             default:
                 notSubmitted += 1;
+                if (isDue) overdueCount += 1;
+                else upcomingCount += 1;
                 break;
         }
     }
 
-    const completionRate = assignments.length > 0
-        ? Math.round(((submitted + late + graded) / assignments.length) * 100)
-        : 0;
+    // Completion is measured against work that was actually due — future
+    // assignments are upcoming, not incomplete.
+    const completionRate = dueSoFar > 0
+        ? Math.round(((submitted + late + graded) / dueSoFar) * 100)
+        : null;
 
     const averageScore = gradedCount > 0 && totalMax > 0
         ? Math.round((totalScore / totalMax) * 100)
-        : 0;
-
-    const overdue = notSubmitted > 0;
+        : null;
 
     const facts = [];
-    facts.push(`Homework assignments: ${assignments.length} total.`);
+    facts.push(`Homework assignments: ${audienceAssignments.length} total.`);
     facts.push(`Submitted: ${submitted}. Late: ${late}. Graded: ${graded}. Not submitted: ${notSubmitted}.`);
-    facts.push(`Completion rate: ${completionRate}%.`);
-    if (gradedCount > 0) {
+    if (completionRate !== null) {
+        facts.push(`Completion rate on work due so far: ${completionRate}%.`);
+    }
+    if (upcomingCount > 0) {
+        facts.push(`Upcoming (not yet due): ${upcomingCount}.`);
+    }
+    if (gradedCount > 0 && averageScore !== null) {
         facts.push(`Average score on graded work: ${averageScore}%.`);
     }
-    if (overdue) {
-        facts.push(`Overdue assignments: ${notSubmitted}.`);
+    if (overdueCount > 0) {
+        facts.push(`Overdue assignments: ${overdueCount}.`);
     }
 
-    let trend = 'stable';
-    if (assignments.length >= 4) {
-        const half = Math.floor(assignments.length / 2);
-        const older = assignments.slice(half);
-        const newer = assignments.slice(0, half);
+    // Trend compares the older and newer halves by due date, never by the
+    // arbitrary order the database returned.
+    let trend = 'insufficient_data';
+    if (audienceAssignments.length >= 4) {
+        const ordered = [...audienceAssignments].sort(
+            (a, b) => new Date(a.dueDate) - new Date(b.dueDate)
+        );
+        const half = Math.floor(ordered.length / 2);
+        const older = ordered.slice(0, half);
+        const newer = ordered.slice(half);
 
-        const olderDone = older.filter(a => {
+        const doneCount = (rows) => rows.filter(a => {
             const s = submissionMap.get(String(a._id));
             return s && s.status !== 'not_submitted';
         }).length;
-        const newerDone = newer.filter(a => {
-            const s = submissionMap.get(String(a._id));
-            return s && s.status !== 'not_submitted';
-        }).length;
 
-        const olderRate = Math.round((olderDone / older.length) * 100);
-        const newerRate = Math.round((newerDone / newer.length) * 100);
+        const olderRate = Math.round((doneCount(older) / older.length) * 100);
+        const newerRate = Math.round((doneCount(newer) / newer.length) * 100);
         const diff = newerRate - olderRate;
+        trend = 'stable';
         if (diff > 10) trend = 'improving';
         else if (diff < -10) trend = 'declining';
     }
@@ -129,16 +153,17 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
     return {
         source: 'homework',
         available: true,
-        recordCount: assignments.length,
+        recordCount: audienceAssignments.length,
         metrics: {
-            totalAssignments: assignments.length,
+            totalAssignments: audienceAssignments.length,
             submitted,
             late,
             graded,
             notSubmitted,
             completionRate,
             averageScore,
-            overdue
+            overdue: overdueCount,
+            upcoming: upcomingCount
         },
         facts,
         trend

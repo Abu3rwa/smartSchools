@@ -63,50 +63,58 @@ export async function collect({ schoolId, studentId, startDate, endDate, classId
         if (credit === 1) correctCount += 1;
     }
 
-    const accuracy = markedCount > 0 ? Math.round((correctCount / markedCount) * 100) : 0;
-    const averageScore = markedCount > 0 ? Math.round((totalCredit / markedCount) * 100) : 0;
+    const accuracy = markedCount > 0 ? Math.round((correctCount / markedCount) * 100) : null;
+    const averageScore = markedCount > 0 ? Math.round((totalCredit / markedCount) * 100) : null;
 
     const uniqueSessions = new Set(responses.map(r => String(r.sessionId)));
     const participationRate = sessions.length > 0
         ? Math.round((uniqueSessions.size / sessions.length) * 100)
         : 0;
 
-    const half = Math.floor(responses.length / 2);
-    const firstHalf = responses.slice(half);
-    const secondHalf = responses.slice(0, half);
+    // Responses have no guaranteed DB order; trend must compare chronologically.
+    const sessionStart = new Map(sessions.map(s => [String(s._id), new Date(s.startedAt).getTime()]));
+    const chronological = [...responses].sort(
+        (a, b) => (sessionStart.get(String(a.sessionId)) || 0) - (sessionStart.get(String(b.sessionId)) || 0)
+    );
+    const half = Math.floor(chronological.length / 2);
+    const olderHalf = chronological.slice(0, half);
+    const newerHalf = chronological.slice(half);
 
-    let firstCorrect = 0;
-    let firstMarked = 0;
-    for (const r of firstHalf) {
+    let olderCorrect = 0;
+    let olderMarked = 0;
+    for (const r of olderHalf) {
         const credit = liveAnswerCredit(r);
         if (credit === null) continue;
-        firstMarked += 1;
-        if (credit === 1) firstCorrect += 1;
+        olderMarked += 1;
+        if (credit === 1) olderCorrect += 1;
     }
 
-    let secondCorrect = 0;
-    let secondMarked = 0;
-    for (const r of secondHalf) {
+    let newerCorrect = 0;
+    let newerMarked = 0;
+    for (const r of newerHalf) {
         const credit = liveAnswerCredit(r);
         if (credit === null) continue;
-        secondMarked += 1;
-        if (credit === 1) secondCorrect += 1;
+        newerMarked += 1;
+        if (credit === 1) newerCorrect += 1;
     }
 
-    const firstPct = firstMarked > 0 ? Math.round((firstCorrect / firstMarked) * 100) : 0;
-    const secondPct = secondMarked > 0 ? Math.round((secondCorrect / secondMarked) * 100) : 0;
+    const olderPct = olderMarked > 0 ? (olderCorrect / olderMarked) * 100 : null;
+    const newerPct = newerMarked > 0 ? (newerCorrect / newerMarked) * 100 : null;
 
-    let trend = 'stable';
-    if (responses.length >= 6) {
-        const diff = secondPct - firstPct;
+    let trend = 'insufficient_data';
+    if (responses.length >= 6 && olderPct !== null && newerPct !== null) {
+        const diff = newerPct - olderPct;
         if (diff > 5) trend = 'improving';
         else if (diff < -5) trend = 'declining';
+        else trend = 'stable';
     }
 
     const facts = [];
     facts.push(`Live sessions: ${uniqueSessions.size} of ${sessions.length} attended (${participationRate}%).`);
     facts.push(`Responses: ${responses.length} total, ${markedCount} marked.`);
-    facts.push(`Accuracy: ${accuracy}%. Average score: ${averageScore}%.`);
+    if (markedCount > 0) {
+        facts.push(`Accuracy: ${accuracy}%. Average score: ${averageScore}%.`);
+    }
 
     return {
         source: 'liveLessons',

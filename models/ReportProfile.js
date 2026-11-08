@@ -104,6 +104,27 @@ const reportProfileSchema = new mongoose.Schema({
 
 reportProfileSchema.plugin(tenantIsolationPlugin);
 
+// Only one default per scope bucket: marking a profile as default demotes its
+// siblings, so auto-resolution can never pick between two competing defaults.
+reportProfileSchema.pre('save', async function (next) {
+    try {
+        if (this.isDefault && this.isModified('isDefault')) {
+            const siblingQuery = {
+                school: this.school,
+                scope: this.scope,
+                isDefault: true,
+                _id: { $ne: this._id }
+            };
+            if (this.scope === 'teacher') siblingQuery.teacher = this.teacher;
+            if (this.scope === 'class') siblingQuery.classId = this.classId;
+            await mongoose.model('ReportProfile').updateMany(siblingQuery, { $set: { isDefault: false } });
+        }
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
 reportProfileSchema.index({ school: 1, scope: 1, teacher: 1 });
 reportProfileSchema.index({ school: 1, isActive: 1, isDefault: -1 });
 reportProfileSchema.index({ school: 1, classId: 1, isActive: 1 });
@@ -125,8 +146,9 @@ reportProfileSchema.statics.resolveEffective = async function resolveEffective({
                 school: schoolId,
                 scope: 'class',
                 classId,
-                isActive: true
-            }).sort({ isDefault: -1, createdAt: -1 })
+                isActive: true,
+                isDefault: true
+            }).sort({ createdAt: -1 })
         );
     }
 
@@ -135,8 +157,9 @@ reportProfileSchema.statics.resolveEffective = async function resolveEffective({
             school: schoolId,
             scope: 'teacher',
             teacher: teacherId,
-            isActive: true
-        }).sort({ isDefault: -1, createdAt: -1 })
+            isActive: true,
+            isDefault: true
+        }).sort({ createdAt: -1 })
     );
 
     candidates.push(

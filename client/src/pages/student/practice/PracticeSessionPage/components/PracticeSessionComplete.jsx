@@ -1,30 +1,35 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineCheckCircle } from 'react-icons/hi';
 
-const PracticeSessionComplete = ({ 
-    isMastered, 
-    statusMessage, 
-    sessionInfo, 
-    onNavigateToPractice, 
-    onFinalizeAssessment, 
+const PracticeSessionComplete = ({
+    isMastered,
+    statusMessage,
+    sessionInfo,
+    onNavigateToPractice,
+    onFinalizeAssessment,
     finalizingAssessment,
     isAssessmentSession,
     showFinalizeAction = true,
 }) => {
+    const { t } = useTranslation('studentPractice');
     const defaultMessage = isAssessmentSession
-        ? 'This assessment session is complete and has been closed.'
-        : (isMastered ? 'You have already mastered this standard.' : 'You have completed this practice session.');
+        ? t('session.complete.assessmentDefault')
+        : (isMastered ? t('session.complete.masteredDefault') : t('session.complete.practiceDefault'));
 
     return (
         <div className="mastery-celebration">
             <HiOutlineCheckCircle size={64} style={{ color: 'var(--success-600, #059669)', marginBottom: 'var(--spacing-md)' }} />
-            <h2>{isMastered ? 'Standard Mastered!' : 'Session Complete'}</h2>
+            <h2>{isMastered ? t('session.complete.masteredTitle') : t('session.complete.title')}</h2>
             <p>{statusMessage || defaultMessage}</p>
-            
+
             {sessionInfo && !isMastered && (
                 <p style={{ fontSize: '0.85rem', marginTop: 'var(--spacing-sm)' }}>
-                    Answered: {sessionInfo.questionsAnswered}
-                    {sessionInfo.questionLimit ? `/${sessionInfo.questionLimit}` : ''} | Correct: {sessionInfo.correctCount}
+                    {t('session.complete.summary', {
+                        answered: sessionInfo.questionsAnswered,
+                        limitSuffix: sessionInfo.questionLimit ? `/${sessionInfo.questionLimit}` : '',
+                        correct: sessionInfo.correctCount
+                    })}
                 </p>
             )}
 
@@ -33,7 +38,7 @@ const PracticeSessionComplete = ({
                 onClick={onNavigateToPractice}
                 style={{ marginTop: 'var(--spacing-lg)' }}
             >
-                Return to Dashboard
+                {t('session.complete.returnToDashboard')}
             </button>
 
             {isAssessmentSession && showFinalizeAction && (
@@ -43,7 +48,9 @@ const PracticeSessionComplete = ({
                     disabled={finalizingAssessment}
                     style={{ marginTop: 'var(--spacing-sm)' }}
                 >
-                    {finalizingAssessment ? 'Submitting Assessment...' : 'Submit Final Assessment'}
+                    {finalizingAssessment
+                        ? t('session.complete.submittingFinal')
+                        : t('session.complete.submitFinal')}
                 </button>
             )}
         </div>

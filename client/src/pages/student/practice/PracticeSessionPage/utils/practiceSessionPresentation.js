@@ -12,10 +12,10 @@ export const formatPercent = (value) => {
  * @param {object} sessionContext 
  * @returns {string}
  */
-export const getStreakLabel = (sessionContext) => {
+export const getStreakLabelKey = (sessionContext) => {
     return (sessionContext?.incorrectStreak || 0) > (sessionContext?.correctStreak || 0)
-        ? 'Learning Streak'
-        : 'Correct Streak';
+        ? 'session.card.learningStreak'
+        : 'session.card.correctStreak';
 };
 
 /**

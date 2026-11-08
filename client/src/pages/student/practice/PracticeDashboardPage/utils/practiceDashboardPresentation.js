@@ -1,6 +1,6 @@
-export const formatTaskDate = (value) => {
+export const formatTaskDate = (value, locale = "en-GB") => {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Date(value).toLocaleDateString(locale, { month: "short", day: "numeric" });
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -15,14 +15,14 @@ const startOfDay = (value) => {
  * The server enforces practiceConfig.availability but not dueDate, so a closed
  * window is a hard block while a passed due date is only a warning.
  */
-export const getScheduleView = (assignment, now = new Date()) => {
+export const getScheduleView = (assignment, now = new Date(), locale = "en-GB") => {
   const availability = assignment?.practiceConfig?.availability || {};
   const startAt = availability.startAt ? new Date(availability.startAt) : null;
   const endAt = availability.endAt ? new Date(availability.endAt) : null;
   const dueDate = assignment?.dueDate ? new Date(assignment.dueDate) : null;
 
   if (startAt && Number.isFinite(startAt.getTime()) && now < startAt) {
-    return { key: "dashboard.opensOn", params: { date: formatTaskDate(startAt) }, tone: "muted", blocked: true };
+    return { key: "dashboard.opensOn", params: { date: formatTaskDate(startAt, locale) }, tone: "muted", blocked: true };
   }
   if (endAt && Number.isFinite(endAt.getTime()) && now > endAt) {
     return { key: "dashboard.windowClosed", params: {}, tone: "urgent", blocked: true };
@@ -34,12 +34,12 @@ export const getScheduleView = (assignment, now = new Date()) => {
     return { key: "dashboard.dueToday", params: {}, tone: "urgent", blocked: false };
   }
   if (now > dueDate) {
-    return { key: "dashboard.pastDue", params: { date: formatTaskDate(dueDate) }, tone: "warn", blocked: false };
+    return { key: "dashboard.pastDue", params: { date: formatTaskDate(dueDate, locale) }, tone: "warn", blocked: false };
   }
   if (dayDiff === 1) {
     return { key: "dashboard.dueTomorrow", params: {}, tone: "warn", blocked: false };
   }
-  return { key: "dashboard.dueOn", params: { date: formatTaskDate(dueDate) }, tone: "muted", blocked: false };
+  return { key: "dashboard.dueOn", params: { date: formatTaskDate(dueDate, locale) }, tone: "muted", blocked: false };
 };
 
 export const getMasteryColor = (confidenceOrPct) => {
@@ -51,21 +51,21 @@ export const getMasteryColor = (confidenceOrPct) => {
 
 export const getStatusBadge = (assignment) => {
   if (assignment.assessmentProgress?.isComplete) {
-    return { label: "Completed", className: "status-mastered-gold" };
+    return { labelKey: "dashboard.status.completed", className: "status-mastered-gold" };
   }
   if (assignment.mastery?.isMastered && !assignment.mastery?.needsReview) {
-    return { label: "Completed", className: "status-mastered-gold" };
+    return { labelKey: "dashboard.status.completed", className: "status-mastered-gold" };
   }
   if (
     assignment.mastery?.masteryStatus === "needs_review" ||
     (assignment.mastery?.isMastered && assignment.mastery?.needsReview)
   ) {
-    return { label: "Needs Review", className: "status-needs-review" };
+    return { labelKey: "dashboard.status.needsReview", className: "status-needs-review" };
   }
   if (assignment.mastery?.totalAttempts > 0) {
-    return { label: "Keep Going", className: "status-in-progress" };
+    return { labelKey: "dashboard.status.inProgress", className: "status-in-progress" };
   }
-  return { label: "Ready to Start", className: "status-not-started" };
+  return { labelKey: "dashboard.status.notStarted", className: "status-not-started" };
 };
 
 export const buildPracticeBuckets = (assignments) => {

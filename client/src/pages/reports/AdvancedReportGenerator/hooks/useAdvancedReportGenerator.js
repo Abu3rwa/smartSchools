@@ -26,6 +26,9 @@ const useAdvancedReportGenerator = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [emailPreview, setEmailPreview] = useState(null);
   const [sendError, setSendError] = useState(null);
+  const [deliveryInfo, setDeliveryInfo] = useState(null);
+  // Tracks the server revision so a stale tab cannot overwrite newer edits.
+  const revisionRef = useRef(0);
 
   useEffect(() => {
     dispatch(fetchStudents({ limit: 'all' }));
@@ -34,10 +37,12 @@ const useAdvancedReportGenerator = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    api.get('/reports/profiles').then((res) => {
+    api.get('/reports/profiles', {
+      params: formData.classId ? { classId: formData.classId } : {}
+    }).then((res) => {
       if (res.data?.success) setProfiles(res.data.data || []);
     }).catch(() => {});
-  }, []);
+  }, [formData.classId]);
 
   const filteredStudents = useMemo(() => {
     if (!formData.classId) return students;
@@ -79,7 +84,9 @@ const useAdvancedReportGenerator = () => {
     setDraftStatus(null);
     setEmailPreview(null);
     setSendError(null);
+    setDeliveryInfo(null);
     setError(null);
+    revisionRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -149,13 +156,20 @@ const useAdvancedReportGenerator = () => {
   }, []);
 
   const handleProfileSelect = useCallback((profileId) => {
+    if (!profileId) {
+      setFormData((prev) => ({ ...prev, profileId: '' }));
+      return;
+    }
     const profile = profiles.find((p) => p._id === profileId);
     if (!profile) return;
     setFormData((prev) => ({
       ...prev,
       profileId,
-      sources: profile.sources || prev.sources,
-      sections: profile.sections || prev.sections
+      // An explicitly empty source list on the template is intentional.
+      sources: profile.sources ?? prev.sources,
+      sections: profile.sections?.length ? profile.sections : prev.sections,
+      primaryLanguage: profile.defaultLanguage || prev.primaryLanguage,
+      secondaryLanguage: profile.secondaryLanguage || ''
     }));
   }, [profiles]);
 
@@ -175,6 +189,13 @@ const useAdvancedReportGenerator = () => {
   }, []);
 
   const handleGenerateDraft = useCallback(async () => {
+    if (generating) return;
+    if (!formData.sources.length) {
+      const message = 'Select at least one data source before generating.';
+      setError(message);
+      toast.error(message);
+      return;
+    }
     setGenerating(true);
     setError(null);
     setReport(null);
@@ -182,41 +203,68 @@ const useAdvancedReportGenerator = () => {
     setDraftStatus(null);
     setEmailPreview(null);
     setSendError(null);
+    setDeliveryInfo(null);
+    revisionRef.current = 0;
+
+    const requestedLanguages = buildRequestedLanguages(
+      formData.primaryLanguage,
+      formData.secondaryLanguage
+    );
+    const payload = {
+      ...formData,
+      language: toLegacyLanguageValue(requestedLanguages),
+      requestedLanguages
+    };
+
+    const applyResult = (data) => {
+      setReport(data);
+      setDraft(data.draft);
+      setDraftStatus(DRAFT_STATUSES.DRAFT);
+      setDataExpanded(true);
+      toast.success('Draft generated. Review and approve to send.');
+      loadEmailPreview(data.draft?._id);
+    };
 
     try {
-      const requestedLanguages = buildRequestedLanguages(
-        formData.primaryLanguage,
-        formData.secondaryLanguage
-      );
-      const response = await api.post('/reports/generate-advanced', {
-        ...formData,
-        language: toLegacyLanguageValue(requestedLanguages),
-        requestedLanguages,
-        sendEmail: false
-      });
+      let response;
+      try {
+        response = await api.post('/reports/generate-advanced', payload);
+      } catch (err) {
+        // Missing evidence is a decision for the teacher, not a silent gap.
+        if (err.response?.status === 409 && err.response?.data?.code === 'EVIDENCE_PARTIAL') {
+          const proceed = window.confirm(
+            `${err.response.data.message}\n\nGenerate the report without the missing sources?`
+          );
+          if (!proceed) {
+            setError(err.response.data.message);
+            return;
+          }
+          response = await api.post('/reports/generate-advanced', {
+            ...payload,
+            acknowledgeFailedSources: true
+          });
+        } else {
+          throw err;
+        }
+      }
 
       if (response.data.success) {
-        const data = response.data.data;
-        setReport(data);
-        setDraft(data.draft);
-        setDraftStatus(DRAFT_STATUSES.DRAFT);
-        setDataExpanded(true);
-        toast.success('Draft generated. Review and approve to send.');
-        loadEmailPreview(data.draft?._id);
+        applyResult(response.data.data);
       } else {
         setError(response.data.message || 'Failed to generate report');
         toast.error(response.data.message || 'Failed to generate report');
       }
-    } catch {
-      setError('Failed to connect to server');
-      toast.error('Failed to connect to server');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to connect to server';
+      setError(message);
+      toast.error(message);
     } finally {
       setGenerating(false);
     }
-  }, [formData, loadEmailPreview]);
+  }, [formData, generating, loadEmailPreview]);
 
   const handleApproveDraft = useCallback(async () => {
-    if (!draft?._id) return;
+    if (!draft?._id || generating) return;
     setGenerating(true);
 
     try {
@@ -226,23 +274,37 @@ const useAdvancedReportGenerator = () => {
         recipients: formData.recipients
       });
       if (response.data.success) {
+        setDraft(response.data.data);
+        revisionRef.current = response.data.data?.revision || 0;
         setDraftStatus(DRAFT_STATUSES.APPROVED);
+        setSendError(null);
         toast.success('Draft approved. Ready to send.');
         loadEmailPreview(draft._id);
       } else {
         toast.error(response.data.message || 'Failed to approve draft');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to connect to server');
     } finally {
       setGenerating(false);
     }
-  }, [draft, formData.recipients, loadEmailPreview]);
+  }, [draft, generating, formData.recipients, loadEmailPreview]);
 
   const handleSendDraft = useCallback(async () => {
-    if (!draft?._id) return;
+    if (!draft?._id || generating) return;
     setGenerating(true);
     setSendError(null);
+    setDeliveryInfo(null);
+
+    // The server tells us which of three very different outcomes happened:
+    // everyone got it, some addresses failed, or acceptance is unconfirmed.
+    // Only the first two are ours to retry.
+    const applySendResult = (data) => {
+      setDraftStatus(data?.draft?.status || DRAFT_STATUSES.FAILED);
+      if (data?.emailResults) setDeliveryInfo(data.emailResults);
+    };
+
+    const offline = 'Could not reach the server. The report was not sent.';
 
     try {
       const response = await api.post(`/reports/drafts/${draft._id}/send`);
@@ -251,42 +313,81 @@ const useAdvancedReportGenerator = () => {
         toast.success('Report sent to recipients!');
       } else {
         const message = response.data.message || 'Failed to send report';
-        setDraftStatus(response.data.data?.draft?.status || DRAFT_STATUSES.FAILED);
+        applySendResult(response.data.data);
         setSendError(message);
         toast.error(message);
       }
     } catch (err) {
       // A rejected send still carries the server's reason; saying "could not
       // connect" would hide whether the family got the email or not.
-      const message = err.response?.data?.message || 'Failed to connect to server';
-      const status = err.response?.data?.data?.draft?.status;
+      const message = err.response?.data?.message || offline;
       if (err.response?.status === 409) {
         // Someone else already claimed this send.
         setDraftStatus(DRAFT_STATUSES.SENDING);
-      } else {
-        setDraftStatus(status || (err.response ? DRAFT_STATUSES.FAILED : draftStatus));
+      } else if (err.response) {
+        applySendResult(err.response.data?.data);
       }
+      // With no response there is no delivery answer at all, so the status
+      // stays where it was instead of guessing sent or failed.
       setSendError(message);
       toast.error(message);
     } finally {
       setGenerating(false);
     }
-  }, [draft, draftStatus]);
+  }, [draft, generating]);
 
+  // Reload the server's copy of the draft: used after a conflict, a retry, or
+  // any action whose response we cannot trust to be the latest state.
+  const refreshDraft = useCallback(async (draftId) => {
+    const id = draftId || draft?._id;
+    if (!id) return null;
+    try {
+      const response = await api.get(`/reports/drafts/${id}`);
+      if (!response.data?.success) return null;
+      const fresh = response.data.data;
+      setDraft(fresh);
+      setDraftStatus(fresh?.status || null);
+      revisionRef.current = fresh?.revision || 0;
+      setReport((prev) => (prev ? { ...prev, report: fresh?.content ?? prev.report } : prev));
+      setSendError(fresh?.sendError || null);
+      return fresh;
+    } catch {
+      return null;
+    }
+  }, [draft]);
+
+  // Returns true only when the server accepted the edit, so the preview pane
+  // can decide whether to leave edit mode.
   const handleUpdateDraftContent = useCallback(async (content) => {
-    if (!draft?._id) return;
+    if (!draft?._id) return false;
 
     try {
-      const response = await api.patch(`/reports/drafts/${draft._id}`, { content });
+      const response = await api.patch(`/reports/drafts/${draft._id}`, {
+        content,
+        revision: revisionRef.current
+      });
       if (response.data.success) {
+        revisionRef.current = response.data.data?.revision ?? revisionRef.current;
         setReport((prev) => ({ ...prev, report: content }));
         toast.success('Draft updated.');
         loadEmailPreview(draft._id);
+        return true;
       }
-    } catch {
-      toast.error('Failed to update draft');
+      toast.error(response.data.message || 'Failed to update draft');
+      return false;
+    } catch (err) {
+      // Someone else changed this draft: our copy is stale, so pull theirs
+      // rather than letting the teacher keep typing into the old version.
+      if (err.response?.data?.code === 'REVISION_CONFLICT') {
+        toast.error(err.response.data.message || 'This draft changed elsewhere. Reloading it.');
+        await refreshDraft(draft._id);
+        loadEmailPreview(draft._id);
+        return false;
+      }
+      toast.error(err.response?.data?.message || 'Failed to connect to server');
+      return false;
     }
-  }, [draft, loadEmailPreview]);
+  }, [draft, loadEmailPreview, refreshDraft]);
 
   // The remark belongs to the draft once it exists: sync on blur rather than
   // requesting on every keystroke, and only while the draft is still editable.
@@ -294,13 +395,97 @@ const useAdvancedReportGenerator = () => {
     if (!draft?._id || draftStatus !== DRAFT_STATUSES.DRAFT) return;
     try {
       const response = await api.patch(`/reports/drafts/${draft._id}`, {
-        teacherRemark: formData.teacherRemark
+        teacherRemark: formData.teacherRemark,
+        revision: revisionRef.current
       });
-      if (response.data.success) loadEmailPreview(draft._id);
-    } catch {
-      toast.error('Could not save the teacher note.');
+      if (response.data.success) {
+        revisionRef.current = response.data.data?.revision ?? revisionRef.current;
+        loadEmailPreview(draft._id);
+      }
+    } catch (err) {
+      if (err.response?.data?.code === 'REVISION_CONFLICT') {
+        await refreshDraft(draft._id);
+        toast.error(err.response.data.message || 'This draft changed elsewhere. Reloading it.');
+        return;
+      }
+      toast.error(err.response?.data?.message || 'Could not save the teacher note.');
     }
-  }, [draft, draftStatus, formData.teacherRemark, loadEmailPreview]);
+  }, [draft, draftStatus, formData.teacherRemark, loadEmailPreview, refreshDraft]);
+
+  // Reopen puts the draft back into editing so a typo found after approval can
+  // be fixed without regenerating (regenerating would spend AI credits again).
+  const handleReopenDraft = useCallback(async () => {
+    if (!draft?._id || generating) return;
+    setGenerating(true);
+    try {
+      const response = await api.post(`/reports/drafts/${draft._id}/reopen`);
+      if (response.data.success) {
+        setDraft(response.data.data);
+        setDraftStatus(DRAFT_STATUSES.DRAFT);
+        revisionRef.current = response.data.data?.revision || 0;
+        setSendError(null);
+        setDeliveryInfo(null);
+        toast.success('Draft reopened. Edit, then approve again.');
+        loadEmailPreview(draft._id);
+      } else {
+        toast.error(response.data.message || 'Could not reopen this draft');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to connect to server');
+    } finally {
+      setGenerating(false);
+    }
+  }, [draft, generating, loadEmailPreview]);
+
+  // 'unknown' means the provider may already have delivered: the teacher reads
+  // the recorded status instead of us guessing (and possibly double-sending).
+  const handleCheckDelivery = useCallback(async (draftId) => {
+    const id = draftId || draft?._id;
+    if (!id) return;
+    try {
+      const response = await api.get(`/reports/email-status/${id}`);
+      const status = response.data?.data;
+      if (response.data?.success) {
+        setDeliveryInfo(status);
+        toast(`Delivery records: ${status.sent} delivered, ` +
+          `${status.unknown} unconfirmed, ${status.failed} failed, ` +
+          `${status.pending} pending.`);
+      } else {
+        toast.error(response.data.message || 'Could not load delivery status');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to connect to server');
+    }
+  }, [draft]);
+
+  // Only definitely-failed addresses are resent; the server never re-sends an
+  // address whose acceptance is unconfirmed.
+  const handleRetryFailedEmails = useCallback(async () => {
+    if (!draft?._id || generating) return;
+    setGenerating(true);
+    try {
+      const response = await api.post(`/reports/retry-emails/${draft._id}`);
+      const r = response.data?.data || {};
+      if (response.data?.success) {
+        if (!r.retried) {
+          toast('No failed deliveries left to retry. Check the delivery status.');
+        } else {
+          toast.success(
+            `Retried ${r.retried} recipient(s): ${r.successful} delivered` +
+            `${r.failed ? `, ${r.failed} failed` : ''}${r.unknown ? `, ${r.unknown} unconfirmed` : ''}.`
+          );
+        }
+        await refreshDraft(draft._id);
+        handleCheckDelivery(draft._id);
+      } else {
+        toast.error(response.data.message || 'Could not retry delivery');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to connect to server');
+    } finally {
+      setGenerating(false);
+    }
+  }, [draft, generating, refreshDraft, handleCheckDelivery]);
 
   const handleRegenerate = useCallback(async () => {
     setRegenerateOpen(false);
@@ -337,11 +522,15 @@ const useAdvancedReportGenerator = () => {
     handleSendDraft,
     handleUpdateDraftContent,
     handleTeacherRemarkBlur,
+    handleReopenDraft,
+    handleRetryFailedEmails,
+    handleCheckDelivery,
     handleRegenerate,
     resetGeneratedReport,
     emailPreview,
     retryEmailPreview,
-    sendError
+    sendError,
+    deliveryInfo
   };
 };
 

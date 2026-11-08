@@ -98,3 +98,7 @@
     padding: var(--spacing-2xl);
     color: var(--text-muted);
 }
+
+[dir="rtl"] .practice-history .back-link svg {
+    transform: scaleX(-1);
+}

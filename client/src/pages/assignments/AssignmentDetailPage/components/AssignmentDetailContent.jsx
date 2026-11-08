@@ -14,6 +14,7 @@ import {
   formatDateTime,
   getSafeUrl,
 } from '../utils/assignmentDetailPresentation';
+import { formatRelativeTime } from '../../../../utils/relativeTime';
 
 const AssignmentDetailContent = ({ assignment, lessonPlans, isParent }) => {
   const { t, i18n } = useTranslation(['assignments']);
@@ -33,6 +34,56 @@ const AssignmentDetailContent = ({ assignment, lessonPlans, isParent }) => {
     : null;
   const isPractice =
     String(assignment?.assignmentType?.key || '').toLowerCase() === 'standard_assignment';
+
+  const resultAvailability = assignment?.resultAvailability || null;
+  const googleFormSync = assignment?.googleFormSync || null;
+  const dueDateTime = assignment?.dueDate ? new Date(assignment.dueDate).getTime() : null;
+  const hasPassedDueDate = Number.isFinite(dueDateTime) && dueDateTime < Date.now();
+  const isClosed = resultAvailability?.isClosed
+    || assignment?.status === 'closed'
+    || hasPassedDueDate;
+  const closedMessage = isClosed && assignment?.dueDate
+    ? (assignment?.allowLateSubmission
+        ? t('detail.resultBanner.closed_late_allowed', {
+            date: formatDateTime(assignment.dueDate, locale),
+          })
+        : t('detail.resultBanner.closed_no_late', {
+            date: formatDateTime(assignment.dueDate, locale),
+          }))
+    : '';
+
+  const resultBanner = (() => {
+    const state = resultAvailability?.state;
+    if (state === 'graded' || resultAvailability?.isReleased) {
+      return { tone: 'success', text: t('detail.resultBanner.released') };
+    }
+    if (state === 'awaiting_review' || state === 'changed') {
+      return { tone: 'warning', text: t('detail.resultBanner.awaiting_review') };
+    }
+    if (state === 'submitted' || state === 'late') {
+      return { tone: 'info', text: t('detail.resultBanner.submitted') };
+    }
+    if (state === 'awaiting_sync') {
+      return { tone: 'info', text: t('detail.googleFormAwaitingSync') };
+    }
+    if (closedMessage) {
+      return { tone: 'warning', text: closedMessage };
+    }
+    return null;
+  })();
+
+  const googleFormSyncText = (() => {
+    if (!googleFormSync) return '';
+    if (googleFormSync.status === 'failed') {
+      return t('detail.googleFormSyncFailed');
+    }
+    if (googleFormSync.status === 'awaiting' || !googleFormSync.lastSyncedAt) {
+      return t('detail.googleFormAwaitingSync');
+    }
+    return t('detail.googleFormSync', {
+      time: formatRelativeTime(googleFormSync.lastSyncedAt, locale),
+    });
+  })();
 
   const metaParts = [
     assignment?.subject?.name
@@ -71,6 +122,12 @@ const AssignmentDetailContent = ({ assignment, lessonPlans, isParent }) => {
             </div>
           ) : null}
         </header>
+
+        {resultBanner ? (
+          <div className={`detail-banner ${resultBanner.tone}`} role="status">
+            {resultBanner.text}
+          </div>
+        ) : null}
 
         <section className="detail-section">
           <h2>
@@ -204,6 +261,9 @@ const AssignmentDetailContent = ({ assignment, lessonPlans, isParent }) => {
                         : t('assignments:googleForms.studentSubmitted'))
                     : t('assignments:googleForms.studentAwaitingSync')}
                 </p>
+                {googleFormSyncText ? (
+                  <p className="muted detail-sync-status">{googleFormSyncText}</p>
+                ) : null}
                 {googleFormUrl ? (
                   <a
                     className="btn btn-primary"

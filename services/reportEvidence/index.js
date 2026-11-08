@@ -31,7 +31,7 @@ const WHOLE_CHILD_SOURCES = ['attendance', 'behavior', 'spelling', 'liveLessons'
  * @param {string|Date} params.startDate
  * @param {string|Date} params.endDate
  * @param {string} [params.classId]
- * @param {string[]} [params.sources] — subset of ALL_SOURCES to run; defaults to all
+ * @param {string[]} [params.sources] — subset of ALL_SOURCES to run; omitted means all, an empty array means none
  * @returns {Promise<{
  *   results: Record<string, object>,
  *   availableSources: string[],
@@ -51,7 +51,10 @@ export async function buildEvidencePack({
     subjectId,
     sources
 }) {
-    const sourcesToRun = (sources && sources.length > 0 ? sources : ALL_SOURCES)
+    // Omitted sources mean "all"; an explicit empty selection means "none" and
+    // must never silently re-enable data the teacher deliberately turned off.
+    const requestedSources = sources === undefined ? ALL_SOURCES : sources;
+    const sourcesToRun = (Array.isArray(requestedSources) ? requestedSources : [])
         .filter(s => COLLECTORS[s]);
 
     const results = {};

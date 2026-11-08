@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { HiOutlinePlay, HiOutlineRefresh } from "react-icons/hi";
 import { formatTaskDate } from "../utils/practiceDashboardPresentation";
 import { formatStandardLabel } from "../../../../../utils/standardLabel";
@@ -11,6 +12,9 @@ const PracticeReviewQueueCard = ({
   onRefreshQueue,
   onStartReview,
 }) => {
+  const { t, i18n } = useTranslation("studentPractice");
+  const locale = i18n.language === "ar" ? "ar-EG" : "en-GB";
+
   if (!reviewFeatureEnabled) return null;
 
   return (
@@ -25,28 +29,31 @@ const PracticeReviewQueueCard = ({
         }}
       >
         <div>
-          <h3 style={{ marginBottom: 4 }}>Review Queue</h3>
+          <h3 style={{ marginBottom: 4 }}>{t("dashboard.review.title")}</h3>
           <p className="text-muted" style={{ margin: 0 }}>
-            Due now: {dueNowCount} · Upcoming: {Math.max(reviewQueue.length - dueNowCount, 0)}
+            {t("dashboard.review.dueAndUpcoming", {
+              due: dueNowCount,
+              upcoming: Math.max(reviewQueue.length - dueNowCount, 0),
+            })}
           </p>
         </div>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onRefreshQueue} disabled={reviewQueueLoading}>
           <HiOutlineRefresh size={16} />
-          <span>{reviewQueueLoading ? "Refreshing..." : "Refresh Queue"}</span>
+          <span>{reviewQueueLoading ? t("dashboard.review.refreshing") : t("dashboard.review.refresh")}</span>
         </button>
       </div>
 
       {reviewQueueLoading && reviewQueue.length === 0 ? (
         <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
-          Loading review queue...
+          {t("dashboard.review.loading")}
         </p>
       ) : reviewQueueError && reviewQueue.length === 0 ? (
         <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
-          Unable to load review queue right now.
+          {t("dashboard.review.error")}
         </p>
       ) : reviewQueue.length === 0 ? (
         <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
-          No review tasks due right now. Keep your streak going.
+          {t("dashboard.review.empty")}
         </p>
       ) : (
         <div style={{ marginTop: "var(--spacing-md)", display: "grid", gap: "var(--spacing-sm)" }}>
@@ -74,10 +81,13 @@ const PracticeReviewQueueCard = ({
                     wordBreak: "break-word",
                   }}
                 >
-                  {formatStandardLabel(task.standard) || "Standard"}
+                  {formatStandardLabel(task.standard) || t("dashboard.review.standardFallback")}
                 </div>
                 <div className="text-muted" style={{ fontSize: "0.82rem" }}>
-                  Review round {task.intervalStage} · Due {formatTaskDate(task.scheduledFor)}
+                  {t("dashboard.review.roundDue", {
+                    round: task.intervalStage,
+                    date: formatTaskDate(task.scheduledFor, locale),
+                  })}
                 </div>
               </div>
               <button
@@ -87,7 +97,7 @@ const PracticeReviewQueueCard = ({
                 onClick={() => onStartReview(task)}
               >
                 <HiOutlinePlay size={16} />
-                <span>Start Review</span>
+                <span>{t("dashboard.review.start")}</span>
               </button>
             </div>
           ))}

@@ -1,13 +1,183 @@
 {
   "dashboard": {
+    "title": "المعايير",
+    "subtitle": "أسئلة مخصصة، صعوبة متكيفة، وخطوات تالية واضحة.",
+    "refresh": "تحديث",
+    "refreshing": "جارٍ التحديث...",
+    "loading": "جارٍ تحميل معاييرك الحالية...",
+    "errorTitle": "تعذر تحميل المعايير",
+    "tryAgain": "إعادة المحاولة",
+    "emptyTitle": "لم يتم تعيين معايير بعد",
+    "emptyBody": "سيعيّن معلمك معايير قريبًا. تحقق لاحقًا.",
+    "untitled": "واجب معايير",
+    "notAvailable": "غير متاح",
     "dueToday": "مستحق اليوم",
     "dueTomorrow": "مستحق غدًا",
     "dueOn": "مستحق {{date}}",
     "pastDue": "تجاوز الموعد {{date}}",
     "opensOn": "يبدأ {{date}}",
-    "windowClosed": "انتهت فترة الإجابة"
+    "windowClosed": "انتهت فترة الإجابة",
+    "table": {
+      "assignment": "الواجب",
+      "subject": "المادة",
+      "status": "حالتك",
+      "progress": "تقدمك",
+      "nextStep": "الخطوة التالية"
+    },
+    "stats": {
+      "assigned": "المعيّن",
+      "completed": "المكتمل",
+      "ready": "جاهز للبدء",
+      "inProgress": "قيد التقدم",
+      "needsReview": "بحاجة لمراجعة"
+    },
+    "status": {
+      "completed": "مكتمل",
+      "needsReview": "بحاجة لمراجعة",
+      "inProgress": "واصل التقدم",
+      "notStarted": "جاهز للبدء"
+    },
+    "sessionTypes": {
+      "practice": "تدريب",
+      "assessment": "تقييم"
+    },
+    "progress": {
+      "assessmentSubmitted": "تم تسليم التقييم",
+      "questionsDone": "تم إنجاز {{done}}/{{total}} سؤالًا",
+      "questionsAnswered": "تمت الإجابة عن {{answered}} سؤالًا",
+      "noQuestions": "لم تتم الإجابة عن أي سؤال بعد",
+      "reviewResult": "يمكنك مراجعة نتيجتك",
+      "recentCorrect": "{{correct}}/{{attempts}} صحيحة مؤخرًا",
+      "left": "بقي {{remaining}}",
+      "startWhenReady": "ابدأ عندما تكون جاهزًا"
+    },
+    "actions": {
+      "reviewNow": "راجع الآن",
+      "viewResult": "عرض النتيجة",
+      "continue": "متابعة",
+      "start": "ابدأ"
+    },
+    "review": {
+      "title": "قائمة المراجعة",
+      "dueAndUpcoming": "المستحق الآن: {{due}} · القادم: {{upcoming}}",
+      "refresh": "تحديث القائمة",
+      "refreshing": "جارٍ التحديث...",
+      "loading": "جارٍ تحميل قائمة المراجعة...",
+      "error": "تعذر تحميل قائمة المراجعة الآن.",
+      "empty": "لا توجد مهام مراجعة مستحقة الآن. حافظ على استمراريتك.",
+      "standardFallback": "معيار",
+      "roundDue": "جولة المراجعة {{round}} · مستحقة {{date}}",
+      "start": "ابدأ المراجعة"
+    }
+  },
+  "results": {
+    "title": "نتائج تقييم المعايير",
+    "subtitle": "العام الدراسي {{year}} · الفصل {{semester}}",
+    "refresh": "تحديث",
+    "refreshing": "جارٍ التحديث...",
+    "back": "العودة إلى التدريب",
+    "notAvailable": "غير متاح",
+    "empty": "لا توجد نتائج تقييم للمعايير بعد.",
+    "stats": {
+      "assessments": "التقييمات",
+      "graded": "المُقيَّمة",
+      "averagePercent": "المتوسط %",
+      "averageScale": "المتوسط 1-4"
+    },
+    "table": {
+      "assessment": "التقييم",
+      "standard": "المعيار",
+      "status": "الحالة",
+      "score": "الدرجة",
+      "percent": "النسبة",
+      "scale": "المقياس 1-4"
+    },
+    "status": {
+      "not_started": "لم يبدأ",
+      "in_progress": "قيد التقدم",
+      "submitted": "تم التسليم",
+      "released": "تم الإصدار"
+    },
+    "standardAverages": {
+      "title": "متوسطات الفصل حسب المعيار",
+      "standard": "المعيار",
+      "assessments": "التقييمات",
+      "averagePercent": "المتوسط %",
+      "averageScale": "المتوسط 1-4",
+      "empty": "لا توجد معايير مُقيَّمة بعد."
+    }
+  },
+  "history": {
+    "back": "العودة إلى لوحة التدريب",
+    "empty": "لا توجد محاولات تدريب لهذا المعيار بعد.",
+    "startPracticing": "ابدأ التدريب",
+    "status": "الحالة",
+    "mastered": "متقن",
+    "inProgress": "قيد التقدم",
+    "score": "النتيجة",
+    "accuracy": "الدقة",
+    "attempt": "المحاولة رقم {{number}} - {{difficulty}}",
+    "yourAnswer": "إجابتك",
+    "correctAnswer": "الصحيحة"
   },
   "session": {
+    "header": {
+      "back": "العودة إلى المعايير"
+    },
+    "loading": {
+      "preparing": "جارٍ إعداد سؤال مخصص لك..."
+    },
+    "sessionTypes": {
+      "practice": "تدريب",
+      "assessment": "تقييم",
+      "homework": "واجب"
+    },
+    "initial": {
+      "ready": "هل أنت جاهز للتدريب يا {{name}}؟",
+      "sessionType": "نوع الجلسة: {{type}}",
+      "limit": "الحد: {{limit}} أسئلة",
+      "progressToday": "تقدم اليوم",
+      "progressCopy": "{{name}}، أجبت إجابة صحيحة عن {{correct}} من {{asked}} ({{percent}}%).",
+      "start": "بدء السؤال"
+    },
+    "complete": {
+      "masteredTitle": "أتقنت المعيار!",
+      "title": "اكتملت الجلسة",
+      "assessmentDefault": "اكتملت جلسة التقييم هذه وتم إغلاقها.",
+      "masteredDefault": "لقد أتقنت هذا المعيار بالفعل.",
+      "practiceDefault": "لقد أكملت جلسة التدريب هذه.",
+      "summary": "تمت الإجابة عن: {{answered}}{{limitSuffix}} | الإجابات الصحيحة: {{correct}}",
+      "returnToDashboard": "العودة إلى لوحة التحكم",
+      "submitFinal": "تسليم التقييم النهائي",
+      "submittingFinal": "جارٍ تسليم التقييم..."
+    },
+    "card": {
+      "questionOf": "السؤال {{step}} من {{limit}}",
+      "questionNumber": "السؤال رقم {{number}}",
+      "confidence": "الثقة: {{percent}}%",
+      "instructions": "التعليمات:",
+      "quickTip": "نصيحة سريعة: لنقوِّ الأساس أولًا. ركّز على الدقة، ثم ارفع الصعوبة.",
+      "recentFocus": "التركيز الأخير",
+      "topics": "الموضوعات: {{topics}}",
+      "improveNext": "حسّن لاحقًا: {{topics}}",
+      "correctStreak": "سلسلة صحيحة",
+      "learningStreak": "سلسلة تعلم"
+    },
+    "difficulty": {
+      "easy": "سهل",
+      "medium": "متوسط",
+      "hard": "صعب"
+    },
+    "questionTypes": {
+      "multiple_choice": "اختيار من متعدد",
+      "multiple_select": "اختيار متعدد الإجابات",
+      "true_false": "صحيح أو خطأ",
+      "short_answer": "إجابة قصيرة",
+      "matching": "مطابقة",
+      "ordering": "ترتيب",
+      "fill_in_blank": "املأ الفراغات",
+      "numeric_response": "إجابة رقمية"
+    },
     "guidanceTitle": "كيفية الإجابة",
     "guidance": {
       "multipleChoice": "اختر إجابة واحدة صحيحة. اقرأ كل الخيارات قبل التسليم.",
@@ -22,6 +192,52 @@
     "teacherNote": "ملاحظة المعلم: {{text}}",
     "timeLeft": "المتبقي {{time}}",
     "timeUp": "انتهى الوقت",
-    "timeAria": "الوقت المتبقي في هذه الجلسة"
+    "timeAria": "الوقت المتبقي في هذه الجلسة",
+    "feedback": {
+      "correctTitle": "إجابة صحيحة!",
+      "incorrectTitle": "ليست الإجابة الصحيحة",
+      "submittedTitle": "تم تسليم الإجابة",
+      "reviewMessage": "سيراجع معلمك إجابتك ويقيّمها.",
+      "resultsWithheld": "تم حفظ إجابتك. ستظهر نتيجتك بعد أن يعتمدها معلمك.",
+      "correctMessage": "إجابتك صحيحة.",
+      "incorrectMessage": "إجابتك غير صحيحة.",
+      "bestAnswer": "أفضل إجابة",
+      "quickExplanation": "شرح سريع",
+      "notAvailable": "غير متاح",
+      "sessionComplete": "اكتملت الجلسة. عمل رائع!",
+      "masteryProgress": "تقدم الإتقان: {{correct}} من {{total}} صحيحة ({{percent}}%)",
+      "masteryNeedsMore": "تحتاج {{remaining}} إضافية",
+      "nextQuestion": "السؤال التالي",
+      "returnToDashboard": "العودة إلى لوحة التحكم",
+      "masteredBack": "أتقنت هذا المعيار. عد إلى الخلف",
+      "submitFinal": "تسليم التقييم النهائي",
+      "submittingFinal": "جارٍ تسليم التقييم..."
+    },
+    "answerForm": {
+      "submit": "تسليم الإجابة",
+      "submitting": "جارٍ التسليم...",
+      "retrySubmit": "إعادة المحاولة",
+      "submitFailed": "لم يتم حفظ إجابتك. تحقق من اتصالك وحاول مرة أخرى.",
+      "optionsAria": "خيارات الإجابة",
+      "shortAnswerPlaceholder": "اكتب إجابتك بوضوح واشرح تفكيرك..."
+    },
+    "errors": {
+      "tryAgain": "إعادة المحاولة"
+    },
+    "messages": {
+      "loadFailed": "تعذر تحميل السؤال. حاول مرة أخرى.",
+      "submitFailed": "تعذر تسليم الإجابة. حاول مرة أخرى.",
+      "shortAnswerRequired": "اكتب إجابتك قبل التسليم.",
+      "selectRequired": "اختر إجابة واحدة قبل التسليم.",
+      "selectAtLeastOne": "اختر إجابة واحدة على الأقل قبل التسليم.",
+      "matchAtLeastOne": "وصّل عنصرًا واحدًا على الأقل قبل التسليم.",
+      "orderAll": "رتّب جميع العناصر قبل التسليم.",
+      "fillAtLeastOne": "املأ فراغًا واحدًا على الأقل قبل التسليم.",
+      "numericRequired": "اكتب إجابتك الرقمية قبل التسليم.",
+      "tabSwitch": "تم اكتشاف تبديل التبويب (المرة {{countInfo}}). يُسجَّل ذلك في تقدم تقييمك.",
+      "finalizeSuccessReleased": "تم تسليم التقييم. الدرجة النهائية: {{score}}/{{max}} ({{percent}}%).",
+      "finalizeSuccessPending": "تم تسليم التقييم. سيصدر معلمك النتائج.",
+      "finalizeFailed": "تعذر تسليم التقييم النهائي. حاول مرة أخرى."
+    }
   }
 }

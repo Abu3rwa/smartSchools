@@ -29,6 +29,22 @@ import { generateAssignmentReminder } from "../helpers/assignmentReminderAi.js";
 import logger from "../utils/logger.js";
 import AssignmentClassroomLink from "../models/AssignmentClassroomLink.js";
 import GoogleFormSubmission from "../models/GoogleFormSubmission.js";
+import GoogleFormGrading from "../models/GoogleFormGrading.js";
+import StandardAssignment from "../models/StandardAssignment.js";
+import PracticeAttempt from "../models/PracticeAttempt.js";
+import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
+import { isAssessmentResultVisible } from "../services/assessment/resultVisibility.js";
+import { getClassIdsForAcademicYear } from "../helpers/academicYearScope.js";
+import { isValidAcademicYear } from "../utils/academicYear.js";
+import {
+  boundFeedItems,
+  buildFeedSearchText,
+  compareFeedItems,
+  matchesFeedState,
+  paginateFeedItems,
+  parseLimitParam,
+  parsePageParam,
+} from "../utils/studentAssignmentFeed.js";
 import { syncAssignmentToClassroom } from "../services/classroomPublishService.js";
 import {
   createGoogleQuiz,
@@ -283,6 +299,18 @@ const mapAssignmentSummary = (
           code: assignment.subject?.code || "",
         }
       : null,
+  };
+};
+
+// Students and parents must never receive the targeting/excusal lists of an
+// assignment; they only learn whether they themselves are excused.
+const toStudentFacingSummary = (summary, { studentId = null } = {}) => {
+  const { studentIds, excusedStudentIds, scope, ...rest } = summary;
+  return {
+    ...rest,
+    isExcused: Boolean(
+      studentId && (excusedStudentIds || []).includes(toId(studentId)),
+    ),
   };
 };
 
@@ -782,7 +810,7 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
       school: req.schoolId,
       academicYear,
       class: classId,
-      status: { $ne: "archived" },
+      status: { $in: ["published", "closed"] },
       $or: [
         { scope: "class" },
         { scope: "selected_students", studentIds: student._id },
@@ -850,17 +878,688 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
     ]),
   );
 
+  const items = [
+    ...rows.map((row) =>
+      toStudentFacingSummary(
+        mapAssignmentSummary(row, {
+          submission: submissionByAssignment.get(toId(row._id)) || null,
+        }),
+        { studentId: student._id },
+      ),
+    ),
+    ...grammarTests.map((grammarTest) =>
+      toStudentFacingSummary(mapGrammarTestSummary(grammarTest), {
+        studentId: student._id,
+      }),
+    ),
+  ];
+
+  // The dashboard cards only need the newest few; the page itself uses the
+  // paginated endpoint.
+  res.json({
+    success: true,
+    data: { items: boundFeedItems(items, req.query?.limit) },
+  });
+});
+
+const PRAGMATIC_ASSESSMENT_TYPE_KEYS = new Set(["quiz", "test", "exam"]);
+
+const practiceTypeKeyOf = (row) =>
+  String(row?.practiceConfig?.sessionType || "practice").toLowerCase();
+
+const practiceTypeLabelOf = (sessionType) => {
+  switch (sessionType) {
+    case "assessment":
+      return "Graded Assessment";
+    case "homework":
+      return "Homework";
+    case "classwork":
+      return "Classwork";
+    default:
+      return "Practice";
+  }
+};
+
+const feedTypeKeyOf = ({ source, assignmentTypeKey, sessionType }) => {
+  if (source === "grammar") return "grammar_test";
+  if (source === "practice") return sessionType || "practice";
+  const key = String(assignmentTypeKey || "").toLowerCase();
+  if (key === "google_form") return "google_form";
+  if (PRAGMATIC_ASSESSMENT_TYPE_KEYS.has(key)) return "assessment";
+  return key || "assignment";
+};
+
+const buildPracticeFeedSummary = (row) => {
+  const sessionType = practiceTypeKeyOf(row);
+  const standard = row.standard
+    ? {
+        id: toId(row.standard?._id || row.standard),
+        code: row.standard?.code || "",
+        name: row.standard?.name || "",
+        masteryThreshold: row.standard?.masteryThreshold ?? 80,
+        masteryMinQuestions: row.standard?.masteryMinQuestions ?? 5,
+      }
+    : null;
+  const config = row.practiceConfig || {};
+
+  return {
+    id: toId(row._id),
+    title:
+      row.title ||
+      (standard?.code
+        ? `${standard.code} - ${standard.name || "Practice"}`
+        : "Practice assignment"),
+    instructions: row.instructions || "",
+    assignmentType: {
+      id: "",
+      key: sessionType,
+      name: practiceTypeLabelOf(sessionType),
+    },
+    assignedDate: row.createdAt || row.assignedDate || null,
+    dueDate: config.availability?.endAt || null,
+    status: row.isActive === false ? "closed" : "published",
+    maxMarks: Number(config.questionLimit ?? 10),
+    allowLateSubmission: false,
+    publishedAt: config.availability?.startAt || row.createdAt || null,
+    createdAt: row.createdAt || null,
+    academicYear: row.academicYear || "",
+    practiceAssignmentId: toId(row._id),
+    standard,
+    class: row.class
+      ? {
+          id: toId(row.class?._id || row.class),
+          name: row.class?.name || "",
+          grade: row.class?.grade ?? null,
+          section: row.class?.section || "",
+        }
+      : null,
+    subject: row.subject
+      ? {
+          id: toId(row.subject?._id || row.subject),
+          name: row.subject?.name || "",
+          code: row.subject?.code || "",
+        }
+      : null,
+    practiceConfig: {
+      sessionType,
+      questionLimit: config.questionLimit ?? null,
+      resultsVisibility: config.resultsVisibility || null,
+      resultsReleaseAt: config.resultsReleaseAt || null,
+    },
+  };
+};
+
+const emptyStudentProgress = (dueDate, extra = {}) => ({
+  state: "not_started",
+  submittedAt: null,
+  score: null,
+  maxScore: null,
+  isReleased: true,
+  syncStatus: null,
+  lastSyncedAt: null,
+  answeredCount: 0,
+  questionLimit: null,
+  masteryPercent: null,
+  dueDate: dueDate || null,
+  isClosed: false,
+  allowLateSubmission: false,
+  ...extra,
+});
+
+const buildClassAssignmentProgress = ({
+  row,
+  submission,
+  grading,
+  grade,
+  isExcused,
+}) => {
+  const googleForm = hasGoogleForm(row);
+  const dueDate = row.dueDate || null;
+  const base = emptyStudentProgress(dueDate, {
+    isClosed: ["closed", "archived"].includes(row.status),
+    allowLateSubmission: row.allowLateSubmission === true,
+  });
+
+  if (isExcused) return { ...base, state: "excused" };
+
+  if (!googleForm) {
+    if (grade) {
+      return {
+        ...base,
+        state: "completed",
+        score: Number(grade.marks ?? 0),
+        maxScore: Number(grade.maxMarks ?? row.maxMarks ?? 0),
+      };
+    }
+    return { ...base, state: base.isClosed ? "closed" : "not_started" };
+  }
+
+  const maxScore =
+    grade?.maxMarks ??
+    submission?.possibleScore ??
+    row.maxMarks ??
+    null;
+
+  if (grading?.status === "failed") {
+    return { ...base, state: "sync_failed", syncStatus: "failed", maxScore };
+  }
+  if (!submission) {
+    return { ...base, state: base.isClosed ? "closed" : "not_started", maxScore };
+  }
+  if (grading && ["pending", "suggested"].includes(grading.status)) {
+    return {
+      ...base,
+      state: "awaiting_review",
+      syncStatus: "awaiting",
+      submittedAt: submission.submittedAt || null,
+      lastSyncedAt: submission.submittedAt || null,
+      maxScore,
+    };
+  }
+  if (grade) {
+    return {
+      ...base,
+      state: "graded",
+      syncStatus: "synced",
+      submittedAt: submission.submittedAt || null,
+      lastSyncedAt: submission.submittedAt || null,
+      score: Number(grade.marks ?? 0),
+      maxScore,
+    };
+  }
+  return {
+    ...base,
+    state: submission.status === "late" ? "late" : "submitted",
+    syncStatus: "synced",
+    submittedAt: submission.submittedAt || null,
+    lastSyncedAt: submission.submittedAt || null,
+    maxScore,
+  };
+};
+
+const buildPracticeProgress = ({
+  sessionType,
+  practiceConfig = {},
+  entry,
+  stats,
+  standard,
+  dueDate,
+  now,
+}) => {
+  const base = emptyStudentProgress(dueDate);
+
+  if (sessionType === "assessment") {
+    const visible = isAssessmentResultVisible(practiceConfig, entry, now);
+    const status = entry?.status || "not_started";
+    let state = "not_started";
+    if (status === "released" || (entry && visible)) state = "released";
+    else if (status === "submitted") state = "awaiting_release";
+    else if (status === "in_progress") state = "in_progress";
+
+    return {
+      ...base,
+      state,
+      submittedAt: entry?.submittedAt || null,
+      score: visible ? (entry?.score ?? null) : null,
+      maxScore: visible ? (entry?.maxScore ?? null) : null,
+      isReleased: visible,
+      answeredCount: entry?.totalAnswered ?? 0,
+      questionLimit: practiceConfig.questionLimit ?? null,
+    };
+  }
+
+  const answered = Number(stats?.answered || 0);
+  const correct = Number(stats?.correct || 0);
+  const pendingReview = Number(stats?.pendingReview || 0);
+  const percentage = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+  const threshold = Number(standard?.masteryThreshold ?? 80);
+  const minQuestions = Number(standard?.masteryMinQuestions ?? 5);
+  const mastered = answered >= minQuestions && percentage >= threshold;
+  const state =
+    answered === 0
+      ? "not_started"
+      : mastered
+        ? "mastered"
+        : pendingReview > 0
+          ? "needs_review"
+          : "in_progress";
+
+  return {
+    ...base,
+    state,
+    answeredCount: answered,
+    questionLimit: practiceConfig.questionLimit ?? null,
+    masteryPercent: answered > 0 ? percentage : null,
+  };
+};
+
+export const getMyAssignmentsPaginated = asyncHandler(async (req, res) => {
+  const requestedYear = String(req.query?.academicYear || "").trim();
+  const academicYear = isValidAcademicYear(requestedYear)
+    ? requestedYear
+    : resolveAcademicYearForRequest(req);
+  const requestedSemester = Number.parseInt(req.query?.semester, 10);
+  const semester = [1, 2].includes(requestedSemester) ? requestedSemester : null;
+
+  const page = parsePageParam(req.query?.page);
+  const limit = parseLimitParam(req.query?.limit);
+  const sort = ["assignedDate", "dueDate", "title"].includes(req.query?.sort)
+    ? req.query.sort
+    : "assignedDate";
+  const typeFilter = String(req.query?.type || "").toLowerCase();
+  const stateFilter = String(req.query?.state || "").toLowerCase();
+  const subjectFilter = toId(req.query?.subject);
+  const searchTerm = String(req.query?.q || "").trim().toLowerCase();
+
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear,
+    status: "active",
+  })
+    .select("_id currentClass academicYear")
+    .lean();
+
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Student profile not found" });
+  }
+
+  const classId = toId(student.currentClass);
+  if (!classId) {
+    return res.json({
+      success: true,
+      data: {
+        items: [],
+        pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        sourceErrors: [],
+        facets: { subjects: [] },
+        academicYear,
+        semester,
+      },
+    });
+  }
+
+  const sourceErrors = [];
+  const now = new Date();
+  const yearClassIds = (
+    await getClassIdsForAcademicYear({
+      schoolId: req.schoolId,
+      academicYear,
+      candidateClassIds: [classId],
+    }).catch(() => [])
+  ).map(toId);
+  const practiceClassIds = yearClassIds.length > 0 ? yearClassIds : [classId];
+
+  const assignmentQuery = Assignment.find({
+    school: req.schoolId,
+    academicYear,
+    class: classId,
+    status: { $in: ["published", "closed"] },
+    $or: [
+      { scope: "class" },
+      { scope: "selected_students", studentIds: student._id },
+      { studentIds: student._id },
+    ],
+  })
+    .populate("assignmentType", "key name")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("lessonPlanIds", "title date")
+    .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
+    .lean();
+
+  const grammarQuery = GrammarTest.find({
+    school: req.schoolId,
+    academicYear,
+    class: classId,
+    isActive: true,
+    isEnabled: true,
+    "questionWorkflow.status": "published",
+    linkedAssignment: { $ne: null },
+    $and: [
+      {
+        $or: [
+          { students: { $size: 0 } },
+          { students: { $exists: false } },
+          { students: student._id },
+        ],
+      },
+      {
+        $or: [
+          { "practiceConfig.availability.startAt": null },
+          { "practiceConfig.availability.startAt": { $lte: now } },
+        ],
+      },
+      {
+        $or: [
+          { "practiceConfig.availability.endAt": null },
+          { "practiceConfig.availability.endAt": { $gte: now } },
+        ],
+      },
+    ],
+  })
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .sort({ "practiceConfig.availability.endAt": 1, createdAt: -1 })
+    .lean();
+
+  const practiceQuery = StandardAssignment.find({
+    isActive: true,
+    class: { $in: practiceClassIds },
+    academicYear,
+    $or: [
+      { students: student._id },
+      { students: { $size: 0 } },
+      { students: { $exists: false } },
+      { students: null },
+    ],
+    ...(semester
+      ? {
+          $and: [
+            {
+              $or: [
+                { semester },
+                { semester: { $exists: false } },
+                { semester: null },
+              ],
+            },
+          ],
+        }
+      : {}),
+  })
+    .populate("standard", "code name masteryThreshold masteryMinQuestions")
+    .populate("subject", "name code")
+    .populate("class", "name grade section")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const [assignmentResult, grammarResult, practiceResult] = await Promise.all([
+    assignmentQuery.then((value) => ({ ok: true, value })),
+    grammarQuery.then((value) => ({ ok: true, value })),
+    practiceQuery.then((value) => ({ ok: true, value })),
+  ].map((promise) =>
+    promise.catch((error) => ({ ok: false, error })),
+  ));
+
+  const assignmentRows = assignmentResult.ok ? assignmentResult.value : [];
+  const grammarRows = grammarResult.ok ? grammarResult.value : [];
+  const practiceRows = practiceResult.ok ? practiceResult.value : [];
+  if (!assignmentResult.ok)
+    sourceErrors.push({ source: "class_assignments", message: "Could not load class assignments" });
+  if (!grammarResult.ok)
+    sourceErrors.push({ source: "grammar_tests", message: "Could not load grammar tests" });
+  if (!practiceResult.ok)
+    sourceErrors.push({ source: "practice", message: "Could not load practice assignments" });
+
+  const googleFormAssignmentIds = assignmentRows.filter(hasGoogleForm).map((row) => row._id);
+  const assignmentIds = assignmentRows.map((row) => row._id);
+  const practiceAssignmentIds = practiceRows.map((row) => row._id);
+
+  const settle = async (name, promise, fallback) => {
+    try {
+      return await promise;
+    } catch {
+      sourceErrors.push({ source: name, message: "Could not load progress" });
+      return fallback;
+    }
+  };
+
+  const [submissions, gradings, grades, attemptStats, assessmentEntries] =
+    await Promise.all([
+      googleFormAssignmentIds.length > 0
+        ? settle(
+            "google_form_submissions",
+            GoogleFormSubmission.find({
+              school: req.schoolId,
+              student: student._id,
+              assignment: { $in: googleFormAssignmentIds },
+            })
+              .select("assignment status submittedAt possibleScore")
+              .lean(),
+            [],
+          )
+        : [],
+      googleFormAssignmentIds.length > 0
+        ? settle(
+            "google_form_grading",
+            GoogleFormGrading.find({
+              school: req.schoolId,
+              student: student._id,
+              assignment: { $in: googleFormAssignmentIds },
+            })
+              .select("assignment status")
+              .lean(),
+            [],
+          )
+        : [],
+      assignmentIds.length > 0
+        ? settle(
+            "grades",
+            Grade.find({
+              school: req.schoolId,
+              student: student._id,
+              assignment: { $in: assignmentIds },
+            })
+              .sort({ date: -1, createdAt: -1 })
+              .select("assignment marks maxMarks gradingSource")
+              .lean(),
+            [],
+          )
+        : [],
+      practiceAssignmentIds.length > 0
+        ? settle(
+            "practice_attempts",
+            PracticeAttempt.aggregate([
+              {
+                $match: {
+                  school: req.schoolId,
+                  student: student._id,
+                  assignment: { $in: practiceAssignmentIds },
+                  status: { $in: ["answered", "pending_review"] },
+                },
+              },
+              {
+                $group: {
+                  _id: "$assignment",
+                  answered: {
+                    $sum: { $cond: [{ $eq: ["$status", "answered"] }, 1, 0] },
+                  },
+                  correct: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ["$status", "answered"] },
+                            { $eq: ["$isCorrect", true] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  pendingReview: {
+                    $sum: { $cond: [{ $eq: ["$status", "pending_review"] }, 1, 0] },
+                  },
+                },
+              },
+            ]),
+            [],
+          )
+        : [],
+      practiceAssignmentIds.length > 0
+        ? settle(
+            "assessment_entries",
+            StandardsGradebookEntry.find({
+              school: req.schoolId,
+              student: student._id,
+              assignment: { $in: practiceAssignmentIds },
+            })
+              .select(
+                "assignment status score maxScore totalAnswered submittedAt releasedAt",
+              )
+              .lean(),
+            [],
+          )
+        : [],
+    ]);
+
+  const submissionByAssignment = new Map(
+    submissions.map((row) => [toId(row.assignment), row]),
+  );
+  const gradingByAssignment = new Map(
+    gradings.map((row) => [toId(row.assignment), row]),
+  );
+  const gradeByAssignment = new Map();
+  for (const row of grades) {
+    const key = toId(row.assignment);
+    if (!gradeByAssignment.has(key)) gradeByAssignment.set(key, row);
+  }
+  const statsByAssignment = new Map(
+    attemptStats.map((row) => [toId(row._id), row]),
+  );
+  const entryByAssignment = new Map(
+    assessmentEntries.map((row) => [toId(row.assignment), row]),
+  );
+  const practiceById = new Map(
+    practiceRows.map((row) => [toId(row._id), row]),
+  );
+
+  const excusedIds = new Set();
+  for (const row of assignmentRows) {
+    const rowExcused = (row.excusedStudentIds || []).map(toId);
+    if (rowExcused.includes(toId(student._id))) excusedIds.add(toId(row._id));
+  }
+
+  const items = [];
+
+  for (const row of assignmentRows) {
+    const id = toId(row._id);
+    const summary = toStudentFacingSummary(
+      mapAssignmentSummary(row, {
+        submission: submissionByAssignment.get(id) || null,
+      }),
+      { studentId: student._id },
+    );
+    const progress = buildClassAssignmentProgress({
+      row,
+      submission: submissionByAssignment.get(id) || null,
+      grading: gradingByAssignment.get(id) || null,
+      grade: gradeByAssignment.get(id) || null,
+      isExcused: excusedIds.has(id),
+    });
+    items.push({
+      ...summary,
+      studentProgress: progress,
+      feedType: feedTypeKeyOf({
+        source: "assignment",
+        assignmentTypeKey:
+          row.assignmentType?.key ||
+          row.assignmentTypeKey ||
+          "",
+      }),
+    });
+  }
+
+  for (const row of grammarRows) {
+    const linkedPracticeId = toId(row.linkedAssignment);
+    const linkedPractice = practiceById.get(linkedPracticeId) || null;
+    const practiceConfig =
+      linkedPractice?.practiceConfig || row.practiceConfig || {};
+    const sessionType = String(
+      practiceConfig.sessionType || "practice",
+    ).toLowerCase();
+    const summary = toStudentFacingSummary(mapGrammarTestSummary(row), {
+      studentId: student._id,
+    });
+    const progress = buildPracticeProgress({
+      sessionType,
+      practiceConfig,
+      entry: entryByAssignment.get(linkedPracticeId) || null,
+      stats: statsByAssignment.get(linkedPracticeId) || null,
+      standard: linkedPractice?.standard || null,
+      dueDate: summary.dueDate,
+      now,
+    });
+    items.push({
+      ...summary,
+      studentProgress: progress,
+      feedType: "grammar_test",
+    });
+  }
+
+  const linkedPracticeIds = new Set(
+    items.map((item) => toId(item.practiceAssignmentId)).filter(Boolean),
+  );
+
+  for (const row of practiceRows) {
+    const id = toId(row._id);
+    if (linkedPracticeIds.has(id)) continue;
+    const summary = buildPracticeFeedSummary(row);
+    const sessionType = practiceTypeKeyOf(row);
+    const progress = buildPracticeProgress({
+      sessionType,
+      practiceConfig: row.practiceConfig || {},
+      entry: entryByAssignment.get(id) || null,
+      stats: statsByAssignment.get(id) || null,
+      standard: summary.standard,
+      dueDate: summary.dueDate,
+      now,
+    });
+    items.push({
+      ...summary,
+      studentProgress: progress,
+      feedType: feedTypeKeyOf({ source: "practice", sessionType }),
+    });
+  }
+
+  // Subject choices come from the student's own feed so the filter never asks
+  // for a subject the student has no assignments in.
+  const subjectFacets = [];
+  const seenSubjectIds = new Set();
+  for (const item of items) {
+    const subjectId = toId(item.subject?.id);
+    if (!subjectId || seenSubjectIds.has(subjectId)) continue;
+    seenSubjectIds.add(subjectId);
+    subjectFacets.push({ id: subjectId, name: item.subject?.name || "" });
+  }
+  subjectFacets.sort((a, b) => a.name.localeCompare(b.name));
+
+  const filtered = items
+    .filter((item) => {
+      if (typeFilter && item.feedType !== typeFilter) return false;
+      if (
+        stateFilter &&
+        !matchesFeedState(
+          { state: item.studentProgress?.state, dueDate: item.dueDate },
+          stateFilter,
+          now,
+        )
+      )
+        return false;
+      if (subjectFilter && toId(item.subject?.id) !== subjectFilter) return false;
+      if (searchTerm) {
+        const searchText =
+          item.searchText || buildFeedSearchText({ ...item, standard: item.standard });
+        if (!searchText.includes(searchTerm)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => compareFeedItems(a, b, sort));
+
+  const { items: pageItems, pagination } = paginateFeedItems(filtered, page, limit);
+
   res.json({
     success: true,
     data: {
-      items: [
-        ...rows.map((row) =>
-          mapAssignmentSummary(row, {
-            submission: submissionByAssignment.get(toId(row._id)) || null,
-          }),
-        ),
-        ...grammarTests.map(mapGrammarTestSummary),
-      ],
+      items: pageItems,
+      pagination,
+      sourceErrors,
+      facets: { subjects: subjectFacets },
+      academicYear,
+      semester,
     },
   });
 });
@@ -898,6 +1597,15 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
     .lean();
 
   if (!assignment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+
+  // Drafts and archived work must stay invisible to students and parents even
+  // when someone guesses or reuses a direct link. Same neutral 404 as a missing
+  // row so the response never confirms the assignment exists.
+  if (!["published", "closed"].includes(assignment.status)) {
     return res
       .status(404)
       .json({ success: false, message: "Assignment not found" });
@@ -944,7 +1652,7 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
   }
 
   const studentIds = students.map((student) => student._id);
-  const [submissions, grades, classroomLink] = await Promise.all([
+  const [submissions, grades, classroomLink, gradings] = await Promise.all([
     hasGoogleForm(assignment)
       ? GoogleFormSubmission.find({
           school: req.schoolId,
@@ -960,7 +1668,7 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
       student: { $in: studentIds },
     })
       .sort({ date: -1, createdAt: -1 })
-      .select("student marks maxMarks remarks date")
+      .select("student marks maxMarks remarks date gradingSource")
       .lean(),
     AssignmentClassroomLink.findOne({
       school: req.schoolId,
@@ -969,10 +1677,22 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
     })
       .select("alternateLink syncState courseId")
       .lean(),
+    hasGoogleForm(assignment)
+      ? GoogleFormGrading.find({
+          school: req.schoolId,
+          assignment: assignment._id,
+          student: { $in: studentIds },
+        })
+          .select("student status")
+          .lean()
+      : [],
   ]);
 
   const submissionByStudent = new Map(
     submissions.map((row) => [toId(row.student), row]),
+  );
+  const gradingByStudent = new Map(
+    gradings.map((row) => [toId(row.student), row]),
   );
   const gradeByStudent = new Map();
   for (const grade of grades) {
@@ -980,13 +1700,44 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
     if (!gradeByStudent.has(key)) gradeByStudent.set(key, grade);
   }
 
+  const excusedIds = new Set(
+    (assignment.excusedStudentIds || []).map((id) => toId(id)),
+  );
   const studentItems = students.map((student) => {
     const key = toId(student._id);
     const submission = submissionByStudent.get(key) || null;
-    const grade = gradeByStudent.get(key) || null;
+    const grading = gradingByStudent.get(key) || null;
+    let grade = gradeByStudent.get(key) || null;
+
+    // A changed Google response invalidates the earlier review. A grade that
+    // came from that superseded response must not keep displaying as if it
+    // described the new answers; teacher-entered grades are unaffected.
+    const gradeFromSupersededResponse =
+      grading?.status === "stale" &&
+      grade &&
+      ["google_forms", "google_forms_review"].includes(grade.gradingSource);
+    if (gradeFromSupersededResponse) {
+      grade = null;
+    }
+
+    let resultState = null;
+    if (hasGoogleForm(assignment)) {
+      if (!submission) resultState = "awaiting_sync";
+      else if (grading?.status === "stale") resultState = "changed";
+      else if (
+        grading &&
+        ["pending", "suggested", "failed"].includes(grading.status)
+      )
+        resultState = "awaiting_review";
+      else if (grade) resultState = "graded";
+      else resultState = "submitted";
+    }
+
     return {
       id: key,
       name: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
+      excused: excusedIds.has(key),
+      resultState,
       submission: submission
         ? {
             status: submission.status || "",
@@ -1004,9 +1755,12 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
     };
   });
 
-  const summary = mapAssignmentSummary(assignment, {
-    submission: studentItems.length === 1 ? studentItems[0].submission : null,
-  });
+  const summary = toStudentFacingSummary(
+    mapAssignmentSummary(assignment, {
+      submission: studentItems.length === 1 ? studentItems[0].submission : null,
+    }),
+    { studentId: studentItems.length === 1 ? studentItems[0].id : null },
+  );
 
   // Parents follow emailed links from a read-only portal; they must never be
   // able to submit the quiz on the student's behalf.
@@ -1027,11 +1781,42 @@ export const getAssignmentDetail = asyncHandler(async (req, res) => {
     attachments.push({ ...attachment, url });
   }
 
+  // One student sees their own result state; parents with several children read
+  // each child's state from `students[]` instead of a single ambiguous banner.
+  const primaryItem = studentItems.length === 1 ? studentItems[0] : null;
+  const primarySubmission = primaryItem
+    ? submissionByStudent.get(primaryItem.id) || null
+    : null;
+  const primaryGrading = primaryItem
+    ? gradingByStudent.get(primaryItem.id) || null
+    : null;
+  const resultAvailability = primaryItem
+    ? {
+        state: primaryItem.resultState,
+        isReleased: Boolean(primaryItem.grade),
+        releasedAt: primaryItem.grade?.gradedAt || null,
+        submittedAt: primaryItem.submission?.submittedAt || null,
+        dueDate: assignment.dueDate || null,
+        isClosed: ["closed", "archived"].includes(assignment.status),
+        allowLateSubmission: assignment.allowLateSubmission === true,
+      }
+    : null;
+  const googleFormSync = hasGoogleForm(assignment)
+    ? {
+        status:
+          primaryGrading?.status ||
+          (primarySubmission ? "synced" : "awaiting"),
+        lastSyncedAt: primarySubmission?.submittedAt || null,
+      }
+    : null;
+
   res.json({
     success: true,
     data: {
       ...summary,
       attachments,
+      resultAvailability,
+      googleFormSync,
       teacher: assignment.teacher
         ? `${assignment.teacher.firstName || ""} ${assignment.teacher.lastName || ""}`.trim()
         : "",
@@ -2477,9 +3262,28 @@ export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
       .status(404)
       .json({ success: false, message: "Assignment not found" });
 
-  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-  if (!canAccess)
-    return res.status(403).json({ success: false, message: "Not authorized" });
+  if (req.user.role === "student") {
+    if (!["published", "closed"].includes(assignment.status)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Assignment not found" });
+    }
+    const student = await Student.findOne({
+      user: req.user._id,
+      school: req.schoolId,
+      academicYear: assignment.academicYear,
+      status: "active",
+    })
+      .select("_id currentClass")
+      .lean();
+    if (!student || !isStudentTargetedByAssignment(student, assignment)) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+  } else {
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess)
+      return res.status(403).json({ success: false, message: "Not authorized" });
+  }
 
   const attachmentId = req.params.attachmentId;
   const attachment = (assignment.attachments || []).find(

@@ -8,6 +8,7 @@ import {
     getAssignmentProgress,
     finalizeAssessment,
     getMyAssessmentResults,
+    getMyAssessmentResultDetail,
     getAssessmentGradebook,
     getStandardAverageGradebook,
     getSBGradebook,
@@ -41,6 +42,13 @@ router.post('/generate', authorize('student'), practiceQuestionRateLimiter, gene
 router.post('/submit', authorize('student'), submitAnswer);
 router.post('/assessment/finalize', authorize('student'), finalizeAssessment);
 router.get('/assessment/my-results', authorize('student'), getMyAssessmentResults);
+router.get(
+    '/assessment/:assignmentId/my-results',
+    authorize('student', 'parent'),
+    validationRules.mongoId,
+    validate,
+    getMyAssessmentResultDetail
+);
 router.get('/history/:standardId', authorize('student'), getPracticeHistory);
 router.post('/integrity-event', authorize('student'), logIntegrityEvent);
 

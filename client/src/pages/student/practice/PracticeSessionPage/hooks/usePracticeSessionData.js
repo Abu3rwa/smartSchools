@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     generateQuestion, submitAnswer,
     selectCurrentQuestion, selectLastResult, selectGenerating, selectSubmitting,
@@ -14,21 +15,23 @@ import { selectUser } from '../../../../../store/slices/authSlice';
 import toast from 'react-hot-toast';
 import api from '../../../../../config/api';
 import { QUESTION_TYPE_GUIDANCE } from '../constants';
-import { getStreakLabel, getUsableTopics } from '../utils/practiceSessionPresentation';
+import { getStreakLabelKey, getUsableTopics } from '../utils/practiceSessionPresentation';
 import { isAnswerReady, isObjectiveAnswerType } from '../utils/practiceAnswerDraft';
+import { shouldShowPracticeFeedback } from '../../../../../utils/practiceFeedbackState';
 
-const OBJECTIVE_INCOMPLETE_MESSAGES = {
-    multiple_select: 'Select at least one answer before submitting.',
-    matching: 'Match at least one item before submitting.',
-    ordering: 'Put every item in order before submitting.',
-    fill_in_blank: 'Fill at least one blank before submitting.',
-    numeric_response: 'Write your numeric answer before submitting.'
+const OBJECTIVE_INCOMPLETE_KEYS = {
+    multiple_select: 'session.messages.selectAtLeastOne',
+    matching: 'session.messages.matchAtLeastOne',
+    ordering: 'session.messages.orderAll',
+    fill_in_blank: 'session.messages.fillAtLeastOne',
+    numeric_response: 'session.messages.numericRequired'
 };
 
 const usePracticeSessionData = () => {
     const { assignmentId } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const { t } = useTranslation('studentPractice');
 
     const currentQuestion = useSelector(selectCurrentQuestion);
     const lastResult = useSelector(selectLastResult);
@@ -52,6 +55,7 @@ const usePracticeSessionData = () => {
     const [startTime, setStartTime] = useState(null);
     const [sessionStats, setSessionStats] = useState({ asked: 0, correct: 0 });
     const [finalizingAssessment, setFinalizingAssessment] = useState(false);
+    const [submitError, setSubmitError] = useState('');
 
     const lastIntegrityLogRef = useRef(0);
     const wasHiddenRef = useRef(false);
@@ -94,10 +98,8 @@ const usePracticeSessionData = () => {
                 logIntegrityEvent('tab_hidden');
             } else if (wasHiddenRef.current) {
                 wasHiddenRef.current = false;
-                const count = tabSwitchCountRef.current;
-                const suffix = count === 1 ? 'st' : count === 2 ? 'nd' : count === 3 ? 'rd' : 'th';
                 toast.error(
-                    `Tab switch detected (${count}${suffix} time). This is recorded in your assessment progress.`,
+                    t('session.messages.tabSwitch', { countInfo: tabSwitchCountRef.current }),
                     { duration: 4000 }
                 );
             }
@@ -114,14 +116,11 @@ const usePracticeSessionData = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('blur', handleBlur);
         };
-    }, [assignmentId, currentQuestion?.attemptId]);
+    }, [assignmentId, currentQuestion?.attemptId, t]);
+
+    const resumeKey = assignmentId ? `practice-resume:${assignmentId}` : null;
 
     const handleGenerate = async () => {
-        dispatch(clearLastResult());
-        setSelectedAnswer('');
-        setShortAnswer('');
-        setObjectiveAnswer(null);
-
         const result = await dispatch(generateQuestion({
             assignmentId,
             difficulty,
@@ -129,11 +128,42 @@ const usePracticeSessionData = () => {
         }));
 
         if (generateQuestion.fulfilled.match(result)) {
+            setSelectedAnswer('');
+            setShortAnswer('');
+            setObjectiveAnswer(null);
+            setSubmitError('');
             setStartTime(Date.now());
+            if (result.payload.question && resumeKey) {
+                sessionStorage.setItem(resumeKey, '1');
+            }
+            if (result.payload.status === 'session_complete' || result.payload.status === 'mastered') {
+                if (resumeKey) sessionStorage.removeItem(resumeKey);
+            }
         } else {
-            toast.error(result.payload || 'Failed to load question. Please try again.');
+            toast.error(t('session.messages.loadFailed'));
         }
     };
+
+    // A refresh must not silently drop an unanswered question: the server
+    // serves the existing pending attempt again, so re-request it.
+    useEffect(() => {
+        if (!resumeKey || !assignmentId) return;
+        if (sessionStorage.getItem(resumeKey) !== '1') return;
+        sessionStorage.removeItem(resumeKey);
+        const navigationType = typeof performance !== 'undefined'
+            ? performance.getEntriesByType?.('navigation')?.[0]?.type
+            : null;
+        if (navigationType && navigationType !== 'reload') return;
+        dispatch(generateQuestion({ assignmentId, difficulty, questionType }))
+            .then((result) => {
+                if (generateQuestion.fulfilled.match(result)) {
+                    setStartTime(Date.now());
+                }
+            });
+        // Resume only on mount for this assignment; difficulty/type changes
+        // should not re-trigger a question request.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assignmentId]);
 
     const handleSubmit = async () => {
         const questionType = currentQuestion?.questionType;
@@ -148,16 +178,17 @@ const usePracticeSessionData = () => {
         if (isObjective ? !isAnswerReady(currentQuestion, answer) : !answer) {
             toast.error(
                 isObjective
-                    ? OBJECTIVE_INCOMPLETE_MESSAGES[questionType]
-                    : questionType === 'short_answer'
-                        ? 'Write your answer before submitting.'
-                        : 'Select one answer before submitting.'
+                    ? t(OBJECTIVE_INCOMPLETE_KEYS[questionType])
+                    : t(questionType === 'short_answer'
+                        ? 'session.messages.shortAnswerRequired'
+                        : 'session.messages.selectRequired')
             );
             return;
         }
 
         const timeSpent = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
 
+        setSubmitError('');
         const result = await dispatch(submitAnswer({
             attemptId: currentQuestion.attemptId,
             answer,
@@ -169,13 +200,15 @@ const usePracticeSessionData = () => {
                 asked: prev.asked + 1,
                 correct: prev.correct + (result.payload.isCorrect ? 1 : 0)
             }));
-            if (result.payload.sessionComplete) {
-                dispatch(clearLastResult());
-                return;
+            if (result.payload.sessionComplete && resumeKey) {
+                sessionStorage.removeItem(resumeKey);
             }
-            await handleGenerate();
+            // Feedback stays on screen; the next question is only generated
+            // when the student explicitly asks for it.
         } else {
-            toast.error(result.payload || 'Failed to submit answer');
+            const message = t('session.messages.submitFailed');
+            setSubmitError(message);
+            toast.error(message);
         }
     };
 
@@ -185,13 +218,17 @@ const usePracticeSessionData = () => {
             const response = await api.post('/practice/assessment/finalize', { assignmentId });
             const payload = response?.data?.data || {};
             if (payload?.resultsVisible && payload?.result) {
-                toast.success(`Assessment submitted. Final score: ${payload.result.score}/${payload.result.maxScore} (${payload.result.percentage}%)`);
+                toast.success(t('session.messages.finalizeSuccessReleased', {
+                    score: payload.result.score,
+                    max: payload.result.maxScore,
+                    percent: payload.result.percentage
+                }));
             } else {
-                toast.success('Assessment submitted. Results will be released by your teacher.');
+                toast.success(t('session.messages.finalizeSuccessPending'));
             }
             navigate('/portal/practice');
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Failed to submit final assessment');
+            toast.error(t('session.messages.finalizeFailed'));
         } finally {
             setFinalizingAssessment(false);
         }
@@ -208,6 +245,7 @@ const usePracticeSessionData = () => {
             normalizedStatusMessage.includes('assessment') &&
             normalizedStatusMessage.includes('closed');
         const showQuestion = practiceStatus === 'question' && currentQuestion;
+        const showFeedback = shouldShowPracticeFeedback(lastResult, generating);
         const displayName = studentFirstName || user?.firstName || 'Student';
         
         const combinedAsked = Math.max(sessionStats.asked, sessionInfo?.questionsAnswered || 0);
@@ -222,7 +260,7 @@ const usePracticeSessionData = () => {
             : (sessionContext?.recentAccuracy || 0);
             
         const streakValue = Math.max(sessionContext?.correctStreak || 0, sessionContext?.incorrectStreak || 0);
-        const streakLabel = getStreakLabel(sessionContext);
+        const streakLabel = t(getStreakLabelKey(sessionContext));
         
         const usableTopics = getUsableTopics(sessionContext);
         const showContextHints = usableTopics.length > 0 || (sessionContext?.recentMistakes?.length || 0) > 0;
@@ -240,6 +278,7 @@ const usePracticeSessionData = () => {
             isAssessmentSession,
             assessmentAutoClosed,
             showQuestion,
+            showFeedback,
             displayName,
             combinedAsked,
             combinedCorrect,
@@ -253,7 +292,7 @@ const usePracticeSessionData = () => {
             currentSessionStep,
             activeQuestionGuidance
         };
-    }, [practiceStatus, lastResult, sessionInfo, statusMessage, currentQuestion, studentFirstName, user, sessionStats, sessionContext, questionType]);
+    }, [practiceStatus, lastResult, sessionInfo, statusMessage, currentQuestion, studentFirstName, user, sessionStats, sessionContext, questionType, generating, t]);
 
     return {
         assignmentId,
@@ -279,6 +318,7 @@ const usePracticeSessionData = () => {
         questionType,
         setQuestionType,
         finalizingAssessment,
+        submitError,
         handleGenerate,
         handleSubmit,
         handleFinalizeAssessment,

@@ -350,7 +350,17 @@
     "lessonPlans": "Linked lesson plans",
     "lessonPlan": "Lesson plan",
     "unavailableTitle": "Assignment unavailable",
-    "unavailableBody": "This assignment is unavailable or was removed."
+    "unavailableBody": "This assignment is unavailable or was removed.",
+    "resultBanner": {
+      "released": "Results are available.",
+      "awaiting_review": "Your submission is awaiting teacher review.",
+      "submitted": "Submitted — awaiting review.",
+      "closed_no_late": "This assignment closed on {{date}}. Late submissions are not accepted.",
+      "closed_late_allowed": "This assignment closed on {{date}}. Late submissions are accepted."
+    },
+    "googleFormSync": "Last synced {{time}}",
+    "googleFormAwaitingSync": "Awaiting teacher sync",
+    "googleFormSyncFailed": "Sync failed — tap to retry"
   },
   "googleForms": {
     "title": "Google Forms",
@@ -599,5 +609,152 @@
     "studentExcused": "Student marked as excused",
     "excuseRemoved": "Excuse removed",
     "excuseFailed": "Could not update the excuse"
+  },
+  "student": {
+    "header": {
+      "title": "My assignments",
+      "subtitle": "Open each assignment to view full instructions, due date, and lesson links.",
+      "academicYear": "Academic Year: {{year}}."
+    },
+    "status": {
+      "submitted": "Submitted",
+      "late": "Late",
+      "awaiting_review": "Awaiting Teacher Review",
+      "graded": "Graded",
+      "sync_failed": "Sync Failed",
+      "not_started": "Not Started",
+      "in_progress": "In Progress",
+      "mastered": "Mastered",
+      "needs_review": "Needs Review",
+      "completed": "Completed",
+      "awaiting_release": "Awaiting Release",
+      "released": "Released",
+      "excused": "Excused",
+      "closed": "Closed"
+    },
+    "actions": {
+      "start": "Start",
+      "continue": "Continue",
+      "view_submission": "View Submission",
+      "view_results": "View Results",
+      "open_form": "Open Form",
+      "review": "Review",
+      "retry_sync": "Retry Sync",
+      "start_assessment": "Start Assessment",
+      "view_result": "View Result",
+      "view": "View"
+    },
+    "resultAvailability": {
+      "released_on": "Results will be released on {{date}}",
+      "released_now": "Results are available — tap to view",
+      "awaiting_review": "Awaiting teacher review",
+      "submitted": "Submitted — awaiting review",
+      "closed_no_late": "This assignment closed on {{date}}. Late submissions are not accepted.",
+      "closed_late_allowed": "This assignment closed on {{date}}. Late submissions are accepted."
+    },
+    "sync": {
+      "last_synced": "Last synced {{time}}",
+      "sync_failed": "Sync failed — tap to retry",
+      "awaiting_sync": "Awaiting teacher sync"
+    },
+    "practice": {
+      "feedback_heading": "Feedback",
+      "next_question": "Next Question",
+      "submit_final": "Submit Final Assessment",
+      "session_complete": "Session Complete",
+      "retry_generation": "Retry",
+      "retry_submission": "Retry Submission"
+    },
+    "card": {
+      "assignment": "Assignment",
+      "untitled": "Class assignment",
+      "subject": "Subject: {{name}}",
+      "due": "Due {{date}}",
+      "progress": "Progress: {{percent}}%"
+    },
+    "filters": {
+      "search": "Search assignments",
+      "searchPlaceholder": "Search by title, subject, or type",
+      "type": "Type",
+      "state": "Status",
+      "subject": "Subject",
+      "allTypes": "All types",
+      "allStates": "All statuses",
+      "allSubjects": "All subjects",
+      "subjectFallback": "Subject",
+      "semester": "Semester",
+      "allSemesters": "All semesters",
+      "semesters": {
+        "first": "Semester 1",
+        "second": "Semester 2"
+      },
+      "year": "Academic year",
+      "sort": "Sort by",
+      "types": {
+        "google_form": "Google Form",
+        "practice": "Practice",
+        "assessment": "Assessment",
+        "homework": "Homework",
+        "classwork": "Classwork",
+        "grammar_test": "Grammar Test"
+      },
+      "states": {
+        "upcoming": "Upcoming",
+        "active": "Active",
+        "needs_review": "Needs review",
+        "completed": "Completed"
+      },
+      "sorts": {
+        "assignedDate": "Newest first",
+        "dueDate": "Due soonest",
+        "title": "Title"
+      }
+    },
+    "empty": {
+      "title": "No assignments yet",
+      "body": "Your teacher will share assignments here.",
+      "noMatchesTitle": "No matching assignments",
+      "noMatchesBody": "Try changing your search or clearing a filter."
+    },
+    "error": {
+      "title": "Could not load assignments",
+      "body": "Something went wrong while loading the list. Please try again.",
+      "retry": "Retry"
+    },
+    "pagination": {
+      "label": "Assignments pages",
+      "showing": "Showing {{from}}–{{to}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {{page}} of {{totalPages}}"
+    },
+    "sourceErrors": {
+      "partial": "Some assignments could not be loaded."
+    },
+    "results": {
+      "title": "Assessment result",
+      "back": "Back to assignments",
+      "notReleased": "Results not yet released",
+      "notReleasedBody": "Your teacher will release the results soon.",
+      "submittedOn": "Submitted {{date}}",
+      "releasedOn": "Released {{date}}",
+      "score": "Score",
+      "percentage": "Percentage",
+      "scale": "Scale (1–4)",
+      "passed": "Passed",
+      "failed": "Not passed",
+      "question": "Question",
+      "yourAnswer": "Your answer",
+      "correctAnswer": "Correct answer",
+      "feedback": "Teacher feedback",
+      "awaitingReview": "Awaiting teacher review",
+      "noAnswer": "Not answered",
+      "correct": "Correct",
+      "incorrect": "Incorrect",
+      "summary": "{{correct}} of {{total}} correct",
+      "unavailableTitle": "Result unavailable",
+      "unavailableBody": "This result could not be loaded.",
+      "retry": "Retry"
+    }
   }
 }

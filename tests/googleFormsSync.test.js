@@ -223,6 +223,25 @@ test('missing Google scores are stored as null and never graded', async (t) => {
     assert.equal(calls.submissions[0].update.$set.score, null);
 });
 
+test('an explicit null Google score stays unavailable, never a real zero', async (t) => {
+    const response = { ...makeResponse({ q1: 'A' }), totalScore: null };
+    const { assignment, calls } = setup(t, { responses: [response] });
+    const summary = await sync(assignment);
+
+    assert.equal(summary.updatedGrades, 0);
+    assert.equal(calls.submissions[0].update.$set.score, null);
+});
+
+test('a genuine zero Google score is preserved and graded as zero', async (t) => {
+    const response = { ...makeResponse({ q1: 'A' }), totalScore: 0 };
+    const { assignment, calls } = setup(t, { responses: [response] });
+    const summary = await sync(assignment);
+
+    assert.equal(summary.updatedGrades, 1);
+    assert.equal(calls.submissions[0].update.$set.score, 0);
+    assert.equal(calls.grades[0].update.$set.marks, 0);
+});
+
 test('the response list exposes each student\'s grading status', async (t) => {
     withFormsEnabled(t);
     t.mock.method(GoogleFormSubmission, 'find', () => ({

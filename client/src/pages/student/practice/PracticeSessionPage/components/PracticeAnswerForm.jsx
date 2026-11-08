@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import MultipleSelectAnswerInput from '../../../../../components/assessment/MultipleSelectAnswerInput';
 import MatchingAnswerInput from '../../../../../components/assessment/MatchingAnswerInput';
 import OrderingAnswerInput from '../../../../../components/assessment/OrderingAnswerInput';
@@ -17,9 +18,12 @@ const PracticeAnswerForm = ({
     objectiveAnswer,
     onObjectiveAnswerChange,
     submittingAnswer,
+    submitError,
     onSubmit,
     textareaRef
 }) => {
+    const { t } = useTranslation('studentPractice');
+
     const handleOptionKeyDown = (e, idx) => {
         if (!options?.length) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
@@ -82,7 +86,11 @@ const PracticeAnswerForm = ({
             )}
 
             {!objective && (questionType === 'multiple_choice' || questionType === 'true_false') && (
-                <div className="options-list" role="radiogroup" aria-label="Answer options">
+                <div
+                    className="options-list"
+                    role="radiogroup"
+                    aria-label={t('session.answerForm.optionsAria')}
+                >
                     {options?.map((option, idx) => (
                         <button
                             key={idx}
@@ -114,9 +122,15 @@ const PracticeAnswerForm = ({
                     className="short-answer-input"
                     value={shortAnswer}
                     onChange={(e) => onShortAnswerChange(e.target.value)}
-                    placeholder="Type your answer clearly and explain your thinking..."
+                    placeholder={t('session.answerForm.shortAnswerPlaceholder')}
                     disabled={submittingAnswer}
                 />
+            )}
+
+            {submitError && !submittingAnswer && (
+                <p className="practice-submit-error" role="alert">
+                    {t('session.answerForm.submitFailed')}
+                </p>
             )}
 
             <div className="question-actions">
@@ -125,7 +139,11 @@ const PracticeAnswerForm = ({
                     onClick={onSubmit}
                     disabled={submittingAnswer || !canSubmit}
                 >
-                    {submittingAnswer ? 'Submitting...' : 'Submit Answer'}
+                    {submittingAnswer
+                        ? t('session.answerForm.submitting')
+                        : submitError
+                            ? t('session.answerForm.retrySubmit')
+                            : t('session.answerForm.submit')}
                 </button>
             </div>
         </>

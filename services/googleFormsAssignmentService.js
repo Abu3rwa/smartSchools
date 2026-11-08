@@ -388,9 +388,17 @@ export const syncGoogleQuizResponses = async ({
         .select("submittedAt")
         .lean();
       if (previous?.submittedAt && previous.submittedAt > submittedAt) continue;
-      const score = Number.isFinite(Number(response.totalScore))
-        ? Number(response.totalScore)
-        : null;
+      // An explicit null/missing totalScore means "not available" (e.g. the
+      // form has ungraded questions); Number(null) would turn it into a real
+      // zero, so only coerce values that are actually present.
+      const rawTotalScore = response.totalScore;
+      const score =
+        rawTotalScore === null ||
+        rawTotalScore === undefined ||
+        rawTotalScore === "" ||
+        !Number.isFinite(Number(rawTotalScore))
+          ? null
+          : Number(rawTotalScore);
       const answers = responseAnswers(response, questions);
       const responseVersion = googleFormResponseVersion(answers);
       await GoogleFormSubmission.findOneAndUpdate(

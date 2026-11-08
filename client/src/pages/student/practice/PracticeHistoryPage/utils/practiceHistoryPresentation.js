@@ -6,9 +6,9 @@
  * @param {string|number} value
  * @returns {string}
  */
-export function formatAttemptDate(value) {
+export function formatAttemptDate(value, locale = 'en-GB') {
     if (!value) return '-';
-    return new Date(value).toLocaleString();
+    return new Date(value).toLocaleString(locale);
 }
 
 /**

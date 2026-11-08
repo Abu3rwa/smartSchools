@@ -95,45 +95,45 @@ export async function collect({ schoolId, studentId, startDate, endDate, subject
         const withPct = data.entries.filter(e => e.percentage != null);
         data.averagePct = withPct.length > 0
             ? Math.round(withPct.reduce((s, e) => s + e.percentage, 0) / withPct.length)
-            : 0;
+            : null;
     }
 
-    const overallPct = dateFilteredEntries.length > 0
-        ? Math.round(
-            dateFilteredEntries
-                .filter(e => e.percentage != null)
-                .reduce((s, e) => s + e.percentage, 0)
-            / Math.max(1, dateFilteredEntries.filter(e => e.percentage != null).length)
-        )
-        : 0;
+    const withPercentage = dateFilteredEntries.filter(e => e.percentage != null);
+    // No scored entries means no average — 0% would misread as "failed everything".
+    const overallPct = withPercentage.length > 0
+        ? Math.round(withPercentage.reduce((s, e) => s + e.percentage, 0) / withPercentage.length)
+        : null;
 
-    const half = Math.floor(dateFilteredEntries.length / 2);
-    const firstEntries = dateFilteredEntries.slice(half);
-    const secondEntries = dateFilteredEntries.slice(0, half);
+    // Entries come back in insertion order, which is not necessarily chronological.
+    const entryDate = (e) => new Date(e.submittedAt || e.releasedAt || e.createdAt || 0).getTime();
+    const chronological = [...dateFilteredEntries].sort((a, b) => entryDate(a) - entryDate(b));
+    const half = Math.floor(chronological.length / 2);
+    const olderPct = chronological.slice(0, half).filter(e => e.percentage != null);
+    const newerPct = chronological.slice(half).filter(e => e.percentage != null);
 
-    const firstPct = firstEntries.filter(e => e.percentage != null);
-    const secondPct = secondEntries.filter(e => e.percentage != null);
+    const olderAvg = olderPct.length > 0
+        ? olderPct.reduce((s, e) => s + e.percentage, 0) / olderPct.length
+        : null;
+    const newerAvg = newerPct.length > 0
+        ? newerPct.reduce((s, e) => s + e.percentage, 0) / newerPct.length
+        : null;
 
-    const firstAvg = firstPct.length > 0
-        ? Math.round(firstPct.reduce((s, e) => s + e.percentage, 0) / firstPct.length)
-        : 0;
-    const secondAvg = secondPct.length > 0
-        ? Math.round(secondPct.reduce((s, e) => s + e.percentage, 0) / secondPct.length)
-        : 0;
-
-    let trend = 'stable';
-    if (dateFilteredEntries.length >= 4) {
-        const diff = secondAvg - firstAvg;
+    let trend = 'insufficient_data';
+    if (chronological.length >= 4 && olderAvg !== null && newerAvg !== null) {
+        const diff = newerAvg - olderAvg;
         if (diff > 5) trend = 'improving';
         else if (diff < -5) trend = 'declining';
+        else trend = 'stable';
     }
 
     const facts = [];
     if (totalStandards > 0) {
-        facts.push(`Standards tracked: ${totalStandards}. Mastered: ${masteredCount}. Needs review: ${needsReviewCount}.`);
+        // Mastery records are cumulative current state, not period activity.
+        facts.push(`Current mastery (cumulative): ${totalStandards} standards tracked. Mastered: ${masteredCount}. Needs review: ${needsReviewCount}.`);
     }
     if (dateFilteredEntries.length > 0) {
-        facts.push(`Practice entries in period: ${dateFilteredEntries.length}. Overall average: ${overallPct}%.`);
+        const avgText = overallPct !== null ? ` Overall average: ${overallPct}%.` : '';
+        facts.push(`Practice entries in period: ${dateFilteredEntries.length}.${avgText}`);
     }
     const subjectSet = new Set(
         Object.values(byStandard)

@@ -86,7 +86,7 @@ const useStudentDashboardData = () => {
 
         Promise.all([
             api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } })),
-            api.get('/assignments/my')
+            api.get('/assignments/my', { params: { limit: 50 } })
         ])
             .then(([gradesResponse, assignmentResponse]) => {
                 if (cancelled) return;
