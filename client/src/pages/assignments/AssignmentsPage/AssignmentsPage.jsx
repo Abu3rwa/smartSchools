@@ -62,7 +62,6 @@ const AssignmentsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState("");
-  const [startWithImport, setStartWithImport] = useState(false);
 
   useEffect(() => {
     if (
@@ -299,11 +298,10 @@ const AssignmentsPage = () => {
     setSelectedSubject(subjectId);
   };
 
-  const openCreateDrawer = ({ importMode = false } = {}) => {
+  const openCreateDrawer = () => {
     setActiveTab("assignments");
     setEditingAssignment(null);
     resetForm();
-    setStartWithImport(importMode);
     setCreateFormOpen(true);
   };
 
@@ -369,6 +367,7 @@ const AssignmentsPage = () => {
         subjectId: selectedSubject,
         assignmentTypeId: form.assignmentTypeId,
         title: form.title.trim(),
+        summary: (form.summary || "").trim(),
         instructions: form.instructions.trim(),
         lessonPlanIds:
           Array.isArray(form.lessonPlanIds) && form.lessonPlanIds.length > 0
@@ -494,7 +493,6 @@ const AssignmentsPage = () => {
 
       setEditingAssignment(null);
       resetForm();
-      setStartWithImport(false);
       setCreateFormOpen(false);
       await fetchAssignments();
     } catch (error) {
@@ -511,7 +509,6 @@ const AssignmentsPage = () => {
 
   const onEditAssignment = (assignment) => {
     setActiveTab("assignments");
-    setStartWithImport(false);
     // The drawer builds its payload from the page selectors, so they must
     // point at the assignment's own class and subject before it opens.
     if (assignment.class?.id) setSelectedClass(assignment.class.id);
@@ -522,6 +519,7 @@ const AssignmentsPage = () => {
       ...prev,
       assignmentTypeId: assignment.assignmentType?.id || prev.assignmentTypeId,
       title: assignment.title || "",
+      summary: assignment.summary || "",
       instructions: assignment.instructions || "",
       lessonPlanIds: Array.isArray(assignment.lessonPlanIds)
         ? assignment.lessonPlanIds
@@ -561,7 +559,6 @@ const AssignmentsPage = () => {
   const onCancelEdit = () => {
     setEditingAssignment(null);
     resetForm();
-    setStartWithImport(false);
     setCreateFormOpen(false);
   };
 
@@ -1020,7 +1017,6 @@ const AssignmentsPage = () => {
       <AssignmentsHeader
         canCreateAssignments={canCreateAssignments}
         onCreateAssignment={onStartCreateAssignment}
-        onImport={() => openCreateDrawer({ importMode: true })}
       />
 
       <div
@@ -1134,7 +1130,6 @@ const AssignmentsPage = () => {
           googleFormPublished={Boolean(
             editingAssignment?.googleForm?.responderUri,
           )}
-          startWithImport={startWithImport}
         />
 
         <GoogleFormResultsPanel

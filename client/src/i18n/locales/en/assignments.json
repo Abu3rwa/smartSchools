@@ -1,8 +1,7 @@
 {
   "header": {
     "title": "Assignments",
-    "subtitle": "Create, publish, and track class assignments in one place.",
-    "import": "Import"
+    "subtitle": "Create, publish, and track class assignments in one place."
   },
   "overview": {
     "label": "Assignment summary",
@@ -133,6 +132,8 @@
     "type": "Type",
     "title": "Title",
     "titlePlaceholder": "Assignment title",
+    "summary": "Summary",
+    "summaryPlaceholder": "A short overview for students and parents (optional)",
     "dueDate": "Due Date",
     "maxMarks": "Max Marks",
     "instructions": "Instructions",
@@ -151,19 +152,46 @@
     "notifyAudience": "Notify audience",
     "notifyOnGrade": "Notify on grade"
   },
-  "import": {
-    "title": "Fill assignment from CSV",
-    "description": "Choose the class and subject above, then import one assignment with its links. Leave assignment_type blank to keep the selected type.",
-    "downloadTemplate": "Download CSV template",
-    "chooseFile": "Import CSV",
-    "importing": "Reading CSV...",
-    "formLoaded": "Assignment fields loaded from {{name}}. Review them before creating.",
-    "selectClassSubject": "Choose a class and subject before importing an assignment.",
-    "invalidFile": "Choose a CSV file.",
-    "fileTooLarge": "The CSV file must be smaller than 900 KB.",
-    "assignmentTypeNotFound": "The assignment type in the CSV was not found. Use an assignment type name or ID.",
-    "failed": "Unable to import assignment CSV.",
-    "templateHelp": "One assignment per file. Use links_json for multiple links."
+  "draftAssistant": {
+    "title": "Draft with AI",
+    "help": "Upload a PDF or photo of the source material. AI drafts the title, summary, and student instructions for this assignment type — review and edit everything before saving.",
+    "chooseFile": "Choose source file",
+    "removeFile": "Remove file",
+    "fileTypes": "PDF, JPG, PNG or WebP, up to 10 MB.",
+    "fileNotSaved": "The file is used only to draft the assignment and is not saved unless you attach it below.",
+    "useFor": "Use the source for",
+    "attachFile": "Attach this file to the assignment",
+    "attachFileHelp": "Students will see it with the assignment.",
+    "useForForm": "Draft Google Form questions from this file",
+    "useForFormHelp": "Adds questions to the Google Form below for you to review.",
+    "formNeedsForm": "Choose the Google Form quiz type to draft form questions.",
+    "formPublished": "The Google Form is already published, so its questions cannot be replaced.",
+    "generate": "Draft with AI",
+    "generating": "Drafting...",
+    "done": "Draft added. Review and edit it before saving.",
+    "partial": "The title, summary, and instructions were drafted, but questions were not added: {{message}}",
+    "needFile": "Choose a PDF or photo.",
+    "needClassSubject": "Choose a class and subject first.",
+    "replaceQuestionsConfirm": "This will replace the questions currently in the Google Form. Continue?",
+    "errors": {
+      "needClassSubject": "Choose a class and subject first.",
+      "needType": "Choose an assignment type first.",
+      "classInvalid": "This class is no longer available. Refresh the page and try again.",
+      "subjectInvalid": "This subject is not part of the selected class.",
+      "notAuthorized": "You do not have permission to create assignments for this class.",
+      "sourceRequired": "Choose a PDF or photo to draft from.",
+      "sourceTooShort": "There is not enough text in this file to draft the assignment. Try a clearer photo or a longer PDF.",
+      "invalidDraft": "The AI did not return a usable draft. Try again with a clearer file.",
+      "invalidQuestions": "The AI did not return usable Google Form questions. The title, summary, and instructions were still drafted.",
+      "formsDisabled": "Google Forms is not enabled for this school. Ask your administrator to enable it.",
+      "noText": "We could not read any text in this file. Try a clearer photo or a different PDF.",
+      "pdfUnreadable": "We could not open this PDF. Try another PDF, or upload a photo of the pages.",
+      "unsupportedFile": "Upload a PDF, JPG, PNG or WebP file.",
+      "fileTooLarge": "The file is too large. Upload a file under 10 MB.",
+      "emptyFile": "The file is empty. Choose the file again.",
+      "rateLimited": "Too many requests in a short time. Wait a moment and try again.",
+      "failed": "Could not draft the assignment. Try again."
+    }
   },
   "integrations": {
     "title": "Optional integrations",
@@ -443,31 +471,7 @@
     }
   },
   "lessonSummary": {
-    "notGradedBadge": "Not graded",
-    "drafter": {
-      "title": "Draft a lesson summary with AI",
-      "help": "Upload a PDF or photo of the lesson. AI drafts a title and a summary for students and parents — review and edit it before saving. This assignment is never graded.",
-      "chooseFile": "Choose file",
-      "removeFile": "Remove file",
-      "fileTypes": "PDF, JPG, PNG or WebP, up to 10 MB.",
-      "fileNotSaved": "The file is used only to write the summary and is not saved. To share it with students, add it again under Attachments.",
-      "generate": "Draft with AI",
-      "generating": "Drafting summary...",
-      "done": "Draft added. Review and edit the title and summary before saving.",
-      "needFile": "Choose a PDF or photo.",
-      "errors": {
-        "sourceRequired": "Upload a PDF or photo of the lesson.",
-        "sourceEmpty": "There is no content in the file to write a summary from. Try a clearer photo or a different PDF.",
-        "invalidDraft": "The AI did not return a usable summary. Try again with a clearer file.",
-        "noText": "We could not read any text in this file. Try a clearer photo or a different PDF.",
-        "pdfUnreadable": "We could not open this PDF. Try another PDF, or upload a photo of the pages.",
-        "unsupportedFile": "Upload a PDF, JPG, PNG or WebP file.",
-        "fileTooLarge": "The file is too large. Upload a file under 10 MB.",
-        "emptyFile": "The file is empty. Choose the file again.",
-        "rateLimited": "Too many requests in a short time. Wait a moment and try again.",
-        "failed": "Could not draft the summary. Try again."
-      }
-    }
+    "notGradedBadge": "Not graded"
   },
   "driveAttachments": {
     "title": "Google Drive attachments",

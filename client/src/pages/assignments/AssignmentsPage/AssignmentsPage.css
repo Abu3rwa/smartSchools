@@ -1580,42 +1580,6 @@
 }
 
 /* ── Legacy/shared assignment form pieces ──────────────────── */
-.assignment-csv-import {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--surface-muted);
-}
-
-.assignment-csv-import summary {
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.assignment-csv-import__content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-top: 8px;
-}
-
-.assignment-csv-import p {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.assignment-csv-import__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .assignments-page .btn-outline {
   background: transparent;
   border: 1px solid var(--border-color);
@@ -2287,6 +2251,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.google-forms-panel__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .assignments-page .google-form-assignment-option {
@@ -3625,11 +3595,6 @@
 
   .assignments-drawer__buttons-right .btn {
     width: 100%;
-  }
-
-  .assignment-csv-import__content {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .assignments-page .quiz-builder {

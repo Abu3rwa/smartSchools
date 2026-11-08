@@ -61,6 +61,12 @@ const assignmentSchema = new mongoose.Schema(
             maxlength: 5000,
             default: ''
         },
+        summary: {
+            type: String,
+            trim: true,
+            maxlength: 500,
+            default: ''
+        },
         assignedDate: {
             type: Date,
             default: Date.now

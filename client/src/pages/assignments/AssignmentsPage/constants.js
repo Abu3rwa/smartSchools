@@ -15,6 +15,7 @@ export const LINK_TYPES = [
 export const DEFAULT_ASSIGNMENT_FORM = {
   assignmentTypeId: "",
   title: "",
+  summary: "",
   instructions: "",
   lessonPlanIds: [],
   dueDate: "",

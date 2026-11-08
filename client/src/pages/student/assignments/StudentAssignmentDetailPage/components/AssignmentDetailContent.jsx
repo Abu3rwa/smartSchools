@@ -41,6 +41,9 @@ const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
         <header className="detail-header">
           <p className="detail-type">{assignment?.assignmentType?.name || 'Assignment'}</p>
           <h1>{assignment?.title || 'Class assignment'}</h1>
+          {assignment?.summary ? (
+            <p className="detail-summary">{assignment.summary}</p>
+          ) : null}
           <p className="detail-meta">
             {assignment?.subject?.name ? `Subject: ${assignment.subject.name}` : 'Subject not specified'}
             {assignment?.class?.name ? ` • Class: ${assignment.class.name}` : ''}

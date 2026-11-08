@@ -193,6 +193,7 @@ test('creating a lesson summary saves it ungraded with zero marks', async (t) =>
             subjectId: 'subject-1',
             assignmentTypeKey: 'lesson_summary',
             title: 'States of matter',
+            summary: 'A short overview of the lesson.',
             instructions: 'We compared solids, liquids and gases.',
             maxMarks: 25,
             notifyOnGrade: true,
@@ -205,10 +206,12 @@ test('creating a lesson summary saves it ungraded with zero marks', async (t) =>
     assert.equal(created.isGraded, false);
     assert.equal(created.notifyOnGrade, false);
     assert.equal(created.notifyOnAssign, false);
+    assert.equal(created.summary, 'A short overview of the lesson.');
     const summary = response.body.data.assignment;
     assert.equal(summary.isGraded, false);
     assert.equal(summary.maxMarks, 0);
     assert.equal(summary.notifyOnGrade, false);
+    assert.equal(summary.summary, 'A short overview of the lesson.');
 });
 
 test('graded types keep the positive-marks fallback even when sent zero', async (t) => {
@@ -224,6 +227,7 @@ test('graded types keep the positive-marks fallback even when sent zero', async 
             subjectId: 'subject-1',
             assignmentTypeKey: 'homework',
             title: 'Practice sheet',
+            summary: 'Practice the lesson vocabulary.',
             maxMarks: 0,
             notifyOnAssign: false
         }
@@ -232,6 +236,7 @@ test('graded types keep the positive-marks fallback even when sent zero', async 
     assert.equal(response.statusCode, 201);
     assert.equal(created.maxMarks, 10);
     assert.equal(created.isGraded, true);
+    assert.equal(created.summary, 'Practice the lesson vocabulary.');
     assert.equal(response.body.data.assignment.isGraded, true);
 });
 
@@ -376,6 +381,21 @@ test('switching back to a graded type restores marks with a positive fallback', 
     }));
 
     assert.equal(response.statusCode, 200);
+    assert.equal(assignment.isGraded, true);
+    assert.equal(assignment.maxMarks, 10);
+});
+
+test('updating the summary leaves the assignment grading untouched', async (t) => {
+    const assignment = updatableAssignment();
+    mockUpdateDeps(t, { assignment, nextType: null, hasGrades: false });
+
+    const response = await invoke(updateAssignment, adminReq({
+        params: { id: 'assignment-1' },
+        body: { summary: '  Reading practice for Friday.  ' }
+    }));
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(assignment.summary, 'Reading practice for Friday.');
     assert.equal(assignment.isGraded, true);
     assert.equal(assignment.maxMarks, 10);
 });

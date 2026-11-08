@@ -37,6 +37,10 @@ import {
     normalizeDraftTypes
 } from '../services/assignmentQuestionAiService.js';
 import { draftLessonSummaryFromText } from '../services/lessonSummaryAiService.js';
+import {
+    draftAssignmentBriefFromText,
+    normalizeBriefSourceUsage
+} from '../services/assignmentBriefAiService.js';
 import googleDriveFileService from '../services/googleDriveFileService.js';
 
 const toId = (value) => (value == null ? '' : String(value));
@@ -159,6 +163,7 @@ const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission
     return {
         id: assignment._id,
         title: assignment.title || '',
+        summary: assignment.summary || '',
         instructions: assignment.instructions || '',
         assignmentType: assignment.assignmentType
             ? {
@@ -916,6 +921,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         assignmentTypeKey: type.key,
         assignmentTypeName: type.name,
         title,
+        summary: String(body.summary || '').trim().slice(0, 500),
         instructions: String(body.instructions || '').trim(),
         assignedDate: parseDate(body.assignedDate, new Date()),
         dueDate,
@@ -1630,6 +1636,9 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.class = classId;
     assignment.subject = subjectId;
     assignment.title = title;
+    assignment.summary = body.summary === undefined
+        ? assignment.summary || ''
+        : String(body.summary || '').trim().slice(0, 500);
     assignment.instructions = body.instructions === undefined
         ? assignment.instructions
         : String(body.instructions || '').trim();
@@ -2008,6 +2017,113 @@ export const draftAssignmentSummary = asyncHandler(async (req, res) => {
         success: true,
         data: {
             title: result.title,
+            instructions: result.instructions,
+            source: {
+                kind: extracted.sourceType,
+                characters: extracted.text.length,
+                truncated: extracted.truncated
+            }
+        }
+    });
+});
+
+/**
+ * Draft an assignment's title, short summary and student instructions from one
+ * ephemeral PDF/photo for any assignment type. The source file is never saved
+ * here; attaching it is a separate, explicit choice in the drawer.
+ */
+export const draftAssignmentBrief = asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const classId = toId(body.classId || body.class);
+    const subjectId = toId(body.subjectId || body.subject);
+    if (!classId || !subjectId) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_CLASS_SUBJECT_REQUIRED',
+            message: 'Choose a class and subject first.'
+        });
+    }
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
+        .select('_id subjects')
+        .lean();
+    if (!classDoc) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_CLASS_INVALID',
+            message: 'Selected class was not found in this school. Refresh the class list and try again.'
+        });
+    }
+    const subjectExistsInClass = (classDoc.subjects || []).some(
+        (entry) => toId(entry.subject) === subjectId
+    );
+    if (!subjectExistsInClass) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_SUBJECT_INVALID',
+            message: 'Selected subject is not assigned to the selected class'
+        });
+    }
+
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
+        if (!authorized) {
+            return res.status(403).json({
+                success: false,
+                code: 'DRAFT_NOT_AUTHORIZED',
+                message: 'You are not authorized for this class and subject'
+            });
+        }
+    }
+
+    const type = await resolveAssignmentType({
+        schoolId: req.schoolId,
+        assignmentTypeId: toId(body.assignmentTypeId || body.assignmentType),
+        assignmentTypeKey: String(body.assignmentTypeKey || '').trim().toLowerCase()
+    });
+    if (!type) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_TYPE_REQUIRED',
+            message: 'Choose an assignment type first.'
+        });
+    }
+
+    if (!req.file) {
+        return res.status(400).json({
+            success: false,
+            code: 'DRAFT_SOURCE_REQUIRED',
+            message: 'Upload a PDF or photo of the source material.'
+        });
+    }
+
+    const usage = { feature: 'assignment_brief_draft' };
+    const extracted = await extractDocumentText({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        usage
+    });
+    const sourceUsage = normalizeBriefSourceUsage(body.sourceUsage);
+    const formContext = toArray(body.formContext).filter(Boolean);
+    const result = await draftAssignmentBriefFromText({
+        sourceText: extracted.text,
+        assignmentTypeKey: type.key,
+        assignmentTypeName: type.name,
+        sourceUsage,
+        formContext,
+        isGraded: type.key !== 'lesson_summary',
+        usage
+    });
+
+    res.json({
+        success: true,
+        data: {
+            title: result.title,
+            summary: result.summary,
             instructions: result.instructions,
             source: {
                 kind: extracted.sourceType,

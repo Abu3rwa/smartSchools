@@ -151,10 +151,15 @@ const assignmentService = {
         return response.data;
     },
 
-    draftSummary: async (file) => {
+    draftBrief: async ({ classId, subjectId, assignmentTypeId, sourceUsage = [], formContext = [], file }) => {
         const formData = new FormData();
+        formData.append('classId', classId);
+        formData.append('subjectId', subjectId);
+        formData.append('assignmentTypeId', assignmentTypeId);
+        formData.append('sourceUsage', JSON.stringify(sourceUsage));
+        formData.append('formContext', JSON.stringify(formContext));
         formData.append('materialFile', file);
-        const response = await api.post('/assignments/ai/draft-summary', formData, {
+        const response = await api.post('/assignments/ai/draft-brief', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         return response.data;

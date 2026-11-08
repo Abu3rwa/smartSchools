@@ -41,6 +41,13 @@
   color: var(--text-primary);
 }
 
+.detail-header .detail-summary {
+  margin: 8px 0 0 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .detail-header .detail-meta {
   margin: 10px 0 0 0;
   color: var(--text-muted);

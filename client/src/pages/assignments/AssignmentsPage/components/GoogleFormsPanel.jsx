@@ -94,7 +94,7 @@ const GoogleFormsPanel = ({ user }) => {
                 ) : status.connected ? (
                     <div className="google-forms-panel__connection">
                         <span>{t('assignments:googleForms.connectedAs', { email: status.email || '' })}</span>
-                        <div className="assignment-csv-import__actions">
+                        <div className="google-forms-panel__actions">
                             <button type="button" className="btn btn-secondary" onClick={connect} disabled={busy}>
                                 {t('assignments:googleForms.reconnect')}
                             </button>

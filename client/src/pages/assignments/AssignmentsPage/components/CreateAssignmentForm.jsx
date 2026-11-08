@@ -1,9 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
+import { useEffect, useRef } from "react";
 import {
-  HiOutlineDownload,
   HiOutlineInformationCircle,
-  HiOutlinePlus,
   HiOutlineUpload,
   HiOutlineX,
 } from "react-icons/hi";
@@ -14,11 +11,12 @@ import AttachmentEditor from "./AttachmentEditor";
 import DriveAttachmentEditor from "./DriveAttachmentEditor";
 import GoogleFormQuestionEditor from "./GoogleFormQuestionEditor";
 import AssignmentQuestionDrafter from "./AssignmentQuestionDrafter";
-import LessonSummaryDrafter from "./LessonSummaryDrafter";
+import AssignmentDraftAssistant from "./AssignmentDraftAssistant";
 import {
-  buildAssignmentCsvTemplate,
-  parseAssignmentCsv,
-} from "../utils/assignmentCsvImport";
+  applyDraftFields,
+  attachFileToForm,
+  detachFileFromForm,
+} from "../utils/assignmentDrafting";
 
 const uniqueById = (items = []) =>
   Array.from(
@@ -51,18 +49,14 @@ const CreateAssignmentForm = ({
   classroom,
   existingClassroomLink,
   googleFormPublished,
-  startWithImport = false,
 }) => {
   const { t } = useTranslation(["assignments"]);
-  const csvInputRef = useRef(null);
   const titleInputRef = useRef(null);
   const bodyRef = useRef(null);
   const googleFormRef = useRef(null);
   const publishingRef = useRef(null);
   const resourcesRef = useRef(null);
   const onCloseRef = useRef(onClose);
-  const [importingCsv, setImportingCsv] = useState(false);
-  const [csvOpen, setCsvOpen] = useState(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -94,10 +88,6 @@ const CreateAssignmentForm = ({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, submitting]);
 
-  useEffect(() => {
-    if (open) setCsvOpen(startWithImport);
-  }, [open, startWithImport]);
-
   if (!open) return null;
 
   const isGoogleForm = Boolean(form.createGoogleForm || googleFormPublished);
@@ -107,66 +97,6 @@ const CreateAssignmentForm = ({
   const isLessonSummary = selectedType?.key === "lesson_summary";
   const classes = uniqueById(availableClasses);
   const subjects = uniqueById(availableSubjects);
-
-  const handleCsvImport = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (!selectedClass || !selectedSubject) {
-      toast.error(t("assignments:import.selectClassSubject"));
-      return;
-    }
-    if (!/\.csv$/i.test(file.name)) {
-      toast.error(t("assignments:import.invalidFile"));
-      return;
-    }
-    if (file.size > 900 * 1024) {
-      toast.error(t("assignments:import.fileTooLarge"));
-      return;
-    }
-
-    setImportingCsv(true);
-    try {
-      const imported = parseAssignmentCsv(await file.text());
-      const importedType = imported.assignmentType
-        ? assignmentTypes.find(
-            (item) =>
-              String(item.id) === imported.assignmentType ||
-              String(item.name || "")
-                .trim()
-                .toLowerCase() === imported.assignmentType.trim().toLowerCase(),
-          )
-        : null;
-      if (imported.assignmentType && !importedType) {
-        throw new Error(t("assignments:import.assignmentTypeNotFound"));
-      }
-      const fields = Object.fromEntries(
-        Object.entries(imported).filter(([key]) => key !== "assignmentType"),
-      );
-      setForm((current) => ({
-        ...current,
-        ...fields,
-        ...(importedType ? { assignmentTypeId: importedType.id } : {}),
-      }));
-      toast.success(t("assignments:import.formLoaded", { name: file.name }));
-    } catch (error) {
-      toast.error(error.message || t("assignments:import.failed"));
-    } finally {
-      setImportingCsv(false);
-    }
-  };
-
-  const downloadTemplate = () => {
-    const blob = new Blob([buildAssignmentCsvTemplate()], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = window.URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "assignment-import-template.csv";
-    anchor.click();
-    window.URL.revokeObjectURL(url);
-  };
 
   const closeIfAllowed = () => {
     if (!submitting) onClose();
@@ -296,57 +226,6 @@ const CreateAssignmentForm = ({
               </p>
             )}
 
-            {!isEditing && (
-              <details
-                className="assignment-csv-import"
-                open={csvOpen}
-                onToggle={(event) => setCsvOpen(event.currentTarget.open)}
-              >
-                <summary>{t("assignments:import.title")}</summary>
-                <div className="assignment-csv-import__content">
-                  <div>
-                    <p>{t("assignments:import.description")}</p>
-                    <p>{t("assignments:import.templateHelp")}</p>
-                  </div>
-                  <div className="assignment-csv-import__actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={downloadTemplate}
-                      disabled={submitting || importingCsv}
-                    >
-                      <HiOutlineDownload />
-                      {t("assignments:import.downloadTemplate")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => csvInputRef.current?.click()}
-                      disabled={
-                        !selectedClass ||
-                        !selectedSubject ||
-                        submitting ||
-                        importingCsv
-                      }
-                    >
-                      <HiOutlineUpload />
-                      {importingCsv
-                        ? t("assignments:import.importing")
-                        : t("assignments:import.chooseFile")}
-                    </button>
-                    <input
-                      ref={csvInputRef}
-                      type="file"
-                      accept=".csv,text/csv"
-                      hidden
-                      aria-label={t("assignments:import.chooseFile")}
-                      onChange={handleCsvImport}
-                    />
-                  </div>
-                </div>
-              </details>
-            )}
-
             <div className="assignments-form-grid">
               <div className="assignments-field">
                 <label>{t("assignments:form.type")}</label>
@@ -385,20 +264,33 @@ const CreateAssignmentForm = ({
                   />
                 </div>
               )}
-              {isLessonSummary && (
-                <div className="assignments-field assignments-form-grid__full">
-                  <LessonSummaryDrafter
-                    disabled={submitting}
-                    onDrafted={({ title, instructions }) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        title,
-                        instructions,
-                      }))
-                    }
-                  />
-                </div>
-              )}
+              <div className="assignments-field assignments-form-grid__full">
+                <AssignmentDraftAssistant
+                  disabled={submitting}
+                  classId={selectedClass}
+                  subjectId={selectedSubject}
+                  assignmentTypeId={form.assignmentTypeId}
+                  isGoogleForm={isGoogleForm}
+                  googleFormPublished={googleFormPublished}
+                  googleFormQuestions={form.googleFormQuestions || []}
+                  hasExistingQuestions={
+                    (form.googleFormQuestions || []).length > 0
+                  }
+                  attachedFiles={form.attachmentFiles || []}
+                  onDrafted={(draft) =>
+                    setForm((prev) => applyDraftFields(prev, draft))
+                  }
+                  onQuestionsDrafted={(googleFormQuestions) =>
+                    setForm((prev) => ({ ...prev, googleFormQuestions }))
+                  }
+                  onAttachFile={(file) =>
+                    setForm((prev) => attachFileToForm(prev, file))
+                  }
+                  onDetachFile={(file) =>
+                    setForm((prev) => detachFileFromForm(prev, file))
+                  }
+                />
+              </div>
               <div className="assignments-field assignments-form-grid__full">
                 <label>{t("assignments:form.title")}</label>
                 <input
@@ -412,6 +304,22 @@ const CreateAssignmentForm = ({
                     }))
                   }
                   placeholder={t("assignments:form.titlePlaceholder")}
+                  disabled={submitting}
+                />
+              </div>
+              <div className="assignments-field assignments-form-grid__full">
+                <label>{t("assignments:form.summary")}</label>
+                <textarea
+                  rows={2}
+                  maxLength={500}
+                  value={form.summary || ""}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      summary: event.target.value,
+                    }))
+                  }
+                  placeholder={t("assignments:form.summaryPlaceholder")}
                   disabled={submitting}
                 />
               </div>

@@ -1,6 +1,23 @@
 import { storage } from '../config/firebase.js';
+import { parseBooleanEnv } from '../config/booleanEnv.js';
 
 let resolvedBucketName = null;
+
+// Defaults to enabled so existing deployments are unchanged. Set
+// FIREBASE_UPLOAD_ENABLED=false to stop all uploads before they reach Google
+// (e.g. when the project's billing account is closed).
+const uploadsEnabled = () =>
+    parseBooleanEnv(process.env.FIREBASE_UPLOAD_ENABLED ?? 'true');
+
+const assertUploadsEnabled = () => {
+    if (uploadsEnabled()) return;
+    const error = new Error(
+        'File uploads are disabled (FIREBASE_UPLOAD_ENABLED=false). Re-enable uploads or restore Firebase billing to attach files.'
+    );
+    error.statusCode = 503;
+    error.code = 'FIREBASE_UPLOAD_DISABLED';
+    throw error;
+};
 
 const unique = (items) => [...new Set(items.filter(Boolean))];
 
@@ -90,6 +107,7 @@ const getStorageBucket = async () => {
  * @returns {Promise<string>} Public URL of the uploaded file
  */
 export const uploadFile = async (fileBuffer, mimetype, destinationPath) => {
+    assertUploadsEnabled();
     const bucket = await getStorageBucket();
     const file = bucket.file(destinationPath);
 
@@ -114,6 +132,7 @@ export const uploadFile = async (fileBuffer, mimetype, destinationPath) => {
  * @returns {Promise<{ fileRef: string, storagePath: string }>} gs:// reference + normalized path
  */
 export const uploadPrivateFile = async (fileBuffer, mimetype, destinationPath) => {
+    assertUploadsEnabled();
     const bucket = await getStorageBucket();
     const file = bucket.file(destinationPath);
 
