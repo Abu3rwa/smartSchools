@@ -1,9 +1,11 @@
 import express from 'express';
 import {
+    approveGoogleFormResponse,
     disconnectGoogleForms,
     getGoogleFormResponses,
     getGoogleFormsAuthUrl,
     getGoogleFormsStatus,
+    gradeGoogleFormResponse,
     syncGoogleFormResponses
 } from '../controllers/googleFormsController.js';
 import { authorize, protect } from '../middleware/auth.js';
@@ -30,6 +32,20 @@ router.post(
     validationRules.mongoId,
     validate,
     syncGoogleFormResponses
+);
+router.post(
+    '/assignments/:id/grade',
+    authorize('teacher', 'admin', 'department_principal'),
+    validationRules.mongoId,
+    validate,
+    gradeGoogleFormResponse
+);
+router.post(
+    '/assignments/:id/approve',
+    authorize('teacher', 'admin', 'department_principal'),
+    validationRules.mongoId,
+    validate,
+    approveGoogleFormResponse
 );
 
 export default router;

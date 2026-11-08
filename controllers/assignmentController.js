@@ -1,332 +1,357 @@
-import Assignment from '../models/Assignment.js';
-import AssignmentType from '../models/AssignmentType.js';
-import GrammarTest from '../models/GrammarTest.js';
-import Class from '../models/Class.js';
-import Grade from '../models/Grade.js';
-import Notification from '../models/Notification.js';
-import Student from '../models/Student.js';
-import Teacher from '../models/Teacher.js';
-import LessonPlan from '../models/LessonPlan.js';
-import notificationService from '../services/notificationService.js';
-import { uploadPrivateFile, getSignedUrl, deleteFile } from '../services/firebaseStorageService.js';
-import { asyncHandler } from '../middleware/errorHandler.js';
-import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
+import Assignment from "../models/Assignment.js";
+import AssignmentType from "../models/AssignmentType.js";
+import { gradeTypeCategoryFromAssignmentKey } from "../utils/assignmentGradeCategory.js";
+import GrammarTest from "../models/GrammarTest.js";
+import Class from "../models/Class.js";
+import Grade from "../models/Grade.js";
+import Notification from "../models/Notification.js";
+import Student from "../models/Student.js";
+import Teacher from "../models/Teacher.js";
+import LessonPlan from "../models/LessonPlan.js";
+import notificationService from "../services/notificationService.js";
+import { getParentLinkedStudents } from "../services/parentDashboardService.js";
 import {
-    getTeacherClassIds,
-    isTeacherAuthorizedForClassSubject,
-    resolveTeacherProfile
-} from '../helpers/teacherScoping.js';
-import { ensureDefaultAssignmentTypes } from './assignmentTypeController.js';
-import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
-import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
-import { generateAssignmentReminder } from '../helpers/assignmentReminderAi.js';
-import logger from '../utils/logger.js';
-import AssignmentClassroomLink from '../models/AssignmentClassroomLink.js';
-import GoogleFormSubmission from '../models/GoogleFormSubmission.js';
-import { syncAssignmentToClassroom } from '../services/classroomPublishService.js';
+  uploadPrivateFile,
+  getSignedUrl,
+  deleteFile,
+} from "../services/firebaseStorageService.js";
+import { asyncHandler } from "../middleware/errorHandler.js";
+import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 import {
-    createGoogleQuiz,
-    validateGoogleFormQuestions
-} from '../services/googleFormsAssignmentService.js';
-import { isGoogleFormsEnabledForSchool } from '../config/googleFormsConfig.js';
-import { extractDocumentText } from '../services/documentTextExtraction.js';
+  getTeacherClassIds,
+  isTeacherAuthorizedForClassSubject,
+  resolveTeacherProfile,
+} from "../helpers/teacherScoping.js";
+import { ensureDefaultAssignmentTypes } from "./assignmentTypeController.js";
+import { validateGradeLessonPlanLinks } from "../helpers/gradeLessonPlanLinks.js";
+import { syncObjectivesForGrade } from "../jobs/academicExcellenceSyncJob.js";
+import { generateAssignmentReminder } from "../helpers/assignmentReminderAi.js";
+import logger from "../utils/logger.js";
+import AssignmentClassroomLink from "../models/AssignmentClassroomLink.js";
+import GoogleFormSubmission from "../models/GoogleFormSubmission.js";
+import { syncAssignmentToClassroom } from "../services/classroomPublishService.js";
 import {
-    clampDraftCount,
-    draftQuestionsFromLessonPlans,
-    draftQuestionsFromText,
-    normalizeDraftTypes
-} from '../services/assignmentQuestionAiService.js';
-import { draftLessonSummaryFromText } from '../services/lessonSummaryAiService.js';
+  createGoogleQuiz,
+  validateGoogleFormQuestions,
+} from "../services/googleFormsAssignmentService.js";
+import { isGoogleFormsEnabledForSchool } from "../config/googleFormsConfig.js";
+import { extractDocumentText } from "../services/documentTextExtraction.js";
 import {
-    draftAssignmentBriefFromText,
-    normalizeBriefSourceUsage
-} from '../services/assignmentBriefAiService.js';
-import googleDriveFileService from '../services/googleDriveFileService.js';
+  clampDraftCount,
+  draftQuestionsFromLessonPlans,
+  draftQuestionsFromText,
+  normalizeDraftTypes,
+} from "../services/assignmentQuestionAiService.js";
+import { draftLessonSummaryFromText } from "../services/lessonSummaryAiService.js";
+import {
+  draftAssignmentBriefFromText,
+  normalizeBriefSourceUsage,
+} from "../services/assignmentBriefAiService.js";
+import googleDriveFileService from "../services/googleDriveFileService.js";
 
-const toId = (value) => (value == null ? '' : String(value));
-const refId = (value) => (value && typeof value === 'object'
+const toId = (value) => (value == null ? "" : String(value));
+const refId = (value) =>
+  value && typeof value === "object"
     ? toId(value._id || value.id)
-    : toId(value));
+    : toId(value);
 const hasGoogleForm = (assignment) =>
-    assignment?.assignmentTypeKey === 'google_form' || Boolean(assignment?.metadata?.googleForm);
+  assignment?.assignmentTypeKey === "google_form" ||
+  Boolean(assignment?.metadata?.googleForm);
 
 /**
  * Best-effort Google Classroom sync. The app-side operation has already succeeded, so this never throws;
  * the outcome is returned for the response and recorded on the link for later retry.
  */
 const runClassroomSync = async (req, assignment, createIfMissing) => {
-    try {
-        const result = await syncAssignmentToClassroom({ assignment, actor: req.user, createIfMissing });
-        if (result.skipped) return undefined;
-        return {
-            ok: Boolean(result.ok),
-            code: result.code,
-            message: result.message,
-            link: result.link
-        };
-    } catch (error) {
-        logger.error('Unexpected Google Classroom sync error', { message: error?.message });
-        return undefined;
-    }
+  try {
+    const result = await syncAssignmentToClassroom({
+      assignment,
+      actor: req.user,
+      createIfMissing,
+    });
+    if (result.skipped) return undefined;
+    return {
+      ok: Boolean(result.ok),
+      code: result.code,
+      message: result.message,
+      link: result.link,
+    };
+  } catch (error) {
+    logger.error("Unexpected Google Classroom sync error", {
+      message: error?.message,
+    });
+    return undefined;
+  }
 };
 
 /** Safely coerce a value that may be a JSON-stringified array (from FormData) into a real array. */
 const toArray = (v, fallback = []) => {
-    if (Array.isArray(v)) return v;
-    if (typeof v === 'string') {
-        try { const parsed = JSON.parse(v); if (Array.isArray(parsed)) return parsed; } catch { /* ignore */ }
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* ignore */
     }
-    return fallback;
+  }
+  return fallback;
 };
 
 const parseBoolean = (value, fallback = false) => {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase();
-        if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
-        if (['false', '0', 'no', 'off'].includes(normalized)) return false;
-    }
-    return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
 };
 
-const NOTIFY_AUDIENCES = new Set(['students', 'parents', 'both']);
+const NOTIFY_AUDIENCES = new Set(["students", "parents", "both"]);
 
-const parseNotifyAudience = (value, fallback = 'both') => {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (NOTIFY_AUDIENCES.has(normalized)) return normalized;
+const parseNotifyAudience = (value, fallback = "both") => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (NOTIFY_AUDIENCES.has(normalized)) return normalized;
 
-    const fallbackNormalized = String(fallback || '').trim().toLowerCase();
-    if (NOTIFY_AUDIENCES.has(fallbackNormalized)) return fallbackNormalized;
+  const fallbackNormalized = String(fallback || "")
+    .trim()
+    .toLowerCase();
+  if (NOTIFY_AUDIENCES.has(fallbackNormalized)) return fallbackNormalized;
 
-    return 'both';
+  return "both";
 };
 
 const parseDate = (value, fallback = null) => {
-    if (value === undefined || value === null || value === '') return fallback;
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return parsed;
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 };
 
 const normalizeScope = (value, studentIds = []) => {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (normalized === 'selected_students' || normalized === 'selected') {
-        return studentIds.length > 0 ? 'selected_students' : 'class';
-    }
-    return 'class';
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "selected_students" || normalized === "selected") {
+    return studentIds.length > 0 ? "selected_students" : "class";
+  }
+  return "class";
 };
 
 const parsePositiveNumber = (value, fallback) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-    return parsed;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
 };
 
-const gradeTypeCategoryFromAssignmentKey = (key = '') => {
-    const normalized = String(key || '').trim().toLowerCase();
-    switch (normalized) {
-        case 'homework':
-            return { gradeType: 'homework', category: 'homework' };
-        case 'classwork':
-            return { gradeType: 'classwork', category: 'classwork' };
-        case 'quiz':
-        case 'google_form':
-            return { gradeType: 'quiz', category: 'quiz' };
-        case 'project':
-            return { gradeType: 'project', category: 'project' };
-        case 'participation':
-            return { gradeType: 'participation', category: 'participation' };
-        case 'test':
-            return { gradeType: 'monthly_test', category: 'test' };
-        case 'exam':
-            return { gradeType: 'semester_exam', category: 'exam' };
-        default:
-            return { gradeType: 'other', category: 'other' };
-    }
-};
+const mapAssignmentSummary = (
+  assignment,
+  { includeAnswerKey = false, submission = null } = {},
+) => {
+  const linkedLessonPlans = Array.isArray(assignment.lessonPlanIds)
+    ? assignment.lessonPlanIds
+        .map((lesson) => {
+          const id = toId(lesson?._id || lesson);
+          if (!id) return null;
+          return {
+            id,
+            title: lesson?.title || "",
+            date: lesson?.date || null,
+          };
+        })
+        .filter(Boolean)
+    : [];
 
-const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission = null } = {}) => {
-    const linkedLessonPlans = Array.isArray(assignment.lessonPlanIds)
-        ? assignment.lessonPlanIds
-            .map((lesson) => {
-                const id = toId(lesson?._id || lesson);
-                if (!id) return null;
-                return {
-                    id,
-                    title: lesson?.title || '',
-                    date: lesson?.date || null
-                };
-            })
-            .filter(Boolean)
-        : [];
-
-    return {
-        id: assignment._id,
-        title: assignment.title || '',
-        summary: assignment.summary || '',
-        instructions: assignment.instructions || '',
-        assignmentType: assignment.assignmentType
-            ? {
-                id: toId(assignment.assignmentType?._id || assignment.assignmentType),
-                key: assignment.assignmentType?.key || assignment.assignmentTypeKey || '',
-                name: assignment.assignmentType?.name || assignment.assignmentTypeName || ''
-            }
-            : {
-                id: '',
-                key: assignment.assignmentTypeKey || '',
-                name: assignment.assignmentTypeName || ''
-            },
-        assignedDate: assignment.assignedDate || null,
-        dueDate: assignment.dueDate || null,
-        status: assignment.status || 'draft',
-        scope: assignment.scope || 'class',
-        studentIds: Array.isArray(assignment.studentIds)
-            ? assignment.studentIds.map((studentId) => toId(studentId))
-            : [],
-        excusedStudentIds: Array.isArray(assignment.excusedStudentIds)
-            ? assignment.excusedStudentIds.map((studentId) => toId(studentId))
-            : [],
-        lessonPlanIds: linkedLessonPlans.map((lesson) => lesson.id),
-        lessonPlans: linkedLessonPlans,
-        links: Array.isArray(assignment.links)
-            ? assignment.links.map((link) => ({
-                _id: toId(link._id),
-                type: link.type || 'external_url',
-                title: link.title || '',
-                url: link.url || '',
-                refId: link.refId ? toId(link.refId) : null,
-                classId: link.classId ? toId(link.classId) : null
-            }))
-            : [],
-        attachments: Array.isArray(assignment.attachments)
-            ? assignment.attachments.map((att) => ({
-                _id: toId(att._id),
-                fileName: att.fileName || '',
-                mimeType: att.mimeType || '',
-                size: att.size || 0,
-                storageKey: att.storageKey || '',
-                url: att.url || ''
-            }))
-            : [],
-        driveAttachments: Array.isArray(assignment.driveAttachments)
-            ? assignment.driveAttachments.map((att) => ({
-                fileId: att.fileId || '',
-                fileName: att.fileName || '',
-                mimeType: att.mimeType || '',
-                size: att.size || 0,
-                webViewLink: att.webViewLink || '',
-                iconLink: att.iconLink || '',
-                uploadedAt: att.uploadedAt || null
-            }))
-            : [],
-        maxMarks: Number(assignment.maxMarks ?? 10),
-        isGraded: assignment.isGraded !== false,
-        allowLateSubmission: assignment.allowLateSubmission === true,
-        notifyOnAssign: assignment.notifyOnAssign !== false,
-        notifyAudience: parseNotifyAudience(assignment.notifyAudience, 'both'),
-        notifyOnGrade: assignment.notifyOnGrade !== false,
-        googleForm: hasGoogleForm(assignment) && assignment.metadata?.googleForm
-            ? {
-                responderUri: assignment.metadata.googleForm.responderUri || '',
-                questions: (assignment.metadata.googleForm.questions || []).map((question) => ({
-                    questionId: question.questionId || '',
-                    itemId: question.itemId || '',
-                    title: question.title || '',
-                    type: question.type,
-                    points: Number(question.points || 0),
-                    ...(includeAnswerKey ? {
-                        options: question.options || [],
-                        correctAnswer: question.correctAnswer || ''
-                    } : {})
-                })),
-                submission: submission
-                    ? { status: submission.status, submittedAt: submission.submittedAt }
-                    : null
-            }
-            : null,
-        publishedAt: assignment.publishedAt || null,
-        createdAt: assignment.createdAt || null,
-        academicYear: assignment.academicYear || '',
-        class: assignment.class
-            ? {
-                id: toId(assignment.class?._id || assignment.class),
-                name: assignment.class?.name || '',
-                grade: assignment.class?.grade ?? null,
-                section: assignment.class?.section || ''
-            }
-            : null,
-        subject: assignment.subject
-            ? {
-                id: toId(assignment.subject?._id || assignment.subject),
-                name: assignment.subject?.name || '',
-                code: assignment.subject?.code || ''
-            }
-            : null
-    };
+  return {
+    id: assignment._id,
+    title: assignment.title || "",
+    summary: assignment.summary || "",
+    instructions: assignment.instructions || "",
+    assignmentType: assignment.assignmentType
+      ? {
+          id: toId(assignment.assignmentType?._id || assignment.assignmentType),
+          key:
+            assignment.assignmentType?.key ||
+            assignment.assignmentTypeKey ||
+            "",
+          name:
+            assignment.assignmentType?.name ||
+            assignment.assignmentTypeName ||
+            "",
+        }
+      : {
+          id: "",
+          key: assignment.assignmentTypeKey || "",
+          name: assignment.assignmentTypeName || "",
+        },
+    assignedDate: assignment.assignedDate || null,
+    dueDate: assignment.dueDate || null,
+    status: assignment.status || "draft",
+    scope: assignment.scope || "class",
+    studentIds: Array.isArray(assignment.studentIds)
+      ? assignment.studentIds.map((studentId) => toId(studentId))
+      : [],
+    excusedStudentIds: Array.isArray(assignment.excusedStudentIds)
+      ? assignment.excusedStudentIds.map((studentId) => toId(studentId))
+      : [],
+    lessonPlanIds: linkedLessonPlans.map((lesson) => lesson.id),
+    lessonPlans: linkedLessonPlans,
+    links: Array.isArray(assignment.links)
+      ? assignment.links.map((link) => ({
+          _id: toId(link._id),
+          type: link.type || "external_url",
+          title: link.title || "",
+          url: link.url || "",
+          refId: link.refId ? toId(link.refId) : null,
+          classId: link.classId ? toId(link.classId) : null,
+        }))
+      : [],
+    attachments: Array.isArray(assignment.attachments)
+      ? assignment.attachments.map((att) => ({
+          _id: toId(att._id),
+          fileName: att.fileName || "",
+          mimeType: att.mimeType || "",
+          size: att.size || 0,
+          storageKey: att.storageKey || "",
+          url: att.url || "",
+        }))
+      : [],
+    driveAttachments: Array.isArray(assignment.driveAttachments)
+      ? assignment.driveAttachments.map((att) => ({
+          fileId: att.fileId || "",
+          fileName: att.fileName || "",
+          mimeType: att.mimeType || "",
+          size: att.size || 0,
+          webViewLink: att.webViewLink || "",
+          iconLink: att.iconLink || "",
+          uploadedAt: att.uploadedAt || null,
+        }))
+      : [],
+    maxMarks: Number(assignment.maxMarks ?? 10),
+    isGraded: assignment.isGraded !== false,
+    allowLateSubmission: assignment.allowLateSubmission === true,
+    notifyOnAssign: assignment.notifyOnAssign !== false,
+    notifyAudience: parseNotifyAudience(assignment.notifyAudience, "both"),
+    notifyOnGrade: assignment.notifyOnGrade !== false,
+    googleForm:
+      hasGoogleForm(assignment) && assignment.metadata?.googleForm
+        ? {
+            responderUri: assignment.metadata.googleForm.responderUri || "",
+            questions: (assignment.metadata.googleForm.questions || []).map(
+              (question) => ({
+                questionId: question.questionId || "",
+                itemId: question.itemId || "",
+                title: question.title || "",
+                type: question.type,
+                points: Number(question.points || 0),
+                ...(includeAnswerKey
+                  ? {
+                      options: question.options || [],
+                      correctAnswer: question.correctAnswer || "",
+                      modelAnswer: question.modelAnswer || "",
+                      rubric: question.rubric || "",
+                    }
+                  : {}),
+              }),
+            ),
+            submission: submission
+              ? {
+                  status: submission.status,
+                  submittedAt: submission.submittedAt,
+                }
+              : null,
+          }
+        : null,
+    publishedAt: assignment.publishedAt || null,
+    createdAt: assignment.createdAt || null,
+    academicYear: assignment.academicYear || "",
+    class: assignment.class
+      ? {
+          id: toId(assignment.class?._id || assignment.class),
+          name: assignment.class?.name || "",
+          grade: assignment.class?.grade ?? null,
+          section: assignment.class?.section || "",
+        }
+      : null,
+    subject: assignment.subject
+      ? {
+          id: toId(assignment.subject?._id || assignment.subject),
+          name: assignment.subject?.name || "",
+          code: assignment.subject?.code || "",
+        }
+      : null,
+  };
 };
 
 const mapGrammarTestSummary = (grammarTest) => ({
-    id: grammarTest._id,
-    title: grammarTest.title || 'Grammar Test',
-    instructions: 'Complete the assigned grammar test in the practice workspace.',
-    assignmentType: {
-        id: '',
-        key: 'grammar_test',
-        name: 'Grammar Test'
-    },
-    assignedDate: grammarTest.questionWorkflow?.publishedAt || grammarTest.createdAt || null,
-    dueDate: grammarTest.practiceConfig?.availability?.endAt || null,
-    status: 'published',
-    scope: Array.isArray(grammarTest.students) && grammarTest.students.length > 0
-        ? 'selected_students'
-        : 'class',
-    studentIds: Array.isArray(grammarTest.students)
-        ? grammarTest.students.map((studentId) => toId(studentId))
-        : [],
-    excusedStudentIds: [],
-    lessonPlanIds: [],
-    lessonPlans: [],
-    links: [],
-    attachments: [],
-    maxMarks: Number(grammarTest.assessmentConfig?.maxMarks || 100),
-    allowLateSubmission: false,
-    notifyOnAssign: grammarTest.notifyStudents !== false,
-    notifyAudience: grammarTest.notifyParents === false ? 'students' : 'both',
-    notifyOnGrade: false,
-    publishedAt: grammarTest.questionWorkflow?.publishedAt || null,
-    academicYear: grammarTest.academicYear || '',
-    isGrammarTest: true,
-    practiceAssignmentId: toId(grammarTest.linkedAssignment),
-    class: grammarTest.class
-        ? {
-            id: toId(grammarTest.class?._id || grammarTest.class),
-            name: grammarTest.class?.name || '',
-            grade: grammarTest.class?.grade ?? null,
-            section: grammarTest.class?.section || ''
-        }
-        : null,
-    subject: grammarTest.subject
-        ? {
-            id: toId(grammarTest.subject?._id || grammarTest.subject),
-            name: grammarTest.subject?.name || '',
-            code: grammarTest.subject?.code || ''
-        }
-        : null
+  id: grammarTest._id,
+  title: grammarTest.title || "Grammar Test",
+  instructions: "Complete the assigned grammar test in the practice workspace.",
+  assignmentType: {
+    id: "",
+    key: "grammar_test",
+    name: "Grammar Test",
+  },
+  assignedDate:
+    grammarTest.questionWorkflow?.publishedAt || grammarTest.createdAt || null,
+  dueDate: grammarTest.practiceConfig?.availability?.endAt || null,
+  status: "published",
+  scope:
+    Array.isArray(grammarTest.students) && grammarTest.students.length > 0
+      ? "selected_students"
+      : "class",
+  studentIds: Array.isArray(grammarTest.students)
+    ? grammarTest.students.map((studentId) => toId(studentId))
+    : [],
+  excusedStudentIds: [],
+  lessonPlanIds: [],
+  lessonPlans: [],
+  links: [],
+  attachments: [],
+  maxMarks: Number(grammarTest.assessmentConfig?.maxMarks || 100),
+  allowLateSubmission: false,
+  notifyOnAssign: grammarTest.notifyStudents !== false,
+  notifyAudience: grammarTest.notifyParents === false ? "students" : "both",
+  notifyOnGrade: false,
+  publishedAt: grammarTest.questionWorkflow?.publishedAt || null,
+  academicYear: grammarTest.academicYear || "",
+  isGrammarTest: true,
+  practiceAssignmentId: toId(grammarTest.linkedAssignment),
+  class: grammarTest.class
+    ? {
+        id: toId(grammarTest.class?._id || grammarTest.class),
+        name: grammarTest.class?.name || "",
+        grade: grammarTest.class?.grade ?? null,
+        section: grammarTest.class?.section || "",
+      }
+    : null,
+  subject: grammarTest.subject
+    ? {
+        id: toId(grammarTest.subject?._id || grammarTest.subject),
+        name: grammarTest.subject?.name || "",
+        code: grammarTest.subject?.code || "",
+      }
+    : null,
 });
 
 const resolveTargetStudentsForAssignment = async (assignment) => {
-    const query = {
-        school: assignment.school,
-        currentClass: assignment.class,
-        status: 'active'
-    };
-    if (assignment.scope === 'selected_students') {
-        const ids = Array.isArray(assignment.studentIds) ? assignment.studentIds : [];
-        query._id = { $in: ids };
-    }
-    return Student.find(query)
-        .select('_id firstName lastName studentId parentInfo email')
-        .lean({ virtuals: true });
+  const query = {
+    school: assignment.school,
+    currentClass: assignment.class,
+    status: "active",
+  };
+  if (assignment.scope === "selected_students") {
+    const ids = Array.isArray(assignment.studentIds)
+      ? assignment.studentIds
+      : [];
+    query._id = { $in: ids };
+  }
+  return Student.find(query)
+    .select("_id firstName lastName studentId parentInfo email")
+    .lean({ virtuals: true });
 };
 
 /**
@@ -335,920 +360,1355 @@ const resolveTargetStudentsForAssignment = async (assignment) => {
  * the assignment was scoped that way), so counts stay accurate as students
  * leave the class.
  */
-export const buildAssignmentProgressMap = async ({ schoolId, assignments = [] }) => {
-    const progressById = new Map();
-    if (!Array.isArray(assignments) || assignments.length === 0) return progressById;
-
-    const classIds = [...new Set(
-        assignments.map((assignment) => refId(assignment.class)).filter(Boolean)
-    )];
-    const assignmentIds = assignments.map((assignment) => assignment._id);
-
-    const [studentRows, gradeRows] = await Promise.all([
-        Student.find({
-            school: schoolId,
-            currentClass: { $in: classIds },
-            status: 'active'
-        }).select('_id currentClass').lean(),
-        Grade.find({
-            school: schoolId,
-            assignment: { $in: assignmentIds }
-        }).select('assignment student').lean()
-    ]);
-
-    const activeByClass = new Map();
-    for (const student of studentRows) {
-        const classId = refId(student.currentClass);
-        if (!activeByClass.has(classId)) activeByClass.set(classId, new Set());
-        activeByClass.get(classId).add(refId(student._id));
-    }
-
-    const gradedByAssignment = new Map();
-    for (const grade of gradeRows) {
-        const assignmentId = refId(grade.assignment);
-        if (!gradedByAssignment.has(assignmentId)) gradedByAssignment.set(assignmentId, new Set());
-        gradedByAssignment.get(assignmentId).add(refId(grade.student));
-    }
-
-    for (const assignment of assignments) {
-        const assignmentId = refId(assignment._id);
-        const activeStudentIds = activeByClass.get(refId(assignment.class)) || new Set();
-
-        let targetStudentIds = activeStudentIds;
-        if (assignment.scope === 'selected_students') {
-            const selectedIds = new Set(
-                (Array.isArray(assignment.studentIds) ? assignment.studentIds : []).map(refId)
-            );
-            targetStudentIds = new Set(
-                [...activeStudentIds].filter((studentId) => selectedIds.has(studentId))
-            );
-        }
-
-        const gradedIds = gradedByAssignment.get(assignmentId) || new Set();
-        // Excuses only remove a student from the denominator while they have no grade:
-        // a grade created elsewhere (e.g. Google Form sync) keeps them counted.
-        const excusedIds = new Set(
-            (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : [])
-                .map(refId)
-                .filter((studentId) => studentId && !gradedIds.has(studentId))
-        );
-        if (excusedIds.size > 0) {
-            targetStudentIds = new Set(
-                [...targetStudentIds].filter((studentId) => !excusedIds.has(studentId))
-            );
-        }
-
-        const gradedCount = [...targetStudentIds]
-            .filter((studentId) => gradedIds.has(studentId)).length;
-        const studentCount = targetStudentIds.size;
-
-        progressById.set(assignmentId, {
-            studentCount,
-            gradedCount,
-            percent: studentCount > 0 ? Math.round((gradedCount / studentCount) * 100) : 0
-        });
-    }
-
+export const buildAssignmentProgressMap = async ({
+  schoolId,
+  assignments = [],
+}) => {
+  const progressById = new Map();
+  if (!Array.isArray(assignments) || assignments.length === 0)
     return progressById;
+
+  const classIds = [
+    ...new Set(
+      assignments.map((assignment) => refId(assignment.class)).filter(Boolean),
+    ),
+  ];
+  const assignmentIds = assignments.map((assignment) => assignment._id);
+
+  const [studentRows, gradeRows] = await Promise.all([
+    Student.find({
+      school: schoolId,
+      currentClass: { $in: classIds },
+      status: "active",
+    })
+      .select("_id currentClass")
+      .lean(),
+    Grade.find({
+      school: schoolId,
+      assignment: { $in: assignmentIds },
+    })
+      .select("assignment student")
+      .lean(),
+  ]);
+
+  const activeByClass = new Map();
+  for (const student of studentRows) {
+    const classId = refId(student.currentClass);
+    if (!activeByClass.has(classId)) activeByClass.set(classId, new Set());
+    activeByClass.get(classId).add(refId(student._id));
+  }
+
+  const gradedByAssignment = new Map();
+  for (const grade of gradeRows) {
+    const assignmentId = refId(grade.assignment);
+    if (!gradedByAssignment.has(assignmentId))
+      gradedByAssignment.set(assignmentId, new Set());
+    gradedByAssignment.get(assignmentId).add(refId(grade.student));
+  }
+
+  for (const assignment of assignments) {
+    const assignmentId = refId(assignment._id);
+    const activeStudentIds =
+      activeByClass.get(refId(assignment.class)) || new Set();
+
+    let targetStudentIds = activeStudentIds;
+    if (assignment.scope === "selected_students") {
+      const selectedIds = new Set(
+        (Array.isArray(assignment.studentIds) ? assignment.studentIds : []).map(
+          refId,
+        ),
+      );
+      targetStudentIds = new Set(
+        [...activeStudentIds].filter((studentId) => selectedIds.has(studentId)),
+      );
+    }
+
+    const gradedIds = gradedByAssignment.get(assignmentId) || new Set();
+    // Excuses only remove a student from the denominator while they have no grade:
+    // a grade created elsewhere (e.g. Google Form sync) keeps them counted.
+    const excusedIds = new Set(
+      (Array.isArray(assignment.excusedStudentIds)
+        ? assignment.excusedStudentIds
+        : []
+      )
+        .map(refId)
+        .filter((studentId) => studentId && !gradedIds.has(studentId)),
+    );
+    if (excusedIds.size > 0) {
+      targetStudentIds = new Set(
+        [...targetStudentIds].filter((studentId) => !excusedIds.has(studentId)),
+      );
+    }
+
+    const gradedCount = [...targetStudentIds].filter((studentId) =>
+      gradedIds.has(studentId),
+    ).length;
+    const studentCount = targetStudentIds.size;
+
+    progressById.set(assignmentId, {
+      studentCount,
+      gradedCount,
+      percent:
+        studentCount > 0 ? Math.round((gradedCount / studentCount) * 100) : 0,
+    });
+  }
+
+  return progressById;
 };
 
 const verifyTeacherCanAccessAssignment = async (req, assignment) => {
-    if (req.user.role !== 'teacher') return true;
-    const teacher = await resolveTeacherProfile(req);
-    if (!teacher) return false;
+  if (req.user.role !== "teacher") return true;
+  const teacher = await resolveTeacherProfile(req);
+  if (!teacher) return false;
 
-    if (toId(assignment.teacher) === toId(teacher._id)) return true;
-    return isTeacherAuthorizedForClassSubject(
-        teacher._id,
-        toId(assignment.class),
-        toId(assignment.subject)
-    );
+  if (toId(assignment.teacher) === toId(teacher._id)) return true;
+  return isTeacherAuthorizedForClassSubject(
+    teacher._id,
+    toId(assignment.class),
+    toId(assignment.subject),
+  );
 };
 
-const resolveAssignmentType = async ({ schoolId, assignmentTypeId, assignmentTypeKey }) => {
-    if (assignmentTypeId) {
-        return AssignmentType.findOne({
-            _id: assignmentTypeId,
-            school: schoolId,
-            isActive: true
-        });
-    }
-    if (assignmentTypeKey) {
-        return AssignmentType.findOne({
-            school: schoolId,
-            key: String(assignmentTypeKey).trim().toLowerCase(),
-            isActive: true
-        });
-    }
-    return null;
+const resolveAssignmentType = async ({
+  schoolId,
+  assignmentTypeId,
+  assignmentTypeKey,
+}) => {
+  if (assignmentTypeId) {
+    return AssignmentType.findOne({
+      _id: assignmentTypeId,
+      school: schoolId,
+      isActive: true,
+    });
+  }
+  if (assignmentTypeKey) {
+    return AssignmentType.findOne({
+      school: schoolId,
+      key: String(assignmentTypeKey).trim().toLowerCase(),
+      isActive: true,
+    });
+  }
+  return null;
 };
 
-const sendAssignPostedNotifications = async ({ assignment, students, createdBy, audience = 'both' }) => {
-    if (!Array.isArray(students) || students.length === 0) return;
+const sendAssignPostedNotifications = async ({
+  assignment,
+  students,
+  createdBy,
+  audience = "both",
+}) => {
+  if (!Array.isArray(students) || students.length === 0) return;
 
-    const resolvedAudience = parseNotifyAudience(audience, parseNotifyAudience(assignment?.notifyAudience, 'both'));
-    const sendToParents = resolvedAudience === 'parents' || resolvedAudience === 'both';
-    const sendToStudents = resolvedAudience === 'students' || resolvedAudience === 'both';
-    if (!sendToParents && !sendToStudents) return;
+  const resolvedAudience = parseNotifyAudience(
+    audience,
+    parseNotifyAudience(assignment?.notifyAudience, "both"),
+  );
+  const sendToParents =
+    resolvedAudience === "parents" || resolvedAudience === "both";
+  const sendToStudents =
+    resolvedAudience === "students" || resolvedAudience === "both";
+  if (!sendToParents && !sendToStudents) return;
 
-    await Promise.allSettled(
-        students.flatMap((student) => {
-            const notifications = [];
-            if (sendToParents) {
-                notifications.push(
-                    notificationService.sendAssignmentPostedNotification({
-                        studentId: student._id,
-                        assignment,
-                        createdBy
-                    })
-                );
-            }
-            if (sendToStudents) {
-                notifications.push(
-                    notificationService.sendStudentAssignmentPostedNotification({
-                        studentId: student._id,
-                        assignment,
-                        createdBy
-                    })
-                );
-            }
-            return notifications;
-        })
-    );
+  await Promise.allSettled(
+    students.flatMap((student) => {
+      const notifications = [];
+      if (sendToParents) {
+        notifications.push(
+          notificationService.sendAssignmentPostedNotification({
+            studentId: student._id,
+            assignment,
+            createdBy,
+          }),
+        );
+      }
+      if (sendToStudents) {
+        notifications.push(
+          notificationService.sendStudentAssignmentPostedNotification({
+            studentId: student._id,
+            assignment,
+            createdBy,
+          }),
+        );
+      }
+      return notifications;
+    }),
+  );
 };
 
 const HTTP_URL_RE = /^https?:\/\/.+/i;
 
 const validateLinks = (rawLinks) => {
-    if (!Array.isArray(rawLinks) || rawLinks.length === 0) return [];
-    const MAX_LINKS = 10;
-    const validTypes = new Set(['external_url', 'assessment', 'practice_objective']);
-    const validated = [];
-    for (const link of rawLinks.slice(0, MAX_LINKS)) {
-        const type = String(link?.type || '').trim().toLowerCase();
-        if (!validTypes.has(type)) continue;
-        const title = String(link?.title || '').trim().slice(0, 200);
-        if (type === 'external_url') {
-            const url = String(link?.url || '').trim();
-            if (!HTTP_URL_RE.test(url)) continue;
-            validated.push({ type, title, url, refId: null, classId: null });
-        } else {
-            const refId = toId(link?.refId);
-            if (!refId) continue;
-            validated.push({
-                type,
-                title,
-                url: '',
-                refId,
-                classId: link?.classId ? toId(link.classId) : null
-            });
-        }
+  if (!Array.isArray(rawLinks) || rawLinks.length === 0) return [];
+  const MAX_LINKS = 10;
+  const validTypes = new Set([
+    "external_url",
+    "assessment",
+    "practice_objective",
+  ]);
+  const validated = [];
+  for (const link of rawLinks.slice(0, MAX_LINKS)) {
+    const type = String(link?.type || "")
+      .trim()
+      .toLowerCase();
+    if (!validTypes.has(type)) continue;
+    const title = String(link?.title || "")
+      .trim()
+      .slice(0, 200);
+    if (type === "external_url") {
+      const url = String(link?.url || "").trim();
+      if (!HTTP_URL_RE.test(url)) continue;
+      validated.push({ type, title, url, refId: null, classId: null });
+    } else {
+      const refId = toId(link?.refId);
+      if (!refId) continue;
+      validated.push({
+        type,
+        title,
+        url: "",
+        refId,
+        classId: link?.classId ? toId(link.classId) : null,
+      });
     }
-    return validated;
+  }
+  return validated;
 };
 
 const uploadAttachmentFiles = async (files, schoolId, assignmentId) => {
-    if (!Array.isArray(files) || files.length === 0) return [];
-    const results = [];
-    for (const file of files) {
-        const ext = file.originalname ? file.originalname.split('.').pop() : 'bin';
-        const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const destinationPath = `schools/${schoolId}/assignments/${assignmentId}/${safeName}`;
-        const { fileRef } = await uploadPrivateFile(file.buffer, file.mimetype, destinationPath);
-        results.push({
-            fileName: file.originalname || safeName,
-            mimeType: file.mimetype || 'application/octet-stream',
-            size: file.size || file.buffer.length,
-            storageKey: fileRef,
-            url: ''
-        });
-    }
-    return results;
+  if (!Array.isArray(files) || files.length === 0) return [];
+  const results = [];
+  for (const file of files) {
+    const ext = file.originalname ? file.originalname.split(".").pop() : "bin";
+    const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const destinationPath = `schools/${schoolId}/assignments/${assignmentId}/${safeName}`;
+    const { fileRef } = await uploadPrivateFile(
+      file.buffer,
+      file.mimetype,
+      destinationPath,
+    );
+    results.push({
+      fileName: file.originalname || safeName,
+      mimeType: file.mimetype || "application/octet-stream",
+      size: file.size || file.buffer.length,
+      storageKey: fileRef,
+      url: "",
+    });
+  }
+  return results;
 };
 
 const deleteAttachmentFiles = async (attachments) => {
-    if (!Array.isArray(attachments) || attachments.length === 0) return;
-    await Promise.allSettled(
-        attachments.map((att) => deleteFile(att.storageKey || att.url))
-    );
+  if (!Array.isArray(attachments) || attachments.length === 0) return;
+  await Promise.allSettled(
+    attachments.map((att) => deleteFile(att.storageKey || att.url)),
+  );
 };
 
-const sendAssignGradedNotifications = async ({ assignment, gradedRows, createdBy }) => {
-    if (!Array.isArray(gradedRows) || gradedRows.length === 0) return;
+const sendAssignGradedNotifications = async ({
+  assignment,
+  gradedRows,
+  createdBy,
+}) => {
+  if (!Array.isArray(gradedRows) || gradedRows.length === 0) return;
 
-    // Deduplicate by studentId — keep only the last entry per student
-    const uniqueByStudent = new Map();
-    for (const row of gradedRows) {
-        const sid = toId(row.studentId);
-        if (sid) uniqueByStudent.set(sid, row);
-    }
-    const deduplicatedRows = [...uniqueByStudent.values()];
+  // Deduplicate by studentId — keep only the last entry per student
+  const uniqueByStudent = new Map();
+  for (const row of gradedRows) {
+    const sid = toId(row.studentId);
+    if (sid) uniqueByStudent.set(sid, row);
+  }
+  const deduplicatedRows = [...uniqueByStudent.values()];
 
-    // Skip students who already received a graded notification for this assignment
-    // within the last 2 minutes (guards against rapid double-submissions)
-    const recentCutoff = new Date(Date.now() - 2 * 60 * 1000);
-    const recentNotifications = await Notification.find({
-        type: 'assignment_graded',
-        'metadata.assignmentId': String(assignment._id),
-        student: { $in: deduplicatedRows.map((r) => r.studentId) },
-        createdAt: { $gte: recentCutoff }
-    }).select('student').lean();
-    const recentlyNotifiedStudents = new Set(
-        recentNotifications.map((n) => toId(n.student))
-    );
+  // Skip students who already received a graded notification for this assignment
+  // within the last 2 minutes (guards against rapid double-submissions)
+  const recentCutoff = new Date(Date.now() - 2 * 60 * 1000);
+  const recentNotifications = await Notification.find({
+    type: "assignment_graded",
+    "metadata.assignmentId": String(assignment._id),
+    student: { $in: deduplicatedRows.map((r) => r.studentId) },
+    createdAt: { $gte: recentCutoff },
+  })
+    .select("student")
+    .lean();
+  const recentlyNotifiedStudents = new Set(
+    recentNotifications.map((n) => toId(n.student)),
+  );
 
-    const rowsToNotify = deduplicatedRows.filter(
-        (row) => !recentlyNotifiedStudents.has(toId(row.studentId))
-    );
-    if (rowsToNotify.length === 0) return;
+  const rowsToNotify = deduplicatedRows.filter(
+    (row) => !recentlyNotifiedStudents.has(toId(row.studentId)),
+  );
+  if (rowsToNotify.length === 0) return;
 
-    await Promise.allSettled(
-        rowsToNotify.flatMap((row) => [
-            notificationService.sendAssignmentGradedNotification({
-                studentId: row.studentId,
-                assignment,
-                grade: row.grade,
-                createdBy
-            }),
-            notificationService.sendStudentAssignmentGradedNotification({
-                studentId: row.studentId,
-                assignment,
-                grade: row.grade,
-                createdBy
-            }),
-        ])
-    );
+  await Promise.allSettled(
+    rowsToNotify.flatMap((row) => [
+      notificationService.sendAssignmentGradedNotification({
+        studentId: row.studentId,
+        assignment,
+        grade: row.grade,
+        createdBy,
+      }),
+      notificationService.sendStudentAssignmentGradedNotification({
+        studentId: row.studentId,
+        assignment,
+        grade: row.grade,
+        createdBy,
+      }),
+    ]),
+  );
 };
 
 export const getAssignments = asyncHandler(async (req, res) => {
-    await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+  await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
 
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const allowYearOverride = req.user.role === 'admin' || req.user.role === 'super_admin';
-    const academicYear = resolveAcademicYearForRequest(req, req.query.academicYear, {
-        allowOverride: allowYearOverride
-    });
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const allowYearOverride =
+    req.user.role === "admin" || req.user.role === "super_admin";
+  const academicYear = resolveAcademicYearForRequest(
+    req,
+    req.query.academicYear,
+    {
+      allowOverride: allowYearOverride,
+    },
+  );
 
-    const query = {
-        school: req.schoolId,
-        academicYear
-    };
+  const query = {
+    school: req.schoolId,
+    academicYear,
+  };
 
-    const classId = toId(req.query.classId || req.query.class);
-    const subjectId = toId(req.query.subjectId || req.query.subject);
-    const status = String(req.query.status || '').trim().toLowerCase();
-    const assignmentTypeKey = String(req.query.assignmentTypeKey || req.query.type || '').trim().toLowerCase();
+  const classId = toId(req.query.classId || req.query.class);
+  const subjectId = toId(req.query.subjectId || req.query.subject);
+  const status = String(req.query.status || "")
+    .trim()
+    .toLowerCase();
+  const assignmentTypeKey = String(
+    req.query.assignmentTypeKey || req.query.type || "",
+  )
+    .trim()
+    .toLowerCase();
 
-    if (classId) query.class = classId;
-    if (subjectId) query.subject = subjectId;
-    if (status && ['draft', 'published', 'closed', 'archived'].includes(status)) query.status = status;
-    if (assignmentTypeKey) query.assignmentTypeKey = assignmentTypeKey;
+  if (classId) query.class = classId;
+  if (subjectId) query.subject = subjectId;
+  if (status && ["draft", "published", "closed", "archived"].includes(status))
+    query.status = status;
+  if (assignmentTypeKey) query.assignmentTypeKey = assignmentTypeKey;
 
-    if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) {
-            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-        }
-        const allowedClassIds = await getTeacherClassIds(teacher._id);
-        const allowedSet = new Set(allowedClassIds.map((id) => toId(id)));
-        if (classId && !allowedSet.has(classId)) {
-            return res.json({
-                success: true,
-                data: { items: [], pagination: { page, limit, total: 0, totalPages: 0 } }
-            });
-        }
-        if (!classId) query.class = { $in: [...allowedSet] };
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Teacher profile not found" });
     }
-
-    const [rows, total] = await Promise.all([
-        Assignment.find(query)
-            .populate('assignmentType', 'key name')
-            .populate('class', 'name grade section')
-            .populate('subject', 'name code')
-            .populate('lessonPlanIds', 'title date')
-            .sort({ assignedDate: -1, createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .lean(),
-        Assignment.countDocuments(query)
-    ]);
-
-    const progressById = await buildAssignmentProgressMap({
-        schoolId: req.schoolId,
-        assignments: rows
-    });
-
-    res.json({
+    const allowedClassIds = await getTeacherClassIds(teacher._id);
+    const allowedSet = new Set(allowedClassIds.map((id) => toId(id)));
+    if (classId && !allowedSet.has(classId)) {
+      return res.json({
         success: true,
         data: {
-            items: rows.map((row) => {
-                const summary = mapAssignmentSummary(row, { includeAnswerKey: true });
-                return {
-                    ...summary,
-                    progress: progressById.get(toId(row._id)) || {
-                        studentCount: 0,
-                        gradedCount: 0,
-                        percent: 0
-                    }
-                };
-            }),
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit)
-            }
-        }
-    });
+          items: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+        },
+      });
+    }
+    if (!classId) query.class = { $in: [...allowedSet] };
+  }
+
+  const [rows, total] = await Promise.all([
+    Assignment.find(query)
+      .populate("assignmentType", "key name")
+      .populate("class", "name grade section")
+      .populate("subject", "name code")
+      .populate("lessonPlanIds", "title date")
+      .sort({ assignedDate: -1, createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Assignment.countDocuments(query),
+  ]);
+
+  const progressById = await buildAssignmentProgressMap({
+    schoolId: req.schoolId,
+    assignments: rows,
+  });
+
+  res.json({
+    success: true,
+    data: {
+      items: rows.map((row) => {
+        const summary = mapAssignmentSummary(row, { includeAnswerKey: true });
+        return {
+          ...summary,
+          progress: progressById.get(toId(row._id)) || {
+            studentCount: 0,
+            gradedCount: 0,
+            percent: 0,
+          },
+        };
+      }),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    },
+  });
 });
 
 export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
-    const academicYear = resolveAcademicYearForRequest(req);
-    const student = await Student.findOne({
-        user: req.user._id,
-        school: req.schoolId,
-        academicYear,
-        status: 'active'
-    }).select('_id currentClass academicYear');
+  const academicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+    academicYear,
+    status: "active",
+  }).select("_id currentClass academicYear");
 
-    if (!student) {
-        return res.status(404).json({ success: false, message: 'Student profile not found' });
-    }
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Student profile not found" });
+  }
 
-    const classId = toId(student.currentClass);
-    if (!classId) {
-        return res.json({ success: true, data: { items: [] } });
-    }
+  const classId = toId(student.currentClass);
+  if (!classId) {
+    return res.json({ success: true, data: { items: [] } });
+  }
 
-    const now = new Date();
-    const [rows, grammarTests] = await Promise.all([
-        Assignment.find({
-        school: req.schoolId,
-        academicYear,
-        class: classId,
-        status: { $ne: 'archived' },
-        $or: [
-            { scope: 'class' },
-            { scope: 'selected_students', studentIds: student._id },
-            { studentIds: student._id }
-        ]
+  const now = new Date();
+  const [rows, grammarTests] = await Promise.all([
+    Assignment.find({
+      school: req.schoolId,
+      academicYear,
+      class: classId,
+      status: { $ne: "archived" },
+      $or: [
+        { scope: "class" },
+        { scope: "selected_students", studentIds: student._id },
+        { studentIds: student._id },
+      ],
     })
-        .populate('assignmentType', 'key name')
-        .populate('class', 'name grade section')
-        .populate('subject', 'name code')
-        .populate('lessonPlanIds', 'title date')
-        .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
-        .lean(),
-        GrammarTest.find({
-            school: req.schoolId,
-            academicYear,
-            class: classId,
-            isActive: true,
-            isEnabled: true,
-            'questionWorkflow.status': 'published',
-            linkedAssignment: { $ne: null },
-            $and: [
-                {
-                    $or: [
-                        { students: { $size: 0 } },
-                        { students: { $exists: false } },
-                        { students: student._id }
-                    ]
-                },
-                {
-                    $or: [
-                        { 'practiceConfig.availability.startAt': null },
-                        { 'practiceConfig.availability.startAt': { $lte: now } }
-                    ]
-                },
-                {
-                    $or: [
-                        { 'practiceConfig.availability.endAt': null },
-                        { 'practiceConfig.availability.endAt': { $gte: now } }
-                    ]
-                }
-            ]
+      .populate("assignmentType", "key name")
+      .populate("class", "name grade section")
+      .populate("subject", "name code")
+      .populate("lessonPlanIds", "title date")
+      .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
+      .lean(),
+    GrammarTest.find({
+      school: req.schoolId,
+      academicYear,
+      class: classId,
+      isActive: true,
+      isEnabled: true,
+      "questionWorkflow.status": "published",
+      linkedAssignment: { $ne: null },
+      $and: [
+        {
+          $or: [
+            { students: { $size: 0 } },
+            { students: { $exists: false } },
+            { students: student._id },
+          ],
+        },
+        {
+          $or: [
+            { "practiceConfig.availability.startAt": null },
+            { "practiceConfig.availability.startAt": { $lte: now } },
+          ],
+        },
+        {
+          $or: [
+            { "practiceConfig.availability.endAt": null },
+            { "practiceConfig.availability.endAt": { $gte: now } },
+          ],
+        },
+      ],
+    })
+      .populate("class", "name grade section")
+      .populate("subject", "name code")
+      .sort({ "practiceConfig.availability.endAt": 1, createdAt: -1 })
+      .lean(),
+  ]);
+  const googleFormAssignmentIds = rows
+    .filter(hasGoogleForm)
+    .map((row) => row._id);
+  const googleFormSubmissions =
+    googleFormAssignmentIds.length > 0
+      ? await GoogleFormSubmission.find({
+          school: req.schoolId,
+          student: student._id,
+          assignment: { $in: googleFormAssignmentIds },
         })
-            .populate('class', 'name grade section')
-            .populate('subject', 'name code')
-            .sort({ 'practiceConfig.availability.endAt': 1, createdAt: -1 })
-            .lean()
-    ]);
-    const googleFormAssignmentIds = rows
-        .filter(hasGoogleForm)
-        .map((row) => row._id);
-    const googleFormSubmissions = googleFormAssignmentIds.length > 0
-        ? await GoogleFormSubmission.find({
-            school: req.schoolId,
-            student: student._id,
-            assignment: { $in: googleFormAssignmentIds }
-        }).select('assignment status submittedAt').lean()
-        : [];
-    const submissionByAssignment = new Map(
-        googleFormSubmissions.map((submission) => [toId(submission.assignment), submission])
-    );
+          .select("assignment status submittedAt")
+          .lean()
+      : [];
+  const submissionByAssignment = new Map(
+    googleFormSubmissions.map((submission) => [
+      toId(submission.assignment),
+      submission,
+    ]),
+  );
 
-    res.json({
-        success: true,
-        data: {
-            items: [
-                ...rows.map((row) => mapAssignmentSummary(row, {
-                    submission: submissionByAssignment.get(toId(row._id)) || null
-                })),
-                ...grammarTests.map(mapGrammarTestSummary)
-            ]
-        }
-    });
+  res.json({
+    success: true,
+    data: {
+      items: [
+        ...rows.map((row) =>
+          mapAssignmentSummary(row, {
+            submission: submissionByAssignment.get(toId(row._id)) || null,
+          }),
+        ),
+        ...grammarTests.map(mapGrammarTestSummary),
+      ],
+    },
+  });
 });
 
-export const createAssignment = asyncHandler(async (req, res) => {
-    await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+const assignmentClassIdOf = (assignment) =>
+  toId(assignment?.class?._id || assignment?.class);
 
-    const body = req.body || {};
-    const classId = toId(body.classId || body.class);
-    const subjectId = toId(body.subjectId || body.subject);
-    const assignmentTypeId = toId(body.assignmentTypeId || body.assignmentType);
-    const assignmentTypeKey = String(body.assignmentTypeKey || '').trim().toLowerCase();
-    const title = String(body.title || '').trim();
-    const dueDate = parseDate(body.dueDate, null);
-    if (!classId || !subjectId || !title || (!assignmentTypeId && !assignmentTypeKey)) {
-        return res.status(400).json({
-            success: false,
-            message: 'classId, subjectId, assignmentTypeId/assignmentTypeKey, and title are required'
-        });
-    }
-    if (body.dueDate !== undefined && body.dueDate !== null && !dueDate) {
-        return res.status(400).json({ success: false, message: 'Invalid dueDate' });
-    }
+const isStudentTargetedByAssignment = (student, assignment) => {
+  const studentId = toId(student?._id);
+  if (!studentId) return false;
 
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
-    if (!classDoc) {
-        return res.status(400).json({
-            success: false,
-            message: 'Selected class was not found in this school. Refresh the class list and try again.'
-        });
-    }
-    const academicYear = classDoc.academicYear;
-    const subjectExistsInClass = (classDoc.subjects || []).some(
-        (entry) => toId(entry.subject) === subjectId
+  const explicitlyListed = (assignment?.studentIds || []).some(
+    (id) => toId(id) === studentId,
+  );
+  if (explicitlyListed) return true;
+  if ((assignment?.scope || "class") !== "class") return false;
+
+  const studentClassId = toId(
+    student?.currentClass?._id || student?.currentClass,
+  );
+  return Boolean(studentClassId) && studentClassId === assignmentClassIdOf(assignment);
+};
+
+// One detail card shared by the student portal and the emailed parent link.
+export const getAssignmentDetail = asyncHandler(async (req, res) => {
+  const assignment = await Assignment.findOne({
+    _id: toId(req.params.id),
+    school: req.schoolId,
+  })
+    .populate("assignmentType", "key name")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("teacher", "firstName lastName")
+    .populate("lessonPlanIds", "title date")
+    .lean();
+
+  if (!assignment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+
+  const isParent = req.user.role === "parent";
+  let students = [];
+
+  if (isParent) {
+    const linked = await getParentLinkedStudents({
+      schoolId: req.schoolId,
+      parentUser: req.user,
+      academicYear: assignment.academicYear,
+    });
+    students = linked.filter((student) =>
+      isStudentTargetedByAssignment(student, assignment),
     );
-    if (!subjectExistsInClass) {
-        return res.status(400).json({
-            success: false,
-            message: 'Selected subject is not assigned to the selected class'
-        });
+    if (students.length === 0) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized to view this assignment" });
     }
+  } else {
+    const student = await Student.findOne({
+      user: req.user._id,
+      school: req.schoolId,
+      academicYear: assignment.academicYear,
+      status: "active",
+    })
+      .select("_id firstName lastName currentClass")
+      .lean();
 
-    const type = await resolveAssignmentType({
-        schoolId: req.schoolId,
-        assignmentTypeId,
-        assignmentTypeKey
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student profile not found" });
+    }
+    if (!isStudentTargetedByAssignment(student, assignment)) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized to view this assignment" });
+    }
+    students = [student];
+  }
+
+  const studentIds = students.map((student) => student._id);
+  const [submissions, grades, classroomLink] = await Promise.all([
+    hasGoogleForm(assignment)
+      ? GoogleFormSubmission.find({
+          school: req.schoolId,
+          assignment: assignment._id,
+          student: { $in: studentIds },
+        })
+          .select("student status submittedAt")
+          .lean()
+      : [],
+    Grade.find({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: { $in: studentIds },
+    })
+      .sort({ date: -1, createdAt: -1 })
+      .select("student marks maxMarks remarks date")
+      .lean(),
+    AssignmentClassroomLink.findOne({
+      school: req.schoolId,
+      assignment: assignment._id,
+      syncState: "published",
+    })
+      .select("alternateLink syncState courseId")
+      .lean(),
+  ]);
+
+  const submissionByStudent = new Map(
+    submissions.map((row) => [toId(row.student), row]),
+  );
+  const gradeByStudent = new Map();
+  for (const grade of grades) {
+    const key = toId(grade.student);
+    if (!gradeByStudent.has(key)) gradeByStudent.set(key, grade);
+  }
+
+  const studentItems = students.map((student) => {
+    const key = toId(student._id);
+    const submission = submissionByStudent.get(key) || null;
+    const grade = gradeByStudent.get(key) || null;
+    return {
+      id: key,
+      name: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
+      submission: submission
+        ? {
+            status: submission.status || "",
+            submittedAt: submission.submittedAt || null,
+          }
+        : null,
+      grade: grade
+        ? {
+            marks: Number(grade.marks ?? 0),
+            maxMarks: Number(grade.maxMarks ?? assignment.maxMarks ?? 0),
+            remarks: grade.remarks || "",
+            gradedAt: grade.date || null,
+          }
+        : null,
+    };
+  });
+
+  const summary = mapAssignmentSummary(assignment, {
+    submission: studentItems.length === 1 ? studentItems[0].submission : null,
+  });
+
+  // Parents follow emailed links from a read-only portal; they must never be
+  // able to submit the quiz on the student's behalf.
+  if (isParent && summary.googleForm) {
+    summary.googleForm = { ...summary.googleForm, responderUri: "" };
+  }
+
+  const attachments = [];
+  for (const attachment of summary.attachments) {
+    let url = attachment.url || "";
+    if (!url && attachment.storageKey) {
+      try {
+        url = await getSignedUrl(attachment.storageKey);
+      } catch {
+        url = "";
+      }
+    }
+    attachments.push({ ...attachment, url });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      ...summary,
+      attachments,
+      teacher: assignment.teacher
+        ? `${assignment.teacher.firstName || ""} ${assignment.teacher.lastName || ""}`.trim()
+        : "",
+      classroom:
+        classroomLink?.alternateLink
+          ? {
+              url: classroomLink.alternateLink,
+              courseId: classroomLink.courseId || "",
+            }
+          : null,
+      students: studentItems,
+    },
+  });
+});
+
+export const createAssignment = asyncHandler(async (req, res) => {  await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+
+  const body = req.body || {};
+  const classId = toId(body.classId || body.class);
+  const subjectId = toId(body.subjectId || body.subject);
+  const assignmentTypeId = toId(body.assignmentTypeId || body.assignmentType);
+  const assignmentTypeKey = String(body.assignmentTypeKey || "")
+    .trim()
+    .toLowerCase();
+  const title = String(body.title || "").trim();
+  const dueDate = parseDate(body.dueDate, null);
+  if (
+    !classId ||
+    !subjectId ||
+    !title ||
+    (!assignmentTypeId && !assignmentTypeKey)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "classId, subjectId, assignmentTypeId/assignmentTypeKey, and title are required",
     });
-    if (!type) {
-        return res.status(400).json({
-            success: false,
-            message: 'Assignment type not found or inactive'
-        });
-    }
+  }
+  if (body.dueDate !== undefined && body.dueDate !== null && !dueDate) {
+    return res.status(400).json({ success: false, message: "Invalid dueDate" });
+  }
 
-    let metadata = body.metadata ?? null;
-    if (typeof metadata === 'string') {
-        try {
-            metadata = JSON.parse(metadata);
-        } catch {
-            return res.status(400).json({ success: false, message: 'metadata must be valid JSON.' });
-        }
-    }
-    const createGoogleForm = parseBoolean(body.createGoogleForm, false)
-        || type.key === 'google_form'
-        || Boolean(metadata?.googleForm);
-    if (createGoogleForm) {
-        if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-            return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
-        }
-        try {
-            const questions = validateGoogleFormQuestions(metadata?.googleForm?.questions);
-            metadata = { ...(metadata || {}), googleForm: { questions } };
-        } catch (error) {
-            return res.status(400).json({ success: false, message: error.message });
-        }
-    }
-
-    let teacherId = toId(body.teacherId);
-    if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) {
-            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-        }
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
-        if (!authorized) {
-            return res.status(403).json({
-                success: false,
-                message: 'You are not authorized for this class and subject'
-            });
-        }
-        teacherId = toId(teacher._id);
-    } else if (!teacherId) {
-        const subjectTeacherEntry = (classDoc.subjects || []).find(
-            (entry) => toId(entry.subject) === subjectId && entry.teacher
-        );
-        teacherId = toId(subjectTeacherEntry?.teacher || classDoc.classTeacher);
-    }
-    if (!teacherId) {
-        return res.status(400).json({ success: false, message: 'teacherId could not be resolved' });
-    }
-    if (req.user.role !== 'teacher') {
-        const teacher = await Teacher.findOne({ _id: teacherId, school: req.schoolId, isActive: true })
-            .select('_id')
-            .lean();
-        if (!teacher) return res.status(400).json({ success: false, message: 'Provided teacherId is invalid for this school' });
-
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
-        if (!authorized) {
-            return res.status(400).json({
-                success: false,
-                message: 'Resolved/provided teacher is not assigned to this class and subject'
-            });
-        }
-    }
-
-    const requestedStudentIds = toArray(body.studentIds);
-    if (createGoogleForm
-        && ['selected_students', 'selected'].includes(String(body.scope || '').trim().toLowerCase())
-        && requestedStudentIds.length === 0) {
-        return res.status(400).json({ success: false, message: 'Select at least one student for this Google Form quiz.' });
-    }
-    const scope = normalizeScope(body.scope, requestedStudentIds);
-    const validSelectedStudentIds = scope === 'selected_students'
-        ? await Student.find({
-            school: req.schoolId,
-            _id: { $in: requestedStudentIds },
-            currentClass: classId,
-            academicYear,
-            status: 'active'
-        }).distinct('_id')
-        : [];
-    if (scope === 'selected_students' && validSelectedStudentIds.length !== requestedStudentIds.length) {
-        return res.status(400).json({
-            success: false,
-            message: 'One or more selected students are invalid for this class and academic year'
-        });
-    }
-
-    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds: toArray(body.lessonPlanIds),
-        schoolId: req.schoolId,
-        classId,
-        subjectId,
-        user: req.user
+  const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
+  if (!classDoc) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Selected class was not found in this school. Refresh the class list and try again.",
     });
+  }
+  const academicYear = classDoc.academicYear;
+  const subjectExistsInClass = (classDoc.subjects || []).some(
+    (entry) => toId(entry.subject) === subjectId,
+  );
+  if (!subjectExistsInClass) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected subject is not assigned to the selected class",
+    });
+  }
 
-    const validatedLinks = validateLinks(
-        typeof body.links === 'string' ? JSON.parse(body.links || '[]') : body.links
+  const type = await resolveAssignmentType({
+    schoolId: req.schoolId,
+    assignmentTypeId,
+    assignmentTypeKey,
+  });
+  if (!type) {
+    return res.status(400).json({
+      success: false,
+      message: "Assignment type not found or inactive",
+    });
+  }
+
+  let metadata = body.metadata ?? null;
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      return res
+        .status(400)
+        .json({ success: false, message: "metadata must be valid JSON." });
+    }
+  }
+  const createGoogleForm =
+    parseBoolean(body.createGoogleForm, false) ||
+    type.key === "google_form" ||
+    Boolean(metadata?.googleForm);
+  if (createGoogleForm) {
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Google Forms is not enabled for this school.",
+        });
+    }
+    try {
+      const questions = validateGoogleFormQuestions(
+        metadata?.googleForm?.questions,
+        { requireRubric: false },
+      );
+      metadata = { ...(metadata || {}), googleForm: { questions } };
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  let teacherId = toId(body.teacherId);
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Teacher profile not found" });
+    }
+    const authorized = await isTeacherAuthorizedForClassSubject(
+      teacher._id,
+      classId,
+      subjectId,
     );
-
-    const publishNow = parseBoolean(body.publishNow, false) || String(body.status || '').trim().toLowerCase() === 'published';
-    const notifyAudience = parseNotifyAudience(body.notifyAudience, 'both');
-    const isGraded = type.key !== 'lesson_summary';
-    const assignment = await Assignment.create({
-        school: req.schoolId,
-        academicYear,
-        class: classId,
-        subject: subjectId,
-        teacher: teacherId,
-        assignmentType: type._id,
-        assignmentTypeKey: type.key,
-        assignmentTypeName: type.name,
-        title,
-        summary: String(body.summary || '').trim().slice(0, 500),
-        instructions: String(body.instructions || '').trim(),
-        assignedDate: parseDate(body.assignedDate, new Date()),
-        dueDate,
-        status: publishNow && !createGoogleForm ? 'published' : 'draft',
-        scope,
-        studentIds: scope === 'selected_students' ? validSelectedStudentIds : [],
-        lessonPlanIds: normalizedLessonPlanIds ?? [],
-        links: validatedLinks,
-        attachments: [],
-        maxMarks: isGraded ? parsePositiveNumber(body.maxMarks, Number(type.defaults?.maxMarks || 10)) : 0,
-        isGraded,
-        allowLateSubmission: body.allowLateSubmission === undefined
-            ? type.defaults?.allowLateSubmission === true
-            : parseBoolean(body.allowLateSubmission, false),
-        notifyOnAssign: body.notifyOnAssign === undefined
-            ? type.defaults?.notifyOnAssign !== false
-            : parseBoolean(body.notifyOnAssign, true),
-        notifyAudience,
-        notifyOnGrade: !isGraded ? false : (body.notifyOnGrade === undefined
-            ? type.defaults?.notifyOnGrade !== false
-            : parseBoolean(body.notifyOnGrade, true)),
-        publishedAt: publishNow && !createGoogleForm ? new Date() : null,
-        publishedBy: publishNow && !createGoogleForm ? req.user._id : null,
-        metadata
-    });
-
-    if (publishNow && createGoogleForm) {
-        try {
-            const form = await createGoogleQuiz({
-                assignment,
-                actorId: req.user._id,
-                schoolId: req.schoolId,
-                questions: metadata.googleForm.questions
-            });
-            assignment.metadata = { googleForm: { ...metadata.googleForm, ...form } };
-            assignment.status = 'published';
-            assignment.publishedAt = new Date();
-            assignment.publishedBy = req.user._id;
-            await assignment.save();
-        } catch (error) {
-            logger.error('Google Form quiz creation failed', {
-                assignmentId: String(assignment._id),
-                code: error?.code,
-                message: error?.message
-            });
-            const status = error?.code === 'INVALID_QUIZ'
-                ? 400
-                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
-            return res.status(status).json({
-                success: false,
-                message: error?.code === 'INVALID_QUIZ'
-                    ? error.message
-                    : error?.code === 'NOT_CONNECTED'
-                        ? 'Connect Google Forms before publishing this assignment.'
-                        : 'The assignment was saved as a draft, but Google Form creation failed. Check the Google Forms connection and configuration, then publish the draft.',
-                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
-            });
-        }
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized for this class and subject",
+      });
     }
-
-    if (publishNow && assignment.notifyOnAssign !== false) {
-        const students = await resolveTargetStudentsForAssignment(assignment);
-        await sendAssignPostedNotifications({
-            assignment,
-            students,
-            createdBy: req.user._id,
-            audience: assignment.notifyAudience
+    teacherId = toId(teacher._id);
+  } else if (!teacherId) {
+    const subjectTeacherEntry = (classDoc.subjects || []).find(
+      (entry) => toId(entry.subject) === subjectId && entry.teacher,
+    );
+    teacherId = toId(subjectTeacherEntry?.teacher || classDoc.classTeacher);
+  }
+  if (!teacherId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "teacherId could not be resolved" });
+  }
+  if (req.user.role !== "teacher") {
+    const teacher = await Teacher.findOne({
+      _id: teacherId,
+      school: req.schoolId,
+      isActive: true,
+    })
+      .select("_id")
+      .lean();
+    if (!teacher)
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Provided teacherId is invalid for this school",
         });
+
+    const authorized = await isTeacherAuthorizedForClassSubject(
+      teacher._id,
+      classId,
+      subjectId,
+    );
+    if (!authorized) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Resolved/provided teacher is not assigned to this class and subject",
+      });
     }
+  }
 
-    // Upload attachment files after assignment creation so we have the ID for storage paths
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (files.length > 0) {
-        const uploadedAttachments = await uploadAttachmentFiles(files, req.schoolId, assignment._id);
-        assignment.attachments = uploadedAttachments;
-        await assignment.save();
-    }
+  const requestedStudentIds = toArray(body.studentIds);
+  if (
+    createGoogleForm &&
+    ["selected_students", "selected"].includes(
+      String(body.scope || "")
+        .trim()
+        .toLowerCase(),
+    ) &&
+    requestedStudentIds.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Select at least one student for this Google Form quiz.",
+      });
+  }
+  const scope = normalizeScope(body.scope, requestedStudentIds);
+  const validSelectedStudentIds =
+    scope === "selected_students"
+      ? await Student.find({
+          school: req.schoolId,
+          _id: { $in: requestedStudentIds },
+          currentClass: classId,
+          academicYear,
+          status: "active",
+        }).distinct("_id")
+      : [];
+  if (
+    scope === "selected_students" &&
+    validSelectedStudentIds.length !== requestedStudentIds.length
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "One or more selected students are invalid for this class and academic year",
+    });
+  }
 
-    const populated = await Assignment.findById(assignment._id)
-        .populate('assignmentType', 'key name')
-        .populate('class', 'name grade section')
-        .populate('subject', 'name code')
-        .populate('lessonPlanIds', 'title date')
-        .lean();
+  const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+    lessonPlanIds: toArray(body.lessonPlanIds),
+    schoolId: req.schoolId,
+    classId,
+    subjectId,
+    user: req.user,
+  });
 
-    const classroom = await runClassroomSync(
-        req,
+  const validatedLinks = validateLinks(
+    typeof body.links === "string"
+      ? JSON.parse(body.links || "[]")
+      : body.links,
+  );
+
+  const publishNow =
+    parseBoolean(body.publishNow, false) ||
+    String(body.status || "")
+      .trim()
+      .toLowerCase() === "published";
+  const notifyAudience = parseNotifyAudience(body.notifyAudience, "both");
+  const isGraded = type.key !== "lesson_summary";
+  const assignment = await Assignment.create({
+    school: req.schoolId,
+    academicYear,
+    class: classId,
+    subject: subjectId,
+    teacher: teacherId,
+    assignmentType: type._id,
+    assignmentTypeKey: type.key,
+    assignmentTypeName: type.name,
+    title,
+    summary: String(body.summary || "")
+      .trim()
+      .slice(0, 500),
+    instructions: String(body.instructions || "").trim(),
+    assignedDate: parseDate(body.assignedDate, new Date()),
+    dueDate,
+    status: publishNow && !createGoogleForm ? "published" : "draft",
+    scope,
+    studentIds: scope === "selected_students" ? validSelectedStudentIds : [],
+    lessonPlanIds: normalizedLessonPlanIds ?? [],
+    links: validatedLinks,
+    attachments: [],
+    maxMarks: isGraded
+      ? parsePositiveNumber(
+          body.maxMarks,
+          Number(type.defaults?.maxMarks || 10),
+        )
+      : 0,
+    isGraded,
+    allowLateSubmission:
+      body.allowLateSubmission === undefined
+        ? type.defaults?.allowLateSubmission === true
+        : parseBoolean(body.allowLateSubmission, false),
+    notifyOnAssign:
+      body.notifyOnAssign === undefined
+        ? type.defaults?.notifyOnAssign !== false
+        : parseBoolean(body.notifyOnAssign, true),
+    notifyAudience,
+    notifyOnGrade: !isGraded
+      ? false
+      : body.notifyOnGrade === undefined
+        ? type.defaults?.notifyOnGrade !== false
+        : parseBoolean(body.notifyOnGrade, true),
+    publishedAt: publishNow && !createGoogleForm ? new Date() : null,
+    publishedBy: publishNow && !createGoogleForm ? req.user._id : null,
+    metadata,
+  });
+
+  if (publishNow && createGoogleForm) {
+    try {
+      const form = await createGoogleQuiz({
         assignment,
-        parseBoolean(body.classroomPublish, false)
-    );
+        actorId: req.user._id,
+        schoolId: req.schoolId,
+        questions: metadata.googleForm.questions,
+      });
+      assignment.metadata = { googleForm: { ...metadata.googleForm, ...form } };
+      assignment.status = "published";
+      assignment.publishedAt = new Date();
+      assignment.publishedBy = req.user._id;
+      await assignment.save();
+    } catch (error) {
+      logger.error("Google Form quiz creation failed", {
+        assignmentId: String(assignment._id),
+        code: error?.code,
+        message: error?.message,
+      });
+      const status =
+        error?.code === "INVALID_QUIZ"
+          ? 400
+          : ["NOT_CONNECTED", "MISSING_SCOPES", "AUTH_REVOKED"].includes(
+                error?.code,
+              )
+            ? 403
+            : 502;
+      return res.status(status).json({
+        success: false,
+        message:
+          error?.code === "INVALID_QUIZ"
+            ? error.message
+            : error?.code === "NOT_CONNECTED"
+              ? "Connect Google Forms before publishing this assignment."
+              : "The assignment was saved as a draft, but Google Form creation failed. Check the Google Forms connection and configuration, then publish the draft.",
+        code: error?.code || "GOOGLE_FORMS_CREATE_FAILED",
+      });
+    }
+  }
 
-    res.status(201).json({
-        success: true,
-        data: { assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
+  if (publishNow && assignment.notifyOnAssign !== false) {
+    const students = await resolveTargetStudentsForAssignment(assignment);
+    await sendAssignPostedNotifications({
+      assignment,
+      students,
+      createdBy: req.user._id,
+      audience: assignment.notifyAudience,
     });
+  }
+
+  // Upload attachment files after assignment creation so we have the ID for storage paths
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (files.length > 0) {
+    const uploadedAttachments = await uploadAttachmentFiles(
+      files,
+      req.schoolId,
+      assignment._id,
+    );
+    assignment.attachments = uploadedAttachments;
+    await assignment.save();
+  }
+
+  const populated = await Assignment.findById(assignment._id)
+    .populate("assignmentType", "key name")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("lessonPlanIds", "title date")
+    .lean();
+
+  const classroom = await runClassroomSync(
+    req,
+    assignment,
+    parseBoolean(body.classroomPublish, false),
+  );
+
+  res.status(201).json({
+    success: true,
+    data: {
+      assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }),
+      ...(classroom ? { classroom } : {}),
+    },
+  });
 });
 
 export const publishAssignment = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to publish this assignment' });
-    if (assignment.status === 'archived') {
-        return res.status(400).json({ success: false, message: 'Archived assignments cannot be published' });
-    }
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to publish this assignment",
+      });
+  if (assignment.status === "archived") {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Archived assignments cannot be published",
+      });
+  }
 
-    if (hasGoogleForm(assignment) && !assignment.metadata?.googleForm?.formId) {
-        try {
-            if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-                return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
-            }
-            const form = await createGoogleQuiz({
-                assignment,
-                actorId: req.user._id,
-                schoolId: req.schoolId,
-                questions: assignment.metadata?.googleForm?.questions
-            });
-            assignment.metadata = { ...(assignment.metadata || {}), googleForm: { ...assignment.metadata?.googleForm, ...form } };
-        } catch (error) {
-            logger.error('Google Form quiz publish failed', {
-                assignmentId: String(assignment._id),
-                code: error?.code,
-                message: error?.message
-            });
-            const status = error?.code === 'INVALID_QUIZ'
-                ? 400
-                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
-            return res.status(status).json({
-                success: false,
-                message: error?.code === 'INVALID_QUIZ'
-                    ? error.message
-                    : error?.code === 'NOT_CONNECTED'
-                        ? 'Connect Google Forms before publishing this assignment.'
-                        : 'Google Form creation failed. The assignment remains a draft.',
-                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
-            });
-        }
-    }
-
-    assignment.status = 'published';
-    assignment.notifyOnAssign = req.body?.notifyOnAssign === undefined
-        ? assignment.notifyOnAssign !== false
-        : parseBoolean(req.body.notifyOnAssign, true);
-    assignment.notifyAudience = req.body?.notifyAudience === undefined
-        ? parseNotifyAudience(assignment.notifyAudience, 'both')
-        : parseNotifyAudience(req.body.notifyAudience, assignment.notifyAudience);
-    assignment.publishedAt = new Date();
-    assignment.publishedBy = req.user._id;
-    await assignment.save();
-
-    if (assignment.notifyOnAssign !== false) {
-        const students = await resolveTargetStudentsForAssignment(assignment);
-        await sendAssignPostedNotifications({
-            assignment,
-            students,
-            createdBy: req.user._id,
-            audience: assignment.notifyAudience
-        });
-    }
-
-    // Promotes an existing Classroom draft, or posts now when the teacher opted in.
-    const classroom = await runClassroomSync(
-        req,
+  if (hasGoogleForm(assignment) && !assignment.metadata?.googleForm?.formId) {
+    try {
+      if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Google Forms is not enabled for this school.",
+          });
+      }
+      const form = await createGoogleQuiz({
         assignment,
-        parseBoolean(req.body?.classroomPublish, false)
-    );
+        actorId: req.user._id,
+        schoolId: req.schoolId,
+        questions: assignment.metadata?.googleForm?.questions,
+      });
+      assignment.metadata = {
+        ...(assignment.metadata || {}),
+        googleForm: { ...assignment.metadata?.googleForm, ...form },
+      };
+    } catch (error) {
+      logger.error("Google Form quiz publish failed", {
+        assignmentId: String(assignment._id),
+        code: error?.code,
+        message: error?.message,
+      });
+      const status =
+        error?.code === "INVALID_QUIZ"
+          ? 400
+          : ["NOT_CONNECTED", "MISSING_SCOPES", "AUTH_REVOKED"].includes(
+                error?.code,
+              )
+            ? 403
+            : 502;
+      return res.status(status).json({
+        success: false,
+        message:
+          error?.code === "INVALID_QUIZ"
+            ? error.message
+            : error?.code === "NOT_CONNECTED"
+              ? "Connect Google Forms before publishing this assignment."
+              : "Google Form creation failed. The assignment remains a draft.",
+        code: error?.code || "GOOGLE_FORMS_CREATE_FAILED",
+      });
+    }
+  }
 
-    res.json({
-        success: true,
-        data: { assignment: mapAssignmentSummary(assignment, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
+  assignment.status = "published";
+  assignment.notifyOnAssign =
+    req.body?.notifyOnAssign === undefined
+      ? assignment.notifyOnAssign !== false
+      : parseBoolean(req.body.notifyOnAssign, true);
+  assignment.notifyAudience =
+    req.body?.notifyAudience === undefined
+      ? parseNotifyAudience(assignment.notifyAudience, "both")
+      : parseNotifyAudience(req.body.notifyAudience, assignment.notifyAudience);
+  assignment.publishedAt = new Date();
+  assignment.publishedBy = req.user._id;
+  await assignment.save();
+
+  if (assignment.notifyOnAssign !== false) {
+    const students = await resolveTargetStudentsForAssignment(assignment);
+    await sendAssignPostedNotifications({
+      assignment,
+      students,
+      createdBy: req.user._id,
+      audience: assignment.notifyAudience,
     });
+  }
+
+  // Promotes an existing Classroom draft, or posts now when the teacher opted in.
+  const classroom = await runClassroomSync(
+    req,
+    assignment,
+    parseBoolean(req.body?.classroomPublish, false),
+  );
+
+  res.json({
+    success: true,
+    data: {
+      assignment: mapAssignmentSummary(assignment, { includeAnswerKey: true }),
+      ...(classroom ? { classroom } : {}),
+    },
+  });
 });
 
 /* ── Send reminder to parents ── */
 export const sendAssignmentReminder = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    if (assignment.status !== 'published') {
-        return res.status(400).json({ success: false, message: 'Can only send reminders for published assignments' });
-    }
+  if (assignment.status !== "published") {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Can only send reminders for published assignments",
+      });
+  }
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res.status(403).json({ success: false, message: "Not authorized" });
 
-    const audience = ['students', 'parents', 'both'].includes(req.body?.audience) ? req.body.audience : 'both';
-    const students = await resolveTargetStudentsForAssignment(assignment);
-    if (students.length === 0) {
-        return res.status(400).json({ success: false, message: 'No students found for this assignment' });
-    }
+  const audience = ["students", "parents", "both"].includes(req.body?.audience)
+    ? req.body.audience
+    : "both";
+  const students = await resolveTargetStudentsForAssignment(assignment);
+  if (students.length === 0) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "No students found for this assignment",
+      });
+  }
 
-    const excusedStudentIds = new Set(
-        (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : []).map(toId)
+  const excusedStudentIds = new Set(
+    (Array.isArray(assignment.excusedStudentIds)
+      ? assignment.excusedStudentIds
+      : []
+    ).map(toId),
+  );
+  const gradedStudentIds = new Set(
+    (
+      await Grade.find({
+        school: req.schoolId,
+        assignment: assignment._id,
+        student: { $in: students.map((student) => student._id) },
+      })
+        .select("student")
+        .lean()
+    ).map((grade) => toId(grade.student)),
+  );
+  const gradedStudentCount = students.filter((student) =>
+    gradedStudentIds.has(toId(student._id)),
+  ).length;
+  const ungradedStudents = students.filter((student) => {
+    const studentId = toId(student._id);
+    return (
+      !gradedStudentIds.has(studentId) && !excusedStudentIds.has(studentId)
     );
-    const gradedStudentIds = new Set(
-        (await Grade.find({
-            school: req.schoolId,
-            assignment: assignment._id,
-            student: { $in: students.map((student) => student._id) }
-        })
-            .select('student')
-            .lean())
-            .map((grade) => toId(grade.student))
-    );
-    const gradedStudentCount = students
-        .filter((student) => gradedStudentIds.has(toId(student._id))).length;
-    const ungradedStudents = students.filter((student) => {
-        const studentId = toId(student._id);
-        return !gradedStudentIds.has(studentId) && !excusedStudentIds.has(studentId);
+  });
+  if (ungradedStudents.length === 0) {
+    return res.status(409).json({
+      success: false,
+      message:
+        "All students have already been graded or excused for this assignment. No reminders were sent.",
     });
-    if (ungradedStudents.length === 0) {
-        return res.status(409).json({
-            success: false,
-            message: 'All students have already been graded or excused for this assignment. No reminders were sent.'
+  }
+
+  const sendToParents = audience === "parents" || audience === "both";
+  const sendToStudents = audience === "students" || audience === "both";
+
+  // Generate one reminder per student (personalized with name) and send to selected audience
+  const results = await Promise.allSettled(
+    ungradedStudents.map(async (student) => {
+      try {
+        const { subject, body, studentBody } = generateAssignmentReminder({
+          assignment,
+          studentName:
+            [student.firstName, student.lastName].filter(Boolean).join(" ") ||
+            "Student",
         });
-    }
-
-    const sendToParents = audience === 'parents' || audience === 'both';
-    const sendToStudents = audience === 'students' || audience === 'both';
-
-    // Generate one reminder per student (personalized with name) and send to selected audience
-    const results = await Promise.allSettled(
-        ungradedStudents.map(async (student) => {
-            try {
-                const { subject, body, studentBody } = generateAssignmentReminder({
-                    assignment,
-                    studentName: [student.firstName, student.lastName].filter(Boolean).join(' ') || 'Student',
-                });
-                const promises = [];
-                if (sendToParents) {
-                    promises.push(notificationService.sendAssignmentReminderNotification({
-                        studentId: student._id,
-                        assignment,
-                        subject,
-                        reminderText: body,
-                        createdBy: req.user._id,
-                    }));
-                }
-                if (sendToStudents) {
-                    promises.push(notificationService.sendStudentAssignmentReminderNotification({
-                        studentId: student._id,
-                        assignment,
-                        subject,
-                        reminderText: studentBody,
-                        createdBy: req.user._id,
-                    }));
-                }
-                return Promise.all(promises);
-            } catch (err) {
-                logger.error('assignment_reminder_student_failed', {
-                    studentId: String(student._id),
-                    assignmentId: String(assignment._id),
-                    error: err?.message || String(err),
-                });
-                throw err;
-            }
-        })
-    );
-
-    const sent = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected');
-    if (failed.length > 0) {
-        logger.error('assignment_reminders_summary', {
-            assignmentId: String(assignment._id),
-            total: ungradedStudents.length,
-            sent,
-            failed: failed.length,
-            reasons: failed.map((r) => r.reason?.message || String(r.reason)).slice(0, 5),
-        });
-    }
-    res.json({
-        success: true,
-        data: {
-            studentCount: ungradedStudents.length,
-            gradedStudentCount,
-            remindersSent: sent,
-            audience
+        const promises = [];
+        if (sendToParents) {
+          promises.push(
+            notificationService.sendAssignmentReminderNotification({
+              studentId: student._id,
+              assignment,
+              subject,
+              reminderText: body,
+              createdBy: req.user._id,
+            }),
+          );
         }
+        if (sendToStudents) {
+          promises.push(
+            notificationService.sendStudentAssignmentReminderNotification({
+              studentId: student._id,
+              assignment,
+              subject,
+              reminderText: studentBody,
+              createdBy: req.user._id,
+            }),
+          );
+        }
+        return Promise.all(promises);
+      } catch (err) {
+        logger.error("assignment_reminder_student_failed", {
+          studentId: String(student._id),
+          assignmentId: String(assignment._id),
+          error: err?.message || String(err),
+        });
+        throw err;
+      }
+    }),
+  );
+
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length > 0) {
+    logger.error("assignment_reminders_summary", {
+      assignmentId: String(assignment._id),
+      total: ungradedStudents.length,
+      sent,
+      failed: failed.length,
+      reasons: failed
+        .map((r) => r.reason?.message || String(r.reason))
+        .slice(0, 5),
     });
+  }
+  res.json({
+    success: true,
+    data: {
+      studentCount: ungradedStudents.length,
+      gradedStudentCount,
+      remindersSent: sent,
+      audience,
+    },
+  });
 });
 
 export const getAssignmentGradebook = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId })
-        .populate('assignmentType', 'key name')
-        .populate('class', 'name grade section')
-        .populate('subject', 'name code')
-        .populate('lessonPlanIds', 'title date')
-        .lean();
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  })
+    .populate("assignmentType", "key name")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("lessonPlanIds", "title date")
+    .lean();
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to view this assignment' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to view this assignment",
+      });
 
-    const students = await resolveTargetStudentsForAssignment(assignment);
-    const grades = await Grade.find({
-        school: req.schoolId,
-        assignment: assignment._id,
-        student: { $in: students.map((student) => student._id) }
-    })
-        .select('_id student marks maxMarks remarks notes updatedAt')
-        .lean();
+  const students = await resolveTargetStudentsForAssignment(assignment);
+  const grades = await Grade.find({
+    school: req.schoolId,
+    assignment: assignment._id,
+    student: { $in: students.map((student) => student._id) },
+  })
+    .select("_id student marks maxMarks remarks notes updatedAt")
+    .lean();
 
-    const gradeMap = new Map(grades.map((grade) => [toId(grade.student), grade]));
-    const excusedStudentIds = new Set(
-        (Array.isArray(assignment.excusedStudentIds) ? assignment.excusedStudentIds : []).map(toId)
-    );
-    res.json({
-        success: true,
-        data: {
-            assignment: mapAssignmentSummary(assignment),
-            isGraded: assignment.isGraded !== false,
-            rows: students.map((student) => {
-                const studentId = toId(student._id);
-                return {
-                    student: {
-                        id: studentId,
-                        studentId: student.studentId || '',
-                        firstName: student.firstName || '',
-                        lastName: student.lastName || '',
-                        fullName: `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                    },
-                    grade: gradeMap.get(studentId) || null,
-                    excused: excusedStudentIds.has(studentId) && !gradeMap.has(studentId)
-                };
-            })
-        }
-    });
+  const gradeMap = new Map(grades.map((grade) => [toId(grade.student), grade]));
+  const excusedStudentIds = new Set(
+    (Array.isArray(assignment.excusedStudentIds)
+      ? assignment.excusedStudentIds
+      : []
+    ).map(toId),
+  );
+  res.json({
+    success: true,
+    data: {
+      assignment: mapAssignmentSummary(assignment),
+      isGraded: assignment.isGraded !== false,
+      rows: students.map((student) => {
+        const studentId = toId(student._id);
+        return {
+          student: {
+            id: studentId,
+            studentId: student.studentId || "",
+            firstName: student.firstName || "",
+            lastName: student.lastName || "",
+            fullName:
+              `${student.firstName || ""} ${student.lastName || ""}`.trim(),
+          },
+          grade: gradeMap.get(studentId) || null,
+          excused: excusedStudentIds.has(studentId) && !gradeMap.has(studentId),
+        };
+      }),
+    },
+  });
 });
 
 /**
@@ -1256,615 +1716,890 @@ export const getAssignmentGradebook = asyncHandler(async (req, res) => {
  * grade drop out of ungraded counts and reminders; grades are left untouched.
  */
 export const setAssignmentStudentExcuse = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to excuse students for this assignment' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to excuse students for this assignment",
+      });
 
-    if (!['published', 'closed'].includes(String(assignment.status || ''))) {
-        return res.status(400).json({
-            success: false,
-            message: 'Assignment must be published or closed before excusing students'
-        });
+  if (!["published", "closed"].includes(String(assignment.status || ""))) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Assignment must be published or closed before excusing students",
+    });
+  }
+
+  const studentId = toId(req.body?.studentId).trim();
+  if (!studentId)
+    return res
+      .status(400)
+      .json({ success: false, message: "studentId is required" });
+  if (typeof req.body?.excused !== "boolean") {
+    return res
+      .status(400)
+      .json({ success: false, message: "excused must be a boolean" });
+  }
+  const excused = req.body.excused;
+
+  const students = await resolveTargetStudentsForAssignment(assignment);
+  if (!students.some((student) => toId(student._id) === studentId)) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Student is not part of this assignment",
+      });
+  }
+
+  if (excused) {
+    const existingGrade = await Grade.exists({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: studentId,
+    });
+    if (existingGrade) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This student already has a grade. Remove the grade before excusing them.",
+      });
     }
+    await Assignment.updateOne(
+      { _id: assignment._id, school: req.schoolId },
+      { $addToSet: { excusedStudentIds: studentId } },
+    );
+  } else {
+    await Assignment.updateOne(
+      { _id: assignment._id, school: req.schoolId },
+      { $pull: { excusedStudentIds: studentId } },
+    );
+  }
 
-    const studentId = toId(req.body?.studentId).trim();
-    if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
-    if (typeof req.body?.excused !== 'boolean') {
-        return res.status(400).json({ success: false, message: 'excused must be a boolean' });
-    }
-    const excused = req.body.excused;
-
-    const students = await resolveTargetStudentsForAssignment(assignment);
-    if (!students.some((student) => toId(student._id) === studentId)) {
-        return res.status(400).json({ success: false, message: 'Student is not part of this assignment' });
-    }
-
-    if (excused) {
-        const existingGrade = await Grade.exists({
-            school: req.schoolId,
-            assignment: assignment._id,
-            student: studentId
-        });
-        if (existingGrade) {
-            return res.status(409).json({
-                success: false,
-                message: 'This student already has a grade. Remove the grade before excusing them.'
-            });
-        }
-        await Assignment.updateOne(
-            { _id: assignment._id, school: req.schoolId },
-            { $addToSet: { excusedStudentIds: studentId } }
-        );
-    } else {
-        await Assignment.updateOne(
-            { _id: assignment._id, school: req.schoolId },
-            { $pull: { excusedStudentIds: studentId } }
-        );
-    }
-
-    res.json({ success: true, data: { studentId, excused } });
+  res.json({ success: true, data: { studentId, excused } });
 });
 
 export const gradeAssignment = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to grade this assignment' });
-    if (!['published', 'closed'].includes(String(assignment.status || ''))) {
-        return res.status(400).json({
-            success: false,
-            message: 'Assignment must be published or closed before grading'
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to grade this assignment",
+      });
+  if (!["published", "closed"].includes(String(assignment.status || ""))) {
+    return res.status(400).json({
+      success: false,
+      message: "Assignment must be published or closed before grading",
+    });
+  }
+  if (assignment.isGraded === false) {
+    return res
+      .status(400)
+      .json({ success: false, message: "This assignment is not graded." });
+  }
+
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (rows.length === 0)
+    return res
+      .status(400)
+      .json({ success: false, message: "rows must be a non-empty array" });
+
+  const students = await resolveTargetStudentsForAssignment(assignment);
+  const eligibleStudentIds = new Set(
+    students.map((student) => toId(student._id)),
+  );
+  const gradingDate = parseDate(req.body?.gradingDate, new Date());
+  if (!gradingDate)
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid gradingDate" });
+
+  const month = gradingDate.getUTCMonth() + 1;
+  const semester = month >= 8 && month <= 12 ? 1 : 2;
+  const typed = gradeTypeCategoryFromAssignmentKey(
+    assignment.assignmentTypeKey,
+  );
+  const teacherProfile =
+    req.user.role === "teacher" ? await resolveTeacherProfile(req) : null;
+  const gradingTeacherId =
+    teacherProfile?._id || assignment.teacher || req.user._id;
+  const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+    lessonPlanIds: toArray(
+      req.body?.lessonPlanIds,
+      assignment.lessonPlanIds ?? [],
+    ),
+    schoolId: req.schoolId,
+    classId: assignment.class,
+    subjectId: assignment.subject,
+    user: req.user,
+  });
+
+  const gradedRows = [];
+  for (const row of rows) {
+    const studentId = String(row?.studentId || row?.student || "").trim();
+    if (!studentId || !eligibleStudentIds.has(studentId)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: `Invalid student in grading rows: ${studentId}`,
         });
     }
-    if (assignment.isGraded === false) {
-        return res.status(400).json({ success: false, message: 'This assignment is not graded.' });
+    const marks = Number(row.marks);
+    const maxMarks =
+      row.maxMarks === undefined
+        ? Number(assignment.maxMarks || 10)
+        : Number(row.maxMarks);
+    if (
+      !Number.isFinite(marks) ||
+      marks < 0 ||
+      !Number.isFinite(maxMarks) ||
+      maxMarks <= 0 ||
+      marks > maxMarks
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid marks/maxMarks for student ${studentId}`,
+      });
     }
 
-    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
-    if (rows.length === 0) return res.status(400).json({ success: false, message: 'rows must be a non-empty array' });
+    const existingGrade = await Grade.findOne({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: studentId,
+    })
+      .select("marks maxMarks")
+      .lean();
+    const gradeValueChanged =
+      !existingGrade ||
+      Number(existingGrade.marks) !== marks ||
+      Number(existingGrade.maxMarks) !== maxMarks;
 
-    const students = await resolveTargetStudentsForAssignment(assignment);
-    const eligibleStudentIds = new Set(students.map((student) => toId(student._id)));
-    const gradingDate = parseDate(req.body?.gradingDate, new Date());
-    if (!gradingDate) return res.status(400).json({ success: false, message: 'Invalid gradingDate' });
+    const grade = await Grade.findOneAndUpdate(
+      {
+        school: req.schoolId,
+        assignment: assignment._id,
+        student: studentId,
+      },
+      {
+        $set: {
+          marks,
+          maxMarks,
+          date: gradingDate,
+          month,
+          semester,
+          title:
+            assignment.title || assignment.assignmentTypeName || "Assignment",
+          description: assignment.instructions || "",
+          category: typed.category,
+          notes: String(row.notes || "").trim(),
+          remarks: String(row.remarks || "").trim(),
+          subject: assignment.subject,
+          class: assignment.class,
+          teacher: gradingTeacherId,
+          academicYear: assignment.academicYear,
+          gradeType: typed.gradeType,
+          assignment: assignment._id,
+          gradingSource: "manual",
+          lessonPlanIds: normalizedLessonPlanIds ?? [],
+        },
+        $setOnInsert: {
+          school: req.schoolId,
+          student: studentId,
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        runValidators: true,
+      },
+    );
 
-    const month = gradingDate.getUTCMonth() + 1;
-    const semester = (month >= 8 && month <= 12) ? 1 : 2;
-    const typed = gradeTypeCategoryFromAssignmentKey(assignment.assignmentTypeKey);
-    const teacherProfile = req.user.role === 'teacher' ? await resolveTeacherProfile(req) : null;
-    const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
-    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds: toArray(req.body?.lessonPlanIds, assignment.lessonPlanIds ?? []),
-        schoolId: req.schoolId,
-        classId: assignment.class,
-        subjectId: assignment.subject,
-        user: req.user
+    gradedRows.push({ studentId, grade, gradeValueChanged });
+  }
+
+  const shouldNotifyParents =
+    assignment.notifyOnGrade !== false &&
+    (req.body?.sendNotifications === undefined
+      ? true
+      : parseBoolean(req.body.sendNotifications, true));
+  if (shouldNotifyParents) {
+    await sendAssignGradedNotifications({
+      assignment,
+      gradedRows: gradedRows.filter((row) => row.gradeValueChanged),
+      createdBy: req.user._id,
     });
+  }
 
-    const gradedRows = [];
-    for (const row of rows) {
-        const studentId = String(row?.studentId || row?.student || '').trim();
-        if (!studentId || !eligibleStudentIds.has(studentId)) {
-            return res.status(400).json({ success: false, message: `Invalid student in grading rows: ${studentId}` });
-        }
-        const marks = Number(row.marks);
-        const maxMarks = row.maxMarks === undefined ? Number(assignment.maxMarks || 10) : Number(row.maxMarks);
-        if (!Number.isFinite(marks) || marks < 0 || !Number.isFinite(maxMarks) || maxMarks <= 0 || marks > maxMarks) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid marks/maxMarks for student ${studentId}`
-            });
-        }
+  const seenStudentIds = new Set();
+  for (const row of gradedRows) {
+    const studentId = toId(row.studentId);
+    if (!studentId || seenStudentIds.has(studentId)) continue;
+    seenStudentIds.add(studentId);
 
-        const existingGrade = await Grade.findOne({
-            school: req.schoolId,
-            assignment: assignment._id,
-            student: studentId
-        }).select('marks maxMarks').lean();
-        const gradeValueChanged = !existingGrade
-            || Number(existingGrade.marks) !== marks
-            || Number(existingGrade.maxMarks) !== maxMarks;
+    syncObjectivesForGrade({
+      schoolId: req.schoolId,
+      studentId: row.studentId,
+      subjectId: assignment.subject,
+      classId: assignment.class,
+      academicYear: assignment.academicYear,
+    }).catch(() => {});
+  }
 
-        const grade = await Grade.findOneAndUpdate(
-            {
-                school: req.schoolId,
-                assignment: assignment._id,
-                student: studentId
-            },
-            {
-                $set: {
-                    marks,
-                    maxMarks,
-                    date: gradingDate,
-                    month,
-                    semester,
-                    title: assignment.title || assignment.assignmentTypeName || 'Assignment',
-                    description: assignment.instructions || '',
-                    category: typed.category,
-                    notes: String(row.notes || '').trim(),
-                    remarks: String(row.remarks || '').trim(),
-                    subject: assignment.subject,
-                    class: assignment.class,
-                    teacher: gradingTeacherId,
-                    academicYear: assignment.academicYear,
-                    gradeType: typed.gradeType,
-                    assignment: assignment._id,
-                    gradingSource: 'manual',
-                    lessonPlanIds: normalizedLessonPlanIds ?? []
-                },
-                $setOnInsert: {
-                    school: req.schoolId,
-                    student: studentId
-                }
-            },
-            {
-                upsert: true,
-                new: true,
-                setDefaultsOnInsert: true,
-                runValidators: true
-            }
-        );
-
-        gradedRows.push({ studentId, grade, gradeValueChanged });
-    }
-
-    const shouldNotifyParents = assignment.notifyOnGrade !== false
-        && (req.body?.sendNotifications === undefined
-            ? true
-            : parseBoolean(req.body.sendNotifications, true));
-    if (shouldNotifyParents) {
-        await sendAssignGradedNotifications({
-            assignment,
-            gradedRows: gradedRows.filter((row) => row.gradeValueChanged),
-            createdBy: req.user._id
-        });
-    }
-
-    const seenStudentIds = new Set();
-    for (const row of gradedRows) {
-        const studentId = toId(row.studentId);
-        if (!studentId || seenStudentIds.has(studentId)) continue;
-        seenStudentIds.add(studentId);
-
-        syncObjectivesForGrade({
-            schoolId: req.schoolId,
-            studentId: row.studentId,
-            subjectId: assignment.subject,
-            classId: assignment.class,
-            academicYear: assignment.academicYear
-        }).catch(() => {});
-    }
-
-    res.json({
-        success: true,
-        data: {
-            assignmentId: assignment._id,
-            gradedCount: gradedRows.length
-        }
-    });
+  res.json({
+    success: true,
+    data: {
+      assignmentId: assignment._id,
+      gradedCount: gradedRows.length,
+    },
+  });
 });
 
 export const updateAssignment = asyncHandler(async (req, res) => {
-    await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+  await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
 
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to update this assignment' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to update this assignment",
+      });
 
-    const body = req.body || {};
+  const body = req.body || {};
 
-    const classId = toId(body.classId || body.class || assignment.class);
-    const subjectId = toId(body.subjectId || body.subject || assignment.subject);
-    const title = body.title === undefined
-        ? assignment.title
-        : String(body.title || '').trim();
-    if (!classId || !subjectId || !title) {
-        return res.status(400).json({
-            success: false,
-            message: 'classId, subjectId, and title are required'
-        });
-    }
-
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
-    if (!classDoc) {
-        return res.status(400).json({
-            success: false,
-            message: 'Selected class was not found in this school. Refresh the class list and try again.'
-        });
-    }
-    const academicYear = classDoc.academicYear;
-
-    const subjectExistsInClass = (classDoc.subjects || []).some(
-        (entry) => toId(entry.subject) === subjectId
-    );
-    if (!subjectExistsInClass) {
-        return res.status(400).json({
-            success: false,
-            message: 'Selected subject is not assigned to the selected class'
-        });
-    }
-
-    if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) {
-            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-        }
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
-        if (!authorized) {
-            return res.status(403).json({
-                success: false,
-                message: 'You are not authorized for this class and subject'
-            });
-        }
-    }
-
-    let type = null;
-    const assignmentTypeId = toId(body.assignmentTypeId || body.assignmentType);
-    const assignmentTypeKey = String(body.assignmentTypeKey || '').trim().toLowerCase();
-    if (assignmentTypeId || assignmentTypeKey) {
-        type = await resolveAssignmentType({
-            schoolId: req.schoolId,
-            assignmentTypeId,
-            assignmentTypeKey
-        });
-        if (!type) {
-            return res.status(400).json({
-                success: false,
-                message: 'Assignment type not found or inactive'
-            });
-        }
-    }
-    const nextTypeKey = type?.key || assignment.assignmentTypeKey;
-    if (nextTypeKey === 'lesson_summary' && assignment.assignmentTypeKey !== 'lesson_summary') {
-        const hasGrades = await Grade.exists({ school: req.schoolId, assignment: assignment._id });
-        if (hasGrades) {
-            return res.status(400).json({
-                success: false,
-                message: 'This assignment has grades and cannot become ungraded.'
-            });
-        }
-    }
-    let metadata = assignment.metadata;
-    if (body.metadata !== undefined) {
-        metadata = body.metadata;
-        if (typeof metadata === 'string') {
-            try {
-                metadata = JSON.parse(metadata);
-            } catch {
-                return res.status(400).json({ success: false, message: 'metadata must be valid JSON.' });
-            }
-        }
-    }
-    const requestedGoogleForm = body.createGoogleForm === undefined
-        ? Boolean(metadata?.googleForm)
-        : parseBoolean(body.createGoogleForm, false);
-    const isGoogleFormAssignment = nextTypeKey === 'google_form' || requestedGoogleForm;
-    if (assignment.metadata?.googleForm?.formId && !isGoogleFormAssignment) {
-        return res.status(400).json({
-            success: false,
-            message: 'A created Google Form cannot be removed from its assignment.'
-        });
-    }
-    if (isGoogleFormAssignment) {
-        if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-            return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
-        }
-        if (assignment.metadata?.googleForm?.formId && body.metadata !== undefined) {
-            return res.status(400).json({
-                success: false,
-                message: 'Questions cannot be changed after the Google Form is created. Create a new draft to change the quiz.'
-            });
-        }
-        try {
-            if (!assignment.metadata?.googleForm?.formId) {
-                metadata = { googleForm: { questions: validateGoogleFormQuestions(metadata?.googleForm?.questions) } };
-            }
-        } catch (error) {
-            return res.status(400).json({ success: false, message: error.message });
-        }
-    }
-
-    const assignedDate = body.assignedDate === undefined
-        ? assignment.assignedDate
-        : parseDate(body.assignedDate, null);
-    const dueDate = body.dueDate === undefined
-        ? assignment.dueDate
-        : parseDate(body.dueDate, null);
-    if (body.assignedDate !== undefined && !assignedDate) {
-        return res.status(400).json({ success: false, message: 'Invalid assignedDate' });
-    }
-    if (body.dueDate !== undefined && body.dueDate !== null && body.dueDate !== '' && !dueDate) {
-        return res.status(400).json({ success: false, message: 'Invalid dueDate' });
-    }
-
-    const requestedStudentIds = toArray(body.studentIds,
-        Array.isArray(assignment.studentIds) ? assignment.studentIds : []
-    );
-    if (isGoogleFormAssignment
-        && body.scope !== undefined
-        && ['selected_students', 'selected'].includes(String(body.scope).trim().toLowerCase())
-        && requestedStudentIds.length === 0) {
-        return res.status(400).json({ success: false, message: 'Select at least one student for this Google Form quiz.' });
-    }
-    const scope = body.scope === undefined
-        ? normalizeScope(assignment.scope, requestedStudentIds)
-        : normalizeScope(body.scope, requestedStudentIds);
-
-    const validSelectedStudentIds = scope === 'selected_students'
-        ? await Student.find({
-            school: req.schoolId,
-            _id: { $in: requestedStudentIds },
-            currentClass: classId,
-            academicYear,
-            status: 'active'
-        }).distinct('_id')
-        : [];
-    if (scope === 'selected_students' && validSelectedStudentIds.length !== requestedStudentIds.length) {
-        return res.status(400).json({
-            success: false,
-            message: 'One or more selected students are invalid for this class and academic year'
-        });
-    }
-
-    const classOrSubjectChanged = toId(assignment.class) !== classId || toId(assignment.subject) !== subjectId;
-    let normalizedLessonPlanIds;
-    if (body.lessonPlanIds !== undefined) {
-        normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-            lessonPlanIds: toArray(body.lessonPlanIds),
-            schoolId: req.schoolId,
-            classId,
-            subjectId,
-            user: req.user
-        });
-    } else if (classOrSubjectChanged) {
-        // Class/subject changed but caller didn't update lesson plans — clear them
-        normalizedLessonPlanIds = [];
-    } else {
-        // Lesson plans untouched and class/subject unchanged — keep existing
-        normalizedLessonPlanIds = assignment.lessonPlanIds || [];
-    }
-
-    const status = body.status && ['draft', 'published', 'closed', 'archived'].includes(String(body.status).toLowerCase())
-        ? String(body.status).toLowerCase()
-        : assignment.status;
-
-    assignment.academicYear = academicYear;
-    assignment.class = classId;
-    assignment.subject = subjectId;
-    assignment.title = title;
-    assignment.summary = body.summary === undefined
-        ? assignment.summary || ''
-        : String(body.summary || '').trim().slice(0, 500);
-    assignment.instructions = body.instructions === undefined
-        ? assignment.instructions
-        : String(body.instructions || '').trim();
-    assignment.assignedDate = assignedDate;
-    assignment.dueDate = dueDate;
-    assignment.scope = scope;
-    assignment.studentIds = scope === 'selected_students' ? validSelectedStudentIds : [];
-    assignment.lessonPlanIds = normalizedLessonPlanIds ?? [];
-    const nextIsGraded = nextTypeKey !== 'lesson_summary';
-    const maxMarksFallback = assignment.maxMarks > 0
-        ? assignment.maxMarks
-        : Number(type?.defaults?.maxMarks || 10);
-    assignment.maxMarks = !nextIsGraded
-        ? 0
-        : body.maxMarks === undefined
-            ? maxMarksFallback
-            : parsePositiveNumber(body.maxMarks, maxMarksFallback);
-    assignment.isGraded = nextIsGraded;
-    assignment.allowLateSubmission = body.allowLateSubmission === undefined
-        ? assignment.allowLateSubmission
-        : parseBoolean(body.allowLateSubmission, assignment.allowLateSubmission);
-    assignment.notifyOnAssign = body.notifyOnAssign === undefined
-        ? assignment.notifyOnAssign
-        : parseBoolean(body.notifyOnAssign, assignment.notifyOnAssign);
-    assignment.notifyAudience = body.notifyAudience === undefined
-        ? parseNotifyAudience(assignment.notifyAudience, 'both')
-        : parseNotifyAudience(body.notifyAudience, assignment.notifyAudience);
-    assignment.notifyOnGrade = !nextIsGraded
-        ? false
-        : body.notifyOnGrade === undefined
-            ? assignment.notifyOnGrade
-            : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
-    assignment.metadata = metadata;
-
-    if (status === 'published' && isGoogleFormAssignment && !assignment.metadata?.googleForm?.formId) {
-        try {
-            const form = await createGoogleQuiz({
-                assignment,
-                actorId: req.user._id,
-                schoolId: req.schoolId,
-                questions: assignment.metadata?.googleForm?.questions
-            });
-            assignment.metadata = { ...assignment.metadata, googleForm: { ...assignment.metadata.googleForm, ...form } };
-        } catch (error) {
-            logger.error('Google Form quiz update/publish failed', {
-                assignmentId: String(assignment._id),
-                code: error?.code,
-                message: error?.message
-            });
-            const failureStatus = error?.code === 'INVALID_QUIZ'
-                ? 400
-                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
-            return res.status(failureStatus).json({
-                success: false,
-                message: error?.code === 'INVALID_QUIZ'
-                    ? error.message
-                    : error?.code === 'NOT_CONNECTED'
-                        ? 'Connect Google Forms before publishing this assignment.'
-                        : 'Google Form creation failed. The assignment remains unchanged.',
-                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
-            });
-        }
-    }
-    assignment.status = status;
-
-    // Update links if provided
-    if (body.links !== undefined) {
-        const rawLinks = typeof body.links === 'string' ? JSON.parse(body.links || '[]') : body.links;
-        assignment.links = validateLinks(rawLinks);
-    }
-
-    // Handle attachment removals
-    if (body.removeAttachmentIds) {
-        const removeIds = typeof body.removeAttachmentIds === 'string'
-            ? JSON.parse(body.removeAttachmentIds || '[]')
-            : body.removeAttachmentIds;
-        if (Array.isArray(removeIds) && removeIds.length > 0) {
-            const removeSet = new Set(removeIds.map(String));
-            const toRemove = (assignment.attachments || []).filter((att) => removeSet.has(toId(att._id)));
-            await deleteAttachmentFiles(toRemove);
-            assignment.attachments = (assignment.attachments || []).filter((att) => !removeSet.has(toId(att._id)));
-        }
-    }
-
-    // Upload new attachment files
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (files.length > 0) {
-        const uploadedAttachments = await uploadAttachmentFiles(files, req.schoolId, assignment._id);
-        assignment.attachments = [...(assignment.attachments || []), ...uploadedAttachments];
-    }
-
-    if (type) {
-        assignment.assignmentType = type._id;
-        assignment.assignmentTypeKey = type.key;
-        assignment.assignmentTypeName = type.name;
-    }
-
-    if (status === 'published' && !assignment.publishedAt) {
-        assignment.publishedAt = new Date();
-        assignment.publishedBy = req.user._id;
-    }
-
-    await assignment.save();
-
-    const populated = await Assignment.findById(assignment._id)
-        .populate('assignmentType', 'key name')
-        .populate('class', 'name grade section')
-        .populate('subject', 'name code')
-        .populate('lessonPlanIds', 'title date')
-        .lean();
-
-    // Keeps already-posted coursework in step with edits; opting in here posts it for the first time.
-    const classroom = await runClassroomSync(
-        req,
-        assignment,
-        parseBoolean(body.classroomPublish, false)
-    );
-
-    res.json({
-        success: true,
-        data: { assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
+  const classId = toId(body.classId || body.class || assignment.class);
+  const subjectId = toId(body.subjectId || body.subject || assignment.subject);
+  const title =
+    body.title === undefined
+      ? assignment.title
+      : String(body.title || "").trim();
+  if (!classId || !subjectId || !title) {
+    return res.status(400).json({
+      success: false,
+      message: "classId, subjectId, and title are required",
     });
+  }
+
+  const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
+  if (!classDoc) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Selected class was not found in this school. Refresh the class list and try again.",
+    });
+  }
+  const academicYear = classDoc.academicYear;
+
+  const subjectExistsInClass = (classDoc.subjects || []).some(
+    (entry) => toId(entry.subject) === subjectId,
+  );
+  if (!subjectExistsInClass) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected subject is not assigned to the selected class",
+    });
+  }
+
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Teacher profile not found" });
+    }
+    const authorized = await isTeacherAuthorizedForClassSubject(
+      teacher._id,
+      classId,
+      subjectId,
+    );
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized for this class and subject",
+      });
+    }
+  }
+
+  let type = null;
+  const assignmentTypeId = toId(body.assignmentTypeId || body.assignmentType);
+  const assignmentTypeKey = String(body.assignmentTypeKey || "")
+    .trim()
+    .toLowerCase();
+  if (assignmentTypeId || assignmentTypeKey) {
+    type = await resolveAssignmentType({
+      schoolId: req.schoolId,
+      assignmentTypeId,
+      assignmentTypeKey,
+    });
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: "Assignment type not found or inactive",
+      });
+    }
+  }
+  const nextTypeKey = type?.key || assignment.assignmentTypeKey;
+  if (
+    nextTypeKey === "lesson_summary" &&
+    assignment.assignmentTypeKey !== "lesson_summary"
+  ) {
+    const hasGrades = await Grade.exists({
+      school: req.schoolId,
+      assignment: assignment._id,
+    });
+    if (hasGrades) {
+      return res.status(400).json({
+        success: false,
+        message: "This assignment has grades and cannot become ungraded.",
+      });
+    }
+  }
+  let metadata = assignment.metadata;
+  if (body.metadata !== undefined) {
+    metadata = body.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch {
+        return res
+          .status(400)
+          .json({ success: false, message: "metadata must be valid JSON." });
+      }
+    }
+  }
+  const requestedGoogleForm =
+    body.createGoogleForm === undefined
+      ? Boolean(metadata?.googleForm)
+      : parseBoolean(body.createGoogleForm, false);
+  const isGoogleFormAssignment =
+    nextTypeKey === "google_form" || requestedGoogleForm;
+  if (assignment.metadata?.googleForm?.formId && !isGoogleFormAssignment) {
+    return res.status(400).json({
+      success: false,
+      message: "A created Google Form cannot be removed from its assignment.",
+    });
+  }
+  if (isGoogleFormAssignment) {
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Google Forms is not enabled for this school.",
+        });
+    }
+    if (
+      assignment.metadata?.googleForm?.formId &&
+      body.metadata !== undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Questions cannot be changed after the Google Form is created. Create a new draft to change the quiz.",
+      });
+    }
+    try {
+      if (!assignment.metadata?.googleForm?.formId) {
+        metadata = {
+          googleForm: {
+            questions: validateGoogleFormQuestions(
+              metadata?.googleForm?.questions,
+              { requireRubric: false },
+            ),
+          },
+        };
+      }
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  const assignedDate =
+    body.assignedDate === undefined
+      ? assignment.assignedDate
+      : parseDate(body.assignedDate, null);
+  const dueDate =
+    body.dueDate === undefined
+      ? assignment.dueDate
+      : parseDate(body.dueDate, null);
+  if (body.assignedDate !== undefined && !assignedDate) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid assignedDate" });
+  }
+  if (
+    body.dueDate !== undefined &&
+    body.dueDate !== null &&
+    body.dueDate !== "" &&
+    !dueDate
+  ) {
+    return res.status(400).json({ success: false, message: "Invalid dueDate" });
+  }
+
+  const requestedStudentIds = toArray(
+    body.studentIds,
+    Array.isArray(assignment.studentIds) ? assignment.studentIds : [],
+  );
+  if (
+    isGoogleFormAssignment &&
+    body.scope !== undefined &&
+    ["selected_students", "selected"].includes(
+      String(body.scope).trim().toLowerCase(),
+    ) &&
+    requestedStudentIds.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Select at least one student for this Google Form quiz.",
+      });
+  }
+  const scope =
+    body.scope === undefined
+      ? normalizeScope(assignment.scope, requestedStudentIds)
+      : normalizeScope(body.scope, requestedStudentIds);
+
+  const validSelectedStudentIds =
+    scope === "selected_students"
+      ? await Student.find({
+          school: req.schoolId,
+          _id: { $in: requestedStudentIds },
+          currentClass: classId,
+          academicYear,
+          status: "active",
+        }).distinct("_id")
+      : [];
+  if (
+    scope === "selected_students" &&
+    validSelectedStudentIds.length !== requestedStudentIds.length
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "One or more selected students are invalid for this class and academic year",
+    });
+  }
+
+  const classOrSubjectChanged =
+    toId(assignment.class) !== classId ||
+    toId(assignment.subject) !== subjectId;
+  let normalizedLessonPlanIds;
+  if (body.lessonPlanIds !== undefined) {
+    normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+      lessonPlanIds: toArray(body.lessonPlanIds),
+      schoolId: req.schoolId,
+      classId,
+      subjectId,
+      user: req.user,
+    });
+  } else if (classOrSubjectChanged) {
+    // Class/subject changed but caller didn't update lesson plans — clear them
+    normalizedLessonPlanIds = [];
+  } else {
+    // Lesson plans untouched and class/subject unchanged — keep existing
+    normalizedLessonPlanIds = assignment.lessonPlanIds || [];
+  }
+
+  const status =
+    body.status &&
+    ["draft", "published", "closed", "archived"].includes(
+      String(body.status).toLowerCase(),
+    )
+      ? String(body.status).toLowerCase()
+      : assignment.status;
+
+  assignment.academicYear = academicYear;
+  assignment.class = classId;
+  assignment.subject = subjectId;
+  assignment.title = title;
+  assignment.summary =
+    body.summary === undefined
+      ? assignment.summary || ""
+      : String(body.summary || "")
+          .trim()
+          .slice(0, 500);
+  assignment.instructions =
+    body.instructions === undefined
+      ? assignment.instructions
+      : String(body.instructions || "").trim();
+  assignment.assignedDate = assignedDate;
+  assignment.dueDate = dueDate;
+  assignment.scope = scope;
+  assignment.studentIds =
+    scope === "selected_students" ? validSelectedStudentIds : [];
+  assignment.lessonPlanIds = normalizedLessonPlanIds ?? [];
+  const nextIsGraded = nextTypeKey !== "lesson_summary";
+  const maxMarksFallback =
+    assignment.maxMarks > 0
+      ? assignment.maxMarks
+      : Number(type?.defaults?.maxMarks || 10);
+  assignment.maxMarks = !nextIsGraded
+    ? 0
+    : body.maxMarks === undefined
+      ? maxMarksFallback
+      : parsePositiveNumber(body.maxMarks, maxMarksFallback);
+  assignment.isGraded = nextIsGraded;
+  assignment.allowLateSubmission =
+    body.allowLateSubmission === undefined
+      ? assignment.allowLateSubmission
+      : parseBoolean(body.allowLateSubmission, assignment.allowLateSubmission);
+  assignment.notifyOnAssign =
+    body.notifyOnAssign === undefined
+      ? assignment.notifyOnAssign
+      : parseBoolean(body.notifyOnAssign, assignment.notifyOnAssign);
+  assignment.notifyAudience =
+    body.notifyAudience === undefined
+      ? parseNotifyAudience(assignment.notifyAudience, "both")
+      : parseNotifyAudience(body.notifyAudience, assignment.notifyAudience);
+  assignment.notifyOnGrade = !nextIsGraded
+    ? false
+    : body.notifyOnGrade === undefined
+      ? assignment.notifyOnGrade
+      : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
+  assignment.metadata = metadata;
+
+  if (
+    status === "published" &&
+    isGoogleFormAssignment &&
+    !assignment.metadata?.googleForm?.formId
+  ) {
+    try {
+      const form = await createGoogleQuiz({
+        assignment,
+        actorId: req.user._id,
+        schoolId: req.schoolId,
+        questions: assignment.metadata?.googleForm?.questions,
+      });
+      assignment.metadata = {
+        ...assignment.metadata,
+        googleForm: { ...assignment.metadata.googleForm, ...form },
+      };
+    } catch (error) {
+      logger.error("Google Form quiz update/publish failed", {
+        assignmentId: String(assignment._id),
+        code: error?.code,
+        message: error?.message,
+      });
+      const failureStatus =
+        error?.code === "INVALID_QUIZ"
+          ? 400
+          : ["NOT_CONNECTED", "MISSING_SCOPES", "AUTH_REVOKED"].includes(
+                error?.code,
+              )
+            ? 403
+            : 502;
+      return res.status(failureStatus).json({
+        success: false,
+        message:
+          error?.code === "INVALID_QUIZ"
+            ? error.message
+            : error?.code === "NOT_CONNECTED"
+              ? "Connect Google Forms before publishing this assignment."
+              : "Google Form creation failed. The assignment remains unchanged.",
+        code: error?.code || "GOOGLE_FORMS_CREATE_FAILED",
+      });
+    }
+  }
+  assignment.status = status;
+
+  // Update links if provided
+  if (body.links !== undefined) {
+    const rawLinks =
+      typeof body.links === "string"
+        ? JSON.parse(body.links || "[]")
+        : body.links;
+    assignment.links = validateLinks(rawLinks);
+  }
+
+  // Handle attachment removals
+  if (body.removeAttachmentIds) {
+    const removeIds =
+      typeof body.removeAttachmentIds === "string"
+        ? JSON.parse(body.removeAttachmentIds || "[]")
+        : body.removeAttachmentIds;
+    if (Array.isArray(removeIds) && removeIds.length > 0) {
+      const removeSet = new Set(removeIds.map(String));
+      const toRemove = (assignment.attachments || []).filter((att) =>
+        removeSet.has(toId(att._id)),
+      );
+      await deleteAttachmentFiles(toRemove);
+      assignment.attachments = (assignment.attachments || []).filter(
+        (att) => !removeSet.has(toId(att._id)),
+      );
+    }
+  }
+
+  // Upload new attachment files
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (files.length > 0) {
+    const uploadedAttachments = await uploadAttachmentFiles(
+      files,
+      req.schoolId,
+      assignment._id,
+    );
+    assignment.attachments = [
+      ...(assignment.attachments || []),
+      ...uploadedAttachments,
+    ];
+  }
+
+  if (type) {
+    assignment.assignmentType = type._id;
+    assignment.assignmentTypeKey = type.key;
+    assignment.assignmentTypeName = type.name;
+  }
+
+  if (status === "published" && !assignment.publishedAt) {
+    assignment.publishedAt = new Date();
+    assignment.publishedBy = req.user._id;
+  }
+
+  await assignment.save();
+
+  const populated = await Assignment.findById(assignment._id)
+    .populate("assignmentType", "key name")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("lessonPlanIds", "title date")
+    .lean();
+
+  // Keeps already-posted coursework in step with edits; opting in here posts it for the first time.
+  const classroom = await runClassroomSync(
+    req,
+    assignment,
+    parseBoolean(body.classroomPublish, false),
+  );
+
+  res.json({
+    success: true,
+    data: {
+      assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }),
+      ...(classroom ? { classroom } : {}),
+    },
+  });
 });
 
 export const deleteAssignment = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to delete this assignment' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to delete this assignment",
+      });
 
-    const gradeDeleteResult = await Grade.deleteMany({
-        school: req.schoolId,
-        assignment: assignment._id
-    });
-    await GoogleFormSubmission.deleteMany({ school: req.schoolId, assignment: assignment._id });
+  const gradeDeleteResult = await Grade.deleteMany({
+    school: req.schoolId,
+    assignment: assignment._id,
+  });
+  await GoogleFormSubmission.deleteMany({
+    school: req.schoolId,
+    assignment: assignment._id,
+  });
 
-    // Clean up attachment files from storage
-    await deleteAttachmentFiles(assignment.attachments);
-    await googleDriveFileService.trashFilesBestEffort(
-        req.user._id,
-        (assignment.driveAttachments || []).map((att) => att.fileId)
-    );
+  // Clean up attachment files from storage
+  await deleteAttachmentFiles(assignment.attachments);
+  await googleDriveFileService.trashFilesBestEffort(
+    req.user._id,
+    (assignment.driveAttachments || []).map((att) => att.fileId),
+  );
 
-    await assignment.deleteOne();
+  await assignment.deleteOne();
 
-    // The Classroom coursework itself is left untouched; only the app-side link record is removed.
-    await AssignmentClassroomLink.deleteMany({ school: req.schoolId, assignment: assignment._id });
+  // The Classroom coursework itself is left untouched; only the app-side link record is removed.
+  await AssignmentClassroomLink.deleteMany({
+    school: req.schoolId,
+    assignment: assignment._id,
+  });
 
-    res.json({
-        success: true,
-        message: 'Assignment deleted successfully',
-        data: {
-            assignmentId: assignment._id,
-            deletedGradesCount: gradeDeleteResult?.deletedCount || 0
-        }
-    });
+  res.json({
+    success: true,
+    message: "Assignment deleted successfully",
+    data: {
+      assignmentId: assignment._id,
+      deletedGradesCount: gradeDeleteResult?.deletedCount || 0,
+    },
+  });
 });
 
 export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId }).lean();
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  }).lean();
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
 
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized' });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res.status(403).json({ success: false, message: "Not authorized" });
 
-    const attachmentId = req.params.attachmentId;
-    const attachment = (assignment.attachments || []).find((att) => toId(att._id) === attachmentId);
-    if (!attachment) return res.status(404).json({ success: false, message: 'Attachment not found' });
+  const attachmentId = req.params.attachmentId;
+  const attachment = (assignment.attachments || []).find(
+    (att) => toId(att._id) === attachmentId,
+  );
+  if (!attachment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Attachment not found" });
 
-    const signedUrl = await getSignedUrl(attachment.storageKey);
-    res.json({ success: true, data: { url: signedUrl, fileName: attachment.fileName, mimeType: attachment.mimeType } });
+  const signedUrl = await getSignedUrl(attachment.storageKey);
+  res.json({
+    success: true,
+    data: {
+      url: signedUrl,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+    },
+  });
 });
 
 export const uploadDriveAttachments = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to modify this assignment' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to modify this assignment",
+      });
 
-    const files = Array.isArray(req.files) ? req.files : [];
-    if (files.length === 0) {
-        return res.status(400).json({ success: false, message: 'Choose at least one file to upload.' });
-    }
-    if (!(await googleDriveFileService.isConnected(req.user._id))) {
-        return res.status(403).json({
-            success: false,
-            code: 'DRIVE_FILE_NOT_CONNECTED',
-            message: 'Connect Google Drive for attachments before uploading files.'
-        });
-    }
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (files.length === 0) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Choose at least one file to upload." });
+  }
+  if (!(await googleDriveFileService.isConnected(req.user._id))) {
+    return res.status(403).json({
+      success: false,
+      code: "DRIVE_FILE_NOT_CONNECTED",
+      message: "Connect Google Drive for attachments before uploading files.",
+    });
+  }
 
-    const uploaded = [];
-    try {
-        for (const file of files) {
-            uploaded.push(await googleDriveFileService.uploadAttachmentFile(req.user._id, file));
-        }
-    } catch (error) {
-        // A half-finished batch must not leave shared files the app never lists.
-        await googleDriveFileService.trashFilesBestEffort(req.user._id, uploaded.map((att) => att.fileId));
-        throw error;
+  const uploaded = [];
+  try {
+    for (const file of files) {
+      uploaded.push(
+        await googleDriveFileService.uploadAttachmentFile(req.user._id, file),
+      );
     }
+  } catch (error) {
+    // A half-finished batch must not leave shared files the app never lists.
+    await googleDriveFileService.trashFilesBestEffort(
+      req.user._id,
+      uploaded.map((att) => att.fileId),
+    );
+    throw error;
+  }
 
-    assignment.driveAttachments = [...(assignment.driveAttachments || []), ...uploaded];
-    await assignment.save();
-    res.json({ success: true, data: { driveAttachments: assignment.driveAttachments } });
+  assignment.driveAttachments = [
+    ...(assignment.driveAttachments || []),
+    ...uploaded,
+  ];
+  await assignment.save();
+  res.json({
+    success: true,
+    data: { driveAttachments: assignment.driveAttachments },
+  });
 });
 
 export const deleteDriveAttachment = asyncHandler(async (req, res) => {
-    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
-    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
-    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to modify this assignment' });
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res
+      .status(403)
+      .json({
+        success: false,
+        message: "Not authorized to modify this assignment",
+      });
 
-    const fileId = String(req.params.fileId || '');
-    const entry = (assignment.driveAttachments || []).find((att) => att.fileId === fileId);
-    if (!entry) return res.status(404).json({ success: false, message: 'Attachment not found' });
+  const fileId = String(req.params.fileId || "");
+  const entry = (assignment.driveAttachments || []).find(
+    (att) => att.fileId === fileId,
+  );
+  if (!entry)
+    return res
+      .status(404)
+      .json({ success: false, message: "Attachment not found" });
 
-    // Without a live connection the row still comes off the assignment; the
-    // file itself stays in the teacher's Drive until they remove it there.
-    if (await googleDriveFileService.isConnected(req.user._id)) {
-        await googleDriveFileService.trashFile(req.user._id, fileId);
-    }
-    assignment.driveAttachments = (assignment.driveAttachments || []).filter((att) => att.fileId !== fileId);
-    await assignment.save();
-    res.json({ success: true, data: { driveAttachments: assignment.driveAttachments } });
+  // Without a live connection the row still comes off the assignment; the
+  // file itself stays in the teacher's Drive until they remove it there.
+  if (await googleDriveFileService.isConnected(req.user._id)) {
+    await googleDriveFileService.trashFile(req.user._id, fileId);
+  }
+  assignment.driveAttachments = (assignment.driveAttachments || []).filter(
+    (att) => att.fileId !== fileId,
+  );
+  await assignment.save();
+  res.json({
+    success: true,
+    data: { driveAttachments: assignment.driveAttachments },
+  });
 });
 
 /**
@@ -1873,122 +2608,138 @@ export const deleteDriveAttachment = asyncHandler(async (req, res) => {
  * saved here — the teacher edits the drafts in the drawer before saving.
  */
 export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
-    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
-        return res.status(403).json({
-            success: false,
-            code: 'GOOGLE_FORMS_DISABLED',
-            message: 'Google Forms is not enabled for this school. Ask your administrator to enable it before drafting quiz questions.'
-        });
-    }
+  if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+    return res.status(403).json({
+      success: false,
+      code: "GOOGLE_FORMS_DISABLED",
+      message:
+        "Google Forms is not enabled for this school. Ask your administrator to enable it before drafting quiz questions.",
+    });
+  }
 
-    const body = req.body || {};
-    const classId = toId(body.classId || body.class);
-    const subjectId = toId(body.subjectId || body.subject);
-    if (!classId || !subjectId) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_CLASS_SUBJECT_REQUIRED',
-            message: 'Choose a class and subject first.'
-        });
-    }
+  const body = req.body || {};
+  const classId = toId(body.classId || body.class);
+  const subjectId = toId(body.subjectId || body.subject);
+  if (!classId || !subjectId) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_CLASS_SUBJECT_REQUIRED",
+      message: "Choose a class and subject first.",
+    });
+  }
 
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
-        .select('_id subjects')
-        .lean();
-    if (!classDoc) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_CLASS_INVALID',
-            message: 'Selected class was not found in this school. Refresh the class list and try again.'
-        });
+  const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
+    .select("_id subjects")
+    .lean();
+  if (!classDoc) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_CLASS_INVALID",
+      message:
+        "Selected class was not found in this school. Refresh the class list and try again.",
+    });
+  }
+  const subjectExistsInClass = (classDoc.subjects || []).some(
+    (entry) => toId(entry.subject) === subjectId,
+  );
+  if (!subjectExistsInClass) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_SUBJECT_INVALID",
+      message: "Selected subject is not assigned to the selected class",
+    });
+  }
+
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Teacher profile not found" });
     }
-    const subjectExistsInClass = (classDoc.subjects || []).some(
-        (entry) => toId(entry.subject) === subjectId
+    const authorized = await isTeacherAuthorizedForClassSubject(
+      teacher._id,
+      classId,
+      subjectId,
     );
-    if (!subjectExistsInClass) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_SUBJECT_INVALID',
-            message: 'Selected subject is not assigned to the selected class'
-        });
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        code: "DRAFT_NOT_AUTHORIZED",
+        message: "You are not authorized for this class and subject",
+      });
     }
+  }
 
-    if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) {
-            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-        }
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
-        if (!authorized) {
-            return res.status(403).json({
-                success: false,
-                code: 'DRAFT_NOT_AUTHORIZED',
-                message: 'You are not authorized for this class and subject'
-            });
-        }
-    }
-
-    const lessonPlanIds = toArray(body.lessonPlanIds).filter(Boolean);
-    if (!req.file && lessonPlanIds.length === 0) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_SOURCE_REQUIRED',
-            message: 'Choose lesson plans for this class and subject, or upload a PDF or photo.'
-        });
-    }
-
-    const count = clampDraftCount(body.count);
-    const types = normalizeDraftTypes(toArray(body.types));
-    const usage = { feature: 'assignment_question_draft' };
-
-    if (req.file) {
-        const extracted = await extractDocumentText({
-            buffer: req.file.buffer,
-            mimeType: req.file.mimetype,
-            usage
-        });
-        const result = await draftQuestionsFromText({
-            sourceText: extracted.text,
-            count,
-            types,
-            usage
-        });
-        return res.json({
-            success: true,
-            data: {
-                questions: result.questions,
-                source: {
-                    kind: extracted.sourceType,
-                    characters: extracted.text.length,
-                    truncated: extracted.truncated || result.truncatedSource
-                }
-            }
-        });
-    }
-
-    const validLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds,
-        schoolId: req.schoolId,
-        classId,
-        subjectId,
-        user: req.user
+  const lessonPlanIds = toArray(body.lessonPlanIds).filter(Boolean);
+  if (!req.file && lessonPlanIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_SOURCE_REQUIRED",
+      message:
+        "Choose lesson plans for this class and subject, or upload a PDF or photo.",
     });
-    const lessons = await LessonPlan.find({ _id: { $in: validLessonPlanIds } })
-        .select('title topic summary description previousKnowledge teachingObjectives objectives.text vocabulary activities assessmentMethods resources stages extractedMaterialText contextText')
-        .lean();
-    const result = await draftQuestionsFromLessonPlans({ lessons, count, types, usage });
+  }
 
-    res.json({
-        success: true,
-        data: {
-            questions: result.questions,
-            source: {
-                kind: 'lesson_plans',
-                lessonCount: lessons.length,
-                truncated: result.truncatedSource
-            }
-        }
+  const count = clampDraftCount(body.count);
+  const types = normalizeDraftTypes(toArray(body.types));
+  const usage = { feature: "assignment_question_draft" };
+
+  if (req.file) {
+    const extracted = await extractDocumentText({
+      buffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      usage,
     });
+    const result = await draftQuestionsFromText({
+      sourceText: extracted.text,
+      count,
+      types,
+      usage,
+    });
+    return res.json({
+      success: true,
+      data: {
+        questions: result.questions,
+        source: {
+          kind: extracted.sourceType,
+          characters: extracted.text.length,
+          truncated: extracted.truncated || result.truncatedSource,
+        },
+      },
+    });
+  }
+
+  const validLessonPlanIds = await validateGradeLessonPlanLinks({
+    lessonPlanIds,
+    schoolId: req.schoolId,
+    classId,
+    subjectId,
+    user: req.user,
+  });
+  const lessons = await LessonPlan.find({ _id: { $in: validLessonPlanIds } })
+    .select(
+      "title topic summary description previousKnowledge teachingObjectives objectives.text vocabulary activities assessmentMethods resources stages extractedMaterialText contextText",
+    )
+    .lean();
+  const result = await draftQuestionsFromLessonPlans({
+    lessons,
+    count,
+    types,
+    usage,
+  });
+
+  res.json({
+    success: true,
+    data: {
+      questions: result.questions,
+      source: {
+        kind: "lesson_plans",
+        lessonCount: lessons.length,
+        truncated: result.truncatedSource,
+      },
+    },
+  });
 });
 
 /**
@@ -1997,34 +2748,37 @@ export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
  * form before creating the assignment.
  */
 export const draftAssignmentSummary = asyncHandler(async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_SOURCE_REQUIRED',
-            message: 'Upload a PDF or photo of the lesson.'
-        });
-    }
-
-    const usage = { feature: 'assignment_lesson_summary_draft' };
-    const extracted = await extractDocumentText({
-        buffer: req.file.buffer,
-        mimeType: req.file.mimetype,
-        usage
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_SOURCE_REQUIRED",
+      message: "Upload a PDF or photo of the lesson.",
     });
-    const result = await draftLessonSummaryFromText({ sourceText: extracted.text, usage });
+  }
 
-    res.json({
-        success: true,
-        data: {
-            title: result.title,
-            instructions: result.instructions,
-            source: {
-                kind: extracted.sourceType,
-                characters: extracted.text.length,
-                truncated: extracted.truncated
-            }
-        }
-    });
+  const usage = { feature: "assignment_lesson_summary_draft" };
+  const extracted = await extractDocumentText({
+    buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
+    usage,
+  });
+  const result = await draftLessonSummaryFromText({
+    sourceText: extracted.text,
+    usage,
+  });
+
+  res.json({
+    success: true,
+    data: {
+      title: result.title,
+      instructions: result.instructions,
+      source: {
+        kind: extracted.sourceType,
+        characters: extracted.text.length,
+        truncated: extracted.truncated,
+      },
+    },
+  });
 });
 
 /**
@@ -2033,103 +2787,112 @@ export const draftAssignmentSummary = asyncHandler(async (req, res) => {
  * here; attaching it is a separate, explicit choice in the drawer.
  */
 export const draftAssignmentBrief = asyncHandler(async (req, res) => {
-    const body = req.body || {};
-    const classId = toId(body.classId || body.class);
-    const subjectId = toId(body.subjectId || body.subject);
-    if (!classId || !subjectId) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_CLASS_SUBJECT_REQUIRED',
-            message: 'Choose a class and subject first.'
-        });
-    }
+  const body = req.body || {};
+  const classId = toId(body.classId || body.class);
+  const subjectId = toId(body.subjectId || body.subject);
+  if (!classId || !subjectId) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_CLASS_SUBJECT_REQUIRED",
+      message: "Choose a class and subject first.",
+    });
+  }
 
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
-        .select('_id subjects')
-        .lean();
-    if (!classDoc) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_CLASS_INVALID',
-            message: 'Selected class was not found in this school. Refresh the class list and try again.'
-        });
+  const classDoc = await Class.findOne({ _id: classId, school: req.schoolId })
+    .select("_id subjects")
+    .lean();
+  if (!classDoc) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_CLASS_INVALID",
+      message:
+        "Selected class was not found in this school. Refresh the class list and try again.",
+    });
+  }
+  const subjectExistsInClass = (classDoc.subjects || []).some(
+    (entry) => toId(entry.subject) === subjectId,
+  );
+  if (!subjectExistsInClass) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_SUBJECT_INVALID",
+      message: "Selected subject is not assigned to the selected class",
+    });
+  }
+
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Teacher profile not found" });
     }
-    const subjectExistsInClass = (classDoc.subjects || []).some(
-        (entry) => toId(entry.subject) === subjectId
+    const authorized = await isTeacherAuthorizedForClassSubject(
+      teacher._id,
+      classId,
+      subjectId,
     );
-    if (!subjectExistsInClass) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_SUBJECT_INVALID',
-            message: 'Selected subject is not assigned to the selected class'
-        });
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        code: "DRAFT_NOT_AUTHORIZED",
+        message: "You are not authorized for this class and subject",
+      });
     }
+  }
 
-    if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) {
-            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
-        }
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
-        if (!authorized) {
-            return res.status(403).json({
-                success: false,
-                code: 'DRAFT_NOT_AUTHORIZED',
-                message: 'You are not authorized for this class and subject'
-            });
-        }
-    }
-
-    const type = await resolveAssignmentType({
-        schoolId: req.schoolId,
-        assignmentTypeId: toId(body.assignmentTypeId || body.assignmentType),
-        assignmentTypeKey: String(body.assignmentTypeKey || '').trim().toLowerCase()
+  const type = await resolveAssignmentType({
+    schoolId: req.schoolId,
+    assignmentTypeId: toId(body.assignmentTypeId || body.assignmentType),
+    assignmentTypeKey: String(body.assignmentTypeKey || "")
+      .trim()
+      .toLowerCase(),
+  });
+  if (!type) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_TYPE_REQUIRED",
+      message: "Choose an assignment type first.",
     });
-    if (!type) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_TYPE_REQUIRED',
-            message: 'Choose an assignment type first.'
-        });
-    }
+  }
 
-    if (!req.file) {
-        return res.status(400).json({
-            success: false,
-            code: 'DRAFT_SOURCE_REQUIRED',
-            message: 'Upload a PDF or photo of the source material.'
-        });
-    }
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      code: "DRAFT_SOURCE_REQUIRED",
+      message: "Upload a PDF or photo of the source material.",
+    });
+  }
 
-    const usage = { feature: 'assignment_brief_draft' };
-    const extracted = await extractDocumentText({
-        buffer: req.file.buffer,
-        mimeType: req.file.mimetype,
-        usage
-    });
-    const sourceUsage = normalizeBriefSourceUsage(body.sourceUsage);
-    const formContext = toArray(body.formContext).filter(Boolean);
-    const result = await draftAssignmentBriefFromText({
-        sourceText: extracted.text,
-        assignmentTypeKey: type.key,
-        assignmentTypeName: type.name,
-        sourceUsage,
-        formContext,
-        isGraded: type.key !== 'lesson_summary',
-        usage
-    });
+  const usage = { feature: "assignment_brief_draft" };
+  const extracted = await extractDocumentText({
+    buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
+    usage,
+  });
+  const sourceUsage = normalizeBriefSourceUsage(body.sourceUsage);
+  const formContext = toArray(body.formContext).filter(Boolean);
+  const result = await draftAssignmentBriefFromText({
+    sourceText: extracted.text,
+    assignmentTypeKey: type.key,
+    assignmentTypeName: type.name,
+    sourceUsage,
+    formContext,
+    isGraded: type.key !== "lesson_summary",
+    usage,
+  });
 
-    res.json({
-        success: true,
-        data: {
-            title: result.title,
-            summary: result.summary,
-            instructions: result.instructions,
-            source: {
-                kind: extracted.sourceType,
-                characters: extracted.text.length,
-                truncated: extracted.truncated
-            }
-        }
-    });
+  res.json({
+    success: true,
+    data: {
+      title: result.title,
+      summary: result.summary,
+      instructions: result.instructions,
+      source: {
+        kind: extracted.sourceType,
+        characters: extracted.text.length,
+        truncated: extracted.truncated,
+      },
+    },
+  });
 });

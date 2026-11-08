@@ -30,10 +30,10 @@ const escapeCell = (value) => {
 
 export const buildGoogleFormQuestionCsvTemplate = () => {
     const rows = [
-        ['question_type', 'question_text', 'options', 'correct_answer', 'points'],
-        ['multiple_choice', 'Which number is even?', '3|4|5|7', '4', '1'],
-        ['true_false', 'A triangle has three sides.', '', 'True', '1'],
-        ['short_answer', 'Explain one way to help your community.', '', '', '0']
+        ['question_type', 'question_text', 'options', 'correct_answer', 'points', 'model_answer', 'rubric'],
+        ['multiple_choice', 'Which number is even?', '3|4|5|7', '4', '1', '', ''],
+        ['true_false', 'A triangle has three sides.', '', 'True', '1', '', ''],
+        ['short_answer', 'Explain one way to help your community.', '', '', '1', 'Pick up litter with a group of neighbors.', '1 point for a concrete action; accept equivalent wording.']
     ];
     return `\uFEFF${rows.map((row) => row.map(escapeCell).join(',')).join('\r\n')}\r\n`;
 };
@@ -99,11 +99,20 @@ export const parseGoogleFormQuestionCsv = (csvText) => {
         }
 
         if (type === 'short_answer') {
-            const points = get(record, 'points');
-            if (points && (!Number.isInteger(Number(points)) || Number(points) !== 0)) {
-                throw new Error(`Row ${rowNumber}: short-answer questions must have 0 points.`);
+            const pointsValue = get(record, 'points') || '1';
+            const points = Number(pointsValue);
+            if (!Number.isInteger(points) || points < 1 || points > 1000) {
+                throw new Error(`Row ${rowNumber} points must be a whole number from 1 to 1000.`);
             }
-            return { type, title, options: [], correctAnswer: '', points: 0 };
+            const modelAnswer = get(record, 'model_answer');
+            const rubric = get(record, 'rubric');
+            if (modelAnswer.length > 2000) {
+                throw new Error(`Row ${rowNumber} model_answer must be at most 2000 characters.`);
+            }
+            if (rubric.length > 2000) {
+                throw new Error(`Row ${rowNumber} rubric must be at most 2000 characters.`);
+            }
+            return { type, title, options: [], correctAnswer: '', points, modelAnswer, rubric };
         }
 
         const pointsValue = get(record, 'points') || '1';

@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import Assignment from '../models/Assignment.js';
+import GoogleFormSubmission from '../models/GoogleFormSubmission.js';
 import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import googleFormsOAuthService from '../services/googleFormsOAuthService.js';
@@ -7,6 +9,7 @@ import {
     listGoogleQuizSubmissions,
     syncGoogleQuizResponses
 } from '../services/googleFormsAssignmentService.js';
+import { approveGoogleFormGrading, gradeGoogleFormSubmission } from '../services/googleFormsGradingService.js';
 import {
     getGoogleFormsConfigurationStatus,
     isGoogleFormsEnabledForSchool
@@ -146,5 +149,88 @@ export const syncGoogleFormResponses = asyncHandler(async (req, res) => {
         unmatched: summary.unmatched,
         updatedGrades: summary.updatedGrades
     });
+    return res.json({ success: true, data: summary });
+});
+
+export const gradeGoogleFormResponse = asyncHandler(async (req, res) => {
+    const result = await findAccessibleAssignment(req, req.params.id);
+    if (result.error) return res.status(result.error.status).json({ success: false, message: result.error.message });
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+    }
+    const submissionId = String(req.body?.submissionId || '').trim();
+    if (!mongoose.isValidObjectId(submissionId)) {
+        return res.status(400).json({ success: false, message: 'Choose a response to grade.' });
+    }
+    const submission = await GoogleFormSubmission.findOne({
+        _id: submissionId,
+        school: req.schoolId,
+        assignment: result.assignment._id
+    });
+    if (!submission) {
+        return res.status(404).json({ success: false, message: 'Response not found. Sync responses first.' });
+    }
+    let summary;
+    try {
+        summary = await gradeGoogleFormSubmission({
+            assignment: result.assignment,
+            submission,
+            usage: { feature: 'google_form_grading' }
+        });
+    } catch (error) {
+        logger.error('Google Forms AI grading failed', {
+            assignmentId: String(result.assignment._id),
+            code: error?.code,
+            message: error?.message
+        });
+        return res.status(error?.statusCode || 502).json({
+            success: false,
+            code: error?.code || 'GRADING_FAILED',
+            message: error?.message || 'AI grading failed. Try again.'
+        });
+    }
+    if (!summary.skipped && summary.graded === 0) {
+        return res.status(502).json({
+            success: false,
+            code: 'GRADING_FAILED',
+            message: 'AI grading did not return usable scores. Try again.'
+        });
+    }
+    return res.json({ success: true, data: summary });
+});
+
+export const approveGoogleFormResponse = asyncHandler(async (req, res) => {
+    const result = await findAccessibleAssignment(req, req.params.id);
+    if (result.error) return res.status(result.error.status).json({ success: false, message: result.error.message });
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+    }
+    const submissionId = String(req.body?.submissionId || '').trim();
+    if (!mongoose.isValidObjectId(submissionId)) {
+        return res.status(400).json({ success: false, message: 'Choose a response to approve.' });
+    }
+    const submission = await GoogleFormSubmission.findOne({
+        _id: submissionId,
+        school: req.schoolId,
+        assignment: result.assignment._id
+    });
+    if (!submission) {
+        return res.status(404).json({ success: false, message: 'Response not found. Sync responses first.' });
+    }
+    let summary;
+    try {
+        summary = await approveGoogleFormGrading({
+            assignment: result.assignment,
+            submission,
+            actorId: req.user._id,
+            questions: Array.isArray(req.body?.questions) ? req.body.questions : []
+        });
+    } catch (error) {
+        return res.status(error?.statusCode || 502).json({
+            success: false,
+            code: error?.code || 'APPROVAL_FAILED',
+            message: error?.message || 'Could not approve these grades. Try again.'
+        });
+    }
     return res.json({ success: true, data: summary });
 });

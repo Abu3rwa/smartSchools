@@ -8,6 +8,7 @@ import {
     HiOutlineSearch,
     HiOutlineX
 } from 'react-icons/hi';
+import GoogleFormGradingReview from './GoogleFormGradingReview';
 
 const formatSubmittedAt = (value) => {
     const date = new Date(value);
@@ -35,7 +36,7 @@ const sortAnswersByQuestionOrder = (answers, orderById) => {
         .map((entry) => entry.answer);
 };
 
-const GoogleFormResultsPanel = ({ results, loading, onClose, onSync }) => {
+const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, onApprove }) => {
     const { t } = useTranslation(['assignments']);
     const panelRef = useRef(null);
     const [search, setSearch] = useState('');
@@ -77,6 +78,11 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync }) => {
 
     const questionOrderById = useMemo(
         () => new Map(questions.map((question, index) => [String(question.questionId || ''), index])),
+        [questions]
+    );
+
+    const hasShortAnswer = useMemo(
+        () => questions.some((question) => question.type === 'short_answer'),
         [questions]
     );
 
@@ -304,6 +310,11 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync }) => {
                                                         {`${item.score} / ${item.possibleScore ?? '?'}`}
                                                     </span>
                                                 )}
+                                                {hasShortAnswer && item.gradingStatus && (
+                                                    <span className={`gfr-tag gfr-tag--${item.gradingStatus}`}>
+                                                        {t(`assignments:googleForms.grading.status_${item.gradingStatus}`)}
+                                                    </span>
+                                                )}
                                             </span>
                                             {submittedAt && (
                                                 <time
@@ -362,6 +373,16 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync }) => {
                                                     <p className="gfr-answer__value is-empty">
                                                         {t('assignments:googleForms.notAnswered')}
                                                     </p>
+                                                )}
+                                                {hasShortAnswer && (
+                                                    <GoogleFormGradingReview
+                                                        key={`${item.id}-${item.gradingStatus || 'pending'}-${item.grading?.suggestedAt || ''}-${item.grading?.approvedAt || ''}`}
+                                                        item={item}
+                                                        questions={questions}
+                                                        maxMarks={assignment.maxMarks ?? 10}
+                                                        onGrade={(row) => onGrade(assignment, row)}
+                                                        onApprove={(row, payload) => onApprove(assignment, row, payload)}
+                                                    />
                                                 )}
                                             </div>
                                         )}

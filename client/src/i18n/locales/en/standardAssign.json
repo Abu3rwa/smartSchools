@@ -247,6 +247,7 @@
     "masteredBadge": "Mastered",
     "needsReview": "Needs Review",
     "notStarted": "Not Started",
+    "standardMissing": "The linked standard was deleted. Answer history is available, but mastery cannot be determined.",
     "title": "Assignment Progress",
     "total": "Total"
   },

@@ -82,7 +82,7 @@
     "userManagement": "إدارة المستخدمين",
     "apiDocumentation": "توثيق API",
     "myGrades": "درجاتي",
-    "practice": "التدريب",
+    "practice": "المعايير",
     "sbResults": "نتائج SB",
     "academicExcellence": "التميز الاكاديمي",
     "revisionPlans": "خطط المراجعة",
@@ -117,14 +117,14 @@
   "studentDashboard": {
     "groups": {
       "learning": "التعلم",
-      "practice": "التدريب والنمو",
+      "practice": "المعايير",
       "character": "الشخصية والمجتمع"
     },
     "descriptions": {
       "myGrades": "الدرجات وملاحظات المعلمين وتقارير التقدم.",
       "socialStudiesStudent": "مقرر الدراسات الاجتماعية ودروسه وواجباته.",
       "assignments": "ما هو مستحق قريبًا وما تم إعادته.",
-      "practice": "مجموعات تدريب متكيفة في مختلف موادك.",
+      "practice": "أسئلة متكيفة على معايير موادك.",
       "sbResults": "نتائجك القائمة على المعايير وتقدمك.",
       "mapTestPrep": "تدريب موجّه على MAP ومراجعة للمهارات.",
       "spelling": "قوائم الكلمات الأسبوعية والتدريب وإعادة الاختبار.",

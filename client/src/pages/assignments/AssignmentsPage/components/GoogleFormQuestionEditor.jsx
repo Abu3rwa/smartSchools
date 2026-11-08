@@ -47,9 +47,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
     const [importingCsv, setImportingCsv] = useState(false);
 
     const summary = useMemo(() => {
-        const totalPoints = questions.reduce((total, question) => (
-            question.type === 'short_answer' ? total : total + (Number(question.points) || 0)
-        ), 0);
+        const totalPoints = questions.reduce((total, question) => total + (Number(question.points) || 0), 0);
         const manualCount = questions.filter((question) => question.type === 'short_answer').length;
         return { totalPoints, manualCount };
     }, [questions]);
@@ -125,7 +123,14 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
             return;
         }
         if (type === 'short_answer') {
-            updateQuestion(index, { type, options: [], correctAnswer: '', points: 0 });
+            updateQuestion(index, {
+                type,
+                options: [],
+                correctAnswer: '',
+                points,
+                modelAnswer: question.modelAnswer || '',
+                rubric: question.rubric || ''
+            });
             return;
         }
         updateQuestion(index, {
@@ -265,7 +270,7 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                         {questions.map((question, index) => {
                             const options = getOptions(question);
                             const type = question.type || 'multiple_choice';
-                            const points = type === 'short_answer' ? 0 : getValidPoints(question);
+                            const points = getValidPoints(question);
                             return (
                                 <fieldset
                                     className="quiz-question"
@@ -281,15 +286,9 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                                             <span className="quiz-question__type">
                                                 {t(`assignments:googleForms.${TYPE_LABEL_KEYS[type] || 'multipleChoice'}`)}
                                             </span>
-                                            {type === 'short_answer' ? (
-                                                <span className="quiz-question__points quiz-question__points--muted">
-                                                    {t('assignments:googleForms.manualReview')}
-                                                </span>
-                                            ) : (
-                                                <span className="quiz-question__points">
-                                                    {t('assignments:googleForms.pointsBadge', { count: points })}
-                                                </span>
-                                            )}
+                                            <span className="quiz-question__points">
+                                                {t('assignments:googleForms.pointsBadge', { count: points })}
+                                            </span>
                                         </div>
                                         <button
                                             type="button"
@@ -327,24 +326,22 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                                                     <option value="short_answer">{t('assignments:googleForms.shortAnswer')}</option>
                                                 </select>
                                             </label>
-                                            {type !== 'short_answer' && (
-                                                <label className="quiz-field quiz-field--points">
-                                                    <span>{t('assignments:googleForms.points')}</span>
-                                                    <input
-                                                        type="number"
-                                                        min={1}
-                                                        max={1000}
-                                                        step={1}
-                                                        required
-                                                        value={question.points ?? 1}
-                                                        onChange={(event) => updateQuestion(index, {
-                                                            points: event.target.value === ''
-                                                                ? ''
-                                                                : Number(event.target.value)
-                                                        })}
-                                                    />
-                                                </label>
-                                            )}
+                                            <label className="quiz-field quiz-field--points">
+                                                <span>{t('assignments:googleForms.points')}</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={1000}
+                                                    step={1}
+                                                    required
+                                                    value={question.points ?? 1}
+                                                    onChange={(event) => updateQuestion(index, {
+                                                        points: event.target.value === ''
+                                                            ? ''
+                                                            : Number(event.target.value)
+                                                    })}
+                                                />
+                                            </label>
                                         </div>
 
                                         {type === 'multiple_choice' && (
@@ -439,9 +436,31 @@ const GoogleFormQuestionEditor = ({ questions = [], onChange, disabled = false }
                                         )}
 
                                         {type === 'short_answer' && (
-                                            <div className="quiz-callout">
-                                                <HiOutlineInformationCircle aria-hidden="true" />
-                                                <p>{t('assignments:googleForms.shortAnswerHelp')}</p>
+                                            <div className="quiz-short-answer">
+                                                <label className="quiz-field">
+                                                    <span>{t('assignments:googleForms.modelAnswer')}</span>
+                                                    <textarea
+                                                        rows={3}
+                                                        maxLength={2000}
+                                                        value={question.modelAnswer || ''}
+                                                        placeholder={t('assignments:googleForms.modelAnswerPlaceholder')}
+                                                        onChange={(event) => updateQuestion(index, { modelAnswer: event.target.value })}
+                                                    />
+                                                </label>
+                                                <label className="quiz-field">
+                                                    <span>{t('assignments:googleForms.rubric')}</span>
+                                                    <textarea
+                                                        rows={3}
+                                                        maxLength={2000}
+                                                        value={question.rubric || ''}
+                                                        placeholder={t('assignments:googleForms.rubricPlaceholder')}
+                                                        onChange={(event) => updateQuestion(index, { rubric: event.target.value })}
+                                                    />
+                                                </label>
+                                                <div className="quiz-callout">
+                                                    <HiOutlineInformationCircle aria-hidden="true" />
+                                                    <p>{t('assignments:googleForms.shortAnswerHelp')}</p>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

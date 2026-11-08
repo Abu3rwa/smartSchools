@@ -54,6 +54,13 @@
   font-size: 0.9rem;
 }
 
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .detail-section {
   margin-top: var(--spacing-lg);
 }
@@ -65,6 +72,10 @@
   font-size: 1rem;
   margin: 0 0 10px 0;
   color: var(--text-primary);
+}
+
+.detail-section .btn {
+  margin-top: 10px;
 }
 
 .timeline-grid {
@@ -124,6 +135,7 @@
   color: var(--primary-600);
   font-weight: 600;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .assignment-link-list a:hover {
@@ -133,6 +145,75 @@
 .assignment-link-label {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.grade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grade-row {
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.grade-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grade-student {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.grade-score {
+  color: var(--primary-600);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.grade-remarks {
+  margin: 6px 0 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.assignment-child-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignment-child-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.child-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.child-status {
+  color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
 .muted {

@@ -1,5 +1,5 @@
-import { storage } from '../config/firebase.js';
-import { parseBooleanEnv } from '../config/booleanEnv.js';
+import { storage } from "../config/firebase.js";
+import { parseBooleanEnv } from "../config/booleanEnv.js";
 
 let resolvedBucketName = null;
 
@@ -7,96 +7,101 @@ let resolvedBucketName = null;
 // FIREBASE_UPLOAD_ENABLED=false to stop all uploads before they reach Google
 // (e.g. when the project's billing account is closed).
 const uploadsEnabled = () =>
-    parseBooleanEnv(process.env.FIREBASE_UPLOAD_ENABLED ?? 'true');
+  parseBooleanEnv(process.env.FIREBASE_UPLOAD_ENABLED ?? "true");
 
-const assertUploadsEnabled = () => {
-    if (uploadsEnabled()) return;
-    const error = new Error(
-        'File uploads are disabled (FIREBASE_UPLOAD_ENABLED=false). Re-enable uploads or restore Firebase billing to attach files.'
-    );
-    error.statusCode = 503;
-    error.code = 'FIREBASE_UPLOAD_DISABLED';
-    throw error;
+export const assertUploadsEnabled = () => {
+  if (uploadsEnabled()) return;
+  const error = new Error(
+    "File uploads are disabled (FIREBASE_UPLOAD_ENABLED=false). Re-enable uploads or restore Firebase billing to attach files.",
+  );
+  error.statusCode = 503;
+  error.code = "FIREBASE_UPLOAD_DISABLED";
+  throw error;
 };
 
 const unique = (items) => [...new Set(items.filter(Boolean))];
 
-const parseStoragePath = (fileRef = '', bucketName = '') => {
-    const value = String(fileRef || '').trim();
-    if (!value) return '';
+const parseStoragePath = (fileRef = "", bucketName = "") => {
+  const value = String(fileRef || "").trim();
+  if (!value) return "";
 
-    if (value.startsWith('gs://')) {
-        const withoutPrefix = value.slice('gs://'.length);
-        const slashIndex = withoutPrefix.indexOf('/');
-        if (slashIndex === -1) return '';
-        return withoutPrefix.slice(slashIndex + 1);
+  if (value.startsWith("gs://")) {
+    const withoutPrefix = value.slice("gs://".length);
+    const slashIndex = withoutPrefix.indexOf("/");
+    if (slashIndex === -1) return "";
+    return withoutPrefix.slice(slashIndex + 1);
+  }
+
+  if (bucketName) {
+    const bucketPrefix = `https://storage.googleapis.com/${bucketName}/`;
+    if (value.startsWith(bucketPrefix)) {
+      return value.slice(bucketPrefix.length);
     }
+  }
 
-    if (bucketName) {
-        const bucketPrefix = `https://storage.googleapis.com/${bucketName}/`;
-        if (value.startsWith(bucketPrefix)) {
-            return value.slice(bucketPrefix.length);
-        }
-    }
-
-    return value;
+  return value;
 };
 
 const getBucketCandidates = () => {
-    const configuredBucket = String(process.env.FIREBASE_STORAGE_BUCKET || '').trim();
-    if (configuredBucket) return [configuredBucket];
+  const configuredBucket = String(
+    process.env.FIREBASE_STORAGE_BUCKET || "",
+  ).trim();
+  if (configuredBucket) return [configuredBucket];
 
-    const projectId = String(process.env.FIREBASE_PROJECT_ID || '').trim()
-        || String(storage?.app?.options?.projectId || '').trim();
-    if (!projectId) return [];
+  const projectId =
+    String(process.env.FIREBASE_PROJECT_ID || "").trim() ||
+    String(storage?.app?.options?.projectId || "").trim();
+  if (!projectId) return [];
 
-    return unique([
-        storage?.app?.options?.storageBucket,
-        `${projectId}.appspot.com`,
-        `${projectId}.firebasestorage.app`
-    ]);
+  return unique([
+    storage?.app?.options?.storageBucket,
+    `${projectId}.appspot.com`,
+    `${projectId}.firebasestorage.app`,
+  ]);
 };
 
 const getStorageBucket = async () => {
-    if (!storage) {
-        throw new Error('Firebase Storage is not configured. Check Firebase credentials and env loading.');
-    }
-
-    if (resolvedBucketName) {
-        return storage.bucket(resolvedBucketName);
-    }
-
-    const candidates = getBucketCandidates();
-    if (candidates.length === 0) {
-        throw new Error(
-            'Firebase Storage bucket is not configured. Set FIREBASE_STORAGE_BUCKET in your server environment.'
-        );
-    }
-
-    // If explicitly configured, trust it and fail on upload if invalid.
-    if (process.env.FIREBASE_STORAGE_BUCKET) {
-        resolvedBucketName = candidates[0];
-        return storage.bucket(resolvedBucketName);
-    }
-
-    // Otherwise detect a valid default bucket from known Firebase naming patterns.
-    for (const candidate of candidates) {
-        try {
-            const bucket = storage.bucket(candidate);
-            const [exists] = await bucket.exists();
-            if (exists) {
-                resolvedBucketName = candidate;
-                return bucket;
-            }
-        } catch {
-            // Try next candidate
-        }
-    }
-
+  if (!storage) {
     throw new Error(
-        `Firebase Storage bucket was not found for project "${process.env.FIREBASE_PROJECT_ID || storage?.app?.options?.projectId || 'unknown'}". `
-        + 'Set FIREBASE_STORAGE_BUCKET explicitly in your server environment.'
+      "Firebase Storage is not configured. Check Firebase credentials and env loading.",
     );
+  }
+
+  if (resolvedBucketName) {
+    return storage.bucket(resolvedBucketName);
+  }
+
+  const candidates = getBucketCandidates();
+  if (candidates.length === 0) {
+    throw new Error(
+      "Firebase Storage bucket is not configured. Set FIREBASE_STORAGE_BUCKET in your server environment.",
+    );
+  }
+
+  // If explicitly configured, trust it and fail on upload if invalid.
+  if (process.env.FIREBASE_STORAGE_BUCKET) {
+    resolvedBucketName = candidates[0];
+    return storage.bucket(resolvedBucketName);
+  }
+
+  // Otherwise detect a valid default bucket from known Firebase naming patterns.
+  for (const candidate of candidates) {
+    try {
+      const bucket = storage.bucket(candidate);
+      const [exists] = await bucket.exists();
+      if (exists) {
+        resolvedBucketName = candidate;
+        return bucket;
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  throw new Error(
+    `Firebase Storage bucket was not found for project "${process.env.FIREBASE_PROJECT_ID || storage?.app?.options?.projectId || "unknown"}". ` +
+      "Set FIREBASE_STORAGE_BUCKET explicitly in your server environment.",
+  );
 };
 
 /**
@@ -107,21 +112,21 @@ const getStorageBucket = async () => {
  * @returns {Promise<string>} Public URL of the uploaded file
  */
 export const uploadFile = async (fileBuffer, mimetype, destinationPath) => {
-    assertUploadsEnabled();
-    const bucket = await getStorageBucket();
-    const file = bucket.file(destinationPath);
+  assertUploadsEnabled();
+  const bucket = await getStorageBucket();
+  const file = bucket.file(destinationPath);
 
-    await file.save(fileBuffer, {
-        metadata: {
-            contentType: mimetype
-        }
-    });
+  await file.save(fileBuffer, {
+    metadata: {
+      contentType: mimetype,
+    },
+  });
 
-    await file.makePublic();
+  await file.makePublic();
 
-    // Construct public URL
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destinationPath}`;
-    return publicUrl;
+  // Construct public URL
+  const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destinationPath}`;
+  return publicUrl;
 };
 
 /**
@@ -131,21 +136,25 @@ export const uploadFile = async (fileBuffer, mimetype, destinationPath) => {
  * @param {string} destinationPath
  * @returns {Promise<{ fileRef: string, storagePath: string }>} gs:// reference + normalized path
  */
-export const uploadPrivateFile = async (fileBuffer, mimetype, destinationPath) => {
-    assertUploadsEnabled();
-    const bucket = await getStorageBucket();
-    const file = bucket.file(destinationPath);
+export const uploadPrivateFile = async (
+  fileBuffer,
+  mimetype,
+  destinationPath,
+) => {
+  assertUploadsEnabled();
+  const bucket = await getStorageBucket();
+  const file = bucket.file(destinationPath);
 
-    await file.save(fileBuffer, {
-        metadata: {
-            contentType: mimetype
-        }
-    });
+  await file.save(fileBuffer, {
+    metadata: {
+      contentType: mimetype,
+    },
+  });
 
-    return {
-        fileRef: `gs://${bucket.name}/${destinationPath}`,
-        storagePath: destinationPath
-    };
+  return {
+    fileRef: `gs://${bucket.name}/${destinationPath}`,
+    storagePath: destinationPath,
+  };
 };
 
 /**
@@ -153,38 +162,44 @@ export const uploadPrivateFile = async (fileBuffer, mimetype, destinationPath) =
  * @param {string} fileUrl - Public URL of the generated file
  */
 export const deleteFile = async (fileUrl) => {
-    if (!storage || !fileUrl) return;
+  if (!storage || !fileUrl) return;
 
-    try {
-        const bucket = await getStorageBucket();
-        const destinationPath = parseStoragePath(fileUrl, bucket.name);
-        if (!destinationPath) return;
-        const file = bucket.file(destinationPath);
-        await file.delete();
-    } catch (error) {
-        console.warn(`Failed to delete file from Firebase: ${fileUrl}`, error.message);
-    }
+  try {
+    const bucket = await getStorageBucket();
+    const destinationPath = parseStoragePath(fileUrl, bucket.name);
+    if (!destinationPath) return;
+    const file = bucket.file(destinationPath);
+    await file.delete();
+  } catch (error) {
+    console.warn(
+      `Failed to delete file from Firebase: ${fileUrl}`,
+      error.message,
+    );
+  }
 };
 
 /**
  * Generate a signed URL for private files
- * @param {string} destinationPath 
+ * @param {string} destinationPath
  * @returns {Promise<string>}
  */
-export const getSignedUrl = async (destinationPath, expiresInMs = 15 * 60 * 1000) => {
-    const bucket = await getStorageBucket();
-    const normalizedPath = parseStoragePath(destinationPath, bucket.name);
-    if (!normalizedPath) {
-        throw new Error('Invalid storage path for signed URL generation');
-    }
-    const file = bucket.file(normalizedPath);
+export const getSignedUrl = async (
+  destinationPath,
+  expiresInMs = 15 * 60 * 1000,
+) => {
+  const bucket = await getStorageBucket();
+  const normalizedPath = parseStoragePath(destinationPath, bucket.name);
+  if (!normalizedPath) {
+    throw new Error("Invalid storage path for signed URL generation");
+  }
+  const file = bucket.file(normalizedPath);
 
-    const [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + expiresInMs,
-    });
+  const [url] = await file.getSignedUrl({
+    action: "read",
+    expires: Date.now() + expiresInMs,
+  });
 
-    return url;
+  return url;
 };
 
 /**
@@ -193,17 +208,17 @@ export const getSignedUrl = async (destinationPath, expiresInMs = 15 * 60 * 1000
  * @returns {Promise<{buffer: Buffer, contentType: string}>}
  */
 export const downloadFile = async (fileRefOrPath) => {
-    const bucket = await getStorageBucket();
-    const normalizedPath = parseStoragePath(fileRefOrPath, bucket.name);
-    if (!normalizedPath) {
-        throw new Error('Invalid storage path for download');
-    }
-    const file = bucket.file(normalizedPath);
-    const [buffer] = await file.download();
-    const [metadata] = await file.getMetadata();
+  const bucket = await getStorageBucket();
+  const normalizedPath = parseStoragePath(fileRefOrPath, bucket.name);
+  if (!normalizedPath) {
+    throw new Error("Invalid storage path for download");
+  }
+  const file = bucket.file(normalizedPath);
+  const [buffer] = await file.download();
+  const [metadata] = await file.getMetadata();
 
-    return {
-        buffer,
-        contentType: metadata?.contentType || 'application/octet-stream'
-    };
+  return {
+    buffer,
+    contentType: metadata?.contentType || "application/octet-stream",
+  };
 };

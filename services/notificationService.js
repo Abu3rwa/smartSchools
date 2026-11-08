@@ -11,6 +11,8 @@ import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
 import { buildAssignmentReminderContent } from "../helpers/assignmentReminderLinks.js";
+import { buildAssignmentResourceLinks } from "../helpers/assignmentResourceLinks.js";
+import AssignmentClassroomLink from "../models/AssignmentClassroomLink.js";
 import { getSignedUrl } from "./firebaseStorageService.js";
 import logger from "../utils/logger.js";
 import {
@@ -235,15 +237,61 @@ const formatDateForNotice = (value) => {
   });
 };
 
-// /portal/assignments is the staff list, so a standards practice posted from the
-// standards board has to send the student to the session page that can load it.
-const assignmentNoticePath = (assignment) => {
+// Students keep their existing my-assignments detail route (it renders the same
+// detail page and already exists in production); a standards practice has to open
+// the session page that can load it. Parents land on the read-only detail page.
+const assignmentNoticePath = (assignment, audience = "parent") => {
   const key = String(assignment?.assignmentTypeKey || "")
     .trim()
     .toLowerCase();
-  return key === "standard_assignment"
-    ? `/practice/${assignment._id}`
-    : `/assignments/${assignment._id}`;
+  if (audience === "student") {
+    return key === "standard_assignment"
+      ? `/practice/${assignment._id}`
+      : `/my-assignments/${assignment._id}`;
+  }
+  return `/assignments/${assignment._id}`;
+};
+
+// The coursework link only exists once Classroom sync created it, and a draft is
+// not visible to students, so only a published coursework is quotable.
+const getClassroomCourseworkUrl = async (assignment) => {
+  if (!assignment?._id || !assignment?.school) return "";
+  try {
+    const link = await AssignmentClassroomLink.findOne({
+      school: assignment.school,
+      assignment: assignment._id,
+      syncState: "published",
+    })
+      .select("alternateLink")
+      .lean();
+    return String(link?.alternateLink || "").trim();
+  } catch (error) {
+    logger.warn("assignment_classroom_link_lookup_failed", {
+      assignmentId: String(assignment._id),
+      error: error?.message || String(error),
+    });
+    return "";
+  }
+};
+
+const buildAssignmentAttachmentItems = async (assignment) => {
+  const items = [];
+  for (const att of Array.isArray(assignment?.attachments)
+    ? assignment.attachments
+    : []) {
+    let downloadUrl = "";
+    try {
+      if (att?.storageKey) {
+        downloadUrl = await getSignedUrl(att.storageKey);
+      } else if (att?.url) {
+        downloadUrl = att.url;
+      }
+    } catch {
+      // If signed URL fails, list the file without a link
+    }
+    items.push({ label: att?.fileName || "File", url: downloadUrl });
+  }
+  return items;
 };
 
 const addSchoolNameToMailContent = (mailOptions, schoolName) => {
@@ -550,7 +598,9 @@ const renderReminderEmailHtml = ({
   title,
   dueValue,
   dueDate,
+  instructions = "",
   links = [],
+  attachmentItems = [],
   url,
   preheader,
 }) => {
@@ -562,11 +612,13 @@ const renderReminderEmailHtml = ({
       { label: "Type", value: typeName },
       { label: "Due date", value: dueDate, color: theme.accentDark },
     ]),
+    instructions ? emailNoteBlock("Instructions", instructions, theme) : "",
     emailLinkList(
       "Assignment links",
       links.map((link) => ({ label: link.title, url: link.url })),
       theme,
     ),
+    emailLinkList("Attachments", attachmentItems, theme),
     emailButton(url, `View ${typeName}`, theme),
   ].join("");
   return wrapEmailHtml({
@@ -1007,6 +1059,49 @@ class NotificationService {
     return !parentEmailAlreadyNotified;
   }
 
+  async _buildAssignmentReminderContent({
+    student,
+    assignment,
+    subject,
+    reminderText,
+    audience = "parent",
+  }) {
+    const isStudent = audience === "student";
+    const typeName = String(
+      assignment?.assignmentTypeName || "Assignment",
+    ).trim();
+    const title = String(assignment?.title || "Assignment").trim();
+    const dueDate = formatDateForNotice(assignment?.dueDate);
+    const assignmentUrl = assignment?._id
+      ? buildPortalLink(assignmentNoticePath(assignment, audience))
+      : "";
+    const classroomUrl = await getClassroomCourseworkUrl(assignment);
+    const { notificationText, links } = buildAssignmentReminderContent({
+      reminderText,
+      assignment,
+      classroomUrl,
+    });
+    const attachmentItems = await buildAssignmentAttachmentItems(assignment);
+
+    return {
+      subject,
+      message: notificationText,
+      htmlContent: renderReminderEmailHtml({
+        reminderText,
+        studentName: isStudent ? "" : student?.fullName || "Student",
+        typeName,
+        title,
+        dueValue: assignment?.dueDate,
+        dueDate,
+        instructions: String(assignment?.instructions || "").trim(),
+        links,
+        attachmentItems,
+        url: assignmentUrl,
+        preheader: subject,
+      }),
+    };
+  }
+
   async _buildAssignmentPostedContent({
     student,
     assignment,
@@ -1021,13 +1116,16 @@ class NotificationService {
       String(assignment?.title || "Assignment").trim() || "Assignment";
     const dueDate = formatDateForNotice(assignment?.dueDate);
     const instructions = String(assignment?.instructions || "").trim();
+    // The email body keeps the full instructions; only the one-line notification
+    // body (push/in-app) is shortened.
     const trimmedInstructions =
       instructions.length > 450
         ? `${instructions.slice(0, 447)}...`
         : instructions;
     const assignmentUrl = assignment?._id
-      ? buildPortalLink(assignmentNoticePath(assignment))
+      ? buildPortalLink(assignmentNoticePath(assignment, audience))
       : "";
+    const classroomUrl = await getClassroomCourseworkUrl(assignment);
 
     const subject = `New ${typeName}: ${title}`;
     const messageLines = [
@@ -1040,30 +1138,11 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
-    const linkItems = (assignment?.links || []).map((link) => ({
-      label: link.title || link.type || "Link",
-      url: link.url || "",
-    }));
-    for (const att of assignment?.driveAttachments || []) {
-      if (att?.webViewLink) {
-        linkItems.push({ label: att.fileName || "Drive file", url: att.webViewLink });
-      }
-    }
+    const linkItems = buildAssignmentResourceLinks(assignment, {
+      classroomUrl,
+    }).map((link) => ({ label: link.title, url: link.url }));
 
-    const attachmentItems = [];
-    for (const att of assignment?.attachments || []) {
-      let downloadUrl = "";
-      try {
-        if (att.storageKey) {
-          downloadUrl = await getSignedUrl(att.storageKey);
-        } else if (att.url) {
-          downloadUrl = att.url;
-        }
-      } catch {
-        // If signed URL fails, list the file without a link
-      }
-      attachmentItems.push({ label: att.fileName || "File", url: downloadUrl });
-    }
+    const attachmentItems = await buildAssignmentAttachmentItems(assignment);
 
     const typeLabel = `<strong>${escapeHtml(typeName.toLowerCase())}</strong>`;
     const intro = isStudent
@@ -1079,7 +1158,7 @@ class NotificationService {
         typeName,
         title,
         dueDate,
-        instructions: trimmedInstructions,
+        instructions,
         linkItems,
         attachmentItems,
         url: assignmentUrl,
@@ -1157,7 +1236,7 @@ class NotificationService {
         ? `${instructions.slice(0, 447)}...`
         : instructions;
     const assignmentUrl = assignment?._id
-      ? buildPortalLink(`/homework/${assignment._id}`)
+      ? buildPortalLink(`/assignments/${assignment._id}`)
       : "";
 
     const subject = `New Homework: ${title}`;
@@ -1178,7 +1257,7 @@ class NotificationService {
         typeName: "Homework",
         title,
         dueDate,
-        instructions: trimmedInstructions,
+        instructions,
         url: assignmentUrl,
         buttonLabel: "View homework",
         preheader: `New Homework: ${title}`,
@@ -1193,7 +1272,7 @@ class NotificationService {
     const maxMarks = Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0);
     const remarks = String(grade?.remarks || "").trim();
     const assignmentUrl = assignment?._id
-      ? buildPortalLink(`/homework/${assignment._id}`)
+      ? buildPortalLink(`/assignments/${assignment._id}`)
       : "";
 
     const hasScore =
@@ -1600,30 +1679,14 @@ class NotificationService {
       return [];
     }
 
-    const typeName = String(
-      assignment.assignmentTypeName || "Assignment",
-    ).trim();
-    const title = String(assignment.title || "Assignment").trim();
-    const dueDate = formatDateForNotice(assignment.dueDate);
-    const assignmentUrl = assignment._id
-      ? buildPortalLink(`/assignments/${assignment._id}`)
-      : "";
-    const { notificationText, links } = buildAssignmentReminderContent({
-      reminderText,
-      assignment,
-    });
-
-    const htmlContent = renderReminderEmailHtml({
-      reminderText,
-      studentName: student.fullName || "Student",
-      typeName,
-      title,
-      dueValue: assignment.dueDate,
-      dueDate,
-      links,
-      url: assignmentUrl,
-      preheader: subject,
-    });
+    const { message: notificationText, htmlContent } =
+      await this._buildAssignmentReminderContent({
+        student,
+        assignment,
+        subject,
+        reminderText,
+        audience: "parent",
+      });
 
     const metadata = {
       assignmentId: String(assignment._id),
@@ -1732,29 +1795,14 @@ class NotificationService {
       return null;
     }
 
-    const typeName = String(
-      assignment.assignmentTypeName || "Assignment",
-    ).trim();
-    const title = String(assignment.title || "Assignment").trim();
-    const dueDate = formatDateForNotice(assignment.dueDate);
-    const assignmentUrl = assignment._id
-      ? buildPortalLink(`/assignments/${assignment._id}`)
-      : "";
-    const { notificationText, links } = buildAssignmentReminderContent({
-      reminderText,
-      assignment,
-    });
-
-    const htmlContent = renderReminderEmailHtml({
-      reminderText,
-      typeName,
-      title,
-      dueValue: assignment.dueDate,
-      dueDate,
-      links,
-      url: assignmentUrl,
-      preheader: subject,
-    });
+    const { message: notificationText, htmlContent } =
+      await this._buildAssignmentReminderContent({
+        student,
+        assignment,
+        subject,
+        reminderText,
+        audience: "student",
+      });
 
     const metadata = {
       assignmentId: String(assignment._id),

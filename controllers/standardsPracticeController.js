@@ -587,12 +587,14 @@ const getProgressSummaryFromRows = (rows = [], accessor) => {
     inProgress: 0,
     notStarted: 0,
     needsReview: 0,
+    unavailable: 0,
   };
   rows.forEach((row) => {
     const status = accessor(row);
     if (status === "mastered") summary.mastered += 1;
     else if (status === "needs_review") summary.needsReview += 1;
     else if (status === "in_progress") summary.inProgress += 1;
+    else if (status === "unavailable") summary.unavailable += 1;
     else summary.notStarted += 1;
   });
   return summary;
@@ -1260,8 +1262,8 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
   // An assignment that points at a deleted standard populates to null, and there
   // is nothing for a student to practise against it. Drop those rows rather than
   // letting one broken reference blank the dashboard for the whole class.
-  const practiceableAssignments = assignments.filter(
-    (assignment) => Boolean(assignment.standard?._id),
+  const practiceableAssignments = assignments.filter((assignment) =>
+    Boolean(assignment.standard?._id),
   );
   const orphanedAssignmentIds = assignments
     .filter((assignment) => !assignment.standard?._id)
@@ -2324,6 +2326,15 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Not authorized" });
   }
 
+  const standardMissing = !assignment.standard;
+  const standardId =
+    assignment.standard?._id || assignment.populated("standard");
+  if (!standardId) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment standard not found" });
+  }
+
   // Get students
   let students;
   const assignmentStudents = Array.isArray(assignment.students)
@@ -2366,8 +2377,8 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
     students.map(async (student) => {
       const mastery = await PracticeAttempt.calculateMastery(
         student._id,
-        assignment.standard._id,
-        assignment.standard.masteryThreshold,
+        standardId,
+        assignment.standard?.masteryThreshold,
         getAssignmentScopedMasteryMinQuestions(assignment),
         3,
         req.schoolId,
@@ -2379,9 +2390,20 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         status: "answered",
       });
 
-      let effectiveMastery = mastery;
+      let effectiveMastery = standardMissing
+        ? {
+            ...mastery,
+            isMastered: null,
+            needsReview: null,
+            masteryStatus: "unavailable",
+            confidenceScore: null,
+            needsMore: null,
+          }
+        : mastery;
       let effectiveTotalAttempts = totalAttempts;
-      let progressStatus = resolveProgressStatus(mastery);
+      let progressStatus = standardMissing
+        ? "unavailable"
+        : resolveProgressStatus(mastery);
       let assessmentProgress = null;
 
       if (isAssessmentAssignment) {
@@ -2402,11 +2424,11 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
           );
 
           effectiveMastery = {
-            ...mastery,
+            ...effectiveMastery,
             totalAttempts: answered,
             correctCount: correct,
             percentage,
-            isMastered: isComplete || mastery?.isMastered,
+            isMastered: isComplete || effectiveMastery?.isMastered,
             needsReview: false,
             masteryStatus: isComplete
               ? "mastered"
@@ -2446,13 +2468,25 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
 
           progressStatus = fallbackAnswered > 0 ? "in_progress" : "not_started";
           effectiveMastery = {
-            ...mastery,
+            ...effectiveMastery,
             totalAttempts: fallbackAnswered,
             correctCount: fallbackCorrect,
             percentage: fallbackPercentage,
             masteryStatus: progressStatus,
           };
         }
+      }
+
+      if (standardMissing) {
+        effectiveMastery = {
+          ...effectiveMastery,
+          isMastered: null,
+          needsReview: null,
+          masteryStatus: "unavailable",
+          confidenceScore: null,
+          needsMore: null,
+        };
+        progressStatus = "unavailable";
       }
 
       return {
@@ -2474,6 +2508,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
     success: true,
     data: {
       assignment,
+      standardMissing,
       studentsProgress,
       summary: {
         totalStudents: studentsProgress.length,
@@ -2481,8 +2516,10 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         inProgress: summaryCounts.inProgress,
         notStarted: summaryCounts.notStarted,
         needsReview: summaryCounts.needsReview,
-        masteryRate:
-          studentsProgress.length > 0
+        unavailable: summaryCounts.unavailable,
+        masteryRate: standardMissing
+          ? null
+          : studentsProgress.length > 0
             ? Math.round(
                 (summaryCounts.mastered / studentsProgress.length) * 100,
               )
@@ -3077,9 +3114,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
   const rows = await Promise.all(
     students.map(async (student) => {
       if (!isAssessment) {
-        const attemptTotals = attemptsByStudent.get(
-          student._id.toString(),
-        ) || {
+        const attemptTotals = attemptsByStudent.get(student._id.toString()) || {
           totalAnswered: 0,
           correctCount: 0,
           pendingReviewCount: 0,
@@ -4514,20 +4549,16 @@ export const updateManualScore = asyncHandler(async (req, res) => {
   } = req.body || {};
 
   if (!studentId || !standardId || !classId || !subjectId) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "studentId, standardId, classId and subjectId are required.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "studentId, standardId, classId and subjectId are required.",
+    });
   }
   if (!isValidManualScore(score)) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "score must be a number between 0 and 4, or null to clear.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "score must be a number between 0 and 4, or null to clear.",
+    });
   }
 
   const effectiveAcademicYear =
@@ -4542,12 +4573,10 @@ export const updateManualScore = asyncHandler(async (req, res) => {
       subjectId,
     );
     if (!authorized) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized for this class/subject.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized for this class/subject.",
+      });
     }
   }
 
@@ -4692,12 +4721,10 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
         String(assignment.subject),
       );
       if (!authorized) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not authorized for this class/subject.",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized for this class/subject.",
+        });
       }
     }
   }
@@ -4806,12 +4833,10 @@ export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
       String(assignment.subject),
     );
     if (!authorized) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized for this class/subject.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized for this class/subject.",
+      });
     }
   }
 
@@ -4892,12 +4917,10 @@ export const getStudentResultReport = asyncHandler(async (req, res) => {
       String(assignment.subject?._id || assignment.subject),
     );
     if (!authorized) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized for this class/subject.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized for this class/subject.",
+      });
     }
   }
 
@@ -4993,7 +5016,9 @@ export const getStudentResultReport = asyncHandler(async (req, res) => {
         .filter(Boolean)
         .join(" "),
       assignmentTitle:
-        assignment.title || assignment.standard?.name || assignment.standard?.code,
+        assignment.title ||
+        assignment.standard?.name ||
+        assignment.standard?.code,
       className: assignment.class?.name,
       subjectName: assignment.subject?.name,
       standardLabel: [assignment.standard?.code, assignment.standard?.name]
@@ -5034,12 +5059,10 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
   const { classId, subjectId, semester, academicYear, scores } = req.body || {};
 
   if (!classId || !subjectId || !Array.isArray(scores) || scores.length === 0) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "classId, subjectId and scores[] are required.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "classId, subjectId and scores[] are required.",
+    });
   }
   if (scores.length > 500) {
     return res
@@ -5049,20 +5072,16 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
 
   for (const item of scores) {
     if (!item.studentId || !item.standardId) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Each score must have studentId and standardId.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Each score must have studentId and standardId.",
+      });
     }
     if (!isValidManualScore(item.score)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Invalid score value: ${item.score}. Must be between 0 and 4 or null.`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Invalid score value: ${item.score}. Must be between 0 and 4 or null.`,
+      });
     }
   }
 
@@ -5073,12 +5092,10 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
       subjectId,
     );
     if (!authorized) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized for this class/subject.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized for this class/subject.",
+      });
     }
   }
 

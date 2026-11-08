@@ -88,13 +88,24 @@ test('the prompt pins the count, the allowed types and the grounding rules', () 
     assert.match(prompt, /Return exactly one JSON object/);
 });
 
+test('the prompt asks for a grading rubric on every short answer', () => {
+    const prompt = buildDraftPrompt({
+        sourceText: 'Gas particles move quickly.',
+        count: 2,
+        types: ['short_answer']
+    });
+    assert.match(prompt, /"rubric":/);
+    assert.match(prompt, /"rubric" is required for short-answer questions/);
+    assert.match(prompt, /partial credit/);
+});
+
 test('a valid model reply becomes questions the Google Form builder accepts', async (t) => {
     withOpenAiEnv(t);
     t.mock.method(globalThis, 'fetch', async () => jsonResponse(openAiReply(JSON.stringify({
         questions: [
             { type: 'multiple_choice', title: 'Which gas do plants take in?', options: ['Oxygen', 'Carbon dioxide', 'Helium'], correctAnswer: 'Carbon dioxide', points: 2 },
             { type: 'true_false', title: 'Gases spread to fill their container.', options: ['True', 'False'], correctAnswer: 'TRUE', points: 1 },
-            { type: 'short_answer', title: 'Name one gas in air.', points: 4 }
+            { type: 'short_answer', title: 'Name one gas in air.', modelAnswer: 'Nitrogen', points: 4 }
         ]
     }))));
 
@@ -113,8 +124,29 @@ test('a valid model reply becomes questions the Google Form builder accepts', as
         points: 2
     });
     assert.equal(result.questions[1].correctAnswer, 'True');
-    assert.equal(result.questions[2].points, 0);
+    assert.equal(result.questions[2].points, 4);
     assert.equal(result.questions[2].type, 'short_answer');
+    assert.equal(result.questions[2].modelAnswer, 'Nitrogen');
+});
+
+test('short-answer drafts default to 1 point and keep the rubric as an editable draft', () => {
+    const questions = normalizeDraftQuestions({
+        questions: [
+            { type: 'short_answer', title: 'Why do gases spread?', modelAnswer: 'Particles move quickly.', rubric: '1 point for mentioning particle movement.' },
+            { type: 'short_answer', title: 'Name a state of matter.' }
+        ]
+    }, { count: 5, types: ['short_answer'] });
+
+    assert.equal(questions.length, 2);
+    assert.deepEqual(questions[0], {
+        type: 'short_answer',
+        title: 'Why do gases spread?',
+        points: 1,
+        modelAnswer: 'Particles move quickly.',
+        rubric: '1 point for mentioning particle movement.'
+    });
+    assert.equal(questions[1].points, 1);
+    assert.equal(questions[1].modelAnswer, '');
 });
 
 test('a fenced JSON reply is still read', async (t) => {

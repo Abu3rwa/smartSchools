@@ -70,3 +70,40 @@ test('a Drive-only assignment still gets a links block in the reminder', () => {
     assert.equal(result.links[0].title, 'drive.google.com');
     assert.match(result.notificationText, /Assignment links:/);
 });
+
+test('a reminder includes the published Google Classroom coursework link', () => {
+    const result = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: { links: [{ type: 'external_url', title: 'Guide', url: 'https://example.com/guide' }] },
+        classroomUrl: 'https://classroom.google.com/c/course-1/a/coursework-1'
+    });
+
+    assert.deepEqual(result.links.map((link) => link.url), [
+        'https://example.com/guide',
+        'https://classroom.google.com/c/course-1/a/coursework-1'
+    ]);
+    assert.equal(result.links[1].title, 'Google Classroom');
+    assert.match(
+        result.notificationText,
+        /Google Classroom: https:\/\/classroom\.google\.com\/c\/course-1\/a\/coursework-1/
+    );
+});
+
+test('an unsafe or duplicated Classroom URL is dropped', () => {
+    const result = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: {
+            links: [{ type: 'external_url', title: 'Classroom', url: 'https://classroom.google.com/c/course-1' }]
+        },
+        classroomUrl: 'https://classroom.google.com/c/course-1'
+    });
+
+    assert.equal(result.links.length, 1);
+
+    const unsafe = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: {},
+        classroomUrl: 'javascript:alert(1)'
+    });
+    assert.deepEqual(unsafe, { notificationText: 'Reminder.', links: [] });
+});

@@ -1,5 +1,9 @@
 import { connectAi } from '../utils/connectAi.js';
-import { validateGoogleFormQuestions } from './googleFormsAssignmentService.js';
+import {
+    validateGoogleFormQuestions,
+    MAX_MODEL_ANSWER_CHARS,
+    MAX_RUBRIC_CHARS
+} from './googleFormsAssignmentService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -101,7 +105,7 @@ export const buildDraftPrompt = ({ sourceText, count, types }) => {
         questions: [
             { type: 'multiple_choice', title: 'A question', options: ['A', 'B', 'C'], correctAnswer: 'B', points: 1 },
             { type: 'true_false', title: 'A statement', options: ['True', 'False'], correctAnswer: 'True', points: 1 },
-            { type: 'short_answer', title: 'A question', points: 0 }
+            { type: 'short_answer', title: 'A question', modelAnswer: 'The expected answer', rubric: 'What earns full credit and how to award partial credit', points: 1 }
         ]
     });
 
@@ -125,7 +129,7 @@ RULES
 - Do not copy a whole source sentence as the question; rephrase it.
 - Multiple choice: three or four options, exactly one correct, and the wrong options must be clearly wrong to someone who read the source.
 - True or false: the statement must be clearly true or false from the source material alone.
-- Short answer: ask for one short, specific answer that appears in the source; never ask for an opinion.
+- Short answer: ask for one short, specific answer that appears in the source; never ask for an opinion. Include a "modelAnswer" with the expected answer, grounded in the source; the teacher reviews it and answers are graded by meaning, not exact wording. Also include a "rubric": the key concepts a full-credit answer must cover and how to award partial credit when only some are present, grounded in the source. Keep it short and practical for the teacher to edit.
 - Do not repeat a question you already wrote.
 
 REPLY FORMAT
@@ -133,7 +137,9 @@ Return exactly one JSON object and nothing else, shaped like this:
 ${shape}
 
 - "correctAnswer" is copied exactly from "options".
-- "points" is a whole number from 1 to 5. A short-answer question is always worth 0.
+- "points" is a whole number from 1 to 5.
+- "modelAnswer" is required for short-answer questions.
+- "rubric" is required for short-answer questions: full-credit concepts plus partial-credit rules, at most 2000 characters.
 - Do not add fields that are not in the shape above.`;
 };
 
@@ -213,8 +219,19 @@ export const normalizeDraftQuestions = (parsed, { count, types }) => {
         if (seen.has(key)) continue;
 
         if (type === 'short_answer') {
+            const modelAnswer = cleanText(raw.modelAnswer ?? raw.correctAnswer ?? raw.answer)
+                .slice(0, MAX_MODEL_ANSWER_CHARS);
+            const rubric = cleanText(raw.rubric).slice(0, MAX_RUBRIC_CHARS);
             seen.add(key);
-            questions.push({ type, title, options: [], correctAnswer: '', points: 0 });
+            questions.push({
+                type,
+                title,
+                options: [],
+                correctAnswer: '',
+                points: normalizePoints(raw.points),
+                modelAnswer,
+                rubric
+            });
             continue;
         }
 
@@ -267,7 +284,7 @@ export const normalizeDraftQuestions = (parsed, { count, types }) => {
     }
 
     try {
-        return validateGoogleFormQuestions(questions);
+        return validateGoogleFormQuestions(questions, { requireRubric: false });
     } catch (error) {
         throw draftError(
             `The drafted questions could not be used: ${error.message}`,

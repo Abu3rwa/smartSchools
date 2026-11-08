@@ -1,169 +1,223 @@
-import api from '../config/api';
+import api from "../config/api";
 
 const assignmentService = {
-    getAssignmentTypes: async (params = {}) => {
-        const response = await api.get('/assignment-types', { params });
-        return response.data;
-    },
+  getAssignmentTypes: async (params = {}) => {
+    const response = await api.get("/assignment-types", { params });
+    return response.data;
+  },
 
-    createAssignmentType: async (payload) => {
-        const response = await api.post('/assignment-types', payload);
-        return response.data;
-    },
+  createAssignmentType: async (payload) => {
+    const response = await api.post("/assignment-types", payload);
+    return response.data;
+  },
 
-    updateAssignmentType: async (id, payload) => {
-        const response = await api.put(`/assignment-types/${id}`, payload);
-        return response.data;
-    },
+  updateAssignmentType: async (id, payload) => {
+    const response = await api.put(`/assignment-types/${id}`, payload);
+    return response.data;
+  },
 
-    getAssignments: async (params = {}) => {
-        const response = await api.get('/assignments', { params });
-        return response.data;
-    },
+  getAssignments: async (params = {}) => {
+    const response = await api.get("/assignments", { params });
+    return response.data;
+  },
 
-    getMyAssignments: async (params = {}) => {
-        const response = await api.get('/assignments/my', { params });
-        return response.data;
-    },
+  getMyAssignments: async (params = {}) => {
+    const response = await api.get("/assignments/my", { params });
+    return response.data;
+  },
 
-    createAssignment: async (payload, files = []) => {
-        if (files.length > 0) {
-            const formData = new FormData();
-            Object.entries(payload).forEach(([key, value]) => {
-                if (value === undefined) return;
-                if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-                    formData.append(key, JSON.stringify(value));
-                } else {
-                    formData.append(key, value);
-                }
-            });
-            files.forEach((file) => formData.append('attachments', file));
-            const response = await api.post('/assignments', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            return response.data;
+  getAssignmentById: async (id) => {
+    const response = await api.get(`/assignments/${id}`);
+    return response.data;
+  },
+
+  createAssignment: async (payload, files = []) => {
+    if (files.length > 0) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined) return;
+        if (
+          Array.isArray(value) ||
+          (typeof value === "object" && value !== null)
+        ) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, value);
         }
-        const response = await api.post('/assignments', payload);
-        return response.data;
-    },
-
-    updateAssignment: async (id, payload, files = []) => {
-        if (files.length > 0 || (payload.removeAttachmentIds && payload.removeAttachmentIds.length > 0)) {
-            const formData = new FormData();
-            Object.entries(payload).forEach(([key, value]) => {
-                if (value === undefined) return;
-                if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-                    formData.append(key, JSON.stringify(value));
-                } else {
-                    formData.append(key, value);
-                }
-            });
-            files.forEach((file) => formData.append('attachments', file));
-            const response = await api.put(`/assignments/${id}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            return response.data;
-        }
-        const response = await api.put(`/assignments/${id}`, payload);
-        return response.data;
-    },
-
-    deleteAssignment: async (id) => {
-        const response = await api.delete(`/assignments/${id}`);
-        return response.data;
-    },
-
-    publishAssignment: async (id, payload = {}) => {
-        const response = await api.post(`/assignments/${id}/publish`, payload);
-        return response.data;
-    },
-
-    getAssignmentGradebook: async (id) => {
-        const response = await api.get(`/assignments/${id}/gradebook`);
-        return response.data;
-    },
-
-    gradeAssignment: async (id, payload) => {
-        const response = await api.post(`/assignments/${id}/grades`, payload);
-        return response.data;
-    },
-
-    setStudentExcuse: async (id, studentId, excused) => {
-        const response = await api.patch(`/assignments/${id}/excused`, { studentId, excused });
-        return response.data;
-    },
-
-    getAttachmentUrl: async (assignmentId, attachmentId) => {
-        const response = await api.get(`/assignments/${assignmentId}/attachments/${attachmentId}/url`);
-        return response.data;
-    },
-
-    getDriveConnection: async () => {
-        const response = await api.get('/auth/google-drive/status', { params: { purpose: 'attachments' } });
-        return response.data;
-    },
-
-    getDriveAuthUrl: async () => {
-        const response = await api.get('/auth/google-drive/url', { params: { purpose: 'attachments' } });
-        return response.data;
-    },
-
-    uploadDriveAttachments: async (assignmentId, files) => {
-        const formData = new FormData();
-        files.forEach((file) => formData.append('files', file));
-        const response = await api.post(`/assignments/${assignmentId}/drive-attachments`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
-    },
-
-    deleteDriveAttachment: async (assignmentId, fileId) => {
-        const response = await api.delete(`/assignments/${assignmentId}/drive-attachments/${fileId}`);
-        return response.data;
-    },
-
-    sendReminder: async (id, payload = {}) => {
-        const response = await api.post(`/assignments/${id}/remind`, payload);
-        return response.data;
-    },
-
-    draftQuestions: async ({ classId, subjectId, lessonPlanIds = [], count = 5, types = [], file = null }) => {
-        if (file) {
-            const formData = new FormData();
-            formData.append('classId', classId);
-            formData.append('subjectId', subjectId);
-            formData.append('count', String(count));
-            formData.append('types', JSON.stringify(types));
-            if (lessonPlanIds.length > 0) formData.append('lessonPlanIds', JSON.stringify(lessonPlanIds));
-            formData.append('materialFile', file);
-            const response = await api.post('/assignments/ai/draft-questions', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            return response.data;
-        }
-        const response = await api.post('/assignments/ai/draft-questions', {
-            classId,
-            subjectId,
-            lessonPlanIds,
-            count,
-            types
-        });
-        return response.data;
-    },
-
-    draftBrief: async ({ classId, subjectId, assignmentTypeId, sourceUsage = [], formContext = [], file }) => {
-        const formData = new FormData();
-        formData.append('classId', classId);
-        formData.append('subjectId', subjectId);
-        formData.append('assignmentTypeId', assignmentTypeId);
-        formData.append('sourceUsage', JSON.stringify(sourceUsage));
-        formData.append('formContext', JSON.stringify(formContext));
-        formData.append('materialFile', file);
-        const response = await api.post('/assignments/ai/draft-brief', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
+      });
+      files.forEach((file) => formData.append("attachments", file));
+      const response = await api.post("/assignments", formData, {
+        skipErrorToast: true,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return response.data;
     }
+    const response = await api.post("/assignments", payload, {
+      skipErrorToast: true,
+    });
+    return response.data;
+  },
+
+  updateAssignment: async (id, payload, files = []) => {
+    if (
+      files.length > 0 ||
+      (payload.removeAttachmentIds && payload.removeAttachmentIds.length > 0)
+    ) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined) return;
+        if (
+          Array.isArray(value) ||
+          (typeof value === "object" && value !== null)
+        ) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, value);
+        }
+      });
+      files.forEach((file) => formData.append("attachments", file));
+      const response = await api.put(`/assignments/${id}`, formData, {
+        skipErrorToast: true,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return response.data;
+    }
+    const response = await api.put(`/assignments/${id}`, payload, {
+      skipErrorToast: true,
+    });
+    return response.data;
+  },
+
+  deleteAssignment: async (id) => {
+    const response = await api.delete(`/assignments/${id}`);
+    return response.data;
+  },
+
+  publishAssignment: async (id, payload = {}) => {
+    const response = await api.post(`/assignments/${id}/publish`, payload);
+    return response.data;
+  },
+
+  getAssignmentGradebook: async (id) => {
+    const response = await api.get(`/assignments/${id}/gradebook`);
+    return response.data;
+  },
+
+  gradeAssignment: async (id, payload) => {
+    const response = await api.post(`/assignments/${id}/grades`, payload);
+    return response.data;
+  },
+
+  setStudentExcuse: async (id, studentId, excused) => {
+    const response = await api.patch(`/assignments/${id}/excused`, {
+      studentId,
+      excused,
+    });
+    return response.data;
+  },
+
+  getAttachmentUrl: async (assignmentId, attachmentId) => {
+    const response = await api.get(
+      `/assignments/${assignmentId}/attachments/${attachmentId}/url`,
+    );
+    return response.data;
+  },
+
+  getDriveConnection: async () => {
+    const response = await api.get("/auth/google-drive/status", {
+      params: { purpose: "attachments" },
+    });
+    return response.data;
+  },
+
+  getDriveAuthUrl: async () => {
+    const response = await api.get("/auth/google-drive/url", {
+      params: { purpose: "attachments" },
+    });
+    return response.data;
+  },
+
+  uploadDriveAttachments: async (assignmentId, files) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const response = await api.post(
+      `/assignments/${assignmentId}/drive-attachments`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+    return response.data;
+  },
+
+  deleteDriveAttachment: async (assignmentId, fileId) => {
+    const response = await api.delete(
+      `/assignments/${assignmentId}/drive-attachments/${fileId}`,
+    );
+    return response.data;
+  },
+
+  sendReminder: async (id, payload = {}) => {
+    const response = await api.post(`/assignments/${id}/remind`, payload);
+    return response.data;
+  },
+
+  draftQuestions: async ({
+    classId,
+    subjectId,
+    lessonPlanIds = [],
+    count = 5,
+    types = [],
+    file = null,
+  }) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append("classId", classId);
+      formData.append("subjectId", subjectId);
+      formData.append("count", String(count));
+      formData.append("types", JSON.stringify(types));
+      if (lessonPlanIds.length > 0)
+        formData.append("lessonPlanIds", JSON.stringify(lessonPlanIds));
+      formData.append("materialFile", file);
+      const response = await api.post(
+        "/assignments/ai/draft-questions",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      return response.data;
+    }
+    const response = await api.post("/assignments/ai/draft-questions", {
+      classId,
+      subjectId,
+      lessonPlanIds,
+      count,
+      types,
+    });
+    return response.data;
+  },
+
+  draftBrief: async ({
+    classId,
+    subjectId,
+    assignmentTypeId,
+    sourceUsage = [],
+    formContext = [],
+    file,
+  }) => {
+    const formData = new FormData();
+    formData.append("classId", classId);
+    formData.append("subjectId", subjectId);
+    formData.append("assignmentTypeId", assignmentTypeId);
+    formData.append("sourceUsage", JSON.stringify(sourceUsage));
+    formData.append("formContext", JSON.stringify(formContext));
+    formData.append("materialFile", file);
+    const response = await api.post("/assignments/ai/draft-brief", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
 };
 
 export default assignmentService;

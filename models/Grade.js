@@ -151,7 +151,7 @@ const gradeSchema = new mongoose.Schema({
     },
     gradingSource: {
         type: String,
-        enum: ['manual', 'homework_submission', 'live_session', 'google_forms', 'spelling_assessment'],
+        enum: ['manual', 'homework_submission', 'live_session', 'google_forms', 'google_forms_review', 'spelling_assessment'],
         default: 'manual'
     },
     // Phase 1: Gradebook Enhancement — optional fields (backward-compatible)

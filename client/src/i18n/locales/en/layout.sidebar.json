@@ -82,7 +82,7 @@
     "userManagement": "User Management",
     "apiDocumentation": "API Documentation",
     "myGrades": "My Grades",
-    "practice": "Practice",
+    "practice": "Standards",
     "sbResults": "SB Results",
     "academicExcellence": "Academic Excellence",
     "revisionPlans": "Revision Plans",
@@ -117,14 +117,14 @@
   "studentDashboard": {
     "groups": {
       "learning": "Learning",
-      "practice": "Practice & Growth",
+      "practice": "Standards",
       "character": "Character & Community"
     },
     "descriptions": {
       "myGrades": "Marks, teacher feedback, and report cards.",
       "socialStudiesStudent": "Your Social Studies course, lessons, and work.",
       "assignments": "What is due soon and what has been returned.",
-      "practice": "Adaptive practice sets across your subjects.",
+      "practice": "Adaptive questions on your subject standards.",
       "sbResults": "Your standards-based results and progress.",
       "mapTestPrep": "Targeted MAP practice and skill review.",
       "spelling": "Weekly word lists, practice, and retests.",

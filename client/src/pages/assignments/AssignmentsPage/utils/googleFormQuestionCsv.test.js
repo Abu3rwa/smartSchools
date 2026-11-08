@@ -18,7 +18,34 @@ test('Google Forms question CSV template imports multiple-choice, true/false, an
     });
     assert.equal(questions[1].correctAnswer, 'True');
     assert.equal(questions[2].type, 'short_answer');
-    assert.equal(questions[2].points, 0);
+    assert.equal(questions[2].points, 1);
+    assert.equal(questions[2].modelAnswer, 'Pick up litter with a group of neighbors.');
+    assert.match(questions[2].rubric, /accept equivalent wording/);
+});
+
+test('short-answer rows default to 1 point and carry the grading reference', () => {
+    const csv = [
+        'question_type,question_text,points,model_answer,rubric',
+        'short_answer,Why do gases spread?,,Particles move quickly.,1 point for mentioning movement',
+        'short_answer,Name a state of matter.,2,,'
+    ].join('\r\n');
+
+    const questions = parseGoogleFormQuestionCsv(csv);
+    assert.equal(questions[0].points, 1);
+    assert.equal(questions[0].modelAnswer, 'Particles move quickly.');
+    assert.equal(questions[0].rubric, '1 point for mentioning movement');
+    assert.equal(questions[1].points, 2);
+    assert.equal(questions[1].modelAnswer, '');
+    assert.equal(questions[1].rubric, '');
+
+    assert.throws(
+        () => parseGoogleFormQuestionCsv('question_type,question_text,points\nshort_answer,Q,0'),
+        /whole number from 1 to 1000/
+    );
+    assert.throws(
+        () => parseGoogleFormQuestionCsv(`question_type,question_text,model_answer\nshort_answer,Q,${'x'.repeat(2001)}`),
+        /model_answer must be at most 2000/
+    );
 });
 
 test('imports the existing option_a through option_d question CSV layout and answer labels', () => {

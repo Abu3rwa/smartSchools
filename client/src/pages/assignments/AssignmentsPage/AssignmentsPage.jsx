@@ -331,6 +331,27 @@ const AssignmentsPage = () => {
       ? form.publishNow
       : submitAction === "publish";
 
+    if (
+      publishNow &&
+      form.createGoogleForm &&
+      !editingAssignment?.googleForm?.responderUri
+    ) {
+      const missingRubricIndex = (form.googleFormQuestions || []).findIndex(
+        (question) =>
+          question.type === "short_answer" &&
+          !String(question.modelAnswer || "").trim() &&
+          !String(question.rubric || "").trim(),
+      );
+      if (missingRubricIndex >= 0) {
+        toast.error(
+          t("assignments:googleForms.rubricRequired", {
+            number: missingRubricIndex + 1,
+          }),
+        );
+        return;
+      }
+    }
+
     const existingClassroomLink = editingAssignment?.id
       ? classroom.links[editingAssignment.id]
       : null;
@@ -497,10 +518,12 @@ const AssignmentsPage = () => {
       await fetchAssignments();
     } catch (error) {
       toast.error(
-        error.response?.data?.message ||
-          (editingAssignment?.id
-            ? t("assignments:toasts.updateFailed")
-            : t("assignments:toasts.createFailed")),
+        error.response?.data?.code === "FIREBASE_UPLOAD_DISABLED"
+          ? t("assignments:toasts.uploadsDisabled")
+          : error.response?.data?.message ||
+              (editingAssignment?.id
+                ? t("assignments:toasts.updateFailed")
+                : t("assignments:toasts.createFailed")),
       );
     } finally {
       setSubmitting(false);
@@ -825,6 +848,48 @@ const AssignmentsPage = () => {
     }
   };
 
+  const gradeGoogleFormResponse = async (assignment, item) => {
+    try {
+      const result = await googleFormsService.gradeResponse(assignment.id, item.id);
+      const summary = result?.data || {};
+      toast.success(
+        summary.skipped
+          ? t("assignments:googleForms.grading.skipped")
+          : t("assignments:googleForms.grading.graded", { graded: summary.graded || 0 }),
+      );
+      const response = await googleFormsService.getResponses(assignment.id);
+      setGoogleFormResults({ assignment, items: response?.data?.items || [] });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          t("assignments:googleForms.errors.grade"),
+      );
+    }
+  };
+
+  const approveGoogleFormResponse = async (assignment, item, questions) => {
+    try {
+      const result = await googleFormsService.approveResponse(assignment.id, {
+        submissionId: item.id,
+        questions,
+      });
+      const summary = result?.data || {};
+      toast.success(
+        t("assignments:googleForms.grading.approved", {
+          marks: summary.marks,
+          maxMarks: summary.maxMarks,
+        }),
+      );
+      const response = await googleFormsService.getResponses(assignment.id);
+      setGoogleFormResults({ assignment, items: response?.data?.items || [] });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          t("assignments:googleForms.errors.approve"),
+      );
+    }
+  };
+
   const openGradePanel = async (assignment) => {
     setGradingAssignment(assignment);
     setGradeRows({});
@@ -1138,6 +1203,8 @@ const AssignmentsPage = () => {
           loading={loadingGoogleFormResults}
           onClose={() => setGoogleFormResults(null)}
           onSync={syncGoogleFormResults}
+          onGrade={gradeGoogleFormResponse}
+          onApprove={approveGoogleFormResponse}
         />
 
         <AssignmentGradePanel
