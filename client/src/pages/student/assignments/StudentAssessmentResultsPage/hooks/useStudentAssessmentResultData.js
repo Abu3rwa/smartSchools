@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../../../../store/slices/authSlice';
-import practiceService from '../../../../services/practiceService';
+import { selectUser } from '../../../../../store/slices/authSlice';
+import practiceService from '../../../../../services/practiceService';
 
 const useStudentAssessmentResultData = () => {
   const { assignmentId } = useParams();
