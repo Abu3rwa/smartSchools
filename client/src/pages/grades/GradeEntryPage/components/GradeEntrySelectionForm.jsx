@@ -1,7 +1,23 @@
+import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { GRADE_CATEGORY_OPTIONS } from '../constants';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
+
+const getClassLabels = (availableClasses) => {
+    const nameCounts = new Map();
+    for (const item of availableClasses) {
+        nameCounts.set(item.name, (nameCounts.get(item.name) || 0) + 1);
+    }
+    const labels = new Map();
+    for (const item of availableClasses) {
+        const disambiguate = nameCounts.get(item.name) > 1 && item.academicYear;
+        labels.set(item._id, disambiguate
+            ? `${item.name} · ${item.academicYear}`
+            : item.name);
+    }
+    return labels;
+};
 
 const GradeEntrySelectionForm = ({
     selectedClass,
@@ -23,6 +39,7 @@ const GradeEntrySelectionForm = ({
     disabled = false
 }) => {
     const { t } = useTranslation(['grades']);
+    const classLabels = useMemo(() => getClassLabels(availableClasses), [availableClasses]);
 
     return (
         <div className="card selection-card">
@@ -32,7 +49,7 @@ const GradeEntrySelectionForm = ({
                     <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required disabled={disabled}>
                         <option value="">{t('grades:entry.form.chooseClass')}</option>
                         {availableClasses.map((item) => (
-                            <option key={item._id} value={item._id}>{item.name}</option>
+                            <option key={item._id} value={item._id}>{classLabels.get(item._id) || item.name}</option>
                         ))}
                     </select>
                 </div>

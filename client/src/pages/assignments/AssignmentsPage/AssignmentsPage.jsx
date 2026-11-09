@@ -60,6 +60,9 @@ const AssignmentsPage = () => {
   const [activeTab, setActiveTab] = useState("assignments");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState("dueDate");
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => new Date().getMonth() + 1,
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState("");
@@ -159,9 +162,17 @@ const AssignmentsPage = () => {
         status: selectedStatus,
         search: searchTerm,
         sortKey,
+        month: selectedMonth,
         language: i18n.language,
       }),
-    [assignments, i18n.language, searchTerm, selectedStatus, sortKey],
+    [
+      assignments,
+      i18n.language,
+      searchTerm,
+      selectedMonth,
+      selectedStatus,
+      sortKey,
+    ],
   );
 
   const pageCount = Math.max(
@@ -264,7 +275,13 @@ const AssignmentsPage = () => {
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [selectedStatus, searchTerm, selectedClass, selectedSubject]);
+  }, [
+    selectedStatus,
+    searchTerm,
+    selectedClass,
+    selectedSubject,
+    selectedMonth,
+  ]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -297,6 +314,10 @@ const AssignmentsPage = () => {
     }
     setSearchTerm("");
     setSelectedSubject(subjectId);
+  };
+
+  const handleMonthChange = (value) => {
+    setSelectedMonth(value ? Number(value) : "");
   };
 
   const openCreateDrawer = () => {
@@ -1241,6 +1262,8 @@ const AssignmentsPage = () => {
           selectedSubject={selectedSubject}
           onSubjectChange={handleSubjectChange}
           availableSubjects={availableSubjects}
+          selectedMonth={selectedMonth}
+          onMonthChange={handleMonthChange}
           filteredCount={filteredAssignments.length}
           totalCount={assignments.length}
           page={safePage}

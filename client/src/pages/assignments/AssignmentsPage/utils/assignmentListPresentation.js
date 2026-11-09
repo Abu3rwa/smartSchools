@@ -98,18 +98,31 @@ export const getAssignmentMetrics = (assignments = [], now = new Date()) => {
   };
 };
 
+export const getAssignmentMonthDate = (assignment) =>
+  asDate(assignment?.dueDate) ||
+  asDate(assignment?.assignedDate) ||
+  asDate(assignment?.createdAt);
+
 export const filterAndSortAssignments = ({
   assignments = [],
   status = "all",
   search = "",
   sortKey = "dueDate",
+  month = null,
   language = "en",
 } = {}) => {
   const query = String(search || "")
     .trim()
     .toLowerCase();
+  const monthNumber = Number(month);
+  const hasMonthFilter =
+    Number.isInteger(monthNumber) && monthNumber >= 1 && monthNumber <= 12;
   const filtered = assignments.filter((assignment) => {
     if (status !== "all" && assignment.status !== status) return false;
+    if (hasMonthFilter) {
+      const monthDate = getAssignmentMonthDate(assignment);
+      if (!monthDate || monthDate.getMonth() + 1 !== monthNumber) return false;
+    }
     if (!query) return true;
     const haystack = [
       assignment.title,

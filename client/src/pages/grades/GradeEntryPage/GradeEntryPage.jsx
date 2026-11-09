@@ -122,12 +122,25 @@ const GradeEntryPage = () => {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const availableClasses = useMemo(() => {
-        return getAvailableClasses({ isTeacher, myClasses, classes });
-    }, [classes, isTeacher, myClasses]);
+        return getAvailableClasses({ isTeacher, myClasses, classes, academicYear });
+    }, [academicYear, classes, isTeacher, myClasses]);
 
     const availableSubjects = useMemo(() => {
         return getAvailableSubjects({ selectedClass, classes, subjects, isTeacher, myClasses });
     }, [classes, selectedClass, subjects, isTeacher, myClasses]);
+
+    // A ?class= link from a previous year no longer resolves to a listed class; clear it
+    // instead of saving grades against last year's document.
+    useEffect(() => {
+        if (editMode || availableClasses.length === 0 || !selectedClass) return;
+        const stillAvailable = availableClasses.some(
+            (item) => String(item._id) === String(selectedClass)
+        );
+        if (!stillAvailable) {
+            setSelectedClass('');
+            setSelectedSubject('');
+        }
+    }, [availableClasses, editMode, selectedClass, setSelectedClass, setSelectedSubject]);
 
     const enteredCount = useMemo(() => {
         return countEnteredGrades(grades);

@@ -143,6 +143,99 @@ export const getLanguageLabel = (code = 'en') => {
     return AI_LANGUAGE_CATALOG.find((item) => item.code === normalized)?.label || 'English';
 };
 
+const ARABIC_CHAR = /[\u0600-\u06FF\u0750-\u077F\u0870-\u089F\u08A0-\u08FF]/;
+const URDU_CHAR = /[\u0679\u0688\u0691\u06BA\u06BE\u06D2\u06D3]/;
+const LATIN_WORD = /[a-zà-öø-ÿœßçğıöşü]+/gi;
+const ARABIC_WORD = /[\u0600-\u06FF]+/g;
+
+// Common function words per supported language. Words shared across languages
+// ("de", "que") still count, so the winner is only trusted with a clear margin.
+const LANGUAGE_MARKERS = {
+    en: new Set([
+        'the', 'what', 'which', 'why', 'how', 'when', 'where', 'who', 'whom',
+        'is', 'are', 'was', 'were', 'and', 'with', 'for', 'your', 'you',
+        'answer', 'answers', 'explain', 'describe', 'name', 'named', 'correct',
+        'incorrect', 'partly', 'because', 'between', 'of', 'to', 'in', 'that',
+        'this', 'these', 'those', 'it', 'they', 'good', 'right', 'points',
+        'credit', 'full', 'mention', 'mentions'
+    ]),
+    es: new Set([
+        'el', 'los', 'las', 'del', 'pero', 'más', 'mas', 'también', 'tambien',
+        'porque', 'entre', 'respuesta', 'correcto', 'correcta', 'faltó',
+        'falto', 'faltan', 'mencionas', 'intercambio', 'cuál', 'cual', 'qué',
+        'que', 'es', 'son', 'una', 'uno', 'y', 'de', 'como', 'para', 'por',
+        'con', 'su', 'bien', 'buena', 'buen', 'muy', 'pero', 'no', 'se'
+    ]),
+    pt: new Set([
+        'não', 'nao', 'uma', 'com', 'isso', 'está', 'esta', 'também', 'tambem',
+        'resposta', 'correto', 'correta', 'você', 'voce', 'mas', 'são', 'sao',
+        'foi', 'muito', 'bem', 'qual', 'para', 'por', 'de', 'que', 'como', 'no'
+    ]),
+    fr: new Set([
+        'les', 'des', 'une', 'est', 'pour', 'avec', 'mais', 'réponse',
+        'reponse', 'correcte', 'bonne', 'vous', 'dans', 'sur', 'pas', 'qui',
+        'de', 'que', 'le', 'la', 'du', 'au', 'aux', 'bien', 'très', 'tres'
+    ]),
+    tr: new Set([
+        'bir', 've', 'bu', 'için', 'icin', 'cevap', 'doğru', 'dogru', 'nedir',
+        'değil', 'degil', 'çok', 'cok', 'gibi', 'ile', 'olarak', 'ama', 'fakat'
+    ])
+};
+
+const URDU_MARKERS = new Set([
+    'ہے', 'کا', 'کی', 'کو', 'میں', 'اور', 'یہ', 'نہیں', 'یہاں', 'آپ', 'کے'
+]);
+
+const scoreLatinLanguages = (words) => {
+    const scores = new Map();
+    words.forEach((word) => {
+        Object.entries(LANGUAGE_MARKERS).forEach(([code, markers]) => {
+            if (markers.has(word)) scores.set(code, (scores.get(code) || 0) + 1);
+        });
+    });
+    return scores;
+};
+
+const pickBest = (scores) => {
+    const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
+    if (ranked.length === 0) return null;
+    const [best, second] = ranked;
+    if (best[1] < 1) return null;
+    if (second && second[1] >= best[1]) return null;
+    return best[0];
+};
+
+/**
+ * Best-effort language code of a text. Returns null when the text is too short
+ * or too ambiguous to call, so callers can decide on a fallback instead of
+ * acting on a guess.
+ */
+export const detectLanguageCode = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return null;
+
+    const letters = Array.from(text).filter((char) => /\p{L}/u.test(char));
+    if (letters.length === 0) return null;
+
+    const arabicLetters = letters.filter((char) => ARABIC_CHAR.test(char)).length;
+    if (arabicLetters / letters.length >= 0.3) {
+        const urduWords = text.match(ARABIC_WORD) || [];
+        const urduHit = URDU_CHAR.test(text)
+            || urduWords.some((word) => URDU_MARKERS.has(word));
+        return urduHit ? 'ur' : 'ar';
+    }
+
+    const words = (text.match(LATIN_WORD) || []).map((word) => word.toLowerCase());
+    return pickBest(scoreLatinLanguages(words));
+};
+
+/** The language a quiz question is written in; its reference text is the backup. */
+export const resolveContentLanguageCode = ({ question, modelAnswer, rubric } = {}) => {
+    return detectLanguageCode(question)
+        || detectLanguageCode([modelAnswer, rubric].filter(Boolean).join(' '))
+        || 'en';
+};
+
 export const isRtlLanguageCode = (code = 'en') => {
     const normalized = normalizeLanguageCode(code);
     if (!normalized) return false;

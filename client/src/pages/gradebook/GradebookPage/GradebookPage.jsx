@@ -38,6 +38,7 @@ import './GradebookPage.css';
 const GradebookPage = ({
     classId: classIdProp,
     availableClasses,
+    preferredSubjectId,
     selectedGrade,
     onGradeChange,
     selectedSubjectFilter,
@@ -133,6 +134,7 @@ const GradebookPage = ({
         students,
         grades,
         selectedSubject,
+        preferredSubjectId,
         selectedMonth,
         selectedCategoryFilter,
         academicYear,

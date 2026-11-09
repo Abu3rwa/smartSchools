@@ -35,10 +35,28 @@ const GradebookRedirectPage = () => {
             return classes;
         }
         const seen = new Set();
-        return (myClasses || [])
+        const uniqueClasses = (myClasses || [])
             .map((item) => item.class)
             .filter((classItem) => classItem && !seen.has(classItem._id) && (seen.add(classItem._id), true));
-    }, [classes, myClasses, user?.role]);
+
+        // Teacher assignments carry over at year rollover, so my-classes returns last
+        // year's class documents under the same name. Keep only the active year so the
+        // gradebook cannot open last year's (empty) class by mistake.
+        const sameYearClasses = uniqueClasses.filter(
+            (classItem) => !classItem.academicYear || classItem.academicYear === academicYear
+        );
+        return sameYearClasses.length > 0 ? sameYearClasses : uniqueClasses;
+    }, [academicYear, classes, myClasses, user?.role]);
+
+    // A class teacher sees every subject of the class; open on the subject they are
+    // actually assigned to instead of whichever subject happens to be listed first.
+    const preferredSubjectId = useMemo(() => {
+        if (user?.role !== 'teacher' || !selectedClassId) return null;
+        const assignment = (myClasses || []).find(
+            (item) => String(item.class?._id) === String(selectedClassId) && item.subject?._id
+        );
+        return assignment?.subject?._id || null;
+    }, [myClasses, selectedClassId, user?.role]);
 
     // Compute filtered classes based on grade / subject filters
     const filteredClasses = useMemo(() => {
@@ -127,6 +145,7 @@ const GradebookRedirectPage = () => {
                     key={selectedClassId}
                     classId={selectedClassId}
                     availableClasses={availableClasses}
+                    preferredSubjectId={preferredSubjectId}
                     selectedGrade={selectedGrade}
                     onGradeChange={handleGradeChange}
                     selectedSubjectFilter={selectedSubjectFilter}

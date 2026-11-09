@@ -2963,13 +2963,14 @@ class NotificationService {
   formatGradeUpdateMessage(student, gradeData, language = "en") {
     const isArabic = language === "ar";
     const remarksText = buildRemarksPlainText(gradeData, language);
+    const assignmentTitle = String(gradeData.title || "").trim();
     return `
 ${isArabic ? `عزيزي ولي أمر ${student.firstName}،` : `Dear ${student.firstName}'s Parent,`}
 
 ${isArabic ? `نود إعلامكم بأنه تم تسجيل درجة جديدة للطالب ${student.fullName}:` : `This is to inform you that ${student.fullName} received a grade update:`}
 
 ${isArabic ? "المادة" : "Subject"}: ${localizeSubject({ name: gradeData.subjectName, nameAr: gradeData.subjectNameAr }, language)}
-${isArabic ? "الفئة" : "Type"}: ${localizeCategory(gradeData.gradeType, language)}
+${assignmentTitle ? `${isArabic ? "العنوان" : "Title"}: ${assignmentTitle}\n` : ""}${isArabic ? "الفئة" : "Type"}: ${localizeCategory(gradeData.gradeType, language)}
 ${isArabic ? "الدرجة" : "Marks"}: ${gradeData.marks}/${gradeData.maxMarks}
 ${isArabic ? "التاريخ" : "Date"}: ${new Date(gradeData.date).toLocaleDateString(isArabic ? "ar-EG" : undefined)}
 ${remarksText ? `${isArabic ? "ملاحظات المعلم" : "Teacher's Remarks"}:\n${remarksText}` : ""}
@@ -2995,6 +2996,10 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
       { remarks: gradeData?.remarks },
       language,
     );
+    const assignmentTitle = String(gradeData?.title || "").trim();
+    const assignmentTitleRow = assignmentTitle
+      ? `<div class="row-item"><div class="row-left"><div>${isArabic ? "العنوان" : "Title"}</div><div class="meta-line">${escapeHtml(assignmentTitle)}</div></div></div>`
+      : "";
 
     return renderTemplate(isArabic ? "gradeUpdate_ar" : "gradeUpdate", {
       studentFullName: student.fullName,
@@ -3005,6 +3010,7 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
         { name: gradeData.subjectName, nameAr: gradeData.subjectNameAr },
         language,
       ),
+      assignmentTitleRow,
       gradeType: localizeCategory(gradeData.gradeType, language),
       gradeDate: new Date(gradeData.date).toLocaleDateString(
         isArabic ? "ar-EG" : undefined,
@@ -3034,7 +3040,9 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
 
     grades.forEach((grade) => {
       const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
-      message += `${localizeSubject(grade.subject, language)}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
+      const gradeTitle = String(grade.title || "").trim();
+      const subjectLabel = localizeSubject(grade.subject, language);
+      message += `${subjectLabel}${gradeTitle ? ` — ${gradeTitle}` : ""}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
       const observation = getGradeObservation(grade);
       if (observation) {
         message += `  ${isArabic ? "ملاحظات" : "Notes"}: ${localizeRemarks(observation, language)}\n`;
@@ -3067,8 +3075,12 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
         const notesLine = observation
           ? `<div class="meta-line">${isArabic ? "ملاحظات" : "Notes"}: ${escapeHtml(localizeRemarks(observation, language))}</div>`
           : "";
+        const gradeTitle = String(grade.title || "").trim();
+        const titleLabel = gradeTitle
+          ? `<div class="meta-line">${isArabic ? "العنوان" : "Title"}: ${escapeHtml(gradeTitle)}</div>`
+          : "";
         return `<div class="row-item">
-          <div class="row-left">${escapeHtml(localizeSubject(grade.subject, language))}${notesLine}</div>
+          <div class="row-left">${escapeHtml(localizeSubject(grade.subject, language))}${titleLabel}${notesLine}</div>
           <div class="row-right"><span class="badge">${grade.marks} / ${grade.maxMarks}</span></div>
         </div>`;
       })
@@ -3240,7 +3252,8 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
             },
           );
           const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
-          message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
+          const gradeTitle = String(grade.title || "").trim();
+          message += `    ${gradeDate}${gradeTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
           const observation = getGradeObservation(grade);
           if (observation) {
             const groupedRemarks = buildRemarksPlainText(
@@ -3337,6 +3350,10 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
                 );
 
                 const notesLine = buildGradebookRemarksHtml(grade, language);
+                const gradeTitle = String(grade.title || "").trim();
+                const titleLine = gradeTitle
+                  ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
+                  : "";
 
                 return renderTemplate(
                   isArabic ? "classworkGradeRow_ar" : "classworkGradeRow",
@@ -3345,6 +3362,7 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
                     scoreClass: "",
                     marks: grade.marks,
                     maxMarks: grade.maxMarks,
+                    titleLine,
                     notesLine,
                     dateLabel: isArabic ? "التاريخ" : "Date",
                   },
@@ -3462,7 +3480,8 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
             },
           );
           const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
-          message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
+          const gradeTitle = String(grade.title || "").trim();
+          message += `    ${gradeDate}${gradeTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
           const observation = getGradeObservation(grade);
           if (observation) {
             const groupedRemarks = buildRemarksPlainText(
@@ -3563,6 +3582,10 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
                   grade,
                   isArabic ? "ar" : "en",
                 );
+                const gradeTitle = String(grade.title || "").trim();
+                const titleLine = gradeTitle
+                  ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
+                  : "";
 
                 return renderTemplate(
                   isArabic ? "gradebookGradeRow_ar" : "gradebookGradeRow",
@@ -3571,6 +3594,7 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
                     scoreClass: "",
                     marks: grade.marks,
                     maxMarks: grade.maxMarks,
+                    titleLine,
                     notesLine,
                   },
                 );

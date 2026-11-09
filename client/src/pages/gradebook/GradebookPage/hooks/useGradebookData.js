@@ -16,6 +16,7 @@ const useGradebookData = ({
     students,
     grades,
     selectedSubject,
+    preferredSubjectId,
     selectedMonth,
     selectedCategoryFilter,
     academicYear,
@@ -34,10 +35,16 @@ const useGradebookData = ({
     }, [classId, dispatch]);
 
     useEffect(() => {
-        if (currentClass?.subjects?.length > 0 && !selectedSubject) {
-            setSelectedSubject(currentClass.subjects[0].subject?._id || '');
-        }
-    }, [currentClass, selectedSubject, setSelectedSubject]);
+        if (!currentClass?.subjects?.length || selectedSubject) return;
+
+        const preferred = preferredSubjectId
+            ? currentClass.subjects.find(
+                (subjectAssignment) => String(subjectAssignment.subject?._id) === String(preferredSubjectId)
+            )
+            : null;
+        const initialSubject = preferred || currentClass.subjects[0];
+        setSelectedSubject(initialSubject?.subject?._id || '');
+    }, [currentClass, preferredSubjectId, selectedSubject, setSelectedSubject]);
 
     const fetchGrades = useCallback(async () => {
         if (!classId || !selectedSubject || !selectedMonth) {

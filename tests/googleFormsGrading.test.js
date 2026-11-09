@@ -124,6 +124,7 @@ test("the prompt carries the reference, the untrusted-data rule and no student i
       modelAnswer: "Particles move quickly.",
       rubric: "1 point for movement.",
       answer: "Porque sus partículas se mueven rápido.",
+      feedbackLanguage: "English",
     },
   ]);
   assert.match(prompt, /Grade by meaning, not exact wording/);
@@ -131,11 +132,82 @@ test("the prompt carries the reference, the untrusted-data rule and no student i
   assert.match(prompt, /PRIVACY \(must always hold\)/);
   assert.match(prompt, /CONTENT SAFETY \(must always hold\)/);
   assert.match(prompt, /Particles move quickly\./);
+  assert.match(prompt, /"feedbackLanguage": "English"/);
+  assert.match(prompt, /Write that item's "feedback" only in that language/i);
   assert.match(
     prompt,
-    /primary language used by the question and its grading reference/i,
+    /The student's answer may be in another language/i,
   );
-  assert.match(prompt, /do not switch feedback to the answer's language/i);
+});
+
+test("the question language is attached to each graded item", async (t) => {
+  const calls = setup(t, {
+    reply: {
+      grades: [
+        { questionId: "q2", score: 2, feedback: "Correct meaning." },
+        { questionId: "q3", score: 1, feedback: "Right." },
+      ],
+    },
+  });
+
+  await grade();
+  assert.equal(calls.prompts.length, 1);
+  assert.match(calls.prompts[0], /"feedbackLanguage": "English"/);
+  assert.doesNotMatch(calls.prompts[0], /"feedbackLanguage": "Spanish"/);
+});
+
+test("feedback written in another language is retried once in the question's language", async (t) => {
+  let attempt = 0;
+  const calls = setup(t, {
+    fetchImpl: () => {
+      attempt += 1;
+      return openAiReply(
+        JSON.stringify({
+          grades:
+            attempt === 1
+              ? [
+                  {
+                    questionId: "q2",
+                    score: 2,
+                    feedback:
+                      "Bien. Mencionas el intercambio de plantas y animales, pero faltan otros elementos importantes.",
+                  },
+                  {
+                    questionId: "q3",
+                    score: 1,
+                    feedback: "Correcto. Esa es la respuesta adecuada.",
+                  },
+                ]
+              : [
+                  {
+                    questionId: "q2",
+                    score: 2,
+                    feedback:
+                      "Correct. You mention the exchange of plants and animals.",
+                  },
+                  {
+                    questionId: "q3",
+                    score: 1,
+                    feedback: "Correct. A liquid is a state of matter.",
+                  },
+                ],
+        }),
+      );
+    },
+  });
+
+  const summary = await grade();
+  assert.deepEqual(summary, { skipped: false, graded: 2, failed: 0 });
+  assert.equal(calls.prompts.length, 2);
+  assert.match(
+    calls.prompts[1],
+    /wrong language for: q2 \(English\), q3 \(English\)/,
+  );
+  const questions = calls.writes[0].update.$set.questions;
+  assert.match(
+    questions.find((entry) => entry.questionId === "q2").suggestedFeedback,
+    /Correct\./,
+  );
 });
 
 test("valid suggestions are persisted and earlier approvals survive a regrade", async (t) => {
@@ -243,6 +315,36 @@ test("an unchanged suggested or approved response is skipped without a new charg
     assert.equal(calls.prompts.length, 0);
     assert.equal(calls.writes.length, 0);
   }
+});
+
+test("an unchanged response with suggestions in the wrong language is graded again", async (t) => {
+  const submission = makeSubmission();
+  const calls = setup(t, {
+    existing: {
+      status: "suggested",
+      responseVersion: googleFormResponseVersion(submission.answers),
+      questions: [
+        {
+          questionId: "q2",
+          suggestedScore: 2,
+          suggestedFeedback:
+            "Bien. Mencionas el intercambio de plantas y animales, pero faltan otros elementos.",
+        },
+      ],
+    },
+    reply: {
+      grades: [
+        { questionId: "q2", score: 2, feedback: "Correct. You named the movement." },
+        { questionId: "q3", score: 1, feedback: "Correct. A liquid is a state of matter." },
+      ],
+    },
+  });
+
+  const summary = await grade(submission);
+  assert.deepEqual(summary, { skipped: false, graded: 2, failed: 0 });
+  assert.equal(calls.prompts.length, 1);
+  assert.equal(calls.writes.length, 1);
+  assert.match(calls.prompts[0], /"feedbackLanguage": "English"/);
 });
 
 test("quizzes without short answers refuse grading", async (t) => {

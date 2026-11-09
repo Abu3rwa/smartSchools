@@ -23,6 +23,8 @@ const AssignmentsPanel = ({
     selectedSubject,
     onSubjectChange,
     availableSubjects,
+    selectedMonth,
+    onMonthChange,
     filteredCount,
     totalCount,
     page,
@@ -99,6 +101,8 @@ const AssignmentsPanel = ({
                 selectedSubject={selectedSubject}
                 onSubjectChange={onSubjectChange}
                 availableSubjects={availableSubjects}
+                selectedMonth={selectedMonth}
+                onMonthChange={onMonthChange}
                 visibleCount={filteredCount}
                 totalCount={totalCount}
             />

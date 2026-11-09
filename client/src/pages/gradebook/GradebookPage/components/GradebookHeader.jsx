@@ -93,6 +93,23 @@ const GradebookHeader = ({
         return result;
     }, [availableClasses, isEmbedded, selectedGrade, selectedSubjectFilter]);
 
+    // Classes recur every academic year, so identical names can point at different
+    // documents. Append the year only when the same name appears more than once.
+    const classOptionLabels = useMemo(() => {
+        const nameCounts = new Map();
+        for (const classItem of filteredClasses) {
+            nameCounts.set(classItem.name, (nameCounts.get(classItem.name) || 0) + 1);
+        }
+        const labels = new Map();
+        for (const classItem of filteredClasses) {
+            const disambiguate = nameCounts.get(classItem.name) > 1 && classItem.academicYear;
+            labels.set(classItem._id, disambiguate
+                ? `${classItem.name} · ${classItem.academicYear}`
+                : classItem.name);
+        }
+        return labels;
+    }, [filteredClasses]);
+
     // Within-class assessments the teacher can jump straight back into
     const assessmentGroups = useMemo(() => {
         if (!grades || grades.length === 0) return [];
@@ -314,7 +331,7 @@ const GradebookHeader = ({
                                     )}
                                     {filteredClasses.map((c) => (
                                         <option key={c._id} value={c._id}>
-                                            {c.name}
+                                            {classOptionLabels.get(c._id) || c.name}
                                         </option>
                                     ))}
                                 </select>

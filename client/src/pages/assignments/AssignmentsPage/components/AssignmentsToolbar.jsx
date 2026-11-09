@@ -7,6 +7,8 @@ const uniqueById = (items = []) => (
         .map((item) => [String(item._id), item])).values())
 );
 
+const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
+
 const AssignmentsToolbar = ({
     searchTerm,
     onSearchChange,
@@ -16,6 +18,8 @@ const AssignmentsToolbar = ({
     selectedSubject,
     onSubjectChange,
     availableSubjects,
+    selectedMonth,
+    onMonthChange,
     visibleCount,
     totalCount
 }) => {
@@ -57,6 +61,18 @@ const AssignmentsToolbar = ({
                 <option value="">{t('assignments:filters.allSubjects')}</option>
                 {subjects.map((item) => (
                     <option key={item._id} value={item._id}>{item.name}</option>
+                ))}
+            </select>
+
+            <select
+                className="assignments-select"
+                value={selectedMonth ?? ""}
+                onChange={(event) => onMonthChange(event.target.value)}
+                aria-label={t('assignments:filters.month')}
+            >
+                <option value="">{t('assignments:filters.allMonths')}</option>
+                {MONTHS.map((month) => (
+                    <option key={month} value={month}>{t(`assignments:months.${month}`)}</option>
                 ))}
             </select>
 

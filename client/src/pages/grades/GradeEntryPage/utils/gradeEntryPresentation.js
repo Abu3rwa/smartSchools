@@ -6,7 +6,15 @@ export const buildInitialGrades = (students = []) => {
     return initialGrades;
 };
 
-export const getAvailableClasses = ({ isTeacher, myClasses = [], classes = [] }) => {
+const filterByAcademicYear = (classList, academicYear) => {
+    if (!academicYear) return classList;
+    const sameYearClasses = classList.filter(
+        (item) => !item.academicYear || item.academicYear === academicYear
+    );
+    return sameYearClasses.length > 0 ? sameYearClasses : classList;
+};
+
+export const getAvailableClasses = ({ isTeacher, myClasses = [], classes = [], academicYear = '' }) => {
     if (isTeacher && myClasses.length > 0) {
         const classMap = new Map();
         myClasses.forEach((item) => {
@@ -18,10 +26,12 @@ export const getAvailableClasses = ({ isTeacher, myClasses = [], classes = [] })
                 if (fullClass) classMap.set(fullClass._id.toString(), fullClass);
             }
         });
-        return Array.from(classMap.values());
+        // Teacher assignments carry over at year rollover, so the same class name can
+        // point at last year's document. Keep only the active year.
+        return filterByAcademicYear(Array.from(classMap.values()), academicYear);
     }
 
-    return classes;
+    return filterByAcademicYear(classes, academicYear);
 };
 
 export const getAvailableSubjects = ({ selectedClass, classes = [], subjects = [], isTeacher, myClasses = [] }) => {

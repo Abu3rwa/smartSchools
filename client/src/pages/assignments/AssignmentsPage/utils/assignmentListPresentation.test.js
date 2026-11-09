@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  filterAndSortAssignments,
   getAssignmentDuePresentation,
   getAssignmentMetrics,
 } from "./assignmentListPresentation.js";
@@ -55,4 +56,27 @@ test("overdue summary excludes completed assignments", () => {
   ]).overdue;
 
   assert.equal(overdue, 1);
+});
+
+const monthRows = [
+  { id: "november", dueDate: new Date(2026, 10, 10) },
+  { id: "december", dueDate: new Date(2026, 11, 2) },
+  { id: "undated", assignedDate: new Date(2026, 10, 1) },
+];
+
+const idsFor = (month) =>
+  filterAndSortAssignments({ assignments: monthRows, month }).map(
+    (assignment) => assignment.id,
+  );
+
+test("month filter keeps rows due in that month", () => {
+  assert.deepEqual([...idsFor(12)].sort(), ["december"]);
+});
+
+test("month filter falls back to the assigned date when there is no due date", () => {
+  assert.deepEqual([...idsFor(11)].sort(), ["november", "undated"]);
+});
+
+test("no month selection keeps every assignment", () => {
+  assert.equal(idsFor("").length, monthRows.length);
 });
