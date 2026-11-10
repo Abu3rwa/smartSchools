@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import {
     HiOutlineBookOpen,
     HiOutlineCheck,
+    HiOutlineChevronDown,
     HiOutlineClock,
+    HiOutlineDocumentText,
     HiOutlineOfficeBuilding,
     HiOutlinePencil,
     HiOutlinePlus,
@@ -34,6 +36,7 @@ import useTimetableAssignmentOptions from './hooks/useTimetableAssignmentOptions
 import { createDefaultAssignment, createDefaultPeriod, createDefaultRoom, formatDateAsYmd } from './utils/timetableState';
 import TimetableErrorBanner from './components/TimetableErrorBanner';
 import AssignmentFiltersBar from './components/AssignmentFiltersBar';
+import ScheduleImportWizard from './components/ScheduleImport/ScheduleImportWizard';
 import SubjectsFilters from '../../../subjects/SubjectsPage/components/SubjectsFilters';
 import SubjectsTable from '../../../subjects/SubjectsPage/components/SubjectsTable';
 import SubjectFormModal from '../../../subjects/SubjectsPage/components/SubjectFormModal';
@@ -123,8 +126,12 @@ const AdminTimetablePage = () => {
     const [periodsPageSize, setPeriodsPageSize] = useState(DEFAULT_PERIODS_PAGE_SIZE);
 
     const [showRoomModal, setShowRoomModal] = useState(false);
+    const [showScheduleImport, setShowScheduleImport] = useState(false);
     const [newRoom, setNewRoom] = useState(createDefaultRoom);
     const [savingRoom, setSavingRoom] = useState(false);
+    const [activeTab, setActiveTab] = useState('timetable');
+    const [formOpen, setFormOpen] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
 
     const [bulkDates, setBulkDates] = useState({ startDate: '', endDate: '' });
     const [savingBulkDates, setSavingBulkDates] = useState(false);
@@ -142,6 +149,8 @@ const AdminTimetablePage = () => {
     const subjectImportInputRef = useRef(null);
     const assignmentImportInputRef = useRef(null);
     const subjectsSectionRef = useRef(null);
+    const formSectionRef = useRef(null);
+    const moreMenuRef = useRef(null);
 
     const {
         searchTerm,
@@ -186,32 +195,16 @@ const AdminTimetablePage = () => {
         return periods.slice(startIndex, startIndex + periodsPageSize);
     }, [periods, periodsPage, periodsPageSize]);
 
-    const summaryCards = useMemo(() => {
+    const stats = useMemo(() => {
         const activeAssignments = assignments.filter((assignment) => assignment.isActive !== false).length;
         const availableRooms = rooms.filter((room) => room.status === 'active' && room.isAvailable !== false).length;
 
-        return [
-            {
-                labelKey: 'summary.subjects.label',
-                value: subjects.length,
-                helpKey: 'summary.subjects.help'
-            },
-            {
-                labelKey: 'summary.periods.label',
-                value: periods.length,
-                helpKey: 'summary.periods.help'
-            },
-            {
-                labelKey: 'summary.assignments.label',
-                value: activeAssignments,
-                helpKey: 'summary.assignments.help'
-            },
-            {
-                labelKey: 'summary.availableRooms.label',
-                value: availableRooms,
-                helpKey: 'summary.availableRooms.help'
-            }
-        ];
+        return {
+            periods: periods.length,
+            assignments: activeAssignments,
+            subjects: subjects.length,
+            rooms: availableRooms
+        };
     }, [assignments, periods, rooms, subjects.length]);
 
     const dayLabelByValue = useMemo(
@@ -227,6 +220,37 @@ const AdminTimetablePage = () => {
         () => DAY_LABELS.filter((day) => weekWorkingDays.includes(day.value)),
         [weekWorkingDays]
     );
+
+    const orderedPeriods = useMemo(
+        () => [...periods].sort((left, right) => (left.order ?? 0) - (right.order ?? 0)),
+        [periods]
+    );
+
+    const gridDays = useMemo(
+        () => DAY_LABELS.filter((day) => weekWorkingDays.includes(day.value)),
+        [weekWorkingDays]
+    );
+
+    const scopedAssignments = useMemo(() => assignments.filter((assignment) => {
+        const teacherId = assignment.teacher?._id || assignment.teacher || '';
+        const classId = assignment.class?._id || assignment.class || '';
+        if (filterTeacher && teacherId !== filterTeacher) return false;
+        if (filterClass && classId !== filterClass) return false;
+        return true;
+    }), [assignments, filterTeacher, filterClass]);
+
+    const daysForAssignment = (assignment) => (
+        assignment.daysOfWeek?.length ? assignment.daysOfWeek : weekWorkingDays
+    );
+
+    const blocksForCell = (periodId, dayValue) => scopedAssignments.filter((assignment) => {
+        const blockPeriodId = assignment.period?._id || assignment.period || '';
+        return blockPeriodId === periodId && daysForAssignment(assignment).includes(dayValue);
+    });
+
+    const needsPeriods = periods.length === 0;
+    const needsSubjects = subjects.length === 0;
+    const showChecklist = needsPeriods || (isAdmin && needsSubjects);
 
     const fetchTimetableData = async () => {
         try {
@@ -266,6 +290,12 @@ const AdminTimetablePage = () => {
         }
     };
 
+    const handleScheduleImported = async () => {
+        setActiveTab('timetable');
+        await fetchTimetableData();
+        dispatch(fetchSubjects({ limit: TIMETABLE_DROPDOWN_LIMIT }));
+    };
+
     useEffect(() => {
         dispatch(fetchTeachers({ limit: TIMETABLE_DROPDOWN_LIMIT }));
         dispatch(fetchClasses({ limit: TIMETABLE_DROPDOWN_LIMIT }));
@@ -275,13 +305,43 @@ const AdminTimetablePage = () => {
 
     useEffect(() => {
         if (location.hash !== '#subjects') return;
+        setActiveTab('setup');
+    }, [location.hash, loading]);
+
+    useEffect(() => {
+        if (location.hash !== '#subjects' || activeTab !== 'setup') return undefined;
 
         const timeoutId = window.setTimeout(() => {
             subjectsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
 
         return () => window.clearTimeout(timeoutId);
-    }, [location.hash, loading]);
+    }, [location.hash, loading, activeTab]);
+
+    useEffect(() => {
+        if (!showMoreMenu) return undefined;
+
+        const handleOutsideClick = (event) => {
+            if (!moreMenuRef.current?.contains(event.target)) {
+                setShowMoreMenu(false);
+            }
+        };
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') setShowMoreMenu(false);
+        };
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [showMoreMenu]);
+
+    useEffect(() => {
+        if (!formOpen) return;
+        formSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [formOpen, editingAssignmentId]);
 
     useEffect(() => {
         setAssignmentsPage(1);
@@ -387,6 +447,7 @@ const AdminTimetablePage = () => {
             }
 
             setNewAssignment(createDefaultAssignment(undefined, weekWorkingDays));
+            setFormOpen(false);
             await fetchTimetableData();
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
@@ -398,6 +459,25 @@ const AdminTimetablePage = () => {
     const cancelAssignmentEdit = () => {
         setEditingAssignmentId(null);
         setNewAssignment(createDefaultAssignment(undefined, weekWorkingDays));
+        setFormOpen(false);
+    };
+
+    const startNewAssignment = (period, day) => {
+        setEditingAssignmentId(null);
+        setNewAssignment({
+            ...createDefaultAssignment(undefined, weekWorkingDays),
+            teacher: filterTeacher || '',
+            class: filterClass || '',
+            period: period?._id || '',
+            daysOfWeek: day ? [day.value] : [...weekWorkingDays]
+        });
+        setActiveTab('timetable');
+        setFormOpen(true);
+    };
+
+    const runMenuAction = (action) => () => {
+        setShowMoreMenu(false);
+        action();
     };
 
     const applyBulkDates = async () => {
@@ -476,7 +556,8 @@ const AdminTimetablePage = () => {
             endDate: formatDateAsYmd(assignment.endDate),
             isActive: assignment.isActive ?? true
         });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setActiveTab('timetable');
+        setFormOpen(true);
     };
 
     const deleteAssignment = async (id) => {
@@ -816,6 +897,19 @@ const AdminTimetablePage = () => {
                 onChange={handleAssignmentImportFileChange}
             />
 
+            <ScheduleImportWizard
+                open={showScheduleImport}
+                onClose={() => setShowScheduleImport(false)}
+                onImported={handleScheduleImported}
+                onAlignPeriods={() => {
+                    setShowScheduleImport(false);
+                    setActiveTab('setup');
+                    window.setTimeout(() => {
+                        document.getElementById('periods')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 150);
+                }}
+            />
+
             <section className="timetable-hero">
                 <div className="page-header">
                     <div className="header-content">
@@ -823,48 +917,250 @@ const AdminTimetablePage = () => {
                         <h3>{t('adminTimetable:page.title')}</h3>
                         <p>{t('adminTimetable:page.subtitle')}</p>
                     </div>
-                    <div className="header-actions"  >
-                        {isAdmin && (
-                            <button className="btn btn-secondary" onClick={triggerSubjectImport} disabled={saving}>
-                                <HiOutlineUpload size={18} />
-                                {t('adminTimetable:actions.importSubjectsCsv')}
-                            </button>
-                        )}
-                        <button className="btn btn-secondary" onClick={triggerPeriodImport} disabled={saving}>
+                    <div className="header-actions">
+                        <button className="btn btn-primary" onClick={() => setShowScheduleImport(true)} disabled={saving}>
+                            <HiOutlineDocumentText size={18} />
+                            {t('adminTimetable:scheduleImport.action')}
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => startNewAssignment()} disabled={saving}>
                             <HiOutlinePlus size={18} />
-                            {t('adminTimetable:actions.importPeriodsCsv')}
+                            {t('adminTimetable:actions.addBlock')}
                         </button>
-                        <button className="btn btn-secondary" onClick={triggerRoomImport} disabled={saving}>
-                            <HiOutlineOfficeBuilding size={18} />
-                            {t('adminTimetable:actions.importRoomsCsv')}
-                        </button>
-                        <button className="btn btn-secondary" onClick={triggerAssignmentImport} disabled={saving}>
-                            <HiOutlineUpload size={18} />
-                            {t('adminTimetable:actions.importAssignmentsCsv')}
-                        </button>
-                        <button className="btn btn-primary" onClick={fetchTimetableData} disabled={saving}>
-                            <HiOutlineRefresh size={18} />
-                            {t('adminTimetable:actions.refresh')}
-                        </button>
+                        <div className="more-menu" ref={moreMenuRef}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setShowMoreMenu((previous) => !previous)}
+                                disabled={saving}
+                                aria-expanded={showMoreMenu}
+                                aria-haspopup="menu"
+                            >
+                                <HiOutlineChevronDown size={18} />
+                                {t('adminTimetable:actions.more')}
+                            </button>
+                            {showMoreMenu && (
+                                <div className="more-menu-panel" role="menu">
+                                    <button type="button" role="menuitem" onClick={runMenuAction(fetchTimetableData)}>
+                                        <HiOutlineRefresh size={18} />
+                                        {t('adminTimetable:actions.refresh')}
+                                    </button>
+                                    {isAdmin && (
+                                        <button type="button" role="menuitem" onClick={runMenuAction(triggerSubjectImport)}>
+                                            <HiOutlineUpload size={18} />
+                                            {t('adminTimetable:actions.importSubjectsCsv')}
+                                        </button>
+                                    )}
+                                    <button type="button" role="menuitem" onClick={runMenuAction(triggerPeriodImport)}>
+                                        <HiOutlinePlus size={18} />
+                                        {t('adminTimetable:actions.importPeriodsCsv')}
+                                    </button>
+                                    <button type="button" role="menuitem" onClick={runMenuAction(triggerRoomImport)}>
+                                        <HiOutlineOfficeBuilding size={18} />
+                                        {t('adminTimetable:actions.importRoomsCsv')}
+                                    </button>
+                                    <button type="button" role="menuitem" onClick={runMenuAction(triggerAssignmentImport)}>
+                                        <HiOutlineUpload size={18} />
+                                        {t('adminTimetable:actions.importAssignmentsCsv')}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                    <div className="summary-grid">
-                        {summaryCards.map((card) => (
-                            <article key={card.labelKey} className="summary-card">
-                                <span className="summary-label">{t(`adminTimetable:${card.labelKey}`)}</span>
-                                <strong className="summary-value">{card.value}</strong>
-                                <span className="summary-help">{t(`adminTimetable:${card.helpKey}`)}</span>
-                            </article>
-                        ))}
-                    </div>
+                <p className="hero-stats">
+                    {t('adminTimetable:stats.line', {
+                        periods: stats.periods,
+                        assignments: stats.assignments,
+                        subjects: stats.subjects,
+                        rooms: stats.rooms
+                    })}
+                </p>
             </section>
 
             <TimetableErrorBanner error={error} />
 
-            <div className="workspace-grid">
-                <div className="workspace-main">
-                    <section className="card card-emphasis">
+            <div className="tab-bar" role="tablist" aria-label={t('adminTimetable:page.title')}>
+                {[
+                    { id: 'timetable', labelKey: 'tabs.timetable' },
+                    { id: 'assignments', labelKey: 'tabs.assignments' },
+                    { id: 'setup', labelKey: 'tabs.setup' }
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        className="tab-btn"
+                        aria-selected={activeTab === tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                    >
+                        {t(`adminTimetable:${tab.labelKey}`)}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'timetable' && (
+                <div className="tab-panel" role="tabpanel">
+
+                    {showChecklist && (
+                        <section className="card setup-checklist">
+                            <div className="section-heading">
+                                <div>
+                                    <div className="card-title">
+                                        <HiOutlineCheck size={20} />
+                                        {t('adminTimetable:checklist.title')}
+                                    </div>
+                                </div>
+                            </div>
+                            <ol>
+                                <li className={!needsPeriods ? 'is-done' : ''}>
+                                    <span className="checklist-index">
+                                        {!needsPeriods ? <HiOutlineCheck size={16} /> : 1}
+                                    </span>
+                                    <div>
+                                        <strong>{t('adminTimetable:checklist.periodsTitle')}</strong>
+                                        <p>{t('adminTimetable:checklist.periodsBody')}</p>
+                                    </div>
+                                    {needsPeriods && (
+                                        <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('setup')}>
+                                            {t('adminTimetable:checklist.periodsAction')}
+                                        </button>
+                                    )}
+                                </li>
+                                <li className={!needsSubjects ? 'is-done' : ''}>
+                                    <span className="checklist-index">
+                                        {!needsSubjects ? <HiOutlineCheck size={16} /> : 2}
+                                    </span>
+                                    <div>
+                                        <strong>{t('adminTimetable:checklist.subjectsTitle')}</strong>
+                                        <p>{t('adminTimetable:checklist.subjectsBody')}</p>
+                                    </div>
+                                    {needsSubjects && isAdmin && (
+                                        <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('setup')}>
+                                            {t('adminTimetable:checklist.subjectsAction')}
+                                        </button>
+                                    )}
+                                </li>
+                                <li className={assignments.length > 0 ? 'is-done' : ''}>
+                                    <span className="checklist-index">
+                                        {assignments.length > 0 ? <HiOutlineCheck size={16} /> : 3}
+                                    </span>
+                                    <div>
+                                        <strong>{t('adminTimetable:checklist.importTitle')}</strong>
+                                        <p>{t('adminTimetable:checklist.importBody')}</p>
+                                    </div>
+                                    {assignments.length === 0 && (
+                                        <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleImport(true)}>
+                                            {t('adminTimetable:checklist.importAction')}
+                                        </button>
+                                    )}
+                                </li>
+                            </ol>
+                        </section>
+                    )}
+
+                    <section className="card timetable-board-card">
+                        <div className="section-heading">
+                            <div>
+                                <div className="card-title">
+                                    <HiOutlineClock size={20} />
+                                    {t('adminTimetable:grid.title')}
+                                </div>
+                                <p className="section-copy">{t('adminTimetable:grid.subtitle')}</p>
+                            </div>
+                            <span className="results-badge">
+                                {t('adminTimetable:assignments.resultsShown', { count: filteredAssignments.length })}
+                            </span>
+                        </div>
+
+                        <AssignmentFiltersBar
+                            filterTeacher={filterTeacher}
+                            setFilterTeacher={setFilterTeacher}
+                            filterClass={filterClass}
+                            setFilterClass={setFilterClass}
+                            teachers={teachers}
+                            classes={classes}
+                        />
+
+                        {orderedPeriods.length === 0 ? (
+                            <div className="grid-empty">
+                                <p>{t('adminTimetable:grid.empty')}</p>
+                                <span>{t('adminTimetable:grid.emptyHint')}</span>
+                                <div className="grid-empty-actions">
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('setup')}>
+                                        {t('adminTimetable:checklist.periodsAction')}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="timetable-grid-wrap">
+                                <table className="timetable-grid">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">{t('adminTimetable:grid.periodColumn')}</th>
+                                            {gridDays.map((day) => (
+                                                <th key={day.value} scope="col">{t(`adminTimetable:${day.labelKey}`)}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {orderedPeriods.map((period) => (
+                                            <tr key={period._id}>
+                                                <th scope="row" className="grid-period">
+                                                    <strong>{period.name}</strong>
+                                                    <span>{period.startTime}–{period.endTime}</span>
+                                                </th>
+                                                {gridDays.map((day) => {
+                                                    const blocks = blocksForCell(period._id, day.value);
+                                                    return (
+                                                        <td key={`${period._id}-${day.value}`}>
+                                                            <div className="grid-cell">
+                                                                {blocks.map((block) => {
+                                                                    const teacherName = [block.teacher?.firstName, block.teacher?.lastName]
+                                                                        .filter(Boolean)
+                                                                        .join(' ');
+                                                                    const meta = [block.class?.name, teacherName]
+                                                                        .filter(Boolean)
+                                                                        .join(' · ');
+                                                                    return (
+                                                                        <button
+                                                                            key={block._id}
+                                                                            type="button"
+                                                                            className={`grid-block${block.isActive === false ? ' is-inactive' : ''}`}
+                                                                            onClick={() => fillAssignmentFormForEdit(block)}
+                                                                            title={[block.subject?.name, block.class?.name, teacherName, block.room?.name]
+                                                                                .filter(Boolean)
+                                                                                .join(' · ')}
+                                                                        >
+                                                                            <strong>{block.subject?.name || '—'}</strong>
+                                                                            {meta ? <span>{meta}</span> : null}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                                <button
+                                                                    type="button"
+                                                                    className="grid-add"
+                                                                    onClick={() => startNewAssignment(period, day)}
+                                                                    aria-label={t('adminTimetable:grid.addBlockAria', {
+                                                                        day: t(`adminTimetable:${day.labelKey}`),
+                                                                        period: period.name
+                                                                    })}
+                                                                >
+                                                                    <HiOutlinePlus size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </section>
+
+                    {formOpen && (
+                        <section id="assignment-form" ref={formSectionRef} className="card card-emphasis assignment-form-card">
                         <div className="section-heading">
                             <div>
                                 <div className="card-title">
@@ -875,11 +1171,11 @@ const AdminTimetablePage = () => {
                                 </div>
                                 <p className="section-copy">{t('adminTimetable:assignmentForm.subtitle')}</p>
                             </div>
-                            {editingAssignmentId && (
-                                <button className="btn btn-secondary btn-sm" onClick={cancelAssignmentEdit} disabled={saving}>
-                                    {t('adminTimetable:assignmentForm.cancelEdit')}
-                                </button>
-                            )}
+                            <button className="btn btn-secondary btn-sm" onClick={cancelAssignmentEdit} disabled={saving}>
+                                {editingAssignmentId
+                                    ? t('adminTimetable:assignmentForm.cancelEdit')
+                                    : t('common:actions.cancel')}
+                            </button>
                         </div>
 
                         <div className="assignment-form">
@@ -1059,7 +1355,12 @@ const AdminTimetablePage = () => {
                             </div>
                         </div>
                     </section>
+                    )}
+                </div>
+            )}
 
+            {activeTab === 'assignments' && (
+                <div className="tab-panel" role="tabpanel">
                     <section className="card assignments-card">
                         <div className="section-heading">
                             <div>
@@ -1070,6 +1371,13 @@ const AdminTimetablePage = () => {
                                 {t('adminTimetable:assignments.resultsShown', { count: filteredAssignments.length })}
                             </span>
                         </div>
+
+                        <details className="tools-disclosure">
+                            <summary>
+                                <span>{t('adminTimetable:tools.title')}</span>
+                                <span className="tools-subtitle">{t('adminTimetable:tools.subtitle')}</span>
+                            </summary>
+                            <div className="tools-body">
 
                         {/* Bulk date updater */}
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', padding: '0 0 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 16 }}>
@@ -1173,6 +1481,8 @@ const AdminTimetablePage = () => {
                                 {t('adminTimetable:bulkDates.hint', 'Updates every assignment. You can still edit individual dates in the table.')}
                             </span>
                         </div>
+                            </div>
+                        </details>
 
                         <div className="table assignments-table">
                             <AssignmentFiltersBar
@@ -1263,8 +1573,10 @@ const AdminTimetablePage = () => {
                         />
                     </section>
                 </div>
+            )}
 
-                <aside className="workspace-sidebar">
+            {activeTab === 'setup' && (
+                <div className="tab-panel" role="tabpanel">
                     {isAdmin && (
                         <section id="subjects" ref={subjectsSectionRef} className="card subjects-panel">
                             <div className="section-heading section-heading-stack">
@@ -1300,7 +1612,7 @@ const AdminTimetablePage = () => {
                         </section>
                     )}
 
-                    <section className="card periods-panel">
+                    <section id="periods" className="card periods-panel">
                         <div className="section-heading section-heading-stack">
                             <div>
                                 <div className="card-title">
@@ -1447,8 +1759,8 @@ const AdminTimetablePage = () => {
                             pageSizeOptions={[8, 16, 32]}
                         />
                     </section>
-                </aside>
-            </div>
+                </div>
+            )}
 
             <SubjectFormModal
                 open={showModal}

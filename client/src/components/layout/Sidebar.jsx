@@ -327,13 +327,13 @@ const Sidebar = () => {
     //   teacher: true,
     //   section: "teaching",
     // },
-    // {
-    //   path: "/portal/my-attendance",
-    //   icon: HiOutlineUserCircle,
-    //   labelKey: "myAttendance",
-    //   teacher: true,
-    //   section: "teaching",
-    // },
+    {
+      path: "/portal/my-attendance",
+      icon: HiOutlineUserCircle,
+      labelKey: "myAttendance",
+      teacher: true,
+      section: "teaching",
+    },
     {
       path: "/portal/classes",
       icon: HiOutlineRectangleGroup,

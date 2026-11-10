@@ -1,6 +1,8 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
+import { acceptSchedulePdf } from '../middleware/uploadSchedulePdf.js';
 import {
     listPeriods,
     createPeriod,
@@ -14,6 +16,8 @@ import {
     bulkUpdateAssignmentDates,
     migrateAssignmentsYear,
     importTimetableAssignments,
+    analyzeTimetableScheduleImport,
+    commitTimetableScheduleImport,
     getMyTimetable,
     getStudentTimetable
 } from '../controllers/timetableController.js';
@@ -43,5 +47,15 @@ router.post('/assignments/import', authorize('admin', 'department_principal'), i
 router.post('/assignments', authorize('admin', 'department_principal'), createAssignment);
 router.put('/assignments/:id', authorize('admin', 'department_principal'), updateAssignment);
 router.delete('/assignments/:id', authorize('admin', 'department_principal'), deleteAssignment);
+
+// Schedule PDF import: analyze writes nothing; commit re-validates every row
+router.post(
+    '/imports/analyze',
+    authorize('admin', 'department_principal'),
+    aiFeatureRateLimiter,
+    acceptSchedulePdf,
+    analyzeTimetableScheduleImport
+);
+router.post('/imports/commit', authorize('admin', 'department_principal'), commitTimetableScheduleImport);
 
 export default router;

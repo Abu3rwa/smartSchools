@@ -17,6 +17,7 @@ import School from "../models/School.js";
 import { resolvePuppeteerExecutablePath } from "../utils/resolvePuppeteerExecutablePath.js";
 
 const PDF_TIMEOUT_MS = 45000;
+const STEP_TIMEOUT_MS = 30000;
 
 const fail = (message, statusCode) => {
   const error = new Error(message);
@@ -253,29 +254,126 @@ const buildHtml = ({
 </html>`;
 };
 
-const renderPdf = async (html) => {
+const browserUsable = (browser) =>
+  Boolean(
+    browser &&
+      (typeof browser.isConnected === "function"
+        ? browser.isConnected()
+        : browser.connected),
+  );
+
+let browserPromise = null;
+let browserGeneration = 0;
+
+const launchBrowser = async () => {
+  // A request must never wait on a browser download; `npm install` warms the cache.
   const executablePath = await resolvePuppeteerExecutablePath({
-    allowInstall: true,
+    allowInstall: false,
   });
   if (!executablePath) {
     throw fail("PDF export is not available on this server right now.", 503);
   }
-  const browser = await puppeteer.launch({
+  return puppeteer.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
     executablePath,
-    timeout: 30000,
+    timeout: STEP_TIMEOUT_MS,
   });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 30000 });
-    return await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" },
+};
+
+/**
+ * One headless browser reused by every export. Launching one per request made a
+ * single print cost hundreds of MB, and a browser that outlived its request never
+ * came back; a browser the OS killed is dropped rather than handed out again.
+ */
+const getBrowser = async () => {
+  if (browserPromise) {
+    const existing = await browserPromise.catch(() => null);
+    if (existing && browserUsable(existing)) return existing;
+    browserPromise = null;
+  }
+  const generation = (browserGeneration += 1);
+  const pending = launchBrowser();
+  browserPromise = pending;
+  pending
+    .then((browser) => {
+      browser.once("disconnected", () => {
+        if (browserGeneration === generation) browserPromise = null;
+      });
+    })
+    .catch(() => {
+      if (browserGeneration === generation) browserPromise = null;
     });
+  return pending;
+};
+
+let renderSlot = Promise.resolve();
+
+/**
+ * A browser that is alive but wedged would otherwise hold the render slot, and
+ * everything queued behind it, forever. Same budget and wording as the outer one.
+ */
+const withStepTimeout = (step, ms = STEP_TIMEOUT_MS) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        reject(
+          fail("The PDF took too long to prepare. Please try again.", 504),
+        ),
+      ms,
+    );
+    if (typeof timer.unref === "function") timer.unref();
+    step.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+
+/** Repeated clicks queue on one browser instead of stacking pages inside Chrome. */
+const acquireRenderSlot = () => {
+  const waiting = renderSlot;
+  let release;
+  renderSlot = new Promise((resolve) => {
+    release = resolve;
+  });
+  return waiting.then(() => release);
+};
+
+const renderPdf = async (html) => {
+  const releaseRender = await acquireRenderSlot();
+  try {
+    const browser = await withStepTimeout(getBrowser());
+    const page = await withStepTimeout(browser.newPage());
+    try {
+      page.setDefaultTimeout(STEP_TIMEOUT_MS);
+      page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
+      await page.setContent(html, {
+        waitUntil: "load",
+        timeout: STEP_TIMEOUT_MS,
+      });
+      const pdf = Buffer.from(
+        await page.pdf({
+          format: "A4",
+          printBackground: true,
+          timeout: STEP_TIMEOUT_MS,
+          margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" },
+        }),
+      );
+      if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
+        throw fail("The PDF renderer returned an invalid document.", 500);
+      }
+      return pdf;
+    } finally {
+      await page.close().catch(() => {});
+    }
   } finally {
-    await browser.close().catch(() => {});
+    releaseRender();
   }
 };
 

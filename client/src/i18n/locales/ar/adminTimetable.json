@@ -11,7 +11,41 @@
     "importAssignmentsCsv": "استيراد CSV جدول المعلمين",
     "refresh": "تحديث",
     "addRoom": "إضافة قاعة",
+    "addBlock": "إضافة كتلة",
+    "more": "أدوات إضافية",
     "saving": "جارٍ الحفظ..."
+  },
+  "tabs": {
+    "timetable": "الجدول",
+    "assignments": "التعيينات",
+    "setup": "الإعداد"
+  },
+  "stats": {
+    "line": "{{periods}} حصص · {{assignments}} كتلة نشطة · {{subjects}} مواد · {{rooms}} قاعات"
+  },
+  "grid": {
+    "title": "الجدول الأسبوعي",
+    "subtitle": "الحصص بالأسفل والأيام بالأعلى. اضغط على أي كتلة لتعديلها، أو على خلية فارغة لإضافة واحدة.",
+    "periodColumn": "الحصة",
+    "empty": "أضف الحصص أولًا",
+    "emptyHint": "يظهر الجدول بعد إعداد الحصص اليومية.",
+    "addBlockAria": "إضافة كتلة ليوم {{day}} في {{period}}"
+  },
+  "checklist": {
+    "title": "إعداد الجدول",
+    "periodsTitle": "حدّد الحصص",
+    "periodsBody": "أضف الفترات الزمنية اليومية التي يتبعها الطلاب.",
+    "periodsAction": "إعداد الحصص",
+    "subjectsTitle": "أضف المواد",
+    "subjectsBody": "يجب أن توجد المواد قبل استيراد أي جدول.",
+    "subjectsAction": "إضافة مواد",
+    "importTitle": "استيراد جدول",
+    "importBody": "ارفع ملف PDF للمعلم، وراجع كل حصة، ثم اعتمد.",
+    "importAction": "استيراد جدول PDF"
+  },
+  "tools": {
+    "title": "أدوات شاملة",
+    "subtitle": "ترحيل السنة وتواريخ السنة يؤثران على كل التعيينات — افتحها عند الحاجة فقط."
   },
   "summary": {
     "subjects": {
@@ -168,5 +202,83 @@
     "failedAssignmentRows": "فشل {{count}} من صفوف الجدول",
     "skippedAssignmentRows": "تم تخطي {{count}} من الصفوف (حصص إدارية/اجتماعات)",
     "importAssignmentsFailed": "فشل استيراد جدول المعلمين"
+  },
+  "scheduleImport": {
+    "action": "استيراد جدول PDF",
+    "eyebrow": "استيراد الجدول بالذكاء الاصطناعي",
+    "title": "استيراد جدول",
+    "subtitle": "اختر معلمًا، وارفع ملف PDF من QuickSchools، وراجع كل حصة، ثم اعتمد.",
+    "teacherLabel": "المعلم",
+    "teacherSearch": "ابحث عن المعلمين بالاسم أو البريد الإلكتروني",
+    "teacherLoading": "جارٍ تحميل المعلمين…",
+    "teacherPlaceholder": "اختر معلمًا",
+    "teacherEmpty": "لا يوجد معلمون يطابقون هذا البحث.",
+    "teacherRequired": "اختر معلمًا أولًا.",
+    "fileLabel": "ملف الجدول PDF",
+    "fileHint": "ملف PDF حتى 10 ميغابايت — جدول مطبوع أو مُصدَّر، وليس صورة.",
+    "fileRequired": "اختر ملف جدول PDF أولًا.",
+    "chooseFile": "اختيار ملف PDF",
+    "analyze": "قراءة الجدول",
+    "analyzing": "جارٍ قراءة الجدول…",
+    "analyzeFailed": "تعذّرت قراءة هذا الجدول.",
+    "commitFailed": "تعذّر استيراد الحصص المراجَعة.",
+    "retry": "تجربة ملف PDF آخر",
+    "reviewTitle": "مراجعة الحصص",
+    "reviewSubtitle": "قارن كل كتلة مع ملف PDF قبل الاعتماد. لا يُحفظ شيء حتى تعتمد.",
+    "sourceClassUnsupported": "هذا جدول فصل. ارفع جدول المعلم نفسه في الوقت الحالي.",
+    "promptVersion": "مسودة {{version}}",
+    "table": {
+      "day": "اليوم",
+      "period": "الحصة",
+      "time": "الوقت",
+      "block": "الكتلة المطبوعة",
+      "class": "الفصل",
+      "subject": "المادة",
+      "status": "الحالة"
+    },
+    "status": {
+      "ready": "جاهزة",
+      "willCreate": "مادة جديدة",
+      "needsDecision": "تحتاج مراجعة",
+      "needsClass": "اختر فصلًا",
+      "needsPeriod": "الحصة غير موجودة",
+      "skipped": "تم التخطي (اجتماع)",
+      "empty": "فارغة"
+    },
+    "gradeLabel": "الصف {{value}}",
+    "classPlaceholder": "اختر فصلًا",
+    "subjectPlaceholder": "اختر مادة",
+    "createSubject": "إنشاء مادة جديدة",
+    "newSubjectName": "اسم المادة",
+    "newSubjectCode": "رمز المادة",
+    "confirm": "يبدو صحيحًا",
+    "lowConfidence": "لم يكن الذكاء الاصطناعي واثقًا في هذه الكتلة.",
+    "periodMissing": "هذا الوقت غير موجود في الجدول. قم بمحاذاة الحصص ثم اقرأ الجدول مرة أخرى.",
+    "alignPeriods": "الانتقال إلى الحصص",
+    "summary": {
+      "ready": "جاهزة",
+      "create": "مواد جديدة",
+      "needs": "تحتاج مراجعة",
+      "skipped": "متخطاة"
+    },
+    "subjectsToCreate": "المواد التي سيتم إنشاؤها",
+    "approve": "اعتماد واستيراد",
+    "approving": "جارٍ الاستيراد…",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "blocked": "عالج كل كتلة مميزة أولًا.",
+    "readyToApprove": "تمت معالجة كل الكتل. اعتمد عندما تكون جاهزًا.",
+    "resultTitle": "اكتمل الاستيراد",
+    "resultImported": "تم استيراد {{value}} من كتل الجدول",
+    "resultSkipped": "تم تخطي {{value}} من الاجتماعات",
+    "resultSubjects": "تم إنشاء {{value}} مواد",
+    "resultFailed": "فشل {{value}} من الصفوف",
+    "viewErrors": "عرض أخطاء الصفوف",
+    "rowError": "الصف {{row}}: {{message}}",
+    "done": "تم",
+    "toastImported": "تم استيراد الجدول",
+    "pdfPreview": "جدول PDF",
+    "pdfPreviewShow": "عرض PDF",
+    "pdfPreviewHide": "إخفاء PDF"
   }
 }

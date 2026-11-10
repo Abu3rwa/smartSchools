@@ -11,7 +11,41 @@
     "importAssignmentsCsv": "Import Teacher Timetable CSV",
     "refresh": "Refresh",
     "addRoom": "Add room",
+    "addBlock": "Add block",
+    "more": "More tools",
     "saving": "Saving..."
+  },
+  "tabs": {
+    "timetable": "Timetable",
+    "assignments": "Assignments",
+    "setup": "Setup"
+  },
+  "stats": {
+    "line": "{{periods}} periods · {{assignments}} active blocks · {{subjects}} subjects · {{rooms}} rooms"
+  },
+  "grid": {
+    "title": "Weekly timetable",
+    "subtitle": "Periods run down, days across. Click a block to edit it, or an empty cell to add one.",
+    "periodColumn": "Period",
+    "empty": "Add your periods first",
+    "emptyHint": "The grid appears once the daily periods are set up.",
+    "addBlockAria": "Add a block for {{day}} at {{period}}"
+  },
+  "checklist": {
+    "title": "Set up your timetable",
+    "periodsTitle": "Set your periods",
+    "periodsBody": "Add the daily time slots students follow.",
+    "periodsAction": "Set periods",
+    "subjectsTitle": "Add your subjects",
+    "subjectsBody": "Subjects must exist before a schedule can be imported.",
+    "subjectsAction": "Add subjects",
+    "importTitle": "Import a schedule",
+    "importBody": "Upload a teacher's PDF, review every period, then approve.",
+    "importAction": "Import schedule PDF"
+  },
+  "tools": {
+    "title": "Bulk tools",
+    "subtitle": "Year migration and year dates affect every assignment — open only when you need them."
   },
   "summary": {
     "subjects": {
@@ -168,5 +202,83 @@
     "failedAssignmentRows": "{{count}} timetable rows failed",
     "skippedAssignmentRows": "{{count}} rows skipped (admin/meeting periods)",
     "importAssignmentsFailed": "Failed to import teacher timetable"
+  },
+  "scheduleImport": {
+    "action": "Import Schedule PDF",
+    "eyebrow": "AI schedule import",
+    "title": "Import a schedule",
+    "subtitle": "Pick a teacher, upload their QuickSchools PDF, review every period, then approve.",
+    "teacherLabel": "Teacher",
+    "teacherSearch": "Search teachers by name or email",
+    "teacherLoading": "Loading teachers…",
+    "teacherPlaceholder": "Choose a teacher",
+    "teacherEmpty": "No teachers match that search.",
+    "teacherRequired": "Choose a teacher first.",
+    "fileLabel": "Schedule PDF",
+    "fileHint": "PDF up to 10 MB — a printed or exported schedule, not a photo.",
+    "fileRequired": "Choose a schedule PDF first.",
+    "chooseFile": "Choose PDF",
+    "analyze": "Read the schedule",
+    "analyzing": "Reading the schedule…",
+    "analyzeFailed": "Could not read this schedule.",
+    "commitFailed": "Could not import the reviewed periods.",
+    "retry": "Try another PDF",
+    "reviewTitle": "Review the periods",
+    "reviewSubtitle": "Compare each block with the PDF before approving. Nothing is saved until you approve.",
+    "sourceClassUnsupported": "This is a class schedule. Upload the teacher's own schedule for now.",
+    "promptVersion": "Draft {{version}}",
+    "table": {
+      "day": "Day",
+      "period": "Period",
+      "time": "Time",
+      "block": "Printed block",
+      "class": "Class",
+      "subject": "Subject",
+      "status": "Status"
+    },
+    "status": {
+      "ready": "Ready",
+      "willCreate": "New subject",
+      "needsDecision": "Needs review",
+      "needsClass": "Pick a class",
+      "needsPeriod": "Period not found",
+      "skipped": "Skipped (meeting)",
+      "empty": "Empty"
+    },
+    "gradeLabel": "Grade {{value}}",
+    "classPlaceholder": "Choose a class",
+    "subjectPlaceholder": "Choose a subject",
+    "createSubject": "Create a new subject",
+    "newSubjectName": "Subject name",
+    "newSubjectCode": "Subject code",
+    "confirm": "Looks right",
+    "lowConfidence": "The AI was not sure about this block.",
+    "periodMissing": "This time is not in the timetable. Align periods, then read the schedule again.",
+    "alignPeriods": "Go to periods",
+    "summary": {
+      "ready": "Ready",
+      "create": "New subjects",
+      "needs": "Needs review",
+      "skipped": "Skipped"
+    },
+    "subjectsToCreate": "Subjects that will be created",
+    "approve": "Approve and import",
+    "approving": "Importing…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "blocked": "Resolve every highlighted block first.",
+    "readyToApprove": "Every block is resolved. Approve when you are ready.",
+    "resultTitle": "Import finished",
+    "resultImported": "{{value}} timetable blocks imported",
+    "resultSkipped": "{{value}} meetings skipped",
+    "resultSubjects": "{{value}} subjects created",
+    "resultFailed": "{{value}} rows failed",
+    "viewErrors": "Show row errors",
+    "rowError": "Row {{row}}: {{message}}",
+    "done": "Done",
+    "toastImported": "Schedule imported",
+    "pdfPreview": "Schedule PDF",
+    "pdfPreviewShow": "Show PDF",
+    "pdfPreviewHide": "Hide PDF"
   }
 }

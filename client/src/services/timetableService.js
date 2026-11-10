@@ -74,6 +74,27 @@ const timetableService = {
             ...options
         });
         return response.data;
+    },
+
+    // Schedule PDF: analyze writes nothing; commit re-validates every row
+    analyzeScheduleImport: async (file, teacherId) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('teacherId', teacherId);
+        const response = await api.post('/timetable/imports/analyze', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000,
+            skipErrorToast: true
+        });
+        return response.data;
+    },
+
+    commitScheduleImport: async (payload) => {
+        const response = await api.post('/timetable/imports/commit', payload, {
+            timeout: 120000,
+            skipErrorToast: true
+        });
+        return response.data;
     }
 };
 

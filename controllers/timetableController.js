@@ -11,6 +11,7 @@ import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import { analyzeSchedulePdf, commitScheduleImport } from '../services/timetable/scheduleImport/analyzeService.js';
 import { resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import {
     DEFAULT_WEEK_WORKING_DAYS,
@@ -1131,4 +1132,40 @@ export const migrateAssignmentsYear = asyncHandler(async (req, res) => {
     });
 });
 
-//
+// @desc    Analyze a teacher's schedule PDF into a reviewable draft (writes nothing)
+// @route   POST /api/timetable/imports/analyze
+// @access  Private (Admin, Department Principal)
+export const analyzeTimetableScheduleImport = asyncHandler(async (req, res) => {
+    if (!req.file?.buffer) {
+        return res.status(400).json({
+            success: false,
+            message: 'Choose a schedule PDF first.',
+            code: 'SCHEDULE_FILE_REQUIRED'
+        });
+    }
+
+    const data = await analyzeSchedulePdf({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        teacherId: req.body?.teacherId,
+        schoolId: req.schoolId,
+        academicYear: resolveAcademicYearForRequest(req)
+    });
+
+    res.json({ success: true, data });
+});
+
+// @desc    Commit reviewed schedule rows (creates missing subjects, then assignments)
+// @route   POST /api/timetable/imports/commit
+// @access  Private (Admin, Department Principal)
+export const commitTimetableScheduleImport = asyncHandler(async (req, res) => {
+    const data = await commitScheduleImport({
+        payload: req.body,
+        school: req.school,
+        schoolId: req.schoolId,
+        academicYear: resolveAcademicYearForRequest(req),
+        userId: req.user?._id
+    });
+
+    res.status(201).json({ success: true, data });
+});
