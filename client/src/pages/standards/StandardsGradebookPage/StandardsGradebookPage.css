@@ -124,6 +124,22 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1976d2) 25%, transparent);
 }
 
+.gb-toolbar__email {
+  border: 1px solid color-mix(in srgb, var(--primary, #1976d2) 45%, var(--border-color, #d7d7d7));
+  background: var(--bg-card, #fff);
+  color: color-mix(in srgb, var(--primary, #1976d2) 80%, var(--text-primary, #0f172a));
+  min-height: 36px;
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gb-toolbar__email:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .gb-toolbar-save:disabled,
 .gb-toolbar__save:disabled {
   opacity: 0.45;
@@ -838,6 +854,73 @@
 .gb-btn--primary:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ---------- Email parents modal ---------- */
+.gb-email-state {
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #475467);
+}
+
+.gb-email-scope {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.gb-email-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.gb-email-stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.6rem 0.4rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.gb-email-stats strong {
+  font-size: 1.25rem;
+  color: var(--primary, #0d9488);
+}
+
+.gb-email-stats span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+  text-align: center;
+}
+
+.gb-email-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #64748b);
+}
+
+.gb-email-warning {
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border-color, #d7d7d7));
+  background: color-mix(in srgb, #f59e0b 12%, var(--bg-card, #fff));
+  color: color-mix(in srgb, #b45309 80%, var(--text-primary, #0f172a));
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.gb-email-warning__names {
+  margin-top: 0.2rem;
+  font-weight: 600;
 }
 
 /* ---------- Responsive ---------- */

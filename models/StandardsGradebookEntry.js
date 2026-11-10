@@ -109,6 +109,10 @@ const standardsGradebookEntrySchema = new mongoose.Schema({
         max: 4,
         default: null
     },
+    lastEmailedAt: {
+        type: Date,
+        default: null
+    },
     metadata: {
         type: mongoose.Schema.Types.Mixed,
         default: {}

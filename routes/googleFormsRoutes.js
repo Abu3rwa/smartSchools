@@ -5,6 +5,7 @@ import {
     getGoogleFormResponses,
     getGoogleFormsAuthUrl,
     getGoogleFormsStatus,
+    gradeAllGoogleFormResponses,
     gradeGoogleFormResponse,
     syncGoogleFormResponses
 } from '../controllers/googleFormsController.js';
@@ -39,6 +40,13 @@ router.post(
     validationRules.mongoId,
     validate,
     gradeGoogleFormResponse
+);
+router.post(
+    '/assignments/:id/grade-all',
+    authorize('teacher', 'admin', 'department_principal'),
+    validationRules.mongoId,
+    validate,
+    gradeAllGoogleFormResponses
 );
 router.post(
     '/assignments/:id/approve',

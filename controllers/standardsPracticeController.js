@@ -1,5 +1,7 @@
 import PracticeAttempt from "../models/PracticeAttempt.js";
 import School from "../models/School.js";
+import Class from "../models/Class.js";
+import Subject from "../models/Subject.js";
 import StandardAssignment from "../models/StandardAssignment.js";
 import Student from "../models/Student.js";
 import PracticeSession from "../models/PracticeSession.js";
@@ -8,6 +10,14 @@ import MasteryRecord from "../models/MasteryRecord.js";
 import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
 import StandardQuestionPool from "../models/StandardQuestionPool.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
+import {
+  buildStandardsUpdateEmail,
+  buildStandardsUpdateRow,
+  resolveStandardsUpdateLanguage,
+  selectStandardsUpdateEntries,
+  standardsUpdateAveragePercentage,
+} from "../services/standardsUpdateEmailService.js";
+import { sendTransactionalEmail } from "../services/transactionalEmailService.js";
 import {
   generateGrammarQuestion,
   normalizeGrammarLevels,
@@ -1395,22 +1405,23 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   const { assignmentId, difficulty, questionType } = req.body;
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
 
-  // Find student
-  const student = await Student.findOne({
-    user: req.user._id,
-    status: "active",
-  });
+  // Student and assignment are independent reads; fetch them together so the
+  // two Atlas round-trips overlap instead of stacking on every question.
+  const [student, assignment] = await Promise.all([
+    Student.findOne({
+      user: req.user._id,
+      status: "active",
+    }),
+    StandardAssignment.findById(assignmentId)
+      .populate("standard")
+      .populate("class", "academicYear")
+      .populate("subject", "name code"),
+  ]);
   if (!student) {
     return res
       .status(404)
       .json({ success: false, message: "Student profile not found" });
   }
-
-  // Find assignment
-  const assignment = await StandardAssignment.findById(assignmentId)
-    .populate("standard")
-    .populate("class", "academicYear")
-    .populate("subject", "name code");
 
   if (!assignment || !assignment.isActive) {
     return res
@@ -1451,10 +1462,34 @@ export const generateQuestion = asyncHandler(async (req, res) => {
 
   const isFormalAssessment = practiceConfig.sessionType === "assessment";
   const requiresPublishedPool = isFormalAssessment;
-  const publishedQuestionPool = await getPublishedQuestionPool({
-    schoolId: req.schoolId,
-    assignmentId: assignment._id,
-  });
+
+  // The pool, the gradebook entry and the mastery calculation are independent
+  // reads off the same assignment/student; run them together. The early-exit
+  // checks below stay in their original order so responses are unchanged.
+  const [publishedQuestionPool, assessmentEntry, mastery] = await Promise.all([
+    getPublishedQuestionPool({
+      schoolId: req.schoolId,
+      assignmentId: assignment._id,
+    }),
+    isFormalAssessment
+      ? StandardsGradebookEntry.findOne({
+          school: req.schoolId,
+          assignment: assignment._id,
+          student: student._id,
+        })
+          .select("status score maxScore percentage")
+          .lean()
+      : Promise.resolve(null),
+    PracticeAttempt.calculateMastery(
+      student._id,
+      assignment.standard._id,
+      assignment.standard.masteryThreshold,
+      getAssignmentScopedMasteryMinQuestions(assignment),
+      3,
+      req.schoolId,
+      [assignment._id],
+    ),
+  ]);
 
   if (
     requiresPublishedPool &&
@@ -1469,28 +1504,20 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     });
   }
 
-  let assessmentEntry = null;
-  if (isFormalAssessment) {
-    assessmentEntry = await StandardsGradebookEntry.findOne({
-      school: req.schoolId,
-      assignment: assignment._id,
-      student: student._id,
-    })
-      .select("status score maxScore percentage")
-      .lean();
-
-    if (["submitted", "released"].includes(assessmentEntry?.status)) {
-      const payload = generateQuestionResponseSchema.parse({
-        status: "session_complete",
-        message:
-          "Assessment already completed and submitted. You cannot continue this assessment.",
-        studentFirstName: student.firstName || null,
-        assignmentInstructions: assignment.instructions || null,
-        question: null,
-        session: null,
-      });
-      return res.json({ success: true, data: payload });
-    }
+  if (
+    isFormalAssessment &&
+    ["submitted", "released"].includes(assessmentEntry?.status)
+  ) {
+    const payload = generateQuestionResponseSchema.parse({
+      status: "session_complete",
+      message:
+        "Assessment already completed and submitted. You cannot continue this assessment.",
+      studentFirstName: student.firstName || null,
+      assignmentInstructions: assignment.instructions || null,
+      question: null,
+      session: null,
+    });
+    return res.json({ success: true, data: payload });
   }
 
   // Withheld assessment results must not leak through correctness hints, the
@@ -1498,17 +1525,6 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   const assessmentResultsHidden =
     isFormalAssessment &&
     !isAssessmentResultVisible(getAssessmentConfig(assignment), assessmentEntry);
-
-  // Check if already mastered (use persisted + rolling logic)
-  const mastery = await PracticeAttempt.calculateMastery(
-    student._id,
-    assignment.standard._id,
-    assignment.standard.masteryThreshold,
-    getAssignmentScopedMasteryMinQuestions(assignment),
-    3,
-    req.schoolId,
-    [assignment._id],
-  );
 
   // Formal assessments complete by their configured rules (question limit,
   // expiry or explicit finalize), never by the practice mastery shortcut —
@@ -1617,7 +1633,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
 
   // Count attempt number. Only consumed questions advance the pool index;
   // abandoned pending rows must not skip questions the student never saw.
+  // school is included so the {school, student, assignment} index applies.
   const attemptCount = await PracticeAttempt.countDocuments({
+    school: req.schoolId,
     student: student._id,
     assignment: assignment._id,
     status: { $in: ["answered", "pending_review"] },
@@ -6010,6 +6028,446 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       },
       academicYear: effectiveAcademicYear,
       semester: effectiveSemester,
+    },
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  Standards update email for families
+ * ───────────────────────────────────────────────────────────── */
+
+const SB_EMAIL_RECIPIENT_TYPES = new Set([
+  "father",
+  "mother",
+  "guardian",
+  "student",
+]);
+
+const resolveSBUpdateEmailScope = async (req) => {
+  const source = req.method === "GET" ? req.query || {} : req.body || {};
+  const classId = String(source.classId || "").trim();
+  const subjectId = String(source.subjectId || "").trim();
+  const includeAll = source.includeAll === true || source.includeAll === "true";
+
+  if (!classId || !subjectId) {
+    return {
+      error: {
+        status: 400,
+        message: "classId and subjectId are required.",
+      },
+    };
+  }
+
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const effectiveSemester = resolveSemesterForRequest(req);
+
+  const { classIds: yearClassIds } = await getYearScopedClassIds(req, [classId]);
+  if (!yearClassIds.length) {
+    return {
+      error: {
+        status: 404,
+        message: "Class not found for this academic year.",
+      },
+    };
+  }
+
+  if (req.user?.role === "teacher") {
+    const authorized = await ensureTeacherCanAccessClassSubject(
+      req,
+      classId,
+      subjectId,
+    );
+    if (!authorized) {
+      return {
+        error: {
+          status: 403,
+          message: "Not authorized for this class/subject.",
+        },
+      };
+    }
+  }
+
+  const [classDoc, subjectDoc, schoolDoc] = await Promise.all([
+    Class.findById(classId)
+      .select("_id name grade section academicYear")
+      .lean(),
+    Subject.findOne({ _id: subjectId, school: req.schoolId })
+      .select("_id name nameAr code")
+      .lean(),
+    req.school?.name
+      ? Promise.resolve(req.school)
+      : School.findById(req.schoolId).select("name").lean(),
+  ]);
+
+  if (!classDoc) {
+    return { error: { status: 404, message: "Class not found." } };
+  }
+  if (!subjectDoc) {
+    return { error: { status: 404, message: "Subject not found." } };
+  }
+
+  const semesterCondition = effectiveSemester
+    ? {
+        $or: [
+          { semester: effectiveSemester },
+          { semester: null },
+          { semester: { $exists: false } },
+        ],
+      }
+    : {};
+
+  const assignments = await StandardAssignment.find({
+    school: req.schoolId,
+    isActive: true,
+    class: classId,
+    subject: subjectId,
+    "practiceConfig.sessionType": "assessment",
+    ...semesterCondition,
+  })
+    .select("_id title standard assignedDate dueDate")
+    .populate("standard", "code name description")
+    .lean();
+
+  const students = await Student.find({
+    school: req.schoolId,
+    currentClass: classId,
+    status: "active",
+    academicYear: effectiveAcademicYear,
+  })
+    .select(
+      "_id firstName lastName studentId email studentEmail user parentInfo reportPreferences",
+    )
+    .populate("user", "email");
+
+  if (!assignments.length || !students.length) {
+    return {
+      classDoc,
+      subjectDoc,
+      schoolName: schoolDoc?.name || "",
+      effectiveAcademicYear,
+      effectiveSemester,
+      includeAll,
+      assignments: [],
+      students: [],
+      entries: [],
+    };
+  }
+
+  const entries = await StandardsGradebookEntry.find({
+    school: req.schoolId,
+    class: classId,
+    subject: subjectId,
+    student: { $in: students.map((student) => student._id) },
+    assignment: { $in: assignments.map((assignment) => assignment._id) },
+    academicYear: effectiveAcademicYear,
+    status: "released",
+    ...(effectiveSemester
+      ? { $or: [{ semester: effectiveSemester }, { semester: null }] }
+      : {}),
+  })
+    .select(
+      "student assignment standard percentage effectiveScore manualScore isManualEntry manualEnteredAt submittedAt releasedAt updatedAt lastEmailedAt",
+    )
+    .lean();
+
+  return {
+    classDoc,
+    subjectDoc,
+    schoolName: schoolDoc?.name || "",
+    effectiveAcademicYear,
+    effectiveSemester,
+    includeAll,
+    assignments,
+    students,
+    entries,
+  };
+};
+
+const buildSBUpdateEmailPlan = ({ scope, req }) => {
+  const assignmentById = new Map(
+    scope.assignments.map((assignment) => [String(assignment._id), assignment]),
+  );
+  const entriesByStudent = new Map();
+  scope.entries.forEach((entry) => {
+    const key = String(entry.student);
+    if (!entriesByStudent.has(key)) entriesByStudent.set(key, []);
+    entriesByStudent.get(key).push(entry);
+  });
+
+  const senderName = [req.user?.firstName, req.user?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const senderRoleLabel = (language) => {
+    const subjectName = String(
+      (language === "ar" ? scope.subjectDoc?.nameAr : scope.subjectDoc?.name)
+      || scope.subjectDoc?.name
+      || "",
+    ).trim();
+    if (!subjectName) return language === "ar" ? "معلم" : "Teacher";
+    return language === "ar"
+      ? `معلم مادة ${subjectName}`
+      : `${subjectName} Teacher`;
+  };
+
+  const sendable = [];
+  const skipped = [];
+  let withoutNewResults = 0;
+
+  const students = [...scope.students].sort((left, right) =>
+    `${left.firstName || ""} ${left.lastName || ""}`
+      .trim()
+      .toLowerCase()
+      .localeCompare(
+        `${right.firstName || ""} ${right.lastName || ""}`.trim().toLowerCase(),
+      ),
+  );
+
+  students.forEach((student) => {
+    const studentId = String(student._id);
+    const allReleased = entriesByStudent.get(studentId) || [];
+    const pendingEntries = selectStandardsUpdateEntries(allReleased, scope.includeAll);
+    const language = resolveStandardsUpdateLanguage(student);
+    const name =
+      `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
+      String(student.studentId || "");
+
+    const contacts = student
+      .getAllContactEmailEntries()
+      .filter((contact) => SB_EMAIL_RECIPIENT_TYPES.has(contact.type));
+    const recipients = [...new Set(contacts.map((contact) => contact.email))];
+
+    if (!pendingEntries.length) {
+      withoutNewResults += 1;
+      return;
+    }
+
+    const rows = pendingEntries.map((entry) => {
+      const assignment = assignmentById.get(String(entry.assignment)) || null;
+      return buildStandardsUpdateRow({
+        entry,
+        assignment,
+        standard: assignment?.standard || null,
+        language,
+      });
+    });
+
+    if (!recipients.length) {
+      skipped.push({
+        studentId: student._id,
+        name,
+        assessmentCount: rows.length,
+        reason: "no_contact_email",
+      });
+      return;
+    }
+
+    const lastSentTime = allReleased.reduce((latest, entry) => {
+      const value = entry.lastEmailedAt
+        ? new Date(entry.lastEmailedAt).getTime()
+        : 0;
+      return Number.isFinite(value) && value > latest ? value : latest;
+    }, 0);
+
+    sendable.push({
+      student,
+      studentId,
+      name,
+      language,
+      recipients,
+      entries: pendingEntries,
+      rows,
+      lastEmailedAt: lastSentTime ? new Date(lastSentTime) : null,
+      isFirstUpdate: lastSentTime === 0,
+      averagePercentage: standardsUpdateAveragePercentage(rows),
+      standardCount: new Set(
+        rows.map((row) => row.standardId).filter(Boolean),
+      ).size,
+    });
+  });
+
+  const totals = {
+    students: sendable.length,
+    recipients: sendable.reduce((sum, item) => sum + item.recipients.length, 0),
+    assessments: sendable.reduce((sum, item) => sum + item.rows.length, 0),
+    standards: new Set(
+      sendable.flatMap((item) =>
+        item.rows.map((row) => row.standardId).filter(Boolean),
+      ),
+    ).size,
+  };
+
+  return {
+    sendable,
+    skipped,
+    withoutNewResults,
+    totals,
+    senderName,
+    senderRoleLabel,
+  };
+};
+
+const sbUpdateEmailPreviewPayload = (scope, plan) => ({
+  class: {
+    _id: scope.classDoc?._id,
+    name: scope.classDoc?.name || "",
+    grade: scope.classDoc?.grade ?? null,
+    section: scope.classDoc?.section || null,
+  },
+  subject: {
+    _id: scope.subjectDoc?._id,
+    name: scope.subjectDoc?.name || "",
+    code: scope.subjectDoc?.code || "",
+  },
+  academicYear: scope.effectiveAcademicYear,
+  semester: scope.effectiveSemester,
+  totals: plan.totals,
+  students: plan.sendable.map((item) => ({
+    _id: item.student._id,
+    name: item.name,
+    studentId: item.student.studentId || "",
+    language: item.language,
+    recipientCount: item.recipients.length,
+    assessmentCount: item.rows.length,
+    standardCount: item.standardCount,
+    averagePercentage: item.averagePercentage,
+    lastEmailedAt: item.lastEmailedAt,
+    isFirstUpdate: item.isFirstUpdate,
+  })),
+  skipped: plan.skipped,
+  withoutNewResults: plan.withoutNewResults,
+});
+
+/**
+ * @desc    Preview the standards update email for a class + subject
+ * @route   GET /api/practice/sb-gradebook/email/preview
+ * @access  Private (Admin, Teacher)
+ */
+export const getSBGradebookEmailPreview = asyncHandler(async (req, res) => {
+  const scope = await resolveSBUpdateEmailScope(req);
+  if (scope.error) {
+    return res
+      .status(scope.error.status)
+      .json({ success: false, message: scope.error.message });
+  }
+
+  const plan = buildSBUpdateEmailPlan({ scope, req });
+  return res.json({
+    success: true,
+    data: sbUpdateEmailPreviewPayload(scope, plan),
+  });
+});
+
+/**
+ * @desc    Send the standards update email to every family with new results
+ * @route   POST /api/practice/sb-gradebook/email
+ * @access  Private (Admin, Teacher)
+ */
+export const sendSBGradebookEmail = asyncHandler(async (req, res) => {
+  const scope = await resolveSBUpdateEmailScope(req);
+  if (scope.error) {
+    return res
+      .status(scope.error.status)
+      .json({ success: false, message: scope.error.message });
+  }
+
+  const plan = buildSBUpdateEmailPlan({ scope, req });
+  if (!plan.sendable.length) {
+    const message = plan.skipped.length
+      ? scope.includeAll
+        ? "No student or parent email addresses are listed for the students with released results."
+        : "No student or parent email addresses are listed for the students with new results."
+      : scope.includeAll
+        ? "No released standards results to email for this class and subject."
+        : "No new released standards results to email for this class and subject.";
+    return res.status(400).json({ success: false, message });
+  }
+
+  const generatedAt = new Date();
+  const results = [];
+  const emailedEntryIds = [];
+
+  for (const item of plan.sendable) {
+    const email = buildStandardsUpdateEmail({
+      student: item.student,
+      schoolName: scope.schoolName,
+      courseName: scope.subjectDoc?.name || "",
+      sender: {
+        name: plan.senderName,
+        roleLabel: plan.senderRoleLabel(item.language),
+      },
+      className: scope.classDoc?.name || "",
+      semester: scope.effectiveSemester,
+      academicYear: scope.effectiveAcademicYear,
+      rows: item.rows,
+      isFirstUpdate: item.isFirstUpdate,
+      generatedAt,
+    });
+
+    let allSent = true;
+    for (const recipient of item.recipients) {
+      try {
+        await sendTransactionalEmail({
+          to: recipient,
+          subject: email.subject,
+          text: email.text,
+          html: email.html,
+          schoolId: req.schoolId,
+          preferredUserId: req.user._id,
+        });
+        results.push({
+          studentId: item.studentId,
+          studentName: item.name,
+          email: recipient,
+          status: "sent",
+        });
+      } catch (error) {
+        allSent = false;
+        logger.error("Standards update email delivery failed", {
+          studentId: item.studentId,
+          email: recipient,
+          error: error.message,
+        });
+        results.push({
+          studentId: item.studentId,
+          studentName: item.name,
+          email: recipient,
+          status: "failed",
+          message:
+            "Email delivery failed. Check the sender account and try again.",
+        });
+      }
+    }
+
+    if (allSent) {
+      emailedEntryIds.push(...item.entries.map((entry) => entry._id));
+    }
+  }
+
+  if (emailedEntryIds.length) {
+    // timestamps:false keeps updatedAt untouched so "changed since last send"
+    // does not treat the marker write itself as a change.
+    await StandardsGradebookEntry.updateMany(
+      { _id: { $in: emailedEntryIds } },
+      { $set: { lastEmailedAt: generatedAt } },
+      { timestamps: false },
+    );
+  }
+
+  const sent = results.filter((result) => result.status === "sent").length;
+  const failed = results.length - sent;
+
+  return res.status(failed > 0 ? 207 : 200).json({
+    success: failed === 0,
+    data: {
+      sent,
+      failed,
+      students: plan.sendable.length,
+      recipients: plan.totals.recipients,
+      assessments: plan.totals.assessments,
+      results,
+      skipped: plan.skipped,
     },
   });
 });

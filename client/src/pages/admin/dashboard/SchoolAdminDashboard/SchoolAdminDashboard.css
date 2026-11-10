@@ -173,7 +173,47 @@
     color: var(--text-secondary, #475569);
 }
 
+.admin-kpi--linked {
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+}
+
+.admin-kpi--linked:hover {
+    background: var(--bg-tertiary, #f0f2f5);
+}
+
+.admin-kpi--linked:hover .admin-kpi-value {
+    color: var(--primary, #0d9488);
+}
+
 /* Today strip */
+.admin-today-headline {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.admin-today-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--accent-amber, #d97706);
+    background: rgba(245, 158, 11, 0.1);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-amber, #d97706);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+.admin-today-chip:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
 .admin-attendance-bar {
     display: flex;
     height: 10px;
@@ -452,6 +492,8 @@
 .admin-quick-link:focus-visible,
 .admin-text-link:focus-visible,
 .admin-table-name:focus-visible,
+.admin-kpi--linked:focus-visible,
+.admin-today-chip:focus-visible,
 .admin-error-retry:focus-visible {
     outline: 2px solid var(--primary, #0d9488);
     outline-offset: 2px;

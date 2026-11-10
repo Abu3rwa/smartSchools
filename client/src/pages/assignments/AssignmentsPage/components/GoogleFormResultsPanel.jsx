@@ -47,12 +47,13 @@ const awaitingShortAnswers = (item) => (
     Number(item?.shortAnswerMax || 0) > 0 && numeric(item?.shortAnswerScore) === null
 );
 
-const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, onApprove }) => {
+const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, onGradeAll, onApprove }) => {
     const { t } = useTranslation(['assignments']);
     const panelRef = useRef(null);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all');
     const [syncing, setSyncing] = useState(false);
+    const [gradingAll, setGradingAll] = useState(false);
     const [expandedIds, setExpandedIds] = useState(() => new Set());
 
     const assignmentId = results?.assignment?.id;
@@ -95,6 +96,14 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
     const hasShortAnswer = useMemo(
         () => questions.some((question) => question.type === 'short_answer'),
         [questions]
+    );
+
+    // Rows that a bulk run would actually quote for: everything not already suggested or approved.
+    const gradingCandidates = useMemo(
+        () => items.filter((item) => (
+            item.gradingStatus !== 'suggested' && item.gradingStatus !== 'approved'
+        )).length,
+        [items]
     );
 
     const stats = useMemo(() => {
@@ -148,6 +157,16 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
             await onSync(assignment);
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const handleGradeAll = async () => {
+        if (gradingAll || syncing) return;
+        setGradingAll(true);
+        try {
+            await onGradeAll(assignment);
+        } finally {
+            setGradingAll(false);
         }
     };
 
@@ -212,10 +231,24 @@ const GoogleFormResultsPanel = ({ results, loading, onClose, onSync, onGrade, on
                             <strong>{stats.average === null ? '—' : `${stats.average}%`}</strong>
                         </div>
                     </div>
+                    {hasShortAnswer && gradingCandidates > 0 && (
+                        <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={loading || syncing || gradingAll}
+                            onClick={handleGradeAll}
+                        >
+                            {gradingAll
+                                ? t('assignments:googleForms.grading.gradingAll')
+                                : t('assignments:googleForms.grading.gradeAllRemaining', {
+                                    remaining: gradingCandidates
+                                })}
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="btn btn-primary btn-sm"
-                        disabled={loading || syncing}
+                        disabled={loading || syncing || gradingAll}
                         onClick={handleSync}
                     >
                         <HiOutlineRefresh aria-hidden="true" />

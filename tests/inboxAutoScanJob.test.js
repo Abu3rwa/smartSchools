@@ -62,6 +62,10 @@ test('auto-scan runs for teachers whose interval has elapsed', async (t) => {
     }));
 
     let scanCalled = false;
+    t.mock.method(inboxScanService, 'estimateScan', async () => ({
+        newCount: 5,
+        estimateCents: 12,
+    }));
     t.mock.method(inboxScanService, 'runScan', async () => {
         scanCalled = true;
         return { scanned: 5 };
@@ -85,6 +89,10 @@ test('auto-scan runs for teachers who have never scanned', async (t) => {
     }));
 
     let scanCalled = false;
+    t.mock.method(inboxScanService, 'estimateScan', async () => ({
+        newCount: 5,
+        estimateCents: 12,
+    }));
     t.mock.method(inboxScanService, 'runScan', async () => {
         scanCalled = true;
         return { scanned: 5 };
@@ -93,6 +101,61 @@ test('auto-scan runs for teachers who have never scanned', async (t) => {
     const result = await runInboxAutoScanJob({ now });
     assert.equal(result.scanned, 1);
     assert.equal(scanCalled, true);
+});
+
+test('auto-scan quotes the scan it starts', async (t) => {
+    const now = new Date('2026-11-07T12:00:00Z');
+    const oldScan = new Date('2026-11-07T10:00:00Z');
+
+    t.mock.method(InboxAssistantSettings, 'find', () => ({
+        select: () => ({ lean: async () => [makeSettings({ lastScanAt: oldScan })] }),
+    }));
+    t.mock.method(User, 'find', () => ({
+        select: () => ({ lean: async () => [makeUser()] }),
+    }));
+    t.mock.method(inboxScanService, 'estimateScan', async () => ({
+        newCount: 3,
+        estimateCents: 42,
+    }));
+
+    let options;
+    t.mock.method(inboxScanService, 'runScan', async (_user, scanOptions) => {
+        options = scanOptions;
+        return { scanned: 3 };
+    });
+
+    await runInboxAutoScanJob({ now });
+
+    // runScan rejects anything that is not a real quote with ESTIMATE_REQUIRED.
+    assert.equal(options.acceptedEstimateCents, 42);
+});
+
+test('auto-scan leaves an unchanged inbox alone', async (t) => {
+    const now = new Date('2026-11-07T12:00:00Z');
+    const oldScan = new Date('2026-11-07T10:00:00Z');
+
+    t.mock.method(InboxAssistantSettings, 'find', () => ({
+        select: () => ({ lean: async () => [makeSettings({ lastScanAt: oldScan })] }),
+    }));
+    t.mock.method(User, 'find', () => ({
+        select: () => ({ lean: async () => [makeUser()] }),
+    }));
+    t.mock.method(inboxScanService, 'estimateScan', async () => ({
+        newCount: 0,
+        estimateCents: 0,
+    }));
+
+    let scanCalled = false;
+    t.mock.method(inboxScanService, 'runScan', async () => {
+        scanCalled = true;
+        return { scanned: 0 };
+    });
+
+    const result = await runInboxAutoScanJob({ now });
+    assert.equal(scanCalled, false);
+    assert.equal(result.scanned, 0);
+    assert.equal(result.noNewMail, 1);
+    assert.equal(result.failed, 0);
 });
 
 test('auto-scan counts failures but continues', async (t) => {
@@ -114,6 +177,11 @@ test('auto-scan counts failures but continues', async (t) => {
                 makeUser({ _id: 'user-2' }),
             ],
         }),
+    }));
+
+    t.mock.method(inboxScanService, 'estimateScan', async () => ({
+        newCount: 5,
+        estimateCents: 12,
     }));
 
     let callCount = 0;

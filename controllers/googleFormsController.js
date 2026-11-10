@@ -9,7 +9,7 @@ import {
     listGoogleQuizSubmissions,
     syncGoogleQuizResponses
 } from '../services/googleFormsAssignmentService.js';
-import { approveGoogleFormGrading, gradeGoogleFormSubmission } from '../services/googleFormsGradingService.js';
+import { approveGoogleFormGrading, gradeAllGoogleFormSubmissions, gradeGoogleFormSubmission } from '../services/googleFormsGradingService.js';
 import {
     getGoogleFormsConfigurationStatus,
     isGoogleFormsEnabledForSchool
@@ -195,6 +195,41 @@ export const gradeGoogleFormResponse = asyncHandler(async (req, res) => {
             success: false,
             code: 'GRADING_FAILED',
             message: 'AI grading did not return usable scores. Try again.'
+        });
+    }
+    return res.json({ success: true, data: summary });
+});
+
+export const gradeAllGoogleFormResponses = asyncHandler(async (req, res) => {
+    const result = await findAccessibleAssignment(req, req.params.id);
+    if (result.error) return res.status(result.error.status).json({ success: false, message: result.error.message });
+    if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+    }
+    const submissions = await GoogleFormSubmission.find({
+        school: req.schoolId,
+        assignment: result.assignment._id
+    }).sort({ submittedAt: 1 });
+    if (submissions.length === 0) {
+        return res.status(404).json({ success: false, message: 'No responses yet. Sync responses first.' });
+    }
+    let summary;
+    try {
+        summary = await gradeAllGoogleFormSubmissions({
+            assignment: result.assignment,
+            submissions,
+            usage: { feature: 'google_form_grading' }
+        });
+    } catch (error) {
+        logger.error('Google Forms bulk AI grading failed', {
+            assignmentId: String(result.assignment._id),
+            code: error?.code,
+            message: error?.message
+        });
+        return res.status(error?.statusCode || 502).json({
+            success: false,
+            code: error?.code || 'GRADING_FAILED',
+            message: error?.message || 'AI grading failed. Try again.'
         });
     }
     return res.json({ success: true, data: summary });

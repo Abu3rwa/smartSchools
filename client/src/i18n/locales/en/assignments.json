@@ -542,6 +542,10 @@
       "approveDisabled": "Enter a valid score for every short answer (and sync the Google score) before approving.",
       "skipped": "Already graded — no new AI charge.",
       "graded": "AI suggested {{graded}} scores. Review and approve them.",
+      "gradeAllRemaining": "Grade {{remaining}} with AI",
+      "gradingAll": "Grading all…",
+      "bulkSummary": "AI suggested scores for {{graded}}. {{skipped}} were already graded.",
+      "bulkFailed": "{{failed}} responses could not be graded. Try again.",
       "approved": "Approved {{marks}} / {{maxMarks}} in the gradebook."
     },
     "studentTitle": "Google Forms quiz",
@@ -556,6 +560,7 @@
       "disconnect": "Could not disconnect Google Forms.",
       "sync": "Could not sync Google Forms responses.",
       "grade": "Could not grade this response with AI. Try again.",
+      "gradeAll": "Could not grade all responses with AI. Try again.",
       "approve": "Could not approve these grades. Try again.",
       "consent_denied": "Google Forms access was not granted.",
       "missing_parameters": "Google did not return the required connection details.",

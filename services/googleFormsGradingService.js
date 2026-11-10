@@ -56,6 +56,24 @@ const hasWrongLanguageSuggestions = (grading, questions) => {
 // One grading run per response at a time, so a double click cannot bill twice.
 const inFlight = new Set();
 
+const shortAnswerQuestionsFor = (assignment) =>
+  (assignment.metadata?.googleForm?.questions || []).filter(
+    (question) =>
+      question.type === "short_answer" && Number(question.points) >= 1,
+  );
+
+/** A stored suggestion is final unless the student answered again or the feedback is in the wrong language. */
+const isGradingUpToDate = ({ existing, responseVersion, questions }) =>
+  Boolean(
+    existing &&
+      ["suggested", "approved"].includes(existing.status) &&
+      existing.responseVersion === responseVersion &&
+      !(
+        existing.status === "suggested" &&
+        hasWrongLanguageSuggestions(existing, questions)
+      ),
+  );
+
 export const buildGradingPrompt = (
   items,
 ) => `You grade short-answer quiz questions for a school teacher. The teacher reads every score and piece of feedback and approves it before it is used.
@@ -173,12 +191,7 @@ export const gradeGoogleFormSubmission = async ({
   submission,
   usage,
 }) => {
-  const shortAnswerQuestions = (
-    assignment.metadata?.googleForm?.questions || []
-  ).filter(
-    (question) =>
-      question.type === "short_answer" && Number(question.points) >= 1,
-  );
+  const shortAnswerQuestions = shortAnswerQuestionsFor(assignment);
   if (shortAnswerQuestions.length === 0) {
     throw gradingError(
       "This quiz has no short-answer questions to grade.",
@@ -194,13 +207,11 @@ export const gradeGoogleFormSubmission = async ({
     student: submission.student,
   }).lean();
   if (
-    existing &&
-    ["suggested", "approved"].includes(existing.status) &&
-    existing.responseVersion === responseVersion &&
-    !(
-      existing.status === "suggested" &&
-      hasWrongLanguageSuggestions(existing, shortAnswerQuestions)
-    )
+    isGradingUpToDate({
+      existing,
+      responseVersion,
+      questions: shortAnswerQuestions,
+    })
   ) {
     return { skipped: true, graded: 0, failed: 0 };
   }
@@ -340,6 +351,106 @@ export const gradeGoogleFormSubmission = async ({
 };
 
 const round2 = (value) => Math.round(value * 100) / 100;
+
+/**
+ * Suggests grades for every response that still needs one, a few students at a
+ * time. One student's failure never stops the run, and a response that already
+ * has a matching suggestion is skipped without an AI call.
+ */
+export const gradeAllGoogleFormSubmissions = async ({
+  assignment,
+  submissions,
+  usage,
+  concurrency = 3,
+  gradeOne = gradeGoogleFormSubmission,
+} = {}) => {
+  const shortAnswerQuestions = shortAnswerQuestionsFor(assignment);
+  if (shortAnswerQuestions.length === 0) {
+    throw gradingError(
+      "This quiz has no short-answer questions to grade.",
+      "NO_SHORT_ANSWERS",
+    );
+  }
+
+  const list = Array.isArray(submissions)
+    ? submissions.filter((submission) => submission?.student)
+    : [];
+  const summary = {
+    total: list.length,
+    graded: 0,
+    skipped: 0,
+    failed: 0,
+    failures: [],
+  };
+  if (list.length === 0) return summary;
+
+  // One read for every stored suggestion, so the run skips finished work
+  // without a query per student.
+  const existingRows = await GoogleFormGrading.find({
+    school: list[0].school,
+    assignment: assignment._id,
+    student: { $in: list.map((submission) => submission.student) },
+  }).lean();
+  const existingByStudent = new Map(
+    existingRows.map((row) => [String(row.student), row]),
+  );
+
+  const pending = list.filter(
+    (submission) =>
+      !isGradingUpToDate({
+        existing: existingByStudent.get(String(submission.student)),
+        responseVersion: googleFormResponseVersion(submission.answers),
+        questions: shortAnswerQuestions,
+      }),
+  );
+  summary.skipped = list.length - pending.length;
+
+  const queue = [...pending];
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(concurrency, queue.length)) },
+    async () => {
+      while (queue.length > 0) {
+        const submission = queue.shift();
+        try {
+          const result = await gradeOne({ assignment, submission, usage });
+          if (result?.skipped) {
+            summary.skipped += 1;
+          } else if (Number(result?.graded) > 0) {
+            summary.graded += 1;
+          } else {
+            summary.failed += 1;
+            summary.failures.push({
+              studentId: String(submission.student),
+              code: "GRADING_FAILED",
+              message: "AI grading did not return usable scores.",
+            });
+          }
+        } catch (error) {
+          if (error?.code === "GRADING_IN_PROGRESS") {
+            summary.skipped += 1;
+            continue;
+          }
+          summary.failed += 1;
+          summary.failures.push({
+            studentId: String(submission.student),
+            code: error?.code || "GRADING_FAILED",
+            message: error?.message || "AI grading failed. Try again.",
+          });
+        }
+      }
+    },
+  );
+  await Promise.all(workers);
+
+  logger.info("google_form_grading_bulk_finished", {
+    assignmentId: String(assignment._id),
+    total: summary.total,
+    graded: summary.graded,
+    skipped: summary.skipped,
+    failed: summary.failed,
+  });
+  return summary;
+};
 
 /**
  * Records the teacher's approved short-answer scores and writes the combined

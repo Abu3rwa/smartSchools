@@ -28,6 +28,7 @@ export async function runInboxAutoScanJob({ now = new Date() } = {}) {
     let scanned = 0;
     let skipped = 0;
     let failed = 0;
+    let noNewMail = 0;
 
     for (const settings of eligible) {
         const user = usersById.get(String(settings.user));
@@ -46,9 +47,21 @@ export async function runInboxAutoScanJob({ now = new Date() } = {}) {
         }
 
         try {
+            // Background scans have no teacher in front of an estimate dialog,
+            // so the job quotes itself and hands the quote straight to the scan.
+            // The scan still refuses to run if the inbox grew past that quote.
+            const estimate = await inboxScanService.estimateScan(user, { mode: 'refresh' });
+
+            // An unchanged inbox costs nothing to scan, but a scan run still
+            // spends one of the teacher's daily scans.
+            if (!estimate?.newCount) {
+                noNewMail += 1;
+                continue;
+            }
+
             await inboxScanService.runScan(user, {
                 mode: 'refresh',
-                acceptedEstimateCents: null,
+                acceptedEstimateCents: estimate.estimateCents,
                 timeZone: null,
                 uiLanguage: 'en',
                 reanalyze: false,
@@ -58,11 +71,12 @@ export async function runInboxAutoScanJob({ now = new Date() } = {}) {
             failed += 1;
             logger.error('inbox_auto_scan_failed', {
                 userId: String(user._id),
+                code: error?.code,
                 error: error?.message || String(error),
             });
         }
     }
 
-    logger.info('inbox_auto_scan_completed', { scanned, skipped, failed });
-    return { scanned, skipped, failed };
+    logger.info('inbox_auto_scan_completed', { scanned, skipped, failed, noNewMail });
+    return { scanned, skipped, failed, noNewMail };
 }

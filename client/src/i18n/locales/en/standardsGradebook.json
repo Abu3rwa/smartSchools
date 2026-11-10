@@ -73,6 +73,39 @@
     "unsaved": "{{n}} unsaved",
     "assignStandard": "Assign Standard"
   },
+  "emailUpdate": {
+    "button": "Email students & parents",
+    "buttonHint": "Send each student's new standards results to the student and their family.",
+    "title": "Email students & parents",
+    "loading": "Preparing the update…",
+    "loadError": "Failed to load the email preview.",
+    "sendError": "Failed to send the update.",
+    "selectClassSubjectFirst": "Select a class and subject first.",
+    "saveFirst": "Save your changes before sending the update.",
+    "students": "Students",
+    "recipients": "Recipients",
+    "assessments": "Assessments",
+    "period": {
+      "semester1": "Semester 1",
+      "semester2": "Semester 2",
+      "fullYear": "Full year"
+    },
+    "scope": "{{class}} · {{subject}} · {{period}}",
+    "includeAll": "Include already-emailed results (send everything for this period)",
+    "onlyNew": "Only released results that have not been emailed yet are included. Students appear again when a result changes after sending.",
+    "allResults": "All released results for this period are included, even ones already emailed.",
+    "withoutNew": "{{n}} student(s) have no new released results.",
+    "withoutAny": "{{n}} student(s) have no released results.",
+    "skipped": "{{n}} student(s) will not receive this update because no student or parent email is listed.",
+    "noRecipients": "The students with new results have no student or parent email addresses on file.",
+    "noRecipientsAll": "The students with released results have no student or parent email addresses on file.",
+    "nothingNew": "No new released results to email for this class and subject.",
+    "nothingReleased": "No released results to email for this class and subject.",
+    "send": "Send update",
+    "sending": "Sending…",
+    "sent": "Update sent to {{recipients}} recipient(s) for {{students}} student(s).",
+    "partial": "Sent {{sent}} email(s); {{failed}} failed. Check the sender account and try again."
+  },
   "teacherHelp": {
     "title": "Teacher Instructions",
     "steps": "1) Select class and subject. 2) Use + Assign Standard to add missing standards. 3) Enter 1-4 scores in cells. 4) Press Save (Ctrl+S) to store changes."

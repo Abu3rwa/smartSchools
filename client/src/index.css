@@ -1330,3 +1330,9 @@ tbody tr:hover {
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+
+/* The lantern mark is ink-on-transparent; on dark surfaces it would vanish,
+   so render it as a monochrome white variant there. */
+[data-theme="dark"] img[src="/logo.svg"] {
+  filter: brightness(0) invert(1);
+}

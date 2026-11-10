@@ -38,6 +38,9 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const truthyEnv = (value) =>
+  ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
+
 const getGradeObservation = (grade) =>
   [grade?.notes, grade?.remarks]
     .map((value) => String(value ?? "").trim())
@@ -2078,6 +2081,11 @@ class NotificationService {
     const sessionType = assignment?.practiceConfig?.sessionType || "practice";
     const typeName =
       sessionType === "assessment" ? "Assessment" : "Standards Practice";
+    // Unstyled legacy notice; the styled Standards update email replaced it,
+    // so this email stays off unless a deployment opts back in.
+    const completionEmailEnabled = truthyEnv(
+      process.env.STANDARDS_COMPLETION_EMAIL_ENABLED,
+    );
     const scoreText =
       Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0
         ? `Score: ${score}/${maxScore}`
@@ -2115,7 +2123,7 @@ class NotificationService {
     for (const recipient of audience.parentRecipients) {
       const channels = [];
       if (recipient.pushEnabled) channels.push("push");
-      if (recipient.emailEnabled) channels.push("email");
+      if (recipient.emailEnabled && completionEmailEnabled) channels.push("email");
 
       const notification = new Notification({
         school: student.school,
@@ -2148,7 +2156,7 @@ class NotificationService {
         }
       }
 
-      if (recipient.emailEnabled) {
+      if (recipient.emailEnabled && completionEmailEnabled) {
         try {
           await this.sendEmail(notification);
         } catch (error) {
@@ -2160,7 +2168,8 @@ class NotificationService {
       }
     }
 
-    for (const email of audience.fallbackEmails) {
+    const fallbackEmails = completionEmailEnabled ? audience.fallbackEmails : [];
+    for (const email of fallbackEmails) {
       const notification = new Notification({
         school: student.school,
         recipientEmail: email,

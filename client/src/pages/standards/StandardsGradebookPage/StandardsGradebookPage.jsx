@@ -36,6 +36,13 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
   const [assignSubmitting, setAssignSubmitting] = useState(false);
   const [assignError, setAssignError] = useState('');
   const [assignSuccess, setAssignSuccess] = useState('');
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailPreview, setEmailPreview] = useState(null);
+  const [emailIncludeAll, setEmailIncludeAll] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
   const [standardSearch, setStandardSearch] = useState('');
   const [isStandardMenuOpen, setIsStandardMenuOpen] = useState(false);
   const standardPickerRef = useRef(null);
@@ -53,6 +60,7 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
   );
 
   const canAssignStandard = Boolean(filters.classId && filters.subjectId);
+  const canEmailParents = canAssignStandard && !hasPendingChanges;
 
   const selectedStandard = useMemo(
     () =>
@@ -77,6 +85,105 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
       );
     });
   }, [availableStandards, standardSearch]);
+
+  const emailScope = useMemo(() => {
+    const scope = { classId: filters.classId, subjectId: filters.subjectId };
+    if (filters.period === 'semester_1') scope.semester = 1;
+    else if (filters.period === 'semester_2') scope.semester = 2;
+    else if (filters.period === 'full_year') scope.period = 'full_year';
+    return scope;
+  }, [filters.classId, filters.subjectId, filters.period]);
+
+  const emailPeriodLabel = useMemo(() => {
+    if (emailPreview?.semester === 1) return t('standardsGradebook:emailUpdate.period.semester1', 'Semester 1');
+    if (emailPreview?.semester === 2) return t('standardsGradebook:emailUpdate.period.semester2', 'Semester 2');
+    return t('standardsGradebook:emailUpdate.period.fullYear', 'Full year');
+  }, [emailPreview?.semester, t]);
+
+  const emailDisabledReason = !canAssignStandard
+    ? t('standardsGradebook:emailUpdate.selectClassSubjectFirst', 'Select a class and subject first.')
+    : hasPendingChanges
+      ? t('standardsGradebook:emailUpdate.saveFirst', 'Save your changes before sending the update.')
+      : '';
+
+  const loadEmailPreview = useCallback(async (includeAll) => {
+    setEmailLoading(true);
+    setEmailError('');
+    setEmailPreview(null);
+    try {
+      const response = await api.get('/practice/sb-gradebook/email/preview', {
+        params: { ...emailScope, ...(includeAll ? { includeAll: true } : {}) },
+      });
+      setEmailPreview(response?.data?.data || null);
+    } catch (err) {
+      setEmailError(
+        err?.response?.data?.message
+          || t('standardsGradebook:emailUpdate.loadError', 'Failed to load the email preview.'),
+      );
+    } finally {
+      setEmailLoading(false);
+    }
+  }, [emailScope, t]);
+
+  const openEmailModal = useCallback(async () => {
+    if (!canEmailParents) return;
+    setShowEmailModal(true);
+    setEmailSuccess('');
+    setEmailIncludeAll(false);
+    await loadEmailPreview(false);
+  }, [canEmailParents, loadEmailPreview]);
+
+  const handleEmailIncludeAllChange = useCallback((checked) => {
+    setEmailIncludeAll(checked);
+    setEmailSuccess('');
+    loadEmailPreview(checked);
+  }, [loadEmailPreview]);
+
+  const closeEmailModal = useCallback(() => {
+    if (emailSending) return;
+    setShowEmailModal(false);
+  }, [emailSending]);
+
+  const handleSendEmail = useCallback(async () => {
+    if (!emailPreview || emailSending) return;
+    if ((emailPreview.totals?.students ?? 0) === 0) return;
+
+    setEmailSending(true);
+    setEmailError('');
+    try {
+      const response = await api.post('/practice/sb-gradebook/email', {
+        ...emailScope,
+        ...(emailIncludeAll ? { includeAll: true } : {}),
+      });
+      const data = response?.data?.data || {};
+      setShowEmailModal(false);
+      if (Number(data.failed) > 0) {
+        setEmailError(
+          t('standardsGradebook:emailUpdate.partial', {
+            sent: data.sent || 0,
+            failed: data.failed || 0,
+            defaultValue: 'Sent {{sent}} email(s); {{failed}} failed. Check the sender account and try again.',
+          }),
+        );
+      } else {
+        setEmailSuccess(
+          t('standardsGradebook:emailUpdate.sent', {
+            recipients: data.recipients || 0,
+            students: data.students || 0,
+            defaultValue: 'Update sent to {{recipients}} recipient(s) for {{students}} student(s).',
+          }),
+        );
+      }
+      onRefresh();
+    } catch (err) {
+      setEmailError(
+        err?.response?.data?.message
+          || t('standardsGradebook:emailUpdate.sendError', 'Failed to send the update.'),
+      );
+    } finally {
+      setEmailSending(false);
+    }
+  }, [emailPreview, emailSending, emailIncludeAll, emailScope, onRefresh, t]);
 
   const loadAssignableStandards = useCallback(async () => {
     if (!canAssignStandard) return;
@@ -258,6 +365,18 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
           )}
           <button
             type="button"
+            className="gb-toolbar__email"
+            onClick={openEmailModal}
+            disabled={!canEmailParents}
+            title={
+              emailDisabledReason
+              || t('standardsGradebook:emailUpdate.buttonHint', "Send each student's new standards results to the student and their family.")
+            }
+          >
+            {t('standardsGradebook:emailUpdate.button', 'Email students & parents')}
+          </button>
+          <button
+            type="button"
             className={`gb-toolbar__save${hasPendingChanges ? ' is-dirty' : ''}`}
             onClick={onSave}
             disabled={!hasPendingChanges || saving}
@@ -289,6 +408,8 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
 
       {error && <div className="standards-gradebook-error">{error}</div>}
       {assignSuccess && <div className="standards-gradebook-success">{assignSuccess}</div>}
+      {emailSuccess && <div className="standards-gradebook-success" role="status">{emailSuccess}</div>}
+      {emailError && !showEmailModal && <div className="standards-gradebook-error">{emailError}</div>}
       {assignError && !showAssignModal && <div className="standards-gradebook-error">{assignError}</div>}
       {loading && <div className="standards-gradebook-loading">{t('standardsGradebook:table.loading', 'Loading…')}</div>}
 
@@ -475,6 +596,166 @@ const StandardsGradebookPage = ({ embedded, registerHeaderAction }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showEmailModal && (
+        <div className="gb-assign-modal__overlay" onClick={closeEmailModal}>
+          <div className="gb-assign-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="gb-assign-modal__header">
+              <h3>{t('standardsGradebook:emailUpdate.title', 'Email students & parents')}</h3>
+              <button
+                type="button"
+                onClick={closeEmailModal}
+                disabled={emailSending}
+                aria-label={t('common:close', 'Close')}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="gb-assign-modal__body">
+              {emailError && <div className="standards-gradebook-error">{emailError}</div>}
+
+              {emailLoading && (
+                <div className="gb-email-state">
+                  {t('standardsGradebook:emailUpdate.loading', 'Preparing the update…')}
+                </div>
+              )}
+
+              {!emailLoading && emailPreview && (
+                <>
+                  <p className="gb-email-scope">
+                    {t('standardsGradebook:emailUpdate.scope', {
+                      class: emailPreview.class?.name || '',
+                      subject: emailPreview.subject?.name || '',
+                      period: emailPeriodLabel,
+                      defaultValue: '{{class}} · {{subject}} · {{period}}',
+                    })}
+                  </p>
+
+                  <div className="gb-assign-modal__checks">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={emailIncludeAll}
+                        onChange={(e) => handleEmailIncludeAllChange(e.target.checked)}
+                        disabled={emailSending}
+                      />
+                      {t(
+                        'standardsGradebook:emailUpdate.includeAll',
+                        'Include already-emailed results (send everything for this period)',
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="gb-email-stats">
+                    <div>
+                      <strong>{emailPreview.totals?.students ?? 0}</strong>
+                      <span>{t('standardsGradebook:emailUpdate.students', 'Students')}</span>
+                    </div>
+                    <div>
+                      <strong>{emailPreview.totals?.recipients ?? 0}</strong>
+                      <span>{t('standardsGradebook:emailUpdate.recipients', 'Recipients')}</span>
+                    </div>
+                    <div>
+                      <strong>{emailPreview.totals?.assessments ?? 0}</strong>
+                      <span>{t('standardsGradebook:emailUpdate.assessments', 'Assessments')}</span>
+                    </div>
+                  </div>
+
+                  <p className="gb-email-note">
+                    {emailIncludeAll
+                      ? t(
+                          'standardsGradebook:emailUpdate.allResults',
+                          'All released results for this period are included, even ones already emailed.',
+                        )
+                      : t(
+                          'standardsGradebook:emailUpdate.onlyNew',
+                          'Only released results that have not been emailed yet are included. Students appear again when a result changes after sending.',
+                        )}
+                  </p>
+
+                  {(emailPreview.withoutNewResults ?? 0) > 0 && (
+                    <p className="gb-email-note">
+                      {emailIncludeAll
+                        ? t('standardsGradebook:emailUpdate.withoutAny', {
+                            n: emailPreview.withoutNewResults,
+                            defaultValue: '{{n}} student(s) have no released results.',
+                          })
+                        : t('standardsGradebook:emailUpdate.withoutNew', {
+                            n: emailPreview.withoutNewResults,
+                            defaultValue: '{{n}} student(s) have no new released results.',
+                          })}
+                    </p>
+                  )}
+
+                  {(emailPreview.skipped?.length ?? 0) > 0 && (
+                    <div className="gb-email-warning">
+                      <div>
+                        {t('standardsGradebook:emailUpdate.skipped', {
+                          n: emailPreview.skipped.length,
+                          defaultValue: '{{n}} student(s) will not receive this update because no student or parent email is listed.',
+                        })}
+                      </div>
+                      <div className="gb-email-warning__names">
+                        {emailPreview.skipped
+                          .slice(0, 5)
+                          .map((item) => item.name)
+                          .join(', ')
+                          + (emailPreview.skipped.length > 5 ? '…' : '')}
+                      </div>
+                    </div>
+                  )}
+
+                  {(emailPreview.totals?.students ?? 0) === 0 && (
+                    <div className="gb-email-warning">
+                      {emailPreview.skipped?.length
+                        ? emailIncludeAll
+                          ? t(
+                              'standardsGradebook:emailUpdate.noRecipientsAll',
+                              'The students with released results have no student or parent email addresses on file.',
+                            )
+                          : t(
+                              'standardsGradebook:emailUpdate.noRecipients',
+                              'The students with new results have no student or parent email addresses on file.',
+                            )
+                        : emailIncludeAll
+                          ? t(
+                              'standardsGradebook:emailUpdate.nothingReleased',
+                              'No released results to email for this class and subject.',
+                            )
+                          : t(
+                              'standardsGradebook:emailUpdate.nothingNew',
+                              'No new released results to email for this class and subject.',
+                            )}
+                    </div>
+                  )}
+
+                  <div className="gb-assign-modal__footer">
+                    <button
+                      type="button"
+                      className="gb-btn--secondary"
+                      onClick={closeEmailModal}
+                      disabled={emailSending}
+                    >
+                      {t('common:cancel', 'Cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      className="gb-btn--primary"
+                      onClick={handleSendEmail}
+                      disabled={emailSending || (emailPreview.totals?.students ?? 0) === 0}
+                    >
+                      {emailSending
+                        ? t('standardsGradebook:emailUpdate.sending', 'Sending…')
+                        : t('standardsGradebook:emailUpdate.send', 'Send update')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

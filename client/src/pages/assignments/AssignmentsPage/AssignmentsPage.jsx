@@ -980,6 +980,33 @@ const AssignmentsPage = () => {
     }
   };
 
+  const gradeAllGoogleFormResponses = async (assignment) => {
+    try {
+      const result = await googleFormsService.gradeAllResponses(assignment.id);
+      const summary = result?.data || {};
+      toast.success(
+        t("assignments:googleForms.grading.bulkSummary", {
+          graded: summary.graded || 0,
+          skipped: summary.skipped || 0,
+        }),
+      );
+      if (summary.failed > 0) {
+        toast.error(
+          t("assignments:googleForms.grading.bulkFailed", {
+            failed: summary.failed,
+          }),
+        );
+      }
+      const response = await googleFormsService.getResponses(assignment.id);
+      setGoogleFormResults({ assignment, items: response?.data?.items || [] });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          t("assignments:googleForms.errors.gradeAll"),
+      );
+    }
+  };
+
   const approveGoogleFormResponse = async (assignment, item, questions) => {
     try {
       const result = await googleFormsService.approveResponse(assignment.id, {
@@ -1319,6 +1346,7 @@ const AssignmentsPage = () => {
           onClose={() => setGoogleFormResults(null)}
           onSync={syncGoogleFormResults}
           onGrade={gradeGoogleFormResponse}
+          onGradeAll={gradeAllGoogleFormResponses}
           onApprove={approveGoogleFormResponse}
         />
 

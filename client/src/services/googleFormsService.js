@@ -16,6 +16,8 @@ const googleFormsService = {
         (await api.get(`${BASE}/assignments/${assignmentId}/responses`)).data,
     gradeResponse: async (assignmentId, submissionId) =>
         (await api.post(`${BASE}/assignments/${assignmentId}/grade`, { submissionId })).data,
+    gradeAllResponses: async (assignmentId) =>
+        (await api.post(`${BASE}/assignments/${assignmentId}/grade-all`)).data,
     approveResponse: async (assignmentId, payload) =>
         (await api.post(`${BASE}/assignments/${assignmentId}/approve`, payload)).data
 };

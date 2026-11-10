@@ -13,6 +13,8 @@ import {
     getStandardAverageGradebook,
     getSBGradebook,
     getSBGradebookMatrix,
+    getSBGradebookEmailPreview,
+    sendSBGradebookEmail,
     updateManualScore,
     updateBulkManualScores,
     releaseAssessmentResults,
@@ -60,6 +62,8 @@ router.get('/assessment/:assignmentId/gradebook', authorize('admin', 'teacher'),
 router.get('/assessment/standard-average', authorize('admin', 'teacher'), getStandardAverageGradebook);
 router.get('/sb-gradebook', authorize('admin', 'teacher', 'department_principal'), getSBGradebook);
 router.get('/sb-gradebook/matrix', authorize('admin', 'teacher', 'department_principal'), getSBGradebookMatrix);
+router.get('/sb-gradebook/email/preview', authorize('admin', 'teacher'), getSBGradebookEmailPreview);
+router.post('/sb-gradebook/email', authorize('admin', 'teacher'), sendSBGradebookEmail);
 router.put('/sb-gradebook/manual-score', authorize('admin', 'teacher'), updateManualScore);
 router.put('/sb-gradebook/manual-scores/bulk', authorize('admin', 'teacher'), updateBulkManualScores);
 router.put('/attempts/:attemptId/override', authorize('admin', 'teacher', 'department_principal'), overrideAttemptGrading);

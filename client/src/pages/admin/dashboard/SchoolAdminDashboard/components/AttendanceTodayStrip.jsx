@@ -24,7 +24,16 @@ export default function AttendanceTodayStrip({ attendance, segments, locale }) {
     return (
         <section className="admin-panel admin-today">
             <div className="admin-panel-head">
-                <h2 className="admin-panel-title">{t('adminDashboard:today.title')}</h2>
+                <div className="admin-today-headline">
+                    <h2 className="admin-panel-title">{t('adminDashboard:today.title')}</h2>
+                    {attendance.classesWithoutRecords > 0 && (
+                        <Link to="/portal/attendance/admin" className="admin-today-chip">
+                            {t('adminDashboard:today.missingClasses', {
+                                missingCount: formatCount(attendance.classesWithoutRecords, locale),
+                            })}
+                        </Link>
+                    )}
+                </div>
                 <Link to="/portal/attendance/admin" className="admin-text-link">
                     {t('adminDashboard:today.openAttendance')}
                     <HiOutlineArrowRight size={15} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />

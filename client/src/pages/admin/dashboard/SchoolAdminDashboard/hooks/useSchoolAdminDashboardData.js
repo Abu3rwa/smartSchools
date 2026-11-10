@@ -84,6 +84,7 @@ export function useSchoolAdminDashboardData() {
         return [
             {
                 key: 'students',
+                to: '/portal/students',
                 label: t('adminDashboard:stats.totalStudents'),
                 value: formatCount(students.total, locale),
                 meta: t('adminDashboard:metrics.newThisMonth', {
@@ -92,6 +93,7 @@ export function useSchoolAdminDashboardData() {
             },
             {
                 key: 'classes',
+                to: '/portal/classes',
                 label: t('adminDashboard:stats.totalClasses'),
                 value: formatCount(classes.total, locale),
                 meta: t('adminDashboard:metrics.newThisMonth', {
@@ -100,6 +102,7 @@ export function useSchoolAdminDashboardData() {
             },
             {
                 key: 'teachers',
+                to: '/portal/teachers',
                 label: t('adminDashboard:stats.teachers'),
                 value: formatCount(teachers.total, locale),
                 meta: t('adminDashboard:metrics.activeTeachers', {
@@ -108,6 +111,7 @@ export function useSchoolAdminDashboardData() {
             },
             {
                 key: 'attendance',
+                to: '/portal/attendance/admin',
                 label: t('adminDashboard:stats.attendanceRate'),
                 value: formatPercent(attendance.rate) || t('adminDashboard:common.noDataShort'),
                 meta: attendance.totalStudents > 0
