@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
     HiOutlineCalendar,
@@ -7,10 +7,12 @@ import {
     HiOutlineAcademicCap,
     HiOutlineBookOpen,
     HiOutlineClock,
-    HiOutlineLocationMarker
+    HiOutlineLocationMarker,
+    HiOutlinePencilAlt
 } from 'react-icons/hi';
 import { selectUser } from '../../../../store/slices/authSlice';
 import timetableService from '../../../../services/timetableService';
+import ObservationCapturePanel from './ObservationCapturePanel';
 import './TeacherTimetablePage.css';
 
 const COLORS = ['blue', 'green', 'purple', 'orange', 'pink', 'teal', 'red', 'yellow'];
@@ -40,6 +42,25 @@ const TeacherTimetablePage = () => {
     const [periods, setPeriods] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
+    const [nowSlot, setNowSlot] = useState(null);
+    const [nowError, setNowError] = useState(null);
+    const [showObservation, setShowObservation] = useState(false);
+
+    const loadNow = useCallback(async () => {
+        try {
+            const response = await timetableService.getCurrentPeriod(new Date().getTimezoneOffset());
+            setNowSlot(response?.data || null);
+            setNowError(null);
+        } catch (err) {
+            setNowError(err?.response?.data?.message || err.message);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadNow();
+        const timer = window.setInterval(loadNow, 60000);
+        return () => window.clearInterval(timer);
+    }, [loadNow]);
 
     const fetchTimetable = async () => {
         try {
@@ -210,6 +231,72 @@ const TeacherTimetablePage = () => {
                     <HiOutlineExclamation size={20} />
                     <span>{error}</span>
                 </div>
+            )}
+
+            {nowSlot && (
+                <section className={`now-strip is-${nowSlot.status}`} aria-live="polite">
+                    <div className="now-icon"><HiOutlineClock size={20} /></div>
+                    <div className="now-body">
+                        {nowSlot.status === 'in-class' ? (
+                            <>
+                                <span className="now-eyebrow">Now</span>
+                                <span className="now-title">
+                                    {nowSlot.subject?.name || 'Lesson'} · {nowSlot.class?.name || 'Class'}
+                                </span>
+                                <span className="now-meta">
+                                    {nowSlot.period?.name} · {nowSlot.period?.startTime} – {nowSlot.period?.endTime}
+                                    {nowSlot.room?.name ? ` · ${nowSlot.room.name}` : ''}
+                                    {` · ${nowSlot.students?.length || 0} students`}
+                                </span>
+                            </>
+                        ) : nowSlot.status === 'free-period' ? (
+                            <>
+                                <span className="now-eyebrow">No lesson right now</span>
+                                <span className="now-title">
+                                    {nowSlot.nextPeriod
+                                        ? `Next: ${nowSlot.nextPeriod.subject?.name || 'Lesson'} · ${nowSlot.nextPeriod.class?.name || 'Class'}`
+                                        : 'No more lessons today'}
+                                </span>
+                                {nowSlot.nextPeriod?.period && (
+                                    <span className="now-meta">
+                                        {nowSlot.nextPeriod.period.name} · {nowSlot.nextPeriod.period.startTime} – {nowSlot.nextPeriod.period.endTime}
+                                    </span>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <span className="now-eyebrow">No lessons scheduled today</span>
+                                <span className="now-title">Your current lesson appears here on a school day.</span>
+                            </>
+                        )}
+                    </div>
+                    {nowSlot.status === 'in-class' && (
+                        <div className="now-actions">
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => setShowObservation((open) => !open)}
+                                disabled={!nowSlot.captureOpen}
+                            >
+                                <HiOutlinePencilAlt size={16} />
+                                {showObservation ? 'Hide observation' : 'Add observation'}
+                            </button>
+                            {!nowSlot.captureOpen && (
+                                <span className="now-hint">Observations open while the lesson is running.</span>
+                            )}
+                        </div>
+                    )}
+                </section>
+            )}
+            {nowError && (
+                <p className="now-error">Could not load your current lesson. Refresh to try again.</p>
+            )}
+            {showObservation && nowSlot?.class?._id && (
+                <ObservationCapturePanel
+                    slot={nowSlot}
+                    onSaved={loadNow}
+                    onClose={() => setShowObservation(false)}
+                />
             )}
 
             {/* Summary cards */}

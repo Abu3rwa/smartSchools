@@ -6,11 +6,13 @@ import {
     fundSchool,
     getInboxSettings,
     getPlatformCredit,
+    getSpellingAudioSettings,
     getVoiceSettings,
     grantTeacherCredit,
     listPlatformSchools,
     updateInboxSettings,
     updatePlatformMarkup,
+    updateSpellingAudioSettings,
     updateVoiceSettings
 } from '../controllers/aiCreditController.js';
 
@@ -26,6 +28,8 @@ router.get('/voice-settings', getVoiceSettings);
 router.patch('/voice-settings', updateVoiceSettings);
 router.get('/inbox-settings', getInboxSettings);
 router.patch('/inbox-settings', updateInboxSettings);
+router.get('/spelling-audio-settings', getSpellingAudioSettings);
+router.patch('/spelling-audio-settings', updateSpellingAudioSettings);
 router.get('/schools', listPlatformSchools);
 router.post('/schools/:schoolId/fund', fundSchool);
 router.post('/schools/:schoolId/teachers/:userId/grant', grantTeacherCredit);

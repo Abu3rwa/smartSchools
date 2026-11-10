@@ -4,6 +4,12 @@ export const VOICE_STORAGE_KEY = 'spelling.voice';
 export const DEFAULT_VOICE_ID = 'default';
 export const PLAYBACK_TIMEOUT_MS = 6000;
 
+// Dictionary recordings (Longman/Oxford/Google) are hidden from the spelling UI for now:
+// only generated AI clips are offered. The stored URLs and their endpoints stay, so
+// flipping this back to true restores the dictionary voices, example sentences and
+// the admin editing tools without any data work.
+export const SHOW_DICTIONARY_SOURCES = false;
+
 export const DICTIONARY_LABELS = Object.freeze({ longman: 'Longman', oxford: 'Oxford', webster: 'Merriam-Webster', google: 'Google' });
 const ACCENT_LABELS = Object.freeze({ us: 'US', uk: 'UK' });
 
@@ -41,10 +47,12 @@ export const getVoiceOptions = (audio) => {
 // Spelling voices are numbered per accent ("US 1", "US 2") so no dictionary brand reaches the UI.
 export const getSpellingVoiceOptions = (audio) => {
     const counts = { us: 0, uk: 0 };
-    return getVoiceOptions(audio).map((option) => {
-        counts[option.accent] += 1;
-        return { ...option, label: `${ACCENT_LABELS[option.accent]} ${counts[option.accent]}` };
-    });
+    return getVoiceOptions(audio)
+        .filter((option) => SHOW_DICTIONARY_SOURCES || option.dictionary === 'ai')
+        .map((option) => {
+            counts[option.accent] += 1;
+            return { ...option, label: `${ACCENT_LABELS[option.accent]} ${counts[option.accent]}` };
+        });
 };
 
 // A chosen voice that is missing for this word resolves to null, which means "use Default".
@@ -55,9 +63,14 @@ export const resolveVoice = (audio, voiceId) => {
 
 // The voice "Default" actually plays. A generated clip wins over a saved dictionary choice,
 // because the dictionary recording is no longer offered in the panel for that accent.
+// While dictionary sources are hidden, a stale saved dictionary choice resolves to the
+// generated clip instead, and with no clip the caller falls back to the browser voice.
 export const resolvePlaybackVoice = (audio, voiceId) => {
     const chosen = resolveVoice(audio, voiceId);
-    if (chosen && (chosen.dictionary === 'ai' || !audio?.ai?.[chosen.accent])) return chosen;
+    const chosenAllowed = Boolean(chosen) && (SHOW_DICTIONARY_SOURCES
+        ? chosen.dictionary === 'ai' || !audio?.ai?.[chosen.accent]
+        : chosen.dictionary === 'ai');
+    if (chosenAllowed) return chosen;
     for (const accent of ['uk', 'us']) {
         if (audio?.ai?.[accent]) return resolveVoice(audio, `ai-${accent}`);
     }

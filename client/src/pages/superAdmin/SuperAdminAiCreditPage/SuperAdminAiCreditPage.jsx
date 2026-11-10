@@ -47,6 +47,8 @@ const SuperAdminAiCreditPage = () => {
     const [inbox, setInbox] = useState(null);
     const [inboxDraft, setInboxDraft] = useState(null);
     const [savingInbox, setSavingInbox] = useState(false);
+    const [spellingAudio, setSpellingAudio] = useState(null);
+    const [savingSpellingAudio, setSavingSpellingAudio] = useState(false);
     const [schools, setSchools] = useState(null);
     const [selectedId, setSelectedId] = useState('');
     const [fundAmount, setFundAmount] = useState('10');
@@ -116,6 +118,17 @@ const SuperAdminAiCreditPage = () => {
         return () => { active = false; };
     }, [reloadKey, t]);
 
+    useEffect(() => {
+        let active = true;
+        platformAiCreditService.getSpellingAudioSettings()
+            .then((next) => { if (active) setSpellingAudio(next); })
+            .catch(() => {
+                if (!active) return;
+                toast.error(t('superAdminAiCredit:spellingAudio.loadFailed'));
+            });
+        return () => { active = false; };
+    }, [reloadKey, t]);
+
     const selected = (schools?.schools || []).find((row) => row.id === selectedId) || null;
 
     const saveVoice = async () => {
@@ -165,6 +178,22 @@ const SuperAdminAiCreditPage = () => {
             toast.error(error?.response?.data?.message || t('superAdminAiCredit:inbox.saveFailed'));
         } finally {
             setSavingInbox(false);
+        }
+    };
+
+    const toggleSpellingAudio = async (enabled) => {
+        if (savingSpellingAudio) return;
+        setSavingSpellingAudio(true);
+        try {
+            const next = await platformAiCreditService.updateSpellingAudioSettings({ enabled });
+            setSpellingAudio(next);
+            toast.success(t(next.enabled
+                ? 'superAdminAiCredit:spellingAudio.savedOn'
+                : 'superAdminAiCredit:spellingAudio.savedOff'));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('superAdminAiCredit:spellingAudio.saveFailed'));
+        } finally {
+            setSavingSpellingAudio(false);
         }
     };
 
@@ -737,6 +766,43 @@ const SuperAdminAiCreditPage = () => {
                                 >
                                     {t('superAdminAiCredit:inbox.save')}
                                 </button>
+                            </div>
+                        </section>
+                    )}
+
+                    {spellingAudio && (
+                        <section className="admin-section">
+                            <div className="admin-section-header">
+                                <div>
+                                    <h2>{t('superAdminAiCredit:spellingAudio.title')}</h2>
+                                    <p className="admin-section-subtitle">
+                                        {t('superAdminAiCredit:spellingAudio.subtitle')}
+                                    </p>
+                                </div>
+                                <span className="ai-credit-current">
+                                    {t(spellingAudio.envForcedOff
+                                        ? 'superAdminAiCredit:spellingAudio.statusForcedOff'
+                                        : spellingAudio.available
+                                            ? 'superAdminAiCredit:spellingAudio.statusOn'
+                                            : 'superAdminAiCredit:spellingAudio.statusOff')}
+                                </span>
+                            </div>
+                            <div className="ai-credit-settings">
+                                <label className="ai-credit-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(spellingAudio.enabled)}
+                                        disabled={savingSpellingAudio || spellingAudio.envForcedOff}
+                                        onChange={(event) => toggleSpellingAudio(event.target.checked)}
+                                    />
+                                    <span>{t('superAdminAiCredit:spellingAudio.fields.enabled')}</span>
+                                </label>
+                                {spellingAudio.envForcedOff && (
+                                    <p className="ai-credit-note">
+                                        {t('superAdminAiCredit:spellingAudio.forcedOffNote')}
+                                    </p>
+                                )}
+                                <p className="ai-credit-note">{t('superAdminAiCredit:spellingAudio.note')}</p>
                             </div>
                         </section>
                     )}

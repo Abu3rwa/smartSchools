@@ -8,6 +8,10 @@ import {
   getPlatformInboxSettings,
   saveInboxSettings,
 } from "../services/inboxSettingsService.js";
+import {
+  getPlatformSpellingAudioSettings,
+  savePlatformSpellingAudioSettings,
+} from "../services/spellingPronunciationService.js";
 
 export const getMyCredit = asyncHandler(async (req, res) => {
   const summary = await creditService.getCreditSummary({
@@ -163,6 +167,18 @@ export const getInboxSettings = asyncHandler(async (_req, res) => {
 export const updateInboxSettings = asyncHandler(async (req, res) => {
   const data = await saveInboxSettings({
     patch: req.body || {},
+    updatedBy: req.user._id,
+  });
+  res.json({ success: true, data });
+});
+
+export const getSpellingAudioSettings = asyncHandler(async (_req, res) => {
+  res.json({ success: true, data: await getPlatformSpellingAudioSettings() });
+});
+
+export const updateSpellingAudioSettings = asyncHandler(async (req, res) => {
+  const data = await savePlatformSpellingAudioSettings({
+    enabled: req.body?.enabled,
     updatedBy: req.user._id,
   });
   res.json({ success: true, data });

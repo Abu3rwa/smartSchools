@@ -19,7 +19,8 @@ import {
     analyzeTimetableScheduleImport,
     commitTimetableScheduleImport,
     getMyTimetable,
-    getStudentTimetable
+    getStudentTimetable,
+    getCurrentPeriod
 } from '../controllers/timetableController.js';
 
 const router = express.Router();
@@ -29,6 +30,8 @@ router.use(requireSchoolContext);
 
 // Teacher: own timetable
 router.get('/my-timetable', authorize('teacher'), getMyTimetable);
+// Teacher: the lesson running now (used by observation capture)
+router.get('/current-period', authorize('teacher'), getCurrentPeriod);
 // Student: today's schedule
 router.get('/my-schedule', authorize('student'), getStudentTimetable);
 

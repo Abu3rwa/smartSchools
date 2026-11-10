@@ -67,6 +67,22 @@
     "saveFailed": "Couldn't save the inbox limits.",
     "loadFailed": "Couldn't load the inbox settings."
   },
+  "spellingAudio": {
+    "title": "AI word audio",
+    "subtitle": "One switch for every school. Generated clips are stored once and reused, so a student's practice never calls AI.",
+    "statusOn": "Available",
+    "statusOff": "Turned off",
+    "statusForcedOff": "Forced off by this deployment",
+    "fields": {
+      "enabled": "Turn on AI word audio for every school"
+    },
+    "forcedOffNote": "SPELLING_AI_AUDIO is false on this server, so this switch cannot turn AI audio on. Change the server variable and restart to use it.",
+    "note": "Turning this on does not create clips by itself. Each school generates its words from Spelling audio, and generation is charged to that school's AI credits. Schools cannot change this switch.",
+    "savedOn": "AI word audio is on for every school.",
+    "savedOff": "AI word audio is off for every school.",
+    "saveFailed": "Couldn't change AI word audio.",
+    "loadFailed": "Couldn't load the AI word audio switch."
+  },
   "schools": {
     "loadFailed": "Couldn't load the school credit list.",
     "title": "Schools",

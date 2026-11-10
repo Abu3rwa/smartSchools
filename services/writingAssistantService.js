@@ -220,6 +220,29 @@ const assertVisibleToTeacher = (assignment, userId, isAdmin) => {
   );
 };
 
+/** Project-level reads (history, teacher PDF) carry no assignment, so resolve it first. */
+export const assertProjectVisibleToTeacher = async ({
+  schoolId,
+  projectId,
+  userId,
+  isAdmin = false,
+}) => {
+  const id = objectId(projectId);
+  if (!id) throw notFound("Writing project not found.");
+  const project = await WritingProject.findOne({ school: schoolId, _id: id })
+    .select("assignment")
+    .lean();
+  if (!project) throw notFound("Writing project not found.");
+  const assignment = await WritingAssignment.findOne({
+    school: schoolId,
+    _id: project.assignment,
+  })
+    .select("assignedBy")
+    .lean();
+  if (!assignment) throw notFound("Writing task not found.");
+  assertVisibleToTeacher(assignment, userId, isAdmin);
+};
+
 const uniqueIds = (values = []) => [
   ...new Set(values.map(objectId).filter(Boolean)),
 ];
@@ -560,6 +583,18 @@ export const getAssignment = async ({ schoolId, assignmentId }) => {
       0,
     ),
   };
+};
+
+/** The teacher-facing read: same shape, plus the module's creator-or-admin rule. */
+export const getAssignmentForTeacher = async ({
+  schoolId,
+  assignmentId,
+  userId,
+  isAdmin = false,
+}) => {
+  const assignment = await getAssignment({ schoolId, assignmentId });
+  assertVisibleToTeacher(assignment, userId, isAdmin);
+  return assignment;
 };
 
 /**
@@ -1026,8 +1061,15 @@ export const openProject = async ({
 };
 
 /** Teacher board: every assigned student, whether or not they have opened the task. */
-export const getTeacherBoard = async ({ schoolId, assignmentId, classId }) => {
+export const getTeacherBoard = async ({
+  schoolId,
+  assignmentId,
+  classId,
+  userId,
+  isAdmin = false,
+}) => {
   const assignment = await getAssignment({ schoolId, assignmentId });
+  assertVisibleToTeacher(assignment, userId, isAdmin);
   const filter = { school: schoolId, assignment: assignment._id };
   if (objectId(classId)) filter.class = classId;
 
@@ -1106,8 +1148,18 @@ export const getTeacherBoard = async ({ schoolId, assignmentId, classId }) => {
   };
 };
 
-export const getClassProgress = async ({ schoolId, assignmentId }) => {
-  const board = await getTeacherBoard({ schoolId, assignmentId });
+export const getClassProgress = async ({
+  schoolId,
+  assignmentId,
+  userId,
+  isAdmin = false,
+}) => {
+  const board = await getTeacherBoard({
+    schoolId,
+    assignmentId,
+    userId,
+    isAdmin,
+  });
   const grouped = new Map();
   for (const row of board.rows) {
     const key = row.classId || "unassigned";
@@ -1460,7 +1512,12 @@ export const markNotebookWritten = async ({
 };
 
 /** Teacher view of one student's whole history, including unpublished assessments. */
-export const getProjectHistory = async ({ schoolId, projectId }) => {
+export const getProjectHistory = async ({
+  schoolId,
+  projectId,
+  userId,
+  isAdmin = false,
+}) => {
   const id = objectId(projectId);
   if (!id) throw notFound("Writing project not found.");
   const project = await WritingProject.findOne({ school: schoolId, _id: id })
@@ -1500,6 +1557,8 @@ export const getProjectHistory = async ({ schoolId, projectId }) => {
         .select("grade metrics.attempts metrics.accuracy")
         .lean(),
     ]);
+
+  assertVisibleToTeacher(assignment, userId, isAdmin);
 
   return {
     project: {

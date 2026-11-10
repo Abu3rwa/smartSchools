@@ -3,7 +3,7 @@ import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingWord from '../models/SpellingWord.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport, validateAudioUrl } from '../utils/wordAudio.js';
-import { getAiAudioForWord, isAiAudioAllowed, lookupPronunciations } from './spellingPronunciationService.js';
+import { getAiAudioForWord, lookupPronunciations } from './spellingPronunciationService.js';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -191,18 +191,19 @@ export async function isAudioEnabledForGrade(schoolId, grade) {
 // Fail-safe: any error returns the original result so students never lose their word.
 export async function attachAudioToCurrentItem(result, schoolId) {
     try {
-        if (!result?.item?.word || !(await isAudioEnabledForGrade(schoolId, result.item.grade))) return result;
-        // Once AI audio is on for the platform, dictionary recordings stop reaching students.
-        // Only the shared definition is read; the generated clips are the voice they hear.
-        const dictionaryAudioOff = isAiAudioAllowed();
-        const [doc, ai] = await Promise.all([
-            WordAudio.findOne({ word: normalizeWordKey(result.item.word) })
-                .select(dictionaryAudioOff
-                    ? 'definition'
-                    : 'word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
-                .lean(),
-            getAiAudioForWord({ schoolId, word: result.item.word })
+        const word = result?.item?.word;
+        if (!word) return result;
+        // AI clips follow the platform switch; the grade switch only adds dictionary voices.
+        const [gradeEnabled, ai] = await Promise.all([
+            isAudioEnabledForGrade(schoolId, result.item.grade),
+            getAiAudioForWord({ schoolId, word })
         ]);
+        if (!gradeEnabled && !ai) return result;
+        const doc = gradeEnabled
+            ? await WordAudio.findOne({ word: normalizeWordKey(word) })
+                .select('word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
+                .lean()
+            : null;
         const item = decorateItemWithAudio(result.item, true, doc, ai);
         return item === result.item ? result : { ...result, item };
     } catch {

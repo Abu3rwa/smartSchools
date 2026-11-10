@@ -13,6 +13,9 @@ export const platformAiCreditService = {
   getInboxSettings: () => api.get('/platform/ai-credit/inbox-settings').then(unwrap),
   updateInboxSettings: (body) =>
     api.patch('/platform/ai-credit/inbox-settings', body).then(unwrap),
+  getSpellingAudioSettings: () => api.get('/platform/ai-credit/spelling-audio-settings').then(unwrap),
+  updateSpellingAudioSettings: (body) =>
+    api.patch('/platform/ai-credit/spelling-audio-settings', body).then(unwrap),
   getSchools: () => api.get('/platform/ai-credit/schools').then(unwrap),
   fundSchool: (schoolId, body) =>
     api.post(`/platform/ai-credit/schools/${schoolId}/fund`, body).then(unwrap),

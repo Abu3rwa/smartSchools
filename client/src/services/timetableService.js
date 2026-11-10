@@ -36,6 +36,14 @@ const timetableService = {
         return response.data;
     },
 
+    // The lesson running right now, with its class roster and today's observations
+    getCurrentPeriod: async (tzOffset) => {
+        const response = await api.get('/timetable/current-period', {
+            params: { tzOffset }
+        });
+        return response.data;
+    },
+
     // Assignments
     getAssignments: async (params = {}) => {
         const response = await api.get('/timetable/assignments', { params });

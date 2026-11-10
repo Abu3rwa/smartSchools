@@ -21,6 +21,10 @@ const aiCreditSettingSchema = new mongoose.Schema(
         maxTranscriptSeconds: { type: Number, default: 30, min: 5, max: 300 },
         maxSpeechSeconds: { type: Number, default: 60, min: 5, max: 300 }
     },
+    // Spelling AI word audio. One switch for every school; schools cannot override it.
+    spellingAudio: {
+        enabled: { type: Boolean, default: false }
+    },
     // Inbox Assistant limits. Platform-wide like the voice block: one school-wide cap.
     inbox: {
         enabled: { type: Boolean, default: true },

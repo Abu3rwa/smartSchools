@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import process from 'node:process';
-import SpellingAiAudioSettings from '../models/SpellingAiAudioSettings.js';
+import AiCreditSetting from '../models/AiCreditSetting.js';
 import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingPronunciation from '../models/SpellingPronunciation.js';
 import SpellingWord from '../models/SpellingWord.js';
@@ -54,7 +54,14 @@ test('decorateItemWithAudio adds only an audio field and keeps every existing fi
     assert.ok(audio.dictionaries.longman);
 });
 
-test('attachAudioToCurrentItem returns the identical result when the grade flag is OFF', async (t) => {
+const platformSwitch = (t, enabled) => t.mock.method(
+    AiCreditSetting,
+    'findOne',
+    () => stubQuery({ spellingAudio: { enabled } })
+);
+
+test('attachAudioToCurrentItem returns the identical result when both switches are OFF', async (t) => {
+    platformSwitch(t, false);
     t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery(null));
     const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));
     const result = { session: { _id: 's1' }, item };
@@ -62,65 +69,75 @@ test('attachAudioToCurrentItem returns the identical result when the grade flag 
     assert.equal(lookup.mock.callCount(), 0);
 });
 
-test('attachAudioToCurrentItem adds audio when the flag is ON and never breaks on errors', async (t) => {
+test('dictionary audio still reaches students while the platform switch is OFF', async (t) => {
+    platformSwitch(t, false);
     t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
     const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));
     const result = { session: { _id: 's1' }, item };
     const withAudio = await attachAudioToCurrentItem(result, 'school1');
-    assert.ok(withAudio.item.audio);
+    assert.ok(withAudio.item.audio.dictionaries.longman);
     assert.equal(lookup.mock.calls[0].arguments[0].word, 'cat');
-
-    lookup.mock.mockImplementation(() => { throw new Error('db down'); });
-    assert.equal(await attachAudioToCurrentItem(result, 'school1'), result);
-    assert.equal((await attachAudioToCurrentItem({ session: {}, item: null }, 'school1')).item, null);
 });
 
-test('platform AI audio keeps dictionary URLs away from students', async (t) => {
-    const previous = process.env.SPELLING_AI_AUDIO;
-    process.env.SPELLING_AI_AUDIO = 'true';
-    try {
-        t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
-        t.mock.method(SpellingAiAudioSettings, 'findOne', () => stubQuery({ wordAudioEnabled: true }));
-        const publicId = 'a'.repeat(32);
-        t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{ key: 'k1', publicId, accent: 'uk' }]));
-        let selected;
-        t.mock.method(WordAudio, 'findOne', () => ({
-            select: (fields) => {
-                selected = fields;
-                return { lean: async () => ({ definition: 'a small furry pet' }) };
-            }
-        }));
+test('the platform switch never drops dictionary voices or example recordings', async (t) => {
+    platformSwitch(t, true);
+    t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
+    const publicId = 'a'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{ key: 'k1', publicId, accent: 'uk' }]));
+    let selected;
+    t.mock.method(WordAudio, 'findOne', () => ({
+        select: (fields) => {
+            selected = fields;
+            return { lean: async () => doc };
+        }
+    }));
 
-        const result = { session: { _id: 's1' }, item };
-        const withAudio = await attachAudioToCurrentItem(result, 'school1');
-        assert.equal(selected, 'definition');
-        assert.deepEqual(withAudio.item.audio, {
-            definition: 'a small furry pet',
-            ai: { uk: `/api/spelling/pronunciation/${publicId}` }
-        });
-        assert.equal(Object.hasOwn(withAudio.item.audio, 'dictionaries'), false);
-    } finally {
-        if (previous === undefined) delete process.env.SPELLING_AI_AUDIO;
-        else process.env.SPELLING_AI_AUDIO = previous;
-    }
+    const result = { session: { _id: 's1' }, item };
+    const withAudio = await attachAudioToCurrentItem(result, 'school1');
+    assert.match(selected, /longmanUS/);
+    assert.match(selected, /examples\.longman/);
+    assert.equal(withAudio.item.audio.dictionaries.longman.us, doc.longmanUS);
+    assert.equal(withAudio.item.audio.dictionaries.longman.examples[0], doc.examples.longman[0]);
+    assert.deepEqual(withAudio.item.audio.ai, { uk: `/api/spelling/pronunciation/${publicId}?v=2` });
 });
 
-test('platform AI audio leaves a school that has not enabled AI silent rather than serving dictionaries', async (t) => {
-    const previous = process.env.SPELLING_AI_AUDIO;
-    process.env.SPELLING_AI_AUDIO = 'true';
-    try {
-        t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
-        t.mock.method(SpellingAiAudioSettings, 'findOne', () => stubQuery({ wordAudioEnabled: false }));
-        t.mock.method(WordAudio, 'findOne', () => ({
-            select: () => ({ lean: async () => ({ definition: 'a small furry pet' }) })
-        }));
+test('AI clips reach students even when the grade switch is OFF', async (t) => {
+    platformSwitch(t, true);
+    t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery(null));
+    const publicId = 'b'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{ key: 'k1', publicId, accent: 'us' }]));
+    const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));
 
+    const result = { session: { _id: 's1' }, item };
+    const withAudio = await attachAudioToCurrentItem(result, 'school1');
+    assert.deepEqual(withAudio.item.audio, { ai: { us: `/api/spelling/pronunciation/${publicId}?v=2` } });
+    assert.equal(lookup.mock.callCount(), 0);
+});
+
+test('an explicit false in SPELLING_AI_AUDIO keeps AI clips away', async (t) => {
+    const previous = process.env.SPELLING_AI_AUDIO;
+    process.env.SPELLING_AI_AUDIO = 'false';
+    try {
+        platformSwitch(t, true);
+        t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery(null));
         const result = { session: { _id: 's1' }, item };
         assert.equal(await attachAudioToCurrentItem(result, 'school1'), result);
     } finally {
         if (previous === undefined) delete process.env.SPELLING_AI_AUDIO;
         else process.env.SPELLING_AI_AUDIO = previous;
     }
+});
+
+test('attachAudioToCurrentItem never breaks on errors', async (t) => {
+    platformSwitch(t, false);
+    t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
+    const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));
+    const result = { session: { _id: 's1' }, item };
+    assert.ok((await attachAudioToCurrentItem(result, 'school1')).item.audio);
+
+    lookup.mock.mockImplementation(() => { throw new Error('db down'); });
+    assert.equal(await attachAudioToCurrentItem(result, 'school1'), result);
+    assert.equal((await attachAudioToCurrentItem({ session: {}, item: null }, 'school1')).item, null);
 });
 
 test('audio search returns pronunciation and example audio for spelling words in the requesting school', async (t) => {
@@ -202,8 +219,8 @@ test('audio search shows generated AI clips even when AI word audio is switched 
 
     const [entry] = await searchSchoolWordAudio({ schoolId: 'school1', query: 'co' });
     assert.deepEqual(entry.ai, {
-        us: `/api/spelling/pronunciation/${usId}`,
-        uk: `/api/spelling/pronunciation/${ukId}`
+        us: `/api/spelling/pronunciation/${usId}?v=2`,
+        uk: `/api/spelling/pronunciation/${ukId}?v=2`
     });
 });
 

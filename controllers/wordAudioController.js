@@ -4,7 +4,7 @@ import {
     generateForSchool,
     getAiAudioSettings,
     getAiCoverage,
-    setAiAudioSetting
+    normalizeStoredAudio
 } from '../services/spellingPronunciationService.js';
 import {
     getAudioCoverage,
@@ -81,18 +81,17 @@ export const replaceWordAudioExample = asyncHandler(async (req, res) => {
     return res.json({ success: true, data });
 });
 
-export const aiAudioSettings = asyncHandler(async (req, res) => {
-    const data = await getAiAudioSettings({ schoolId: req.schoolId });
+export const aiAudioSettings = asyncHandler(async (_req, res) => {
+    const data = await getAiAudioSettings();
     return res.json({ success: true, data });
 });
 
-export const updateAiAudioSettings = asyncHandler(async (req, res) => {
-    const data = await setAiAudioSetting({
-        schoolId: req.schoolId,
-        userId: req.user?._id,
-        wordAudioEnabled: req.body?.wordAudioEnabled
+export const updateAiAudioSettings = asyncHandler(async (_req, res) => {
+    return res.status(409).json({
+        success: false,
+        message: 'AI word audio is controlled by the platform. A super admin turns it on or off for every school.',
+        code: 'SPELLING_AI_AUDIO_PLATFORM_CONTROLLED'
     });
-    return res.json({ success: true, data });
 });
 
 export const aiAudioCoverage = asyncHandler(async (req, res) => {
@@ -123,14 +122,19 @@ export const generateAiWordAudio = asyncHandler(async (req, res) => {
 // random id is unguessable and the bytes are a single word, never school data.
 export const getPronunciationAudio = asyncHandler(async (req, res) => {
     const doc = await findPronunciationByPublicId(req.params.publicId);
-    if (!doc?.data) {
+    const audio = normalizeStoredAudio(doc?.data);
+    if (!audio) {
         return res.status(404).json({ success: false, message: 'Pronunciation audio not found' });
     }
     res.set({
-        'Content-Type': doc.contentType || 'audio/mpeg',
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': audio.length,
         'Cache-Control': 'public, max-age=31536000, immutable',
         ETag: `"${doc.key}"`,
-        'X-Content-Type-Options': 'nosniff'
+        'X-Content-Type-Options': 'nosniff',
+        // The client is served from another origin than the API, so Helmet's
+        // same-origin default silently blocks every clip with media error 4.
+        'Cross-Origin-Resource-Policy': 'cross-origin'
     });
-    return res.send(doc.data);
+    return res.send(audio);
 });

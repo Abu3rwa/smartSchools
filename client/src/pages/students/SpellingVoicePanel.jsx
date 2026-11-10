@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { Box, Button, Collapse, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
 import { HiOutlineSpeakerWave, HiOutlineChevronDown, HiOutlineCheck } from 'react-icons/hi2';
-import { DEFAULT_VOICE_ID, getSpellingVoiceOptions } from '../../utils/voicePlayback';
+import { DEFAULT_VOICE_ID, SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions } from '../../utils/voicePlayback';
 
 const TARGET = { minHeight: 44 }; // comfortable touch target
 
@@ -22,7 +22,11 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
     const [open, setOpen] = useState(true);
     const panelId = useId();
     const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-    const dictionaries = useMemo(() => Object.entries(audio?.dictionaries || {}), [audio]);
+    // Example sentences come from dictionary recordings, so they are hidden with them.
+    const dictionaries = useMemo(
+        () => (SHOW_DICTIONARY_SOURCES ? Object.entries(audio?.dictionaries || {}) : []),
+        [audio]
+    );
     const voices = useMemo(() => {
         const options = getSpellingVoiceOptions(audio);
         const aiAccents = new Set(Object.keys(audio?.ai || {}));

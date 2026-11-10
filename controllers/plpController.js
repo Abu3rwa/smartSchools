@@ -26,6 +26,7 @@ import { buildPlpRoundZip } from '../services/plpRoundExportService.js';
 import { buildPlpReportModel } from '../services/plpReportModel.js';
 import { generatePlpReportPdf } from '../services/plpReportPdfService.js';
 import { collectPracticeCandidates } from '../services/plpPracticeLinkService.js';
+import { assertTeacherCanCaptureClass } from '../services/timetable/currentPeriodService.js';
 import logger from '../utils/logger.js';
 
 const THEME_TRAITS = {
@@ -1780,6 +1781,8 @@ export const getEvidence = asyncHandler(async (req, res) => {
     const evidence = await PlpEvidence.find({ school: req.user.school, plpRecord: id })
         .populate('teacher', 'firstName lastName')
         .populate('traitId', 'name code themeCode')
+        .populate('subject', 'name code')
+        .populate('period', 'name startTime endTime order')
         .sort({ createdAt: -1 });
     res.json({ success: true, data: evidence });
 });
@@ -1875,6 +1878,8 @@ export const getStudentEvidence = asyncHandler(async (req, res) => {
     const evidence = records.length === 0 ? [] : await PlpEvidence.find(evidenceFilter)
         .populate('teacher', 'firstName lastName')
         .populate('traitId', 'name code themeCode month')
+        .populate('subject', 'name code')
+        .populate('period', 'name startTime endTime order')
         .sort({ createdAt: -1 })
         .lean();
     const enrichedEvidence = evidence.map((item) => ({
@@ -2099,6 +2104,8 @@ export const createEvidence = asyncHandler(async (req, res) => {
         aiConfidence: aiConfidence || null,
         aiRationale: aiRationale || null,
         reviewStatus: reviewStatus || 'confirmed',
+        class: record.class || null,
+        capturedVia: 'manual',
     });
     await audit(req.user.school, req.user._id, 'evidence_created', 'PlpEvidence', evidence._id, { recordId: id, type: evidence.type });
 
@@ -2137,7 +2144,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
 });
 
 export const classifyObservationDraft = asyncHandler(async (req, res) => {
-    const { studentId, rawText, capturedAt, classId } = req.body || {};
+    const { studentId, rawText, capturedAt, classId, periodId, tzOffset } = req.body || {};
     if (!studentId || !String(rawText || '').trim()) {
         return res.status(400).json({ success: false, message: 'studentId and rawText are required' });
     }
@@ -2154,7 +2161,13 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Student has no active class assignment' });
     }
 
-    await assertTeacherHomeroomClassAccess(req.user, effectiveClassId, student.academicYear || req.academicYear || null);
+    await assertTeacherCanCaptureClass({
+        user: req.user,
+        classId: effectiveClassId,
+        periodId,
+        at: new Date(),
+        tzOffset,
+    });
 
     const availableTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
         .select('_id name code description month themeCode displayOrder')
@@ -2186,7 +2199,7 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
 });
 
 export const createQuickObservation = asyncHandler(async (req, res) => {
-    const { studentId, rawText, traitId, capturedAt, classId, cycleId: requestedCycleId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus } = req.body || {};
+    const { studentId, rawText, traitId, capturedAt, classId, periodId, tzOffset, cycleId: requestedCycleId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus } = req.body || {};
     const noteInput = String(rawText || '').trim();
     if (!studentId || !noteInput) {
         return res.status(400).json({ success: false, message: 'studentId and rawText are required' });
@@ -2204,7 +2217,13 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Student has no active class assignment' });
     }
 
-    await assertTeacherHomeroomClassAccess(req.user, effectiveClassId, student.academicYear || req.academicYear || null);
+    const captureContext = await assertTeacherCanCaptureClass({
+        user: req.user,
+        classId: effectiveClassId,
+        periodId,
+        at: new Date(),
+        tzOffset,
+    });
 
     const observationDate = capturedAt ? new Date(capturedAt) : new Date();
     if (Number.isNaN(observationDate.getTime())) {
@@ -2323,6 +2342,10 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         aiConfidence: aiConfidence || resolvedConfidence || null,
         aiRationale: aiRationale || resolvedRationale || null,
         reviewStatus,
+        class: effectiveClassId,
+        subject: captureContext?.assignment?.subject?._id || captureContext?.subject?._id || null,
+        period: captureContext?.assignment?.period?._id || periodId || null,
+        capturedVia: captureContext?.via === 'timetable' ? 'timetable' : 'manual',
     });
 
     const config = await PlpMonthConfig.findOne({

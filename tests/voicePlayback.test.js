@@ -30,14 +30,12 @@ test('getVoiceOptions lists only the voices that exist for the word', () => {
     assert.deepEqual(getVoiceOptions(undefined), []);
 });
 
-test('generated clips come first and are numbered like every other spelling voice', () => {
+test('generated clips are the only spelling voices while dictionary sources are hidden', () => {
     assert.deepEqual(getSpellingVoiceOptions(aiAudio).map((option) => option.label), [
         'US 1',
-        'UK 1',
-        'US 2',
-        'US 3',
-        'UK 2'
+        'UK 1'
     ]);
+    assert.deepEqual(getSpellingVoiceOptions(audio), []);
     assert.deepEqual(getVoiceOptions(aiAudio).slice(0, 2).map((option) => option.id), ['ai-us', 'ai-uk']);
 });
 
@@ -55,10 +53,12 @@ test('the default playback prefers the generated clip, UK then US', () => {
     assert.equal(resolvePlaybackVoice(null, 'default'), null);
 });
 
-test('a saved dictionary voice is ignored once a generated clip covers its accent', () => {
+test('a saved dictionary voice never plays a dictionary recording', () => {
     assert.equal(resolvePlaybackVoice(aiAudio, 'oxford-us').id, 'ai-uk');
     assert.equal(resolvePlaybackVoice(aiAudio, 'ai-us').id, 'ai-us');
-    assert.equal(resolvePlaybackVoice(audio, 'oxford-uk').id, 'oxford-uk');
+    // No generated clip and dictionary sources hidden: nothing to play, so the
+    // student page falls back to the browser voice.
+    assert.equal(resolvePlaybackVoice(audio, 'oxford-uk'), null);
 });
 
 test('voice choice is stored and read back, defaulting safely', () => {

@@ -6,7 +6,7 @@
 import crypto from 'crypto';
 import { parseBooleanEnv } from '../config/booleanEnv.js';
 import { audioCentsPerMinute } from '../config/aiPricing.js';
-import SpellingAiAudioSettings from '../models/SpellingAiAudioSettings.js';
+import AiCreditSetting from '../models/AiCreditSetting.js';
 import SpellingPronunciation from '../models/SpellingPronunciation.js';
 import SpellingWord from '../models/SpellingWord.js';
 import { chargeUsage, roundCents } from './aiCreditService.js';
@@ -20,8 +20,16 @@ const MAX_WORD_LENGTH = 200;
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 
-/** The platform kill switch. Off means no generation and no playback, whatever a school saved. */
-export const isAiAudioAllowed = (env = process.env) => parseBooleanEnv(env[AI_AUDIO_ENV]);
+const PLATFORM_KEY = 'default';
+
+/** An explicit false in the deployment forces AI audio off, whatever the platform switch says. */
+export const isEnvForcedOff = (env = process.env) => {
+    const raw = String(env[AI_AUDIO_ENV] ?? '').trim();
+    return raw !== '' && !parseBooleanEnv(raw);
+};
+
+/** True unless the deployment forces AI audio off. Does not read the platform switch. */
+export const isAiAudioAllowed = (env = process.env) => !isEnvForcedOff(env);
 
 export const resolveTtsConfig = (env = process.env) => ({
     model: String(env.SPELLING_TTS_MODEL || '').trim() || 'gpt-4o-mini-tts',
@@ -44,7 +52,11 @@ export const pronunciationKey = ({ word, accent, model, voice, instructions }) =
     .digest('hex');
 
 const publicId = () => crypto.randomBytes(16).toString('hex');
-export const pronunciationUrl = (id) => `/api/spelling/pronunciation/${id}`;
+// Bumped when the bytes behind a publicId start serving differently: old
+// responses were cached immutable for a year, so the URL has to change.
+export const AUDIO_URL_VERSION = 2;
+
+export const pronunciationUrl = (id) => `/api/spelling/pronunciation/${id}?v=${AUDIO_URL_VERSION}`;
 
 const mapWithConcurrency = async (items, limit, worker) => {
     let next = 0;
@@ -69,26 +81,36 @@ const uniqueWords = (words = []) => {
     return byKey;
 };
 
-export const getAiAudioSettings = async ({ schoolId }) => {
-    const setting = await SpellingAiAudioSettings.findOne({ school: schoolId }).select('wordAudioEnabled').lean();
-    return { available: isAiAudioAllowed(), wordAudioEnabled: setting?.wordAudioEnabled === true };
+/** The one switch that covers every school. `available` is what students actually get. */
+export const getPlatformSpellingAudioSettings = async (env = process.env) => {
+    const setting = await AiCreditSetting.findOne({ key: PLATFORM_KEY }).select('spellingAudio').lean();
+    const enabled = setting?.spellingAudio?.enabled === true;
+    const envForcedOff = isEnvForcedOff(env);
+    return { enabled, envForcedOff, available: enabled && !envForcedOff };
 };
 
-export const setAiAudioSetting = async ({ schoolId, userId, wordAudioEnabled }) => {
-    if (typeof wordAudioEnabled !== 'boolean') throw badRequest('wordAudioEnabled must be true or false');
-    await SpellingAiAudioSettings.findOneAndUpdate(
-        { school: schoolId },
-        { $set: { wordAudioEnabled, updatedBy: userId } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+export const savePlatformSpellingAudioSettings = async ({ enabled, updatedBy, env = process.env } = {}) => {
+    if (typeof enabled !== 'boolean') throw badRequest('enabled must be true or false');
+    await AiCreditSetting.findOneAndUpdate(
+        { key: PLATFORM_KEY },
+        { $set: { 'spellingAudio.enabled': enabled, updatedBy } },
+        { upsert: true, setDefaultsOnInsert: true }
     );
-    return getAiAudioSettings({ schoolId });
+    return getPlatformSpellingAudioSettings(env);
 };
 
-export const isAiAudioEnabledForSchool = async (schoolId, env = process.env) => {
-    if (!isAiAudioAllowed(env)) return false;
-    const setting = await SpellingAiAudioSettings.findOne({ school: schoolId }).select('wordAudioEnabled').lean();
-    return setting?.wordAudioEnabled === true;
+export const isAiAudioEnabled = async (env = process.env) => {
+    const { available } = await getPlatformSpellingAudioSettings(env);
+    return available;
 };
+
+/** Kept for the school admin page: the platform owns the switch, so the answer is never per school. */
+export const getAiAudioSettings = async (env = process.env) => {
+    const { enabled, envForcedOff, available } = await getPlatformSpellingAudioSettings(env);
+    return { available, wordAudioEnabled: enabled, platformControlled: true, envForcedOff };
+};
+
+export const isAiAudioEnabledForSchool = async (_schoolId, env = process.env) => isAiAudioEnabled(env);
 
 const keysForWord = (word, config) => ACCENTS.map((accent) => {
     const instructions = instructionFor(accent);
@@ -112,7 +134,7 @@ export const generateMissingPronunciations = async ({
     env = process.env,
     maxClips = 80
 }) => {
-    if (!isAiAudioAllowed(env)) {
+    if (!(await isAiAudioEnabled(env))) {
         return { available: false, generated: 0, failed: 0, remaining: 0, speechSeconds: 0, costCents: 0 };
     }
     const config = resolveTtsConfig(env);
@@ -203,7 +225,7 @@ export const generateMissingPronunciations = async ({
 };
 
 export const generateForSchool = async ({ schoolId, userId, grade = '', limit = 80, env = process.env }) => {
-    if (!isAiAudioAllowed(env)) return { available: false, generated: 0, failed: 0, remaining: 0, speechSeconds: 0, costCents: 0 };
+    if (!(await isAiAudioEnabled(env))) return { available: false, generated: 0, failed: 0, remaining: 0, speechSeconds: 0, costCents: 0 };
     const normalizedGrade = String(grade || '').trim().toUpperCase();
     const words = await SpellingWord.find({
         school: schoolId,
@@ -232,9 +254,9 @@ const wordsByGrade = (rows = []) => {
 
 export const getAiCoverage = async ({ schoolId, env = process.env }) => {
     const config = resolveTtsConfig(env);
-    const [rows, setting] = await Promise.all([
+    const [rows, platform] = await Promise.all([
         SpellingWord.find({ school: schoolId }).select('grade word').lean(),
-        SpellingAiAudioSettings.findOne({ school: schoolId }).select('wordAudioEnabled').lean()
+        getPlatformSpellingAudioSettings(env)
     ]);
     const byGrade = wordsByGrade(rows);
     const allKeys = [];
@@ -287,8 +309,10 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
         });
 
     return {
-        available: isAiAudioAllowed(env),
-        wordAudioEnabled: setting?.wordAudioEnabled === true,
+        available: platform.available,
+        wordAudioEnabled: platform.enabled,
+        platformControlled: true,
+        envForcedOff: platform.envForcedOff,
         ttsModel: config.model,
         centsPerMinute,
         grades
@@ -351,4 +375,36 @@ export const findPronunciationByPublicId = async (value) => {
     const id = String(value || '').trim();
     if (!/^[a-f0-9]{32}$/.test(id)) return null;
     return SpellingPronunciation.findOne({ publicId: id }).select('+data contentType key').lean();
+};
+
+const startsLikeAudio = (bytes) => Boolean(bytes?.length >= 2 && (
+    (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) // ID3
+    || (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) // RIFF
+    || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) // MPEG frame sync
+));
+
+const toBuffer = (value) => {
+    if (!value) return null;
+    if (Buffer.isBuffer(value)) return value;
+    if (value instanceof Uint8Array) return Buffer.from(value);
+    // A lean() document can hand back a BSON Binary, which Express would
+    // serialise as JSON (a quoted base64 string) instead of audio bytes.
+    if (value.buffer instanceof Uint8Array) return Buffer.from(value.buffer);
+    if (typeof value.value === 'function' && value.value() instanceof Uint8Array) return Buffer.from(value.value());
+    return Buffer.from(value);
+};
+
+/**
+ * Some clips were stored as a base64 string instead of audio bytes. The browser
+ * rejects those with media error 4, so decode them when serving. New clips are
+ * written as raw bytes and pass straight through.
+ */
+export const normalizeStoredAudio = (value) => {
+    const bytes = toBuffer(value);
+    if (!bytes?.length) return null;
+    if (startsLikeAudio(bytes)) return bytes;
+    const text = bytes.toString('utf8').trim().replace(/^["']+|["']+$/g, '').replace(/\s+/g, '');
+    if (!text || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) return bytes;
+    const decoded = Buffer.from(text, 'base64');
+    return startsLikeAudio(decoded) ? decoded : bytes;
 };

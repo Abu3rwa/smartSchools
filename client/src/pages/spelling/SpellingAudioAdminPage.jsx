@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, FormControlLabel } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../config/api';
 import { toApiUrl } from '../../config/apiBase';
 import { selectIsAdmin } from '../../store/slices/authSlice';
+import { SHOW_DICTIONARY_SOURCES } from '../../utils/voicePlayback';
 
 const COVERAGE_COLUMNS = [
     ['longmanUS', 'Longman US'],
@@ -69,6 +70,16 @@ const SpellingAudioAdminPage = () => {
     const [aiSettings, setAiSettings] = useState(null);
     const [aiCoverage, setAiCoverage] = useState(null);
     const [aiBusyGrade, setAiBusyGrade] = useState('');
+    const [aiTests, setAiTests] = useState({});
+    const aiTestAudioRef = useRef(null);
+
+    useEffect(() => () => {
+        const audio = aiTestAudioRef.current;
+        if (!audio) return;
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }, []);
 
     const loadCoverage = useCallback(async () => {
         try {
@@ -92,7 +103,7 @@ const SpellingAudioAdminPage = () => {
         }
     }, []);
 
-    useEffect(() => { if (isAdmin) loadCoverage(); }, [isAdmin, loadCoverage]);
+    useEffect(() => { if (isAdmin && SHOW_DICTIONARY_SOURCES) loadCoverage(); }, [isAdmin, loadCoverage]);
     useEffect(() => { if (isAdmin) loadAiAudio(); }, [isAdmin, loadAiAudio]);
 
     const searchExamples = async (event) => {
@@ -240,16 +251,6 @@ const SpellingAudioAdminPage = () => {
         }
     };
 
-    const toggleAiAudio = async (enabled) => {
-        try {
-            const response = await api.put('/spelling/word-audio/ai/settings', { wordAudioEnabled: enabled });
-            setAiSettings(response.data.data);
-            await loadAiAudio();
-        } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to change AI word audio.' });
-        }
-    };
-
     const generateAiAudio = async (grade) => {
         setAiBusyGrade(grade);
         setMessage(null);
@@ -269,6 +270,77 @@ const SpellingAudioAdminPage = () => {
         }
     };
 
+    const stopAiTestAudio = () => {
+        const audio = aiTestAudioRef.current;
+        if (!audio) return;
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        aiTestAudioRef.current = null;
+    };
+
+    const setAiTestResult = (key, result) => {
+        setAiTests((current) => ({ ...current, [key]: result }));
+    };
+
+    const testAiClip = async (entry, accent) => {
+        const relative = entry.ai?.[accent];
+        if (!relative) return;
+        const key = `${entry.word}:${accent}`;
+        const resolved = toApiUrl(relative);
+        stopAiTestAudio();
+        setAiTestResult(key, { status: 'loading', detail: 'Checking that this server delivers the clip…' });
+        const audio = new Audio(resolved);
+        audio.preload = 'auto';
+        aiTestAudioRef.current = audio;
+        const startedAt = performance.now();
+        const started = new Promise((resolve, reject) => {
+            const timer = window.setTimeout(() => reject(new Error('The clip did not start within 8 seconds.')), 8000);
+            audio.addEventListener('playing', () => {
+                window.clearTimeout(timer);
+                resolve(performance.now() - startedAt);
+            }, { once: true });
+            audio.addEventListener('error', () => {
+                window.clearTimeout(timer);
+                const code = audio.error?.code;
+                reject(new Error(code
+                    ? `The browser could not play this clip (media error ${code}).`
+                    : 'The browser could not play this clip.'));
+            }, { once: true });
+        });
+        // Both rejections are reported below; this keeps them from surfacing as unhandled.
+        started.catch(() => {});
+        audio.play().catch(() => {});
+        let serverNote;
+        try {
+            const response = await fetch(resolved, { cache: 'no-store' });
+            if (!response.ok) {
+                stopAiTestAudio();
+                setAiTestResult(key, {
+                    status: 'error',
+                    detail: `The server answered HTTP ${response.status}, so this clip is not being served. Address: ${resolved}`
+                });
+                return;
+            }
+            const bytes = Number(response.headers.get('content-length') || 0);
+            const type = response.headers.get('content-type') || 'unknown type';
+            serverNote = bytes > 0 ? `${(bytes / 1024).toFixed(1)} KB of ${type}` : type;
+            response.body?.cancel?.();
+        } catch {
+            serverNote = 'the server check could not run in this browser, so playback is the test';
+        }
+        try {
+            const latency = await started;
+            setAiTestResult(key, {
+                status: 'ok',
+                detail: `Working. The browser started this clip in ${Math.round(latency)} ms and the server sent ${serverNote}. Students hear exactly this clip.`
+            });
+        } catch (error) {
+            stopAiTestAudio();
+            setAiTestResult(key, { status: 'error', detail: `${error.message} Address: ${resolved}` });
+        }
+    };
+
     return (
         <Stack spacing={3} sx={{ p: { xs: 1, sm: 3 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
@@ -281,9 +353,13 @@ const SpellingAudioAdminPage = () => {
             <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
-                        <Typography variant="h6" component="h2">Review and edit spelling audio</Typography>
+                        <Typography variant="h6" component="h2">
+                            {SHOW_DICTIONARY_SOURCES ? 'Review and edit spelling audio' : 'Test AI word audio'}
+                        </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Search for a spelling word to listen to and edit its Longman, Oxford, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.
+                            {SHOW_DICTIONARY_SOURCES
+                                ? 'Search for a spelling word to listen to and edit its Longman, Oxford, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.'
+                                : 'Search for a spelling word to hear its generated AI clip and check that it plays. Students hear exactly the clip tested here.'}
                         </Typography>
                         <Box component="form" onSubmit={searchExamples}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -302,7 +378,7 @@ const SpellingAudioAdminPage = () => {
                         {audioResults.map((entry) => (
                             <Box key={`${entry.word}-${entry.grade}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
                                 <Typography variant="subtitle1">{entry.word} · {entry.grade}</Typography>
-                                <Stack spacing={1} sx={{ mt: 1 }}>
+                                {SHOW_DICTIONARY_SOURCES && <Stack spacing={1} sx={{ mt: 1 }}>
                                     {PRONUNCIATION_FIELDS.map(([field, label]) => {
                                         const key = `${entry.word}:pronunciation:${field}`;
                                         const currentUrl = entry.pronunciations[field] || '';
@@ -335,34 +411,66 @@ const SpellingAudioAdminPage = () => {
                                             </Stack>
                                         );
                                     })}
-                                </Stack>
+                                </Stack>}
                                 <Stack
                                     spacing={1}
                                     sx={{ mt: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}
                                 >
                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>AI word audio</Typography>
-                                    {['us', 'uk'].map((accent) => (
-                                        <Stack key={accent} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                                            <Typography variant="body2" sx={{ minWidth: 210 }}>AI {accent.toUpperCase()} pronunciation</Typography>
-                                            {entry.ai?.[accent] ? (
-                                                <audio
-                                                    controls
-                                                    preload="none"
-                                                    src={toApiUrl(entry.ai[accent])}
-                                                    aria-label={`${entry.word} AI ${accent.toUpperCase()} pronunciation`}
-                                                />
-                                            ) : (
-                                                <Typography variant="body2" color="text.secondary">Not generated yet.</Typography>
-                                            )}
-                                        </Stack>
-                                    ))}
+                                    {['us', 'uk'].map((accent) => {
+                                        const clip = entry.ai?.[accent];
+                                        const testKey = `${entry.word}:${accent}`;
+                                        const test = aiTests[testKey];
+                                        return (
+                                            <Stack key={accent} spacing={0.5}>
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                                                    <Typography variant="body2" sx={{ minWidth: 210 }}>AI {accent.toUpperCase()} pronunciation</Typography>
+                                                    {clip ? (
+                                                        <>
+                                                            <audio
+                                                                controls
+                                                                preload="none"
+                                                                src={toApiUrl(clip)}
+                                                                aria-label={`${entry.word} AI ${accent.toUpperCase()} pronunciation`}
+                                                            />
+                                                            <Button
+                                                                size="small"
+                                                                variant="outlined"
+                                                                disabled={test?.status === 'loading'}
+                                                                onClick={() => testAiClip(entry, accent)}
+                                                                aria-label={`Test AI ${accent.toUpperCase()} playback for ${entry.word}`}
+                                                            >
+                                                                {test?.status === 'loading' ? 'Testing…' : 'Test playback'}
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <Typography variant="body2" color="text.secondary">Not generated yet.</Typography>
+                                                    )}
+                                                </Stack>
+                                                {clip && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+                                                        {toApiUrl(clip)}
+                                                    </Typography>
+                                                )}
+                                                {test && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        role="status"
+                                                        color={test.status === 'error' ? 'error.main' : 'text.secondary'}
+                                                    >
+                                                        {test.detail}
+                                                    </Typography>
+                                                )}
+                                            </Stack>
+                                        );
+                                    })}
                                     {(!entry.ai?.us || !entry.ai?.uk) && (
                                         <Typography variant="caption" color="text.secondary">
                                             Generate missing clips per grade in the AI word audio card below.
                                         </Typography>
                                     )}
                                 </Stack>
-                                <Stack spacing={1} sx={{ mt: 1 }}>
+                                {SHOW_DICTIONARY_SOURCES && <Stack spacing={1} sx={{ mt: 1 }}>
                                     {entry.examples.map((example, index) => {
                                         const key = `${entry.word}:${example.dictionary}:${example.url}`;
                                         return (
@@ -405,14 +513,14 @@ const SpellingAudioAdminPage = () => {
                                             </Box>
                                         );
                                     })}
-                                </Stack>
+                                </Stack>}
                             </Box>
                         ))}
                     </Stack>
                 </CardContent>
             </Card>
 
-            {isAdmin && <Card variant="outlined">
+            {isAdmin && SHOW_DICTIONARY_SOURCES && <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
                         <Typography variant="h6" component="h2">Import audio CSV</Typography>
@@ -462,7 +570,7 @@ const SpellingAudioAdminPage = () => {
                 </CardContent>
             </Card>}
 
-            {isAdmin && <Card variant="outlined">
+            {isAdmin && SHOW_DICTIONARY_SOURCES && <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
                         <Typography variant="h6" component="h2">Coverage and per-grade switch</Typography>
@@ -516,8 +624,10 @@ const SpellingAudioAdminPage = () => {
                             {aiSettings && (
                                 <Chip
                                     size="small"
-                                    color={aiSettings.available ? 'success' : 'default'}
-                                    label={aiSettings.available ? 'Available on this platform' : 'Turned off on this platform'}
+                                    color={aiSettings.envForcedOff ? 'warning' : aiSettings.available ? 'success' : 'default'}
+                                    label={aiSettings.envForcedOff
+                                        ? 'Forced off by this deployment'
+                                        : aiSettings.available ? 'On for every school' : 'Off for every school'}
                                 />
                             )}
                         </Stack>
@@ -525,25 +635,28 @@ const SpellingAudioAdminPage = () => {
                             Pronunciation clips are generated once, stored in our database, and reused for every school.
                             Students never call AI; they play the stored clip. Generation is charged to this school's AI credits.
                         </Typography>
-                        <FormControlLabel
-                            label={aiSettings?.wordAudioEnabled ? 'AI word audio is on for this school' : 'AI word audio is off for this school'}
-                            control={(
-                                <Switch
-                                    checked={Boolean(aiSettings?.wordAudioEnabled)}
-                                    disabled={!aiSettings?.available}
-                                    onChange={(event) => toggleAiAudio(event.target.checked)}
-                                    inputProps={{ 'aria-label': 'Enable AI word audio for this school' }}
-                                />
-                            )}
-                        />
-                        {aiSettings && !aiSettings.available && (
+                        <Typography variant="body2" color="text.secondary">
+                            {aiSettings?.envForcedOff
+                                ? 'AI word audio is turned off on this server. Nothing can be generated or played until it is enabled there.'
+                                : aiSettings?.available
+                                    ? 'AI word audio is on for every school. Generated clips play automatically; you do not need to enable anything here.'
+                                    : 'AI word audio is off for every school. A super admin turns it on from AI Credit; schools cannot change it.'}
+                        </Typography>
+                        {aiSettings && !aiSettings.available && !aiSettings.envForcedOff && (
                             <Alert severity="info">
-                                AI word audio is switched off for the whole platform. It appears here, but nothing can be generated
-                                or played until it is enabled on the server.
+                                AI word audio is controlled by the platform. Ask a super admin to turn it on
+                                in AI Credit, under AI word audio.
                             </Alert>
                         )}
+                        {SHOW_DICTIONARY_SOURCES && (
+                            <Typography variant="body2" color="text.secondary">
+                                The grade switches above add dictionary voices and example recordings. They do not affect AI clips.
+                            </Typography>
+                        )}
                         <Typography variant="body2" color="text.secondary">
-                            Grades still need their extra voices switched on above before students see the clips.
+                            To test what a student hears, search a word above and press “Test playback” beside its AI US
+                            or AI UK clip. It plays that exact clip and reports whether this server delivered it, so a
+                            silent failure can no longer pass as a working clip.
                         </Typography>
                         {aiCoverage?.grades?.length > 0 && (
                             <TableContainer>

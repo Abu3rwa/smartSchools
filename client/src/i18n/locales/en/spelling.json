@@ -229,6 +229,8 @@
   "raiseYourHand": "Raise your hand",
   "handIsRaised": "Your hand is raised. Your teacher will help you soon.",
   "needHelpHint": "Can't hear properly or need help? Raise your hand.",
+  "browserVoiceFallback": "That clip isn't available right now, so the browser read the word aloud.",
+  "browserVoiceUnavailable": "This browser cannot read the word aloud.",
   "pluralNoOxfordAudio": "This word is plural and has no extra recording. Raise your hand so your teacher can say it to you.",
   "pasteBlockedHint": "Type only what you hear. Pasting and right-click are turned off for this test.",
   "yourAnswerLabel": "Your answer:",

@@ -69,9 +69,11 @@ export const listAssignments = asyncHandler(async (req, res) => {
 });
 
 export const getAssignment = asyncHandler(async (req, res) => {
-  const assignment = await writingService.getAssignment({
+  const assignment = await writingService.getAssignmentForTeacher({
     schoolId: req.schoolId,
     assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
   });
   res.json({ success: true, data: assignment });
 });
@@ -146,6 +148,8 @@ export const getBoard = asyncHandler(async (req, res) => {
       schoolId: req.schoolId,
       assignmentId: req.params.assignmentId,
       classId: req.query.classId,
+      userId: req.user._id,
+      isAdmin: isAdminUser(req.user),
     }),
     getCreditBadge({ schoolId: req.schoolId, userId: req.user._id }),
   ]);
@@ -159,11 +163,19 @@ export const getProgress = asyncHandler(async (req, res) => {
   const progress = await writingService.getClassProgress({
     schoolId: req.schoolId,
     assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
   });
   res.json({ success: true, data: progress });
 });
 
 export const exportProjectPdfForTeacher = asyncHandler(async (req, res) => {
+  await writingService.assertProjectVisibleToTeacher({
+    schoolId: req.schoolId,
+    projectId: req.params.projectId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+  });
   const pdf = await renderWritingProjectPdf({
     schoolId: req.schoolId,
     projectId: req.params.projectId,
@@ -175,11 +187,21 @@ export const exportProjectPdfForTeacher = asyncHandler(async (req, res) => {
 });
 
 export const getProjectHistory = asyncHandler(async (req, res) => {
-  const history = await writingService.getProjectHistory({
-    schoolId: req.schoolId,
-    projectId: req.params.projectId,
+  // The review screen publishes from here, so it needs the same recipient
+  // channels and credit badge the board returns — one request, not two.
+  const [history, credit] = await Promise.all([
+    writingService.getProjectHistory({
+      schoolId: req.schoolId,
+      projectId: req.params.projectId,
+      userId: req.user._id,
+      isAdmin: isAdminUser(req.user),
+    }),
+    getCreditBadge({ schoolId: req.schoolId, userId: req.user._id }),
+  ]);
+  res.json({
+    success: true,
+    data: { ...history, emailDelivery: emailChannels(), credit },
   });
-  res.json({ success: true, data: history });
 });
 
 /* Teacher: assessment and publication */

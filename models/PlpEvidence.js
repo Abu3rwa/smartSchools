@@ -14,6 +14,12 @@ const plpEvidenceSchema = new mongoose.Schema({
     aiConfidence: { type: String, enum: ['high', 'medium', 'low', null], default: null },
     aiRationale: { type: String, default: null },
     reviewStatus: { type: String, enum: ['confirmed', 'needs_review'], default: 'confirmed' },
+    // Where the observation came from. The timetable context lets parent updates
+    // say which lesson the note belongs to instead of only the date.
+    class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
+    subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    period: { type: mongoose.Schema.Types.ObjectId, ref: 'TimetablePeriod', default: null },
+    capturedVia: { type: String, enum: ['manual', 'timetable'], default: 'manual' },
 }, { timestamps: true });
 
 plpEvidenceSchema.plugin(tenantIsolationPlugin);

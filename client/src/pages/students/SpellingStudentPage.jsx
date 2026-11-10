@@ -16,14 +16,15 @@ import {
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
 import SpellingVoicePanel from './SpellingVoicePanel';
-import { getSpellingVoiceOptions, getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
+import { SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions, getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
 
 const HISTORY_PAGE_SIZE = 8;
 
 // The voice panel only makes sense when there is something to play; a payload with just
 // a shared definition keeps the plain "Hear word" button.
 const hasVoicePanel = (audio) => getSpellingVoiceOptions(audio).length > 0
-    || Object.values(audio?.dictionaries || {}).some((section) => section?.examples?.length > 0);
+    || (SHOW_DICTIONARY_SOURCES
+        && Object.values(audio?.dictionaries || {}).some((section) => section?.examples?.length > 0));
 
 const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
     mode === 'self-serve'
@@ -225,29 +226,34 @@ const SpellingStudentPage = () => {
 
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
 
-    const playDefaultWord = (word) => {
+    // The only fallback is the browser's own voice. No dictionary recording is played
+    // when a generated clip is missing, switched off, or fails to load.
+    const speakWithBrowser = (word) => {
+        const text = String(word || '').trim();
+        const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
         if (activeAudioRef.current) {
             const activeAudio = activeAudioRef.current;
             activeAudioRef.current = null;
             activeAudio.pause();
         }
-        const encodedWord = encodeURIComponent(String(word || '').trim().toLowerCase());
-        if (!encodedWord) return;
-        const audio = new Audio(`https://ssl.gstatic.com/dictionary/static/sounds/20200429/${encodedWord}--_gb_1.mp3`);
-        activeAudioRef.current = audio;
-        audio.onended = () => {
-            activeAudioRef.current = null;
+        if (!text) {
             setAudioPlaying(false);
-        };
-        audio.onerror = () => {
-            activeAudioRef.current = null;
+            return;
+        }
+        if (!synth || typeof window.SpeechSynthesisUtterance !== 'function') {
             setAudioPlaying(false);
-        };
+            setVoiceNotice(t('browserVoiceUnavailable'));
+            return;
+        }
+        synth.cancel();
+        const utterance = new window.SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-GB';
+        utterance.rate = 0.9;
+        utterance.onend = finishPlayback;
+        utterance.onerror = finishPlayback;
+        activeAudioRef.current = { pause: () => synth.cancel() };
         setAudioPlaying(true);
-        audio.play().catch(() => {
-            activeAudioRef.current = null;
-            setAudioPlaying(false);
-        });
+        synth.speak(utterance);
     };
 
     const finishPlayback = () => {
@@ -255,19 +261,19 @@ const SpellingStudentPage = () => {
         setAudioPlaying(false);
     };
 
-    // Generated clip (or chosen voice) -> Default (the original playback above). Any failure uses Default.
+    // Generated clip (or the chosen voice) first; the browser voice is the only fallback.
     const speakWord = (word, audio = null, voiceId = selectedVoice) => {
         const voice = resolvePlaybackVoice(audio, voiceId);
         if (!voice) {
-            playDefaultWord(word);
+            speakWithBrowser(word);
             return;
         }
         if (activeAudioRef.current) activeAudioRef.current.pause();
         setAudioPlaying(true);
         const { handle } = playWithFallback({
             url: voice.url,
-            playDefault: () => playDefaultWord(word),
-            onFallback: () => setVoiceNotice("That voice isn't available right now, so we used the default voice."),
+            playDefault: () => speakWithBrowser(word),
+            onFallback: () => setVoiceNotice(t('browserVoiceFallback')),
             onEnded: finishPlayback
         });
         activeAudioRef.current = { pause: handle.cancel };
@@ -693,7 +699,7 @@ const SpellingStudentPage = () => {
                                     >
                                         {currentItem.handRaised
                                             ? t('handIsRaised')
-                                            : isPluralWithoutOxfordAudio(currentItem)
+                                            : SHOW_DICTIONARY_SOURCES && isPluralWithoutOxfordAudio(currentItem)
                                                 ? t('pluralNoOxfordAudio')
                                                 : t('needHelpHint')}
                                     </Alert>

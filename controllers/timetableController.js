@@ -8,10 +8,12 @@ import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
+import PlpEvidence from '../models/PlpEvidence.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 import { analyzeSchedulePdf, commitScheduleImport } from '../services/timetable/scheduleImport/analyzeService.js';
+import { resolveTeacherCurrentPeriod } from '../services/timetable/currentPeriodService.js';
 import { resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import {
     DEFAULT_WEEK_WORKING_DAYS,
@@ -633,6 +635,55 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
             schedule,
             academicYear: effectiveAcademicYear,
             workingDays: schoolWeekWorkingDays
+        }
+    });
+});
+
+// @desc    Teacher's current timetable slot, its class roster and today's observations
+// @route   GET /api/timetable/current-period
+// @access  Private (Teacher)
+export const getCurrentPeriod = asyncHandler(async (req, res) => {
+    const at = new Date();
+    const slot = await resolveTeacherCurrentPeriod({
+        schoolId: req.schoolId,
+        teacherId: req.user._id,
+        at,
+        tzOffset: req.query.tzOffset
+    });
+
+    let students = [];
+    let recentObservations = [];
+    const classId = slot.assignment?.class?._id || null;
+    if (classId) {
+        const startOfDay = new Date(at);
+        startOfDay.setHours(0, 0, 0, 0);
+        [students, recentObservations] = await Promise.all([
+            Student.find({ school: req.schoolId, currentClass: classId, status: 'active' })
+                .select('firstName lastName studentId')
+                .sort({ firstName: 1, lastName: 1 })
+                .lean(),
+            PlpEvidence.find({
+                school: req.schoolId,
+                teacher: req.user._id,
+                class: classId,
+                createdAt: { $gte: startOfDay }
+            })
+                .select('student type note traitId subject period capturedVia createdAt')
+                .populate('student', 'firstName lastName')
+                .populate('traitId', 'name code')
+                .populate('subject', 'name code')
+                .sort({ createdAt: -1 })
+                .limit(25)
+                .lean()
+        ]);
+    }
+
+    res.json({
+        success: true,
+        data: {
+            ...slot,
+            students,
+            recentObservations
         }
     });
 });
