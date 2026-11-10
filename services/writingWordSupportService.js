@@ -148,7 +148,6 @@ const spellingWords = async ({
     const items = await SpellingRetestItem.find({
       school: schoolId,
       student: studentId,
-      status: { $in: ["pending", "practice-mastered"] },
     })
       .sort({ flaggedAt: -1 })
       .limit(Math.min(maxWords * 4, 40))

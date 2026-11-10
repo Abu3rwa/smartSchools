@@ -194,11 +194,9 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
       .sort({ updatedAt: -1 })
       .select("grade metrics.attempts metrics.accuracy")
       .lean(),
-    // Only words still waiting on the student; resolved words are not targets.
     SpellingRetestItem.find({
       school: schoolId,
       student: draft.student,
-      status: { $in: ["pending", "practice-mastered"] },
     })
       .sort({ flaggedAt: -1 })
       .limit(40)

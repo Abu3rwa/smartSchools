@@ -9,8 +9,10 @@ import {
   applyWordUseDecisions,
   interleaveVocabularyBuckets,
   normalizeWordSupport,
+  resolveWritingWordSupport,
   wordForms,
 } from "../services/writingWordSupportService.js";
+import SpellingRetestItem from "../models/SpellingRetestItem.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (relative) => readFile(path.join(here, relative), "utf8");
@@ -57,6 +59,70 @@ test("word support is off unless a source is explicitly enabled", () => {
   });
   assert.equal(config.vocabulary.enabled, false);
   assert.equal(config.spelling.enabled, false);
+});
+
+test("spelling support includes recovered history, dedupes and stays student-scoped", async (t) => {
+  const history = [
+    { wordSnapshot: "because", status: "resolved" },
+    { wordSnapshot: "Because", status: "pending" },
+    { wordSnapshot: "garden", status: "expired" },
+    { wordSnapshot: "morning", status: "practice-mastered" },
+    { wordSnapshot: "beautiful", status: "pending" },
+    { wordSnapshot: "another-student", student: "other" },
+    { wordSnapshot: "another-school", school: "other" },
+  ].map((row) => ({ school: "school", student: "student", grade: "G4", week: 2, ...row }));
+  const find = t.mock.method(SpellingRetestItem, "find", (filter) => {
+    assert.deepEqual(filter, { school: "school", student: "student" });
+    let limit;
+    return {
+      sort(value) { assert.deepEqual(value, { flaggedAt: -1 }); return this; },
+      limit(value) { limit = value; return this; },
+      select(value) { assert.equal(value, "wordSnapshot grade week"); return this; },
+      async lean() {
+        return history.filter((row) => row.school === filter.school && row.student === filter.student).slice(0, limit);
+      },
+    };
+  });
+  const assignment = {
+    supports: { wordSupport: { spelling: { enabled: true, maxWords: 5 } } },
+  };
+  const result = await resolveWritingWordSupport({ schoolId: "school", studentId: "student", assignment });
+  assert.equal(result.spelling.status, "available");
+  assert.deepEqual(result.spelling.words.map((row) => row.word), ["because", "garden", "morning", "beautiful"]);
+  assert.ok(result.spelling.words.every((row) => row.source === "spelling"));
+
+  assignment.supports.wordSupport.spelling.maxWords = 2;
+  const capped = await resolveWritingWordSupport({
+    schoolId: "school", studentId: "student", assignment,
+    priorTargets: [{ word: "because", grade: "G4", week: 2 }],
+  });
+  assert.deepEqual(capped.spelling.words.map((row) => row.word), ["because", "garden"]);
+  assert.equal(capped.spelling.words[0].source, "feedback");
+  assert.equal(find.mock.callCount(), 2);
+});
+
+test("spelling support distinguishes no history from disabled support", async (t) => {
+  const find = t.mock.method(SpellingRetestItem, "find", () => ({
+    sort() { return this; }, limit() { return this; }, select() { return this; },
+    async lean() { return []; },
+  }));
+  const assignment = { supports: { wordSupport: { spelling: { enabled: true } } } };
+  const empty = await resolveWritingWordSupport({ schoolId: "school", studentId: "student", assignment });
+  assert.equal(empty.spelling.status, "unavailable");
+  assert.deepEqual(empty.spelling.words, []);
+  assignment.supports.wordSupport.spelling.enabled = false;
+  const disabled = await resolveWritingWordSupport({ schoolId: "school", studentId: "student", assignment });
+  assert.equal(disabled.spelling.status, "disabled");
+  assert.equal(find.mock.callCount(), 1);
+});
+
+test("assessment spelling candidates include every recovery status without widening ownership", async () => {
+  const source = await read("../services/writingAssistantAssessmentService.js");
+  const query = source.match(/SpellingRetestItem\.find\(\{([\s\S]*?)\}\)/);
+  assert.ok(query);
+  assert.match(query[1], /school: schoolId/);
+  assert.match(query[1], /student: draft\.student/);
+  assert.doesNotMatch(query[1], /status:/);
 });
 
 /* ------------------------------------------------------------------ */

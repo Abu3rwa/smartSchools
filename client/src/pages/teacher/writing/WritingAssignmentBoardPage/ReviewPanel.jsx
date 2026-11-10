@@ -88,7 +88,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
 
   if (!project || !latestDraft) return null;
 
-  const wordUse = splitWordUse(form.wordUse);
+  const wordUse = splitWordUse(form?.wordUse);
 
   const run = async (key, action, successMessage) => {
     setPending(key);

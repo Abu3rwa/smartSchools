@@ -1633,6 +1633,8 @@ test("the prompt lists the missed words and never lets the model claim a win", (
     language: "en",
   });
   assert.match(prompt, /the only words allowed as targets/);
+  assert.match(prompt, /including words since recovered/);
+  assert.match(prompt, /choosing only words that genuinely fit this assignment's topic/);
   assert.match(prompt, /- because \(G4, week 3\)/);
   assert.match(
     prompt,

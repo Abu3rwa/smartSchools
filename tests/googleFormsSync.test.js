@@ -125,6 +125,50 @@ test('response fingerprints ignore answer order but change with content', () => 
     assert.notEqual(googleFormResponseVersion(a), googleFormResponseVersion([{ questionId: 'q1', values: ['Changed'] }]));
 });
 
+test('response fingerprints match storage trimming without ignoring internal changes', () => {
+    const answers = [
+        { questionId: 'q1', values: [' A ', '\tB\n'] },
+        { questionId: 'q2', values: ['\n Because particles move. \t', '  تتحرك الجزيئات  ', ' \n '] }
+    ];
+    const stored = new GoogleFormSubmission({ answers });
+    const storedVersion = googleFormResponseVersion(stored.answers);
+
+    assert.deepEqual(stored.answers[0].values.toObject(), ['A', 'B']);
+    assert.deepEqual(stored.answers[1].values.toObject(), ['Because particles move.', 'تتحرك الجزيئات', '']);
+    assert.equal(googleFormResponseVersion(answers), storedVersion);
+
+    stored.answers[1].values[0] = 'Because particles stop.';
+    assert.notEqual(googleFormResponseVersion(stored.answers), storedVersion);
+    stored.answers[1].values[0] = 'Because particles  move.';
+    assert.notEqual(googleFormResponseVersion(stored.answers), storedVersion);
+});
+
+for (const status of ['suggested', 'approved']) {
+    test(`whitespace-only differences preserve ${status} grading across syncs`, async (t) => {
+        const answers = [
+            { questionId: 'q1', values: [' A '] },
+            { questionId: 'q2', values: ['\nBecause particles move. \t'] }
+        ];
+        const stored = new GoogleFormSubmission({ answers });
+        const { assignment, calls } = setup(t, {
+            questions: mixedQuestions,
+            responses: [makeResponse({ q1: answers[0].values[0], q2: answers[1].values[0] })],
+            gradingDoc: {
+                _id: 'grading-1',
+                status,
+                responseVersion: googleFormResponseVersion(stored.answers)
+            }
+        });
+
+        await sync(assignment);
+        await sync(assignment);
+
+        assert.equal(calls.gradingUpdates.length, 0);
+        assert.equal(calls.submissions.length, 2);
+        assert.equal(calls.grades.length, 0);
+    });
+}
+
 test('objective-only sync still imports and auto-grades (regression)', async (t) => {
     const { assignment, calls } = setup(t, { responses: [makeResponse({ q1: 'A' })] });
     const summary = await sync(assignment);

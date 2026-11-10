@@ -289,7 +289,7 @@ export const googleFormResponseVersion = (answers = []) => {
     .map((answer) => [
       String(answer?.questionId || ""),
       (Array.isArray(answer?.values) ? answer.values : []).map((value) =>
-        String(value ?? ""),
+        String(value ?? "").trim(),
       ),
     ])
     .sort(([left], [right]) => left.localeCompare(right));

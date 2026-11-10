@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import {
   STALE_ASSESSMENT_MS,
   formFromAssessment,
@@ -203,6 +204,23 @@ test('word use evidence survives the form round trip and keeps decisions', () =>
     { source: 'spelling', word: 'beautiful', decision: 'confirmed' },
     { source: 'vocabulary', word: 'photosynthesis', decision: '' },
   ]);
+});
+
+test('review word use is safe before any assessment exists', async () => {
+  const source = await readFile(new URL('./ReviewPanel.jsx', import.meta.url), 'utf8');
+  assert.match(source, /splitWordUse\(form\?\.wordUse\)/);
+  for (const assessments of [undefined, [], [{ ...assessment, draft: 'older-draft' }]]) {
+    const form = formFromAssessment(latestForDraft(assessments, 'd1', 'feedback'));
+    assert.equal(form, null);
+    assert.deepEqual(splitWordUse(form?.wordUse), { active: [], unused: [] });
+  }
+});
+
+test('review word use is empty for assessments without word evidence', () => {
+  for (const aiStatus of ['pending', 'running', 'failed', 'done']) {
+    const form = formFromAssessment({ ...assessment, aiStatus });
+    assert.deepEqual(splitWordUse(form?.wordUse), { active: [], unused: [] });
+  }
 });
 
 test('word use splits words that need a look from words simply not used', () => {

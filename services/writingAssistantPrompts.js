@@ -142,7 +142,7 @@ const spellingBlock = (candidates = []) => {
         `- ${clean(row.word, 60)}${row.grade ? ` (${row.grade}` : ""}${row.grade && row.week ? `, week ${row.week}` : ""}${row.grade ? ")" : ""}`,
     )
     .join("\n");
-  return `\nSpelling words this student recently missed (the only words allowed as targets):\n${rows}\n`;
+  return `\nSpelling words this student previously missed, including words since recovered (the only words allowed as targets):\n${rows}\n`;
 };
 
 const spellingTargetRule = (hasCandidates) =>
