@@ -1157,6 +1157,12 @@ export default function PlpRecordDetailPage() {
                                     {ev.traitId?.name ? `${ev.traitId.name} · ` : ''}
                                     {ev.teacher?.firstName} {ev.teacher?.lastName} · {new Date(ev.createdAt).toLocaleDateString()}
                                 </div>
+                                {(ev.period?.name || ev.subject?.name) && (
+                                    <div className="plp-evidence-meta">
+                                        {[ev.period?.name, ev.subject?.name].filter(Boolean).join(' · ')}
+                                        {ev.capturedVia === 'timetable' ? ' · From the timetable' : ''}
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>

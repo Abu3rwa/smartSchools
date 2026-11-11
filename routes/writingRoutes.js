@@ -38,6 +38,16 @@ import {
   submitProject,
   updateAssignment,
 } from "../controllers/writingController.js";
+import {
+  createAnalysis,
+  getAnalysis,
+  getAnalysisScope,
+  getPublishPreview,
+  listAnalyses,
+  publishAnalysis,
+  retryAnalysis,
+  updateAnalysis,
+} from "../controllers/writingAnalysisController.js";
 
 const router = express.Router();
 
@@ -108,6 +118,21 @@ router.post(
 );
 router.post("/projects/:projectId/stage", staff, overrideProjectStage);
 router.post("/projects/:projectId/notebook", staff, recordNotebookReview);
+
+/* Teacher: longitudinal analysis against standards (staff only, never students) */
+router.get("/analysis/scope", staff, getAnalysisScope);
+router.get("/analysis", staff, listAnalyses);
+router.post("/analysis", staff, aiFeatureRateLimiter, createAnalysis);
+router.get("/analysis/:analysisId", staff, getAnalysis);
+router.get("/analysis/:analysisId/publish-preview", staff, getPublishPreview);
+router.patch("/analysis/:analysisId", staff, updateAnalysis);
+router.post(
+  "/analysis/:analysisId/retry",
+  staff,
+  aiFeatureRateLimiter,
+  retryAnalysis,
+);
+router.post("/analysis/:analysisId/publish", staff, publishAnalysis);
 
 /*
  * Student. These routes read published feedback only and never reach the AI

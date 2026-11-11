@@ -767,9 +767,9 @@ const SpellingTeacherPage = () => {
                 'spelling-word-audio-library.csv'
             );
             downloadBlob(response.data, filename);
-            notify('Audio export downloaded.', 'success');
+            notify(t('audioExported'), 'success');
         } catch (error) {
-            notify(error.response?.data?.message || 'Unable to export the audio CSV.', 'error');
+            notify(error.response?.data?.message || t('audioExportError'), 'error');
         } finally {
             setExportingWordLibrary(false);
         }

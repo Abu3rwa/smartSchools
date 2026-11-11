@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import logger from "../utils/logger.js";
-import errorHandler from "../middleware/errorHandler.js";
+import errorHandler, { notFound } from "../middleware/errorHandler.js";
 
 const runHandler = (error, t) => {
   const events = [];
@@ -73,4 +73,35 @@ test("unexpected errors keep error-level logging with the stack", (t) => {
   assert.equal(statusCode, 500);
   assert.equal(events[0].level, "error");
   assert.ok(events[0].meta.stack);
+});
+
+test("an unmatched route answers 404 instead of a fake 500 crash", (t) => {
+  t.mock.method(logger, "warn", () => {});
+  t.mock.method(logger, "error", () => {});
+
+  let statusCode = null;
+  let body = null;
+  const res = {
+    headersSent: false,
+    setHeader() {},
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(payload) {
+      body = payload;
+      return this;
+    }
+  };
+  const req = {
+    headers: {},
+    method: "GET",
+    originalUrl: "/api/teacher/behavior/overview"
+  };
+
+  notFound(req, res, (error) => errorHandler(error, req, res, () => {}));
+
+  assert.equal(statusCode, 404);
+  assert.match(body.message, /Not Found - \/api\/teacher\/behavior\/overview/);
+  assert.deepEqual(body.message === "Internal server error", false);
 });

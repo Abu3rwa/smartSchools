@@ -26,6 +26,7 @@ import { buildPlpRoundZip } from '../services/plpRoundExportService.js';
 import { buildPlpReportModel } from '../services/plpReportModel.js';
 import { generatePlpReportPdf } from '../services/plpReportPdfService.js';
 import { collectPracticeCandidates } from '../services/plpPracticeLinkService.js';
+import { matchStudentsInText, rosterNames } from '../services/plpObservationCaptureService.js';
 import { assertTeacherCanCaptureClass } from '../services/timetable/currentPeriodService.js';
 import logger from '../utils/logger.js';
 
@@ -2198,8 +2199,88 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
     });
 });
 
+export const parseObservationDraft = asyncHandler(async (req, res) => {
+    const { text, classId, periodId, tzOffset, capturedAt } = req.body || {};
+    const rawText = String(text || '').trim();
+    if (!rawText) {
+        return res.status(400).json({ success: false, message: 'Write or dictate the observation first.' });
+    }
+    if (rawText.length > 2000) {
+        return res.status(400).json({ success: false, message: 'The observation is too long. Keep it under 2000 characters.' });
+    }
+    if (!classId) {
+        return res.status(400).json({ success: false, message: 'Choose a class before logging an observation.' });
+    }
+    if (!/^[a-f0-9]{24}$/i.test(String(classId))) {
+        return res.status(400).json({ success: false, message: 'Invalid class selection.' });
+    }
+
+    const classroom = await Class.findOne({ _id: classId, school: req.user.school })
+        .select('_id name grade section')
+        .lean();
+    if (!classroom) {
+        return res.status(404).json({ success: false, message: 'Class not found' });
+    }
+
+    const captureContext = await assertTeacherCanCaptureClass({
+        user: req.user,
+        classId,
+        periodId,
+        at: new Date(),
+        tzOffset,
+    });
+
+    const [students, availableTraits] = await Promise.all([
+        Student.find({ school: req.user.school, currentClass: classId, status: 'active' })
+            .select('_id firstName lastName studentId')
+            .sort({ firstName: 1, lastName: 1 })
+            .lean(),
+        PlpTraitConfig.find({ school: req.user.school, isActive: true })
+            .select('_id name code description month themeCode displayOrder')
+            .sort({ displayOrder: 1, name: 1 })
+            .lean(),
+    ]);
+
+    const detection = matchStudentsInText(rawText, students);
+
+    // One student named in the note is "the student" to the model and gets the
+    // name back afterwards. Several students stay anonymous so a shared note is
+    // never attributed to the wrong child.
+    const identity = {
+        name: detection.matches.length === 1 ? detection.matches[0].name : 'the student',
+        roster: rosterNames(students),
+    };
+
+    const observationDate = capturedAt ? new Date(capturedAt) : new Date();
+    if (Number.isNaN(observationDate.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid capturedAt date' });
+    }
+
+    const classification = await plpAiService.classifyObservation(rawText, availableTraits, {
+        academicYear: req.academicYear || null,
+        capturedAt: observationDate.toISOString(),
+    }, identity);
+
+    res.json({
+        success: true,
+        data: {
+            class: classroom,
+            capture: {
+                via: captureContext.via,
+                period: captureContext.period || captureContext.assignment?.period || null,
+                subject: captureContext.assignment?.subject || captureContext.subject || null,
+            },
+            capturedAt: observationDate.toISOString(),
+            matches: detection.matches,
+            ambiguous: detection.ambiguous,
+            classification,
+            availableTraits,
+        },
+    });
+});
+
 export const createQuickObservation = asyncHandler(async (req, res) => {
-    const { studentId, rawText, traitId, capturedAt, classId, periodId, tzOffset, cycleId: requestedCycleId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus } = req.body || {};
+    const { studentId, rawText, traitId, capturedAt, classId, periodId, tzOffset, cycleId: requestedCycleId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus, skipClassification } = req.body || {};
     const noteInput = String(rawText || '').trim();
     if (!studentId || !noteInput) {
         return res.status(400).json({ success: false, message: 'studentId and rawText are required' });
@@ -2215,6 +2296,11 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
     const effectiveClassId = classId || student.currentClass;
     if (!effectiveClassId) {
         return res.status(400).json({ success: false, message: 'Student has no active class assignment' });
+    }
+    // The class in the note and the student's class must be the same, otherwise a
+    // teacher could write evidence into another class's record.
+    if (String(student.currentClass || '') !== String(effectiveClassId)) {
+        return res.status(400).json({ success: false, message: 'This student is not in the selected class.' });
     }
 
     const captureContext = await assertTeacherCanCaptureClass({
@@ -2269,6 +2355,14 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
             resolvedRationale = aiRationale ? String(aiRationale).trim().slice(0, 300) : null;
             reviewStatus = requestedReviewStatus === 'needs_review' ? 'needs_review' : 'confirmed';
         }
+    } else if (skipClassification) {
+        // The logger already classified the note (and showed the proposal to the
+        // teacher); saving must not call the model a second time.
+        source = 'ai_classified';
+        resolvedEvidenceType = evidenceType ? String(evidenceType).trim().toLowerCase() : 'observation';
+        resolvedConfidence = aiConfidence ? String(aiConfidence).trim().toLowerCase() : null;
+        resolvedRationale = aiRationale ? String(aiRationale).trim().slice(0, 300) : null;
+        reviewStatus = 'needs_review';
     } else {
         source = 'ai_classified';
 

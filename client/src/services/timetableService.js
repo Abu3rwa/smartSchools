@@ -37,9 +37,13 @@ const timetableService = {
     },
 
     // The lesson running right now, with its class roster and today's observations
-    getCurrentPeriod: async (tzOffset) => {
+    getCurrentPeriod: async (tzOffset, options = {}) => {
         const response = await api.get('/timetable/current-period', {
-            params: { tzOffset }
+            params: {
+                tzOffset,
+                ...(options.classId ? { classId: options.classId } : {}),
+                ...(options.periodId ? { periodId: options.periodId } : {})
+            }
         });
         return response.data;
     },

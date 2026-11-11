@@ -4,10 +4,10 @@ export const VOICE_STORAGE_KEY = 'spelling.voice';
 export const DEFAULT_VOICE_ID = 'default';
 export const PLAYBACK_TIMEOUT_MS = 6000;
 
-// Dictionary recordings (Longman/Oxford/Google) are hidden from the spelling UI for now:
-// only generated AI clips are offered. The stored URLs and their endpoints stay, so
-// flipping this back to true restores the dictionary voices, example sentences and
-// the admin editing tools without any data work.
+// Dictionary example-sentence recordings are hidden from the spelling UI for now.
+// Pronunciation URLs are gone from spelling entirely (AI clips are the only source);
+// this flag now gates example sentences and their admin tools only. The generic
+// helpers below keep serving dictionary voices for vocabulary and reading.
 export const SHOW_DICTIONARY_SOURCES = false;
 
 export const DICTIONARY_LABELS = Object.freeze({ longman: 'Longman', oxford: 'Oxford', webster: 'Merriam-Webster', google: 'Google' });
@@ -44,11 +44,12 @@ export const getVoiceOptions = (audio) => {
     return options;
 };
 
-// Spelling voices are numbered per accent ("US 1", "US 2") so no dictionary brand reaches the UI.
+// Spelling voices are numbered per accent ("US 1", "US 2"). Only generated AI
+// clips are spelling voices; dictionary pronunciation URLs are never offered.
 export const getSpellingVoiceOptions = (audio) => {
     const counts = { us: 0, uk: 0 };
     return getVoiceOptions(audio)
-        .filter((option) => SHOW_DICTIONARY_SOURCES || option.dictionary === 'ai')
+        .filter((option) => option.dictionary === 'ai')
         .map((option) => {
             counts[option.accent] += 1;
             return { ...option, label: `${ACCENT_LABELS[option.accent]} ${counts[option.accent]}` };
@@ -61,16 +62,13 @@ export const resolveVoice = (audio, voiceId) => {
     return getVoiceOptions(audio).find((option) => option.id === voiceId) || null;
 };
 
-// The voice "Default" actually plays. A generated clip wins over a saved dictionary choice,
-// because the dictionary recording is no longer offered in the panel for that accent.
-// While dictionary sources are hidden, a stale saved dictionary choice resolves to the
-// generated clip instead, and with no clip the caller falls back to the browser voice.
+// The voice "Default" actually plays in spelling: a generated clip, UK first.
+// A stale saved dictionary choice resolves to the generated clip instead, and
+// with no clip the caller falls back to the browser voice. Dictionary
+// pronunciation recordings are never played by spelling.
 export const resolvePlaybackVoice = (audio, voiceId) => {
     const chosen = resolveVoice(audio, voiceId);
-    const chosenAllowed = Boolean(chosen) && (SHOW_DICTIONARY_SOURCES
-        ? chosen.dictionary === 'ai' || !audio?.ai?.[chosen.accent]
-        : chosen.dictionary === 'ai');
-    if (chosenAllowed) return chosen;
+    if (chosen?.dictionary === 'ai') return chosen;
     for (const accent of ['uk', 'us']) {
         if (audio?.ai?.[accent]) return resolveVoice(audio, `ai-${accent}`);
     }

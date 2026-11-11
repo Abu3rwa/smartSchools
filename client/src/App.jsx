@@ -140,6 +140,12 @@ const WritingFeedPage = lazy(() => import("./pages/student/writing/WritingFeedPa
 const WritingWorkspacePage = lazy(() => import("./pages/student/writing/WritingWorkspacePage"));
 const WritingAssignmentsPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentsPage"));
 const WritingAssignmentBoardPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBoardPage"));
+const WritingAnalysisPage = lazy(() => import("./pages/teacher/writing/WritingAnalysisPage"));
+const WritingAnalysisLegacyRoute = lazy(() =>
+  import("./pages/teacher/writing/WritingAnalysisPage").then((module) => ({
+    default: module.WritingAnalysisLegacyRoute,
+  })),
+);
 const WritingAssignmentBuilderPage = lazy(() => import("./pages/teacher/writing/WritingAssignmentBuilderPage"));
 const InboxAssistantPage = lazy(() => import("./pages/teacher/inbox/InboxAssistantPage"));
 const TutorPage = lazy(() => import("./pages/student/tutor"));
@@ -195,6 +201,7 @@ const HRSettingsPage = lazy(() => import("./pages/hr/HRSettingsPage"));
 const PlpHubPage = lazy(() => import("./pages/plp/PlpHubPage"));
 const PlpAdminConfigPage = lazy(() => import("./pages/plp/PlpAdminConfigPage"));
 const PlpTeacherClassboardPage = lazy(() => import("./pages/plp/PlpTeacherClassboardPage"));
+const PlpObservationLoggerPage = lazy(() => import("./pages/plp/PlpObservationLoggerPage"));
 const PlpRecordDetailPage = lazy(() => import("./pages/plp/PlpRecordDetailPage"));
 const PlpStudentEvidencePage = lazy(() => import("./pages/plp/PlpStudentEvidencePage"));
 const PlpAwardsPage = lazy(() => import("./pages/plp/PlpAwardsPage"));
@@ -1541,6 +1548,26 @@ function App() {
                 </RoleRoute>
               }
             />
+            <Route
+              path="writing/analysis"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAnalysisPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="writing/analysis/:projectId"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <FeatureGate feature="writingAssistant" showUpgradePrompt>
+                    <WritingAnalysisLegacyRoute />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
             {/* Inbox Assistant: teacher reads and sorts incoming school mail */}
             <Route
               path="inbox"
@@ -1838,6 +1865,14 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "teacher", "department_principal"]}>
                   <PlpRecordDetailPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/logger"
+              element={
+                <RoleRoute roles={["teacher", "admin"]}>
+                  <PlpObservationLoggerPage />
                 </RoleRoute>
               }
             />

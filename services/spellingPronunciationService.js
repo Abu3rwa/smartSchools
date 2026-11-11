@@ -13,6 +13,7 @@ import { chargeUsage, roundCents } from './aiCreditService.js';
 import { estimateSpeechSeconds, synthesizeSpeech } from './voiceSpeech.js';
 import logger from '../utils/logger.js';
 import { normalizeWordKey } from '../utils/wordAudio.js';
+import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 export const AI_AUDIO_ENV = 'SPELLING_AI_AUDIO';
 export const ACCENTS = Object.freeze(['us', 'uk']);
@@ -155,6 +156,8 @@ export const generateMissingPronunciations = async ({
             .select('key')
             .lean()).map((entry) => entry.key)
     );
+    // Removed clips keep their key, so they count as existing here: bulk generation
+    // must never recreate a clip an admin removed. Only regeneratePronunciation does.
     const missing = candidates.filter((entry) => !existing.has(entry.key));
     const batch = missing.slice(0, Math.max(0, Math.floor(Number(maxClips)) || 0));
 
@@ -265,11 +268,11 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
             for (const entry of keysForWord(word, config)) allKeys.push(entry.key);
         }
     }
-    const existing = new Set(
-        (allKeys.length
-            ? await SpellingPronunciation.find({ key: { $in: allKeys } }).select('key').lean()
-            : []).map((entry) => entry.key)
-    );
+    const clipDocs = allKeys.length
+        ? await SpellingPronunciation.find({ key: { $in: allKeys } }).select('key removedAt').lean()
+        : [];
+    const existing = new Set(clipDocs.filter((entry) => !entry.removedAt).map((entry) => entry.key));
+    const removedKeys = new Set(clipDocs.filter((entry) => entry.removedAt).map((entry) => entry.key));
     const centsPerMinute = audioCentsPerMinute(config.model, env) || 0;
 
     const grades = [...byGrade.entries()]
@@ -278,6 +281,7 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
             let withUs = 0;
             let withUk = 0;
             let withBoth = 0;
+            let removedClips = 0;
             let remainingClips = 0;
             let missingSeconds = 0;
             const missingWords = [];
@@ -288,11 +292,14 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
                 if (hasUs) withUs += 1;
                 if (hasUk) withUk += 1;
                 if (hasUs && hasUk) withBoth += 1;
-                if (!hasUs || !hasUk) {
+                for (const entry of keys) if (removedKeys.has(entry.key)) removedClips += 1;
+                // Removed clips are deliberately absent: they are not "missing" and
+                // bulk generation will not recreate them, so they carry no cost estimate.
+                const absent = keys.filter((entry) => !existing.has(entry.key) && !removedKeys.has(entry.key));
+                if (absent.length > 0) {
                     missingWords.push(word);
-                    const missingForWord = (hasUs ? 0 : 1) + (hasUk ? 0 : 1);
-                    remainingClips += missingForWord;
-                    missingSeconds += missingForWord * estimateSpeechSeconds(word);
+                    remainingClips += absent.length;
+                    missingSeconds += absent.length * estimateSpeechSeconds(word);
                 }
             }
             return {
@@ -301,6 +308,7 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
                 withUs,
                 withUk,
                 withBoth,
+                removedClips,
                 remainingClips,
                 missingWords: missingWords.slice(0, 50),
                 missingWordCount: missingWords.length,
@@ -325,7 +333,7 @@ export const getAiAudioForWord = async ({ schoolId, word, env = process.env }) =
         if (!word || !(await isAiAudioEnabledForSchool(schoolId, env))) return null;
         const config = resolveTtsConfig(env);
         const keys = keysForWord(word, config);
-        const docs = await SpellingPronunciation.find({ key: { $in: keys.map((entry) => entry.key) } })
+        const docs = await SpellingPronunciation.find({ key: { $in: keys.map((entry) => entry.key) }, removedAt: null })
             .select('key publicId accent')
             .lean();
         if (docs.length === 0) return null;
@@ -340,7 +348,7 @@ export const getAiAudioForWord = async ({ schoolId, word, env = process.env }) =
 
 /**
  * Admin preview: existing clips for a list of words, ignoring the switches.
- * Returns Map<normalizedWord, { us, uk }> and never throws.
+ * Returns Map<normalizedWord, { clips: { us, uk }, removed: ['us'|'uk'] }> and never throws.
  */
 export const lookupPronunciations = async (words = [], env = process.env) => {
     try {
@@ -353,16 +361,17 @@ export const lookupPronunciations = async (words = [], env = process.env) => {
         }
         if (entries.length === 0) return new Map();
         const docs = await SpellingPronunciation.find({ key: { $in: entries.map((entry) => entry.key) } })
-            .select('key publicId accent')
+            .select('key publicId accent removedAt')
             .lean();
         const byKey = new Map(docs.map((doc) => [doc.key, doc]));
         const result = new Map();
         for (const entry of entries) {
             const doc = byKey.get(entry.key);
             if (!doc) continue;
-            const clips = result.get(entry.normalized) || {};
-            clips[doc.accent] = pronunciationUrl(doc.publicId);
-            result.set(entry.normalized, clips);
+            const current = result.get(entry.normalized) || { clips: {}, removed: [] };
+            if (doc.removedAt) current.removed.push(doc.accent);
+            else current.clips[doc.accent] = pronunciationUrl(doc.publicId);
+            result.set(entry.normalized, current);
         }
         return result;
     } catch (error) {
@@ -371,10 +380,114 @@ export const lookupPronunciations = async (words = [], env = process.env) => {
     }
 };
 
+const assertSchoolWord = async (schoolId, word) => {
+    const key = normalizeWordKey(word);
+    if (!key || key.length > MAX_WORD_LENGTH) throw badRequest('A valid spelling word is required');
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: normalizeForGrading(word) }))) {
+        throw Object.assign(new Error('Spelling word not found in this school'), { statusCode: 404 });
+    }
+    return key;
+};
+
+const assertAccent = (accent) => {
+    const value = String(accent || '').toLowerCase();
+    if (!ACCENTS.includes(value)) throw badRequest('accent must be us or uk');
+    return value;
+};
+
+/**
+ * Removes one accent's clip for every school at once. The document stays as a
+ * tombstone: its key keeps bulk generation from recreating the clip, and the
+ * public route stops serving it. Only regeneratePronunciation brings it back.
+ */
+export const removePronunciation = async ({ schoolId, userId, word, accent, env = process.env }) => {
+    const normalized = await assertSchoolWord(schoolId, word);
+    const chosen = assertAccent(accent);
+    const config = resolveTtsConfig(env);
+    const entry = keysForWord(normalized, config).find((candidate) => candidate.accent === chosen);
+    const removed = await SpellingPronunciation.findOneAndUpdate(
+        { key: entry.key, removedAt: null },
+        { $set: { removedAt: new Date(), removedBy: userId || null } },
+        { new: true }
+    ).select('key accent').lean();
+    if (!removed) {
+        throw Object.assign(new Error('No active AI clip exists for this word and accent; it may already be removed'), { statusCode: 404 });
+    }
+    const preview = (await lookupPronunciations([normalized], env)).get(normalized) || { clips: {}, removed: [] };
+    return { word: String(word).trim(), accent: chosen, ai: preview.clips, aiRemoved: preview.removed };
+};
+
+/**
+ * Explicit admin regeneration: synthesizes first, and only a successful result
+ * replaces the stored clip. The new publicId changes the URL, so browsers that
+ * cached the old immutable response fetch the new bytes instead.
+ */
+export const regeneratePronunciation = async ({ schoolId, userId, word, accent, env = process.env }) => {
+    const normalized = await assertSchoolWord(schoolId, word);
+    const chosen = assertAccent(accent);
+    if (!(await isAiAudioEnabled(env))) return { available: false };
+    const config = resolveTtsConfig(env);
+    const entry = keysForWord(normalized, config).find((candidate) => candidate.accent === chosen);
+    const seconds = estimateSpeechSeconds(normalized);
+
+    let speech;
+    try {
+        speech = await synthesizeSpeech({
+            text: normalized,
+            model: config.model,
+            voice: entry.voice,
+            instructions: entry.instructions
+        });
+    } catch (error) {
+        logger.warn('spelling_pronunciation_regenerate_failed', { word: normalized, accent: chosen, error: error?.message });
+        throw Object.assign(new Error('The AI voice service could not generate a new clip. The existing clip was not changed.'), {
+            statusCode: 502,
+            code: 'SPELLING_PRONUNCIATION_REGENERATE_FAILED',
+            expose: true
+        });
+    }
+
+    await SpellingPronunciation.findOneAndUpdate(
+        { key: entry.key },
+        {
+            $set: {
+                publicId: publicId(),
+                word: String(word).trim(),
+                model: config.model,
+                voice: entry.voice,
+                instructions: entry.instructions,
+                contentType: speech.contentType,
+                speechSeconds: seconds,
+                data: speech.buffer,
+                removedAt: null,
+                removedBy: null
+            },
+            $setOnInsert: { key: entry.key, accent: chosen }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const centsPerMinute = audioCentsPerMinute(config.model, env) || 0;
+    const costCents = roundCents((seconds / 60) * centsPerMinute);
+    if (schoolId && userId) {
+        await chargeUsage({
+            schoolId,
+            userId,
+            feature: 'spelling-pronunciation',
+            outcome: 'done',
+            extraCostCents: costCents,
+            audio: { speechSeconds: seconds, ttsModel: config.model }
+        });
+    }
+
+    const preview = (await lookupPronunciations([normalized], env)).get(normalized) || { clips: {}, removed: [] };
+    return { available: true, word: String(word).trim(), accent: chosen, ai: preview.clips, aiRemoved: preview.removed, speechSeconds: seconds, costCents };
+};
+
 export const findPronunciationByPublicId = async (value) => {
     const id = String(value || '').trim();
     if (!/^[a-f0-9]{32}$/.test(id)) return null;
-    return SpellingPronunciation.findOne({ publicId: id }).select('+data contentType key').lean();
+    return SpellingPronunciation.findOne({ publicId: id, removedAt: null }).select('+data contentType key').lean();
 };
 
 const startsLikeAudio = (bytes) => Boolean(bytes?.length >= 2 && (

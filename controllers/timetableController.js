@@ -13,7 +13,10 @@ import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../he
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 import { analyzeSchedulePdf, commitScheduleImport } from '../services/timetable/scheduleImport/analyzeService.js';
-import { resolveTeacherCurrentPeriod } from '../services/timetable/currentPeriodService.js';
+import {
+    resolveTeacherCurrentPeriod
+} from '../services/timetable/currentPeriodService.js';
+import { getTeacherHomeroomClassIds } from '../services/plpAccessService.js';
 import { resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import {
     DEFAULT_WEEK_WORKING_DAYS,
@@ -644,44 +647,135 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
 // @access  Private (Teacher)
 export const getCurrentPeriod = asyncHandler(async (req, res) => {
     const at = new Date();
+    const { tzOffset } = req.query;
     const slot = await resolveTeacherCurrentPeriod({
         schoolId: req.schoolId,
         teacherId: req.user._id,
         at,
-        tzOffset: req.query.tzOffset
+        tzOffset
     });
 
-    let students = [];
-    let recentObservations = [];
-    const classId = slot.assignment?.class?._id || null;
-    if (classId) {
-        const startOfDay = new Date(at);
-        startOfDay.setHours(0, 0, 0, 0);
-        [students, recentObservations] = await Promise.all([
-            Student.find({ school: req.schoolId, currentClass: classId, status: 'active' })
+    const lessonClassId = String(slot.assignment?.class?._id || '');
+    const homeroomClassIds = req.user.role === 'teacher'
+        ? await getTeacherHomeroomClassIds(req.schoolId, req.user._id)
+        : [];
+    const homeroomDocs = homeroomClassIds.length
+        ? await Class.find({
+            _id: { $in: homeroomClassIds },
+            school: req.schoolId,
+            isActive: true
+        }).select('name grade section').lean()
+        : [];
+
+    // Every class this teacher can log for right now: the lesson in progress
+    // and each homeroom class they own. Capture opens for a lesson only while
+    // it is running; a homeroom class is always open — including the teacher's
+    // own homeroom class when it also happens to be the lesson in progress.
+    const lessonIsHomeroom = homeroomClassIds.some((id) => String(id) === lessonClassId);
+    const classes = [];
+    if (lessonClassId) {
+        const lessonOpen = Boolean(slot.captureOpen) || lessonIsHomeroom;
+        classes.push({
+            _id: lessonClassId,
+            name: slot.class?.name || 'Class',
+            grade: slot.class?.grade || '',
+            section: slot.class?.section || '',
+            kind: 'lesson',
+            periodId: slot.period?._id || null,
+            periodName: slot.period?.name || '',
+            subjectName: slot.subject?.name || '',
+            canCapture: lessonOpen,
+            unavailableReason: lessonOpen ? null : 'Observations open while this lesson is running.'
+        });
+    }
+    for (const classroom of homeroomDocs) {
+        if (String(classroom._id) === lessonClassId) continue;
+        classes.push({
+            _id: String(classroom._id),
+            name: classroom.name || 'Class',
+            grade: classroom.grade || '',
+            section: classroom.section || '',
+            kind: 'homeroom',
+            periodId: null,
+            periodName: '',
+            subjectName: '',
+            canCapture: true,
+            unavailableReason: null
+        });
+    }
+
+    // A teacher may only read the roster of the lesson in progress or one of
+    // their own homeroom classes. Any other class is refused before its roster
+    // is touched, so this endpoint cannot be used to browse other classes.
+    const requestedClassId = String(req.query.classId || '');
+    if (requestedClassId && !classes.some((option) => option._id === requestedClassId)) {
+        return res.status(403).json({
+            success: false,
+            message: 'You can log observations only for the class you are teaching now or your homeroom class.'
+        });
+    }
+
+    const activeClassId = requestedClassId || lessonClassId || (classes.length === 1 ? classes[0]._id : '');
+
+    let capture = {
+        open: false,
+        via: null,
+        reason: classes.length === 0
+            ? 'No lesson and no homeroom class right now. Ask your admin to assign one.'
+            : 'Choose a class to log an observation.'
+    };
+    let context = lessonClassId
+        ? { period: slot.period, subject: slot.subject, class: slot.class, room: slot.room }
+        : { period: null, subject: null, class: null, room: null };
+
+    if (activeClassId) {
+        const option = classes.find((entry) => entry._id === activeClassId);
+        if (activeClassId === lessonClassId) {
+            capture = lessonIsHomeroom && !slot.captureOpen
+                ? { open: true, via: 'homeroom', reason: null }
+                : { open: Boolean(slot.captureOpen), via: 'lesson', reason: option?.unavailableReason || null };
+        } else {
+            capture = { open: true, via: 'homeroom', reason: null };
+            context = { period: null, subject: null, class: option || null, room: null };
+        }
+    }
+
+    const startOfDay = new Date(at);
+    startOfDay.setHours(0, 0, 0, 0);
+    const recentFilter = {
+        school: req.schoolId,
+        teacher: req.user._id,
+        createdAt: { $gte: startOfDay }
+    };
+    if (activeClassId) recentFilter.class = activeClassId;
+
+    const [students, recentObservations] = await Promise.all([
+        activeClassId
+            ? Student.find({ school: req.schoolId, currentClass: activeClassId, status: 'active' })
                 .select('firstName lastName studentId')
                 .sort({ firstName: 1, lastName: 1 })
-                .lean(),
-            PlpEvidence.find({
-                school: req.schoolId,
-                teacher: req.user._id,
-                class: classId,
-                createdAt: { $gte: startOfDay }
-            })
-                .select('student type note traitId subject period capturedVia createdAt')
-                .populate('student', 'firstName lastName')
-                .populate('traitId', 'name code')
-                .populate('subject', 'name code')
-                .sort({ createdAt: -1 })
-                .limit(25)
                 .lean()
-        ]);
-    }
+            : [],
+        PlpEvidence.find(recentFilter)
+            .select('student type note traitId class subject period capturedVia createdAt')
+            .populate('student', 'firstName lastName')
+            .populate('traitId', 'name code')
+            .populate('class', 'name grade section')
+            .populate('subject', 'name code')
+            .populate('period', 'name')
+            .sort({ createdAt: -1 })
+            .limit(30)
+            .lean()
+    ]);
 
     res.json({
         success: true,
         data: {
             ...slot,
+            classes,
+            activeClassId,
+            capture,
+            context,
             students,
             recentObservations
         }

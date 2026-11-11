@@ -9,9 +9,9 @@ import {
 } from '../services/timetable/currentPeriodService.js';
 
 const PERIODS = [
-    { _id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:45', order: 1 },
-    { _id: 'p2', name: 'Period 2', startTime: '10:00', endTime: '10:45', order: 2 },
-    { _id: 'p3', name: 'Period 3', startTime: '11:00', endTime: '11:45', order: 3 },
+    { _id: 'aaaaaaaaaaaaaaaaaaaaaaaa', name: 'Period 1', startTime: '08:00', endTime: '08:45', order: 1 },
+    { _id: 'bbbbbbbbbbbbbbbbbbbbbbbb', name: 'Period 2', startTime: '10:00', endTime: '10:45', order: 2 },
+    { _id: 'cccccccccccccccccccccccc', name: 'Period 3', startTime: '11:00', endTime: '11:45', order: 3 },
 ];
 
 const classDoc = { _id: 'class-5b', name: 'Grade 5B', grade: 5, section: 'B' };
@@ -132,7 +132,7 @@ test('homeroom teachers keep class-wide capture access', async () => {
     const context = await service.assertCanCapture({
         user: { _id: 'teacher-1', school: 'school-1', role: 'teacher' },
         classId: 'class-5b',
-        periodId: 'p2',
+        periodId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
         at: clock(10, 20),
         tzOffset: LOCAL_TZ_OFFSET,
     });
@@ -147,7 +147,7 @@ test('a scheduled class can be observed only inside its lesson window', async ()
     const context = await service.assertCanCapture({
         user,
         classId: 'class-5b',
-        periodId: 'p2',
+        periodId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
         at: clock(10, 20),
         tzOffset: LOCAL_TZ_OFFSET,
     });
@@ -158,7 +158,7 @@ test('a scheduled class can be observed only inside its lesson window', async ()
         service.assertCanCapture({
             user,
             classId: 'class-5b',
-            periodId: 'p2',
+            periodId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
             at: clock(9, 0),
             tzOffset: LOCAL_TZ_OFFSET,
         }),
@@ -173,7 +173,7 @@ test('a class the teacher is not scheduled to teach is refused even with a perio
         service.assertCanCapture({
             user: { _id: 'teacher-1', school: 'school-1', role: 'teacher' },
             classId: 'class-7a',
-            periodId: 'p2',
+            periodId: 'bbbbbbbbbbbbbbbbbbbbbbbb',
             at: clock(10, 20),
             tzOffset: LOCAL_TZ_OFFSET,
         }),

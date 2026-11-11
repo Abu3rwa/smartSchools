@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
     HiOutlineCalendar,
@@ -12,7 +13,6 @@ import {
 } from 'react-icons/hi';
 import { selectUser } from '../../../../store/slices/authSlice';
 import timetableService from '../../../../services/timetableService';
-import ObservationCapturePanel from './ObservationCapturePanel';
 import './TeacherTimetablePage.css';
 
 const COLORS = ['blue', 'green', 'purple', 'orange', 'pink', 'teal', 'red', 'yellow'];
@@ -44,7 +44,6 @@ const TeacherTimetablePage = () => {
     const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
     const [nowSlot, setNowSlot] = useState(null);
     const [nowError, setNowError] = useState(null);
-    const [showObservation, setShowObservation] = useState(false);
 
     const loadNow = useCallback(async () => {
         try {
@@ -272,17 +271,19 @@ const TeacherTimetablePage = () => {
                     </div>
                     {nowSlot.status === 'in-class' && (
                         <div className="now-actions">
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                onClick={() => setShowObservation((open) => !open)}
-                                disabled={!nowSlot.captureOpen}
-                            >
-                                <HiOutlinePencilAlt size={16} />
-                                {showObservation ? 'Hide observation' : 'Add observation'}
-                            </button>
-                            {!nowSlot.captureOpen && (
-                                <span className="now-hint">Observations open while the lesson is running.</span>
+                            {nowSlot.captureOpen ? (
+                                <Link className="btn btn-primary" to="/portal/plp/logger">
+                                    <HiOutlinePencilAlt size={16} />
+                                    Log observation
+                                </Link>
+                            ) : (
+                                <>
+                                    <span className="btn btn-primary is-disabled" aria-disabled="true">
+                                        <HiOutlinePencilAlt size={16} />
+                                        Log observation
+                                    </span>
+                                    <span className="now-hint">Observations open while the lesson is running.</span>
+                                </>
                             )}
                         </div>
                     )}
@@ -290,13 +291,6 @@ const TeacherTimetablePage = () => {
             )}
             {nowError && (
                 <p className="now-error">Could not load your current lesson. Refresh to try again.</p>
-            )}
-            {showObservation && nowSlot?.class?._id && (
-                <ObservationCapturePanel
-                    slot={nowSlot}
-                    onSaved={loadNow}
-                    onClose={() => setShowObservation(false)}
-                />
             )}
 
             {/* Summary cards */}

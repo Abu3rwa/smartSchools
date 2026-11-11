@@ -167,7 +167,7 @@ const SpellingCurriculumTab = ({
                                         onClick={onExportWordAudioLibrary}
                                         disabled={exportingWordLibrary}
                                     >
-                                        Export audio CSV
+                                        {t('exportAudioCsv')}
                                     </Button>
                                 </Stack>
                             </Stack>

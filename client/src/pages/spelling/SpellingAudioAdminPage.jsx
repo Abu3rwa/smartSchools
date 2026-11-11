@@ -2,41 +2,27 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, FormControlLabel } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import api from '../../config/api';
 import { toApiUrl } from '../../config/apiBase';
 import { selectIsAdmin } from '../../store/slices/authSlice';
 import { SHOW_DICTIONARY_SOURCES } from '../../utils/voicePlayback';
 
 const COVERAGE_COLUMNS = [
-    ['longmanUS', 'Longman US'],
-    ['longmanUK', 'Longman UK'],
-    ['oxfordUS', 'Oxford US'],
-    ['oxfordUK', 'Oxford UK'],
-    ['googleUS', 'Google US'],
-    ['googleUK', 'Google UK'],
-    ['withExamples', 'Examples'],
-    ['withDefinition', 'Definition']
+    ['withExamples', 'examples'],
+    ['withDefinition', 'definition']
 ];
 
 const REPORT_ROWS = [
-    ['rowsRead', 'Rows read'],
-    ['rowsWithAudio', 'Rows with at least one URL'],
-    ['wordsMatchedInApp', 'Words matched to app words'],
-    ['wordsNotFoundInApp', 'Words not found in the app'],
-    ['urlsRejected', 'URLs rejected'],
-    ['rowsSkipped', 'Rows skipped'],
-    ['wordsToCreate', 'New words'],
-    ['wordsToUpdate', 'Words updated'],
-    ['wordsUnchanged', 'Words unchanged']
-];
-
-const PRONUNCIATION_FIELDS = [
-    ['longmanUS', 'Longman US pronunciation'],
-    ['longmanUK', 'Longman UK pronunciation'],
-    ['oxfordUS', 'Oxford US pronunciation'],
-    ['oxfordUK', 'Oxford UK pronunciation'],
-    ['googleUS', 'Google US pronunciation'],
-    ['googleUK', 'Google UK pronunciation']
+    ['rowsRead', 'rowsRead'],
+    ['rowsWithAudio', 'rowsWithAudio'],
+    ['wordsMatchedInApp', 'wordsMatchedInApp'],
+    ['wordsNotFoundInApp', 'wordsNotFoundInApp'],
+    ['urlsRejected', 'urlsRejected'],
+    ['rowsSkipped', 'rowsSkipped'],
+    ['wordsToCreate', 'wordsToCreate'],
+    ['wordsToUpdate', 'wordsToUpdate'],
+    ['wordsUnchanged', 'wordsUnchanged']
 ];
 
 const isPreviewableAudioUrl = (value) => {
@@ -54,6 +40,7 @@ const isPreviewableAudioUrl = (value) => {
 };
 
 const SpellingAudioAdminPage = () => {
+    const { t } = useTranslation('spelling');
     const isAdmin = useSelector(selectIsAdmin);
     const [file, setFile] = useState(null);
     const [report, setReport] = useState(null);
@@ -66,7 +53,7 @@ const SpellingAudioAdminPage = () => {
     const [removingAudio, setRemovingAudio] = useState('');
     const [replacementDrafts, setReplacementDrafts] = useState({});
     const [replacingAudio, setReplacingAudio] = useState('');
-    const [pronunciationDrafts, setPronunciationDrafts] = useState({});
+    const [aiAction, setAiAction] = useState(null);
     const [aiSettings, setAiSettings] = useState(null);
     const [aiCoverage, setAiCoverage] = useState(null);
     const [aiBusyGrade, setAiBusyGrade] = useState('');
@@ -86,9 +73,9 @@ const SpellingAudioAdminPage = () => {
             const response = await api.get('/spelling/word-audio/coverage');
             setCoverage(response.data.data);
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to load coverage.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.coverageError') });
         }
-    }, []);
+    }, [t]);
 
     const loadAiAudio = useCallback(async () => {
         try {
@@ -99,9 +86,9 @@ const SpellingAudioAdminPage = () => {
             setAiSettings(settings.data.data);
             setAiCoverage(coverageResponse.data.data);
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to load AI word audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.aiLoadError') });
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => { if (isAdmin && SHOW_DICTIONARY_SOURCES) loadCoverage(); }, [isAdmin, loadCoverage]);
     useEffect(() => { if (isAdmin) loadAiAudio(); }, [isAdmin, loadAiAudio]);
@@ -110,7 +97,7 @@ const SpellingAudioAdminPage = () => {
         event?.preventDefault();
         const query = audioSearch.trim();
         if (query.length < 2) {
-            setMessage({ severity: 'warning', text: 'Enter at least 2 letters to search for a word.' });
+            setMessage({ severity: 'warning', text: t('audioAdmin.searchMin') });
             return;
         }
         setSearchingAudio(true);
@@ -119,19 +106,75 @@ const SpellingAudioAdminPage = () => {
             const response = await api.get('/spelling/word-audio/search', { params: { q: query } });
             setAudioResults(response.data.data);
             setReplacementDrafts({});
-            setPronunciationDrafts({});
-            if (response.data.data.length === 0) setMessage({ severity: 'info', text: 'No spelling words were found.' });
+            setAiTests({});
+            if (response.data.data.length === 0) setMessage({ severity: 'info', text: t('audioAdmin.noWords') });
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to search spelling audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.searchError') });
         } finally {
             setSearchingAudio(false);
         }
     };
 
+    const updateEntry = (word, patch) => {
+        setAudioResults((current) => current.map((item) => (item.word === word ? { ...item, ...patch } : item)));
+    };
+
+    const removeAiClip = async (entry, accent) => {
+        const label = t('audioAdmin.accentLabel', { accent: accent.toUpperCase() });
+        const confirmed = window.confirm(t('audioAdmin.confirmRemove', { accent: label, word: entry.word }));
+        if (!confirmed) return;
+        const key = `${entry.word}:${accent}`;
+        setAiAction({ key, action: 'remove' });
+        setMessage(null);
+        try {
+            const response = await api.delete('/spelling/word-audio/ai/pronunciation', {
+                data: { word: entry.word, accent }
+            });
+            updateEntry(entry.word, { ai: response.data.data.ai, aiRemoved: response.data.data.aiRemoved });
+            setAiTests((current) => {
+                const next = { ...current };
+                delete next[key];
+                return next;
+            });
+            setMessage({ severity: 'success', text: t('audioAdmin.removeSuccess', { accent: label, word: entry.word }) });
+            await loadAiAudio();
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.removeError') });
+        } finally {
+            setAiAction(null);
+        }
+    };
+
+    const regenerateAiClip = async (entry, accent) => {
+        const label = t('audioAdmin.accentLabel', { accent: accent.toUpperCase() });
+        const confirmed = window.confirm(t('audioAdmin.confirmRegenerate', { accent: label, word: entry.word }));
+        if (!confirmed) return;
+        const key = `${entry.word}:${accent}`;
+        setAiAction({ key, action: 'regenerate' });
+        setMessage(null);
+        try {
+            const response = await api.post('/spelling/word-audio/ai/pronunciation/regenerate', { word: entry.word, accent });
+            const data = response.data.data;
+            updateEntry(entry.word, { ai: data.ai, aiRemoved: data.aiRemoved });
+            setAiTests((current) => {
+                const next = { ...current };
+                delete next[key];
+                return next;
+            });
+            const cost = Number(data.costCents) > 0
+                ? ` ${t('audioAdmin.costNote', { cost: Number(data.costCents).toFixed(2) })}`
+                : ` ${t('audioAdmin.noCharge')}`;
+            setMessage({ severity: 'success', text: `${t('audioAdmin.regenerateSuccess', { accent: label, word: entry.word })}${cost}` });
+            await loadAiAudio();
+        } catch (error) {
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.regenerateError') });
+        } finally {
+            setAiAction(null);
+        }
+    };
+
     const removeExample = async (entry, example) => {
-        const confirmed = window.confirm(
-            `Permanently remove this ${example.dictionary} example recording for "${entry.word}"? This changes the shared spelling audio for every school. Pronunciation audio is not affected.`
-        );
+        const confirmed = window.confirm(t('audioAdmin.confirmRemoveExample', { dictionary: example.dictionary, word: entry.word }));
         if (!confirmed) return;
         const key = `${entry.word}:${example.dictionary}:${example.url}`;
         setRemovingAudio(key);
@@ -140,63 +183,22 @@ const SpellingAudioAdminPage = () => {
             const response = await api.delete('/spelling/word-audio/examples', {
                 data: { word: entry.word, dictionary: example.dictionary, url: example.url }
             });
-            setAudioResults((current) => current
-                .map((item) => item.word === entry.word ? { ...item, examples: response.data.data.examples } : item));
-            setMessage({ severity: 'success', text: `Removed the ${example.dictionary} example for "${entry.word}" from shared spelling audio.` });
+            updateEntry(entry.word, { examples: response.data.data.examples });
+            setMessage({ severity: 'success', text: t('audioAdmin.exampleRemoveSuccess', { dictionary: example.dictionary, word: entry.word }) });
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to remove the example audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.exampleRemoveError') });
         } finally {
             setRemovingAudio('');
-        }
-    };
-
-    const replacePronunciation = async (entry, field, label, key) => {
-        const currentUrl = entry.pronunciations[field] || '';
-        const replacementUrl = String(pronunciationDrafts[key] ?? currentUrl).trim();
-        if (replacementUrl && !isPreviewableAudioUrl(replacementUrl)) {
-            setMessage({ severity: 'warning', text: 'Enter an HTTPS audio link from Longman, Oxford Learner’s Dictionaries, or Google.' });
-            return;
-        }
-        if (replacementUrl === currentUrl) return;
-        const action = replacementUrl ? 'Replace' : 'Remove';
-        const confirmed = window.confirm(
-            `${action} the ${label} for "${entry.word}"? This changes shared spelling audio for every school.`
-        );
-        if (!confirmed) return;
-        setReplacingAudio(key);
-        setMessage(null);
-        try {
-            const response = await api.patch('/spelling/word-audio/pronunciation', {
-                word: entry.word,
-                field,
-                currentUrl,
-                replacementUrl
-            });
-            setAudioResults((current) => current.map((item) => (
-                item.word === entry.word ? { ...item, pronunciations: response.data.data.pronunciations } : item
-            )));
-            setPronunciationDrafts((current) => {
-                const next = { ...current };
-                delete next[key];
-                return next;
-            });
-            setMessage({ severity: 'success', text: `Updated the ${label} for "${entry.word}" in shared spelling audio.` });
-        } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || `Unable to update the ${label}.` });
-        } finally {
-            setReplacingAudio('');
         }
     };
 
     const replaceExample = async (entry, example, key) => {
         const replacementUrl = String(replacementDrafts[key] || '').trim();
         if (!isPreviewableAudioUrl(replacementUrl)) {
-            setMessage({ severity: 'warning', text: 'Enter an HTTPS audio link from Longman, Oxford Learner’s Dictionaries, or Merriam-Webster.' });
+            setMessage({ severity: 'warning', text: t('audioAdmin.providerWarning') });
             return;
         }
-        const confirmed = window.confirm(
-            `Replace this ${example.dictionary} example for "${entry.word}" with the previewed link? This changes shared spelling audio for every school.`
-        );
+        const confirmed = window.confirm(t('audioAdmin.confirmReplaceExample', { dictionary: example.dictionary, word: entry.word }));
         if (!confirmed) return;
         setReplacingAudio(key);
         setMessage(null);
@@ -207,17 +209,15 @@ const SpellingAudioAdminPage = () => {
                 url: example.url,
                 replacementUrl
             });
-            setAudioResults((current) => current.map((item) => (
-                item.word === entry.word ? { ...item, examples: response.data.data.examples } : item
-            )));
+            updateEntry(entry.word, { examples: response.data.data.examples });
             setReplacementDrafts((current) => {
                 const next = { ...current };
                 delete next[key];
                 return next;
             });
-            setMessage({ severity: 'success', text: `Updated the ${example.dictionary} example for "${entry.word}" in shared spelling audio.` });
+            setMessage({ severity: 'success', text: t('audioAdmin.exampleReplaceSuccess', { dictionary: example.dictionary, word: entry.word }) });
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to replace the example audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.exampleReplaceError') });
         } finally {
             setReplacingAudio('');
         }
@@ -233,10 +233,10 @@ const SpellingAudioAdminPage = () => {
             formData.append('file', file);
             const response = await api.post('/spelling/word-audio/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setReport(response.data.data);
-            setMessage({ severity: 'success', text: dryRun ? 'Preview only: nothing was saved.' : 'Import finished.' });
+            setMessage({ severity: 'success', text: dryRun ? t('audioAdmin.previewOnly') : t('audioAdmin.imported') });
             if (!dryRun) loadCoverage();
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Import failed.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.importFailed') });
         } finally {
             setBusy(false);
         }
@@ -247,7 +247,7 @@ const SpellingAudioAdminPage = () => {
             await api.put(`/spelling/word-audio/settings/${grade}`, { enabled });
             setCoverage((current) => current.map((entry) => (entry.grade === grade ? { ...entry, enabled } : entry)));
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to change the setting.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.settingError') });
         }
     };
 
@@ -257,14 +257,16 @@ const SpellingAudioAdminPage = () => {
         try {
             const response = await api.post('/spelling/word-audio/ai/generate', { grade, limit: 80 });
             const data = response.data.data;
-            const cost = Number(data.costCents) > 0 ? ` Estimated cost ${Number(data.costCents).toFixed(2)}¢.` : ' No charge was added.';
+            const cost = Number(data.costCents) > 0
+                ? ` ${t('audioAdmin.costNote', { cost: Number(data.costCents).toFixed(2) })}`
+                : ` ${t('audioAdmin.noCharge')}`;
             setMessage({
                 severity: data.failed > 0 ? 'warning' : 'success',
-                text: `${grade}: generated ${data.generated} clip${data.generated === 1 ? '' : 's'}, ${data.failed} failed, ${data.remaining} still missing.${cost}`
+                text: `${t('audioAdmin.batchResult', { grade, generated: data.generated, failed: data.failed, remaining: data.remaining })}${cost}`
             });
             await loadAiAudio();
         } catch (error) {
-            setMessage({ severity: 'error', text: error.response?.data?.message || 'Unable to generate AI word audio.' });
+            setMessage({ severity: 'error', text: error.response?.data?.message || t('audioAdmin.batchError') });
         } finally {
             setAiBusyGrade('');
         }
@@ -289,13 +291,13 @@ const SpellingAudioAdminPage = () => {
         const key = `${entry.word}:${accent}`;
         const resolved = toApiUrl(relative);
         stopAiTestAudio();
-        setAiTestResult(key, { status: 'loading', detail: 'Checking that this server delivers the clip…' });
+        setAiTestResult(key, { status: 'loading', detail: t('audioAdmin.testChecking') });
         const audio = new Audio(resolved);
         audio.preload = 'auto';
         aiTestAudioRef.current = audio;
         const startedAt = performance.now();
         const started = new Promise((resolve, reject) => {
-            const timer = window.setTimeout(() => reject(new Error('The clip did not start within 8 seconds.')), 8000);
+            const timer = window.setTimeout(() => reject(new Error(t('audioAdmin.testTimeout'))), 8000);
             audio.addEventListener('playing', () => {
                 window.clearTimeout(timer);
                 resolve(performance.now() - startedAt);
@@ -304,8 +306,8 @@ const SpellingAudioAdminPage = () => {
                 window.clearTimeout(timer);
                 const code = audio.error?.code;
                 reject(new Error(code
-                    ? `The browser could not play this clip (media error ${code}).`
-                    : 'The browser could not play this clip.'));
+                    ? t('audioAdmin.testMediaError', { code })
+                    : t('audioAdmin.testMediaErrorGeneric')));
             }, { once: true });
         });
         // Both rejections are reported below; this keeps them from surfacing as unhandled.
@@ -318,34 +320,36 @@ const SpellingAudioAdminPage = () => {
                 stopAiTestAudio();
                 setAiTestResult(key, {
                     status: 'error',
-                    detail: `The server answered HTTP ${response.status}, so this clip is not being served. Address: ${resolved}`
+                    detail: t('audioAdmin.testHttpError', { status: response.status, url: resolved })
                 });
                 return;
             }
             const bytes = Number(response.headers.get('content-length') || 0);
-            const type = response.headers.get('content-type') || 'unknown type';
-            serverNote = bytes > 0 ? `${(bytes / 1024).toFixed(1)} KB of ${type}` : type;
+            const type = response.headers.get('content-type') || 'unknown';
+            serverNote = bytes > 0 ? t('audioAdmin.testServerBytes', { size: (bytes / 1024).toFixed(1), type }) : type;
             response.body?.cancel?.();
         } catch {
-            serverNote = 'the server check could not run in this browser, so playback is the test';
+            serverNote = t('audioAdmin.testServerUnknown');
         }
         try {
             const latency = await started;
             setAiTestResult(key, {
                 status: 'ok',
-                detail: `Working. The browser started this clip in ${Math.round(latency)} ms and the server sent ${serverNote}. Students hear exactly this clip.`
+                detail: t('audioAdmin.testOk', { ms: Math.round(latency), serverNote })
             });
         } catch (error) {
             stopAiTestAudio();
-            setAiTestResult(key, { status: 'error', detail: `${error.message} Address: ${resolved}` });
+            setAiTestResult(key, { status: 'error', detail: `${error.message} ${resolved}` });
         }
     };
+
+    const aiActionFor = (word, accent) => (aiAction?.key === `${word}:${accent}` ? aiAction.action : '');
 
     return (
         <Stack spacing={3} sx={{ p: { xs: 1, sm: 3 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
-                <Typography variant="h5" component="h1">Spelling audio</Typography>
-                <Button component={Link} to="/portal/spelling" variant="outlined">Back to spelling</Button>
+                <Typography variant="h5" component="h1">{t('audioAdmin.title')}</Typography>
+                <Button component={Link} to="/portal/spelling" variant="outlined">{t('audioAdmin.back')}</Button>
             </Stack>
 
             {message && <Alert severity={message.severity}>{message.text}</Alert>}
@@ -353,100 +357,91 @@ const SpellingAudioAdminPage = () => {
             <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
-                        <Typography variant="h6" component="h2">
-                            {SHOW_DICTIONARY_SOURCES ? 'Review and edit spelling audio' : 'Test AI word audio'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {SHOW_DICTIONARY_SOURCES
-                                ? 'Search for a spelling word to listen to and edit its Longman, Oxford, and Google pronunciation links and example recordings. Changes apply to shared spelling audio for all schools.'
-                                : 'Search for a spelling word to hear its generated AI clip and check that it plays. Students hear exactly the clip tested here.'}
-                        </Typography>
+                        <Typography variant="h6" component="h2">{t('audioAdmin.searchTitle')}</Typography>
+                        <Typography variant="body2" color="text.secondary">{t('audioAdmin.searchDescription')}</Typography>
                         <Box component="form" onSubmit={searchExamples}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                                 <TextField
-                                    label="Search spelling words"
+                                    label={t('audioAdmin.searchLabel')}
                                     value={audioSearch}
                                     onChange={(event) => setAudioSearch(event.target.value)}
                                     inputProps={{ maxLength: 200 }}
                                     sx={{ minWidth: { sm: 300 } }}
                                 />
                                 <Button type="submit" variant="contained" disabled={searchingAudio || audioSearch.trim().length < 2}>
-                                    {searchingAudio ? 'Searching…' : 'Search'}
+                                    {searchingAudio ? t('audioAdmin.searching') : t('audioAdmin.search')}
                                 </Button>
                             </Stack>
                         </Box>
                         {audioResults.map((entry) => (
                             <Box key={`${entry.word}-${entry.grade}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
                                 <Typography variant="subtitle1">{entry.word} · {entry.grade}</Typography>
-                                {SHOW_DICTIONARY_SOURCES && <Stack spacing={1} sx={{ mt: 1 }}>
-                                    {PRONUNCIATION_FIELDS.map(([field, label]) => {
-                                        const key = `${entry.word}:pronunciation:${field}`;
-                                        const currentUrl = entry.pronunciations[field] || '';
-                                        const draft = String(pronunciationDrafts[key] ?? currentUrl).trim();
-                                        const hasChanges = draft !== currentUrl;
-                                        return (
-                                            <Stack key={field} direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
-                                                <Typography variant="body2" sx={{ minWidth: 210 }}>{label}</Typography>
-                                                {currentUrl && <audio controls preload="none" src={currentUrl} aria-label={`${entry.word} ${label}`} />}
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    label={`${label} audio URL`}
-                                                    value={pronunciationDrafts[key] ?? currentUrl}
-                                                    onChange={(event) => setPronunciationDrafts((current) => ({ ...current, [key]: event.target.value }))}
-                                                    inputProps={{ maxLength: 500 }}
-                                                    error={Boolean(draft) && !isPreviewableAudioUrl(draft)}
-                                                    helperText="Use an HTTPS audio link from Longman, Oxford, or Google. Leave empty to remove."
-                                                />
-                                                {hasChanges && isPreviewableAudioUrl(draft) && (
-                                                    <audio controls preload="none" src={draft} aria-label={`Preview ${label} for ${entry.word}`} />
-                                                )}
-                                                <Button
-                                                    variant="contained"
-                                                    disabled={!hasChanges || (Boolean(draft) && !isPreviewableAudioUrl(draft)) || Boolean(replacingAudio || removingAudio)}
-                                                    onClick={() => replacePronunciation(entry, field, label, key)}
-                                                >
-                                                    {replacingAudio === key ? 'Saving…' : draft ? 'Save URL' : 'Remove URL'}
-                                                </Button>
-                                            </Stack>
-                                        );
-                                    })}
-                                </Stack>}
                                 <Stack
                                     spacing={1}
                                     sx={{ mt: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}
                                 >
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>AI word audio</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('audioAdmin.aiHeading')}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{t('audioAdmin.sharedNote')}</Typography>
                                     {['us', 'uk'].map((accent) => {
                                         const clip = entry.ai?.[accent];
+                                        const removed = (entry.aiRemoved || []).includes(accent);
                                         const testKey = `${entry.word}:${accent}`;
                                         const test = aiTests[testKey];
+                                        const action = aiActionFor(entry.word, accent);
+                                        const label = t('audioAdmin.accentLabel', { accent: accent.toUpperCase() });
+                                        const anyBusy = Boolean(aiAction || replacingAudio || removingAudio);
                                         return (
                                             <Stack key={accent} spacing={0.5}>
-                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                                                    <Typography variant="body2" sx={{ minWidth: 210 }}>AI {accent.toUpperCase()} pronunciation</Typography>
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} flexWrap="wrap" useFlexGap>
+                                                    <Typography variant="body2" sx={{ minWidth: 210 }}>{label}</Typography>
                                                     {clip ? (
                                                         <>
                                                             <audio
                                                                 controls
                                                                 preload="none"
                                                                 src={toApiUrl(clip)}
-                                                                aria-label={`${entry.word} AI ${accent.toUpperCase()} pronunciation`}
+                                                                aria-label={`${entry.word} ${label}`}
                                                             />
                                                             <Button
                                                                 size="small"
                                                                 variant="outlined"
-                                                                disabled={test?.status === 'loading'}
+                                                                disabled={test?.status === 'loading' || Boolean(action)}
                                                                 onClick={() => testAiClip(entry, accent)}
-                                                                aria-label={`Test AI ${accent.toUpperCase()} playback for ${entry.word}`}
+                                                                aria-label={t('audioAdmin.testAria', { word: entry.word, accent: label })}
                                                             >
-                                                                {test?.status === 'loading' ? 'Testing…' : 'Test playback'}
+                                                                {test?.status === 'loading' ? t('audioAdmin.testing') : t('audioAdmin.testPlayback')}
                                                             </Button>
                                                         </>
                                                     ) : (
-                                                        <Typography variant="body2" color="text.secondary">Not generated yet.</Typography>
+                                                        <Typography variant="body2" color={removed ? 'warning.main' : 'text.secondary'}>
+                                                            {removed ? t('audioAdmin.removedNote') : t('audioAdmin.notGenerated')}
+                                                        </Typography>
+                                                    )}
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        disabled={!aiSettings?.available || anyBusy}
+                                                        onClick={() => regenerateAiClip(entry, accent)}
+                                                    >
+                                                        {action === 'regenerate'
+                                                            ? t('audioAdmin.regenerating')
+                                                            : clip ? t('audioAdmin.regenerate') : t('audioAdmin.generate')}
+                                                    </Button>
+                                                    {clip && (
+                                                        <Button
+                                                            size="small"
+                                                            color="error"
+                                                            variant="outlined"
+                                                            disabled={anyBusy}
+                                                            onClick={() => removeAiClip(entry, accent)}
+                                                        >
+                                                            {action === 'remove' ? t('audioAdmin.removing') : t('audioAdmin.remove')}
+                                                        </Button>
                                                     )}
                                                 </Stack>
+                                                {!aiSettings?.available && (
+                                                    <Typography variant="caption" color="text.secondary">{t('audioAdmin.regenerateUnavailable')}</Typography>
+                                                )}
                                                 {clip && (
                                                     <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                                                         {toApiUrl(clip)}
@@ -465,9 +460,7 @@ const SpellingAudioAdminPage = () => {
                                         );
                                     })}
                                     {(!entry.ai?.us || !entry.ai?.uk) && (
-                                        <Typography variant="caption" color="text.secondary">
-                                            Generate missing clips per grade in the AI word audio card below.
-                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">{t('audioAdmin.generateHint')}</Typography>
                                     )}
                                 </Stack>
                                 {SHOW_DICTIONARY_SOURCES && <Stack spacing={1} sx={{ mt: 1 }}>
@@ -476,30 +469,30 @@ const SpellingAudioAdminPage = () => {
                                         return (
                                             <Box key={`${key}:${index}`}>
                                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                                                    <Typography variant="body2" sx={{ minWidth: 100 }}>{example.dictionary} example</Typography>
-                                                    <audio controls preload="none" src={example.url} aria-label={`${entry.word} ${example.dictionary} example audio`} />
+                                                    <Typography variant="body2" sx={{ minWidth: 100 }}>{t('audioAdmin.exampleLabel', { dictionary: example.dictionary })}</Typography>
+                                                    <audio controls preload="none" src={example.url} aria-label={`${entry.word} ${example.dictionary}`} />
                                                     <Typography variant="body2" sx={{ flex: 1, overflowWrap: 'anywhere' }}>{example.url}</Typography>
                                                 </Stack>
                                                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ pl: { sm: 0, md: 14 }, mt: 1 }}>
                                                     <TextField
                                                         size="small"
                                                         fullWidth
-                                                        label="Replacement example audio URL"
+                                                        label={t('audioAdmin.replacementLabel')}
                                                         value={replacementDrafts[key] || ''}
                                                         onChange={(event) => setReplacementDrafts((current) => ({ ...current, [key]: event.target.value }))}
                                                         inputProps={{ maxLength: 500 }}
                                                         error={Boolean(replacementDrafts[key]) && !isPreviewableAudioUrl(replacementDrafts[key].trim())}
-                                                        helperText="Use an HTTPS audio link from Longman, Oxford, or Merriam-Webster."
+                                                        helperText={t('audioAdmin.replacementHelper')}
                                                     />
                                                     {isPreviewableAudioUrl((replacementDrafts[key] || '').trim()) && (
-                                                        <audio controls preload="none" src={replacementDrafts[key].trim()} aria-label={`Preview replacement ${example.dictionary} example for ${entry.word}`} />
+                                                        <audio controls preload="none" src={replacementDrafts[key].trim()} aria-label={t('audioAdmin.replacementPreview', { word: entry.word })} />
                                                     )}
                                                     <Button
                                                         variant="contained"
                                                         disabled={!isPreviewableAudioUrl((replacementDrafts[key] || '').trim()) || Boolean(replacingAudio || removingAudio)}
                                                         onClick={() => replaceExample(entry, example, key)}
                                                     >
-                                                        {replacingAudio === key ? 'Replacing…' : 'Replace link'}
+                                                        {replacingAudio === key ? t('audioAdmin.replacing') : t('audioAdmin.replaceLink')}
                                                     </Button>
                                                     <Button
                                                         color="error"
@@ -507,7 +500,7 @@ const SpellingAudioAdminPage = () => {
                                                         disabled={Boolean(replacingAudio || removingAudio)}
                                                         onClick={() => removeExample(entry, example)}
                                                     >
-                                                        {removingAudio === key ? 'Removing…' : 'Remove'}
+                                                        {removingAudio === key ? t('audioAdmin.removing') : t('audioAdmin.remove')}
                                                     </Button>
                                                 </Stack>
                                             </Box>
@@ -523,16 +516,14 @@ const SpellingAudioAdminPage = () => {
             {isAdmin && SHOW_DICTIONARY_SOURCES && <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
-                        <Typography variant="h6" component="h2">Import audio CSV</Typography>
+                        <Typography variant="h6" component="h2">{t('audioAdmin.importTitle')}</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Columns: word, Longman US, Longman UK, Oxford US, Oxford UK, Google US, Google UK, status, first week.
-                            Optional: definition, and Longman/Oxford/Webster/Google example 1, example 2, … (audio URLs; several URLs in one cell can be separated by |).
-                            Empty cells never erase existing data. Preview first; nothing is saved until you press Import.
-                            {' '}<a href="/spelling_word_audio_sample.csv" download>Download sample CSV</a>
+                            {t('audioAdmin.importDescription')}
+                            {' '}<a href="/spelling_word_audio_sample.csv" download>{t('audioAdmin.sampleCsv')}</a>
                         </Typography>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                             <Button component="label" variant="outlined">
-                                {file ? file.name : 'Choose CSV file'}
+                                {file ? file.name : t('audioAdmin.chooseFile')}
                                 <input
                                     hidden
                                     type="file"
@@ -540,28 +531,28 @@ const SpellingAudioAdminPage = () => {
                                     onChange={(event) => { setFile(event.target.files?.[0] || null); setReport(null); }}
                                 />
                             </Button>
-                            <Button variant="outlined" disabled={!file || busy} onClick={() => runImport(true)}>Preview (dry run)</Button>
-                            <Button variant="contained" disabled={!file || busy || !report?.dryRun} onClick={() => runImport(false)}>Import</Button>
+                            <Button variant="outlined" disabled={!file || busy} onClick={() => runImport(true)}>{t('audioAdmin.preview')}</Button>
+                            <Button variant="contained" disabled={!file || busy || !report?.dryRun} onClick={() => runImport(false)}>{t('audioAdmin.import')}</Button>
                         </Stack>
                         {report && (
                             <Box>
-                                <Chip label={report.dryRun ? 'Preview (nothing saved)' : 'Imported'} color={report.dryRun ? 'warning' : 'success'} size="small" sx={{ mb: 1 }} />
-                                <Table size="small" aria-label="Import report">
+                                <Chip label={report.dryRun ? t('audioAdmin.previewChip') : t('audioAdmin.importedChip')} color={report.dryRun ? 'warning' : 'success'} size="small" sx={{ mb: 1 }} />
+                                <Table size="small" aria-label={t('audioAdmin.importReportAria')}>
                                     <TableBody>
-                                        {REPORT_ROWS.map(([key, label]) => (
-                                            <TableRow key={key}><TableCell>{label}</TableCell><TableCell align="right">{report[key]}</TableCell></TableRow>
+                                        {REPORT_ROWS.map(([key, labelKey]) => (
+                                            <TableRow key={key}><TableCell>{t(`audioAdmin.report.${labelKey}`)}</TableCell><TableCell align="right">{report[key]}</TableCell></TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
                                 {report.urlsRejectedSample?.length > 0 && (
                                     <Alert severity="warning" sx={{ mt: 1 }}>
-                                        Rejected URLs (first {report.urlsRejectedSample.length}):
-                                        {report.urlsRejectedSample.map((item) => ` row ${item.row} ${item.word} ${item.field} (${item.reason});`)}
+                                        {t('audioAdmin.rejectedUrls', { total: report.urlsRejectedSample.length })}
+                                        {report.urlsRejectedSample.map((item) => ` ${item.row} ${item.word} ${item.field} (${item.reason});`)}
                                     </Alert>
                                 )}
                                 {report.wordsNotFoundSample?.length > 0 && (
                                     <Alert severity="info" sx={{ mt: 1 }}>
-                                        Not in the app (first {report.wordsNotFoundSample.length}): {report.wordsNotFoundSample.join(', ')}
+                                        {t('audioAdmin.notInApp', { total: report.wordsNotFoundSample.length })} {report.wordsNotFoundSample.join(', ')}
                                     </Alert>
                                 )}
                             </Box>
@@ -573,19 +564,17 @@ const SpellingAudioAdminPage = () => {
             {isAdmin && SHOW_DICTIONARY_SOURCES && <Card variant="outlined">
                 <CardContent>
                     <Stack spacing={2}>
-                        <Typography variant="h6" component="h2">Coverage and per-grade switch</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Students only see the extra voices in grades that are switched on. Off by default.
-                        </Typography>
+                        <Typography variant="h6" component="h2">{t('audioAdmin.coverageTitle')}</Typography>
+                        <Typography variant="body2" color="text.secondary">{t('audioAdmin.coverageDescription')}</Typography>
                         <TableContainer>
-                            <Table size="small" aria-label="Audio coverage by grade">
+                            <Table size="small" aria-label={t('audioAdmin.coverageAria')}>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell>Grade</TableCell>
-                                        <TableCell>Enabled</TableCell>
-                                        <TableCell align="right">Words</TableCell>
-                                        {COVERAGE_COLUMNS.map(([, label]) => <TableCell key={label} align="right">{label}</TableCell>)}
-                                        <TableCell align="right">No audio</TableCell>
+                                        <TableCell>{t('audioAdmin.colGrade')}</TableCell>
+                                        <TableCell>{t('audioAdmin.colEnabled')}</TableCell>
+                                        <TableCell align="right">{t('audioAdmin.colWords')}</TableCell>
+                                        {COVERAGE_COLUMNS.map(([key, labelKey]) => <TableCell key={key} align="right">{t(`audioAdmin.${labelKey}`)}</TableCell>)}
+                                        <TableCell align="right">{t('audioAdmin.colNoAudio')}</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -594,12 +583,12 @@ const SpellingAudioAdminPage = () => {
                                             <TableCell>{entry.grade}</TableCell>
                                             <TableCell>
                                                 <FormControlLabel
-                                                    label={entry.enabled ? 'On' : 'Off'}
-                                                    control={<Switch checked={entry.enabled} onChange={(event) => toggleGrade(entry.grade, event.target.checked)} inputProps={{ 'aria-label': `Enable extra voices for ${entry.grade}` }} />}
+                                                    label={entry.enabled ? t('audioAdmin.on') : t('audioAdmin.off')}
+                                                    control={<Switch checked={entry.enabled} onChange={(event) => toggleGrade(entry.grade, event.target.checked)} inputProps={{ 'aria-label': t('audioAdmin.enableAria', { grade: entry.grade }) }} />}
                                                 />
                                             </TableCell>
                                             <TableCell align="right">{entry.totalWords}</TableCell>
-                                            {COVERAGE_COLUMNS.map(([key, label]) => <TableCell key={label} align="right">{entry.counts[key]}</TableCell>)}
+                                            {COVERAGE_COLUMNS.map(([key]) => <TableCell key={key} align="right">{entry.counts[key]}</TableCell>)}
                                             <TableCell align="right">{entry.wordsWithNoAudio.length}</TableCell>
                                         </TableRow>
                                     ))}
@@ -608,7 +597,7 @@ const SpellingAudioAdminPage = () => {
                         </TableContainer>
                         {coverage.filter((entry) => entry.wordsWithNoAudio.length > 0).map((entry) => (
                             <Box key={entry.grade} component="details">
-                                <summary>{entry.grade}: {entry.wordsWithNoAudio.length} words with no audio</summary>
+                                <summary>{t('audioAdmin.noAudioSummary', { grade: entry.grade, total: entry.wordsWithNoAudio.length })}</summary>
                                 <Typography variant="body2">{entry.wordsWithNoAudio.join(', ')}</Typography>
                             </Box>
                         ))}
@@ -620,57 +609,43 @@ const SpellingAudioAdminPage = () => {
                 <CardContent>
                     <Stack spacing={2}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
-                            <Typography variant="h6" component="h2">AI word audio</Typography>
+                            <Typography variant="h6" component="h2">{t('audioAdmin.aiTitle')}</Typography>
                             {aiSettings && (
                                 <Chip
                                     size="small"
                                     color={aiSettings.envForcedOff ? 'warning' : aiSettings.available ? 'success' : 'default'}
                                     label={aiSettings.envForcedOff
-                                        ? 'Forced off by this deployment'
-                                        : aiSettings.available ? 'On for every school' : 'Off for every school'}
+                                        ? t('audioAdmin.chipForcedOff')
+                                        : aiSettings.available ? t('audioAdmin.chipOn') : t('audioAdmin.chipOff')}
                                 />
                             )}
                         </Stack>
-                        <Typography variant="body2" color="text.secondary">
-                            Pronunciation clips are generated once, stored in our database, and reused for every school.
-                            Students never call AI; they play the stored clip. Generation is charged to this school's AI credits.
-                        </Typography>
+                        <Typography variant="body2" color="text.secondary">{t('audioAdmin.aiDescription')}</Typography>
                         <Typography variant="body2" color="text.secondary">
                             {aiSettings?.envForcedOff
-                                ? 'AI word audio is turned off on this server. Nothing can be generated or played until it is enabled there.'
+                                ? t('audioAdmin.aiForcedOffNote')
                                 : aiSettings?.available
-                                    ? 'AI word audio is on for every school. Generated clips play automatically; you do not need to enable anything here.'
-                                    : 'AI word audio is off for every school. A super admin turns it on from AI Credit; schools cannot change it.'}
+                                    ? t('audioAdmin.aiOnNote')
+                                    : t('audioAdmin.aiOffNote')}
                         </Typography>
                         {aiSettings && !aiSettings.available && !aiSettings.envForcedOff && (
-                            <Alert severity="info">
-                                AI word audio is controlled by the platform. Ask a super admin to turn it on
-                                in AI Credit, under AI word audio.
-                            </Alert>
+                            <Alert severity="info">{t('audioAdmin.aiPlatformAlert')}</Alert>
                         )}
-                        {SHOW_DICTIONARY_SOURCES && (
-                            <Typography variant="body2" color="text.secondary">
-                                The grade switches above add dictionary voices and example recordings. They do not affect AI clips.
-                            </Typography>
-                        )}
-                        <Typography variant="body2" color="text.secondary">
-                            To test what a student hears, search a word above and press “Test playback” beside its AI US
-                            or AI UK clip. It plays that exact clip and reports whether this server delivered it, so a
-                            silent failure can no longer pass as a working clip.
-                        </Typography>
+                        <Typography variant="body2" color="text.secondary">{t('audioAdmin.aiTestHint')}</Typography>
                         {aiCoverage?.grades?.length > 0 && (
                             <TableContainer>
-                                <Table size="small" aria-label="AI word audio coverage by grade">
+                                <Table size="small" aria-label={t('audioAdmin.aiCoverageAria')}>
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Grade</TableCell>
-                                            <TableCell align="right">Words</TableCell>
-                                            <TableCell align="right">US clips</TableCell>
-                                            <TableCell align="right">UK clips</TableCell>
-                                            <TableCell align="right">Both</TableCell>
-                                            <TableCell align="right">Missing clips</TableCell>
-                                            <TableCell align="right">Est. cost</TableCell>
-                                            <TableCell align="right">Generate</TableCell>
+                                            <TableCell>{t('audioAdmin.colGrade')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colWords')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colUs')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colUk')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colBoth')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colRemoved')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colMissing')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colCost')}</TableCell>
+                                            <TableCell align="right">{t('audioAdmin.colGenerate')}</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -681,6 +656,7 @@ const SpellingAudioAdminPage = () => {
                                                 <TableCell align="right">{entry.withUs}</TableCell>
                                                 <TableCell align="right">{entry.withUk}</TableCell>
                                                 <TableCell align="right">{entry.withBoth}</TableCell>
+                                                <TableCell align="right">{entry.removedClips || 0}</TableCell>
                                                 <TableCell align="right">{entry.remainingClips}</TableCell>
                                                 <TableCell align="right">{Number(entry.estimatedCents || 0).toFixed(2)}¢</TableCell>
                                                 <TableCell align="right">
@@ -690,7 +666,7 @@ const SpellingAudioAdminPage = () => {
                                                         disabled={!aiSettings?.available || entry.remainingClips === 0 || Boolean(aiBusyGrade)}
                                                         onClick={() => generateAiAudio(entry.grade)}
                                                     >
-                                                        {aiBusyGrade === entry.grade ? 'Generating…' : 'Generate'}
+                                                        {aiBusyGrade === entry.grade ? t('audioAdmin.generating') : t('audioAdmin.generate')}
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
@@ -700,7 +676,7 @@ const SpellingAudioAdminPage = () => {
                             </TableContainer>
                         )}
                         {aiCoverage && aiCoverage.grades.length === 0 && (
-                            <Typography variant="body2" color="text.secondary">Import spelling words first; there is nothing to generate yet.</Typography>
+                            <Typography variant="body2" color="text.secondary">{t('audioAdmin.importFirst')}</Typography>
                         )}
                     </Stack>
                 </CardContent>

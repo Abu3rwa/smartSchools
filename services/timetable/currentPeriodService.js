@@ -179,6 +179,9 @@ export const createTimetableCurrentPeriodService = ({
         }
 
         if (!periodId) throw forbidden('Observations for this class are only available during your scheduled lesson');
+        if (!/^[a-f0-9]{24}$/i.test(String(periodId))) {
+            throw Object.assign(new Error('Invalid period selection'), { statusCode: 400 });
+        }
 
         const workingDays = await resolveWorkingDays(user.school);
         const { dayOfWeek, minutes } = resolveLocalClock(at, tzOffset);

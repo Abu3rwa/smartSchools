@@ -7,7 +7,7 @@ import {
     publishMonthConfig, closeMonthConfig,
     getRecords, getLeaderboard, getRecord, exportRecordDocx, exportRecordPdf, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
     getEvidence, getStudentEvidence, exportObservationsByTrait, getTraitScoreSuggestions, createEvidence, updateEvidence, deleteEvidence,
-    classifyObservationDraft, createQuickObservation, getNeedsReviewObservations,
+    classifyObservationDraft, createQuickObservation, getNeedsReviewObservations, parseObservationDraft,
     getRecordInteractions, addSupervisorNote,
     getAwardCandidates, setAwardDecision,
     getRecommendations, regenerateRecommendations,
@@ -72,6 +72,7 @@ router.post('/records/:id/evidence', authorize('teacher', 'admin'), createEviden
 router.put('/evidence/:id', authorize('teacher', 'admin'), updateEvidence);
 router.delete('/evidence/:id', authorize('teacher', 'admin'), deleteEvidence);
 router.post('/observations/classify', authorize('teacher', 'admin'), classifyObservationDraft);
+router.post('/observations/parse', authorize('teacher', 'admin'), parseObservationDraft);
 router.post('/observations', authorize('teacher', 'admin'), createQuickObservation);
 router.get('/observations/needs-review', authorize('teacher', 'admin'), getNeedsReviewObservations);
 

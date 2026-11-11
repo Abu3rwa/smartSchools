@@ -16,7 +16,7 @@ import {
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
 import SpellingVoicePanel from './SpellingVoicePanel';
-import { SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions, getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
+import { SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
 
 const HISTORY_PAGE_SIZE = 8;
 
@@ -218,12 +218,6 @@ const SpellingStudentPage = () => {
         setVoiceNotice('');
     }, [currentItem?.sequence]);
 
-    const isPluralWithoutOxfordAudio = (item) => {
-        const word = String(item?.word || '').trim().toLowerCase();
-        if (!/[a-z]s$/.test(word) || /(ss|us|is)$/.test(word)) return false;
-        return !getVoiceOptions(item.audio).some((option) => option.dictionary === 'oxford');
-    };
-
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
 
     // The only fallback is the browser's own voice. No dictionary recording is played
@@ -286,7 +280,7 @@ const SpellingStudentPage = () => {
             onEnded: finishPlayback,
             onFail: () => {
                 finishPlayback();
-                setVoiceNotice("That example isn't available right now.");
+                setVoiceNotice(t('exampleUnavailable'));
             }
         });
         activeAudioRef.current = { pause: handle.cancel };
@@ -699,9 +693,7 @@ const SpellingStudentPage = () => {
                                     >
                                         {currentItem.handRaised
                                             ? t('handIsRaised')
-                                            : SHOW_DICTIONARY_SOURCES && isPluralWithoutOxfordAudio(currentItem)
-                                                ? t('pluralNoOxfordAudio')
-                                                : t('needHelpHint')}
+                                            : t('needHelpHint')}
                                     </Alert>
                                     {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     {revealedAttempt && (

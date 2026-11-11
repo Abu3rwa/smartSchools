@@ -52,7 +52,8 @@ import {
     importWordAudioCsv,
     deleteWordAudioExample,
     listWordAudioSettings,
-    replaceWordPronunciation,
+    regenerateAiPronunciation,
+    removeAiPronunciation,
     replaceWordAudioExample,
     searchWordAudio,
     updateAiAudioSettings,
@@ -110,7 +111,8 @@ router.post('/word-audio/import', authorize('admin'), wordAudioImportUpload.sing
 router.get('/word-audio/search', authorize('admin'), searchWordAudio);
 router.delete('/word-audio/examples', express.json(), authorize('admin'), deleteWordAudioExample);
 router.patch('/word-audio/examples', express.json(), authorize('admin'), replaceWordAudioExample);
-router.patch('/word-audio/pronunciation', express.json(), authorize('admin'), replaceWordPronunciation);
+router.delete('/word-audio/ai/pronunciation', express.json(), authorize('admin'), removeAiPronunciation);
+router.post('/word-audio/ai/pronunciation/regenerate', express.json(), authorize('admin'), regenerateAiPronunciation);
 router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
 router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
 router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);

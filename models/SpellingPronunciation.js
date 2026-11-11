@@ -12,6 +12,10 @@ const spellingPronunciationSchema = new mongoose.Schema({
     instructions: { type: String, default: '' },
     contentType: { type: String, default: 'audio/mpeg' },
     speechSeconds: { type: Number, default: 0 },
+    // A removed clip keeps its key so bulk generation never recreates it; only an
+    // explicit admin regenerate clears this and mints a new publicId.
+    removedAt: { type: Date, default: null },
+    removedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     data: { type: Buffer, required: true, select: false }
 }, { timestamps: true, collection: 'spellingPronunciations' });
 

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   HiOutlineArrowLeft,
+  HiOutlineChartBar,
   HiOutlinePencilAlt,
   HiOutlineSearch,
   HiOutlineSparkles,
@@ -24,6 +25,7 @@ export default function WritingAssignmentBoardPage() {
   const {
     assignment,
     assessWaiting,
+    analyseStudent,
     batchPending,
     credit,
     emailDelivery,
@@ -298,14 +300,24 @@ export default function WritingAssignmentBoardPage() {
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => openStudent("")}
-                autoFocus
-              >
-                {t("writing:teacher.board.closePanel")}
-              </button>
+              <div className="wa-modal-head-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={analyseStudent}
+                >
+                  <HiOutlineChartBar size={16} aria-hidden="true" />
+                  {t("writing:teacher.analysis.open")}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => openStudent("")}
+                  autoFocus
+                >
+                  {t("writing:teacher.board.closePanel")}
+                </button>
+              </div>
             </header>
 
             {historyLoading && (

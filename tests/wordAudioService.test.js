@@ -11,7 +11,6 @@ import {
     buildAudioPayload,
     decorateItemWithAudio,
     removeSchoolWordAudioExample,
-    replaceSchoolWordPronunciation,
     replaceSchoolWordAudioExample,
     searchSchoolWordAudio
 } from '../services/wordAudioService.js';
@@ -35,16 +34,14 @@ test('word payload is unchanged (same object) when there is no audio or the flag
     assert.equal(Object.hasOwn(item, 'audio'), false);
 });
 
-test('buildAudioPayload only exposes dictionaries that have data', () => {
+test('buildAudioPayload exposes examples and meanings but never dictionary pronunciation URLs', () => {
     const audio = buildAudioPayload(doc);
-    assert.deepEqual(Object.keys(audio.dictionaries).sort(), ['longman', 'oxford']);
-    assert.deepEqual(audio.dictionaries.oxford, { uk: doc.oxfordUK });
-    assert.deepEqual(audio.dictionaries.longman.examples, doc.examples.longman);
+    assert.deepEqual(audio.dictionaries, { longman: { examples: doc.examples.longman } });
+    assert.equal(audio.dictionaries.longman.us, undefined);
     assert.equal(audio.definition, 'a small furry pet');
     const googleUrl = 'https://ssl.gstatic.com/dictionary/static/pronunciation/2024-04-19/audio/do/dogs_en_gb_1.mp3';
-    assert.deepEqual(buildAudioPayload({ word: 'dogs', googleUK: googleUrl }), {
-        dictionaries: { google: { uk: googleUrl } }
-    });
+    assert.equal(buildAudioPayload({ word: 'dogs', googleUK: googleUrl }), null);
+    assert.equal(buildAudioPayload({ word: 'dogs', longmanUS: doc.longmanUS, oxfordUK: doc.oxfordUK }), null);
 });
 
 test('decorateItemWithAudio adds only an audio field and keeps every existing field', () => {
@@ -69,7 +66,7 @@ test('attachAudioToCurrentItem returns the identical result when both switches a
     assert.equal(lookup.mock.callCount(), 0);
 });
 
-test('dictionary audio still reaches students while the platform switch is OFF', async (t) => {
+test('example recordings still reach students while the platform switch is OFF', async (t) => {
     platformSwitch(t, false);
     t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery({ enabled: true }));
     const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));

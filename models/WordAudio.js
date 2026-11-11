@@ -4,6 +4,8 @@ const urlField = { type: String, trim: true, maxlength: 500 };
 const urlList = { type: [{ type: String, trim: true, maxlength: 500 }], default: undefined };
 
 // Global (not school-scoped): URLs are public dictionary links shared by every grade that uses the word.
+// The pronunciation fields are no longer read or written by spelling (AI clips are its
+// only pronunciation source), but the Reading Assistant still plays them for vocabulary.
 const wordAudioSchema = new mongoose.Schema({
     word: { type: String, required: true, unique: true, trim: true, maxlength: 200 },
     longmanUS: urlField,

@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { Box, Button, Collapse, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
 import { HiOutlineSpeakerWave, HiOutlineChevronDown, HiOutlineCheck } from 'react-icons/hi2';
+import { useTranslation } from 'react-i18next';
 import { DEFAULT_VOICE_ID, SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions } from '../../utils/voicePlayback';
 
 const TARGET = { minHeight: 44 }; // comfortable touch target
@@ -19,6 +20,7 @@ const GROUP_ITEM_SX = { '& .MuiToggleButtonGroup-grouped': { border: 1, borderCo
  * - Example sentences are separated from voices: they play audio, they don't change the voice.
  */
 const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onPlayExample }) => {
+    const { t } = useTranslation('spelling');
     const [open, setOpen] = useState(true);
     const panelId = useId();
     const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -27,14 +29,7 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
         () => (SHOW_DICTIONARY_SOURCES ? Object.entries(audio?.dictionaries || {}) : []),
         [audio]
     );
-    const voices = useMemo(() => {
-        const options = getSpellingVoiceOptions(audio);
-        const aiAccents = new Set(Object.keys(audio?.ai || {}));
-        // Once a generated clip exists for an accent, its dictionary recordings are not offered any more.
-        return aiAccents.size === 0
-            ? options
-            : options.filter((option) => option.dictionary === 'ai' || !aiAccents.has(option.accent));
-    }, [audio]);
+    const voices = useMemo(() => getSpellingVoiceOptions(audio), [audio]);
     const exampleSets = useMemo(
         () => dictionaries
             .map(([, section]) => section.examples || [])
@@ -47,8 +42,8 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
         [selectedVoice, voices]
     );
     const activeLabel = useMemo(
-        () => voices.find((option) => option.id === activeVoice)?.label || 'Default',
-        [activeVoice, voices]
+        () => voices.find((option) => option.id === activeVoice)?.label || t('voicePanel.default'),
+        [activeVoice, voices, t]
     );
 
     if (voices.length === 0 && exampleSets.length === 0) return null;
@@ -59,7 +54,7 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
     return (
         <Box
             role="group"
-            aria-label="Voice settings"
+            aria-label={t('voicePanel.settings')}
             sx={{
                 width: '100%',
                 border: 1,
@@ -87,12 +82,12 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
             >
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
                     <HiOutlineSpeakerWave aria-hidden="true" />
-                    <Typography variant="body2" color="text.secondary" component="span">Voice</Typography>
+                    <Typography variant="body2" color="text.secondary" component="span">{t('voicePanel.voice')}</Typography>
                     <Typography variant="body2" fontWeight={600} component="span" noWrap>{activeLabel}</Typography>
                 </Stack>
                 <Stack direction="row" spacing={0.5} alignItems="center">
                     <Typography variant="caption" color="text.secondary" component="span">
-                        {open ? 'Hide' : 'Change'}
+                        {open ? t('voicePanel.hide') : t('voicePanel.change')}
                     </Typography>
                     <HiOutlineChevronDown
                         aria-hidden="true"
@@ -112,16 +107,16 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
                         value={activeVoice}
                         onChange={handleChange}
                         disabled={disabled}
-                        aria-label="Choose a voice"
+                        aria-label={t('voicePanel.choose')}
                         sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
                     >
-                        <VoiceOption id={DEFAULT_VOICE_ID} label="Default" selected={activeVoice === DEFAULT_VOICE_ID} />
+                        <VoiceOption id={DEFAULT_VOICE_ID} label={t('voicePanel.default')} selected={activeVoice === DEFAULT_VOICE_ID} />
                         {voices.map((option) => (
                             <VoiceOption
                                 key={option.id}
                                 id={option.id}
                                 label={option.label}
-                                ariaLabel={`${option.label} voice`}
+                                ariaLabel={t('voicePanel.voiceOption', { label: option.label })}
                                 selected={activeVoice === option.id}
                                 withIcon
                             />
@@ -129,23 +124,23 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
                     </ToggleButtonGroup>
 
                     {exampleSets.map((examples, index) => {
-                        const setLabel = `Set ${index + 1}`;
+                        const setLabel = t('voicePanel.set', { number: index + 1 });
                         return (
-                            <Stack key={setLabel} component="section" aria-label={`${setLabel} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+                            <Stack key={setLabel} component="section" aria-label={t('voicePanel.setExamples', { label: setLabel })} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
                                 <Typography variant="subtitle2" sx={{ color: 'primary.dark', fontWeight: 700 }}>{setLabel}</Typography>
-                                <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
+                                <Typography variant="caption" color="text.secondary">{t('voicePanel.hearInSentence')}</Typography>
                                 {examples.map((url, exampleIndex) => (
                                     <Button
                                         key={url}
                                         size="small"
                                         variant="contained"
-                                        aria-label={`${setLabel} example sentence ${exampleIndex + 1}`}
+                                        aria-label={t('voicePanel.exampleSentence', { number: exampleIndex + 1 })}
                                         startIcon={<HiOutlineSpeakerWave />}
                                         onClick={() => onPlayExample(url)}
                                         disabled={disabled}
                                         sx={{ ...TARGET, textTransform: 'none', fontWeight: 700, boxShadow: 'none', bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark', boxShadow: 'none' } }}
                                     >
-                                        {`Example ${exampleIndex + 1}`}
+                                        {t('voicePanel.example', { number: exampleIndex + 1 })}
                                     </Button>
                                 ))}
                             </Stack>

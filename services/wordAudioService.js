@@ -20,7 +20,7 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
     const uniqueKeys = [...new Set(words.map((entry) => normalizeWordKey(entry.word)).filter(Boolean))];
     const audioDocs = uniqueKeys.length
         ? await WordAudio.find({ word: { $in: uniqueKeys } })
-            .select('word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
+            .select('word examples.longman examples.oxford examples.webster examples.google')
             .lean()
         : [];
     const audioByWord = new Map(audioDocs.map((entry) => [entry.word, entry]));
@@ -35,67 +35,16 @@ export async function searchSchoolWordAudio({ schoolId, query }) {
         const audio = audioByWord.get(key);
         const examples = DICTIONARIES.flatMap((dictionary) => (audio?.examples?.[dictionary] || [])
             .map((url) => ({ dictionary, url })));
+        const aiEntry = aiByWord.get(key);
         result.push({
             word: entry.word,
             grade: entry.grade,
-            ai: aiByWord.get(key) || {},
-            pronunciations: {
-                longmanUS: audio?.longmanUS || '',
-                longmanUK: audio?.longmanUK || '',
-                oxfordUS: audio?.oxfordUS || '',
-                oxfordUK: audio?.oxfordUK || '',
-                googleUS: audio?.googleUS || '',
-                googleUK: audio?.googleUK || ''
-            },
+            ai: aiEntry?.clips || {},
+            aiRemoved: aiEntry?.removed || [],
             examples
         });
     }
     return result;
-}
-
-export async function replaceSchoolWordPronunciation({ schoolId, word, field, currentUrl, replacementUrl }) {
-    const key = normalizeWordKey(word);
-    const spellingWordKey = normalizeForGrading(word);
-    if (!key || key.length > 200) throw badRequest('A valid spelling word is required');
-    if (!['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'googleUS', 'googleUK'].includes(field)) {
-        throw badRequest('Unknown pronunciation audio field');
-    }
-    const current = String(currentUrl || '').trim();
-    if (current.length > 500) throw badRequest('The current audio URL is invalid');
-    const validatedReplacement = validateAudioUrl(replacementUrl);
-    if (!validatedReplacement.ok) throw badRequest(validatedReplacement.reason || 'A valid HTTPS audio URL is required');
-    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: spellingWordKey }))) {
-        throw notFound('Spelling word not found in this school');
-    }
-
-    await WordAudio.updateOne(
-        { word: key },
-        { $setOnInsert: { word: key } },
-        { upsert: true }
-    );
-    const currentValueFilter = current
-        ? { [field]: current }
-        : { $or: [{ [field]: { $exists: false } }, { [field]: '' }] };
-    const update = validatedReplacement.empty
-        ? { $unset: { [field]: 1 }, $set: { updatedAt: new Date() } }
-        : { $set: { [field]: validatedReplacement.url, updatedAt: new Date() } };
-    const updated = await WordAudio.findOneAndUpdate(
-        { word: key, ...currentValueFilter },
-        update,
-        { new: true }
-    ).select('word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK').lean();
-    if (!updated) throw notFound('The pronunciation audio changed; refresh the search and try again');
-    return {
-        word: updated.word,
-        pronunciations: {
-            longmanUS: updated.longmanUS || '',
-            longmanUK: updated.longmanUK || '',
-            oxfordUS: updated.oxfordUS || '',
-            oxfordUK: updated.oxfordUK || '',
-            googleUS: updated.googleUS || '',
-            googleUK: updated.googleUK || ''
-        }
-    };
 }
 
 export async function removeSchoolWordAudioExample({ schoolId, word, dictionary, url }) {
@@ -151,21 +100,13 @@ export async function replaceSchoolWordAudioExample({ schoolId, word, dictionary
 }
 
 // Student-facing shape. Returns null when the word has no usable audio so callers add nothing.
+// Pronunciation comes only from AI clips; dictionaries contribute example recordings and meanings.
 export const buildAudioPayload = (doc) => {
     if (!doc) return null;
-    const sections = {
-        longman: { us: doc.longmanUS, uk: doc.longmanUK, examples: doc.examples?.longman },
-        oxford: { us: doc.oxfordUS, uk: doc.oxfordUK, examples: doc.examples?.oxford },
-        webster: { examples: doc.examples?.webster },
-        google: { us: doc.googleUS, uk: doc.googleUK, examples: doc.examples?.google }
-    };
     const dictionaries = {};
     for (const name of DICTIONARIES) {
-        const section = {};
-        if (sections[name].us) section.us = sections[name].us;
-        if (sections[name].uk) section.uk = sections[name].uk;
-        if (sections[name].examples?.length) section.examples = [...sections[name].examples];
-        if (Object.keys(section).length > 0) dictionaries[name] = section;
+        const examples = doc.examples?.[name];
+        if (examples?.length) dictionaries[name] = { examples: [...examples] };
     }
     const payload = {};
     if (Object.keys(dictionaries).length > 0) payload.dictionaries = dictionaries;
@@ -193,7 +134,7 @@ export async function attachAudioToCurrentItem(result, schoolId) {
     try {
         const word = result?.item?.word;
         if (!word) return result;
-        // AI clips follow the platform switch; the grade switch only adds dictionary voices.
+        // AI clips follow the platform switch; the grade switch only adds example recordings.
         const [gradeEnabled, ai] = await Promise.all([
             isAudioEnabledForGrade(schoolId, result.item.grade),
             getAiAudioForWord({ schoolId, word })
@@ -201,7 +142,7 @@ export async function attachAudioToCurrentItem(result, schoolId) {
         if (!gradeEnabled && !ai) return result;
         const doc = gradeEnabled
             ? await WordAudio.findOne({ word: normalizeWordKey(word) })
-                .select('word longmanUS longmanUK oxfordUS oxfordUK googleUS googleUK examples.longman examples.oxford examples.webster examples.google')
+                .select('word examples.longman examples.oxford examples.webster examples.google definition')
                 .lean()
             : null;
         const item = decorateItemWithAudio(result.item, true, doc, ai);
@@ -266,14 +207,13 @@ export async function getAudioCoverage({ schoolId }) {
 
     return GRADES.map((grade) => {
         const gradeWords = [...new Set(words.filter((item) => item.grade === grade).map((item) => normalizeWordKey(item.word)))];
-        const counts = { longmanUS: 0, longmanUK: 0, oxfordUS: 0, oxfordUK: 0, googleUS: 0, googleUK: 0, withExamples: 0, withDefinition: 0 };
+        const counts = { withExamples: 0, withDefinition: 0 };
         const missing = [];
         for (const key of gradeWords) {
             const doc = audioByWord.get(key);
-            for (const field of ['longmanUS', 'longmanUK', 'oxfordUS', 'oxfordUK', 'googleUS', 'googleUK']) if (doc?.[field]) counts[field] += 1;
             if (DICTIONARIES.some((name) => doc?.examples?.[name]?.length)) counts.withExamples += 1;
             if (doc?.definition) counts.withDefinition += 1;
-            if (!buildAudioPayload(doc)?.dictionaries) missing.push(key);
+            if (!buildAudioPayload(doc)) missing.push(key);
         }
         return {
             grade,

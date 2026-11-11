@@ -80,6 +80,12 @@ export function useWritingBoardData() {
 
   const openStudent = useCallback((id) => setProjectId(id || ""), []);
   const refresh = useCallback(() => setRefreshKey((current) => current + 1), []);
+  const analyseStudent = useCallback(() => {
+    if (!projectId) return;
+    navigate(`/portal/writing/analysis?projectId=${encodeURIComponent(projectId)}`, {
+      state: { from: `/portal/writing/assignments/${assignmentId}` },
+    });
+  }, [assignmentId, navigate, projectId]);
 
   const assessWaiting = useCallback(async () => {
     setBatchPending(true);
@@ -109,6 +115,7 @@ export function useWritingBoardData() {
   return {
     assignment: board?.assignment || null,
     assessWaiting,
+    analyseStudent,
     batchPending,
     credit: board?.credit || null,
     emailDelivery: board?.emailDelivery || null,

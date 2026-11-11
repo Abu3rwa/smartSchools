@@ -4,14 +4,15 @@ import {
     generateForSchool,
     getAiAudioSettings,
     getAiCoverage,
-    normalizeStoredAudio
+    normalizeStoredAudio,
+    regeneratePronunciation,
+    removePronunciation
 } from '../services/spellingPronunciationService.js';
 import {
     getAudioCoverage,
     getAudioSettings,
     importWordAudio,
     removeSchoolWordAudioExample,
-    replaceSchoolWordPronunciation,
     replaceSchoolWordAudioExample,
     searchSchoolWordAudio,
     setAudioSetting
@@ -46,17 +47,6 @@ export const updateWordAudioSetting = asyncHandler(async (req, res) => {
 
 export const searchWordAudio = asyncHandler(async (req, res) => {
     const data = await searchSchoolWordAudio({ schoolId: req.schoolId, query: req.query.q });
-    return res.json({ success: true, data });
-});
-
-export const replaceWordPronunciation = asyncHandler(async (req, res) => {
-    const data = await replaceSchoolWordPronunciation({
-        schoolId: req.schoolId,
-        word: req.body?.word,
-        field: String(req.body?.field || ''),
-        currentUrl: req.body?.currentUrl,
-        replacementUrl: req.body?.replacementUrl
-    });
     return res.json({ success: true, data });
 });
 
@@ -112,6 +102,33 @@ export const generateAiWordAudio = asyncHandler(async (req, res) => {
         return res.status(409).json({
             success: false,
             message: 'AI word audio is turned off for this platform. Set SPELLING_AI_AUDIO=true to use it.',
+            code: 'SPELLING_AI_AUDIO_OFF'
+        });
+    }
+    return res.json({ success: true, data });
+});
+
+export const removeAiPronunciation = asyncHandler(async (req, res) => {
+    const data = await removePronunciation({
+        schoolId: req.schoolId,
+        userId: req.user?._id,
+        word: req.body?.word,
+        accent: req.body?.accent
+    });
+    return res.json({ success: true, data });
+});
+
+export const regenerateAiPronunciation = asyncHandler(async (req, res) => {
+    const data = await regeneratePronunciation({
+        schoolId: req.schoolId,
+        userId: req.user?._id,
+        word: req.body?.word,
+        accent: req.body?.accent
+    });
+    if (data.available === false) {
+        return res.status(409).json({
+            success: false,
+            message: 'AI word audio is turned off for this platform, so a new clip cannot be generated.',
             code: 'SPELLING_AI_AUDIO_OFF'
         });
     }

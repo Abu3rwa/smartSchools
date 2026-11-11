@@ -84,6 +84,28 @@ export const writingService = {
       .post(`/writing/projects/${projectId}/notebook`, body || {})
       .then(unwrap),
 
+  // Teacher: analysis across a student's writing (AI runs are rate limited server-side)
+  getAnalysisScope: (params) =>
+    api.get("/writing/analysis/scope", { params }).then(unwrap),
+  createAnalysis: (body) =>
+    api.post("/writing/analysis", body || {}).then(unwrap),
+  listAnalyses: (params) =>
+    api.get("/writing/analysis", { params }).then(unwrap),
+  getAnalysis: (analysisId) =>
+    api.get(`/writing/analysis/${analysisId}`).then(unwrap),
+  updateAnalysis: (analysisId, body) =>
+    api.patch(`/writing/analysis/${analysisId}`, body || {}).then(unwrap),
+  retryAnalysis: (analysisId) =>
+    api.post(`/writing/analysis/${analysisId}/retry`).then(unwrap),
+  publishAnalysis: (analysisId, body) =>
+    api
+      .post(`/writing/analysis/${analysisId}/publish`, body || {})
+      .then(unwrap),
+  getPublishPreview: (analysisId) =>
+    api
+      .get(`/writing/analysis/${analysisId}/publish-preview`)
+      .then(unwrap),
+
   // Student
   getMyWriting: () => api.get("/writing/my").then(unwrap),
   openProject: (assignmentId) =>
