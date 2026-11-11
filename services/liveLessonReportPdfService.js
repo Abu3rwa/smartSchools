@@ -1,15 +1,11 @@
-import puppeteer from "puppeteer";
 import logger from "../utils/logger.js";
-import { resolvePuppeteerExecutablePath } from "../utils/resolvePuppeteerExecutablePath.js";
+import { acquirePdfPage, releasePdfPage } from "./pdf/pdfBrowserManager.js";
 
 const PDF_TIMEOUT_MS = 45000;
 const STEP_TIMEOUT_MS = 30000;
 const MAX_CONCURRENT_RENDERS = 2;
 const PDF_TIMEOUT_MESSAGE = "The PDF took too long to prepare. Please try again.";
-const PDF_UNAVAILABLE_MESSAGE = "PDF export is not available on this server right now.";
 
-let browserPromise;
-let browserGeneration = 0;
 let activeRenders = 0;
 const renderWaiters = [];
 
@@ -36,52 +32,6 @@ export const withTimeout = (promise, ms = STEP_TIMEOUT_MS, message = PDF_TIMEOUT
     },
   );
 });
-
-const launchBrowser = async ({ allowInstall }) => {
-  const executablePath = await resolvePuppeteerExecutablePath({ allowInstall });
-  if (!executablePath) throw pdfError(PDF_UNAVAILABLE_MESSAGE, 503);
-  return puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    executablePath,
-    timeout: STEP_TIMEOUT_MS,
-  });
-};
-
-const browserUsable = (browser) => Boolean(browser && (
-  typeof browser.isConnected === "function" ? browser.isConnected() : browser.connected
-));
-
-const getBrowser = async ({ allowInstall = true } = {}) => {
-  if (browserPromise) {
-    const existing = await browserPromise.catch(() => null);
-    if (existing && browserUsable(existing)) return existing;
-    browserPromise = null;
-  }
-  const generation = browserGeneration + 1;
-  browserGeneration = generation;
-  const pending = launchBrowser({ allowInstall });
-  browserPromise = pending;
-  pending.then((browser) => {
-    // A crashed or closed browser is never handed out again.
-    browser.once("disconnected", () => {
-      if (browserGeneration === generation) browserPromise = null;
-    });
-  }).catch(() => {
-    if (browserGeneration === generation) browserPromise = null;
-  });
-  return pending;
-};
-
-/** Launch the browser after boot, off the request path, so the first export is not the one that pays. */
-export const warmUpPdfBrowser = async () => {
-  try {
-    await getBrowser({ allowInstall: true });
-    logger.info("Live lesson PDF browser is warmed up.");
-  } catch (error) {
-    logger.warn(`Live lesson PDF browser warm-up skipped: ${error.message}`);
-  }
-};
 
 const acquireRenderSlot = () => new Promise((resolve) => {
   const attempt = () => {
@@ -480,9 +430,10 @@ export const buildLiveLessonReportHtml = (report, { type, studentIds = [] } = {}
 
 const renderPdf = async (html, { label, timings }) => {
   const browserStartedAt = Date.now();
-  const browser = await withTimeout(getBrowser({ allowInstall: false }), STEP_TIMEOUT_MS);
+  // Launching is bounded inside the manager; wrapping it in a race here would
+  // leave a page acquired after the caller gave up, and the browser never idle.
+  const page = await acquirePdfPage();
   timings.browserMs = Date.now() - browserStartedAt;
-  const page = await withTimeout(browser.newPage(), STEP_TIMEOUT_MS);
   page.setDefaultTimeout(STEP_TIMEOUT_MS);
   page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
   try {
@@ -505,7 +456,7 @@ const renderPdf = async (html, { label, timings }) => {
     }
     return pdf;
   } finally {
-    await page.close().catch(() => {});
+    await releasePdfPage(page);
   }
 };
 

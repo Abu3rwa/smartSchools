@@ -7,7 +7,6 @@ import ReadingModelAudio from "../models/ReadingModelAudio.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import {
   buildWordTimes,
-  clearModelAudioCache,
   dropModelAudioForText,
   generateModelAudio,
   getModelAudio,
@@ -230,7 +229,6 @@ test("existing audio is never generated or charged again", async (t) => {
 });
 
 test("generation is batched and reports how many parts are left", async (t) => {
-  clearModelAudioCache();
   const stored = [];
   let synthesized = 0;
   t.mock.method(SimplifiedText, "findOne", () => query(multiPartDocument()));
@@ -277,8 +275,7 @@ test("generation is batched and reports how many parts are left", async (t) => {
   assert.equal(charged, 3);
 });
 
-test("a served clip is cached, so replay does not query the database again", async (t) => {
-  clearModelAudioCache();
+test("playback reads the stored clip every time instead of holding a copy in memory", async (t) => {
   const hash = readingTextHash({ targetLevel: null, blockKey: "p-0", text: PASSAGE });
   const doc = {
     blockKey: "p-0",
@@ -300,7 +297,8 @@ test("a served clip is cached, so replay does not query the database again", asy
   await getModelAudio({ schoolId, textId, blockKey: "p-0", hash, studentId: "student-1" });
   const replay = await getModelAudio({ schoolId, textId, blockKey: "p-0", hash, studentId: "student-1" });
 
-  assert.equal(queries, 1);
+  // The audio lives in Mongo only; there is no second in-process copy of the bytes.
+  assert.equal(queries, 2);
   assert.equal(replay.textHash, hash);
 });
 
@@ -340,7 +338,6 @@ test("an archived text drops every clip it owns", async (t) => {
 });
 
 test("streaming by text hash ignores the reader's level label", async (t) => {
-  clearModelAudioCache();
   const hash = readingTextHash({ targetLevel: null, blockKey: "p-0", text: PASSAGE });
   let filter = null;
   t.mock.method(ReadingAssignment, "findOne", () => query({ _id: "assignment-1" }));

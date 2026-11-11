@@ -1,10 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
 import { normalizeStudentGroupingReportSettings } from '../utils/studentGroupingReportSettings.js';
-import { resolvePuppeteerExecutablePath } from '../utils/resolvePuppeteerExecutablePath.js';
+import { withPdfPage } from './pdf/pdfBrowserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,31 +12,7 @@ const TEMPLATE_PATHS = {
     overview: path.resolve(__dirname, '../templates/student-grouping-overview-report.html')
 };
 
-let browserPromise = null;
 const compiledTemplatePromises = new Map();
-
-const getBrowser = async () => {
-    if (!browserPromise) {
-        browserPromise = (async () => {
-            const executablePath = await resolvePuppeteerExecutablePath();
-
-            if (!executablePath) {
-                throw new Error('No compatible Chromium executable found for Puppeteer. Ensure the deployment build runs "npx puppeteer browsers install chrome".');
-            }
-
-            return puppeteer.launch({
-                headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                executablePath
-            });
-        })().catch((error) => {
-            browserPromise = null;
-            throw error;
-        });
-    }
-
-    return browserPromise;
-};
 
 const getTemplate = async (templateType = 'standard') => {
     const templatePath = TEMPLATE_PATHS[templateType] || TEMPLATE_PATHS.standard;
@@ -374,10 +349,7 @@ export const renderStudentGroupingOverviewHtml = async (reportData, branding = {
 
 export const generateStudentGroupingStandardPdf = async (reportData, branding = {}, options = {}) => {
     const html = await renderStudentGroupingStandardHtml(reportData, branding, options);
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-
-    try {
+    return withPdfPage(async (page) => {
         await page.setContent(html, { waitUntil: 'networkidle0' });
         const pdfData = await page.pdf({
             format: 'A4',
@@ -392,17 +364,12 @@ export const generateStudentGroupingStandardPdf = async (reportData, branding = 
 
         // Puppeteer may return Uint8Array in newer versions; normalize for Express send().
         return Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
-    } finally {
-        await page.close();
-    }
+    });
 };
 
 export const generateStudentGroupingOverviewPdf = async (reportData, branding = {}, options = {}) => {
     const html = await renderStudentGroupingOverviewHtml(reportData, branding, options);
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-
-    try {
+    return withPdfPage(async (page) => {
         await page.setContent(html, { waitUntil: 'networkidle0' });
         const pdfData = await page.pdf({
             format: 'A4',
@@ -416,14 +383,5 @@ export const generateStudentGroupingOverviewPdf = async (reportData, branding = 
         });
 
         return Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
-    } finally {
-        await page.close();
-    }
-};
-
-export const closeStudentGroupingPdfBrowser = async () => {
-    if (!browserPromise) return;
-    const browser = await browserPromise;
-    await browser.close();
-    browserPromise = null;
+    });
 };

@@ -1,16 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
 import QRCode from 'qrcode';
-import { resolvePuppeteerExecutablePath } from '../utils/resolvePuppeteerExecutablePath.js';
+import { withPdfPage } from './pdf/pdfBrowserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMPLATE_PATH = path.resolve(__dirname, '../templates/sbr-report-card.html');
 
-let browserPromise = null;
 let compiledTemplatePromise = null;
 
 const round2 = (value) => {
@@ -62,25 +60,6 @@ const getLabels = (isArabic) => {
         rawPercentage: 'النسبة',
         score: 'التقدير'
     };
-};
-
-const getBrowser = async () => {
-    if (!browserPromise) {
-        browserPromise = (async () => {
-            const executablePath = await resolvePuppeteerExecutablePath();
-
-            return puppeteer.launch({
-                headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                ...(executablePath ? { executablePath } : {})
-            });
-        })().catch((error) => {
-            browserPromise = null;
-            throw error;
-        });
-    }
-
-    return browserPromise;
 };
 
 const getTemplate = async () => {
@@ -180,26 +159,20 @@ export const renderSBRHtml = async (reportData, schoolBranding = {}) => {
     return template(payload);
 };
 
-const renderPdfFromHtml = async (html) => {
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-    try {
-        await page.setContent(html, { waitUntil: 'networkidle0' });
+const renderPdfFromHtml = async (html) => withPdfPage(async (page) => {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
 
-        return await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: '10mm',
-                bottom: '10mm',
-                left: '10mm',
-                right: '10mm'
-            }
-        });
-    } finally {
-        await page.close();
-    }
-};
+    return page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+            top: '10mm',
+            bottom: '10mm',
+            left: '10mm',
+            right: '10mm'
+        }
+    });
+});
 
 export const generateSBRPdf = async (reportData, schoolBranding = {}) => {
     const html = await renderSBRHtml(reportData, schoolBranding);
@@ -214,12 +187,4 @@ export const generateBulkSBRPdf = async (reportsArray = [], schoolBranding = {})
 
     const html = htmlBlocks.join('\n<div style="page-break-before: always;"></div>\n');
     return renderPdfFromHtml(html);
-};
-
-export const closeSBRPdfBrowser = async () => {
-    if (!browserPromise) return;
-
-    const browser = await browserPromise;
-    await browser.close();
-    browserPromise = null;
 };

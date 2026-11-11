@@ -61,58 +61,11 @@ export const isModelAudioAllowed = (env = process.env) => {
 };
 
 /*
- * Playback asks for the same few clips over and over, and each miss loads the
- * whole Buffer from Mongo. Keep the served bytes in process, bounded and short
- * lived; regenerate and prune evict by text.
+ * Clips are served straight from Mongo. An in-process copy of the MP3 bytes was
+ * cached here before; on a memory-tight instance a second copy of every served
+ * clip is not worth saving one indexed lookup, so playback always reads the
+ * stored document.
  */
-const AUDIO_CACHE_MAX_BYTES = 64 * 1024 * 1024;
-const AUDIO_CACHE_TTL_MS = 10 * 60 * 1000;
-const audioCache = new Map();
-
-const docBytes = (doc) => {
-  const data = doc?.data;
-  if (!data) return 0;
-  return Number(data.length) || Number(data.buffer?.length) || 0;
-};
-
-const cacheKeyFor = ({ schoolId, textId, blockKey, textHash, level }) =>
-  [schoolId, textId, blockKey, textHash || `level:${level ?? ""}`].join("|");
-
-const cacheGet = (key) => {
-  const entry = audioCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.at > AUDIO_CACHE_TTL_MS) {
-    audioCache.delete(key);
-    return null;
-  }
-  // Re-insert so Map insertion order keeps working as LRU order.
-  audioCache.delete(key);
-  audioCache.set(key, entry);
-  return entry.doc;
-};
-
-const cacheSet = (key, doc, textId) => {
-  const size = docBytes(doc);
-  if (!size || size > AUDIO_CACHE_MAX_BYTES) return;
-  audioCache.delete(key);
-  audioCache.set(key, { doc, size, textId: String(textId), at: Date.now() });
-  let total = 0;
-  for (const entry of audioCache.values()) total += entry.size;
-  for (const [oldKey, entry] of audioCache) {
-    if (total <= AUDIO_CACHE_MAX_BYTES) break;
-    audioCache.delete(oldKey);
-    total -= entry.size;
-  }
-};
-
-export const clearModelAudioCache = () => audioCache.clear();
-
-export const invalidateModelAudioCache = (textId) => {
-  const wanted = String(textId || "");
-  for (const [key, entry] of [...audioCache.entries()]) {
-    if (entry.textId === wanted) audioCache.delete(key);
-  }
-};
 
 const loadVisibleText = async ({
   schoolId,
@@ -571,8 +524,6 @@ export async function generateModelAudio(
     });
   }
 
-  if (generated > 0) invalidateModelAudioCache(text._id);
-
   const extraCostCents = roundCents(
     (speechSeconds / 60) * (audioCentsPerMinute(TTS_MODEL, env) || 0) +
       (transcriptSeconds / 60) * (audioCentsPerMinute(STT_MODEL, env) || 0),
@@ -628,7 +579,6 @@ export async function pruneModelAudioForText({ schoolId, textId }) {
   const filter = { school: schoolId, text: textId };
   if (hashes.length) filter.textHash = { $nin: hashes };
   const result = await ReadingModelAudio.deleteMany(filter);
-  invalidateModelAudioCache(textId);
   return { removed: Number(result?.deletedCount) || 0 };
 }
 
@@ -638,7 +588,6 @@ export async function dropModelAudioForText({ schoolId, textId }) {
     school: schoolId,
     text: textId,
   });
-  invalidateModelAudioCache(textId);
   return { removed: Number(result?.deletedCount) || 0 };
 }
 
@@ -699,16 +648,6 @@ export async function getModelAudio({
     query.level = numericLevel;
   }
 
-  const cacheKey = cacheKeyFor({
-    schoolId,
-    textId,
-    blockKey: query.blockKey,
-    textHash: query.textHash,
-    level: query.level,
-  });
-  const cached = cacheGet(cacheKey);
-  if (cached) return cached;
-
   const doc = await ReadingModelAudio.findOne(query)
     .select(
       "+data blockKey level contentType speechSeconds wordTimes model voice",
@@ -721,6 +660,5 @@ export async function getModelAudio({
       "MODEL_AUDIO_NOT_FOUND",
     );
   }
-  cacheSet(cacheKey, doc, textId);
   return doc;
 }

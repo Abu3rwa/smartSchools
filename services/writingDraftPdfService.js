@@ -6,7 +6,6 @@
  * writing has no parent-facing route, and this service must not invent one.
  */
 import mongoose from "mongoose";
-import puppeteer from "puppeteer";
 
 import WritingProject from "../models/WritingProject.js";
 import WritingAssignment from "../models/WritingAssignment.js";
@@ -14,7 +13,7 @@ import WritingDraft from "../models/WritingDraft.js";
 import WritingAssessment from "../models/WritingAssessment.js";
 import Student from "../models/Student.js";
 import School from "../models/School.js";
-import { resolvePuppeteerExecutablePath } from "../utils/resolvePuppeteerExecutablePath.js";
+import { withPdfPage } from "./pdf/pdfBrowserManager.js";
 
 const PDF_TIMEOUT_MS = 45000;
 const STEP_TIMEOUT_MS = 30000;
@@ -254,86 +253,7 @@ const buildHtml = ({
 </html>`;
 };
 
-const browserUsable = (browser) =>
-  Boolean(
-    browser &&
-      (typeof browser.isConnected === "function"
-        ? browser.isConnected()
-        : browser.connected),
-  );
-
-let browserPromise = null;
-let browserGeneration = 0;
-
-const launchBrowser = async () => {
-  // A request must never wait on a browser download; `npm install` warms the cache.
-  const executablePath = await resolvePuppeteerExecutablePath({
-    allowInstall: false,
-  });
-  if (!executablePath) {
-    throw fail("PDF export is not available on this server right now.", 503);
-  }
-  return puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    executablePath,
-    timeout: STEP_TIMEOUT_MS,
-  });
-};
-
-/**
- * One headless browser reused by every export. Launching one per request made a
- * single print cost hundreds of MB, and a browser that outlived its request never
- * came back; a browser the OS killed is dropped rather than handed out again.
- */
-const getBrowser = async () => {
-  if (browserPromise) {
-    const existing = await browserPromise.catch(() => null);
-    if (existing && browserUsable(existing)) return existing;
-    browserPromise = null;
-  }
-  const generation = (browserGeneration += 1);
-  const pending = launchBrowser();
-  browserPromise = pending;
-  pending
-    .then((browser) => {
-      browser.once("disconnected", () => {
-        if (browserGeneration === generation) browserPromise = null;
-      });
-    })
-    .catch(() => {
-      if (browserGeneration === generation) browserPromise = null;
-    });
-  return pending;
-};
-
 let renderSlot = Promise.resolve();
-
-/**
- * A browser that is alive but wedged would otherwise hold the render slot, and
- * everything queued behind it, forever. Same budget and wording as the outer one.
- */
-const withStepTimeout = (step, ms = STEP_TIMEOUT_MS) =>
-  new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () =>
-        reject(
-          fail("The PDF took too long to prepare. Please try again.", 504),
-        ),
-      ms,
-    );
-    if (typeof timer.unref === "function") timer.unref();
-    step.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 
 /** Repeated clicks queue on one browser instead of stacking pages inside Chrome. */
 const acquireRenderSlot = () => {
@@ -348,11 +268,7 @@ const acquireRenderSlot = () => {
 const renderPdf = async (html) => {
   const releaseRender = await acquireRenderSlot();
   try {
-    const browser = await withStepTimeout(getBrowser());
-    const page = await withStepTimeout(browser.newPage());
-    try {
-      page.setDefaultTimeout(STEP_TIMEOUT_MS);
-      page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
+    return await withPdfPage(async (page) => {
       await page.setContent(html, {
         waitUntil: "load",
         timeout: STEP_TIMEOUT_MS,
@@ -369,9 +285,7 @@ const renderPdf = async (html) => {
         throw fail("The PDF renderer returned an invalid document.", 500);
       }
       return pdf;
-    } finally {
-      await page.close().catch(() => {});
-    }
+    }, { timeoutMs: STEP_TIMEOUT_MS });
   } finally {
     releaseRender();
   }
