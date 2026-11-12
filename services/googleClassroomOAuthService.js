@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { getGoogle } from './googleApiClient.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import {
@@ -22,6 +22,7 @@ const createOAuthClient = () => {
     if (!clientId || !clientSecret) {
         throw new ClassroomSyncError('NOT_CONFIGURED', 'Google OAuth is not configured on the server');
     }
+    const google = getGoogle();
     return new google.auth.OAuth2(clientId, clientSecret, getClassroomRedirectUri());
 };
 
@@ -70,6 +71,7 @@ class GoogleClassroomOAuthService {
             );
         }
 
+        const google = getGoogle();
         const client = createOAuthClient();
         client.setCredentials({ access_token: tokens.access_token });
         const { data } = await google.oauth2({ version: 'v2', auth: client }).userinfo.get();

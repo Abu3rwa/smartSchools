@@ -28,6 +28,7 @@ import ShortcutsMenu from './header/ShortcutsMenu';
 import RoleSwitcher from './header/RoleSwitcher';
 import ImpersonationBanner from './header/ImpersonationBanner';
 import AcademicYearFilter from './header/AcademicYearFilter';
+import HeaderCreditChip from './header/HeaderCreditChip';
 import { useHeaderShortcuts } from './header/useHeaderShortcuts';
 import './Header.css';
 
@@ -228,6 +229,8 @@ const Header = () => {
                 {!isStudent && <AcademicYearFilter />}
 
                 <RoleSwitcher isRtl={isRtl} />
+
+                <HeaderCreditChip />
 
                 <HeaderTip tip={t('layout.header:actions.toggleTheme')}>
                     <button

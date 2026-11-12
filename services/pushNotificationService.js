@@ -1,6 +1,6 @@
 import DeviceToken from '../models/DeviceToken.js';
 import ParentSetting from '../models/ParentSetting.js';
-import { google } from 'googleapis';
+import { getGoogle } from './googleApiClient.js';
 import logger from '../utils/logger.js';
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
@@ -144,6 +144,7 @@ export const resolveFcmV1ConfigForTests = () => resolveFcmV1Config();
 const getFcmV1GoogleAuth = ({ clientEmail, privateKey }) => {
   const fingerprint = `${clientEmail}|${privateKey.length}`;
   if (!cachedGoogleAuth || cachedGoogleAuthFingerprint !== fingerprint) {
+    const google = getGoogle();
     cachedGoogleAuth = new google.auth.GoogleAuth({
       credentials: {
         client_email: clientEmail,

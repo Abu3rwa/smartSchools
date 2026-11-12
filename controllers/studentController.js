@@ -354,7 +354,10 @@ export const getStudents = asyncHandler(async (req, res) => {
     if (classId === 'unassigned') {
         query.currentClass = null;
     } else if (classId) {
-        query.$or = [{ enrolledClasses: classId }, { currentClass: classId }];
+        // The Class column, the class roster and its counters all read currentClass.
+        // Matching enrolledClasses too surfaced students whose class list still carried a
+        // class they had already left, contradicting the class shown in the table.
+        query.currentClass = classId;
 
         // Verify class access for department principals
         if (req.departmentId && req.user.role === 'department_principal') {

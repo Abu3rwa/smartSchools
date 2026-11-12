@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { getGoogle, isGoogleConfigured } from './googleApiClient.js';
 import User from '../models/User.js';
 import GmailAppSentMessage from '../models/GmailAppSentMessage.js';
 import nodemailer from 'nodemailer';
@@ -27,24 +27,22 @@ export const sendRawGmailMessage = (gmail, raw, mailOptions = {}) => gmail.users
 
 class GmailOAuthService {
     constructor() {
-        this.oauth2Client = null;
-        this.initialize();
-    }
-
-    initialize() {
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-        const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback';
-
-        if (clientId && clientSecret) {
-            this.oauth2Client = new google.auth.OAuth2(
-                clientId,
-                clientSecret,
-                redirectUri
-            );
-        } else {
+        this._oauth2Client = null;
+        if (!isGoogleConfigured()) {
             logger.warn('Google OAuth credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
         }
+    }
+
+    get oauth2Client() {
+        if (!this._oauth2Client && isGoogleConfigured()) {
+            const google = getGoogle();
+            this._oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
+            );
+        }
+        return this._oauth2Client;
     }
 
     /**
@@ -77,6 +75,7 @@ class GmailOAuthService {
             : (process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback');
 
         // Create a new OAuth2 client with the correct redirect URI
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -108,6 +107,7 @@ class GmailOAuthService {
             ? (process.env.GOOGLE_LOGIN_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback')
             : (process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback');
 
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -126,6 +126,7 @@ class GmailOAuthService {
     async getUserEmail(accessToken) {
         this.oauth2Client.setCredentials({ access_token: accessToken });
 
+        const google = getGoogle();
         const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client });
         const { data } = await oauth2.userinfo.get();
 
@@ -140,6 +141,7 @@ class GmailOAuthService {
     async getUserProfile(accessToken) {
         this.oauth2Client.setCredentials({ access_token: accessToken });
 
+        const google = getGoogle();
         const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client });
         const { data } = await oauth2.userinfo.get();
 
@@ -198,6 +200,7 @@ class GmailOAuthService {
 
         try {
             // Create a local client to avoid race conditions
+            const google = getGoogle();
             const oauth2Client = new google.auth.OAuth2(
                 process.env.GOOGLE_CLIENT_ID,
                 process.env.GOOGLE_CLIENT_SECRET,
@@ -272,6 +275,7 @@ class GmailOAuthService {
      * @returns {Promise<object>} Gmail API response
      */
     async sendViaGmailApi(oauth2Client, from, to, mailOptions) {
+        const google = getGoogle();
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
         const encodedEmail = await this.buildRawGmailMessage({
             from,
@@ -357,6 +361,7 @@ class GmailOAuthService {
             const from = mailOptions.from || `"${fromName}" <${fromEmail}>`;
             const to = mailOptions.to;
 
+            const google = getGoogle();
             const oauth2Client = new google.auth.OAuth2(
                 process.env.GOOGLE_CLIENT_ID,
                 process.env.GOOGLE_CLIENT_SECRET,
@@ -388,6 +393,7 @@ class GmailOAuthService {
                 const from = mailOptions.from || `"${fromName}" <${fromEmail}>`;
                 const to = mailOptions.to;
 
+                const google = getGoogle();
                 const oauth2Client = new google.auth.OAuth2(
                     process.env.GOOGLE_CLIENT_ID,
                     process.env.GOOGLE_CLIENT_SECRET,
@@ -466,6 +472,7 @@ class GmailOAuthService {
             throw error;
         }
 
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -503,6 +510,7 @@ class GmailOAuthService {
             throw error;
         }
 
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,

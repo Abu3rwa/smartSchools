@@ -6,6 +6,7 @@ import {
   cancelCreditRequest,
   decideCreditRequest,
   getMyCredit,
+  getMyCreditBadge,
   getMyCreditHistory,
   getTeacherCreditHistory,
   listCreditAccounts,
@@ -29,6 +30,7 @@ const admin = authorize("admin", "super_admin");
 
 /* The signed-in person: balance, history, and asking for more */
 router.get("/", staff, getMyCredit);
+router.get("/badge", staff, getMyCreditBadge);
 router.get("/history", staff, getMyCreditHistory);
 router.post("/requests", staff, requestCredit);
 router.post("/requests/:requestId/cancel", staff, cancelCreditRequest);

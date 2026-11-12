@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { getGoogle } from './googleApiClient.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import { getGoogleFormsRedirectUri, GOOGLE_FORMS_SCOPES } from '../config/googleFormsConfig.js';
@@ -23,6 +23,7 @@ const createOAuthClient = (
         error.code = 'NOT_CONFIGURED';
         throw error;
     }
+    const google = getGoogle();
     return new google.auth.OAuth2(clientId, clientSecret, getGoogleFormsRedirectUri());
 };
 
@@ -67,6 +68,7 @@ class GoogleFormsOAuthService {
             throw error;
         }
 
+        const google = getGoogle();
         const client = createOAuthClient();
         client.setCredentials({ access_token: tokens.access_token });
         const { data } = await google.oauth2({ version: 'v2', auth: client }).userinfo.get();

@@ -1,23 +1,25 @@
-import { google } from 'googleapis';
+import { getGoogle, isGoogleConfigured } from './googleApiClient.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
 class GoogleDriveOAuthService {
     constructor() {
-        this.oauth2Client = null;
-        this.initialize();
-    }
-
-    initialize() {
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-        const redirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI || 'http://localhost:5000/api/auth/google-drive/callback';
-
-        if (clientId && clientSecret) {
-            this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-        } else {
+        this._oauth2Client = null;
+        if (!isGoogleConfigured()) {
             logger.warn('Google Drive OAuth credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
         }
+    }
+
+    get oauth2Client() {
+        if (!this._oauth2Client && isGoogleConfigured()) {
+            const google = getGoogle();
+            this._oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                process.env.GOOGLE_DRIVE_REDIRECT_URI || 'http://localhost:5000/api/auth/google-drive/callback'
+            );
+        }
+        return this._oauth2Client;
     }
 
     getAuthUrl(state = 'drive') {
@@ -25,6 +27,7 @@ class GoogleDriveOAuthService {
             throw new Error('Google OAuth not configured');
         }
 
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -47,6 +50,7 @@ class GoogleDriveOAuthService {
         if (!this.oauth2Client) {
             throw new Error('Google OAuth not configured');
         }
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -58,6 +62,7 @@ class GoogleDriveOAuthService {
 
     async getUserEmail(accessToken) {
         this.oauth2Client.setCredentials({ access_token: accessToken });
+        const google = getGoogle();
         const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client });
         const { data } = await oauth2.userinfo.get();
         return data.email;
@@ -79,6 +84,7 @@ class GoogleDriveOAuthService {
         }
         if (!force && !user.googleDriveTokenNeedsRefresh()) return user;
 
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -95,6 +101,7 @@ class GoogleDriveOAuthService {
 
     async buildDriveClient(userId) {
         const user = await this.refreshTokenIfNeeded(userId, false);
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,

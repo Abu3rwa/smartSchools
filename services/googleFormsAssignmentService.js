@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { google } from "googleapis";
+import { getGoogle } from "./googleApiClient.js";
 import GoogleFormSubmission from "../models/GoogleFormSubmission.js";
 import GoogleFormGrading from "../models/GoogleFormGrading.js";
 import { gradeTypeCategoryFromAssignmentKey } from "../utils/assignmentGradeCategory.js";
@@ -163,7 +163,7 @@ export const createGoogleQuiz = async ({
     .reduce((sum, question) => sum + question.points, 0);
   const { auth, user } =
     await googleFormsOAuthService.getAuthorizedClient(actorId);
-  const formsApi = google.forms({ version: "v1", auth });
+  const formsApi = getGoogle().forms({ version: "v1", auth });
   const { data: created } = await formsApi.forms.create({
     requestBody: {
       info: { title: assignment.title, documentTitle: assignment.title },
@@ -312,7 +312,7 @@ export const syncGoogleQuizResponses = async ({
   const formOwnerId = assignment.metadata.googleForm.ownerUserId || actorId;
   const { auth } =
     await googleFormsOAuthService.getAuthorizedClient(formOwnerId);
-  const formsApi = google.forms({ version: "v1", auth });
+  const formsApi = getGoogle().forms({ version: "v1", auth });
   const { data: form } = await formsApi.forms.get({
     formId: assignment.metadata.googleForm.formId,
   });

@@ -9,6 +9,7 @@ const unwrap = (response) => response?.data?.data ?? response?.data;
 export const aiCreditService = {
   // The signed-in person: balance, history and asking for more
   getSummary: () => api.get("/ai-credit").then(unwrap),
+  getBadge: () => api.get("/ai-credit/badge").then(unwrap),
   getHistory: (params) =>
     api.get("/ai-credit/history", { params }).then(unwrap),
   requestCredit: (body) => api.post("/ai-credit/requests", body).then(unwrap),

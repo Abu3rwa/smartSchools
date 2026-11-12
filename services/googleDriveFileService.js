@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { google } from 'googleapis';
+import { getGoogle } from './googleApiClient.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import { GOOGLE_DRIVE_FILE_SCOPES, hasDriveFileScope } from '../config/googleDriveFileScopes.js';
@@ -34,24 +34,11 @@ const isNotFound = (error) =>
  * attachments and uses its own token store on the user.
  */
 class GoogleDriveFileService {
-    constructor() {
-        this.oauth2Client = null;
-        this.initialize();
-    }
-
-    initialize() {
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-        const redirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI || 'http://localhost:5000/api/auth/google-drive/callback';
-        if (clientId && clientSecret) {
-            this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-        }
-    }
-
     buildOAuthClient() {
         if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
             throw new Error('Google OAuth not configured');
         }
+        const google = getGoogle();
         return new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -76,6 +63,7 @@ class GoogleDriveFileService {
     async storeTokens(userId, tokens) {
         const user = await User.findById(userId);
         if (!user) throw new Error('User not found');
+        const google = getGoogle();
         const oauth2Client = this.buildOAuthClient();
         oauth2Client.setCredentials({ access_token: tokens.access_token });
         const { data } = await google.oauth2({ version: 'v2', auth: oauth2Client }).userinfo.get();
@@ -111,6 +99,7 @@ class GoogleDriveFileService {
             access_token: user.googleDriveFileTokens.accessToken,
             refresh_token: user.googleDriveFileTokens.refreshToken
         });
+        const google = getGoogle();
         return { user, drive: google.drive({ version: 'v3', auth: oauth2Client }) };
     }
 

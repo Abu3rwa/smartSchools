@@ -9,7 +9,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
-import { google } from 'googleapis';
+import { getGoogle } from '../services/googleApiClient.js';
 import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,6 +29,7 @@ const BODY = 'If you see this — push notifications are working! 🎉';
 
 // ────────────────────────────────────────────────────────────────
 async function main() {
+    const google = getGoogle();
     // Get an OAuth2 access token via the service account
     const auth = new google.auth.GoogleAuth({
         credentials: {

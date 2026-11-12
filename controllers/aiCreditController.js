@@ -21,6 +21,14 @@ export const getMyCredit = asyncHandler(async (req, res) => {
   res.json({ success: true, data: summary });
 });
 
+export const getMyCreditBadge = asyncHandler(async (req, res) => {
+  const badge = await creditService.getCreditBadge({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+  });
+  res.json({ success: true, data: badge });
+});
+
 export const getMyCreditHistory = asyncHandler(async (req, res) => {
   const history = await creditService.listCreditHistory({
     schoolId: req.schoolId,

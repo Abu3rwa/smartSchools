@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { google } from 'googleapis';
+import { getGoogle } from '../services/googleApiClient.js';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
@@ -827,6 +827,7 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     }
 
     // Step 1: Create OAuth2 client with your credentials
+    const google = getGoogle();
     const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
@@ -891,6 +892,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
 
     try {
         // Step 1: Create OAuth2 client (same as before)
+        const google = getGoogle();
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
@@ -988,6 +990,7 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
             // Token expired, refreshing
 
             // Refresh the token
+            const google = getGoogle();
             const oauth2Client = new google.auth.OAuth2(
                 process.env.GOOGLE_CLIENT_ID,
                 process.env.GOOGLE_CLIENT_SECRET,

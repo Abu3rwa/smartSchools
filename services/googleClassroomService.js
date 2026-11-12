@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { getGoogle } from "./googleApiClient.js";
 import { toClassroomDue } from "../utils/classroomDueDate.js";
 import { withRetry } from "./classroomErrors.js";
 
@@ -137,7 +137,7 @@ export const buildCourseWorkPatch = ({ assignment, timeZone, link }) => {
   return { requestBody: payload, updateMask: mask.join(",") };
 };
 
-const classroomClient = (auth) => google.classroom({ version: "v1", auth });
+const classroomClient = (auth) => getGoogle().classroom({ version: "v1", auth });
 
 /** Lists active courses the connected account teaches. Returns only fields the UI needs. */
 export const listTeacherCourses = async (auth) => {
