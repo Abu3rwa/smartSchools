@@ -1023,25 +1023,27 @@ export const getMyDashboardAnalytics = asyncHandler(async (req, res) => {
         ])
     ]);
 
-    const classIds = [...new Set([
-        ...classPerformanceRows.map((row) => String(row.classId || '')),
-        ...atRiskRows.map((row) => String(row.classId || ''))
-    ].filter(Boolean))];
-
     const studentIds = atRiskRows.map((row) => row.studentId).filter(Boolean);
 
-    const [classes, students] = await Promise.all([
-        classIds.length > 0
-            ? Class.find({ school: schoolId, _id: { $in: classIds } })
-                .select('name')
-                .lean()
-            : [],
-        studentIds.length > 0
-            ? Student.find({ school: schoolId, _id: { $in: studentIds } })
-                .select('firstName lastName')
-                .lean()
-            : []
-    ]);
+    // Grade rows keep the class they were recorded under; a student who moves
+    // keeps those marks, so the chip must name the class they are in now.
+    const students = studentIds.length > 0
+        ? await Student.find({ school: schoolId, _id: { $in: studentIds } })
+            .select('firstName lastName currentClass')
+            .lean()
+        : [];
+
+    const classIds = [...new Set([
+        ...classPerformanceRows.map((row) => String(row.classId || '')),
+        ...atRiskRows.map((row) => String(row.classId || '')),
+        ...students.map((item) => String(item.currentClass || ''))
+    ].filter(Boolean))];
+
+    const classes = classIds.length > 0
+        ? await Class.find({ school: schoolId, _id: { $in: classIds } })
+            .select('name')
+            .lean()
+        : [];
 
     const classNameMap = new Map(classes.map((item) => [String(item._id), item.name || 'Class']));
     const studentNameMap = new Map(
@@ -1049,6 +1051,9 @@ export const getMyDashboardAnalytics = asyncHandler(async (req, res) => {
             String(item._id),
             `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Student'
         ])
+    );
+    const studentClassMap = new Map(
+        students.map((item) => [String(item._id), item.currentClass ? String(item.currentClass) : ''])
     );
 
     const workloadCountMap = new Map(workloadRows.map((item) => [Number(item._id), item.count]));
@@ -1065,13 +1070,16 @@ export const getMyDashboardAnalytics = asyncHandler(async (req, res) => {
         studentCount: row.studentCount
     }));
 
-    const atRiskStudents = atRiskRows.map((row) => ({
-        studentId: row.studentId,
-        studentName: studentNameMap.get(String(row.studentId)) || 'Student',
-        classId: row.classId,
-        className: classNameMap.get(String(row.classId)) || 'Class',
-        avgPercentage: row.avgPercentage
-    }));
+    const atRiskStudents = atRiskRows.map((row) => {
+        const classId = studentClassMap.get(String(row.studentId)) || row.classId;
+        return {
+            studentId: row.studentId,
+            studentName: studentNameMap.get(String(row.studentId)) || 'Student',
+            classId,
+            className: classNameMap.get(String(classId)) || 'Class',
+            avgPercentage: row.avgPercentage
+        };
+    });
 
     const avgClassPerformance = classPerformance.length > 0
         ? Number((classPerformance.reduce((acc, row) => acc + Number(row.avgPercentage || 0), 0) / classPerformance.length).toFixed(2))

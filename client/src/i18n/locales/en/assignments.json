@@ -15,14 +15,7 @@
     "dueToday": "{{count}} due today",
     "nextSevenDays": "Next seven days",
     "acrossAssignments": "Across assignments ({{count}})",
-    "allGraded": "Everything graded",
-    "attention": {
-      "label": "Needs attention:",
-      "drafts": "Drafts to publish: {{count}}",
-      "ungraded": "Submissions to grade: {{count}}",
-      "overdue": "Overdue assignments: {{count}}",
-      "review": "Review these"
-    }
+    "allGraded": "Everything graded"
   },
   "tabs": {
     "label": "Assignment page sections",

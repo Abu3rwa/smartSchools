@@ -15,14 +15,7 @@
     "dueToday": "مستحق اليوم: {{count}}",
     "nextSevenDays": "خلال الأيام السبعة القادمة",
     "acrossAssignments": "في {{count}} من الواجبات",
-    "allGraded": "تم تصحيح الكل",
-    "attention": {
-      "label": "يحتاج إلى انتباه:",
-      "drafts": "مسودات بانتظار النشر: {{count}}",
-      "ungraded": "تسليمات بانتظار التصحيح: {{count}}",
-      "overdue": "واجبات متأخرة: {{count}}",
-      "review": "راجعها"
-    }
+    "allGraded": "تم تصحيح الكل"
   },
   "tabs": {
     "label": "أقسام صفحة الواجبات",

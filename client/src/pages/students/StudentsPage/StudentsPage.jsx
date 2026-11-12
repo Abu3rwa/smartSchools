@@ -920,6 +920,7 @@ const StudentsPage = () => {
                 pageSize={pageSize}
                 totalItems={totalItems}
                 totalPages={totalPages}
+                pageSizeOptions={[10, 15, 20, 50]}
                 onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
                 onPageSizeChange={(nextSize) => {
                     setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));

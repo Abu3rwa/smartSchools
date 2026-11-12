@@ -393,19 +393,6 @@ export const updateClass = asyncHandler(async (req, res) => {
     // Save the document to trigger pre-save hooks (important for automatic name generation)
     await classData.save();
 
-    // Populate the updated document for response
-    const updatedClass = await Class.findById(req.params.id)
-        .populate('department', 'name type')
-        .populate({
-            path: 'classTeacher',
-            populate: { path: 'user', select: 'firstName lastName' }
-        })
-        .populate('subjects.subject', 'name code')
-        .populate({
-            path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName email _id' }
-        });
-
     res.json({
         success: true,
         message: 'Class updated successfully',

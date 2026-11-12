@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     fetchClass,
+    fetchClasses,
     updateClass,
     selectCurrentClass,
     selectClassStudents,
+    selectClasses,
     selectClassesLoading,
     addSubjectToClass,
     removeSubjectFromClass,
@@ -19,6 +22,7 @@ import {
     enrollStudentsInClass,
     unenrollStudentFromClass
 } from '../../../store/slices/classSlice';
+import { updateStudent } from '../../../store/slices/studentSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { selectTeachers } from '../../../store/slices/teacherSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
@@ -28,9 +32,39 @@ import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineCli
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
+import StudentFormModal from '../../students/StudentsPage/components/StudentFormModal';
 import './ClassDetailPage.css';
 
 const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
+
+const emptyStudentForm = (academicYear) => ({
+    firstName: '',
+    lastName: '',
+    externalName: '',
+    studentId: '',
+    email: '',
+    dateOfBirth: '',
+    gender: '',
+    currentClass: '',
+    department: '',
+    academicYear,
+    parentInfo: {
+        fatherName: '',
+        fatherPhone: '',
+        fatherEmail: '',
+        motherName: '',
+        motherPhone: '',
+        motherEmail: '',
+        primaryContact: 'father'
+    },
+    address: {
+        street: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'South Africa'
+    }
+});
 
 const isHomeroomSubject = (subject) => {
     const name = String(subject?.name || '').toLowerCase();
@@ -41,8 +75,10 @@ const isHomeroomSubject = (subject) => {
 const ClassDetailPage = () => {
     const { id } = useParams();
     const dispatch = useDispatch();
+    const { t } = useTranslation(['students']);
     const currentClass = useSelector(selectCurrentClass);
     const students = useSelector(selectClassStudents);
+    const classes = useSelector(selectClasses);
     const loading = useSelector(selectClassesLoading);
     const subjectsList = useSelector(selectSubjects);
     const teachersList = useSelector(selectTeachers);
@@ -69,6 +105,12 @@ const ClassDetailPage = () => {
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
     const [enrolling, setEnrolling] = useState(false);
 
+    // Edit student modal state (admin only)
+    const [showStudentEditModal, setShowStudentEditModal] = useState(false);
+    const [editingStudentId, setEditingStudentId] = useState(null);
+    const [studentFormData, setStudentFormData] = useState(() => emptyStudentForm(academicYear));
+    const [savingStudent, setSavingStudent] = useState(false);
+
     const analytics = useSelector(selectClassAnalytics);
     const insightsData = useSelector(selectClassInsights);
     const analyticsLoading = useSelector(selectClassAnalyticsLoading);
@@ -76,6 +118,7 @@ const ClassDetailPage = () => {
 
     useEffect(() => {
         dispatch(fetchClass(id));
+        dispatch(fetchClasses({ limit: 'all' }));
         dispatch(fetchDepartments());
         dispatch(clearClassAnalyticsData());
     }, [dispatch, id]);
@@ -241,6 +284,64 @@ const ClassDetailPage = () => {
         }
     };
 
+    const openEditStudent = (student) => {
+        setEditingStudentId(student._id);
+        setStudentFormData({
+            firstName: student.firstName || '',
+            lastName: student.lastName || '',
+            externalName: student.externalName || '',
+            studentId: student.studentId || '',
+            email: student.email || '',
+            dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
+            gender: student.gender || '',
+            currentClass: student.currentClass?._id || student.currentClass || '',
+            department: student.department?._id || student.department || '',
+            academicYear: student.academicYear || academicYear,
+            parentInfo: {
+                fatherName: student.parentInfo?.fatherName || '',
+                fatherPhone: student.parentInfo?.fatherPhone || '',
+                fatherEmail: student.parentInfo?.fatherEmail || '',
+                motherName: student.parentInfo?.motherName || '',
+                motherPhone: student.parentInfo?.motherPhone || '',
+                motherEmail: student.parentInfo?.motherEmail || '',
+                primaryContact: student.parentInfo?.primaryContact || 'father'
+            },
+            address: {
+                street: student.address?.street || '',
+                city: student.address?.city || '',
+                state: student.address?.state || '',
+                zipCode: student.address?.zipCode || '',
+                country: student.address?.country || 'South Africa'
+            }
+        });
+        setShowStudentEditModal(true);
+    };
+
+    const resetStudentForm = () => {
+        setEditingStudentId(null);
+        setStudentFormData(emptyStudentForm(academicYear));
+    };
+
+    const handleStudentSubmit = async (event) => {
+        event.preventDefault();
+        if (!editingStudentId || savingStudent) return;
+        setSavingStudent(true);
+        try {
+            const payload = { ...studentFormData, department: studentFormData.department || null };
+            const result = await dispatch(updateStudent({ id: editingStudentId, data: payload }));
+            if (updateStudent.fulfilled.match(result)) {
+                toast.success(t('students:toast.updated'));
+                setShowStudentEditModal(false);
+                resetStudentForm();
+                dispatch(fetchClass(id));
+            } else {
+                toast.error(result.payload || t('students:toast.updateFailed'));
+            }
+        } finally {
+            setSavingStudent(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -364,6 +465,17 @@ const ClassDetailPage = () => {
                                                 <Link to={`/portal/students/${student._id}`} className="btn btn-ghost btn-sm">
                                                     Details
                                                 </Link>
+                                                {isAdmin && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => openEditStudent(student)}
+                                                        title={t('students:actions.editStudent')}
+                                                    >
+                                                        <HiOutlinePencil size={16} />
+                                                        {t('students:actions.editStudent')}
+                                                    </button>
+                                                )}
                                                 {canEditClass && (
                                                     <button
                                                         type="button"
@@ -772,6 +884,18 @@ const ClassDetailPage = () => {
                     </div>
                 </div>
             )}
+
+            <StudentFormModal
+                showModal={showStudentEditModal}
+                setShowModal={setShowStudentEditModal}
+                isEditing
+                formData={studentFormData}
+                setFormData={setStudentFormData}
+                classes={classes}
+                departments={departments}
+                resetForm={resetStudentForm}
+                handleSubmit={handleStudentSubmit}
+            />
         </div>
     );
 };

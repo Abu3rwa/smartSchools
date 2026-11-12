@@ -3,7 +3,6 @@ import {
   HiOutlineCheckCircle,
   HiOutlineDocumentText,
   HiOutlinePencilAlt,
-  HiOutlineExclamation,
 } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
 
@@ -19,31 +18,8 @@ const Spark = ({ values }) => (
   </span>
 );
 
-const AssignmentsOverview = ({ metrics, classLabel, onReviewAttention }) => {
+const AssignmentsOverview = ({ metrics, classLabel }) => {
   const { t } = useTranslation(["assignments"]);
-
-  const attentionItems = [];
-  if (metrics.draftCount > 0) {
-    attentionItems.push(
-      t("assignments:overview.attention.drafts", {
-        count: metrics.draftCount,
-      }),
-    );
-  }
-  if (metrics.awaitingGrading > 0) {
-    attentionItems.push(
-      t("assignments:overview.attention.ungraded", {
-        count: metrics.awaitingGrading,
-      }),
-    );
-  }
-  if (metrics.overdue > 0) {
-    attentionItems.push(
-      t("assignments:overview.attention.overdue", {
-        count: metrics.overdue,
-      }),
-    );
-  }
 
   const cards = [
     {
@@ -123,35 +99,6 @@ const AssignmentsOverview = ({ metrics, classLabel, onReviewAttention }) => {
           );
         })}
       </section>
-
-      {attentionItems.length > 0 && (
-        <section
-          className="assignments-attention"
-          aria-label={t("assignments:overview.attention.label")}
-        >
-          <span className="assignments-attention__icon" aria-hidden="true">
-            <HiOutlineExclamation />
-          </span>
-          <p>
-            <strong>{t("assignments:overview.attention.label")}</strong>{" "}
-            {attentionItems.map((item, index) => (
-              <span key={item}>
-                {index > 0 && (
-                  <span className="assignments-attention__sep">·</span>
-                )}
-                {item}
-              </span>
-            ))}
-          </p>
-          <button
-            type="button"
-            className="assignments-attention__action"
-            onClick={onReviewAttention}
-          >
-            {t("assignments:overview.attention.review")}
-          </button>
-        </section>
-      )}
     </>
   );
 };

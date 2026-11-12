@@ -59,7 +59,7 @@ const AssignmentsPage = () => {
   const [draftSaving, setDraftSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("assignments");
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortKey, setSortKey] = useState("dueDate");
+  const [sortKey, setSortKey] = useState("created");
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date().getMonth() + 1,
   );
@@ -904,18 +904,6 @@ const AssignmentsPage = () => {
     });
   };
 
-  const onReviewAttention = () => {
-    if (metrics.draftCount > 0) {
-      setSelectedStatus("draft");
-    } else if (metrics.awaitingGrading > 0) {
-      setSelectedStatus("published");
-      setSortKey("needsGrading");
-    } else if (metrics.overdue > 0) {
-      setSelectedStatus("published");
-    }
-    setCurrentPage(1);
-  };
-
   const loadGoogleFormResults = async (assignment) => {
     setGoogleFormResults({ assignment, items: [] });
     setLoadingGoogleFormResults(true);
@@ -1269,7 +1257,6 @@ const AssignmentsPage = () => {
         <AssignmentsOverview
           metrics={metrics}
           classLabel={classLabel}
-          onReviewAttention={onReviewAttention}
         />
 
         <AssignmentsPanel
