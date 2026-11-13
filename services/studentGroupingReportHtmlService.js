@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
 import { normalizeStudentGroupingReportSettings } from '../utils/studentGroupingReportSettings.js';
-import { withPdfPage } from './pdf/pdfBrowserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -347,41 +346,3 @@ export const renderStudentGroupingOverviewHtml = async (reportData, branding = {
     return template(payload);
 };
 
-export const generateStudentGroupingStandardPdf = async (reportData, branding = {}, options = {}) => {
-    const html = await renderStudentGroupingStandardHtml(reportData, branding, options);
-    return withPdfPage(async (page) => {
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-        const pdfData = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: '10mm',
-                bottom: '10mm',
-                left: '10mm',
-                right: '10mm'
-            }
-        });
-
-        // Puppeteer may return Uint8Array in newer versions; normalize for Express send().
-        return Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
-    });
-};
-
-export const generateStudentGroupingOverviewPdf = async (reportData, branding = {}, options = {}) => {
-    const html = await renderStudentGroupingOverviewHtml(reportData, branding, options);
-    return withPdfPage(async (page) => {
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-        const pdfData = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: {
-                top: '10mm',
-                bottom: '10mm',
-                left: '10mm',
-                right: '10mm'
-            }
-        });
-
-        return Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
-    });
-};

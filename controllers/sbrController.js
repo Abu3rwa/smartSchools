@@ -8,16 +8,12 @@ import {
     normalizePeriod
 } from '../services/sbrService.js';
 import {
-    generateSBRPdf,
-    generateBulkSBRPdf,
+    renderBulkSBRHtml,
     renderSBRHtml
-} from '../services/sbrPdfService.js';
-import {
-    uploadPrivateFile,
-    getSignedUrl,
-    downloadFile
-} from '../services/firebaseStorageService.js';
+} from '../services/sbrReportHtmlService.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
+import { buildPortalLink } from '../helpers/portalUrl.js';
+import { sendPrintableHtml, withPrintPageCss } from '../utils/printableHtml.js';
 
 const REPORT_STATUSES = new Set(['draft', 'published', 'archived']);
 
@@ -40,10 +36,7 @@ const normalizeEmails = (values = []) => {
     return [...seen];
 };
 
-const getReportStoragePath = ({ schoolId, academicYear, reportCardId }) => {
-    const year = String(academicYear || 'unknown-year').replace(/[^0-9-]/g, '');
-    return `schools/${schoolId}/sbr-reports/${year}/${reportCardId}.pdf`;
-};
+const sendReportSheet = (res, html) => sendPrintableHtml(res, withPrintPageCss(html, { margin: '10mm' }));
 
 const parsePagination = (query = {}) => {
     const page = Math.max(1, Number(query.page) || 1);
@@ -136,8 +129,7 @@ const toReportListItem = (report) => ({
     status: report.status,
     generatedAt: report.generatedAt,
     emailedAt: report.emailedAt,
-    emailedTo: Array.isArray(report.emailedTo) ? report.emailedTo : [],
-    pdfUrl: report.pdfUrl || null
+    emailedTo: Array.isArray(report.emailedTo) ? report.emailedTo : []
 });
 
 const getBrandingFromReportData = (reportData) => ({
@@ -165,9 +157,7 @@ const upsertReportCard = async ({
     classId,
     academicYear,
     periodType,
-    reportData,
-    pdfRef,
-    pdfUrl
+    reportData
 }) => {
     const existing = await SBRReportCard.findOne({
         school: schoolId,
@@ -184,8 +174,6 @@ const upsertReportCard = async ({
         subjects: reportData.subjects,
         generatedBy: reportData.generatedBy,
         generatedAt: reportData.generatedAt,
-        pdfRef,
-        pdfUrl,
         comments: reportData.comments || '',
         teacherNotes: reportData.teacherNotes || {}
     };
@@ -195,8 +183,6 @@ const upsertReportCard = async ({
         existing.subjects = payload.subjects;
         existing.generatedBy = payload.generatedBy;
         existing.generatedAt = payload.generatedAt;
-        existing.pdfRef = payload.pdfRef;
-        existing.pdfUrl = payload.pdfUrl;
         existing.comments = payload.comments;
         existing.teacherNotes = payload.teacherNotes;
         existing.period = payload.period;
@@ -215,8 +201,6 @@ const upsertReportCard = async ({
         subjects: reportData.subjects,
         generatedBy: reportData.generatedBy,
         generatedAt: reportData.generatedAt,
-        pdfRef,
-        pdfUrl,
         comments: reportData.comments || '',
         teacherNotes: reportData.teacherNotes || {}
     });
@@ -261,35 +245,18 @@ export const generateSBR = asyncHandler(async (req, res) => {
         teacherNotes: req.body?.teacherNotes || {}
     });
 
-    const branding = getBrandingFromReportData(reportData);
-    const pdfBuffer = await generateSBRPdf(reportData, branding);
-
-    const storagePath = getReportStoragePath({
-        schoolId: req.schoolId,
-        academicYear,
-        reportCardId: reportData.reportCardId
-    });
-
-    const uploaded = await uploadPrivateFile(pdfBuffer, 'application/pdf', storagePath);
-    const signedUrl = await getSignedUrl(uploaded.fileRef);
-
     const reportCard = await upsertReportCard({
         schoolId: req.schoolId,
         studentId,
         classId,
         academicYear,
         periodType: periodInfo.type,
-        reportData,
-        pdfRef: uploaded.fileRef,
-        pdfUrl: signedUrl
+        reportData
     });
 
     res.status(201).json({
         success: true,
-        data: {
-            reportCard,
-            pdfUrl: signedUrl
-        }
+        data: { reportCard }
     });
 });
 
@@ -314,51 +281,21 @@ export const generateBulkSBR = asyncHandler(async (req, res) => {
     const savedReports = [];
 
     for (const reportData of reportsData) {
-        const periodType = reportData.period?.type;
-        const studentId = toIdString(reportData.student);
-        const branding = getBrandingFromReportData(reportData);
-        const pdfBuffer = await generateSBRPdf(reportData, branding);
-
-        const storagePath = getReportStoragePath({
-            schoolId: req.schoolId,
-            academicYear,
-            reportCardId: reportData.reportCardId
-        });
-
-        const uploaded = await uploadPrivateFile(pdfBuffer, 'application/pdf', storagePath);
-        const signedUrl = await getSignedUrl(uploaded.fileRef);
-
         const reportCard = await upsertReportCard({
             schoolId: req.schoolId,
-            studentId,
+            studentId: toIdString(reportData.student),
             classId,
             academicYear,
-            periodType,
-            reportData,
-            pdfRef: uploaded.fileRef,
-            pdfUrl: signedUrl
+            periodType: reportData.period?.type,
+            reportData
         });
 
         savedReports.push(reportCard);
     }
 
-    let bulkPdfUrl = null;
-    if (reportsData.length > 0) {
-        const branding = getBrandingFromReportData(reportsData[0]);
-        const bulkBuffer = await generateBulkSBRPdf(reportsData, branding);
-        const normalizedPeriod = normalizePeriod(period)?.type || 'full_year';
-
-        const bulkPath = `schools/${req.schoolId}/sbr-reports/${String(academicYear).replace(/[^0-9-]/g, '')}/bulk/${normalizedPeriod}-${Date.now()}.pdf`;
-        const bulkUploaded = await uploadPrivateFile(bulkBuffer, 'application/pdf', bulkPath);
-        bulkPdfUrl = await getSignedUrl(bulkUploaded.fileRef);
-    }
-
     res.status(201).json({
         success: true,
-        data: {
-            reportCards: savedReports,
-            bulkPdfUrl
-        }
+        data: { reportCards: savedReports }
     });
 });
 
@@ -384,9 +321,7 @@ export const previewSBR = asyncHandler(async (req, res) => {
         teacherNotes: req.body?.teacherNotes || {}
     });
 
-    const html = await renderSBRHtml(reportData, getBrandingFromReportData(reportData));
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    return sendReportSheet(res, await renderSBRHtml(reportData, getBrandingFromReportData(reportData)));
 });
 
 export const getReportCards = asyncHandler(async (req, res) => {
@@ -490,7 +425,8 @@ export const getReportCard = asyncHandler(async (req, res) => {
     res.json({ success: true, data: { reportCard } });
 });
 
-export const downloadReportCardPdf = asyncHandler(async (req, res) => {
+/** Rebuilds the card from live data so the printed sheet always matches the marks. */
+export const printReportCard = asyncHandler(async (req, res) => {
     const reportCard = await SBRReportCard.findOne({
         _id: req.params.id,
         school: req.schoolId
@@ -505,21 +441,46 @@ export const downloadReportCardPdf = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    if (reportCard.pdfRef) {
-        const signedUrl = await getSignedUrl(reportCard.pdfRef);
-        return res.redirect(signedUrl);
-    }
-
-    const pdfBuffer = await generateSBRPdf(reportCard.toObject(), {
-        schoolName: '',
-        primaryColor: '#1f3c88',
-        secondaryColor: '#37517e',
-        domain: process.env.CLIENT_URL || ''
+    const reportData = await buildSBRReportData({
+        schoolId: req.schoolId,
+        studentId: reportCard.student,
+        classId: reportCard.class,
+        period: reportCard.period?.type,
+        academicYear: reportCard.academicYear,
+        generatedBy: req.user._id,
+        reportCardId: reportCard.reportCardId,
+        comments: reportCard.comments || '',
+        teacherNotes: reportCard.teacherNotes || {}
     });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${reportCard.reportCardId}.pdf"`);
-    return res.send(pdfBuffer);
+    return sendReportSheet(res, await renderSBRHtml(reportData, getBrandingFromReportData(reportData)));
+});
+
+/** One print job for a class batch: every card on its own A4 sheet. */
+export const printClassReportCards = asyncHandler(async (req, res) => {
+    const classId = req.body?.classId;
+    const period = req.body?.period;
+    const academicYear = req.body?.academicYear;
+
+    const validationError = validateGenerateInput({ classId, period, academicYear });
+    if (validationError) {
+        return res.status(400).json({ success: false, message: validationError });
+    }
+
+    const reportsData = await buildClassSBRReports({
+        schoolId: req.schoolId,
+        classId,
+        period,
+        academicYear,
+        generatedBy: req.user._id
+    });
+
+    if (!reportsData.length) {
+        return res.status(404).json({ success: false, message: 'No report cards to print for this class.' });
+    }
+
+    const branding = getBrandingFromReportData(reportsData[0]);
+    return sendReportSheet(res, await renderBulkSBRHtml(reportsData, branding));
 });
 
 export const publishReportCard = asyncHandler(async (req, res) => {
@@ -556,43 +517,6 @@ export const emailReportCard = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'No recipient emails found for this student' });
     }
 
-    let pdfAttachmentBuffer = null;
-    if (reportCard.pdfRef) {
-        const file = await downloadFile(reportCard.pdfRef);
-        pdfAttachmentBuffer = file.buffer;
-    } else {
-        // Ensure email delivery always includes a PDF, even for legacy records without stored files.
-        const generatedPdfBuffer = await generateSBRPdf(reportCard, {
-            schoolName: '',
-            primaryColor: '#1f3c88',
-            secondaryColor: '#37517e',
-            domain: process.env.CLIENT_URL || ''
-        });
-
-        const storagePath = getReportStoragePath({
-            schoolId: req.schoolId,
-            academicYear: reportCard.academicYear,
-            reportCardId: reportCard.reportCardId
-        });
-
-        const uploaded = await uploadPrivateFile(generatedPdfBuffer, 'application/pdf', storagePath);
-        const signedUrl = await getSignedUrl(uploaded.fileRef);
-
-        await SBRReportCard.updateOne(
-            { _id: reportCard._id, school: req.schoolId },
-            {
-                $set: {
-                    pdfRef: uploaded.fileRef,
-                    pdfUrl: signedUrl
-                }
-            }
-        );
-
-        reportCard.pdfRef = uploaded.fileRef;
-        reportCard.pdfUrl = signedUrl;
-        pdfAttachmentBuffer = generatedPdfBuffer;
-    }
-
     const senderId = await findSenderUserId(req.schoolId, req.user._id?.toString?.() || null);
     if (!senderId) {
         return res.status(400).json({
@@ -606,18 +530,13 @@ export const emailReportCard = asyncHandler(async (req, res) => {
         reportCard.student?.lastName
     ].filter(Boolean).join(' ').trim() || 'Student';
 
+    const reportLink = buildPortalLink('/sbr/reports');
+
     await gmailOAuthService.sendEmail(senderId, {
         to: targetEmails.join(','),
         subject: `SBR Report Card - ${reportCard.reportCardId}`,
-        text: `Please find attached the Standards-Based Report Card for ${studentName}.`,
-        html: `<p>Please find attached the Standards-Based Report Card for <strong>${studentName}</strong>.</p>`,
-        attachments: pdfAttachmentBuffer
-            ? [{
-                filename: `${reportCard.reportCardId}.pdf`,
-                content: pdfAttachmentBuffer,
-                contentType: 'application/pdf'
-            }]
-            : []
+        text: `The Standards-Based Report Card for ${studentName} is ready: ${reportLink}`,
+        html: `<p>The Standards-Based Report Card for <strong>${studentName}</strong> is ready.</p><p><a href="${reportLink}">Open the report card</a> to read it or print it.</p>`
     });
 
     await SBRReportCard.updateOne(

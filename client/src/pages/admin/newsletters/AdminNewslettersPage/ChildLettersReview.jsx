@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
 import api from '../../../../config/api';
+import { printEndpoint, printableErrorText } from '../../../../utils/printDocument';
 
 const STATUS_CLASS = {
   draft: 'is-draft',
@@ -71,19 +72,11 @@ export default function ChildLettersReview({ issueId }) {
     }
   };
 
-  const downloadPdf = async (letter) => {
+  const printLetter = async (letter) => {
     try {
-      const res = await api.get(`/newsletters/child-letters/${letter._id}/pdf`, { responseType: 'blob' });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `weekly-letter-${(letter.studentName || 'student').replace(/\s+/g, '-')}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await printEndpoint(`/newsletters/child-letters/${letter._id}/print`);
     } catch (error) {
-      toast.error(error.response?.data?.message || t('newsletters:childLetters.toasts.pdfFailed'));
+      toast.error(printableErrorText(error, t('newsletters:childLetters.toasts.printFailed')));
     }
   };
 
@@ -119,8 +112,9 @@ export default function ChildLettersReview({ issueId }) {
                   <button type="button" className="an-btn" onClick={() => preview(letter)}>
                     {t('newsletters:childLetters.admin.preview')}
                   </button>
-                  <button type="button" className="an-btn" onClick={() => downloadPdf(letter)}>
-                    {t('newsletters:childLetters.actions.pdf')}
+                  <button type="button" className="an-btn" onClick={() => printLetter(letter)}
+                  >
+                    {t('newsletters:childLetters.actions.print')}
                   </button>
                 </div>
               </div>

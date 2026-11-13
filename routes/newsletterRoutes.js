@@ -31,10 +31,10 @@ import {
   approveSubmittedChildLetters,
   sendChildLetters,
   previewChildLetter,
-  downloadChildLetterPdf,
+  printChildLetter,
   listParentChildLetters,
   getParentChildLetter,
-  downloadParentChildLetterPdf,
+  printParentChildLetter,
 } from "../controllers/newsletterChildLetterController.js";
 
 const router = express.Router();
@@ -49,7 +49,7 @@ router.get("/issues", authorize("teacher", "admin", "department_principal"), get
 router.get("/parent/history", authorize("parent"), listParentNewsletterHistory);
 router.get("/parent/child-letters", authorize("parent"), listParentChildLetters);
 router.get("/parent/child-letters/:id", authorize("parent"), getParentChildLetter);
-router.get("/parent/child-letters/:id/pdf", authorize("parent"), downloadParentChildLetterPdf);
+router.get("/parent/child-letters/:id/print", authorize("parent"), printParentChildLetter);
 
 // Teacher actions
 router.post("/sections/generate", authorize("teacher"), aiFeatureRateLimiter, generateNewsletterSectionDraft);
@@ -78,9 +78,9 @@ router.get(
   previewChildLetter
 );
 router.get(
-  "/child-letters/:id/pdf",
+  "/child-letters/:id/print",
   authorize("teacher", "admin", "super_admin", "department_principal"),
-  downloadChildLetterPdf
+  printChildLetter
 );
 router.patch(
   "/child-letters/:id/content",

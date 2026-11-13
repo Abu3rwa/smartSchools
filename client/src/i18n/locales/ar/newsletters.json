@@ -186,7 +186,7 @@
       "refresh": "تحديث",
       "edit": "تحرير",
       "preview": "معاينة البريد",
-      "pdf": "تنزيل PDF",
+      "print": "طباعة الرسالة",
       "cancel": "إلغاء",
       "signOff": "اعتماد",
       "signedOff": "معتمدة"
@@ -231,7 +231,7 @@
       "overCap": "بقي {{value}} طالبًا لدورة ثانية.",
       "generateFailed": "تعذر كتابة الرسائل",
       "previewFailed": "تعذر إنشاء المعاينة",
-      "pdfFailed": "تعذر إنشاء ملف PDF",
+      "printFailed": "تعذر تجهيز الرسالة للطباعة",
       "studentsFailed": "تعذر تحميل قائمة الصف",
       "signedOff": "تم اعتماد الرسالة",
       "bulkSignedOff": "تم اعتماد {{value}} رسالة"

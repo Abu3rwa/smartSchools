@@ -8,13 +8,14 @@ import MapPracticeSkill from '../models/MapPracticeSkill.js';
 import MapPracticeSet from '../models/MapPracticeSet.js';
 import Student from '../models/Student.js';
 import { ensureTeacherCanAccessClass, ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
-import { generateMapPracticeReportPdf } from '../services/mapPracticeReportPdfService.js';
+import { buildMapPracticeReportHtml } from '../services/mapPracticeReportTemplate.js';
 import {
   buildMapPracticeClassReport,
   buildMapPracticeStudentReport,
   resolveMapPracticeReportPeriod
 } from '../services/mapPracticeReportService.js';
 import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
+import { sendPrintableHtml, withPrintPageCss } from '../utils/printableHtml.js';
 
 const getReportContext = (req) => {
   const academicYear = resolveSchoolAcademicYear(req.school || { settings: { currentAcademicYear: req.academicYear } });
@@ -72,18 +73,9 @@ const loadReportData = async ({ schoolId, studentIds, academicYear, period }) =>
   return { sets: reportSets, assignments: reportAssignments, attempts: reportAttempts };
 };
 
-const sendReport = async (res, report, filename) => {
-  const pdf = await generateMapPracticeReportPdf(report);
-  res.set({
-    'Content-Type': 'application/pdf',
-    'Content-Length': pdf.length,
-    'Content-Disposition': `attachment; filename="${filename}"`,
-    'Cache-Control': 'private, no-store, max-age=0'
-  });
-  return res.send(pdf);
-};
+const sendReport = (res, report) => sendPrintableHtml(res, withPrintPageCss(buildMapPracticeReportHtml(report)));
 
-export const exportMapPracticeStudentReport = asyncHandler(async (req, res) => {
+export const printMapPracticeStudentReport = asyncHandler(async (req, res) => {
   if (!['admin', 'teacher'].includes(req.user.role)) {
     return res.status(403).json({ success: false, message: 'Teacher access required.' });
   }
@@ -100,11 +92,10 @@ export const exportMapPracticeStudentReport = asyncHandler(async (req, res) => {
 
   const data = await loadReportData({ schoolId: req.schoolId, studentIds: [student._id], academicYear, period });
   const report = buildMapPracticeStudentReport({ student, academicYear, period, ...data });
-  const filename = `map-practice-student-${String(student.studentId || student._id).replace(/[^a-zA-Z0-9_-]/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  return sendReport(res, report, filename);
+  return sendReport(res, report);
 });
 
-export const exportMapPracticeClassReport = asyncHandler(async (req, res) => {
+export const printMapPracticeClassReport = asyncHandler(async (req, res) => {
   if (!['admin', 'teacher'].includes(req.user.role)) {
     return res.status(403).json({ success: false, message: 'Teacher access required.' });
   }
@@ -133,6 +124,5 @@ export const exportMapPracticeClassReport = asyncHandler(async (req, res) => {
     period
   });
   const report = buildMapPracticeClassReport({ classRecord, students, academicYear, period, ...data });
-  const filename = `map-practice-class-${String(classRecord.name || classRecord._id).replace(/[^a-zA-Z0-9_-]/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  return sendReport(res, report, filename);
+  return sendReport(res, report);
 });

@@ -5,6 +5,7 @@ import { addDays, format } from 'date-fns';
 
 import api from '../../../../config/api';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
+import { printEndpoint, printableErrorText } from '../../../../utils/printDocument';
 
 import './ChildLettersPanel.css';
 
@@ -235,19 +236,11 @@ export default function ChildLettersPanel({ classId, academicYear, weekStart }) 
     }
   };
 
-  const onDownloadPdf = async (letter) => {
+  const onPrintLetter = async (letter) => {
     try {
-      const res = await api.get(`/newsletters/child-letters/${letter._id}/pdf`, { responseType: 'blob' });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `weekly-letter-${(letter.studentName || 'student').replace(/\s+/g, '-')}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await printEndpoint(`/newsletters/child-letters/${letter._id}/print`);
     } catch (error) {
-      toast.error(error.response?.data?.message || t('newsletters:childLetters.toasts.pdfFailed'));
+      toast.error(printableErrorText(error, t('newsletters:childLetters.toasts.printFailed')));
     }
   };
 
@@ -516,8 +509,9 @@ export default function ChildLettersPanel({ classId, academicYear, weekStart }) 
                         <button type="button" className="clp-btn" onClick={() => onPreview(letter)}>
                           {t('newsletters:childLetters.actions.preview')}
                         </button>
-                        <button type="button" className="clp-btn" onClick={() => onDownloadPdf(letter)}>
-                          {t('newsletters:childLetters.actions.pdf')}
+                        <button type="button" className="clp-btn" onClick={() => onPrintLetter(letter)}
+                        >
+                          {t('newsletters:childLetters.actions.print')}
                         </button>
                         <button
                           type="button"

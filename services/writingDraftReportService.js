@@ -13,10 +13,6 @@ import WritingDraft from "../models/WritingDraft.js";
 import WritingAssessment from "../models/WritingAssessment.js";
 import Student from "../models/Student.js";
 import School from "../models/School.js";
-import { withPdfPage } from "./pdf/pdfBrowserManager.js";
-
-const PDF_TIMEOUT_MS = 45000;
-const STEP_TIMEOUT_MS = 30000;
 
 const fail = (message, statusCode) => {
   const error = new Error(message);
@@ -253,45 +249,7 @@ const buildHtml = ({
 </html>`;
 };
 
-let renderSlot = Promise.resolve();
-
-/** Repeated clicks queue on one browser instead of stacking pages inside Chrome. */
-const acquireRenderSlot = () => {
-  const waiting = renderSlot;
-  let release;
-  renderSlot = new Promise((resolve) => {
-    release = resolve;
-  });
-  return waiting.then(() => release);
-};
-
-const renderPdf = async (html) => {
-  const releaseRender = await acquireRenderSlot();
-  try {
-    return await withPdfPage(async (page) => {
-      await page.setContent(html, {
-        waitUntil: "load",
-        timeout: STEP_TIMEOUT_MS,
-      });
-      const pdf = Buffer.from(
-        await page.pdf({
-          format: "A4",
-          printBackground: true,
-          timeout: STEP_TIMEOUT_MS,
-          margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" },
-        }),
-      );
-      if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
-        throw fail("The PDF renderer returned an invalid document.", 500);
-      }
-      return pdf;
-    }, { timeoutMs: STEP_TIMEOUT_MS });
-  } finally {
-    releaseRender();
-  }
-};
-
-export const renderWritingProjectPdf = async ({
+export const renderWritingProjectHtml = async ({
   schoolId,
   projectId,
   draftId = null,
@@ -345,7 +303,7 @@ export const renderWritingProjectPdf = async ({
     .sort({ createdAt: -1 })
     .lean();
 
-  const html = buildHtml({
+  return buildHtml({
     school,
     student,
     assignment,
@@ -353,20 +311,4 @@ export const renderWritingProjectPdf = async ({
     assessment,
     includeWordUse,
   });
-
-  let timer;
-  try {
-    return await Promise.race([
-      renderPdf(html),
-      new Promise((_, reject) => {
-        timer = setTimeout(
-          () => reject(fail("The PDF took too long to prepare. Please try again.", 504)),
-          PDF_TIMEOUT_MS,
-        );
-        if (typeof timer.unref === "function") timer.unref();
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
 };

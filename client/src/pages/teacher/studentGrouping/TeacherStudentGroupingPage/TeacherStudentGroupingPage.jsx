@@ -1,6 +1,6 @@
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { HiOutlineArrowLeft } from 'react-icons/hi2';
-import { HiOutlineDownload } from 'react-icons/hi';
+import { HiOutlinePrinter } from 'react-icons/hi';
 import GroupingFilters from './components/GroupingFilters';
 import StudentGroupOverview from './components/StudentGroupOverview';
 import StudentGroupCard from './components/StudentGroupCard';
@@ -77,13 +77,13 @@ const TeacherStudentGroupingPage = () => {
                 <>
                     <Box sx={{ mb: 2 }}>
                         <Button
-                            startIcon={<HiOutlineDownload />}
+                            startIcon={<HiOutlinePrinter />}
                             onClick={handleExportOverviewPdf}
                             size="small"
                             variant="outlined"
                             disabled={exportingOverviewPdf || overviewLoading}
                         >
-                            {exportingOverviewPdf ? 'Exporting...' : 'Export Class Overview PDF'}
+                            {exportingOverviewPdf ? 'Preparing...' : 'Print class overview'}
                         </Button>
                     </Box>
 
@@ -107,13 +107,13 @@ const TeacherStudentGroupingPage = () => {
                                 Back to Overview
                             </Button>
                             <Button
-                                startIcon={<HiOutlineDownload />}
+                                startIcon={<HiOutlinePrinter />}
                                 onClick={handleExportPdf}
                                 size="small"
                                 variant="outlined"
                                 disabled={exportingPdf || loading}
                             >
-                                {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                                {exportingPdf ? 'Preparing...' : 'Print groups'}
                             </Button>
                         </Box>
                     </Box>

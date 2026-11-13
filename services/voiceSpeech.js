@@ -21,10 +21,12 @@ const extensionFor = (mimeType = '') => {
 };
 
 /** One recording in, one transcript out. An empty or missed recording is a 422, not a silent pass. */
-export const transcribeAudio = async ({    buffer,
+export const transcribeAudio = async ({
+    buffer,
     mimeType = 'audio/webm',
     model = 'gpt-4o-mini-transcribe',
-    language = 'en'
+    language = 'en',
+    timeoutMs: requestedTimeoutMs = timeoutMs()
 } = {}) => {
     const key = apiKey();
     if (!key) {
@@ -46,7 +48,7 @@ export const transcribeAudio = async ({    buffer,
             method: 'POST',
             headers: { Authorization: `Bearer ${key}` },
             body: form,
-            signal: AbortSignal.timeout(timeoutMs())
+            signal: AbortSignal.timeout(requestedTimeoutMs)
         });
     } catch (error) {
         logger.warn('voice_transcribe_failed', { message: error?.message });

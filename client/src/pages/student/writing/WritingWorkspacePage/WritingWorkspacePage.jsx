@@ -5,9 +5,10 @@ import toast from "react-hot-toast";
 import {
   HiOutlineArrowLeft,
   HiOutlineCheckCircle,
-  HiOutlineDownload,
+  HiOutlinePrinter,
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
+import { printableErrorText } from "../../../../utils/printDocument.js";
 import ComparisonCard from "./ComparisonCard.jsx";
 import DraftEssayView from "./DraftEssayView.jsx";
 import FeedbackCard from "./FeedbackCard.jsx";
@@ -161,28 +162,15 @@ export default function WritingWorkspacePage() {
     if (result) reload();
   };
 
-  const exportPdf = async () => {
+  const printDraft = async () => {
     const draft = viewedDraft || data.drafts[data.drafts.length - 1];
     if (!draft) return;
     setExporting(true);
     try {
-      const blob = await writingService.exportProjectPdf(
-        project.id || project._id,
-        draft.id,
-      );
-      const url = window.URL.createObjectURL(
-        new Blob([blob], { type: "application/pdf" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `writing-draft-${draft.number}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await writingService.printProject(project.id || project._id, draft.id);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message || t("writing:student.exportFailed"),
+        printableErrorText(error, t("writing:student.exportFailed")),
       );
     } finally {
       setExporting(false);
@@ -227,9 +215,9 @@ export default function WritingWorkspacePage() {
             type="button"
             className="btn btn-secondary btn-sm"
             disabled={exporting}
-            onClick={exportPdf}
+            onClick={printDraft}
           >
-            <HiOutlineDownload size={15} aria-hidden="true" />
+            <HiOutlinePrinter size={15} aria-hidden="true" />
             {t("writing:student.exportPdf")}
           </button>
         )}

@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { requireFeature } from '../middleware/featureGate.js';
@@ -10,6 +11,7 @@ import {
     getStatus,
     listEmails,
     startScan,
+    transcribeAudioNote,
     updateEmail,
     updateSettings
 } from '../controllers/inboxAssistantController.js';
@@ -55,6 +57,33 @@ router.use(requireFeature('inboxAssistant'));
 
 const staff = authorize('teacher', 'admin', 'super_admin');
 
+// Dictation notes are held in memory, transcribed, then dropped — the recording is never stored.
+const audioUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+    fileFilter: (_req, file, done) => {
+        if (/^audio\//i.test(file.mimetype)) return done(null, true);
+        done(Object.assign(new Error('That file is not a recording. Use the microphone button.'), {
+            statusCode: 400,
+            code: 'AUDIO_TYPE_UNSUPPORTED'
+        }));
+    }
+});
+
+// Multer reports its own failures before the handler runs, so the readable wording is attached here.
+const audioUploadMiddleware = (req, res, next) => {
+    audioUpload.single('audio')(req, res, (error) => {
+        if (!error) return next();
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return next(Object.assign(new Error('That recording is too long. Keep it under a minute.'), {
+                statusCode: 413,
+                code: 'AUDIO_TOO_LARGE'
+            }));
+        }
+        return next(error);
+    });
+};
+
 router.get('/status', staff, getStatus);
 router.put('/settings', staff, updateSettings);
 
@@ -93,6 +122,7 @@ router.post('/drafts/:id/send', staff, emailSendRateLimiter, sendDraft);
 router.post('/drafts/:id/discard', staff, discardDraft);
 
 router.get('/sent', staff, listSent);
+router.post('/transcribe', staff, aiFeatureRateLimiter, audioUploadMiddleware, transcribeAudioNote);
 router.delete('/sent/:id', staff, deleteSent);
 router.delete('/sent', staff, clearSent);
 

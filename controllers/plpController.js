@@ -24,11 +24,12 @@ import { writePlpAudit } from '../services/plpAuditService.js';
 import { buildPlpPaginationMetadata, getPlpPagination } from '../services/plpPaginationService.js';
 import { buildPlpRoundZip } from '../services/plpRoundExportService.js';
 import { buildPlpReportModel } from '../services/plpReportModel.js';
-import { generatePlpReportPdf } from '../services/plpReportPdfService.js';
+import { buildPlpReportHtml } from '../services/plpReportTemplate.js';
 import { collectPracticeCandidates } from '../services/plpPracticeLinkService.js';
 import { matchStudentsInText, rosterNames } from '../services/plpObservationCaptureService.js';
 import { assertTeacherCanCaptureClass } from '../services/timetable/currentPeriodService.js';
 import logger from '../utils/logger.js';
+import { sendPrintableHtml, withPrintPageCss } from '../utils/printableHtml.js';
 
 const THEME_TRAITS = {
     confidence: {
@@ -1261,7 +1262,7 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
     }
 });
 
-export const exportRecordPdf = asyncHandler(async (req, res) => {
+export const printRecordReport = asyncHandler(async (req, res) => {
     try {
         const record = await PlpStudentRecord.findOne({ _id: req.params.id, school: req.user.school })
             .populate('student', 'firstName lastName studentId')
@@ -1302,21 +1303,12 @@ export const exportRecordPdf = asyncHandler(async (req, res) => {
         const model = buildPlpReportModel({
             record, goals, tasks, evidence, school, traitScores, practiceItems,
         });
-        const pdf = await generatePlpReportPdf(model);
-        const safeStudentName = `${record.student?.firstName || 'student'}-${record.student?.lastName || 'record'}`
-            .trim()
-            .replace(/[^a-z0-9]+/gi, '-')
-            .toLowerCase();
-        logger.info(`PLP PDF report generated for record ${record._id} by user ${req.user._id}`);
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Length', pdf.length);
-        res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-        res.setHeader('Content-Disposition', `attachment; filename="plp-${safeStudentName}-${record.academicYear}.pdf"`);
-        res.send(pdf);
+        logger.info(`PLP printable report opened for record ${record._id} by user ${req.user._id}`);
+        return sendPrintableHtml(res, withPrintPageCss(buildPlpReportHtml(model)));
     } catch (error) {
-        logger.error(`PLP PDF generation failed for record ${req.params.id} by user ${req.user?._id}`);
+        logger.error(`PLP printable report failed for record ${req.params.id} by user ${req.user?._id}`);
         if (error?.statusCode) throw error;
-        return res.status(500).json({ success: false, message: 'Failed to generate the PDF report' });
+        return res.status(500).json({ success: false, message: 'Failed to prepare the report' });
     }
 });
 

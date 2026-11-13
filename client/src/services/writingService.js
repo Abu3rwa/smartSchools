@@ -1,4 +1,5 @@
 import api from "../config/api.js";
+import { printEndpoint } from "../utils/printDocument.js";
 
 const unwrap = (response) => response?.data?.data ?? response?.data;
 
@@ -39,20 +40,14 @@ export const writingService = {
     api.get(`/writing/assignments/${assignmentId}/progress`).then(unwrap),
   getProjectHistory: (projectId) =>
     api.get(`/writing/projects/${projectId}/history`).then(unwrap),
-  exportProjectPdf: (projectId, draftId) =>
-    api
-      .get(`/writing/projects/${projectId}/export.pdf`, {
-        params: draftId ? { draft: draftId } : {},
-        responseType: "blob",
-      })
-      .then((response) => response.data),
-  exportProjectPdfForTeacher: (projectId, draftId) =>
-    api
-      .get(`/writing/projects/${projectId}/export/teacher.pdf`, {
-        params: draftId ? { draft: draftId } : {},
-        responseType: "blob",
-      })
-      .then((response) => response.data),
+  printProject: (projectId, draftId) =>
+    printEndpoint(`/writing/projects/${projectId}/print`, {
+      params: draftId ? { draft: draftId } : {},
+    }),
+  printProjectForTeacher: (projectId, draftId) =>
+    printEndpoint(`/writing/projects/${projectId}/print/teacher`, {
+      params: draftId ? { draft: draftId } : {},
+    }),
 
   // Teacher: assessment and publication (AI routes are rate limited server-side)
   assessDraft: (draftId, body) =>

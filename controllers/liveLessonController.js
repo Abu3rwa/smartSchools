@@ -49,9 +49,10 @@ import {
 } from "../services/liveSessionTime.js";
 import { buildLiveLessonPerformanceReport } from "../services/liveLessonPerformanceReportService.js";
 import liveLessonMarkDraftService, { MAX_DRAFT_ANSWERS } from "../services/liveLessonMarkDraftService.js";
-import { generateLiveLessonReportPdf } from "../services/liveLessonReportPdfService.js";
+import { buildLiveLessonReportHtml } from "../services/liveLessonReportService.js";
 import { normalizeLiveLessonMeetingUrl, sendLiveLessonInvitationEmails } from "../services/liveLessonInvitationService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
+import { sendPrintableHtml, withPrintPageCss } from "../utils/printableHtml.js";
 import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
 import { buildPortalLink } from "../helpers/portalUrl.js";
 import { getTeacherSubjectIds } from "../helpers/teacherScoping.js";
@@ -2120,20 +2121,12 @@ export const draftLiveSessionQuestionMarks = asyncHandler(async (req, res) => {
   });
 });
 
-const sendLiveLessonPdf = (res, pdfData, filename) => {
-  const pdfBuffer = Buffer.from(pdfData);
-  return res
-    .status(200)
-    .type("application/pdf")
-    .set("Content-Disposition", `attachment; filename="${filename}"`)
-    .set("Content-Length", String(pdfBuffer.length))
-    .send(pdfBuffer);
-};
+const sendLiveLessonReport = (res, html) => sendPrintableHtml(res, withPrintPageCss(html, { margin: "15mm 14mm 16mm" }));
 
 const parseReportStudentIds = (value) => {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > 150 || value.some((id) => !validId(id))) {
-    const error = new Error("Select no more than 150 valid students for a batch PDF.");
+    const error = new Error("Select no more than 150 valid students for a batch report.");
     error.statusCode = 400;
     throw error;
   }
@@ -2153,7 +2146,7 @@ export const getLiveLessonPerformanceReport = asyncHandler(async (req, res) => {
   return res.json({ success: true, data });
 });
 
-export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res) => {
+export const printLiveLessonPerformanceReport = asyncHandler(async (req, res) => {
   const data = await buildLiveLessonPerformanceReport({
     req,
     classId: req.query.classId,
@@ -2169,25 +2162,23 @@ export const exportLiveLessonPerformanceReportPdf = asyncHandler(async (req, res
   if (studentIds.length && studentIds.some((id) => !data.students.some((student) => student.studentId === id))) {
     return res.status(400).json({ success: false, message: "The selected students are not in this class report." });
   }
-  const pdf = await generateLiveLessonReportPdf(data, { type: "performance", studentIds });
-  return sendLiveLessonPdf(res, pdf, "class-live-performance-report.pdf");
+  return sendLiveLessonReport(res, buildLiveLessonReportHtml(data, { type: "performance", studentIds }));
 });
 
-export const exportLiveSessionReportPdf = asyncHandler(async (req, res) => {
+export const printLiveSessionReport = asyncHandler(async (req, res) => {
   const session = await findOwnedSession(req, res);
   if (!session) return;
   const studentIds = parseReportStudentIds(req.body?.studentIds);
   const reportStartedAt = Date.now();
   const report = await buildLiveSessionReportData(req, session, { studentIds });
-  logger.info("Live session report built for PDF", {
+  logger.info("Live session report built for print", {
     students: studentIds.length || report.summary.rosterCount,
     ms: Date.now() - reportStartedAt,
   });
   if (studentIds.length && studentIds.some((id) => !report.perStudent.some((student) => student.studentId === id))) {
     return res.status(400).json({ success: false, message: "The selected students are not in this session report." });
   }
-  const pdf = await generateLiveLessonReportPdf(report, { type: "session", studentIds });
-  return sendLiveLessonPdf(res, pdf, "live-session-report.pdf");
+  return sendLiveLessonReport(res, buildLiveLessonReportHtml(report, { type: "session", studentIds }));
 });
 
 const getSessionGradeContext = async (req, session) => {

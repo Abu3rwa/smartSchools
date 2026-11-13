@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
-  HiOutlineArrowDownTray,
   HiOutlineArrowLeft,
   HiOutlineChevronLeft,
   HiOutlineChevronRight,
   HiOutlinePause,
   HiOutlinePlay,
+  HiOutlinePrinter,
 } from "react-icons/hi2";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../../config/api";
@@ -15,6 +15,7 @@ import { selectUser } from "../../store/slices/authSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
 import LiveSessionMarkSheet from "../../components/liveLessons/LiveSessionMarkSheet";
 import { liveMarkStateLabel, liveQuestionKindLabel } from "../../utils/liveLessonMarkSheet";
+import { printEndpoint, printableErrorText } from "../../utils/printDocument";
 import {
   buildClassEngagementChartData,
   buildStudentEngagementChartData,
@@ -34,40 +35,6 @@ const getMonthRange = () => {
     from: toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
     to: toDateInput(today),
   };
-};
-
-const pdfResponseError = async (data, fallback) => {
-  if (data instanceof Blob) {
-    const text = await data.text();
-    try {
-      const payload = JSON.parse(text);
-      return payload.message || fallback;
-    } catch {
-      return text.slice(0, 300) || fallback;
-    }
-  }
-  return data?.message || fallback;
-};
-
-const assertPdfBlob = async (blob) => {
-  const signature = await blob.slice(0, 5).text();
-  if (signature !== "%PDF-") {
-    throw new Error(await pdfResponseError(blob, "The server returned an invalid PDF file."));
-  }
-};
-
-const PDF_EXPORT_OPTIONS = { responseType: "blob", timeout: 120000, skipErrorToast: true };
-const PDF_EXPORT_TIMEOUT_MESSAGE = "The PDF is taking longer than expected. Please try again in a moment.";
-
-const downloadBlob = (blob, filename) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 const answerResultLabel = (answer) => (
@@ -403,45 +370,37 @@ const LiveLessonReviewPage = ({ mode }) => {
       : [...current, studentId]);
   };
 
-  const downloadSessionPdf = async (studentIds = []) => {
+  const printSessionReport = async (studentIds = []) => {
     if (!report) return;
     setReportExporting(true);
     setExportError("");
     try {
-      const response = await api.post(`/live/sessions/${sessionId}/report/export.pdf`, {
-        studentIds,
-      }, PDF_EXPORT_OPTIONS);
-      await assertPdfBlob(response.data);
-      const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
-      downloadBlob(response.data, `live-session-${scope}-report.pdf`);
+      await printEndpoint(`/live/sessions/${sessionId}/report/print`, {
+        method: "post",
+        data: { studentIds },
+      });
     } catch (requestError) {
-      setExportError(requestError.code === "ECONNABORTED"
-        ? PDF_EXPORT_TIMEOUT_MESSAGE
-        : await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the session report PDF."));
+      setExportError(printableErrorText(requestError, "Could not prepare the session report."));
     } finally {
       setReportExporting(false);
     }
   };
 
-  const downloadPerformancePdf = async (studentIds = []) => {
+  const printPerformanceReport = async (studentIds = []) => {
     if (!performance) return;
     setPerformanceExporting(true);
     setPerformanceError("");
     try {
-      const params = new URLSearchParams({
-        classId: performance.class.id,
-        dateFrom: performance.dateFrom,
-        dateTo: performance.dateTo,
+      await printEndpoint("/live/sessions/performance/print", {
+        params: {
+          classId: performance.class.id,
+          dateFrom: performance.dateFrom,
+          dateTo: performance.dateTo,
+          ...(studentIds.length ? { studentIds: studentIds.join(",") } : {}),
+        },
       });
-      if (studentIds.length) params.set("studentIds", studentIds.join(","));
-      const response = await api.get(`/live/sessions/performance/export.pdf?${params.toString()}`, PDF_EXPORT_OPTIONS);
-      await assertPdfBlob(response.data);
-      const scope = studentIds.length === 1 ? "student" : studentIds.length ? "students" : "class";
-      downloadBlob(response.data, `class-performance-${scope}-${performance.dateFrom}-to-${performance.dateTo}.pdf`);
     } catch (requestError) {
-      setPerformanceError(requestError.code === "ECONNABORTED"
-        ? PDF_EXPORT_TIMEOUT_MESSAGE
-        : await pdfResponseError(requestError.response?.data, requestError.message || "Could not export the class performance PDF."));
+      setPerformanceError(printableErrorText(requestError, "Could not prepare the class performance report."));
     } finally {
       setPerformanceExporting(false);
     }
@@ -555,8 +514,10 @@ const LiveLessonReviewPage = ({ mode }) => {
                 )}
               </div>
               <div className="live-report-export-actions no-print">
-                <button className="live-session-primary" onClick={() => downloadSessionPdf()} disabled={reportExporting}>
-                  <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download class PDF"}
+                <button className="live-session-primary" onClick={() => printSessionReport()}
+                  disabled={reportExporting}
+                >
+                  <HiOutlinePrinter /> {reportExporting ? "Preparing…" : "Print class report"}
                 </button>
               </div>
             </div>
@@ -658,8 +619,10 @@ const LiveLessonReviewPage = ({ mode }) => {
               <div className="live-report-section-heading">
                 <div><h2>Class performance &amp; engagement</h2><p>Track attendance, participation, and accuracy across completed live lessons.</p></div>
                 <div className="live-report-export-actions no-print">
-                  <button className="live-session-primary" onClick={() => downloadPerformancePdf()} disabled={!performance || performanceExporting}>
-                    <HiOutlineArrowDownTray /> {performanceExporting ? "Preparing PDF…" : "Download class PDF"}
+                  <button className="live-session-primary" onClick={() => printPerformanceReport()}
+                    disabled={!performance || performanceExporting}
+                  >
+                    <HiOutlinePrinter /> {performanceExporting ? "Preparing…" : "Print class report"}
                   </button>
                 </div>
               </div>
@@ -766,10 +729,12 @@ const LiveLessonReviewPage = ({ mode }) => {
                         ? "No rostered lessons for this student were found in this period."
                         : "No completed live lessons were found in this period."}</p>}
                   <div className="live-report-section-heading live-performance-student-heading">
-                    <div><h3>Individual student performance</h3><p>Select one student for an individual report or several for a batch PDF.</p></div>
-                    <button className="live-session-secondary no-print" onClick={() => downloadPerformancePdf(performanceStudentIds)} disabled={!performanceStudentIds.length || performanceStudentIds.length > 150 || performanceExporting}>
-                      <HiOutlineArrowDownTray />
-                      {performanceStudentIds.length === 1 ? "Download individual PDF" : `Download selected PDF (${performanceStudentIds.length})`}
+                    <div><h3>Individual student performance</h3><p>Select one student for an individual report or several for a batch print.</p></div>
+                    <button className="live-session-secondary no-print" onClick={() => printPerformanceReport(performanceStudentIds)}
+                      disabled={!performanceStudentIds.length || performanceStudentIds.length > 150 || performanceExporting}
+                    >
+                      <HiOutlinePrinter />
+                      {performanceStudentIds.length === 1 ? "Print individual report" : `Print selected (${performanceStudentIds.length})`}
                     </button>
                   </div>
                   <div className="live-report-table-wrap live-performance-student-table"><table>
@@ -782,7 +747,7 @@ const LiveLessonReviewPage = ({ mode }) => {
                       <td>{student.answers}</td>
                     </tr>)}</tbody>
                   </table></div>
-                  {performanceStudentIds.length > 150 && <p className="live-report-export-error">Batch PDF exports are limited to 150 students. Deselect some students.</p>}
+                  {performanceStudentIds.length > 150 && <p className="live-report-export-error">Batch prints are limited to 150 students. Deselect some students.</p>}
                 </>
               ) : <p className="live-performance-status">Choose a date range to view this class report.</p>}
               </section>
@@ -896,12 +861,14 @@ const LiveLessonReviewPage = ({ mode }) => {
                   <div><h2>Student participation</h2><p>Choose a student to open their answers below.</p></div>
                   <div className="live-report-export-actions no-print">
                     <span className="live-report-count">{perStudent.length} students</span>
-                    <button className="live-session-secondary" onClick={() => downloadSessionPdf(selectedStudentIds)} disabled={!selectedStudentIds.length || selectedStudentIds.length > 150 || reportExporting}>
-                      <HiOutlineArrowDownTray /> Download selected PDF ({selectedStudentIds.length})
+                    <button className="live-session-secondary" onClick={() => printSessionReport(selectedStudentIds)}
+                      disabled={!selectedStudentIds.length || selectedStudentIds.length > 150 || reportExporting}
+                    >
+                      <HiOutlinePrinter /> Print selected ({selectedStudentIds.length})
                     </button>
                   </div>
                 </div>
-                {selectedStudentIds.length > 150 && <p className="live-report-export-error">Batch PDF exports are limited to 150 students. Deselect some students.</p>}
+                {selectedStudentIds.length > 150 && <p className="live-report-export-error">Batch prints are limited to 150 students. Deselect some students.</p>}
                 <div className="live-report-table-wrap"><table><thead><tr><th>Select</th><th>Student</th><th>Answered</th><th>Correct</th><th>Wrong</th><th>To mark</th><th>Score</th><th>Away</th></tr></thead><tbody>
                   {perStudent.map((student) => (
                     <tr key={student.studentId} className={`live-report-student-row${selectedReportStudent?.studentId === student.studentId ? " selected" : ""}`}>
@@ -924,8 +891,10 @@ const LiveLessonReviewPage = ({ mode }) => {
                     </label>
                   </div>
                   <div className="live-report-export-actions no-print">
-                    <button className="live-session-primary" onClick={() => selectedReportStudent && downloadSessionPdf([selectedReportStudent.studentId])} disabled={!selectedReportStudent || reportExporting}>
-                      <HiOutlineArrowDownTray /> {reportExporting ? "Preparing PDF…" : "Download student PDF"}
+                    <button className="live-session-primary" onClick={() => selectedReportStudent && printSessionReport([selectedReportStudent.studentId])}
+                      disabled={!selectedReportStudent || reportExporting}
+                    >
+                      <HiOutlinePrinter /> {reportExporting ? "Preparing…" : "Print student report"}
                     </button>
                   </div>
                 </div>

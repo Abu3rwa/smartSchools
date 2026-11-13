@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
 import QRCode from 'qrcode';
-import { withPdfPage } from './pdf/pdfBrowserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,32 +158,12 @@ export const renderSBRHtml = async (reportData, schoolBranding = {}) => {
     return template(payload);
 };
 
-const renderPdfFromHtml = async (html) => withPdfPage(async (page) => {
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-
-    return page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-            top: '10mm',
-            bottom: '10mm',
-            left: '10mm',
-            right: '10mm'
-        }
-    });
-});
-
-export const generateSBRPdf = async (reportData, schoolBranding = {}) => {
-    const html = await renderSBRHtml(reportData, schoolBranding);
-    return renderPdfFromHtml(html);
-};
-
-export const generateBulkSBRPdf = async (reportsArray = [], schoolBranding = {}) => {
+/** Every card is a full A4 sheet, so a class batch starts each one on a new page. */
+export const renderBulkSBRHtml = async (reportsArray = [], schoolBranding = {}) => {
     const htmlBlocks = [];
     for (const report of reportsArray) {
         htmlBlocks.push(await renderSBRHtml(report, schoolBranding));
     }
 
-    const html = htmlBlocks.join('\n<div style="page-break-before: always;"></div>\n');
-    return renderPdfFromHtml(html);
+    return htmlBlocks.join('\n<div style="page-break-before: always;"></div>\n');
 };

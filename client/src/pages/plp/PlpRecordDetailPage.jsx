@@ -24,6 +24,7 @@ import {
     TASK_STATUS_LABELS, plpLabel,
 } from './plpTableLabels';
 import { downloadBlob, filenameFromContentDisposition } from '../../utils/downloadBlob';
+import { printEndpoint, printableErrorText } from '../../utils/printDocument';
 import './PLP.css';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
@@ -612,21 +613,31 @@ export default function PlpRecordDetailPage() {
         }
     };
 
-    const exportReport = async (format) => {
-        setExportingReport(format);
+    const printReport = async () => {
+        setExportingReport('print');
         try {
-            const response = await api.get(`/plp/records/${id}/export-${format}`, { responseType: 'blob' });
+            await printEndpoint(`/plp/records/${id}/print`);
+        } catch (requestError) {
+            toast.error(printableErrorText(requestError, 'Failed to prepare the report'));
+        } finally {
+            setExportingReport('');
+        }
+    };
+
+    const exportReportDocx = async () => {
+        setExportingReport('docx');
+        try {
+            const response = await api.get(`/plp/records/${id}/export-docx`, { responseType: 'blob' });
             const contentType = String(response.headers?.['content-type'] || '');
-            const expected = format === 'pdf' ? 'application/pdf' : 'officedocument';
-            if (!contentType.includes(expected)) {
-                toast.error(await readBlobError(response.data, `Failed to export ${format.toUpperCase()}`));
+            if (!contentType.includes('officedocument')) {
+                toast.error(await readBlobError(response.data, 'Failed to export DOCX'));
                 return;
             }
-            const fallbackName = `plp-${record.academicYear}.${format}`;
+            const fallbackName = `plp-${record.academicYear}.docx`;
             downloadBlob(new Blob([response.data], { type: contentType }), filenameFromContentDisposition(response.headers?.['content-disposition'], fallbackName));
-            toast.success(`${format.toUpperCase()} downloaded`);
+            toast.success('DOCX downloaded');
         } catch (requestError) {
-            toast.error(await readBlobError(requestError?.response?.data, `Failed to export ${format.toUpperCase()}`));
+            toast.error(await readBlobError(requestError?.response?.data, 'Failed to export DOCX'));
         } finally {
             setExportingReport('');
         }
@@ -657,10 +668,12 @@ export default function PlpRecordDetailPage() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['teacher', 'admin'].includes(user?.role) && (
                         <>
-                            <button className="btn btn-secondary" onClick={() => exportReport('pdf')} disabled={Boolean(exportingReport)}>
-                                {exportingReport === 'pdf' ? 'Preparing...' : 'Download PDF'}
+                            <button className="btn btn-secondary" onClick={printReport}
+                                disabled={Boolean(exportingReport)}
+                            >
+                                {exportingReport === 'print' ? 'Preparing...' : 'Print report'}
                             </button>
-                            <button className="btn btn-secondary" onClick={() => exportReport('docx')} disabled={Boolean(exportingReport)}>
+                            <button className="btn btn-secondary" onClick={exportReportDocx} disabled={Boolean(exportingReport)}>
                                 {exportingReport === 'docx' ? 'Preparing...' : 'Download DOCX'}
                             </button>
                         </>

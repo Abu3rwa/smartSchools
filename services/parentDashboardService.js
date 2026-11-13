@@ -1377,8 +1377,7 @@ const mapSbrReportListItem = (report) => ({
             section: report.class.section || ''
         }
         : null,
-    emailedAt: report.emailedAt || null,
-    pdfUrl: report.pdfUrl || null
+    emailedAt: report.emailedAt || null
 });
 
 export const getParentChildSbrReports = async ({

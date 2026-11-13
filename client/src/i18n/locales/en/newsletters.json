@@ -186,7 +186,7 @@
       "refresh": "Refresh",
       "edit": "Edit",
       "preview": "Preview email",
-      "pdf": "Download PDF",
+      "print": "Print letter",
       "cancel": "Cancel",
       "signOff": "Sign off",
       "signedOff": "Signed off"
@@ -231,7 +231,7 @@
       "overCap": "{{value}} more students were left for a second run.",
       "generateFailed": "Could not draft letters",
       "previewFailed": "Could not render the preview",
-      "pdfFailed": "Could not create the PDF",
+      "printFailed": "Could not prepare the letter for printing",
       "studentsFailed": "Could not load the class list",
       "signedOff": "Letter signed off",
       "bulkSignedOff": "{{value}} letters signed off"

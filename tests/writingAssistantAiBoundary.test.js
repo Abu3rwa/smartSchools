@@ -25,7 +25,7 @@ const STUDENT_HANDLERS = [
   "submitProject",
   "reportPasteAttempt",
   "markNotebookWritten",
-  "exportProjectPdf",
+  "printProject",
 ];
 
 // Only the student block of the controller, i.e. everything from myWriting on.

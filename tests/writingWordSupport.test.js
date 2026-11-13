@@ -308,31 +308,31 @@ test("teacher decisions only touch the named row and stay reversible", () => {
 /* Export boundary                                                     */
 /* ------------------------------------------------------------------ */
 
-test("the student export is student-only and the teacher export is staff-only", async () => {
+test("the student print route is student-only and the teacher print route is staff-only", async () => {
   const routes = await read("../routes/writingRoutes.js");
   const student = routes.match(
-    /router\.get\(\s*"\/projects\/:projectId\/export\.pdf",\s*authorize\("student"\),\s*exportProjectPdf,?\s*\)/,
+    /router\.get\(\s*"\/projects\/:projectId\/print",\s*authorize\("student"\),\s*printProject,?\s*\)/,
   );
-  assert.ok(student, "the student export must be authorize(student)");
+  assert.ok(student, "the student print route must be authorize(student)");
 
   const teacher = routes.match(
-    /router\.get\(\s*"\/projects\/:projectId\/export\/teacher\.pdf",\s*staff,\s*exportProjectPdfForTeacher,?\s*\)/,
+    /router\.get\(\s*"\/projects\/:projectId\/print\/teacher",\s*staff,\s*printProjectForTeacher,?\s*\)/,
   );
-  assert.ok(teacher, "the teacher export must stay behind staff");
+  assert.ok(teacher, "the teacher print route must stay behind staff");
   assert.equal(
-    /export\.pdf[^\n]*parent/.test(routes),
+    /print[^\n]*parent/.test(routes),
     false,
     "writing has no parent export",
   );
 });
 
-test("the PDF service never imports the AI", async () => {
-  const source = await read("../services/writingDraftPdfService.js");
+test("the printable report service never imports the AI", async () => {
+  const source = await read("../services/writingDraftReportService.js");
   for (const forbidden of ["connectAi", "aiService", "gemini", "openai"]) {
     assert.equal(
       source.includes(forbidden),
       false,
-      `writingDraftPdfService must not reference ${forbidden}`,
+      `writingDraftReportService must not reference ${forbidden}`,
     );
   }
 });

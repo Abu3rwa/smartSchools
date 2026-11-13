@@ -220,7 +220,7 @@ const useStudentGrouping = () => {
 
         setExportingPdf(true);
         try {
-            await studentGroupingService.exportStandardPdf({
+            await studentGroupingService.printStandardReport({
                 classId: selectedClassId,
                 standardId: selectedStandardId,
                 academicYear
@@ -229,7 +229,7 @@ const useStudentGrouping = () => {
             const message =
                 error?.response?.data?.message ||
                 error?.message ||
-                'Failed to export PDF.';
+                'Failed to prepare the group report.';
             toast.error(message);
         } finally {
             setExportingPdf(false);
@@ -241,7 +241,7 @@ const useStudentGrouping = () => {
 
         setExportingOverviewPdf(true);
         try {
-            await studentGroupingService.exportOverviewPdf({
+            await studentGroupingService.printOverviewReport({
                 classId: selectedClassId,
                 academicYear,
                 subjectId: selectedSubjectId || undefined
@@ -257,7 +257,7 @@ const useStudentGrouping = () => {
             const message =
                 exportError?.response?.data?.message ||
                 exportError?.message ||
-                'Failed to export class overview PDF.';
+                'Failed to prepare the class overview report.';
             toast.error(message);
         } finally {
             setExportingOverviewPdf(false);
@@ -278,12 +278,12 @@ const useStudentGrouping = () => {
 
         setDownloadingReportId(reportId);
         try {
-            await studentGroupingService.downloadArchivedReport({ reportId });
+            await studentGroupingService.printArchivedReport({ reportId });
         } catch (downloadError) {
             const message =
                 downloadError?.response?.data?.message ||
                 downloadError?.message ||
-                'Failed to download report.';
+                'Failed to prepare the archived report.';
             toast.error(message);
         } finally {
             setDownloadingReportId('');

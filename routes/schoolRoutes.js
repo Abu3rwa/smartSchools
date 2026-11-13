@@ -13,7 +13,6 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { FEATURE_KEYS, getPlanName, isRecognizedPlan, normalizePlan, toSchoolPlan } from '../constants/features.js';
 import {
     buildFeatureMetadata,
-    invalidateSchoolFeatureContext,
     resolveSchoolFeatureContext,
     requireFeature
 } from '../middleware/featureGate.js';

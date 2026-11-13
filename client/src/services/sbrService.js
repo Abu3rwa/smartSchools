@@ -1,4 +1,5 @@
 import api from '../config/api';
+import { printEndpoint } from '../utils/printDocument';
 
 const DEFAULT_SCALE_LEVELS = [
     {
@@ -120,20 +121,13 @@ const sbrService = {
         return getNestedData(response);
     },
 
-    downloadReportCardPdf: async (id, filename = 'report-card.pdf') => {
-        const response = await api.get(`/sbr/reports/${id}/pdf`, {
-            responseType: 'blob'
-        });
+    printReportCard: (id) => printEndpoint(`/sbr/reports/${id}/print`),
 
-        const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(blobUrl);
-    }
+    printClassReportCards: ({ classId, period, academicYear }) =>
+        printEndpoint('/sbr/reports/print-class', {
+            method: 'post',
+            data: { classId, period, academicYear }
+        })
 };
 
 export default sbrService;

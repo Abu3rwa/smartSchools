@@ -6,10 +6,11 @@ import Standard from '../models/Standard.js';
 import Subject from '../models/Subject.js';
 import GroupingReport from '../models/GroupingReport.js';
 import {
-    generateStudentGroupingStandardPdf,
-    generateStudentGroupingOverviewPdf
-} from '../services/studentGroupingPdfService.js';
+    renderStudentGroupingOverviewHtml,
+    renderStudentGroupingStandardHtml
+} from '../services/studentGroupingReportHtmlService.js';
 import { uploadPrivateFile, downloadFile } from '../services/firebaseStorageService.js';
+import { sendPrintableHtml, withPrintPageCss } from '../utils/printableHtml.js';
 import logger from '../utils/logger.js';
 import { normalizeStudentGroupingReportSettings } from '../utils/studentGroupingReportSettings.js';
 
@@ -143,7 +144,7 @@ const archiveGroupingReport = async ({
     academicYear,
     reportType,
     reportPayload,
-    pdfBuffer,
+    fileBuffer,
     generatedBy,
     fileName
 }) => {
@@ -155,7 +156,7 @@ const archiveGroupingReport = async ({
         fileName
     });
 
-    const uploaded = await uploadPrivateFile(pdfBuffer, 'application/pdf', storagePath);
+    const uploaded = await uploadPrivateFile(fileBuffer, 'text/html', storagePath);
     const metadata = reportType === 'class-overview'
         ? buildOverviewReportMetadata(reportPayload)
         : buildStandardReportMetadata(reportPayload);
@@ -172,7 +173,7 @@ const archiveGroupingReport = async ({
         snapshot: reportPayload,
         fileName,
         fileRef: uploaded.fileRef,
-        fileSize: Buffer.byteLength(pdfBuffer),
+        fileSize: Buffer.byteLength(fileBuffer),
         status: 'ready',
         isArchived: true,
         archivedBy: generatedBy,
@@ -342,9 +343,9 @@ export const getStudentGroups = asyncHandler(async (req, res) => {
     });
 });
 
-/* ─── GET /api/student-grouping/:classId/:standardId/export-pdf ─────── */
+/* ─── GET /api/student-grouping/:classId/:standardId/print ──────────── */
 
-export const exportStudentGroupingPdf = asyncHandler(async (req, res) => {
+export const printStudentGroupingReport = asyncHandler(async (req, res) => {
     const { classId, standardId } = req.params;
     const academicYear = req.query.academicYear || '';
 
@@ -413,16 +414,16 @@ export const exportStudentGroupingPdf = asyncHandler(async (req, res) => {
         teacherName: resolveTeacherName(req.user)
     };
 
-    const pdfData = await generateStudentGroupingStandardPdf(reportPayload, branding, {
+    const html = await renderStudentGroupingStandardHtml(reportPayload, branding, {
         language,
         reportConfig
     });
-    const pdfBuffer = Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
+    const fileBuffer = Buffer.from(html, 'utf8');
 
     const classToken = toSlug(classDoc.name || `grade-${classDoc.grade || 'class'}`, 'class');
     const standardToken = toSlug(standardDoc.code || standardDoc.name || 'standard', 'standard');
     const yearToken = toSlug(academicYear || classDoc.academicYear || 'year', 'year');
-    const filename = `student-grouping-${classToken}-${standardToken}-${yearToken}.pdf`;
+    const filename = `student-grouping-${classToken}-${standardToken}-${yearToken}.html`;
 
     try {
         await archiveGroupingReport({
@@ -433,7 +434,7 @@ export const exportStudentGroupingPdf = asyncHandler(async (req, res) => {
             academicYear: academicYear || classDoc.academicYear || '',
             reportType: 'per-standard',
             reportPayload,
-            pdfBuffer,
+            fileBuffer,
             generatedBy: req.user._id,
             fileName: filename
         });
@@ -446,11 +447,7 @@ export const exportStudentGroupingPdf = asyncHandler(async (req, res) => {
         });
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', String(pdfBuffer.length));
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.send(pdfBuffer);
+    return sendPrintableHtml(res, withPrintPageCss(html, { margin: '10mm' }), { filename });
 });
 
 /* ─── PUT /api/student-grouping/:classId/:standardId/override ────────── */
@@ -510,9 +507,9 @@ export const getGroupingOverview = asyncHandler(async (req, res) => {
     });
 });
 
-/* ─── GET /api/student-grouping/:classId/export-overview-pdf ─────────── */
+/* ─── GET /api/student-grouping/:classId/print-overview ──────────────── */
 
-export const exportGroupingOverviewPdf = asyncHandler(async (req, res) => {
+export const printGroupingOverview = asyncHandler(async (req, res) => {
     const { classId } = req.params;
     const academicYear = req.query.academicYear || '';
     const subjectId = req.query.subjectId || '';
@@ -566,16 +563,16 @@ export const exportGroupingOverviewPdf = asyncHandler(async (req, res) => {
         teacherName: resolveTeacherName(req.user)
     };
 
-    const pdfData = await generateStudentGroupingOverviewPdf(reportPayload, branding, {
+    const html = await renderStudentGroupingOverviewHtml(reportPayload, branding, {
         language,
         reportConfig
     });
-    const pdfBuffer = Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
+    const fileBuffer = Buffer.from(html, 'utf8');
 
     const classToken = toSlug(classDoc.name || `grade-${classDoc.grade || 'class'}`, 'class');
     const subjectToken = toSlug(subjectDoc?.code || subjectDoc?.name || 'all-subjects', 'all-subjects');
     const yearToken = toSlug(academicYear || classDoc.academicYear || 'year', 'year');
-    const filename = `student-grouping-overview-${classToken}-${subjectToken}-${yearToken}.pdf`;
+    const filename = `student-grouping-overview-${classToken}-${subjectToken}-${yearToken}.html`;
 
     try {
         await archiveGroupingReport({
@@ -586,7 +583,7 @@ export const exportGroupingOverviewPdf = asyncHandler(async (req, res) => {
             academicYear: academicYear || classDoc.academicYear || '',
             reportType: 'class-overview',
             reportPayload,
-            pdfBuffer,
+            fileBuffer,
             generatedBy: req.user._id,
             fileName: filename
         });
@@ -599,11 +596,7 @@ export const exportGroupingOverviewPdf = asyncHandler(async (req, res) => {
         });
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', String(pdfBuffer.length));
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.send(pdfBuffer);
+    return sendPrintableHtml(res, withPrintPageCss(html, { margin: '10mm' }), { filename });
 });
 
 /* ─── GET /api/student-grouping/:classId/reports ─────────────────────── */
@@ -685,14 +678,15 @@ export const downloadGroupingReport = asyncHandler(async (req, res) => {
     }
 
     const file = await downloadFile(report.fileRef);
-    const pdfBuffer = Buffer.isBuffer(file.buffer) ? file.buffer : Buffer.from(file.buffer);
-    const filename = report.fileName || `student-grouping-${toSlug(report.reportType || 'report', 'report')}.pdf`;
+    const fileBuffer = Buffer.isBuffer(file.buffer) ? file.buffer : Buffer.from(file.buffer);
+    const filename = report.fileName || `student-grouping-${toSlug(report.reportType || 'report', 'report')}.html`;
 
-    res.setHeader('Content-Type', file.contentType || 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', String(pdfBuffer.length));
+    // Archives written before printing replaced PDFs still carry a PDF body.
+    res.setHeader('Content-Type', file.contentType || 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length', String(fileBuffer.length));
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.send(pdfBuffer);
+    return res.send(fileBuffer);
 });
 
 /* ─── POST /api/student-grouping/:classId/:standardId/refresh-activities  */

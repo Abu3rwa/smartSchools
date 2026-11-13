@@ -190,10 +190,10 @@
   },
   "studentGroupingReports": {
     "title": "Student Grouping Reports",
-    "helpText": "Control which sections appear in Student Grouping PDF exports for teachers.",
+    "helpText": "Control which sections appear in printable Student Grouping reports for teachers.",
     "loading": "Loading settings...",
-    "overviewTitle": "Class Overview PDF",
-    "standardTitle": "Per-Standard PDF",
+    "overviewTitle": "Class overview report",
+    "standardTitle": "Per-standard report",
     "save": "Save Settings",
     "fields": {
       "showSummaryMetrics": "Show summary metrics",

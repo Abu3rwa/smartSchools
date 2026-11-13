@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildLiveLessonReportHtml, withTimeout } from "../services/liveLessonReportPdfService.js";
+import { buildLiveLessonReportHtml, withTimeout } from "../services/liveLessonReportService.js";
 
 const answerDetail = (mark) => ({
   questionNumber: 1,
@@ -95,7 +95,7 @@ test("a student report contains only the students that were chosen", () => {
 test("a render that outstays its budget is rejected as a 504", async () => {
   await assert.rejects(withTimeout(new Promise(() => {}), 10), (error) => {
     assert.equal(error.statusCode, 504);
-    assert.equal(error.message, "The PDF took too long to prepare. Please try again.");
+    assert.equal(error.message, "The report took too long to prepare. Please try again.");
     return true;
   });
 });

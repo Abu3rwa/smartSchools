@@ -27,8 +27,8 @@ import {
   getMapPracticeReviewOptions
 } from '../controllers/mapPracticeAttemptController.js';
 import {
-  exportMapPracticeClassReport,
-  exportMapPracticeStudentReport
+  printMapPracticeClassReport,
+  printMapPracticeStudentReport
 } from '../controllers/mapPracticeReportController.js';
 import { sendMapPracticeProgressEmail } from '../controllers/mapPracticeProgressEmailController.js';
 
@@ -44,9 +44,9 @@ router.use(protect, requireSchoolContext, requireMapPracticeAccess);
 router.get('/settings', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeSettings);
 router.put('/settings', authorizeWithPermission(['admin', 'teacher'], []), saveMapPracticeSettings);
 router.get('/overview', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeOverview);
-router.get('/reports/students/:studentId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeStudentReport);
+router.get('/reports/students/:studentId/print', authorizeWithPermission(['admin', 'teacher'], []), printMapPracticeStudentReport);
 router.post('/students/:studentId/progress-email', authorizeWithPermission(['admin', 'teacher'], []), sendMapPracticeProgressEmail);
-router.get('/reports/classes/:classId/pdf', authorizeWithPermission(['admin', 'teacher'], []), exportMapPracticeClassReport);
+router.get('/reports/classes/:classId/print', authorizeWithPermission(['admin', 'teacher'], []), printMapPracticeClassReport);
 router.get('/import/students', authorizeWithPermission(['admin', 'teacher'], []), getMapPracticeImportStudents);
 router.post('/preview-files', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);
 router.post('/import/preview', authorizeWithPermission(['admin', 'teacher'], []), uploadMapPracticeCsv.array('files', 30), previewMapPracticeFiles);

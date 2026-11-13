@@ -7,8 +7,8 @@ import {
     saveGroupingOverride,
     getGroupingOverview,
     refreshGroupActivities,
-    exportStudentGroupingPdf,
-    exportGroupingOverviewPdf,
+    printStudentGroupingReport,
+    printGroupingOverview,
     getGroupingReports,
     downloadGroupingReport
 } from '../controllers/studentGroupingController.js';
@@ -29,9 +29,9 @@ router.get(
 );
 
 router.get(
-    '/:classId/export-overview-pdf',
+    '/:classId/print-overview',
     authorize('admin', 'department_principal', 'teacher'),
-    exportGroupingOverviewPdf
+    printGroupingOverview
 );
 
 router.get(
@@ -53,9 +53,9 @@ router.get(
 );
 
 router.get(
-    '/:classId/:standardId/export-pdf',
+    '/:classId/:standardId/print',
     authorize('admin', 'department_principal', 'teacher'),
-    exportStudentGroupingPdf
+    printStudentGroupingReport
 );
 
 router.put(

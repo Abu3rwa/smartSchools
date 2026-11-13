@@ -147,7 +147,7 @@ const GroupingReportHistoryPanel = ({
                                                     onClick={() => onDownload(report.id)}
                                                     disabled={isDownloading}
                                                 >
-                                                    {isDownloading ? 'Downloading...' : 'Download'}
+                                                    {isDownloading ? 'Preparing...' : 'Print'}
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

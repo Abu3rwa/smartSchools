@@ -29,6 +29,7 @@ import {
   describeStudentAnswer,
   isObjectiveAnswerType,
 } from "../../utils/mapPracticeObjectiveAnswers";
+import { printEndpoint, printableErrorText } from "../../utils/printDocument";
 import "./MapTestPrepPage.css";
 
 const initialImportState = {
@@ -133,42 +134,6 @@ const downloadTextFile = (fileName, contents) => {
   URL.revokeObjectURL(url);
 };
 
-const downloadMapPracticeReport = async ({ url, params, fallbackName }) => {
-  const response = await api.get(url, { params, responseType: "blob" });
-  const contentType = String(
-    response.headers?.["content-type"] || "",
-  ).toLowerCase();
-  const bytes = new Uint8Array(await response.data.slice(0, 5).arrayBuffer());
-  const isPdf =
-    bytes.length === 5 &&
-    bytes[0] === 0x25 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x44 &&
-    bytes[3] === 0x46 &&
-    bytes[4] === 0x2d;
-  if (!contentType.includes("application/pdf") || !isPdf) {
-    const responseText = await response.data.text();
-    let message = "The report export did not return a valid PDF.";
-    try {
-      message = JSON.parse(responseText).message || message;
-    } catch {
-      if (responseText) message = responseText;
-    }
-    throw new Error(message);
-  }
-
-  const disposition = String(response.headers?.["content-disposition"] || "");
-  const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = filenameMatch?.[1] || fallbackName;
-  const blobUrl = URL.createObjectURL(response.data);
-  const anchor = document.createElement("a");
-  anchor.href = blobUrl;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-};
 
 const studentAvatarHue = (id) =>
   String(id || "")
@@ -1119,7 +1084,7 @@ const MapTestPrepPage = () => {
       .sort((first, second) => first.accuracy - second.accuracy);
   }, [rosterStudentDetails, t]);
 
-  const exportPracticeReport = async ({ type, id }) => {
+  const printPracticeReport = async ({ type, id }) => {
     if (Boolean(reportStartDate) !== Boolean(reportEndDate)) {
       setReportExportError(t("mapTestPrep:reports.bothDatesRequired"));
       return;
@@ -1132,29 +1097,19 @@ const MapTestPrepPage = () => {
         : {};
     try {
       const isStudentReport = type === "student";
-      await downloadMapPracticeReport({
-        url: isStudentReport
-          ? `/map-test-prep/practice/reports/students/${id}/pdf`
-          : `/map-test-prep/practice/reports/classes/${id}/pdf`,
-        params,
-        fallbackName: isStudentReport
-          ? "map-practice-student-report.pdf"
-          : "map-practice-class-report.pdf",
-      });
+      await printEndpoint(
+        isStudentReport
+          ? `/map-test-prep/practice/reports/students/${id}/print`
+          : `/map-test-prep/practice/reports/classes/${id}/print`,
+        { params },
+      );
     } catch (requestError) {
-      let message =
-        requestError.message || t("mapTestPrep:reports.exportFailed");
-      if (requestError.response?.data instanceof Blob) {
-        try {
-          const payload = JSON.parse(await requestError.response.data.text());
-          message = payload.message || message;
-        } catch {
-          message = t("mapTestPrep:reports.exportFailed");
-        }
-      } else if (requestError.response?.data?.message) {
-        message = requestError.response.data.message;
-      }
-      setReportExportError(message);
+      setReportExportError(
+        printableErrorText(
+          requestError,
+          t("mapTestPrep:reports.printFailed"),
+        ),
+      );
     } finally {
       setReportExportState("");
     }
@@ -1186,7 +1141,7 @@ const MapTestPrepPage = () => {
             type="button"
             className="btn btn-secondary"
             onClick={() =>
-              void exportPracticeReport({
+              void printPracticeReport({
                 type: "class",
                 id: selectedClass._id,
               })
@@ -1194,8 +1149,8 @@ const MapTestPrepPage = () => {
             disabled={reportExportState !== ""}
           >
             {reportExportState === "class"
-              ? t("mapTestPrep:reports.exporting")
-              : t("mapTestPrep:reports.exportClass")}
+              ? t("mapTestPrep:reports.preparing")
+              : t("mapTestPrep:reports.printClass")}
           </button>
         )}
       </header>
@@ -1482,7 +1437,7 @@ const MapTestPrepPage = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={() =>
-                          void exportPracticeReport({
+                          void printPracticeReport({
                             type: "student",
                             id: selectedRosterStudent._id,
                           })
@@ -1490,8 +1445,8 @@ const MapTestPrepPage = () => {
                         disabled={reportExportState !== ""}
                       >
                         {reportExportState === "student"
-                          ? t("mapTestPrep:reports.exporting")
-                          : t("mapTestPrep:reports.exportStudent")}
+                          ? t("mapTestPrep:reports.preparing")
+                          : t("mapTestPrep:reports.printStudent")}
                       </button>
                       <button
                         type="button"

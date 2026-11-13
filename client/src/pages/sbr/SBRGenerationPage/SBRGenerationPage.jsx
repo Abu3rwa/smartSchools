@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import classService from '../../../services/classService';
 import studentService from '../../../services/studentService';
 import sbrService from '../../../services/sbrService';
+import { printableErrorText } from '../../../utils/printDocument';
 import './SBRGenerationPage.css';
 
 const PERIODS = [
@@ -210,10 +211,18 @@ const SBRGenerationPage = () => {
                 academicYear: form.academicYear
             });
             toast.success(`Generated ${result?.reportCards?.length || 0} report cards`);
-            if (result?.bulkPdfUrl) {
-                window.open(result.bulkPdfUrl, '_blank', 'noopener,noreferrer');
-            }
             await loadReports();
+            if ((result?.reportCards?.length || 0) > 0) {
+                try {
+                    await sbrService.printClassReportCards({
+                        classId: form.classId,
+                        period: form.period,
+                        academicYear: form.academicYear
+                    });
+                } catch (printError) {
+                    toast.error(printableErrorText(printError, 'Unable to prepare the class report cards for printing'));
+                }
+            }
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Bulk generation failed');
         } finally {
@@ -303,7 +312,9 @@ const SBRGenerationPage = () => {
                 </div>
 
                 <div className="sbr-filter-actions">
-                    <button type="button" className="btn-primary" onClick={generateBulk} disabled={!form.classId || working}>
+                    <button type="button" className="btn-primary" onClick={generateBulk}
+                        disabled={!form.classId || working}
+                    >
                         {working ? 'Working...' : 'Generate Bulk'}
                     </button>
                 </div>
@@ -387,9 +398,9 @@ const SBRGenerationPage = () => {
                                             <button
                                                 type="button"
                                                 className="btn-secondary"
-                                                onClick={() => sbrService.downloadReportCardPdf(report.id, `${report.reportCardId}.pdf`)}
+                                                onClick={() => sbrService.printReportCard(report.id)}
                                             >
-                                                Download
+                                                Print
                                             </button>
                                             {(report.status || 'draft') !== 'published' && (
                                                 <button

@@ -3,7 +3,7 @@ import api from '../../config/api';
 import { logout } from './authSlice';
 
 const RETRY_DELAYS_MS = [1200, 4000];
-const FEATURES_CACHE_KEY = 'schoolFeatures.cache.v1';
+const FEATURES_CACHE_KEY = 'schoolFeatures.cache.v2';
 const AUTO_RETRY_MIN_GAP_MS = 5000;
 
 const sleep = (ms) => new Promise((resolve) => {

@@ -7,10 +7,10 @@
     "settings": "Settings"
   },
   "reports": {
-    "exportStudent": "Export student PDF",
-    "exportClass": "Export class PDF",
-    "exporting": "Preparing PDF…",
-    "exportFailed": "Unable to export this MAP Practice report.",
+    "printStudent": "Print student report",
+    "printClass": "Print class report",
+    "preparing": "Preparing…",
+    "printFailed": "Unable to prepare this MAP Practice report.",
     "startDate": "From",
     "endDate": "To",
     "defaultPeriod": "Leave both dates blank to report on the current academic year.",

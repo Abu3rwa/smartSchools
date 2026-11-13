@@ -15,7 +15,7 @@ import { generateChildLetter } from "../services/newsletterChildAiService.js";
 import { fillStudentToken, inspectLetterText, personalIdentifiers, scrubPersonalText } from "../services/newsletterPrivacy.js";
 import { isCreditError } from "../services/aiCreditService.js";
 import { sendChildLettersForIssue, prepareChildLetterEmail } from "../services/newsletterChildEmailService.js";
-import { renderChildLetterPdf, letterPdfFilename } from "../services/newsletterChildLetterPdfService.js";
+import { sendPrintableHtml, withPrintPageCss } from "../utils/printableHtml.js";
 
 const MAX_STUDENTS_PER_RUN = 30;
 const AI_CONCURRENCY = 3;
@@ -573,8 +573,8 @@ export const previewChildLetter = asyncHandler(async (req, res) => {
   });
 });
 
-/** TEACHER/ADMIN: Download one letter as a print-quality PDF. */
-export const downloadChildLetterPdf = asyncHandler(async (req, res) => {
+/** TEACHER/ADMIN: Print one letter exactly as the family received it. */
+export const printChildLetter = asyncHandler(async (req, res) => {
   const existing = await NewsletterChildLetter.findById(req.params.id)
     .select("class")
     .lean();
@@ -585,10 +585,8 @@ export const downloadChildLetterPdf = asyncHandler(async (req, res) => {
     if (access.error) return res.status(403).json({ success: false, message: access.error });
   }
 
-  const { pdf, letter, rendered } = await renderChildLetterPdf({ letterId: req.params.id });
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${letterPdfFilename({ rendered, letter })}"`);
-  res.send(pdf);
+  const { rendered } = await prepareChildLetterEmail({ letterId: req.params.id });
+  return sendPrintableHtml(res, withPrintPageCss(rendered.html, { margin: "12mm 10mm" }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -694,14 +692,12 @@ export const getParentChildLetter = asyncHandler(async (req, res) => {
   });
 });
 
-/** PARENT: Download one sent letter as a PDF. */
-export const downloadParentChildLetterPdf = asyncHandler(async (req, res) => {
+/** PARENT: Print one sent letter exactly as it was emailed. */
+export const printParentChildLetter = asyncHandler(async (req, res) => {
   const { error } = await loadParentOwnedLetter(req);
   if (error === 404) return res.status(404).json({ success: false, message: "Letter not found" });
   if (error) return res.status(403).json({ success: false, message: "Access denied" });
 
-  const { pdf, letter, rendered } = await renderChildLetterPdf({ letterId: req.params.id });
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${letterPdfFilename({ rendered, letter })}"`);
-  res.send(pdf);
+  const { rendered } = await prepareChildLetterEmail({ letterId: req.params.id });
+  return sendPrintableHtml(res, withPrintPageCss(rendered.html, { margin: "12mm 10mm" }));
 });

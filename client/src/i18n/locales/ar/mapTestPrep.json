@@ -7,10 +7,10 @@
     "settings": "الإعدادات"
   },
   "reports": {
-    "exportStudent": "تصدير تقرير الطالب PDF",
-    "exportClass": "تصدير تقرير الصف PDF",
-    "exporting": "جارٍ إعداد PDF…",
-    "exportFailed": "تعذر تصدير تقرير تدريب MAP.",
+    "printStudent": "طباعة تقرير الطالب",
+    "printClass": "طباعة تقرير الصف",
+    "preparing": "جارٍ الإعداد…",
+    "printFailed": "تعذر تجهيز تقرير تدريب MAP.",
     "startDate": "من",
     "endDate": "إلى",
     "defaultPeriod": "اترك التاريخين فارغين لإعداد تقرير عن العام الدراسي الحالي.",

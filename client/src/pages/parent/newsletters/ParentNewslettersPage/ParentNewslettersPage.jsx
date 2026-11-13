@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 
 import api from '../../../../config/api';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
+import { printEndpoint } from '../../../../utils/printDocument';
 import {
   fetchParentNewsletterHistory,
   selectParentNewsletter
@@ -117,19 +118,9 @@ const ParentNewslettersPage = () => {
     [letters, selectedLetterId]
   );
 
-  const downloadLetterPdf = async () => {
+  const printLetter = async () => {
     if (!selectedLetter) return;
-    const res = await api.get(`/newsletters/parent/child-letters/${selectedLetter._id}/pdf`, {
-      responseType: 'blob'
-    });
-    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `weekly-letter-${(selectedLetter.studentName || 'student').replace(/\s+/g, '-')}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    await printEndpoint(`/newsletters/parent/child-letters/${selectedLetter._id}/print`);
   };
 
   return (
@@ -272,8 +263,8 @@ const ParentNewslettersPage = () => {
               <div className="pn-letter-head">
                 <h3>{selectedLetter ? `${selectedLetter.studentName}'s letter` : 'Letter'}</h3>
                 {selectedLetter ? (
-                  <button type="button" className="pn-btn" onClick={downloadLetterPdf}>
-                    Download PDF
+                  <button type="button" className="pn-btn" onClick={printLetter}>
+                    Print letter
                   </button>
                 ) : null}
               </div>

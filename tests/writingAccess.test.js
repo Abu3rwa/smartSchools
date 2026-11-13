@@ -250,11 +250,11 @@ test("every patched read is called with the caller's identity", async () => {
     assert.match(block, /isAdmin: isAdminUser\(req\.user\)/, `${name} must receive the admin flag`);
   }
 
-  const pdfStart = source.indexOf("export const exportProjectPdfForTeacher");
+  const pdfStart = source.indexOf("export const printProjectForTeacher");
   assert.ok(pdfStart > -1);
   assert.match(
     source.slice(pdfStart, pdfStart + 400),
     /assertProjectVisibleToTeacher\(\{/,
-    "the teacher PDF must assert ownership before rendering",
+    "the teacher print must assert ownership before rendering",
   );
 });

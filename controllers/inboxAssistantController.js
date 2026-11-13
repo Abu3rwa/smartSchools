@@ -9,6 +9,7 @@ import { getPlatformInboxSettings } from "../services/inboxSettingsService.js";
 import { getCreditBadge } from "../services/aiCreditService.js";
 import inboxScanService from "../services/inbox/inboxScanService.js";
 import { deleteAllInboxDataForUser } from "../services/inbox/inboxDataService.js";
+import { transcribeAudio } from "../services/voiceSpeech.js";
 import {
   calendarStatusFrom,
   normalizeCalendarSettings,
@@ -649,4 +650,20 @@ export const deleteData = asyncHandler(async (req, res) => {
     removeCalendarEvents: req.body?.removeCalendarEvents === true,
   });
   res.json(result);
+});
+
+// A dictated reply note is transcribed in memory and dropped; only the text is returned.
+const TRANSCRIBE_TIMEOUT_MS = 30000;
+
+export const transcribeAudioNote = asyncHandler(async (req, res) => {
+  if (!req.file?.buffer?.length) {
+    throw badRequest("Record what the reply should say, then try again.");
+  }
+  const { text } = await transcribeAudio({
+    buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
+    language: req.body?.language === "en" ? "en" : "ar",
+    timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+  });
+  res.json({ text });
 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import sbrService from '../../../services/sbrService';
+import { printableErrorText } from '../../../utils/printDocument';
 import './SBRParentReportsPage.css';
 
 const PERIOD_OPTIONS = [
@@ -50,12 +51,20 @@ const SBRParentReportsPage = () => {
         }
     };
 
+    const printReport = async (reportId) => {
+        try {
+            await sbrService.printReportCard(reportId);
+        } catch (error) {
+            toast.error(printableErrorText(error, 'Unable to prepare the report card for printing'));
+        }
+    };
+
     return (
         <div className="sbr-parent-page">
             <div className="sbr-parent-header">
                 <Link className="sbr-parent-back" to="/portal/dashboard">Back to dashboard</Link>
                 <h2>Standards-Based Report Cards</h2>
-                <p>View, read, and download your child report cards.</p>
+                <p>View, read, and print your child report cards.</p>
             </div>
 
             <section className="card sbr-parent-filters">
@@ -110,9 +119,9 @@ const SBRParentReportsPage = () => {
                                     <button
                                         type="button"
                                         className="btn-primary"
-                                        onClick={() => sbrService.downloadReportCardPdf(report.id, `${report.reportCardId}.pdf`)}
+                                        onClick={() => printReport(report.id)}
                                     >
-                                        Download PDF
+                                        Print report card
                                     </button>
                                 </div>
                             </article>

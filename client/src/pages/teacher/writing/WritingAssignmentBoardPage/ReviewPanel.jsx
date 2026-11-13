@@ -4,12 +4,13 @@ import toast from "react-hot-toast";
 import {
   HiOutlineBadgeCheck,
   HiOutlineCheckCircle,
-  HiOutlineDownload,
+  HiOutlinePrinter,
   HiOutlineRefresh,
   HiOutlineSparkles,
   HiOutlineX,
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
+import { printableErrorText } from "../../../../utils/printDocument.js";
 import {
   creditErrorMessage,
   isCreditError,
@@ -213,27 +214,17 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
       t("writing:teacher.review.stageMoved"),
     );
 
-  const exportPdf = async () => {
+  const printDraft = async () => {
     if (!latestDraft) return;
     setExporting(true);
     try {
-      const blob = await writingService.exportProjectPdfForTeacher(
+      await writingService.printProjectForTeacher(
         project.id || project._id,
         latestDraft._id,
       );
-      const url = window.URL.createObjectURL(
-        new Blob([blob], { type: "application/pdf" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `writing-draft-${latestDraft.number}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message || t("writing:teacher.review.exportFailed"),
+        printableErrorText(error, t("writing:teacher.review.exportFailed")),
       );
     } finally {
       setExporting(false);
@@ -272,9 +263,9 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
           type="button"
           className="btn btn-secondary btn-sm"
           disabled={exporting}
-          onClick={exportPdf}
+          onClick={printDraft}
         >
-          <HiOutlineDownload size={15} aria-hidden="true" />
+          <HiOutlinePrinter size={15} aria-hidden="true" />
           {t("writing:teacher.review.exportPdf")}
         </button>
         {feedback?.publish?.state === "published" && (

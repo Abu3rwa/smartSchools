@@ -5,7 +5,7 @@ import { authorize } from '../middleware/auth.js';
 import {
     getMonthConfigs, getMonthConfig, createMonthConfig, updateMonthConfig,
     publishMonthConfig, closeMonthConfig,
-    getRecords, getLeaderboard, getRecord, exportRecordDocx, exportRecordPdf, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
+    getRecords, getLeaderboard, getRecord, exportRecordDocx, printRecordReport, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
     getEvidence, getStudentEvidence, exportObservationsByTrait, getTraitScoreSuggestions, createEvidence, updateEvidence, deleteEvidence,
     classifyObservationDraft, createQuickObservation, getNeedsReviewObservations, parseObservationDraft,
     getRecordInteractions, addSupervisorNote,
@@ -56,7 +56,7 @@ router.route('/records/:id')
     .get(authorize('admin', 'teacher', 'department_principal'), getRecord)
     .put(authorize('teacher', 'admin'), updateRecord);
 router.get('/records/:id/export-docx', authorize('admin', 'teacher', 'department_principal'), exportRecordDocx);
-router.get('/records/:id/export-pdf', authorize('admin', 'teacher', 'department_principal'), exportRecordPdf);
+router.get('/records/:id/print', authorize('admin', 'teacher', 'department_principal'), printRecordReport);
 router.delete('/records/:id', authorize('teacher', 'admin'), deleteRecord);
 router.post('/records/:id/submit', authorize('teacher', 'admin'), submitRecord);
 router.post('/records/:id/unlock', authorize('admin'), unlockRecord);

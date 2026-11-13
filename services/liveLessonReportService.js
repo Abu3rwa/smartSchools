@@ -1,25 +1,17 @@
-import logger from "../utils/logger.js";
-import { acquirePdfPage, releasePdfPage } from "./pdf/pdfBrowserManager.js";
-
-const PDF_TIMEOUT_MS = 45000;
 const STEP_TIMEOUT_MS = 30000;
-const MAX_CONCURRENT_RENDERS = 2;
-const PDF_TIMEOUT_MESSAGE = "The PDF took too long to prepare. Please try again.";
+const REPORT_TIMEOUT_MESSAGE = "The report took too long to prepare. Please try again.";
 
-let activeRenders = 0;
-const renderWaiters = [];
-
-const pdfError = (message, statusCode) => {
+const reportError = (message, statusCode) => {
   const error = new Error(message);
   error.statusCode = statusCode;
-  // A slow render or a missing browser is safe to explain to the teacher.
+  // A timeout is safe to explain to the teacher.
   error.expose = true;
   return error;
 };
 
-/** Rejects with a 504 when a step outstays its budget, so a hung render can never wait forever. */
-export const withTimeout = (promise, ms = STEP_TIMEOUT_MS, message = PDF_TIMEOUT_MESSAGE) => new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(pdfError(message, 504)), ms);
+/** Rejects with a 504 when a step outstays its budget, so a hung report can never wait forever. */
+export const withTimeout = (promise, ms = STEP_TIMEOUT_MS, message = REPORT_TIMEOUT_MESSAGE) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(reportError(message, 504)), ms);
   if (typeof timer.unref === "function") timer.unref();
   promise.then(
     (value) => {
@@ -32,24 +24,6 @@ export const withTimeout = (promise, ms = STEP_TIMEOUT_MS, message = PDF_TIMEOUT
     },
   );
 });
-
-const acquireRenderSlot = () => new Promise((resolve) => {
-  const attempt = () => {
-    if (activeRenders < MAX_CONCURRENT_RENDERS) {
-      activeRenders += 1;
-      resolve();
-    } else {
-      renderWaiters.push(attempt);
-    }
-  };
-  attempt();
-});
-
-const releaseRenderSlot = () => {
-  activeRenders = Math.max(0, activeRenders - 1);
-  const next = renderWaiters.shift();
-  if (next) next();
-};
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;",
@@ -414,79 +388,9 @@ const REPORT_STYLES = `
   .chip { padding: 3px 8px; border: 1px solid #dfe9e6; border-radius: 99px; color: #4c646d; background: #f7faf9; font-size: 7.8pt; }
 `;
 
-const pageFooter = (label) => `
-  <div style="width:100%;padding:0 14mm;font:7pt Arial,sans-serif;color:#7d8d93;display:flex;justify-content:space-between;">
-    <span>${escapeHtml(label)}</span>
-    <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
-  </div>
-`;
-
 export const buildLiveLessonReportHtml = (report, { type, studentIds = [] } = {}) => {
   const content = type === "performance"
     ? renderPerformanceReport(report, studentIds)
     : renderSessionReport(report, studentIds);
   return `<!doctype html><html><head><meta charset="utf-8"><style>${REPORT_STYLES}</style></head><body>${content}</body></html>`;
-};
-
-const renderPdf = async (html, { label, timings }) => {
-  const browserStartedAt = Date.now();
-  // Launching is bounded inside the manager; wrapping it in a race here would
-  // leave a page acquired after the caller gave up, and the browser never idle.
-  const page = await acquirePdfPage();
-  timings.browserMs = Date.now() - browserStartedAt;
-  page.setDefaultTimeout(STEP_TIMEOUT_MS);
-  page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
-  try {
-    const contentStartedAt = Date.now();
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: STEP_TIMEOUT_MS });
-    timings.contentMs = Date.now() - contentStartedAt;
-    const pdfStartedAt = Date.now();
-    const pdf = Buffer.from(await page.pdf({
-      format: "A4",
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: "<span></span>",
-      footerTemplate: pageFooter(label),
-      margin: { top: "15mm", bottom: "16mm", left: "14mm", right: "14mm" },
-      timeout: STEP_TIMEOUT_MS,
-    }));
-    timings.pdfMs = Date.now() - pdfStartedAt;
-    if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
-      throw new Error("The PDF renderer returned an invalid document.");
-    }
-    return pdf;
-  } finally {
-    await releasePdfPage(page);
-  }
-};
-
-export const generateLiveLessonReportPdf = async (report, { type, studentIds = [] } = {}) => {
-  const startedAt = Date.now();
-  const performance = type === "performance";
-  const html = buildLiveLessonReportHtml(report, { type, studentIds });
-  const label = performance
-    ? `Class performance · ${report.class?.name || "Class"}`
-    : `Live lesson report · ${report.session?.class?.name || "Class"}`;
-  // Timing every step says which one is slow instead of guessing.
-  const timings = {
-    buildMs: Date.now() - startedAt,
-    students: studentIds.length ? studentIds.length : (report.perStudent || report.students || []).length,
-  };
-  await acquireRenderSlot();
-  try {
-    return await withTimeout(renderPdf(html, { label, timings }), PDF_TIMEOUT_MS);
-  } catch (error) {
-    if (error.statusCode === 503 || error.statusCode === 504) throw error;
-    if (/timed?out|timeout/i.test(String(error.message))) {
-      throw pdfError(PDF_TIMEOUT_MESSAGE, 504);
-    }
-    throw error;
-  } finally {
-    releaseRenderSlot();
-    logger.info("Live lesson PDF timings", {
-      type: performance ? "performance" : "session",
-      ...timings,
-      totalMs: Date.now() - startedAt,
-    });
-  }
 };

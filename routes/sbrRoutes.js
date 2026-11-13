@@ -15,9 +15,10 @@ import {
     previewSBR,
     getReportCards,
     getReportCard,
-    downloadReportCardPdf,
+    printReportCard,
     publishReportCard,
-    emailReportCard,
+    printClassReportCards,
+  emailReportCard,
     deleteReportCard
 } from '../controllers/sbrController.js';
 
@@ -41,7 +42,8 @@ router.get('/preview/:studentId', authorizeWithPermission(['admin', 'teacher'], 
 // Report access routes
 router.get('/reports', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), getReportCards);
 router.get('/reports/:id', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), getReportCard);
-router.get('/reports/:id/pdf', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), downloadReportCardPdf);
+router.get('/reports/:id/print', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), printReportCard);
+router.post('/reports/print-class', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), printClassReportCards);
 router.post('/reports/:id/publish', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), publishReportCard);
 router.post('/reports/:id/email', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), emailReportCard);
 router.delete('/reports/:id', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), deleteReportCard);
