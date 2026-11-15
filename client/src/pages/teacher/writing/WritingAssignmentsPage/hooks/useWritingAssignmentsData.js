@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
 import aiCreditService from "../../../../../services/aiCreditService.js";
 import classService from "../../../../../services/classService.js";
+import { countLabel } from "../../../../../utils/countText.js";
 
 const listFrom = (payload) => {
   const raw = payload?.data ?? payload;
@@ -13,6 +15,7 @@ const listFrom = (payload) => {
 
 export function useWritingAssignmentsData() {
   const navigate = useNavigate();
+  const { t } = useTranslation(["writing"]);
 
   const [result, setResult] = useState({ key: "", rows: [], failed: false });
   const [classes, setClasses] = useState([]);
@@ -99,19 +102,33 @@ export function useWritingAssignmentsData() {
 
   const deactivate = useCallback(async (assignmentId) => {
     try {
-      await writingService.deactivateAssignment(assignmentId);
+      try {
+        await writingService.deactivateAssignment(assignmentId, false);
+      } catch (error) {
+        const body = error?.response?.data;
+        if (body?.code !== "CONFIRM_DEACTIVATE") throw error;
+        const sentWork = Number(body?.data?.sentWork) || 0;
+        const confirmed = window.confirm(
+          countLabel(t, "writing:teacher.closeTaskConfirm", sentWork),
+        );
+        if (!confirmed) return false;
+        await writingService.deactivateAssignment(assignmentId, true);
+      }
       setResult((current) => ({
         ...current,
         rows: current.rows.map((row) => (
           row._id === assignmentId ? { ...row, isActive: false } : row
         )),
       }));
+      toast.success(t("writing:teacher.closeTaskDone"));
       return true;
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Could not close that writing task.");
+      toast.error(
+        error?.response?.data?.message || t("writing:teacher.closeTaskFailed"),
+      );
       return false;
     }
-  }, []);
+  }, [t]);
 
   return {
     assignments: paginated,

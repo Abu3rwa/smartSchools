@@ -203,6 +203,29 @@ const writingAssessmentSchema = new mongoose.Schema(
       state: { type: String, enum: ["draft", "published"], default: "draft" },
       publishedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       publishedAt: { type: Date },
+      // What happened to the family email. The send itself is detached from the
+      // publish response, so without this record a crash mid-send is invisible:
+      // the teacher sees "published" and no one can tell whether the mail left.
+      email: {
+        status: {
+          type: String,
+          enum: ["pending", "sent", "partial", "failed", "skipped"],
+          default: undefined,
+        },
+        attempts: { type: Number, default: 0, min: 0 },
+        lastAttemptAt: { type: Date },
+        sentAt: { type: Date },
+        // "off", "empty", "not-feedback" — why nothing was sent, in the
+        // service's own vocabulary so a retry job can decide to leave it alone.
+        skippedReason: { type: String, trim: true, default: "" },
+        lastError: { type: String, trim: true, default: "" },
+        recipients: { type: Number, default: 0, min: 0 },
+        // The channels the teacher chose, so a retry cannot widen the audience.
+        channels: {
+          student: { type: Boolean, default: false },
+          parents: { type: Boolean, default: false },
+        },
+      },
     },
     teacherEdits: {
       by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -217,6 +240,9 @@ const writingAssessmentSchema = new mongoose.Schema(
 
 writingAssessmentSchema.index({ school: 1, draft: 1, kind: 1, createdAt: -1 });
 writingAssessmentSchema.index({ school: 1, project: 1, kind: 1 });
+// The per-student history read runs on every assess/compare and every history
+// view; without this index it scans the school's whole collection.
+writingAssessmentSchema.index({ school: 1, student: 1, aiStatus: 1, createdAt: -1 });
 writingAssessmentSchema.index({ school: 1, assignment: 1, "publish.state": 1 });
 // Two teachers clicking Assess must not spend the AI twice on the same draft.
 writingAssessmentSchema.index(

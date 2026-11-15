@@ -1,17 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@mui/material';
-import { useTranslation } from 'react-i18next';
-import { HiOutlineMail } from 'react-icons/hi';
 import { selectHasFeature } from '../../../../../store/slices/schoolFeaturesSlice';
 import inboxAssistantService from '../../../../../services/inboxAssistantService';
 
-/** A quiet entry point to the inbox; loaded after paint and never blocks the dashboard. */
-const InboxBadge = () => {
+/** A quiet count of what waits on the teacher in the inbox; a failed call leaves it at zero. */
+const useInboxAttention = () => {
     const hasFeature = useSelector((state) => selectHasFeature(state, 'inboxAssistant'));
-    const navigate = useNavigate();
-    const { t } = useTranslation(['dashboard']);
     const [count, setCount] = useState(0);
 
     useEffect(() => {
@@ -29,7 +23,7 @@ const InboxBadge = () => {
                         + (Number(summary?.calendarAttention) || 0));
                 }
             } catch {
-                // The badge is optional; a failed call leaves it hidden.
+                // The chip is optional; a failed call leaves it hidden.
             }
         };
 
@@ -39,19 +33,7 @@ const InboxBadge = () => {
         };
     }, [hasFeature]);
 
-    if (!hasFeature || count <= 0) return null;
-
-    return (
-        <Button
-            variant="outlined"
-            size="small"
-            startIcon={<HiOutlineMail />}
-            onClick={() => navigate('/portal/inbox')}
-            sx={{ mb: 2, textTransform: 'none' }}
-        >
-            {t('dashboard:teacherDashboard.inbox.badge', { n: count })}
-        </Button>
-    );
+    return hasFeature ? count : 0;
 };
 
-export default InboxBadge;
+export default useInboxAttention;

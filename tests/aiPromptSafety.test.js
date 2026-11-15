@@ -116,3 +116,70 @@ test('the corrective retry names the exact problems', () => {
     assert.match(prompt, /Write a note\./);
     assert.match(prompt, /religious-formula:inshallah/);
 });
+
+/* ------------------------------------------------------------------ */
+/* Writing review Phase 1 — every part of the name, phones, short names */
+/* and common-word names. Each of these failed before the fix.          */
+/* ------------------------------------------------------------------ */
+
+test('every part of the student name is scrubbed, not just the full name', () => {
+    const essay = 'My name is Sara Ahmed Khan. Sara wrote about her cat. Ahmed likes football.';
+    const safe = scrubForPrompt(essay, { name: 'Sara Ahmed Khan' });
+    for (const leak of ['Sara', 'Ahmed', 'Khan']) {
+        assert.equal(safe.includes(leak), false, `${leak} must not reach the model`);
+    }
+    assert.ok(safe.includes('cat'), 'the essay text must survive');
+    assert.ok(safe.includes('football'), 'the essay text must survive');
+});
+
+test('a lowercase name in a child\'s draft is still scrubbed', () => {
+    const safe = scrubForPrompt('my name is sara ahmed khan and i like cats.', {
+        name: 'Sara Ahmed Khan',
+    });
+    assert.equal(/sara|ahmed|khan/i.test(safe), false);
+});
+
+test('phone numbers are scrubbed by default on the writing path', () => {
+    const safe = scrubForPrompt('Call me on 0912345678 or email sara@school.com.', {
+        name: 'Sara Ali',
+    });
+    assert.equal(safe.includes('0912345678'), false);
+    assert.equal(safe.includes('sara@school.com'), false);
+    assert.ok(safe.includes('[number]'));
+    assert.ok(safe.includes('[email]'));
+});
+
+test('a two-character name is scrubbed', () => {
+    const safe = scrubForPrompt('Li went home. Bo said hi.', { name: 'Li Bo' });
+    assert.equal(safe.includes('Li'), false);
+    assert.equal(safe.includes('Bo'), false);
+});
+
+test('a common-word name does not corrupt the essay', () => {
+    const prose = 'I may go out. It may rain. Grace and I will help. We will win. I hope it is fun.';
+    for (const name of ['May', 'Will', 'Hope']) {
+        const safe = scrubForPrompt(prose, { name });
+        assert.equal(safe, prose, `${name} must not rewrite ordinary prose`);
+    }
+});
+
+test('a capitalised common-word name is still scrubbed when it is used as a name', () => {
+    const safe = scrubForPrompt('May went to the park. I may go.', { name: 'May' });
+    assert.equal(safe.includes('May went'), false);
+    assert.ok(safe.includes('I may go'), 'the lowercase verb must survive');
+});
+
+test('a multi-part name with a common-word part scrubs both', () => {
+    const safe = scrubForPrompt('I may go. May Jones wrote it.', { name: 'May Jones' });
+    assert.equal(safe.includes('May Jones'), false);
+    assert.ok(safe.includes('I may go'), 'the lowercase verb must survive');
+});
+
+test('classmate names never rewrite ordinary prose', () => {
+    const prose = 'The children may play outside. We will win. I hope it is fun.';
+    const safe = scrubForPrompt(prose, {
+        name: 'Sara Ali',
+        roster: ['May Jones', 'Will Smith', 'Hope Brown'],
+    });
+    assert.equal(safe, prose);
+});

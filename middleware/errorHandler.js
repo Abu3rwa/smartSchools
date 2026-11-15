@@ -1,5 +1,19 @@
 import logger from '../utils/logger.js';
 
+// Indexes whose collision means "someone else just created this", so a refresh
+// and a retry is a real recovery path. Other duplicates keep the generic 400.
+const KNOWN_DUPLICATE_INDEXES = [
+    ['assignment', 'school', 'student'],
+    ['number', 'project', 'school']
+];
+
+const isKnownDuplicate = (keyValue) => {
+    const fields = Object.keys(keyValue || {}).sort();
+    return KNOWN_DUPLICATE_INDEXES.some(
+        (index) => index.length === fields.length && index.every((field, position) => field === fields[position])
+    );
+};
+
 const mapKnownErrors = (err) => {
     if (err.name === 'CastError') {
         return { ...err, message: 'Resource not found', statusCode: 404 };
@@ -7,6 +21,14 @@ const mapKnownErrors = (err) => {
 
     if (err.code === 11000) {
         const fields = Object.keys(err.keyValue || {});
+        if (isKnownDuplicate(err.keyValue)) {
+            return {
+                ...err,
+                code: 'DUPLICATE_RECORD',
+                message: 'This was just created somewhere else. Refresh the page and try again.',
+                statusCode: 409
+            };
+        }
         const summary = fields.length > 0 ? fields.join(', ') : 'value';
         return {
             ...err,

@@ -78,7 +78,10 @@ router.get('/callback', async (req, res) => {
     // which connection the consent was for and where to send the teacher back.
     const parsedState = parseSignedState(req.query.state);
     const isAttachments = parsedState?.purpose === 'attachments';
-    const returnPath = isAttachments ? '/assignments' : '/curriculum';
+    // The portal app mounts these pages under /portal (see client App.jsx).
+    // Returning to the bare paths hits the catch-all route and bounces the
+    // teacher to the dashboard, so the drive_connected flag never lands.
+    const returnPath = isAttachments ? '/portal/assignments' : '/portal/curriculum';
     try {
         const { code, state, error } = req.query;
         if (error) return res.redirect(`${clientUrl}${returnPath}?drive_error=${encodeURIComponent(error)}`);

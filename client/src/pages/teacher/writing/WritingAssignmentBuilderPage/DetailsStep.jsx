@@ -40,7 +40,10 @@ export default function DetailsStep({ classes, errors, form, roster, update }) {
               type="button"
               key={type}
               className={`wa-chip-button${form.writingType === type ? " is-active" : ""}`}
-              onClick={() => update(applyPreset(form, type))}
+              // Re-applying the current preset would wipe text typed since.
+              onClick={() => {
+                if (form.writingType !== type) update(applyPreset(form, type));
+              }}
             >
               {t(`writing:teacher.types.${type}`)}
             </button>

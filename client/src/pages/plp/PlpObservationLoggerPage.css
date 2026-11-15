@@ -12,8 +12,8 @@
     --obs-muted: #94a8c6;
     --obs-faint: #6b7f9e;
 
-    --obs-teal: #2dd4bf;
-    --obs-teal-deep: #0d9488;
+    --obs-teal: var(--primary-400);
+    --obs-teal-deep: var(--primary-600);
     --obs-teal-soft: rgba(45, 212, 191, 0.14);
     --obs-teal-line: rgba(45, 212, 191, 0.42);
 
@@ -54,10 +54,10 @@
     --obs-muted: #4f6482;
     --obs-faint: #7386a3;
 
-    --obs-teal: #0d9488;
-    --obs-teal-deep: #0f766e;
-    --obs-teal-soft: rgba(13, 148, 136, 0.1);
-    --obs-teal-line: rgba(13, 148, 136, 0.38);
+    --obs-teal: var(--primary-600);
+    --obs-teal-deep: var(--primary-700);
+    --obs-teal-soft: rgba(var(--accent-primary-rgb), 0.1);
+    --obs-teal-line: rgba(var(--accent-primary-rgb), 0.38);
     --obs-blue: #1878c4;
     --obs-blue-soft: rgba(24, 120, 196, 0.1);
     --obs-blue-line: rgba(24, 120, 196, 0.34);
@@ -126,14 +126,14 @@
 
 .obs-btn-primary {
     color: #04211d;
-    background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 42%, #14b8a6 100%);
-    box-shadow: 0 8px 22px rgba(20, 184, 166, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    background: linear-gradient(135deg, var(--primary-300) 0%, var(--primary-400) 42%, var(--primary-500) 100%);
+    box-shadow: 0 8px 22px rgba(var(--accent-primary-rgb), 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .obs-btn-primary:hover:not(:disabled) {
-    box-shadow: 0 12px 28px rgba(20, 184, 166, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    box-shadow: 0 12px 28px rgba(var(--accent-primary-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.45);
     transform: translateY(-1px);
 }
-[data-theme="light"] .obs-btn-primary { color: #ffffff; background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); }
+[data-theme="light"] .obs-btn-primary { color: #ffffff; background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%); }
 
 .obs-btn-ghost {
     color: var(--obs-muted);
@@ -221,7 +221,7 @@
 .obs-class.is-active {
     border-color: var(--obs-teal-line);
     background: linear-gradient(135deg, var(--obs-teal-soft), var(--obs-surface) 70%);
-    box-shadow: 0 6px 18px rgba(13, 148, 136, 0.16), inset 0 0 0 1px var(--obs-teal-soft);
+    box-shadow: 0 6px 18px rgba(var(--accent-primary-rgb), 0.16), inset 0 0 0 1px var(--obs-teal-soft);
 }
 .obs-class:disabled { cursor: not-allowed; opacity: 0.55; }
 .obs-class-icon {
@@ -277,7 +277,7 @@
     position: relative; overflow: hidden;
     border: 1px solid var(--obs-line); border-radius: var(--obs-radius);
     background:
-        radial-gradient(120% 140% at 0% 0%, rgba(13, 148, 136, 0.16) 0%, transparent 55%),
+        radial-gradient(120% 140% at 0% 0%, rgba(var(--accent-primary-rgb), 0.16) 0%, transparent 55%),
         radial-gradient(90% 120% at 100% 100%, rgba(86, 182, 247, 0.1) 0%, transparent 60%),
         var(--obs-surface);
     box-shadow: var(--obs-shadow);
@@ -298,12 +298,12 @@
     width: 84px; height: 84px; border-radius: 50%;
     border: 1px solid var(--obs-teal-line); cursor: pointer;
     color: #04211d;
-    background: radial-gradient(circle at 32% 28%, #7ff0dd 0%, #2dd4bf 45%, #0d9488 100%);
-    box-shadow: 0 12px 30px rgba(13, 148, 136, 0.36), inset 0 2px 6px rgba(255, 255, 255, 0.4);
+    background: radial-gradient(circle at 32% 28%, #7ff0dd 0%, var(--primary-400) 45%, var(--primary-600) 100%);
+    box-shadow: 0 12px 30px rgba(var(--accent-primary-rgb), 0.36), inset 0 2px 6px rgba(255, 255, 255, 0.4);
     transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
-[data-theme="light"] .obs-mic { color: #ffffff; background: radial-gradient(circle at 32% 28%, #2dd4bf 0%, #0d9488 55%, #0f766e 100%); }
-.obs-mic:hover:not(:disabled) { transform: scale(1.045); box-shadow: 0 16px 38px rgba(13, 148, 136, 0.46), inset 0 2px 6px rgba(255, 255, 255, 0.45); }
+[data-theme="light"] .obs-mic { color: #ffffff; background: radial-gradient(circle at 32% 28%, var(--primary-400) 0%, var(--primary-600) 55%, var(--primary-700) 100%); }
+.obs-mic:hover:not(:disabled) { transform: scale(1.045); box-shadow: 0 16px 38px rgba(var(--accent-primary-rgb), 0.46), inset 0 2px 6px rgba(255, 255, 255, 0.45); }
 .obs-mic:active:not(:disabled) { transform: scale(0.97); }
 .obs-mic:disabled { filter: grayscale(0.75); opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 .obs-mic-ring {

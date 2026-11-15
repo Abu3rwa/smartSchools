@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { memo, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   HiOutlineCheck,
@@ -116,7 +116,7 @@ function WordButton({
 }
 
 /** The side rail a student leans on while writing. Feedback lives above the piece, not here. */
-export default function SupportsRail({
+function SupportsRail({
   assignment,
   goal,
   usedWords,
@@ -344,3 +344,5 @@ export default function SupportsRail({
     </aside>
   );
 }
+
+export default memo(SupportsRail);

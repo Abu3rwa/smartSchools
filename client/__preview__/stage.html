@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard render stage</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      #frame { display: block; border: 0; }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" src="/__preview__/index.html" width="1366" height="768"></iframe>
+    <script>
+      const frame = document.getElementById('frame');
+      window.__size = (w, h) => {
+        frame.width = w; frame.height = h;
+        frame.style.width = w + 'px'; frame.style.height = h + 'px';
+        document.body.style.width = w + 'px';
+        return [w, h];
+      };
+      window.__set = async (opts) => {
+        const win = frame.contentWindow;
+        if (typeof win.__preview !== 'function') return 'not ready';
+        await win.__preview(opts);
+        await new Promise((r) => setTimeout(r, 500));
+        return win.__audit();
+      };
+      window.__run = (fn) => fn(frame.contentWindow, frame.contentDocument);
+      window.__fit = async () => {
+        const d = frame.contentDocument;
+        frame.style.height = '400px';
+        await new Promise((r) => setTimeout(r, 120));
+        const h = Math.max(400, d.documentElement.scrollHeight);
+        frame.height = h; frame.style.height = h + 'px';
+        await new Promise((r) => setTimeout(r, 200));
+        window.scrollTo(0, 0);
+        frame.contentWindow.scrollTo(0, 0);
+        d.documentElement.scrollTop = 0;
+        d.body.scrollTop = 0;
+        await new Promise((r) => setTimeout(r, 120));
+        return { w: d.documentElement.clientWidth, h, scroll: d.documentElement.scrollHeight, outerY: window.scrollY, innerY: frame.contentWindow.scrollY };
+      };
+      window.__size(1366, 768);
+    </script>
+  </body>
+</html>

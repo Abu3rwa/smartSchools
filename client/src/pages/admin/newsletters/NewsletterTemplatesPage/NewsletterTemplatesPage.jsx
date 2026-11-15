@@ -80,8 +80,8 @@ function truncate(value, maxLength) {
 
 function buildMiniPreviewHtml(template) {
   const g = template.globalStyle || {};
-  const primary = g.primaryColor || '#0d9488';
-  const secondary = g.secondaryColor || '#0f766e';
+  const primary = g.primaryColor || 'var(--primary-600)';
+  const secondary = g.secondaryColor || 'var(--primary-700)';
   const bg = g.backgroundColor || '#ffffff';
   const font = g.fontFamily || 'Arial, sans-serif';
   const sections = (template.sections || [])

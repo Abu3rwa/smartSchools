@@ -11,6 +11,8 @@ import {
 } from "react-icons/hi2";
 import parentSupportService from "../../../../services/supportParentService.js";
 import SurveyForm from "../../../../components/support/SurveyForm.jsx";
+import ErrorBanner from "../../../../components/shared/ErrorBanner.jsx";
+import { computeHomeProgress } from "../../../../utils/supportProgress.js";
 import "./ParentSupportPage.css";
 
 const isArabic = (language) => String(language || "").startsWith("ar");
@@ -37,7 +39,7 @@ const PlanStatusChip = ({ status }) => {
   return <span className={`parent-support-chip is-${status}`}>{t(`plan.status.${status}`, { defaultValue: status })}</span>;
 };
 
-const HomeTask = ({ task, planId, busy, onCheckIn, t }) => {
+const HomeTask = ({ task, planId, busy, onCheckIn, readOnly, t }) => {
   const [note, setNote] = useState(task.note2 || "");
   const [noteOpen, setNoteOpen] = useState(false);
 
@@ -54,34 +56,44 @@ const HomeTask = ({ task, planId, busy, onCheckIn, t }) => {
         {task.note && <span className="parent-support-task-note">{task.note}</span>}
       </div>
 
-      <div className="parent-support-task-controls" role="group" aria-label={t("parent.taskLabel")}>
-        {options.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            className={`parent-support-status ${task.status === option.key ? `is-active is-${option.key}` : ""}`}
-            disabled={busy}
-            aria-pressed={task.status === option.key}
-            onClick={() => onCheckIn(planId, task.id, option.key, note)}
-          >
-            {option.icon}
-            <span>{option.label}</span>
-          </button>
-        ))}
-      </div>
+      {readOnly ? (
+        task.status && (
+          <span className={`parent-support-teacher-mark is-${task.status}`}>
+            {options.find((option) => option.key === task.status)?.label}
+          </span>
+        )
+      ) : (
+        <>
+          <div className="parent-support-task-controls" role="group" aria-label={t("parent.taskLabel")}>
+            {options.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={`parent-support-status ${task.status === option.key ? `is-active is-${option.key}` : ""}`}
+                disabled={busy}
+                aria-pressed={task.status === option.key}
+                onClick={() => onCheckIn(planId, task.id, option.key, note)}
+              >
+                {option.icon}
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
 
-      <button type="button" className="parent-support-note-toggle" onClick={() => setNoteOpen((open) => !open)}>
-        {noteOpen ? t("plan.hideNote") : t("plan.addNote")}
-      </button>
-      {noteOpen && (
-        <input
-          className="parent-support-note-input"
-          value={note}
-          maxLength={300}
-          placeholder={t("plan.notePlaceholder")}
-          onChange={(event) => setNote(event.target.value)}
-          onBlur={() => task.status && onCheckIn(planId, task.id, task.status, note)}
-        />
+          <button type="button" className="parent-support-note-toggle" onClick={() => setNoteOpen((open) => !open)}>
+            {noteOpen ? t("plan.hideNote") : t("plan.addNote")}
+          </button>
+          {noteOpen && (
+            <input
+              className="parent-support-note-input"
+              value={note}
+              maxLength={300}
+              placeholder={t("plan.notePlaceholder")}
+              onChange={(event) => setNote(event.target.value)}
+              onBlur={() => task.status && note !== (task.note2 || "") && onCheckIn(planId, task.id, task.status, note)}
+            />
+          )}
+        </>
       )}
     </li>
   );
@@ -160,12 +172,14 @@ const PlanCard = ({ plan, arabic, busy, onCheckIn, t }) => {
       <div className="parent-support-plan-head">
         <div>
           <p className="parent-support-eyebrow">{t("parent.monthPlan", { month: monthLabel(plan.month, arabic ? "ar" : "en") })}</p>
-          <h2>{t("parent.planTitle")}</h2>
+          <h2>{pick(plan.headline, plan.headlineAr, arabic) || t("parent.planTitle")}</h2>
         </div>
         <PlanStatusChip status={plan.status} />
       </div>
 
-      {plan.summary && <p className="parent-support-summary">{plan.summary}</p>}
+      {pick(plan.summary, plan.summaryAr, arabic) && (
+        <p className="parent-support-summary">{pick(plan.summary, plan.summaryAr, arabic)}</p>
+      )}
 
       {(plan.strengthKeys?.length > 0 || plan.focusKeys?.length > 0) && (
         <div className="parent-support-tags">
@@ -213,11 +227,12 @@ const PlanCard = ({ plan, arabic, busy, onCheckIn, t }) => {
                   <ul>
                     {goal.homeTasks.map((task) => (
                       <HomeTask
-                        key={task.id}
+                        key={`${plan.id}:${task.id}`}
                         task={{ ...task, title: pick(task.title, task.titleAr, arabic), note: pick(task.note, task.noteAr, arabic) }}
                         planId={plan.id}
                         busy={busy}
                         onCheckIn={onCheckIn}
+                        readOnly={plan.status !== "published"}
                         t={t}
                       />
                     ))}
@@ -254,9 +269,10 @@ const PlanCard = ({ plan, arabic, busy, onCheckIn, t }) => {
   );
 };
 
-const SurveyCard = ({ survey, child, arabic, busy, onSave, onSubmit, t }) => {
+const SurveyCard = ({ survey, child, arabic, busy, onSave, onSubmit, onNoConcerns, onSkip, t }) => {
   const [open, setOpen] = useState(false);
-  const finished = survey.status === "submitted";
+  const finished = survey.status === "submitted" || survey.status === "skipped";
+  const skipped = survey.status === "skipped";
 
   return (
     <section className={`parent-support-card parent-support-survey ${open ? "is-open" : ""}`}>
@@ -267,12 +283,14 @@ const SurveyCard = ({ survey, child, arabic, busy, onSave, onSubmit, t }) => {
         <div>
           <h2>{finished ? t("parent.surveyDoneTitle") : t("parent.surveyTitle")}</h2>
           <p>
-            {finished
-              ? t("parent.surveyDoneBody", { name: child.student.firstName || child.student.name })
-              : t("parent.surveyBody", {
-                  month: monthLabel(survey.month, arabic ? "ar" : "en"),
-                  name: child.student.firstName || child.student.name,
-                })}
+            {skipped
+              ? t("parent.surveySkippedBody")
+              : finished
+                ? t("parent.surveyDoneBody", { name: child.student.firstName || child.student.name })
+                : t("parent.surveyBody", {
+                    month: monthLabel(survey.month, arabic ? "ar" : "en"),
+                    name: child.student.firstName || child.student.name,
+                  })}
           </p>
         </div>
         {!finished && (
@@ -285,11 +303,14 @@ const SurveyCard = ({ survey, child, arabic, busy, onSave, onSubmit, t }) => {
 
       {open && !finished && (
         <SurveyForm
+          key={survey.id}
           survey={survey}
           saving={busy}
           submitting={busy}
           onSave={onSave}
           onSubmit={onSubmit}
+          onNoConcerns={onNoConcerns}
+          onSkip={onSkip}
         />
       )}
     </section>
@@ -327,6 +348,61 @@ const HistoryList = ({ history, arabic, t }) => {
   );
 };
 
+const RequestSupportCard = ({ busy, onRequest, t }) => {
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    const ok = await onRequest(message.trim());
+    if (ok) {
+      setSent(true);
+      setMessage("");
+      setOpen(false);
+    }
+  };
+
+  return (
+    <section className="parent-support-card parent-support-request">
+      <div className="parent-support-card-head">
+        <h2>{t("parent.requestTitle")}</h2>
+      </div>
+      {sent ? (
+        <p className="parent-support-muted">{t("parent.requestSent")}</p>
+      ) : !open ? (
+        <>
+          <p className="parent-support-muted">{t("parent.requestBody")}</p>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)}>
+            {t("parent.requestOpen")}
+          </button>
+        </>
+      ) : (
+        <form onSubmit={submit}>
+          <label className="parent-support-request-field">
+            <span>{t("parent.requestLabel")}</span>
+            <textarea
+              rows={4}
+              maxLength={1200}
+              value={message}
+              placeholder={t("parent.requestPlaceholder")}
+              onChange={(event) => setMessage(event.target.value)}
+            />
+          </label>
+          <div className="parent-support-request-actions">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>
+              {t("common.cancel")}
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || message.trim().length < 10}>
+              {busy ? t("common.working") : t("parent.requestSend")}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+};
+
 const ParentSupportPage = () => {
   const { t, i18n } = useTranslation("support");
   const arabic = isArabic(i18n.language);
@@ -334,18 +410,22 @@ const ParentSupportPage = () => {
   const [childId, setChildId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [enabled, setEnabled] = useState(true);
 
   const load = useCallback(async () => {
     try {
       const data = await parentSupportService.getOverview();
+      setEnabled(data.enabled !== false);
       setChildren(data.children || []);
       setChildId((current) => current || data.children?.[0]?.student?.id || "");
-    } catch (error) {
-      toast.error(error.response?.data?.message || t("errors.loadParent"));
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -374,9 +454,8 @@ const ParentSupportPage = () => {
               : task
           )),
         }));
-        const done = goals.reduce((sum, goal) => sum + goal.homeTasks.filter((task) => task.status === "done").length, 0);
-        const total = goals.reduce((sum, goal) => sum + goal.homeTasks.length, 0);
-        return { ...entry, plan: { ...entry.plan, goals, homeProgress: { ...entry.plan.homeProgress, done, total } } };
+        const progress = computeHomeProgress(goals);
+        return { ...entry, plan: { ...entry.plan, goals, homeProgress: { ...entry.plan.homeProgress, ...progress } } };
       });
     } catch (error) {
       toast.error(error.response?.data?.message || t("errors.checkIn"));
@@ -389,7 +468,11 @@ const ParentSupportPage = () => {
     if (!child?.survey) return;
     setBusy(true);
     try {
-      await parentSupportService.saveSurvey(child.survey.id, answers);
+      const saved = await parentSupportService.saveSurvey(child.survey.id, answers, child.survey.revision);
+      patchChild((entry) => ({
+        ...entry,
+        survey: entry.survey ? { ...entry.survey, revision: saved.revision, lastSavedAt: saved.lastSavedAt } : null,
+      }));
       toast.success(t("survey.saved"));
     } catch (error) {
       toast.error(error.response?.data?.message || t("survey.saveFailed"));
@@ -402,7 +485,7 @@ const ParentSupportPage = () => {
     if (!child?.survey) return;
     setBusy(true);
     try {
-      await parentSupportService.submitSurvey(child.survey.id, answers);
+      await parentSupportService.submitSurvey(child.survey.id, answers, child.survey.revision);
       patchChild((entry) => ({ ...entry, survey: entry.survey ? { ...entry.survey, status: "submitted" } : null }));
       toast.success(t("survey.submitted"));
     } catch (error) {
@@ -412,10 +495,85 @@ const ParentSupportPage = () => {
     }
   };
 
+  const handleNoConcerns = async () => {
+    if (!child?.survey) return;
+    setBusy(true);
+    try {
+      await parentSupportService.noConcerns(child.survey.id);
+      patchChild((entry) => ({ ...entry, survey: entry.survey ? { ...entry.survey, status: "submitted", noConcerns: true } : null }));
+      toast.success(t("survey.noConcernsSaved"));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("survey.submitFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSkipSurvey = async () => {
+    if (!child?.survey) return;
+    setBusy(true);
+    try {
+      await parentSupportService.skipSurvey(child.survey.id);
+      patchChild((entry) => ({ ...entry, survey: entry.survey ? { ...entry.survey, status: "skipped" } : null }));
+      toast.success(t("survey.skipped"));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("survey.submitFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRequestSupport = async (message) => {
+    if (!child) return false;
+    setBusy(true);
+    try {
+      await parentSupportService.requestSupport({ studentId: child.student.id, message });
+      toast.success(t("parent.requestSent"));
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("parent.requestFailed"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="parent-support">
         <div className="loading-container"><div className="spinner" /></div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="parent-support" dir={arabic ? "rtl" : "ltr"}>
+        <header className="parent-support-header">
+          <h1>{t("parent.title")}</h1>
+          <p>{t("parent.subtitle")}</p>
+        </header>
+        <ErrorBanner
+          message={t("errors.loadParent")}
+          onRetry={() => { setLoading(true); load(); }}
+          retryLabel={t("common.retry")}
+        />
+      </div>
+    );
+  }
+
+  if (!enabled) {
+    return (
+      <div className="parent-support" dir={arabic ? "rtl" : "ltr"}>
+        <header className="parent-support-header">
+          <h1>{t("parent.title")}</h1>
+          <p>{t("parent.subtitle")}</p>
+        </header>
+        <div className="parent-support-empty">
+          <HiOutlineClipboardDocumentCheck size={42} />
+          <h2>{t("parent.disabledTitle")}</h2>
+          <p>{t("parent.disabledBody")}</p>
+        </div>
       </div>
     );
   }
@@ -498,17 +656,22 @@ const ParentSupportPage = () => {
 
           {child.survey && (
             <SurveyCard
+              key={child.student.id}
               survey={child.survey}
               child={child}
               arabic={arabic}
               busy={busy}
               onSave={handleSaveSurvey}
               onSubmit={handleSubmitSurvey}
+              onNoConcerns={handleNoConcerns}
+              onSkip={handleSkipSurvey}
               t={t}
             />
           )}
 
           <WhoSeesCard t={t} />
+
+          <RequestSupportCard busy={busy} onRequest={handleRequestSupport} t={t} />
 
           <HistoryList history={child.history} arabic={arabic} t={t} />
         </aside>

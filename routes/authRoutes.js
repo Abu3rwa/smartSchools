@@ -8,6 +8,7 @@ import {
     changePassword,
     logout,
     getGoogleAuthUrl,
+    getGoogleAuthStatus,
     googleCallback,
     sendTestEmail,
     forgotPassword,
@@ -54,6 +55,7 @@ router.post('/switch-role', protect, switchRole);
 
 // Google OAuth routes (login/register with Gmail tokens)
 router.get('/google/url', getGoogleAuthUrl);
+router.get('/google/status', getGoogleAuthStatus);
 router.get('/google/callback', googleCallback);
 
 // Protected routes

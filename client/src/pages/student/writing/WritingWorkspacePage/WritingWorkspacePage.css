@@ -1,11 +1,11 @@
 .ws-page {
-  --ws-teal: var(--primary, #0d9488);
+  --ws-teal: var(--primary);
   --ws-ink: var(--text-primary, #0f172a);
   --ws-muted: var(--text-muted, #64748b);
   --ws-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --ws-surface: var(--bg-card, #ffffff);
   --ws-surface-2: var(--bg-secondary, #f8fafc);
-  --ws-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --ws-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --ws-amber: #d97706;
   --ws-rose: #dc2626;
 
@@ -33,8 +33,23 @@
   align-items: flex-start;
   gap: 12px;
 }
+.ws-failed {
+  padding: 18px 0;
+  gap: 6px;
+  align-items: flex-start;
+}
+.ws-failed .ws-back {
+  margin: 0;
+}
+.ws-failed > div {
+  width: 100%;
+}
 .ws-back {
   margin-top: 4px;
+}
+/* Back points with the reading direction, not at the physical left. */
+[dir="rtl"] .ws-back svg {
+  transform: scaleX(-1);
 }
 .ws-head-title {
   flex: 1;
@@ -327,7 +342,7 @@
 }
 /* The writing box must read as an input, not as part of the card around it. */
 .ws-section textarea {
-  min-height: 160px;
+  min-height: 14rem;
   font-size: 0.95rem;
   line-height: 1.7;
   color: var(--ws-ink);
@@ -339,6 +354,9 @@
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
+  /* Grows with the text instead of the row count re-rendering the box. */
+  field-sizing: content;
+  max-height: 34rem;
 }
 .ws-section textarea::placeholder {
   color: var(--ws-muted);
@@ -903,6 +921,11 @@
   .ws-word-insert {
     width: 44px;
     height: 44px;
+  }
+  /* Small buttons are the child's primary actions here, so give every one of
+     them a thumb-sized target. Scoped to this page; the app default stays. */
+  .ws-page .btn-sm {
+    min-height: 44px;
   }
 }
 .ws-word-example {

@@ -5,7 +5,7 @@
  * AI may reorder priorities, but it never writes the words shown to families.
  */
 
-export const SUPPORT_AUDIENCES = ['teacher', 'parent'];
+export const SUPPORT_AUDIENCES = ['teacher', 'parent', 'student'];
 
 export const CONCERN_KEYS = [
     'effort',
@@ -86,6 +86,59 @@ export const TEACHER_ROUND_ONE = [
         en: 'Anything else the homeroom teacher should understand about this student?',
         ar: 'هل هناك ما ينبغي أن يعرفه معلم الصف عن هذا الطالب؟',
     }, { required: false }),
+];
+
+export const STUDENT_ROUND_ONE = [
+    // Student voice is diagnostic only: a single child's answer is never turned
+    // into a numeric severity score or a character label.
+    question('s_feel', 'mood', 'general', 'choice', {
+        en: 'How has school felt for you this month?',
+        ar: 'كيف كانت المدرسة بالنسبة لك هذا الشهر؟',
+    }, {
+        required: true,
+        diagnostic: true,
+        options: {
+            en: ['Very hard', 'Up and down', 'Mostly good', 'Very good'],
+            ar: ['صعبة جدًا', 'متقلبة', 'جيدة غالبًا', 'جيدة جدًا'],
+        },
+    }),
+    question('s_help', 'confidence', 'character', 'choice', {
+        en: 'When schoolwork feels hard, what do you usually do?',
+        ar: 'عندما يصعب عليك العمل المدرسي، ماذا تفعل عادة؟',
+    }, {
+        required: true,
+        diagnostic: true,
+        options: {
+            en: ['Ask my teacher', 'Try again', 'Ask a friend', 'Wait for help'],
+            ar: ['أسأل معلمي', 'أحاول مرة أخرى', 'أسأل صديقًا', 'أنتظر المساعدة'],
+        },
+    }),
+    question('s_belong', 'mood', 'general', 'scale', {
+        en: 'How often do you have someone at school you can talk to?',
+        ar: 'كم مرة تجد في المدرسة شخصًا يمكنك التحدث إليه؟',
+    }, {
+        required: true,
+        diagnostic: true,
+        anchors: {
+            en: ['Rarely', 'Sometimes', 'Most days', 'Every day'],
+            ar: ['نادرًا', 'أحيانًا', 'معظم الأيام', 'كل يوم'],
+        },
+    }),
+    question('s_place', 'routine', 'academic', 'choice', {
+        en: 'Where do you usually do your homework?',
+        ar: 'أين تؤدي واجباتك عادة؟',
+    }, {
+        required: false,
+        diagnostic: true,
+        options: {
+            en: ['My room', 'Living room', 'Somewhere busy', 'No regular place'],
+            ar: ['غرفتي', 'غرفة الجلوس', 'مكان مزدحم', 'لا مكان ثابت'],
+        },
+    }),
+    question('s_note', 'general', 'general', 'text', {
+        en: 'Is there anything you want a trusted adult at school to know?',
+        ar: 'هل هناك ما تريد أن يعرفه شخص موثوق في المدرسة؟',
+    }, { required: false, diagnostic: true }),
 ];
 
 export const PARENT_ROUND_ONE = [
@@ -272,6 +325,50 @@ export const FOLLOW_UPS = {
         },
     })],
 };
+
+export const STUDENT_FOLLOW_UPS = {
+    mood: [question('s_f_mood', 'mood', 'general', 'choice', {
+        en: 'What would make school feel better next month?',
+        ar: 'ما الذي سيجعل المدرسة أفضل الشهر القادم؟',
+    }, {
+        diagnostic: true,
+        options: {
+            en: ['A friend to sit with', 'More help with work', 'Quieter lessons', 'More breaks'],
+            ar: ['صديق للجلوس معه', 'مساعدة أكبر في العمل', 'حصص أهدأ', 'استراحات أكثر'],
+        },
+    })],
+    confidence: [question('s_f_help', 'confidence', 'character', 'choice', {
+        en: 'Who helps you most when work is hard?',
+        ar: 'من يساعدك أكثر عندما يصعب العمل؟',
+    }, {
+        diagnostic: true,
+        options: {
+            en: ['My teacher', 'A friend', 'Someone at home', 'Nobody yet'],
+            ar: ['معلمي', 'صديق', 'شخص في المنزل', 'لا أحد بعد'],
+        },
+    })],
+};
+
+// Teacher and family follow-ups share concern keys but never share wording:
+// a family question says "your child", a teacher question says "this student".
+const followUpsWithPrefix = (prefix) => Object.fromEntries(
+    Object.entries(FOLLOW_UPS)
+        .map(([concern, items]) => [concern, items.filter((item) => item.id.startsWith(prefix))])
+        .filter(([, items]) => items.length > 0),
+);
+
+export const TEACHER_FOLLOW_UPS = followUpsWithPrefix('t_');
+export const PARENT_FOLLOW_UPS = followUpsWithPrefix('p_');
+
+export const FOLLOW_UPS_BY_AUDIENCE = {
+    teacher: TEACHER_FOLLOW_UPS,
+    parent: PARENT_FOLLOW_UPS,
+    student: STUDENT_FOLLOW_UPS,
+};
+
+export const followUpsFor = (audience) => (
+    FOLLOW_UPS_BY_AUDIENCE[audience] || TEACHER_FOLLOW_UPS
+);
 
 const goalCopy = (concern, domain, en, ar, descriptionEn, descriptionAr, successEn, successAr, home, classRoom) => ({
     concern,
@@ -493,18 +590,27 @@ const withLanguage = (item, language = 'en') => {
 
 export const localize = withLanguage;
 
-/** Questions for a first survey: fixed, short, identical for every teacher. */
+const ROUND_ONE_BY_AUDIENCE = {
+    teacher: TEACHER_ROUND_ONE,
+    parent: PARENT_ROUND_ONE,
+    student: STUDENT_ROUND_ONE,
+};
+
+/** Questions for a first survey: fixed, short, identical per audience. */
 export const roundOneQuestions = (audience) => (
-    audience === 'parent' ? PARENT_ROUND_ONE : TEACHER_ROUND_ONE
+    ROUND_ONE_BY_AUDIENCE[audience] || TEACHER_ROUND_ONE
 );
 
+export const baselineQuestionsFor = roundOneQuestions;
+
 /**
- * Questions for round two and later: follow up on the weakest concerns first,
- * then keep a couple of core questions so month-to-month trends stay comparable.
+ * Legacy round-two helper. Audience isolation is the point: a teacher never
+ * receives a family-worded follow-up, and a family never receives a teacher one.
  */
 export const adaptiveQuestions = (audience, concerns = []) => {
-    const cap = audience === 'parent' ? 8 : 6;
-    const bank = audience === 'parent' ? PARENT_ROUND_ONE : TEACHER_ROUND_ONE;
+    const cap = audience === 'parent' ? 8 : audience === 'student' ? 5 : 6;
+    const bank = roundOneQuestions(audience);
+    const followUps = followUpsFor(audience);
     const picked = [];
     const seen = new Set();
 
@@ -514,9 +620,9 @@ export const adaptiveQuestions = (audience, concerns = []) => {
         picked.push(item);
     };
 
-    const ranked = [...new Set(concerns.filter((key) => FOLLOW_UPS[key] || bank.some((item) => item.concern === key)))];
+    const ranked = [...new Set(concerns)];
     for (const concern of ranked) {
-        const [followUp] = FOLLOW_UPS[concern] || [];
+        const [followUp] = followUps[concern] || [];
         if (followUp) add(followUp);
     }
     for (const item of bank) {
@@ -526,23 +632,80 @@ export const adaptiveQuestions = (audience, concerns = []) => {
 };
 
 /** Turn a library question into the snapshot stored on the survey. */
-export const toSurveyQuestion = (item, language = 'en') => {
-    const lang = language === 'ar' ? 'ar' : 'en';
-    return {
-        id: item.id,
-        key: item.concern,
-        domain: item.domain,
-        prompt: item.text.en,
-        promptAr: item.text.ar || '',
-        kind: item.kind,
-        scaleMax: item.scaleMax || 4,
-        options: item.options?.en || [],
-        optionsAr: item.options?.ar || [],
-        anchors: item.anchors?.en || [],
-        anchorsAr: item.anchors?.ar || [],
-        required: item.required !== false,
-        allowComment: item.allowComment === true,
-    };
+export const toSurveyQuestion = (item) => ({
+    id: item.id,
+    key: item.concern,
+    domain: item.domain,
+    prompt: item.text.en,
+    promptAr: item.text.ar || '',
+    kind: item.kind,
+    scaleMax: item.scaleMax || 4,
+    options: item.options?.en || [],
+    optionsAr: item.options?.ar || [],
+    anchors: item.anchors?.en || [],
+    anchorsAr: item.anchors?.ar || [],
+    required: item.required !== false,
+    allowComment: item.allowComment === true,
+    scored: item.diagnostic !== true,
+    diagnostic: item.diagnostic === true,
+});
+
+/**
+ * The platform question bank: every baseline and follow-up item, stamped with
+ * its eligible audience, item ref and identity so it can be versioned and
+ * approved like a school-authored question.
+ */
+export const platformBankQuestions = () => {
+    const rows = [];
+    for (const audience of SUPPORT_AUDIENCES) {
+        for (const item of roundOneQuestions(audience)) {
+            rows.push({
+                ref: item.id,
+                audience,
+                concern: item.concern,
+                domain: item.domain,
+                kind: item.kind,
+                scaleMax: item.scaleMax || 4,
+                prompt: item.text.en,
+                promptAr: item.text.ar || item.text.en,
+                options: item.options?.en || [],
+                optionsAr: item.options?.ar || item.options?.en || [],
+                anchors: item.anchors?.en || [],
+                anchorsAr: item.anchors?.ar || item.anchors?.en || [],
+                required: item.required !== false,
+                allowComment: item.allowComment === true,
+                scored: item.diagnostic !== true,
+                trendAnchor: item.kind !== 'text' && item.diagnostic !== true && item.concern !== 'general',
+                followUpFor: [],
+                stages: ['primary', 'middle', 'high'],
+            });
+        }
+        for (const [concern, items] of Object.entries(followUpsFor(audience))) {
+            for (const item of items) {
+                rows.push({
+                    ref: item.id,
+                    audience,
+                    concern,
+                    domain: item.domain,
+                    kind: item.kind,
+                    scaleMax: item.scaleMax || 4,
+                    prompt: item.text.en,
+                    promptAr: item.text.ar || item.text.en,
+                    options: item.options?.en || [],
+                    optionsAr: item.options?.ar || item.options?.en || [],
+                    anchors: item.anchors?.en || [],
+                    anchorsAr: item.anchors?.ar || item.anchors?.en || [],
+                    required: item.required !== false,
+                    allowComment: item.allowComment === true,
+                    scored: item.diagnostic !== true,
+                    trendAnchor: false,
+                    followUpFor: [concern],
+                    stages: ['primary', 'middle', 'high'],
+                });
+            }
+        }
+    }
+    return rows;
 };
 
 /** Build the plan body from concern keys. Every string stays bilingual. */

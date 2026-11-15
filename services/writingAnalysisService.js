@@ -21,6 +21,7 @@ import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
 import StandardAssignment from "../models/StandardAssignment.js";
 
 import logger from "../utils/logger.js";
+import { withTransaction } from "../utils/withTransaction.js";
 import { connectAi } from "../utils/connectAi.js";
 import {
   applyMarkup,
@@ -42,6 +43,7 @@ import {
   pieceText,
   promptTextFor,
   selectPieces,
+  standardsToJudge,
 } from "./writingAnalysisLogic.js";
 import { extractJsonObject } from "./writingAssistantPrompts.js";
 import {
@@ -144,6 +146,20 @@ const assertClassAccess = async ({ userId, isAdmin, classId }) => {
 const resolveStudentName = (student) =>
   [student?.firstName, student?.lastName].filter(Boolean).join(" ").trim();
 
+// Classmates are named in most pieces, so the whole class has to be available
+// to the scrubber as well as the author.
+const loadClassRoster = async ({ schoolId, student }) => {
+  if (!student?.currentClass) return [];
+  const rows = await Student.find({
+    school: schoolId,
+    currentClass: student.currentClass,
+    _id: { $ne: student._id },
+  })
+    .select("firstName lastName")
+    .lean();
+  return rows.map(resolveStudentName).filter(Boolean);
+};
+
 const resolveLanguage = async (schoolId, requested) => {
   const explicit = String(requested || "").trim().toLowerCase();
   if (explicit === "en" || explicit === "ar") return explicit;
@@ -176,25 +192,66 @@ const standardsForSubject = async ({ schoolId, subjectId, gradeLevel }) =>
     .sort({ code: 1 })
     .lean();
 
-const loadPieces = async ({ schoolId, studentId, classId, academicYear, from, to }) => {
+const loadPieces = async ({
+  schoolId,
+  studentId,
+  classId,
+  academicYear,
+  from,
+  to,
+  ownerId = null,
+}) => {
   const projectFilter = { school: schoolId, student: studentId, class: classId };
   if (academicYear) projectFilter.academicYear = academicYear;
-  const projects = await WritingProject.find(projectFilter)
+  const rows = await WritingProject.find(projectFilter)
     .select("assignment student class academicYear")
     .populate({
       path: "assignment",
-      select: "title writingType rubric academicYear class",
+      select: "title writingType rubric academicYear class assignedBy",
     })
     .lean();
+  // A draft belongs to the teacher who set the task. Another subject's teacher
+  // in the same class must not be able to quote it.
+  const projects = ownerId
+    ? rows.filter(
+        (row) => String(row.assignment?.assignedBy || "") === String(ownerId),
+      )
+    : rows;
   const projectIds = projects.map((row) => row._id);
   if (!projectIds.length) return { projects, drafts: [], pieces: [], excluded: [] };
 
-  const drafts = await WritingDraft.find({
-    school: schoolId,
-    project: { $in: projectIds },
-  })
-    .select("project number sections totalWords submittedAt submissionSource")
-    .lean();
+  // Only the final draft of each project is ever selected, so pick it in the
+  // database: loading every revision's full text just to discard it is the
+  // expensive part of this screen.
+  const finalDrafts = await WritingDraft.aggregate(
+    [
+      {
+        $match: {
+          school: new mongoose.Types.ObjectId(String(schoolId)),
+          project: { $in: projectIds },
+        },
+      },
+      { $sort: { number: -1 } },
+      {
+        $group: {
+          _id: "$project",
+          draft: {
+            $first: {
+              _id: "$_id",
+              project: "$project",
+              number: "$number",
+              title: "$title",
+              totalWords: "$totalWords",
+              submittedAt: "$submittedAt",
+              submissionSource: "$submissionSource",
+            },
+          },
+        },
+      },
+    ],
+    { skipTenantFilter: true },
+  );
+  const drafts = finalDrafts.map((row) => row.draft);
 
   const { included, excluded } = selectPieces({
     projects,
@@ -285,6 +342,7 @@ const buildScope = async ({
       academicYear,
       from: window.from,
       to: window.to,
+      ownerId: isAdmin ? null : userId,
     }),
     assignedStandardsFor({
       schoolId,
@@ -578,61 +636,71 @@ export const createAnalysis = async ({
     .select("_id")
     .lean();
 
-  const analysis = await WritingAnalysis.create({
-    school: schoolId,
-    student: scope.student._id,
-    class: scope.class._id,
-    subject: scope.subject._id,
-    academicYear: scope.academicYear,
-    language: scope.language,
-    from: window.from,
-    to: window.to,
-    status: "pending",
-    runBy: userId,
-    modelUsed: WRITING_AI.modelName || "",
-    scopeHash: scopeHashOf({
+  let analysis;
+  try {
+    analysis = await WritingAnalysis.create({
+      school: schoolId,
       student: scope.student._id,
+      class: scope.class._id,
       subject: scope.subject._id,
-      from: scope.window.from,
-      to: scope.window.to,
-      standardIds: chosen,
-      pieceIds: pieces.map((piece) => piece.draft),
-    }),
-    standardSnapshot: standardRows.map((row) => ({
-      standard: row._id,
-      code: row.code || "",
-      name: row.name || "",
-      description: row.description || "",
-      category: row.category || "",
-      gradeLevel: row.gradeLevel ?? null,
-    })),
-    draftSelection: pieces.map((piece) => ({
-      draft: piece.draft,
-      project: piece.project,
-      assignment: piece.assignment,
-      title: piece.title,
-      writingType: piece.writingType,
-      submittedAt: piece.submittedAt,
-      totalWords: piece.totalWords,
-      truncated: false,
-    })),
-    excludedPieces: scope.excluded.map((piece) => ({
-      draft: piece.draft,
-      project: piece.project,
-      title: piece.title,
-      submittedAt: piece.submittedAt,
-      totalWords: piece.totalWords,
-      reason: piece.reason,
-    })),
-    pieceRuns: pieces.map((piece) => ({ draft: piece.draft, aiStatus: "pending" })),
-    supersedes: previous?._id || null,
-    isCurrent: true,
-  });
+      academicYear: scope.academicYear,
+      language: scope.language,
+      from: window.from,
+      to: window.to,
+      status: "pending",
+      runBy: userId,
+      modelUsed: WRITING_AI.modelName || "",
+      scopeHash: scopeHashOf({
+        student: scope.student._id,
+        subject: scope.subject._id,
+        from: scope.window.from,
+        to: scope.window.to,
+        standardIds: chosen,
+        pieceIds: pieces.map((piece) => piece.draft),
+      }),
+      standardSnapshot: standardRows.map((row) => ({
+        standard: row._id,
+        code: row.code || "",
+        name: row.name || "",
+        description: row.description || "",
+        category: row.category || "",
+        gradeLevel: row.gradeLevel ?? null,
+      })),
+      draftSelection: pieces.map((piece) => ({
+        draft: piece.draft,
+        project: piece.project,
+        assignment: piece.assignment,
+        title: piece.title,
+        writingType: piece.writingType,
+        submittedAt: piece.submittedAt,
+        totalWords: piece.totalWords,
+        truncated: false,
+      })),
+      excludedPieces: scope.excluded.map((piece) => ({
+        draft: piece.draft,
+        project: piece.project,
+        title: piece.title,
+        submittedAt: piece.submittedAt,
+        totalWords: piece.totalWords,
+        reason: piece.reason,
+      })),
+      pieceRuns: pieces.map((piece) => ({ draft: piece.draft, aiStatus: "pending" })),
+      supersedes: previous?._id || null,
+      // Demoting the previous run and promoting this one happen together when
+      // the run finishes; until then the previous analysis stays the current one.
+      isCurrent: false,
+    });
+  } catch (error) {
+    if (error?.code === 11000)
+      throw conflict("An analysis for this student and subject is already running.");
+    throw error;
+  }
 
   return runAnalysis({
     schoolId,
     analysisId: String(analysis._id),
     userId,
+    isAdmin,
   });
 };
 
@@ -690,6 +758,7 @@ const analysePiece = async ({
   analysis,
   piece,
   studentName,
+  roster,
   userId,
   rubricCache,
 }) => {
@@ -717,7 +786,9 @@ const analysePiece = async ({
     );
   }
 
-  const standards = (analysis.standardSnapshot || []).map((row) => ({
+  // A parent standard whose child was also chosen is judged by that child, so
+  // it is never put to the model and never counted twice.
+  const standards = standardsToJudge(analysis.standardSnapshot || []).map((row) => ({
     standard: row.standard,
     code: row.code,
     name: row.name,
@@ -736,6 +807,7 @@ const analysePiece = async ({
     rubric,
     language: analysis.language,
     studentName,
+    roster,
   });
 
   await setRunFields(analysis._id, piece.draft, {
@@ -787,6 +859,7 @@ const analysePiece = async ({
         quotesDropped: normalized.quotesDropped,
         quotesKept: normalized.quotesKept,
         vagueNotes: normalized.vagueNotes,
+        notesDropped: normalized.notesDropped,
         tokens,
         costCents: cost,
         evidence: { standards: [], patterns: [] },
@@ -800,6 +873,7 @@ const analysePiece = async ({
       quotesDropped: normalized.quotesDropped,
       quotesKept: normalized.quotesKept,
       vagueNotes: normalized.vagueNotes,
+      notesDropped: normalized.notesDropped,
       tokens,
       costCents: cost,
       evidence: {
@@ -823,6 +897,7 @@ const finalizeAnalysis = async (analysisId) => {
     aiStatus: run.aiStatus,
     quotesDropped: run.quotesDropped,
     vagueNotes: run.vagueNotes,
+    notesDropped: run.notesDropped,
     standards: run.evidence?.standards || [],
     patterns: run.evidence?.patterns || [],
   }));
@@ -840,6 +915,13 @@ const finalizeAnalysis = async (analysisId) => {
     (sum, row) => sum + (Number(row.vagueNotes) || 0),
     0,
   );
+  // Evidence that could not be checked is a warning too: the teacher sees
+  // less than the model judged.
+  const droppedEvidence = (fresh.pieceRuns || []).reduce(
+    (sum, row) =>
+      sum + (Number(row.quotesDropped) || 0) + (Number(row.notesDropped) || 0),
+    0,
+  );
   const costCentsTotal = roundCents(
     (fresh.pieceRuns || []).reduce(
       (sum, row) => sum + (Number(row.costCents) || 0),
@@ -847,7 +929,11 @@ const finalizeAnalysis = async (analysisId) => {
     ),
   );
   const status =
-    done === 0 ? "failed" : warnings || vagueNotes ? "done_with_warnings" : "done";
+    done === 0
+      ? "failed"
+      : warnings || vagueNotes || droppedEvidence
+        ? "done_with_warnings"
+        : "done";
   await WritingAnalysis.updateOne(
     { _id: analysisId },
     {
@@ -866,16 +952,26 @@ const finalizeAnalysis = async (analysisId) => {
     },
   );
   if (status !== "failed") {
-    await WritingAnalysis.updateMany(
-      {
-        school: fresh.school,
-        student: fresh.student,
-        subject: fresh.subject,
-        _id: { $ne: fresh._id },
-        isCurrent: true,
-      },
-      { $set: { isCurrent: false } },
-    );
+    // Demote the older run and promote this one in a single transaction: the
+    // unique partial index allows exactly one current analysis per subject.
+    await withTransaction(async (session) => {
+      await WritingAnalysis.updateMany(
+        {
+          school: fresh.school,
+          student: fresh.student,
+          subject: fresh.subject,
+          _id: { $ne: fresh._id },
+          isCurrent: true,
+        },
+        { $set: { isCurrent: false } },
+        { session },
+      );
+      await WritingAnalysis.updateOne(
+        { school: fresh.school, _id: fresh._id },
+        { $set: { isCurrent: true } },
+        { session },
+      );
+    });
   }
 };
 
@@ -888,10 +984,15 @@ export const runAnalysis = async ({
   schoolId,
   analysisId,
   userId,
+  isAdmin = false,
   onlyFailed = false,
 }) => {
   const id = objectId(analysisId);
   if (!id) throw notFound("Analysis not found.");
+
+  // A retry spends the owning teacher's credit, so it needs the same visibility
+  // check as every read and edit — not just a school-scoped id lookup.
+  await loadVisibleAnalysis({ schoolId, analysisId, userId, isAdmin });
 
   if (onlyFailed) {
     const current = await WritingAnalysis.findOne({ school: schoolId, _id: id })
@@ -945,9 +1046,10 @@ export const runAnalysis = async ({
       school: schoolId,
       _id: analysis.student,
     })
-      .select("firstName lastName")
+      .select("firstName lastName currentClass")
       .lean();
     const studentName = resolveStudentName(student);
+    const roster = await loadClassRoster({ schoolId, student });
     const rubricCache = new Map();
     let cursor = 0;
 
@@ -959,6 +1061,7 @@ export const runAnalysis = async ({
           analysis,
           piece,
           studentName,
+          roster,
           userId: userId || analysis.runBy,
           rubricCache,
         });
@@ -1031,23 +1134,15 @@ export const listAnalyses = async ({
 }) => {
   const id = objectId(studentId);
   if (!id) throw badRequest("Choose a student to see their analyses.");
-  if (classId) {
-    await assertClassAccess({ userId, isAdmin, classId });
-  } else {
-    const any = await WritingAnalysis.findOne({
-      school: schoolId,
-      student: id,
-    })
-      .select("class")
-      .lean();
-    if (any) await assertClassAccess({ userId, isAdmin, classId: any.class });
-    else if (!isAdmin) {
-      const teacherId = await teacherIdOf(userId);
-      if (!teacherId)
-        throw forbidden("Only a teacher or an admin can read these analyses.");
-    }
-  }
-  const rows = await WritingAnalysis.find({ school: schoolId, student: id })
+  if (classId) await assertClassAccess({ userId, isAdmin, classId });
+
+  const filter = { school: schoolId, student: id };
+  if (classId) filter.class = classId;
+  // An analysis quotes drafts, so it stays with the teacher who ran it. A
+  // colleague in the same class is not shown someone else's runs.
+  if (!isAdmin) filter.runBy = userId;
+
+  const rows = await WritingAnalysis.find(filter)
     .sort({ createdAt: -1 })
     .limit(20)
     .select("status from to summary publish.state createdAt academicYear subject class")
@@ -1106,8 +1201,15 @@ export const updateAnalysis = async ({
       result.teacherLevel = null;
       changed += 1;
     } else if (edit.teacherLevel !== undefined) {
-      const level = Number(edit.teacherLevel);
-      if (!Number.isInteger(level) || level < 0 || level > 4)
+      // Number() alone turns true into 1, [] into 0 and [4] into 4, and those
+      // would publish as a real grade. Only a JSON number is a level.
+      const level = edit.teacherLevel;
+      if (
+        typeof level !== "number" ||
+        !Number.isInteger(level) ||
+        level < 0 ||
+        level > 4
+      )
         throw badRequest("A teacher level must be a whole number from 0 to 4.");
       result.teacherLevel = level;
       changed += 1;
@@ -1133,11 +1235,13 @@ export const updateAnalysis = async ({
         );
       evidence.opportunity = true;
       evidence.judgment = edit.judgment;
+      evidence.unverifiable = false;
     } else {
       evidence.opportunity = false;
       evidence.judgment = "none";
       evidence.quote = "";
       evidence.note = "";
+      evidence.unverifiable = false;
     }
     evidence.teacherOverridden = true;
     recomputeStandard(result);
@@ -1153,7 +1257,16 @@ export const updateAnalysis = async ({
       note: `${levelEdits.length} level edit(s), ${opportunityEdits.length} evidence edit(s).`,
     },
   ].slice(-MAX_TEACHER_EDITS);
-  await doc.save();
+  // The published check was a read; make the write itself refuse to land on a
+  // document a publish claimed in between.
+  const saved = await WritingAnalysis.findOneAndUpdate(
+    { school: schoolId, _id: doc._id, "publish.state": { $ne: "published" } },
+    { $set: { standards: doc.standards, teacherEdits: doc.teacherEdits } },
+    { new: true },
+  )
+    .select("_id")
+    .lean();
+  if (!saved) throw badRequest("Published analyses are read-only.");
   return getAnalysis({ schoolId, analysisId: doc._id, userId, isAdmin });
 };
 
@@ -1203,34 +1316,40 @@ const ensureManualAssignment = async ({
   semester,
   userId,
   teacherId,
+  session = null,
 }) => {
-  const existing = await StandardAssignment.findOne({
+  const existingQuery = StandardAssignment.findOne({
     school: schoolId,
     class: classId,
     subject: subjectId,
     standard: standardId,
     isActive: true,
-  })
-    .select("_id")
-    .lean();
+  }).select("_id");
+  if (session) existingQuery.session(session);
+  const existing = await existingQuery.lean();
   if (existing) return existing._id;
   if (!teacherId)
     throw badRequest(
       "No teacher is assigned to this class and subject, so a gradebook entry cannot be created. Set the grade in the standards gradebook instead.",
     );
-  const created = await StandardAssignment.create({
-    school: schoolId,
-    class: classId,
-    subject: subjectId,
-    standard: standardId,
-    teacher: teacherId,
-    title: "Manual Assessment",
-    createdBy: userId,
-    isActive: true,
-    academicYear,
-    semester: semester || null,
-    practiceConfig: { sessionType: "assessment" },
-  });
+  const [created] = await StandardAssignment.create(
+    [
+      {
+        school: schoolId,
+        class: classId,
+        subject: subjectId,
+        standard: standardId,
+        teacher: teacherId,
+        title: "Manual Assessment",
+        createdBy: userId,
+        isActive: true,
+        academicYear,
+        semester: semester || null,
+        practiceConfig: { sessionType: "assessment" },
+      },
+    ],
+    { session: session || undefined },
+  );
   return created._id;
 };
 
@@ -1238,46 +1357,90 @@ const ensureManualAssignment = async ({
  * What publishing would do, without writing anything: which standards become
  * which score, which scores already exist and would change, and which standards
  * have no gradebook column yet.
+ *
+ * The entry is found by the key the gradebook itself enforces — school,
+ * assignment, student — not by the current semester. A row saved in another
+ * semester (or with none) must be updated, never duplicated into an E11000.
  */
-const publishPlanFor = async ({ schoolId, analysis, semester }) => {
+const publishPlanFor = async ({ schoolId, analysis, semester, session = null }) => {
   const targets = (analysis.standards || []).filter(
     (row) => row.teacherLevel !== null && row.teacherLevel !== undefined,
   );
-  const rows = [];
-  for (const target of targets) {
-    const entry = await StandardsGradebookEntry.findOne({
+  const standardIds = targets.map((row) => row.standard);
+  const assignmentQuery = StandardAssignment.find({
+    school: schoolId,
+    class: analysis.class,
+    subject: analysis.subject,
+    standard: { $in: standardIds },
+    isActive: true,
+  }).select("_id standard");
+  if (session) assignmentQuery.session(session);
+  const assignments = standardIds.length ? await assignmentQuery.lean() : [];
+  const assignmentByStandard = new Map(
+    assignments.map((row) => [String(row.standard), row._id]),
+  );
+  const entryQuery = StandardsGradebookEntry.find({
+    school: schoolId,
+    assignment: { $in: assignments.map((row) => row._id) },
+    student: analysis.student,
+  }).select("_id manualScore semester assignment");
+  if (session) entryQuery.session(session);
+  const entries = assignments.length ? await entryQuery.lean() : [];
+  const entryByAssignment = new Map(
+    entries.map((row) => [String(row.assignment), row]),
+  );
+
+  // A row whose assignment was deactivated no longer matches the assignment
+  // key. Find it by the gradebook's own fields instead of writing a second
+  // score for the same student and standard.
+  const known = new Set(
+    targets
+      .filter((row) => entryByAssignment.has(String(assignmentByStandard.get(String(row.standard)))))
+      .map((row) => String(row.standard)),
+  );
+  const leftoverIds = targets
+    .map((row) => String(row.standard))
+    .filter((id) => !known.has(id));
+  const orphanByStandard = new Map();
+  if (leftoverIds.length) {
+    const orphanQuery = StandardsGradebookEntry.find({
       school: schoolId,
       student: analysis.student,
-      standard: target.standard,
+      standard: { $in: leftoverIds },
       class: analysis.class,
       subject: analysis.subject,
       academicYear: analysis.academicYear,
-      semester,
     })
-      .select("_id manualScore")
-      .lean();
-    const hasColumn =
-      Boolean(entry) ||
-      Boolean(
-        await StandardAssignment.exists({
-          school: schoolId,
-          class: analysis.class,
-          subject: analysis.subject,
-          standard: target.standard,
-          isActive: true,
-        }),
-      );
+      .select("_id manualScore semester standard assignment")
+      .sort({ updatedAt: -1 });
+    if (session) orphanQuery.session(session);
+    for (const row of await orphanQuery.lean()) {
+      const key = String(row.standard);
+      if (!orphanByStandard.has(key)) orphanByStandard.set(key, row);
+    }
+  }
+
+  const rows = [];
+  for (const target of targets) {
+    const assignmentId =
+      assignmentByStandard.get(String(target.standard)) || null;
+    const entry =
+      (assignmentId ? entryByAssignment.get(String(assignmentId)) : null) ||
+      orphanByStandard.get(String(target.standard)) ||
+      null;
     rows.push({
       standard: target.standard,
       code: target.code,
       name: target.name,
       teacherLevel: target.teacherLevel,
+      assignment: assignmentId,
       entry: entry?._id || null,
+      semester: entry?.semester ?? semester,
       previousManualScore:
         entry?.manualScore !== null && entry?.manualScore !== undefined
           ? entry.manualScore
           : null,
-      hasColumn,
+      hasColumn: Boolean(assignmentId) || Boolean(entry),
     });
   }
   return { rows, semester };
@@ -1351,122 +1514,155 @@ export const publishAnalysis = async ({
     throw badRequest("Run the analysis before publishing grades.");
 
   const semester = semesterOf(new Date());
-  const plan = await publishPlanFor({ schoolId, analysis, semester });
-  if (!plan.rows.length)
-    throw badRequest("Set a teacher level for at least one standard before publishing.");
-
-  const conflicts = plan.rows
-    .filter(
-      (row) =>
-        row.previousManualScore !== null &&
-        Number(row.previousManualScore) !== Number(row.teacherLevel),
-    )
-    .map((row) => ({
-      standard: row.standard,
-      code: row.code,
-      name: row.name,
-      previousManualScore: row.previousManualScore,
-      manualScore: row.teacherLevel,
-    }));
-  if (conflicts.length && !confirmOverwrite)
-    throw Object.assign(
-      new Error(
-        "Some standards already have a different manual score in this gradebook. Confirm to replace them.",
-      ),
-      { statusCode: 409, code: "MANUAL_SCORE_CONFLICT", conflicts },
-    );
-
-  const grades = [];
-  const skipped = [];
   const manualTeacher = await teacherForClassSubject({
     schoolId,
     classId: analysis.class,
     subjectId: analysis.subject,
   });
-  for (const target of plan.rows) {
-    // A new gradebook column is never created silently; the teacher opts in
-    // after the preview lists the standards that would need one.
-    if (!target.hasColumn && !createMissingColumns) {
-      skipped.push({ standard: target.standard, code: target.code, name: target.name });
-      continue;
-    }
-    const filter = {
-      school: schoolId,
-      student: analysis.student,
-      standard: target.standard,
-      class: analysis.class,
-      subject: analysis.subject,
-      academicYear: analysis.academicYear,
-      semester,
-    };
-    let entry = await StandardsGradebookEntry.findOne(filter);
-    const previousManualScore =
-      entry?.manualScore !== null && entry?.manualScore !== undefined
-        ? entry.manualScore
-        : null;
 
-    if (!entry) {
-      const assignmentId = await ensureManualAssignment({
-        schoolId,
-        classId: analysis.class,
-        subjectId: analysis.subject,
-        standardId: target.standard,
-        academicYear: analysis.academicYear,
-        semester,
-        userId,
-        teacherId: manualTeacher,
-      });
-      entry = await StandardsGradebookEntry.create({
+  // Entries and the publish record commit together. The claim is conditional,
+  // so two publishes of the same analysis cannot both write; a failure rolls
+  // back the claim and every entry with it, leaving nothing half-published.
+  const outcome = await withTransaction(async (session) => {
+    const claimed = await WritingAnalysis.findOneAndUpdate(
+      {
         school: schoolId,
-        assignment: assignmentId,
-        student: analysis.student,
-        standard: target.standard,
-        class: analysis.class,
-        subject: analysis.subject,
-        academicYear: analysis.academicYear,
-        semester,
-        status: "released",
-        manualScore: target.teacherLevel,
-        isManualEntry: true,
-        manualEnteredBy: userId,
-        manualEnteredAt: new Date(),
-        effectiveScore: target.teacherLevel,
-      });
-    } else {
-      entry.manualScore = target.teacherLevel;
-      entry.isManualEntry = true;
-      entry.manualEnteredBy = userId;
-      entry.manualEnteredAt = new Date();
-      entry.effectiveScore = target.teacherLevel;
-      await entry.save();
-    }
-    grades.push({
-      standard: target.standard,
-      manualScore: target.teacherLevel,
-      previousManualScore,
-      entry: entry._id,
-    });
-  }
-
-  if (!grades.length)
-    throw Object.assign(
-      new Error(
-        "These standards have no column in the standards gradebook yet. Choose to create the columns, or assign the standards first.",
-      ),
-      { statusCode: 409, code: "NO_GRADEBOOK_COLUMNS", skipped },
-    );
-
-  await WritingAnalysis.updateOne(
-    { school: schoolId, _id: analysis._id },
-    {
-      $set: {
-        "publish.state": "published",
-        "publish.by": userId,
-        "publish.at": new Date(),
-        "publish.grades": grades,
+        _id: analysis._id,
+        "publish.state": { $ne: "published" },
+        status: { $in: ["done", "done_with_warnings"] },
       },
-    },
-  );
+      {
+        $set: {
+          "publish.state": "published",
+          "publish.by": userId,
+          "publish.at": new Date(),
+        },
+      },
+      { new: true, session },
+    ).lean();
+    if (!claimed)
+      throw badRequest("This analysis was already published or changed. Reload it.");
+
+    const plan = await publishPlanFor({
+      schoolId,
+      analysis: claimed,
+      semester,
+      session,
+    });
+    if (!plan.rows.length)
+      throw badRequest(
+        "Set a teacher level for at least one standard before publishing.",
+      );
+
+    const conflicts = plan.rows
+      .filter(
+        (row) =>
+          row.previousManualScore !== null &&
+          Number(row.previousManualScore) !== Number(row.teacherLevel),
+      )
+      .map((row) => ({
+        standard: row.standard,
+        code: row.code,
+        name: row.name,
+        previousManualScore: row.previousManualScore,
+        manualScore: row.teacherLevel,
+      }));
+    if (conflicts.length && !confirmOverwrite)
+      throw Object.assign(
+        new Error(
+          "Some standards already have a different manual score in this gradebook. Confirm to replace them.",
+        ),
+        { statusCode: 409, code: "MANUAL_SCORE_CONFLICT", conflicts },
+      );
+
+    const grades = [];
+    const skipped = [];
+    for (const target of plan.rows) {
+      // A new gradebook column is never created silently; the teacher opts in
+      // after the preview lists the standards that would need one.
+      if (!target.hasColumn && !createMissingColumns) {
+        skipped.push({
+          standard: target.standard,
+          code: target.code,
+          name: target.name,
+        });
+        continue;
+      }
+      let entryId = target.entry;
+      if (!entryId) {
+        const assignmentId =
+          target.assignment ||
+          (await ensureManualAssignment({
+            schoolId,
+            classId: claimed.class,
+            subjectId: claimed.subject,
+            standardId: target.standard,
+            academicYear: claimed.academicYear,
+            semester: target.semester,
+            userId,
+            teacherId: manualTeacher,
+            session,
+          }));
+        const [created] = await StandardsGradebookEntry.create(
+          [
+            {
+              school: schoolId,
+              assignment: assignmentId,
+              student: claimed.student,
+              standard: target.standard,
+              class: claimed.class,
+              subject: claimed.subject,
+              academicYear: claimed.academicYear,
+              semester: target.semester,
+              status: "released",
+              manualScore: target.teacherLevel,
+              isManualEntry: true,
+              manualEnteredBy: userId,
+              manualEnteredAt: new Date(),
+              effectiveScore: target.teacherLevel,
+            },
+          ],
+          { session },
+        );
+        entryId = created._id;
+      } else {
+        await StandardsGradebookEntry.updateOne(
+          { school: schoolId, _id: entryId },
+          {
+            $set: {
+              manualScore: target.teacherLevel,
+              isManualEntry: true,
+              manualEnteredBy: userId,
+              manualEnteredAt: new Date(),
+              effectiveScore: target.teacherLevel,
+            },
+          },
+          { session },
+        );
+      }
+      grades.push({
+        standard: target.standard,
+        manualScore: target.teacherLevel,
+        previousManualScore: target.previousManualScore,
+        entry: entryId,
+      });
+    }
+
+    if (!grades.length)
+      throw Object.assign(
+        new Error(
+          "These standards have no column in the standards gradebook yet. Choose to create the columns, or assign the standards first.",
+        ),
+        { statusCode: 409, code: "NO_GRADEBOOK_COLUMNS", skipped },
+      );
+
+    await WritingAnalysis.updateOne(
+      { school: schoolId, _id: claimed._id },
+      { $set: { "publish.grades": grades } },
+      { session },
+    );
+    return { grades, skipped };
+  });
 
   const changed = await liveStandardChanges({
     schoolId,
@@ -1474,8 +1670,8 @@ export const publishAnalysis = async ({
   });
   return {
     analysis: await getAnalysis({ schoolId, analysisId: analysis._id, userId, isAdmin }),
-    grades,
-    skipped,
+    grades: outcome.grades,
+    skipped: outcome.skipped,
     changedStandards: changed,
   };
 };

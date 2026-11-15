@@ -119,9 +119,15 @@ const ClassDetailPage = () => {
     useEffect(() => {
         dispatch(fetchClass(id));
         dispatch(fetchClasses({ limit: 'all' }));
-        dispatch(fetchDepartments());
         dispatch(clearClassAnalyticsData());
     }, [dispatch, id]);
+
+    // /departments rejects a plain teacher with 403; only the edit-class and
+    // edit-student forms read it.
+    useEffect(() => {
+        if (!canEditClass) return;
+        dispatch(fetchDepartments());
+    }, [dispatch, canEditClass]);
 
     const openEditModal = () => {
         if (currentClass) {

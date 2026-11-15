@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
+import { countLabel } from "../../../../utils/countText.js";
 import { Link } from "react-router-dom";
 import { HiOutlineDocumentText, HiOutlinePencilAlt } from "react-icons/hi";
 import { actionKey } from "../studentAction.js";
+import ErrorBanner from "../../../../components/shared/ErrorBanner.jsx";
 import { useWritingFeedData } from "./hooks/useWritingFeedData.js";
 import "./WritingFeedPage.css";
 
@@ -9,7 +11,7 @@ const TOTALS = ["open", "awaitingTeacher", "ready", "completed"];
 
 export default function WritingFeedPage() {
   const { t, i18n } = useTranslation(["writing"]);
-  const { assignments, totals, loading, opening, openAssignment } = useWritingFeedData();
+  const { assignments, totals, loading, failed, retry, opening, openAssignment } = useWritingFeedData();
 
   if (loading) {
     return (
@@ -39,7 +41,15 @@ export default function WritingFeedPage() {
         <p className="wf-sub">{t("writing:student.feedSubtitle")}</p>
       </header>
 
-      {assignments.length === 0 && (
+      {failed && (
+        <ErrorBanner
+          message={t("writing:student.feedLoadFailed")}
+          onRetry={retry}
+          retryLabel={t("writing:student.retry")}
+        />
+      )}
+
+      {!failed && assignments.length === 0 && (
         <div className="wf-empty">
           <HiOutlineDocumentText size={42} aria-hidden="true" />
           <h2>{t("writing:student.emptyTitle")}</h2>
@@ -47,7 +57,7 @@ export default function WritingFeedPage() {
         </div>
       )}
 
-      {assignments.length > 0 && (
+      {!failed && assignments.length > 0 && (
         <>
           <div className="wf-stats">
             {TOTALS.map((key) => (
@@ -127,7 +137,7 @@ export default function WritingFeedPage() {
                           {t("writing:student.draftCount", { n: card.draftCount })}
                         </span>
                         {card.wordCount > 0 && (
-                          <span className="wf-meta">{t("writing:student.words", { n: card.wordCount })}</span>
+                          <span className="wf-meta">{countLabel(t, "writing:student.wordCount", card.wordCount)}</span>
                         )}
                       </td>
 

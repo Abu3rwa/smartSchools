@@ -61,8 +61,8 @@
 }
 
 .admin-quick-link:hover {
-    color: var(--primary, #0d9488);
-    border-color: var(--primary, #0d9488);
+    color: var(--primary);
+    border-color: var(--primary);
     background: var(--bg-tertiary, #f0f2f5);
 }
 
@@ -114,7 +114,7 @@
     gap: 0.25rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--primary, #0d9488);
+    color: var(--primary);
     text-decoration: none;
     white-space: nowrap;
 }
@@ -184,7 +184,7 @@
 }
 
 .admin-kpi--linked:hover .admin-kpi-value {
-    color: var(--primary, #0d9488);
+    color: var(--primary);
 }
 
 /* Today strip */
@@ -340,7 +340,7 @@
     display: block;
     height: 100%;
     border-radius: 999px;
-    background: var(--primary, #0d9488);
+    background: var(--primary);
 }
 
 .admin-bar-value {
@@ -394,7 +394,7 @@
 }
 
 .admin-table-name:hover {
-    color: var(--primary, #0d9488);
+    color: var(--primary);
     text-decoration: underline;
 }
 
@@ -476,9 +476,9 @@
 
 .admin-error-retry {
     padding: 0.45rem 1rem;
-    border: 1px solid var(--primary, #0d9488);
+    border: 1px solid var(--primary);
     border-radius: 999px;
-    background: var(--primary, #0d9488);
+    background: var(--primary);
     color: #ffffff;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -495,7 +495,7 @@
 .admin-kpi--linked:focus-visible,
 .admin-today-chip:focus-visible,
 .admin-error-retry:focus-visible {
-    outline: 2px solid var(--primary, #0d9488);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 

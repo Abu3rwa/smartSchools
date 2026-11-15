@@ -38,12 +38,14 @@ export default function WritingAnalysisPage() {
     analysis,
     analysisLoading,
     busy,
+    checkAgain,
     closeAnalysis,
     conflict,
     dismissConflict,
     dismissPublishPreview,
     lastEvidenceChange,
     onBack,
+    pollStalled,
     preparePublish,
     publish,
     publishPreview,
@@ -133,7 +135,14 @@ export default function WritingAnalysisPage() {
       );
     }
 
-    if (running) return <AnalysisProgress analysis={analysis} />;
+    if (running)
+      return (
+        <AnalysisProgress
+          analysis={analysis}
+          stalled={pollStalled}
+          onCheckAgain={checkAgain}
+        />
+      );
 
     if (analysis && analysis.status === "failed") {
       return (

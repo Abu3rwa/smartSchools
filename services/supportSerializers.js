@@ -74,6 +74,10 @@ export const serializeSurvey = (survey, { includeAnswers = true } = {}) => {
             : [],
         submittedAt: survey.submittedAt,
         lastSavedAt: survey.lastSavedAt,
+        revision: survey.revision || 1,
+        noConcerns: survey.noConcerns === true,
+        deliveryMethod: survey.deliveryMethod,
+        deliveryState: survey.deliveryState,
     };
 };
 
@@ -136,12 +140,15 @@ export const serializePlan = (plan, checkIns = []) => {
 
     return {
         id: String(plan._id),
-        cycleId: String(plan.cycle),
+        cycleId: plan.cycle ? String(plan.cycle) : null,
+        version: plan.currentVersion || plan.version || 1,
         month: plan.month,
         academicYear: plan.academicYear,
         status: plan.status,
         headline: plan.headline,
+        headlineAr: plan.headlineAr || '',
         summary: plan.summary,
+        summaryAr: plan.summaryAr || '',
         strengthKeys: plan.strengthKeys || [],
         focusKeys: plan.focusKeys || [],
         teacherCount: plan.teacherCount || 0,

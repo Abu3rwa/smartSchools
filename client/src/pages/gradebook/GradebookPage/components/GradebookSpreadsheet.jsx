@@ -59,7 +59,7 @@ const CATEGORY_COLORS = {
     project: '#8b5cf6',
     participation: '#06b6d4',
     oral: '#ec4899',
-    practical: '#14b8a6',
+    practical: 'var(--primary-500)',
     midterm_exam: '#dc2626',
     final_exam: '#991b1b',
     exam: '#dc2626',

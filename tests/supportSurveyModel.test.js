@@ -52,12 +52,19 @@ test('a teacher survey carries its cycle, subject and respondent', () => {
     assert.equal(doc.round, 1);
 });
 
-test('a survey cannot exist without the student, subject or cycle it is about', () => {
-    for (const field of ['school', 'cycle', 'student', 'subject', 'respondent']) {
+test('a survey cannot exist without the student, respondent or its teacher subject', () => {
+    for (const field of ['school', 'student', 'subject', 'respondent']) {
         const doc = survey();
         doc[field] = undefined;
         assert.ok(doc.validateSync()?.errors[field], `${field} should be required`);
     }
+});
+
+test('a parent or student survey needs no cycle and no subject', () => {
+    const doc = survey({ audience: 'parent', cycle: null, subject: null });
+    assert.equal(doc.validateSync(), undefined);
+    const studentDoc = survey({ audience: 'student', cycle: null, subject: null });
+    assert.equal(studentDoc.validateSync(), undefined);
 });
 
 test('question defaults describe how the answer is given', () => {

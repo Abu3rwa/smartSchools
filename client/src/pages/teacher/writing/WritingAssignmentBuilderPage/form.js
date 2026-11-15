@@ -4,12 +4,17 @@ import {
   presetSections,
 } from "../../../../constants/writingPresets.js";
 
-/** Keys the server derives from a label; kept here so the editor shows what is stored. */
+/**
+ * Keys the server derives from a label; kept here so the editor shows what is
+ * stored. This mirrors the server exactly (writingAssistantService
+ * normalizeSectionRows): lowercase, whitespace becomes "_", every other
+ * character survives — so an Arabic label keeps its letters instead of
+ * collapsing to an empty or duplicate key.
+ */
 export const slugify = (value) => String(value || "")
   .trim()
   .toLowerCase()
   .replace(/\s+/g, "_")
-  .replace(/[^a-z0-9_]/g, "")
   .slice(0, 40);
 
 export const emptySupports = () => ({
@@ -209,9 +214,14 @@ export const validateForm = (form) => {
   else if (sections.some((row) => !row.label?.trim() || !row.key)) errors.sections = "sectionIncomplete";
   else if (uniqueKeys(sections)) errors.sections = "duplicateSection";
 
-  const rubric = form.rubric || [];
+  // A rubric row whose key cannot be derived would be dropped by the server
+  // without a word, so the teacher is stopped here instead.
+  const rubric = (form.rubric || []).map((row) => ({
+    ...row,
+    key: String(row.key || "").trim() || slugify(row.label),
+  }));
   if (!rubric.length) errors.rubric = "noRubric";
-  else if (rubric.some((row) => !row.label?.trim() || num(row.maxScore) <= 0)) errors.rubric = "rubricIncomplete";
+  else if (rubric.some((row) => !row.label?.trim() || !row.key || num(row.maxScore) <= 0)) errors.rubric = "rubricIncomplete";
 
   const min = num(form.minWords);
   const max = num(form.maxWords);

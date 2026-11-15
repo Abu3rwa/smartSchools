@@ -166,3 +166,29 @@ test('the patch fills the builder but leaves the class and the goals alone', () 
   assert.equal('classId' in patch, false);
   assert.equal('goals' in patch, false);
 });
+
+test('importing a file leaves the teacher\'s word help alone', () => {
+  const current = {
+    wordBank: ['because'],
+    transitions: [],
+    sentenceStarters: [],
+    guidingQuestions: [],
+    modelText: '',
+    plannerPrompt: '',
+    wordSupport: {
+      vocabulary: { enabled: true, listIds: ['L1', 'L2'] },
+      spelling: { enabled: true, maxWords: 7 },
+    },
+  };
+  const patch = formPatchFromCsv(parseWritingCsv(csv([sectionRow()])), current);
+
+  assert.deepEqual(patch.supports.wordSupport, current.wordSupport);
+  assert.deepEqual(patch.supports.wordBank, []);
+  assert.equal(patch.supports.plannerPrompt, '');
+});
+
+test('a file imported with no word help in the form starts with it off', () => {
+  const patch = formPatchFromCsv(parseWritingCsv(csv([sectionRow()])));
+  assert.equal(patch.supports.wordSupport.vocabulary.enabled, false);
+  assert.equal(patch.supports.wordSupport.spelling.enabled, false);
+});

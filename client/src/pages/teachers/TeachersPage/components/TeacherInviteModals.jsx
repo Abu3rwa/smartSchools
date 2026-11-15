@@ -28,7 +28,7 @@ export const TeacherInviteModal = ({
                     <div className="credentials-card">
                         <p className="credentials-warning">
                             <HiOutlineExclamationCircle size={18} />
-                            <strong>{t('teachers:credentials.copyNow')}</strong> {t('teachers:credentials.passwordCannotBeViewedAgain')}
+                            <strong>{t('teachers:credentials.copyNow')}</strong> {t('teachers:credentials.googleHint')}
                         </p>
 
                         <div className="credentials-row">
@@ -51,13 +51,13 @@ export const TeacherInviteModal = ({
                         </div>
 
                         <div className="credentials-row">
-                            <label>{t('teachers:credentials.password')}</label>
+                            <label>{t('teachers:credentials.googleSignIn')}</label>
                             <div className="credentials-value">
-                                <code className="password-display">{inviteResult.tempPassword}</code>
+                                <code>{`${window.location.origin}/login?role=teacher`}</code>
                                 <button
                                     className="btn-icon"
-                                    onClick={() => copyToClipboard(inviteResult.tempPassword)}
-                                    title={t('teachers:actions.copyPassword')}
+                                    onClick={() => copyToClipboard(`${window.location.origin}/login?role=teacher`)}
+                                    title={t('teachers:actions.copyLink')}
                                 >
                                     <HiOutlineClipboardCopy size={16} />
                                 </button>
@@ -88,7 +88,7 @@ export const TeacherInviteModal = ({
                                 const text = [
                                     `${t('teachers:table.columns.name')}: ${inviteResult.teacherName}`,
                                     `${t('teachers:table.columns.email')}: ${inviteResult.email}`,
-                                    `${t('teachers:credentials.password')}: ${inviteResult.tempPassword}`
+                                    `${t('teachers:credentials.googleSignIn')}: ${window.location.origin}/login?role=teacher`
                                 ].join('\n');
                                 copyToClipboard(text);
                             }}
@@ -141,7 +141,6 @@ export const BulkTeacherInviteModal = ({
                                             <tr>
                                                 <th>{t('teachers:table.columns.name')}</th>
                                                 <th>{t('teachers:table.columns.email')}</th>
-                                                <th>{t('teachers:credentials.password')}</th>
                                                 <th>{t('teachers:table.columns.invite')}</th>
                                             </tr>
                                         </thead>
@@ -150,7 +149,6 @@ export const BulkTeacherInviteModal = ({
                                                 <tr key={item.teacherId}>
                                                     <td>{item.name}</td>
                                                     <td><code className="font-mono text-sm">{item.email}</code></td>
-                                                    <td><code className="password-display font-mono text-sm">{item.tempPassword}</code></td>
                                                     <td>
                                                         <span className={`badge badge-${item.emailSent ? 'success' : 'warning'}`}>
                                                             {item.emailSent

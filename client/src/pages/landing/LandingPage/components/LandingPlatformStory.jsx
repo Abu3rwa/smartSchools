@@ -35,7 +35,7 @@ export default function LandingPlatformStory({ uiText }) {
                         const points = [copy[`${key}Point1`], copy[`${key}Point2`], copy[`${key}Point3`]].filter(Boolean);
                         return (
                             <Paper key={key} className="landing-lift-card" variant="outlined" sx={{ p: 3.5, borderRadius: 3, height: '100%' }}>
-                                <Box sx={{ display: 'inline-flex', p: 1.5, mb: 2, borderRadius: 2, bgcolor: 'rgba(13, 148, 136, 0.1)', color: 'var(--primary, #0d9488)' }}>
+                                <Box sx={{ display: 'inline-flex', p: 1.5, mb: 2, borderRadius: 2, bgcolor: 'rgba(var(--accent-primary-rgb), 0.1)', color: 'var(--primary)' }}>
                                     <Icon size={26} />
                                 </Box>
                                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
@@ -47,7 +47,7 @@ export default function LandingPlatformStory({ uiText }) {
                                 <Box sx={{ display: 'grid', gap: 1 }}>
                                     {points.map((point) => (
                                         <Box key={point} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, color: 'text.secondary', typography: 'body2' }}>
-                                            <HiOutlineCheckCircle size={17} style={{ color: 'var(--primary, #0d9488)', flexShrink: 0, marginTop: 2 }} />
+                                            <HiOutlineCheckCircle size={17} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
                                             <span>{point}</span>
                                         </Box>
                                     ))}
@@ -65,14 +65,14 @@ export default function LandingPlatformStory({ uiText }) {
                         borderRadius: 3,
                         border: 1,
                         borderColor: 'divider',
-                        background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.08), rgba(13, 148, 136, 0.02))',
+                        background: 'linear-gradient(135deg, rgba(var(--accent-primary-rgb), 0.08), rgba(var(--accent-primary-rgb), 0.02))',
                         display: 'flex',
                         gap: 2.5,
                         alignItems: 'flex-start',
                         flexWrap: 'wrap',
                     }}
                 >
-                    <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, bgcolor: 'background.paper', color: 'var(--primary, #0d9488)' }}>
+                    <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, bgcolor: 'background.paper', color: 'var(--primary)' }}>
                         <HiOutlineSparkles size={26} />
                     </Box>
                     <Box sx={{ flex: '1 1 280px', minWidth: 0 }}>

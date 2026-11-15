@@ -5,6 +5,7 @@ import AiCreditEntry from "../models/AiCreditEntry.js";
 import AiCreditRequest from "../models/AiCreditRequest.js";
 import AiCreditSetting from "../models/AiCreditSetting.js";
 import School from "../models/School.js";
+import Student from "../models/Student.js";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
 import { notifyCreditAlert } from "./aiCreditEmailService.js";
@@ -683,7 +684,31 @@ const chargedFor = (row) => {
     : roundCents(row.amountCents);
 };
 
-const shapeEntry = (row) => ({
+/**
+ * A usage row keeps the student's id, not their name: a billing row outlives the
+ * draft. The name is resolved here, from ids the caller is already allowed to see.
+ */
+const studentNamesFor = async (rows) => {
+  const ids = [
+    ...new Set(
+      rows
+        .map((row) => String(row.student || ""))
+        .filter((id) => mongoose.isValidObjectId(id)),
+    ),
+  ];
+  if (!ids.length) return new Map();
+  const students = await Student.find({ _id: { $in: ids } })
+    .select("firstName lastName")
+    .lean();
+  return new Map(
+    students.map((row) => [
+      String(row._id),
+      `${row.firstName || ""} ${row.lastName || ""}`.trim(),
+    ]),
+  );
+};
+
+const shapeEntry = (row, names = null) => ({
   id: String(row._id),
   type: row.type,
   accountType: row.accountType === "school" ? "school" : "user",
@@ -705,7 +730,7 @@ const shapeEntry = (row) => ({
   outputTokens: row.outputTokens || 0,
   totalTokens: row.totalTokens || 0,
   assignmentTitle: row.assignmentTitle || "",
-  studentName: row.studentName || "",
+  studentName: row.studentName || names?.get(String(row.student || "")) || "",
   draftNumber: row.draftNumber ?? null,
   note: row.note || "",
   createdAt: row.createdAt,
@@ -807,8 +832,9 @@ export const listCreditHistory = async ({
       .lean(),
     AiCreditEntry.countDocuments(filter),
   ]);
+  const names = await studentNamesFor(rows);
   return {
-    rows: rows.map(shapeEntry),
+    rows: rows.map((row) => shapeEntry(row, names)),
     total,
     page: current,
     pages: Math.max(1, Math.ceil(total / size)),
@@ -1735,8 +1761,8 @@ export const returnCreditOnTeacherDeletion = async ({
 /* Platform (super admin)                                              */
 /* ------------------------------------------------------------------ */
 
-const shapePlatformRow = (row) => ({
-  ...shapeEntry(row),
+const shapePlatformRow = (row, names = null) => ({
+  ...shapeEntry(row, names),
   schoolName: row.school?.name || "",
   userName:
     `${row.user?.firstName || ""} ${row.user?.lastName || ""}`.trim() ||
@@ -1775,6 +1801,7 @@ export const getPlatformCreditOverview = async ({ page = 1 } = {}) => {
     AiCreditEntry.countDocuments({ type: "usage" }),
   ]);
   const totals = month[0] || {};
+  const names = await studentNamesFor(rows);
   return {
     markupPercent,
     rates: creditRates(),
@@ -1785,7 +1812,7 @@ export const getPlatformCreditOverview = async ({ page = 1 } = {}) => {
       chargedCents: roundCents(totals.chargedCents || 0),
       profitCents: roundCents(totals.profitCents || 0),
     },
-    rows: rows.map(shapePlatformRow),
+    rows: rows.map((row) => shapePlatformRow(row, names)),
     total,
     page: current,
     pages: Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE)),

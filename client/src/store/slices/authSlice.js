@@ -19,7 +19,10 @@ export const login = createAsyncThunk(
         return response.data.data;
       }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      return rejectWithValue({
+        message: error.response?.data?.message || 'Login failed',
+        code: error.response?.data?.code || null
+      });
     }
   }
 );
@@ -45,13 +48,22 @@ export const register = createAsyncThunk(
   }
 );
 // Google Login - redirects to Google OAuth
+// The role identifies which login door the sign-in started from. It is signed
+// into the OAuth state so the callback can refuse a non-teacher account on the
+// teacher door.
 export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
-  async (schoolSlug = null, { rejectWithValue }) => {
+  async (options = null, { rejectWithValue }) => {
+    const { schoolSlug = null, role = null } = typeof options === 'string'
+      ? { schoolSlug: options }
+      : (options || {});
     try {
       const params = new URLSearchParams();
       if (schoolSlug) {
         params.set('schoolSlug', schoolSlug);
+      }
+      if (role === 'teacher') {
+        params.set('role', role);
       }
       if (typeof window !== 'undefined' && window.location?.origin) {
         params.set('frontendOrigin', window.location.origin);
@@ -325,7 +337,7 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload?.message || null;
       })
       // Register
       .addCase(register.pending, (state) => {

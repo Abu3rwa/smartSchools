@@ -1,11 +1,11 @@
 .tc-page {
-  --tc-teal: var(--primary, #0d9488);
+  --tc-teal: var(--primary);
   --tc-ink: var(--text-primary, #0f172a);
   --tc-muted: var(--text-muted, #64748b);
   --tc-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --tc-surface: var(--bg-card, #ffffff);
   --tc-surface-2: var(--bg-secondary, #f8fafc);
-  --tc-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --tc-soft: color-mix(in srgb, var(--primary) 10%, transparent);
 
   display: flex;
   flex-direction: column;
@@ -198,7 +198,7 @@
 
 .tc-msg.is-student .tc-bubble {
   background: var(--tc-soft);
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   border-end-end-radius: 4px;
 }
 .tc-msg.is-tutor .tc-bubble {

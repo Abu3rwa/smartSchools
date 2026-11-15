@@ -1,5 +1,7 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import i18n from "../i18n/index.js";
+import { rateLimitCopyKey } from "../utils/apiErrorCopy.js";
 import { API_URL } from "./apiBase.js";
 
 export { API_URL };
@@ -37,6 +39,15 @@ const shouldShowToast = (key, cooldownMs) => {
 const showRateLimitedErrorToast = (key, message, cooldownMs, id) => {
   if (!shouldShowToast(key, cooldownMs)) return;
   toast.error(message, id ? { id } : undefined);
+};
+
+// A rate-limit refusal is shown from the code the server sent, not from its
+// English sentence, so an Arabic teacher reads Arabic.
+const rateLimitMessage = (code) => {
+  const key = rateLimitCopyKey(code);
+  const message = i18n.t(`rateLimit.${key}`, { defaultValue: "" });
+  if (message && message !== `rateLimit.${key}`) return message;
+  return "Too many requests. Please wait a moment and try again.";
 };
 
 const isSilentBackgroundRequest = (requestUrl = "") => {
@@ -188,16 +199,19 @@ api.interceptors.response.use(
     // silent for callers that handle the failure themselves (e.g. retries).
     if (!silent) {
       if (status === 403) {
+        // The server knows why (module disabled, plan locked, wrong role), so
+        // show its reason instead of a blanket "no permission" sentence.
+        const serverMessage = error.response?.data?.message;
         showRateLimitedErrorToast(
           "permission-403",
-          "You do not have permission to perform this action.",
+          serverMessage || "You do not have permission to perform this action.",
           TOAST_COOLDOWN_MS.permission,
           "permission-403",
         );
       } else if (status === 429) {
         showRateLimitedErrorToast(
           "rate-limit-429",
-          "Too many requests. Please wait a moment and try again.",
+          rateLimitMessage(error.response?.data?.code),
           TOAST_COOLDOWN_MS.rateLimit,
           "rate-limit-429",
         );

@@ -36,9 +36,18 @@ const RUBRIC_COLUMNS = [
 
 const KNOWN_COLUMNS = new Set([...SHARED_COLUMNS, ...SECTION_COLUMNS, ...RUBRIC_COLUMNS]);
 
+/**
+ * Every rejection carries a code and its values so the panel can say the same
+ * sentence in the teacher's language. The English message stays as the fallback
+ * for logs and for any code the panel has no translation for.
+ */
+const fail = (code, params, message) =>
+  Object.assign(new Error(message), { code, params });
+
 const tooLong = (value, max, column, where) => {
   if (value.length > max) {
-    throw new Error(`${where}: ${column} must be ${max} characters or fewer (this one is ${value.length}).`);
+    throw fail('columnTooLong', { where, column, max, length: value.length },
+      `${where}: ${column} must be ${max} characters or fewer (this one is ${value.length}).`);
   }
   return value;
 };
@@ -48,7 +57,8 @@ const wholeNumber = (value, { min, max, column, where }) => {
   if (!text) return null;
   const parsed = Number(text);
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    throw new Error(`${where}: ${column} must be a whole number from ${min} to ${max}.`);
+    throw fail('wholeNumber', { where, column, min, max },
+      `${where}: ${column} must be a whole number from ${min} to ${max}.`);
   }
   return parsed;
 };
@@ -58,16 +68,20 @@ const yesOrNo = (value, column, where, fallback = false) => {
   if (!text) return fallback;
   if (['yes', 'true', '1'].includes(text)) return true;
   if (['no', 'false', '0'].includes(text)) return false;
-  throw new Error(`${where}: ${column} must be yes or no.`);
+  throw fail('yesOrNo', { where, column }, `${where}: ${column} must be yes or no.`);
 };
 
 const listFrom = (value) => String(value || '').split(LIST).map((item) => item.trim()).filter(Boolean);
 
 const checkListColumn = (items, { max, itemMax, column, where }) => {
-  if (items.length > max) throw new Error(`${where}: ${column} can hold up to ${max} items.`);
+  if (items.length > max) {
+    throw fail('listTooMany', { where, column, max },
+      `${where}: ${column} can hold up to ${max} items.`);
+  }
   for (const item of items) {
     if (item.length > itemMax) {
-      throw new Error(`${where}: "${item.slice(0, 30)}" in ${column} is longer than ${itemMax} characters.`);
+      throw fail('listItemTooLong', { where, column, max: itemMax, item: `${item.slice(0, 30)}` },
+        `${where}: "${item.slice(0, 30)}" in ${column} is longer than ${itemMax} characters.`);
     }
   }
   return items;
@@ -77,12 +91,12 @@ const assertDueDate = (value, where) => {
   const text = String(value || '').trim();
   if (!text) return '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    throw new Error(`${where}: due_date must be written as YYYY-MM-DD.`);
+    throw fail('dueDateShape', { where }, `${where}: due_date must be written as YYYY-MM-DD.`);
   }
   const [year, month, day] = text.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-    throw new Error(`${where}: due_date is not a real date.`);
+    throw fail('dueDateReal', { where }, `${where}: due_date is not a real date.`);
   }
   return text;
 };
@@ -94,7 +108,8 @@ const assertSharedMatches = (records, firstIndex) => {
     for (const column of SHARED_COLUMNS) {
       const value = String(record[column] || '').trim();
       if (value && value !== String(records[firstIndex][column] || '').trim()) {
-        throw new Error(`Row ${index + 2}: ${column} is different from the titled row. Use one CSV per writing task.`);
+        throw fail('sharedMismatch', { row: index + 2, column },
+          `Row ${index + 2}: ${column} is different from the titled row. Use one CSV per writing task.`);
       }
     }
   }
@@ -110,24 +125,30 @@ const buildSections = (records) => {
     const orderValue = String(record.section_order || '').trim();
     const name = String(record.section_name || '').trim();
     if (!orderValue || !name) {
-      throw new Error(`${where}: a section row needs both section_order and section_name.`);
+      throw fail('sectionNeedsName', { where },
+        `${where}: a section row needs both section_order and section_name.`);
     }
     const order = wholeNumber(orderValue, { min: 1, max: MAX_SECTIONS, column: 'section_order', where });
-    if (orders.has(order)) throw new Error(`${where}: section_order ${order} is used twice.`);
+    if (orders.has(order)) {
+      throw fail('sectionOrderTwice', { where, order }, `${where}: section_order ${order} is used twice.`);
+    }
     orders.add(order);
 
     const kind = String(record.section_kind || '').trim().toLowerCase() || 'body';
     if (!SECTION_KINDS.includes(kind)) {
-      throw new Error(`${where}: section_kind must be one of ${SECTION_KINDS.join(', ')}.`);
+      throw fail('sectionKind', { where, kinds: SECTION_KINDS.join(', ') },
+        `${where}: section_kind must be one of ${SECTION_KINDS.join(', ')}.`);
     }
     const repeatable = yesOrNo(record.section_repeatable, 'section_repeatable', where);
     const minCount = wholeNumber(record.section_min_count, { min: 1, max: MAX_SECTIONS, column: 'section_min_count', where }) || 1;
     const maxCount = wholeNumber(record.section_max_count, { min: 1, max: MAX_SECTIONS, column: 'section_max_count', where }) || minCount;
     if (!repeatable && (minCount !== 1 || maxCount !== 1)) {
-      throw new Error(`${where}: section_min_count and section_max_count only apply when section_repeatable is yes.`);
+      throw fail('countsNeedRepeatable', { where },
+        `${where}: section_min_count and section_max_count only apply when section_repeatable is yes.`);
     }
     if (repeatable && maxCount < minCount) {
-      throw new Error(`${where}: section_max_count must be at least section_min_count.`);
+      throw fail('sectionMaxBelowMin', { where },
+        `${where}: section_max_count must be at least section_min_count.`);
     }
 
     sections.push({
@@ -147,19 +168,27 @@ const buildSections = (records) => {
     });
   }
 
-  if (!sections.length) throw new Error('The CSV needs at least one section row (section_order and section_name).');
+  if (!sections.length) {
+    throw fail('noSections', {},
+      'The CSV needs at least one section row (section_order and section_name).');
+  }
   sections.sort((a, b) => a.order - b.order);
   sections.forEach((section, position) => {
     if (section.order !== position + 1) {
-      throw new Error(`Section orders must start at 1 and have no gaps. Section ${position + 1} is numbered ${section.order}.`);
+      throw fail('sectionOrderGap', { position: position + 1, order: section.order },
+        `Section orders must start at 1 and have no gaps. Section ${position + 1} is numbered ${section.order}.`);
     }
   });
   if (sections.some((section) => !section.key)) {
-    throw new Error('Every section name needs letters or numbers the task can store it under.');
+    throw fail('sectionKeyEmpty', {},
+      'Every section name needs letters or numbers the task can store it under.');
   }
   const keys = new Set();
   for (const section of sections) {
-    if (keys.has(section.key)) throw new Error(`Two sections are both stored as "${section.key}". Rename one.`);
+    if (keys.has(section.key)) {
+      throw fail('sectionKeyTwice', { key: section.key },
+        `Two sections are both stored as "${section.key}". Rename one.`);
+    }
     keys.add(section.key);
   }
   return sections.map(({ order, ...section }) => section);
@@ -176,20 +205,26 @@ const buildRubric = (records, sections) => {
     const orderValue = String(record.rubric_order || '').trim();
     const label = String(record.rubric_label || '').trim();
     if (!orderValue || !label) {
-      throw new Error(`${where}: a mark row needs both rubric_order and rubric_label.`);
+      throw fail('markNeedsLabel', { where },
+        `${where}: a mark row needs both rubric_order and rubric_label.`);
     }
     const order = wholeNumber(orderValue, { min: 1, max: MAX_RUBRIC_ROWS, column: 'rubric_order', where });
-    if (orders.has(order)) throw new Error(`${where}: rubric_order ${order} is used twice.`);
+    if (orders.has(order)) {
+      throw fail('markOrderTwice', { where, order }, `${where}: rubric_order ${order} is used twice.`);
+    }
     orders.add(order);
 
     const maxScore = wholeNumber(record.rubric_max_score, { min: 1, max: 100, column: 'rubric_max_score', where });
-    if (!maxScore) throw new Error(`${where}: rubric_max_score must be at least 1.`);
+    if (!maxScore) {
+      throw fail('markScore', { where }, `${where}: rubric_max_score must be at least 1.`);
+    }
 
     const appliesTo = listFrom(record.rubric_applies_to).filter((item) => item !== '*');
     if (appliesTo.length) {
       for (const item of appliesTo) {
         if (!names.has(item.toLowerCase())) {
-          throw new Error(`${where}: rubric_applies_to names "${item}", which is not a section_name in this CSV.`);
+          throw fail('unknownSectionName', { where, item },
+            `${where}: rubric_applies_to names "${item}", which is not a section_name in this CSV.`);
         }
       }
     }
@@ -204,16 +239,23 @@ const buildRubric = (records, sections) => {
     });
   }
 
-  if (!rows.length) throw new Error('The CSV needs at least one mark row (rubric_order and rubric_label).');
+  if (!rows.length) {
+    throw fail('noMarks', {},
+      'The CSV needs at least one mark row (rubric_order and rubric_label).');
+  }
   rows.sort((a, b) => a.order - b.order);
   rows.forEach((row, position) => {
     if (row.order !== position + 1) {
-      throw new Error(`Mark row orders must start at 1 and have no gaps. Mark row ${position + 1} is numbered ${row.order}.`);
+      throw fail('markOrderGap', { position: position + 1, order: row.order },
+        `Mark row orders must start at 1 and have no gaps. Mark row ${position + 1} is numbered ${row.order}.`);
     }
   });
   const keys = new Set();
   for (const row of rows) {
-    if (keys.has(row.key)) throw new Error(`Two mark rows are both stored as "${row.key}". Rename one.`);
+    if (keys.has(row.key)) {
+      throw fail('markKeyTwice', { key: row.key },
+        `Two mark rows are both stored as "${row.key}". Rename one.`);
+    }
     keys.add(row.key);
   }
   return rows.map(({ order, ...row }) => row);
@@ -223,27 +265,39 @@ const buildRubric = (records, sections) => {
 export const parseWritingCsv = (csvText) => {
   const source = String(csvText || '');
   if (new TextEncoder().encode(source).length > MAX_CSV_BYTES) {
-    throw new Error('The CSV is larger than 700 KB.');
+    throw fail('tooLarge', {}, 'The CSV is larger than 700 KB.');
   }
   const rows = parseCsvRows(source);
-  if (rows.length < 2) throw new Error('The CSV needs a header row and at least one row of writing task details.');
+  if (rows.length < 2) {
+    throw fail('needsRows', {},
+      'The CSV needs a header row and at least one row of writing task details.');
+  }
 
   const headers = rows[0].map(normalizeHeader);
-  if (new Set(headers).size !== headers.length) throw new Error('The CSV has the same column name twice.');
+  if (new Set(headers).size !== headers.length) {
+    throw fail('duplicateHeader', {}, 'The CSV has the same column name twice.');
+  }
   if (headers.includes('max_drafts')) {
-    throw new Error('The CSV has a max_drafts column, which is no longer used. Students keep revising until you publish the feedback that marks the work ready. Delete that column and import again.');
+    throw fail('maxDrafts', {},
+      'The CSV has a max_drafts column, which is no longer used. Students keep revising until you publish the feedback that marks the work ready. Delete that column and import again.');
   }
   const unknown = headers.filter((header) => header && !KNOWN_COLUMNS.has(header));
   if (unknown.length) {
-    throw new Error(`The CSV has column${unknown.length > 1 ? 's' : ''} this import does not know: ${unknown.join(', ')}.`);
+    throw fail('unknownColumns', { columns: unknown.join(', ') },
+      `The CSV has column${unknown.length > 1 ? 's' : ''} this import does not know: ${unknown.join(', ')}.`);
   }
-  if (!headers.includes('title')) throw new Error('The CSV needs a title column.');
+  if (!headers.includes('title')) throw fail('noTitleColumn', {}, 'The CSV needs a title column.');
 
   const records = rows.slice(1).map((cells, index) => {
     const where = `Row ${index + 2}`;
     const overflow = cells.slice(headers.length).filter((cell) => cell.trim());
     if (overflow.length) {
-      throw new Error(`${where}: has ${cells.length} values, but the header row has ${headers.length}. `
+      throw fail('rowOverflow', {
+        where,
+        count: cells.length,
+        headers: headers.length,
+        values: overflow.map((cell) => `"${cell}"`).join(', '),
+      }, `${where}: has ${cells.length} values, but the header row has ${headers.length}. `
         + 'That usually means a cell holds a comma and was not wrapped in quote marks. '
         + `The values past the last column are: ${overflow.map((cell) => `"${cell}"`).join(', ')}.`);
     }
@@ -251,23 +305,24 @@ export const parseWritingCsv = (csvText) => {
   });
 
   const first = records.findIndex((record) => String(record.title || '').trim());
-  if (first < 0) throw new Error('The CSV needs one row with the writing task title.');
+  if (first < 0) throw fail('noTitleRow', {}, 'The CSV needs one row with the writing task title.');
   assertSharedMatches(records, first);
 
   const head = records[first];
   const title = String(head.title || '').trim();
-  if (!title) throw new Error('The writing task needs a title.');
+  if (!title) throw fail('noTitle', {}, 'The writing task needs a title.');
   tooLong(title, 200, 'title', 'The first row');
 
   const writingType = String(head.writing_type || '').trim().toLowerCase() || 'essay';
   if (!WRITING_TYPES.includes(writingType)) {
-    throw new Error(`writing_type must be one of ${WRITING_TYPES.join(', ')}.`);
+    throw fail('writingType', { types: WRITING_TYPES.join(', ') },
+      `writing_type must be one of ${WRITING_TYPES.join(', ')}.`);
   }
 
   const minWords = wholeNumber(head.min_words, { min: 0, max: 20000, column: 'min_words', where: 'The first row' }) || 0;
   const maxWords = wholeNumber(head.max_words, { min: 0, max: 20000, column: 'max_words', where: 'The first row' }) || 0;
   if (maxWords && minWords > maxWords) {
-    throw new Error('min_words cannot be above max_words.');
+    throw fail('wordsBelowMin', {}, 'min_words cannot be above max_words.');
   }
 
   const sections = buildSections(records);
@@ -304,22 +359,28 @@ export const parseWritingCsv = (csvText) => {
 /**
  * The builder patch for a parsed file. The sheet never names a class or a per-student
  * goal, so those fields are left untouched and the teacher still presses Publish.
+ * Vocabulary and spelling help are not CSV columns either, so an import keeps the
+ * support the teacher has already switched on instead of turning it off.
  */
-export const formPatchFromCsv = (parsed) => ({
-  title: parsed.title,
-  writingType: parsed.writingType,
-  instructions: parsed.instructions,
-  topic: parsed.topic,
-  dueDate: parsed.dueDate,
-  minWords: parsed.minWords,
-  maxWords: parsed.maxWords,
-  expectedLevel: parsed.expectedLevel,
-  sections: parsed.sections,
-  rubric: parsed.rubric,
-  supports: { ...emptySupports(), ...parsed.supports },
-  workflow: { ...parsed.workflow },
-  aiConstraints: parsed.aiConstraints,
-});
+export const formPatchFromCsv = (parsed, currentSupports = null) => {
+  const base = emptySupports();
+  const keep = currentSupports?.wordSupport || base.wordSupport;
+  return {
+    title: parsed.title,
+    writingType: parsed.writingType,
+    instructions: parsed.instructions,
+    topic: parsed.topic,
+    dueDate: parsed.dueDate,
+    minWords: parsed.minWords,
+    maxWords: parsed.maxWords,
+    expectedLevel: parsed.expectedLevel,
+    sections: parsed.sections,
+    rubric: parsed.rubric,
+    supports: { ...base, ...parsed.supports, wordSupport: keep },
+    workflow: { ...parsed.workflow },
+    aiConstraints: parsed.aiConstraints,
+  };
+};
 
 export const WRITING_CSV_HEADERS = [
   'title', 'writing_type', 'instructions', 'topic', 'due_date', 'min_words', 'max_words',

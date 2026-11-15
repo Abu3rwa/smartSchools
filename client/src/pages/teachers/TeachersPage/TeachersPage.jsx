@@ -204,12 +204,11 @@ const TeachersPage = () => {
     const downloadBulkInviteCsv = () => {
         if (!bulkTeacherInviteResults?.created?.length) return;
 
-        const header = 'Teacher Name,Email,Password,Email Sent';
+        const header = 'Teacher Name,Email,Email Sent';
         const rows = bulkTeacherInviteResults.created.map((item) =>
             [
                 item.name,
                 item.email,
-                item.tempPassword,
                 item.emailSent ? 'Yes' : 'No'
             ].map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
         );
@@ -229,7 +228,7 @@ const TeachersPage = () => {
         if (!bulkTeacherInviteResults?.created?.length) return;
 
         const text = bulkTeacherInviteResults.created
-            .map((item) => `${item.name}\t${item.email}\t${item.tempPassword}\t${item.emailSent ? 'sent' : 'failed'}`)
+            .map((item) => `${item.name}\t${item.email}\t${item.emailSent ? 'sent' : 'failed'}`)
             .join('\n');
         copyToClipboard(text);
     };

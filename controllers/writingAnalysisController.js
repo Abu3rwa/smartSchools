@@ -82,6 +82,7 @@ export const retryAnalysis = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
     analysisId: req.params.analysisId,
     userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
     onlyFailed: true,
   });
   res.status(202).json({ success: true, data });

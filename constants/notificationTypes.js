@@ -40,6 +40,9 @@ export const NOTIFICATION_TYPES = {
   // PLP / Character Development
   PLP_TASK_ASSIGNED: "plp_task_assigned",
   PLP_TASK_REVIEWED: "plp_task_reviewed",
+  // Student Support
+  SUPPORT_PLAN_PUBLISHED: "support_plan_published",
+  SUPPORT_PLAN_CLOSED: "support_plan_closed",
   // Inbox Assistant
   INBOX_DEADLINE_REMINDER: "inbox_deadline_reminder",
   INBOX_CALENDAR_OVERLAP: "inbox_calendar_overlap",

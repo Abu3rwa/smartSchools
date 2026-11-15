@@ -58,7 +58,7 @@ export default function LandingHero({ content, contentError, heroBadge, handleAc
                                 mb: 3,
                                 borderRadius: 10,
                                 borderColor: 'primary.main',
-                                bgcolor: 'rgba(13, 148, 136, 0.1)',
+                                bgcolor: 'rgba(var(--accent-primary-rgb), 0.1)',
                             }}
                         >
                             <HiOutlineSparkles size={16} />

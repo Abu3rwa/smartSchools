@@ -126,6 +126,28 @@ test('an absence judgment is kept without a quote and never counts as a lost quo
     assert.equal(result.quotesKept, 1);
 });
 
+test('a note goes when the words it describes cannot be found', () => {
+    const result = normalizePieceEvidence({
+        parsed: {
+            standards: [
+                {
+                    key: 'S1',
+                    opportunity: true,
+                    judgment: 'partly',
+                    quote: 'this sentence is not in the piece',
+                    note: "but 'AND' shows inconsistent spelling of a grade-level word"
+                }
+            ]
+        },
+        text,
+        standards
+    });
+    assert.equal(result.quotesDropped, 1);
+    assert.equal(result.notesDropped, 1);
+    assert.equal(result.standards[0].note, '');
+    assert.equal(result.standards[0].unverifiable, true);
+});
+
 test('a note that describes text outside the quote is blanked, the quote stays', () => {
     const result = normalizePieceEvidence({
         parsed: {
@@ -160,4 +182,25 @@ test('a reply that names no standard of this run is unusable', () => {
     });
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'no_matching_standards');
+});
+
+test('the prompt asks for the skill being used, not for the rule being explained', () => {
+    const prompt = buildPieceEvidencePrompt({ text, standards });
+    assert.match(prompt, /USE, NOT EXPLAIN/);
+    assert.match(prompt, /not checking whether the writing explains/);
+    assert.match(prompt, /A student who used a conjunction correctly has met the standard/);
+    assert.match(prompt, /Judge only the requirement this standard names/);
+});
+
+test('the prompt keeps one bar for every standard and every piece', () => {
+    const prompt = buildPieceEvidencePrompt({ text, standards });
+    assert.match(prompt, /the same bar for every standard and every piece/);
+    assert.match(prompt, /"met" means the student used the skill and it worked/);
+    assert.match(prompt, /Judge the use/);
+});
+
+test('the note describes what the writer did, not what the rule is', () => {
+    const prompt = buildPieceEvidencePrompt({ text, standards });
+    assert.match(prompt, /Describe the writer's move/);
+    assert.match(prompt, /not what the rule is/);
 });

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { countLabel } from "../../../../utils/countText.js";
 import {
   HiOutlineArrowNarrowUp,
   HiOutlineCheckCircle,
@@ -37,9 +38,8 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         </h3>
         <span className={`ws-compare-delta${wordDelta < 0 ? " is-down" : ""}`}>
           <HiOutlineArrowNarrowUp size={15} aria-hidden="true" />
-          {t("writing:student.comparisonWords", {
+          {countLabel(t, "writing:student.comparisonWordCount", Math.abs(wordDelta), {
             sign: wordDelta < 0 ? "−" : "+",
-            n: Math.abs(wordDelta),
           })}
         </span>
       </header>

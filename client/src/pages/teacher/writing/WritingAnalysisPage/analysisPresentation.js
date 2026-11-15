@@ -46,6 +46,30 @@ export const fromDateInput = (value) =>
 export const levelOf = (result) =>
   result?.teacherLevel ?? result?.proposedLevel ?? null;
 
+const CATEGORY_SLUGS = new Set([
+  "ideas",
+  "organisation",
+  "sentence",
+  "vocabulary",
+  "conventions",
+  "audience",
+]);
+
+/**
+ * Standards carry a free-text category from the school's own import, often the
+ * English word for one of the six writing strands. Translate those; anything
+ * else is the school's own wording and is shown as written.
+ */
+export const categoryLabel = (t, value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const slug = raw.toLowerCase().replace(/[\s_-]+/g, "");
+  const key = slug === "organization" ? "organisation" : slug;
+  return CATEGORY_SLUGS.has(key)
+    ? t(`writing:teacher.analysis.categories.${key}`)
+    : raw;
+};
+
 export const initialLevelDraft = (standards = []) =>
   Object.fromEntries(
     (standards || []).map((row) => [
@@ -75,6 +99,7 @@ export const pieceByIdOf = (analysis) =>
 const STATUS_TONES = {
   not_observed: "muted",
   insufficient_evidence: "muted",
+  not_shown: "rose",
   fragile: "rose",
   developing: "amber",
   consistent: "teal",
@@ -82,6 +107,40 @@ const STATUS_TONES = {
 };
 
 export const statusTone = (status) => STATUS_TONES[status] || "muted";
+
+/**
+ * What the evidence shows, in words. The server's status is the level bucket,
+ * and the level table caps at 2 for a two-piece window, so "2 of 2 met" would
+ * arrive as "about half". The screen therefore describes the counts, and the
+ * level stays the proposal.
+ */
+export const usageStatusOf = (result) => {
+  const counts = result?.counts || {};
+  const applicable = Number(counts.applicable) || 0;
+  const met = Number(counts.met) || 0;
+  const partly = Number(counts.partly) || 0;
+  if (applicable === 0) return "no_chance";
+  if (applicable === 1) return "one_piece";
+  if (met === 0) return partly > 0 ? "partly_used" : "not_used";
+  const share = met / applicable;
+  if (share === 1) return "every_piece";
+  if (share >= 0.6) return "most_pieces";
+  if (share >= 0.5) return "half_pieces";
+  return "few_pieces";
+};
+
+const USAGE_TONES = {
+  no_chance: "muted",
+  one_piece: "muted",
+  not_used: "rose",
+  partly_used: "amber",
+  few_pieces: "rose",
+  half_pieces: "amber",
+  most_pieces: "teal",
+  every_piece: "green",
+};
+
+export const usageTone = (usage) => USAGE_TONES[usage] || "muted";
 
 export const growthTone = (direction) =>
   ({
@@ -100,8 +159,20 @@ export const codeOf = (standard) => String(standard?.code || "").trim();
 /** Visible depth used to indent a child standard under its parent. */
 export const codeDepth = (code) => (String(code || "").match(/\./g) || []).length;
 
-const extendsCode = (parent, child) =>
-  Boolean(parent) && Boolean(child) && child.startsWith(`${parent}.`);
+/**
+ * A parent code covers a child code: "L.5.1" covers "L.5.1A", and "ELA.5.L.2"
+ * covers "ELA.5.L.2.B". A number after the parent code is a different standard.
+ * Mirrors isChildCode() in the server's writingAnalysisLogic.js.
+ */
+export const isChildCode = (parent, child) => {
+  const parentCode = String(parent || "").trim().toUpperCase();
+  const childCode = String(child || "").trim().toUpperCase();
+  if (!parentCode || !childCode || parentCode === childCode) return false;
+  if (!childCode.startsWith(parentCode)) return false;
+  const rest = childCode.slice(parentCode.length);
+  if (rest.startsWith(".")) return rest.length > 1;
+  return /^[A-Z]/.test(rest);
+};
 
 /**
  * Default ticked standards: the ones already assigned in this class and
@@ -121,7 +192,7 @@ export const defaultStandardSelection = (
   const keep = base.filter((row) => {
     const code = codeOf(row);
     if (!code) return true;
-    return !baseCodes.some((other) => extendsCode(code, other));
+    return !baseCodes.some((other) => isChildCode(code, other));
   });
   return keep.slice(0, count).map((row) => String(row._id));
 };
@@ -140,7 +211,7 @@ export const overlappingStandards = (standards = [], selected = []) => {
     const parentCode = codeOf(parent);
     if (!parentCode) continue;
     for (const child of chosen) {
-      if (extendsCode(parentCode, codeOf(child))) pairs.push({ parent, child });
+      if (isChildCode(parentCode, codeOf(child))) pairs.push({ parent, child });
     }
   }
   return pairs;

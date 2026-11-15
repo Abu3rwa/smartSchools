@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { fetchMyClasses } from '../../../../../store/slices/teacherSlice';
 import { fetchSubPendingCountThunk } from '../../../../../store/slices/substitutionsSlice';
 import teacherService from '../../../../../services/teacherService';
 import timetableService from '../../../../../services/timetableService';
-import { buildTodaySchedule } from '../utils/teacherDashboardPresentation';
+import { buildTodaySchedule, buildWeekSchedule } from '../utils/teacherDashboardPresentation';
 
 const useTeacherDashboardData = () => {
     const dispatch = useDispatch();
@@ -14,6 +14,7 @@ const useTeacherDashboardData = () => {
     const [analyticsData, setAnalyticsData] = useState(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(true);
     const [analyticsError, setAnalyticsError] = useState(null);
+    const [reloadToken, setReloadToken] = useState(0);
 
     useEffect(() => {
         dispatch(fetchMyClasses());
@@ -66,19 +67,22 @@ const useTeacherDashboardData = () => {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [reloadToken]);
 
-    const todaySchedule = useMemo(() => {
-        return buildTodaySchedule(timetable);
-    }, [timetable]);
+    const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+    const todaySchedule = useMemo(() => buildTodaySchedule(timetable), [timetable]);
+    const weekSchedule = useMemo(() => buildWeekSchedule(timetable), [timetable]);
 
     return {
         timetableLoading,
         timetableError,
         todaySchedule,
+        weekSchedule,
         analyticsData,
         analyticsLoading,
-        analyticsError
+        analyticsError,
+        reload
     };
 };
 

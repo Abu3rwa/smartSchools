@@ -74,7 +74,19 @@
       "fullTimetable": "Full timetable",
       "loadError": "Could not load schedule.",
       "empty": "No classes scheduled for today.",
-      "periodFallback": "Period {{index}}"
+      "periodFallback": "Period {{index}}",
+      "now": "Now",
+      "next": "Next class",
+      "week": "Week",
+      "retry": "Try again",
+      "dayDone": "Teaching day complete",
+      "dayDoneMeta": "Nothing left on today’s timetable.",
+      "noneToday": "No classes today",
+      "startsIn": "in {{m}} min",
+      "running": "running now",
+      "classesCount": "Classes: {{value}}",
+      "noClasses": "No classes",
+      "room": "Room"
     },
     "subRequests": {
       "title": "Sub Requests",
@@ -95,7 +107,8 @@
       "pendingRequestsCount_other": "{{count}} pending requests",
       "confirmOrDecline": "Please confirm or decline.",
       "viewAndRespond": "View & respond",
-      "empty": "No pending sub requests."
+      "empty": "No pending sub requests.",
+      "allClear": "You are all clear"
     },
     "quickActions": {
       "title": "Quick Actions",
@@ -128,7 +141,9 @@
         "thu": "Thu",
         "fri": "Fri",
         "sat": "Sat"
-      }
+      },
+      "classAverage": "Average",
+      "classes": "classes"
     }
   }
 }

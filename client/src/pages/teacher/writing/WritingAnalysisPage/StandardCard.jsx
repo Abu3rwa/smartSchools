@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { HiOutlineChevronDown, HiOutlineChevronUp } from "react-icons/hi";
 import { formatDate } from "../WritingAssignmentBoardPage/boardPresentation.js";
-import { scaleLabel, statusTone } from "./analysisPresentation.js";
+import { categoryLabel, scaleLabel, usageStatusOf, usageTone } from "./analysisPresentation.js";
 import { SCALE_OPTIONS } from "../../../../utils/sbrScaleUtils.js";
 
 const JUDGMENTS = ["met", "partly", "not_met"];
@@ -40,18 +40,15 @@ function EvidenceRow({
         <p className="wa-ana-absence">
           {t("writing:teacher.analysis.absenceEvidence")}
         </p>
+      ) : evidence.unverifiable ? (
+        <p className="wa-ana-unverified">
+          {t("writing:teacher.analysis.unverifiableEvidence")}
+        </p>
       ) : (
         evidence.quote && <blockquote>{evidence.quote}</blockquote>
       )}
       {evidence.note && (
-        <p className="wa-ana-note">
-          {evidence.note}
-          {!evidence.absence && (
-            <span className="wa-hint">
-              {t("writing:teacher.analysis.quoteOnlyNote")}
-            </span>
-          )}
-        </p>
+        <p className="wa-ana-note">{evidence.note}</p>
       )}
 
       {!published &&
@@ -125,6 +122,9 @@ export default function StandardCard({
   const counts = result.counts || {};
   const hasProposal =
     result.proposedLevel !== null && result.proposedLevel !== undefined;
+  // A parent standard whose parts were also checked is judged by those parts.
+  const covered = (result.coveredBy || []).length > 0;
+  const usage = usageStatusOf(result);
   const expandable = typeof onToggle === "function";
   const expanded = expandable ? !collapsed : true;
 
@@ -137,7 +137,7 @@ export default function StandardCard({
             {result.name}
           </strong>
           <span className="wa-ana-standard-sub">
-            {result.category || ""}
+            {categoryLabel(t, result.category)}
             {counts.applicable > 0
               ? ` · ${t("writing:teacher.analysis.metOf", {
                   met: counts.met ?? 0,
@@ -148,41 +148,57 @@ export default function StandardCard({
         </div>
 
         <div className="wa-ana-standard-meta">
-          <span className={`wa-ana-status is-${statusTone(result.status)}`}>
-            {t(`writing:teacher.analysis.status.${result.status}`)}
+          <span className={`wa-ana-status is-${covered ? "muted" : usageTone(usage)}`}>
+            {covered
+              ? t("writing:teacher.analysis.coveredShort")
+              : t(`writing:teacher.analysis.usage.${usage}`)}
           </span>
-          <span className="wa-ana-proposed-chip">
-            {t("writing:teacher.analysis.proposedShort")}{" "}
-            <strong>
-              {hasProposal
-                ? `${result.proposedLevel} · ${scaleLabel(result.proposedLevel, language)}`
-                : t("writing:teacher.analysis.proposedNone")}
-            </strong>
-          </span>
-          <label className="wa-ana-level-field">
-            <span className="wa-hint">
-              {t("writing:teacher.analysis.yourLevel")}
+          {!covered && (
+            <span className="wa-ana-proposed-chip">
+              {t("writing:teacher.analysis.proposedShort")}{" "}
+              <strong>
+                {hasProposal
+                  ? String(result.proposedLevel)
+                  : t("writing:teacher.analysis.proposedNone")}
+              </strong>
+              {hasProposal && (
+                <span className="wa-hint">
+                  {` · ${scaleLabel(result.proposedLevel, language)}`}
+                </span>
+              )}
             </span>
-            <select
-              value={draft.level ?? ""}
-              disabled={published}
-              onChange={(event) =>
-                setLevel(key, {
-                  level:
-                    event.target.value === ""
-                      ? null
-                      : Number(event.target.value),
-                })
-              }
-            >
-              <option value="">{t("writing:teacher.analysis.noGrade")}</option>
-              {SCALE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value} · {scaleLabel(value, language)}
-                </option>
-              ))}
-            </select>
-          </label>
+          )}
+          {result.conflict && (
+            <span className="wa-ana-conflict-chip">
+              {t("writing:teacher.analysis.conflictChip")}
+            </span>
+          )}
+          {!covered && (
+            <label className="wa-ana-level-field">
+              <span className="wa-hint">
+                {t("writing:teacher.analysis.yourLevel")}
+              </span>
+              <select
+                value={draft.level ?? ""}
+                disabled={published}
+                onChange={(event) =>
+                  setLevel(key, {
+                    level:
+                      event.target.value === ""
+                        ? null
+                        : Number(event.target.value),
+                  })
+                }
+              >
+                <option value="">{t("writing:teacher.analysis.noGrade")}</option>
+                {SCALE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value} · {scaleLabel(value, language)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {expandable && (
             <button
               type="button"
@@ -207,56 +223,75 @@ export default function StandardCard({
 
       {expanded && (
         <div className="wa-ana-standard-body">
-          <p className="wa-ana-counts">
-            {counts.applicable > 0
-              ? t("writing:teacher.analysis.countsLine", {
-                  applicable: counts.applicable,
-                  met: counts.met ?? 0,
-                  partly: counts.partly ?? 0,
-                  notMet: counts.notMet ?? 0,
-                })
-              : t("writing:teacher.analysis.noOpportunity")}
-          </p>
-          {!hasProposal && (
+          {covered ? (
             <p className="wa-hint">
-              {t("writing:teacher.analysis.proposedNoneHint")}
+              {t("writing:teacher.analysis.coveredBy", {
+                codes: result.coveredBy.join(", "),
+              })}
             </p>
+          ) : (
+            <>
+              <p className="wa-ana-counts">
+                {counts.applicable > 0
+                  ? t("writing:teacher.analysis.countsLine", {
+                      applicable: counts.applicable,
+                      met: counts.met ?? 0,
+                      partly: counts.partly ?? 0,
+                      notMet: counts.notMet ?? 0,
+                    })
+                  : t("writing:teacher.analysis.noOpportunity")}
+              </p>
+              {!hasProposal && (
+                <p className="wa-hint">
+                  {t("writing:teacher.analysis.proposedNoneHint")}
+                </p>
+              )}
+              {result.conflict && (
+                <p className="wa-ana-conflict">
+                  {t("writing:teacher.analysis.evidenceConflict", {
+                    quote: result.conflict.quote,
+                  })}
+                </p>
+              )}
+
+              <div className="wa-ana-evidence">
+                <h4>{t("writing:teacher.analysis.evidence")}</h4>
+                {(result.pieces || []).length === 0 && (
+                  <p className="wa-hint">
+                    {t("writing:teacher.analysis.noEvidence")}
+                  </p>
+                )}
+                <ul>
+                  {(result.pieces || []).map((evidence) => (
+                    <EvidenceRow
+                      key={String(evidence.draft)}
+                      standard={result.standard}
+                      evidence={evidence}
+                      piece={pieces.get(String(evidence.draft))}
+                      language={language}
+                      published={published}
+                      busy={busy}
+                      onEvidence={onEvidence}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
 
-          <div className="wa-ana-evidence">
-            <h4>{t("writing:teacher.analysis.evidence")}</h4>
-            {(result.pieces || []).length === 0 && (
-              <p className="wa-hint">
-                {t("writing:teacher.analysis.noEvidence")}
-              </p>
-            )}
-            <ul>
-              {(result.pieces || []).map((evidence) => (
-                <EvidenceRow
-                  key={String(evidence.draft)}
-                  standard={result.standard}
-                  evidence={evidence}
-                  piece={pieces.get(String(evidence.draft))}
-                  language={language}
-                  published={published}
-                  busy={busy}
-                  onEvidence={onEvidence}
-                />
-              ))}
-            </ul>
-          </div>
-
-          <label className="wa-field">
-            {t("writing:teacher.analysis.teacherNote")}
-            <textarea
-              rows={2}
-              maxLength={600}
-              value={draft.note || ""}
-              disabled={published}
-              placeholder={t("writing:teacher.analysis.teacherNotePlaceholder")}
-              onChange={(event) => setLevel(key, { note: event.target.value })}
-            />
-          </label>
+          {!covered && (
+            <label className="wa-field">
+              {t("writing:teacher.analysis.teacherNote")}
+              <textarea
+                rows={2}
+                maxLength={600}
+                value={draft.note || ""}
+                disabled={published}
+                placeholder={t("writing:teacher.analysis.teacherNotePlaceholder")}
+                onChange={(event) => setLevel(key, { note: event.target.value })}
+              />
+            </label>
+          )}
         </div>
       )}
     </section>

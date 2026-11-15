@@ -6,7 +6,7 @@ import {
 
 /** One answer as a 0–1 score, so a scale and a choice can be compared. */
 export const answerRatio = (answer, question) => {
-    if (!answer || !question) return null;
+    if (!answer || !question || question.scored === false) return null;
     if (question.kind === 'scale') {
         const max = Number(question.scaleMax) || 4;
         const value = Number(answer.scaleValue);

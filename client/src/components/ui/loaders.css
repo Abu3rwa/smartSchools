@@ -10,7 +10,7 @@
   --skeleton-radius:    var(--radius-sm, 6px);
   --loader-overlay:     rgba(15, 23, 42, 0.72);
   --progress-track:     rgba(255, 255, 255, 0.08);
-  --progress-fill:      var(--primary, #14b8a6);
+  --progress-fill:      var(--primary);
   --progress-success:   #10b981;
   --progress-warning:   #f59e0b;
   --progress-danger:    #ef4444;
@@ -132,7 +132,7 @@
 .page-loader__ring {
   width: 48px; height: 48px;
   border: 3px solid var(--progress-track);
-  border-top-color: var(--primary, #14b8a6);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: page-loader-spin 0.9s linear infinite;
 }
@@ -232,7 +232,7 @@
   transition: all 0.2s ease;
 }
 .progress-step.done   .progress-step__dot { background: var(--progress-success); color: #fff; border-color: var(--progress-success); }
-.progress-step.active .progress-step__dot { background: var(--progress-fill); color: #fff; border-color: var(--progress-fill); box-shadow: 0 0 0 4px rgba(20,184,166,0.2); }
+.progress-step.active .progress-step__dot { background: var(--progress-fill); color: #fff; border-color: var(--progress-fill); box-shadow: 0 0 0 4px rgba(var(--accent-primary-rgb),0.2); }
 .progress-step.error  .progress-step__dot { background: var(--progress-danger); color: #fff; border-color: var(--progress-danger); }
 .progress-step__label {
   font-size: 0.72rem;

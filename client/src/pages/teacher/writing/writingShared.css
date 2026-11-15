@@ -1,165 +1,5 @@
-.wa-page {
-  --wa-teal: var(--primary, #0d9488);
-  --wa-ink: var(--text-primary, #0f172a);
-  --wa-muted: var(--text-muted, #64748b);
-  --wa-rose: #dc2626;
-  --wa-line: var(--border-color, rgba(0, 0, 0, 0.08));
-  --wa-surface: var(--bg-card, #ffffff);
-  --wa-surface-2: var(--bg-secondary, #f8fafc);
-  --wa-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
-  --wa-radius: 14px;
-  --wa-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -18px rgba(15, 23, 42, 0.35);
+@import "../../../styles/waPrimitives.css";
 
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  color: var(--wa-ink);
-}
-
-.wa-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.wa-head h1 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.wa-eyebrow {
-  margin: 0 0 2px;
-  font-size: 0.72rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--wa-muted);
-}
-
-.wa-sub {
-  margin: 4px 0 0;
-  color: var(--wa-muted);
-  font-size: 0.9rem;
-}
-
-.wa-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.wa-stat {
-  background: var(--wa-surface);
-  border: 1px solid var(--wa-line);
-  border-radius: var(--wa-radius);
-  box-shadow: var(--wa-shadow);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.wa-stat-value {
-  font-size: 1.35rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.wa-stat-label {
-  font-size: 0.76rem;
-  color: var(--wa-muted);
-}
-
-.wa-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.wa-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
-  color: var(--wa-muted);
-}
-
-.wa-field select,
-.wa-field input,
-.wa-field textarea {
-  font-size: 0.9rem;
-  color: var(--wa-ink);
-  background: var(--wa-surface);
-  border: 1px solid var(--wa-line);
-  border-radius: 10px;
-  padding: 8px 10px;
-  min-width: 200px;
-}
-
-.wa-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--wa-surface);
-  border: 1px solid var(--wa-line);
-  border-radius: 10px;
-  padding: 0 10px;
-  color: var(--wa-muted);
-  min-width: 220px;
-}
-
-.wa-search input {
-  border: 0;
-  background: transparent;
-  padding: 9px 0;
-  width: 100%;
-  color: var(--wa-ink);
-  font-size: 0.9rem;
-}
-
-.wa-search input:focus {
-  outline: none;
-}
-
-/* The page is a column, so the main axis is vertical: centre on both axes. */
-.wa-loading {
-  padding: 40px 0;
-  min-height: 55vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  color: var(--wa-muted);
-}
-
-.wa-empty {
-  background: var(--wa-surface);
-  border: 1px dashed var(--wa-line);
-  border-radius: var(--wa-radius);
-  padding: 34px 20px;
-  text-align: center;
-  color: var(--wa-muted);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.wa-empty h3 {
-  margin: 0;
-  color: var(--wa-ink);
-  font-size: 1.05rem;
-}
-
-.wa-empty p {
-  margin: 0 0 8px;
-  max-width: 46ch;
-}
 
 .wa-grid {
   display: grid;
@@ -268,14 +108,15 @@
 }
 
 @media (max-width: 640px) {
-  .wa-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+  /* Two inputs and a select cannot share a phone width: stack them. */
+  .wa-count-pair,
+  .wa-goal-row {
+    flex-wrap: wrap;
   }
-  .wa-field select,
-  .wa-search {
+  .wa-count-pair > *,
+  .wa-goal-row > * {
+    flex: 1 1 100%;
     min-width: 0;
-    width: 100%;
   }
 }
 
@@ -351,48 +192,6 @@
   gap: 12px;
   align-items: flex-end;
 }
-.wa-grow {
-  flex: 1 1 220px;
-}
-.wa-field textarea {
-  min-width: 0;
-  width: 100%;
-  resize: vertical;
-  font-family: inherit;
-}
-.wa-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--wa-muted);
-}
-.wa-error {
-  font-size: 0.78rem;
-  color: var(--wa-rose, #dc2626);
-  font-style: normal;
-}
-
-.wa-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.wa-chip-button {
-  border: 1px solid var(--wa-line);
-  background: var(--wa-surface-2);
-  color: var(--wa-muted);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.wa-chip-button.is-active {
-  border-color: var(--wa-teal);
-  color: var(--wa-teal);
-  background: var(--wa-soft);
-  font-weight: 600;
-}
 
 .wa-step-toolbar {
   display: flex;
@@ -455,24 +254,6 @@
   cursor: not-allowed;
 }
 
-.wa-switch-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: center;
-}
-.wa-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.83rem;
-  cursor: pointer;
-}
-.wa-switch input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--wa-teal);
-}
 .wa-count-pair {
   display: flex;
   gap: 10px;
@@ -695,81 +476,11 @@
 }
 
 /* Board */
-.wa-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
 
 .wa-board-body {
   display: flex;
   gap: 16px;
   align-items: flex-start;
-}
-.wa-table-card {
-  flex: 1;
-  min-width: 0;
-  background: var(--wa-surface);
-  border: 1px solid var(--wa-line);
-  border-radius: var(--wa-radius);
-  box-shadow: var(--wa-shadow);
-  overflow: auto;
-}
-
-.wa-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.86rem;
-}
-.wa-table th,
-.wa-table td {
-  text-align: start;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--wa-line);
-  vertical-align: top;
-}
-.wa-table thead th {
-  font-size: 0.74rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--wa-muted);
-  background: var(--wa-surface-2);
-  position: sticky;
-  top: 0;
-}
-.wa-table tbody tr {
-  cursor: pointer;
-}
-.wa-table tbody tr:hover,
-.wa-table tbody tr.is-selected {
-  background: var(--wa-soft);
-}
-.wa-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.wa-cell-number {
-  text-align: end;
-  font-variant-numeric: tabular-nums;
-}
-.wa-cell-date {
-  white-space: nowrap;
-  color: var(--wa-muted);
-}
-.wa-table-empty {
-  text-align: center;
-  color: var(--wa-muted);
-  padding: 24px;
-}
-.wa-student-name {
-  display: block;
-  font-weight: 600;
-}
-.wa-student-code {
-  font-size: 0.74rem;
-  color: var(--wa-muted);
 }
 .wa-paste-badge {
   display: inline-block;
@@ -815,61 +526,7 @@
   max-height: 9rem;
   overflow: auto;
 }
-.wa-chip-button b {
-  margin-inline-start: 6px;
-  font-variant-numeric: tabular-nums;
-}
 
-/* Student review dialog: wide enough for the feedback form and the drafts side by side. */
-.wa-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  background: rgba(15, 23, 42, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 24px;
-  overflow: auto;
-}
-.wa-modal {
-  width: min(1180px, 100%);
-  margin: auto;
-  background: var(--wa-surface);
-  border-radius: 18px;
-  box-shadow: 0 28px 70px -24px rgba(15, 23, 42, 0.55);
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 48px);
-  overflow: hidden;
-}
-.wa-modal-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px 22px 14px;
-  border-bottom: 1px solid var(--wa-line);
-}
-.wa-modal-head-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-}
-.wa-modal-id h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-.wa-modal-id .wa-sub {
-  margin: 3px 0 0;
-}
-.wa-modal-loading {
-  display: flex;
-  justify-content: center;
-  padding: 40px 0;
-}
 .wa-modal-body {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -995,13 +652,6 @@
 }
 
 @media (max-width: 900px) {
-  .wa-modal-backdrop {
-    padding: 12px;
-  }
-  .wa-modal {
-    max-height: calc(100vh - 24px);
-    border-radius: 14px;
-  }
   .wa-modal-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1176,12 +826,6 @@
   min-width: 0;
   width: 100%;
 }
-.wa-field-label {
-  font-size: 0.74rem;
-  color: var(--wa-muted);
-  font-weight: 600;
-}
-
 .wa-review-empty {
   display: flex;
   flex-direction: column;
@@ -1298,6 +942,28 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* The child's view, rendered read-only inside the review panel. */
+.wa-preview {
+  border: 1px dashed var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+  padding: 8px 10px;
+}
+.wa-preview summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--wa-ink);
+}
+.wa-preview[open] summary {
+  margin-bottom: 8px;
+}
+.wa-preview-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 2px;
 }
 .wa-differentiation {
   display: flex;
@@ -1428,13 +1094,6 @@
 .wa-list-option:has(input:focus-visible) {
   outline: 2px solid var(--wa-teal);
   outline-offset: 2px;
-}
-.wa-field input[type="checkbox"] {
-  min-width: 16px;
-  flex-shrink: 0;
-  padding: 0;
-  accent-color: var(--wa-teal);
-  cursor: pointer;
 }
 .wa-list-option input {
   margin: 0;
@@ -1578,8 +1237,8 @@
 }
 .wa-word-use-actions .btn.is-active,
 .wa-word-use-actions .btn[aria-pressed="true"] {
-  color: var(--wa-primary, #0d9488);
-  background: color-mix(in srgb, var(--wa-primary, #0d9488) 10%, transparent);
+  color: var(--wa-primary, var(--primary-600));
+  background: color-mix(in srgb, var(--wa-primary, var(--primary-600)) 10%, transparent);
 }
 .wa-word-use-unused {
   display: flex;
@@ -2482,6 +2141,45 @@
 .wa-ana-note .wa-hint {
   display: block;
   font-size: 0.72rem;
+}
+.wa-ana-unverified {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--wa-muted);
+  font-style: italic;
+}
+.wa-ana-conflict {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #d97706 40%, var(--wa-line));
+  background: color-mix(in srgb, #d97706 6%, var(--wa-surface));
+  font-size: 0.84rem;
+  color: var(--wa-ink);
+}
+.wa-ana-conflict-chip {
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #b45309;
+  border: 1px solid color-mix(in srgb, #d97706 40%, var(--wa-line));
+  background: color-mix(in srgb, #d97706 8%, transparent);
+}
+.wa-ana-growth-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wa-line);
+}
+.wa-ana-growth-evidence h4 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+.wa-ana-growth-evidence blockquote {
+  margin: 0 0 4px;
 }
 .wa-ana-evidence-actions {
   display: flex;

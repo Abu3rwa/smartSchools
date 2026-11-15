@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { progressOf } from "./analysisPresentation.js";
 
-export default function AnalysisProgress({ analysis }) {
+export default function AnalysisProgress({ analysis, stalled = false, onCheckAgain }) {
   const { t } = useTranslation(["writing"]);
   const progress = progressOf(analysis);
   const percent = progress.total
@@ -42,6 +42,17 @@ export default function AnalysisProgress({ analysis }) {
             n: progress.failed,
           })}
         </p>
+      )}
+
+      {stalled && (
+        <div className="wa-ana-banner is-warning">
+          <p>{t("writing:teacher.analysis.progressStalled")}</p>
+          {onCheckAgain && (
+            <button type="button" className="btn btn-secondary" onClick={onCheckAgain}>
+              {t("writing:teacher.analysis.checkAgain")}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

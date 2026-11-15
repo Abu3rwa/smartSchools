@@ -19,6 +19,7 @@ import {
   rubricHtml,
   rubricText,
 } from "./writingFeedbackEmailBlocks.js";
+import { fillStudentTokensDeep } from "./aiPromptSafety.js";
 
 /**
  * The one email the writing module sends: feedback was published for a draft.
@@ -79,6 +80,7 @@ const COPY = {
     rubricLabel: "How the draft is going",
     rubricLevel: { strong: "Strong", near: "Nearly there", needs: "Needs work" },
     draftTruncated: "The rest of your draft is in the app.",
+    parentDraftTruncated: "The rest of the draft is in the app.",
     sectionsLabel: "Feedback by part",
     workedLabel: "What worked",
     tryThisLabel: "Try this",
@@ -93,8 +95,8 @@ const COPY = {
     comparisonSections: "Part by part",
     comparisonKind: { changed: "Changed", added: "New part", removed: "Removed part" },
     comparisonWinsLabel: "Spelling words you used",
+    parentComparisonWinsLabel: "Spelling words from the list found in the draft",
     studentButton: "Open my writing",
-    parentButton: "See the feedback",
     statusSteps: ["Sent", "Feedback", "Revising", "Notebook", "Done"],
     statusLabel: "Where the piece is now",
     statusNow: "Now: writing draft {{n}}",
@@ -128,6 +130,7 @@ const COPY = {
       needs: "يحتاج إلى عمل",
     },
     draftTruncated: "بقية المسودة في التطبيق.",
+    parentDraftTruncated: "بقية المسودة في التطبيق.",
     sectionsLabel: "ملاحظات على كل جزء",
     workedLabel: "ما نجح",
     tryThisLabel: "جرّب هذا",
@@ -142,8 +145,8 @@ const COPY = {
     comparisonSections: "جزءًا بجزء",
     comparisonKind: { changed: "تغيّر", added: "جزء جديد", removed: "جزء محذوف" },
     comparisonWinsLabel: "كلمات التهجئة التي استخدمتها",
+    parentComparisonWinsLabel: "كلمات التهجئة من القائمة التي ظهرت في المسودة",
     studentButton: "عرض كتابتي",
-    parentButton: "عرض الملاحظات",
     statusSteps: ["أُرسلت", "الملاحظات", "المراجعة", "الكراس", "انتهى"],
     statusLabel: "أين وصلت المسودة",
     statusNow: "الآن: كتابة المسودة {{n}}",
@@ -405,18 +408,33 @@ export const buildFeedbackEmail = ({
   role = "student",
   language = "en",
   studentFirstName = "",
+  studentName = "",
   schoolName = "",
   assignment = {},
   project = {},
   draft = {},
-  assessment = {},
-  comparison = null,
+  assessment: rawAssessment = {},
+  comparison: rawComparison = null,
   url = "",
   resend = false,
 } = {}) => {
+  // A name slot can arrive after the AI run — a teacher edit, or a reply stored
+  // before filling moved here — so it is filled again at the point of sending.
+  const name = String(studentName || studentFirstName || "").trim();
+  const assessment = fillStudentTokensDeep(rawAssessment, name);
+  const comparison = fillStudentTokensDeep(rawComparison, name);
   const lang = languageOf(language);
-  const copy = COPY[lang];
+  const base = COPY[lang];
   const isParent = role === "parent";
+  // A guardian is not addressed as "you": the two strings below are written for
+  // the student's own copy of the email.
+  const copy = isParent
+    ? {
+        ...base,
+        draftTruncated: base.parentDraftTruncated,
+        comparisonWinsLabel: base.parentComparisonWinsLabel,
+      }
+    : base;
   const intro = resend
     ? isParent
       ? copy.parentResendIntro
@@ -545,10 +563,11 @@ export const buildFeedbackEmail = ({
           ? labelHtml(copy.sectionsLabel, lang) +
             sectionsHtml(sections, lang, copy)
           : "",
-      buttonHtml: buttonHtml({
-        url,
-        label: isParent ? copy.parentButton : copy.studentButton,
-      }),
+      // No parent button: there is no parent writing page, and the email already
+      // carries the draft and every note. A link no role can open is worse than none.
+      buttonHtml: isParent
+        ? ""
+        : buttonHtml({ url, label: copy.studentButton }),
     },
   );
 
@@ -678,6 +697,7 @@ const prepareFeedbackDelivery = async ({
     resend,
     schoolName: String(school?.name || "").trim(),
     studentFirstName: firstWord(student.firstName),
+    studentName: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
     assignment: assignment || {},
     project,
     draft,
@@ -714,6 +734,10 @@ const sendFeedbackDelivery = async ({ messages, missing }, schoolId, senderUserI
           ...message,
           schoolId,
           preferredUserId: senderUserId,
+          // Feedback is the teacher's own words; it must not leave from the
+          // school's shared SMTP account.
+          allowAdminFallback: false,
+          allowSmtp: false,
         });
         results.push({ email, status: "sent" });
       } catch (error) {
@@ -728,15 +752,90 @@ const sendFeedbackDelivery = async ({ messages, missing }, schoolId, senderUserI
   return { results, missing };
 };
 
+/**
+ * Publish answers before the mail leaves, so what happened to the family email
+ * has to be written down. `pending` goes in before any await: a send that dies
+ * mid-flight must look recorded-and-unfinished, not never-attempted.
+ */
+export const beginEmailDelivery = async ({ schoolId, assessmentId, notify }) => {
+  if (!mongoose.isValidObjectId(String(assessmentId || ""))) return;
+  const set = {
+    "publish.email.status": "pending",
+    "publish.email.lastAttemptAt": new Date(),
+  };
+  if (notify && (notify.student || notify.parents)) {
+    set["publish.email.channels.student"] = Boolean(notify.student);
+    set["publish.email.channels.parents"] = Boolean(notify.parents);
+  }
+  await WritingAssessment.updateOne(
+    { school: schoolId, _id: assessmentId },
+    { $inc: { "publish.email.attempts": 1 }, $set: set },
+  ).catch((error) =>
+    logger.warn("writing_feedback_email_record_failed", {
+      error: error?.message,
+    }),
+  );
+};
+
+const deliveryOutcome = (result) => {
+  if (!result) return { status: "failed", lastError: "no result" };
+  if (result.skipped) {
+    return result.skipped === "error"
+      ? { status: "failed", lastError: "send failed" }
+      : { status: "skipped", skippedReason: result.skipped };
+  }
+  const results = result.results || [];
+  const sent = results.filter((row) => row.status === "sent").length;
+  if (!results.length) return { status: "skipped", skippedReason: "empty" };
+  if (!sent)
+    return { status: "failed", lastError: "every recipient failed", recipients: results.length };
+  if (sent < results.length)
+    return { status: "partial", lastError: "some recipients failed", recipients: results.length };
+  return { status: "sent", recipients: results.length };
+};
+
+export const recordEmailDelivery = async ({ schoolId, assessmentId, result }) => {
+  if (!mongoose.isValidObjectId(String(assessmentId || ""))) return;
+  const outcome = deliveryOutcome(result);
+  const set = {
+    "publish.email.status": outcome.status,
+    "publish.email.lastError": outcome.lastError || "",
+    "publish.email.skippedReason": outcome.skippedReason || "",
+  };
+  if (outcome.recipients !== undefined)
+    set["publish.email.recipients"] = outcome.recipients;
+  // sentAt is the last delivery that worked; a later failed resend must not
+  // erase the fact that the family already has a copy.
+  if (outcome.status === "sent" || outcome.status === "partial")
+    set["publish.email.sentAt"] = new Date();
+  await WritingAssessment.updateOne(
+    { school: schoolId, _id: assessmentId },
+    { $set: set },
+  ).catch((error) =>
+    logger.warn("writing_feedback_email_record_failed", {
+      error: error?.message,
+    }),
+  );
+};
+
 export const notifyFeedbackPublished = async (context) => {
+  const delivery = {
+    schoolId: context.schoolId,
+    assessmentId: context.assessment?._id,
+  };
+  await beginEmailDelivery({ ...delivery, notify: context.notify });
+  let result;
   try {
     const prepared = await prepareFeedbackDelivery(context);
-    if (prepared.skipped) return prepared;
-    return await sendFeedbackDelivery(prepared, context.schoolId, context.userId);
+    result = prepared.skipped
+      ? prepared
+      : await sendFeedbackDelivery(prepared, context.schoolId, context.userId);
   } catch (error) {
     logger.error("writing_feedback_email_error", { error: error?.message });
-    return { skipped: "error" };
+    result = { skipped: "error" };
   }
+  await recordEmailDelivery({ ...delivery, result });
+  return result;
 };
 
 const emailError = (message, statusCode, code) =>
@@ -879,11 +978,19 @@ export const previewPublishedFeedbackEmail = async (context) => {
 
 export const resendPublishedFeedbackEmail = async (context) => {
   const prepared = await preparePublishedFeedback(context);
+  const delivery = {
+    schoolId: context.schoolId,
+    assessmentId: context.assessmentId,
+  };
+  // A resend is a new attempt on the same record: the review screen must show
+  // "sent" or "failed" from the attempt that actually ran, not from publish day.
+  await beginEmailDelivery({ ...delivery, notify: context.notify });
   const { results, missing } = await sendFeedbackDelivery(
     prepared,
     context.schoolId,
     context.userId,
   );
+  await recordEmailDelivery({ ...delivery, result: { results, missing } });
   return {
     sent: results.filter((row) => row.status === "sent").length,
     failed: results.filter((row) => row.status === "failed").length,

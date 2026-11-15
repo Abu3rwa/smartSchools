@@ -1,5 +1,5 @@
 .parent-updates {
-    --pu-accent: #0f766e;
+    --pu-accent: var(--primary-700);
     --pu-accent-soft: #ecfdf5;
     --pu-line: var(--border-color, #e2e8f0);
     --pu-ink: var(--text-primary, #0f172a);

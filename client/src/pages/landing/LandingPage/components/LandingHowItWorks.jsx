@@ -50,7 +50,7 @@ export default function LandingHowItWorks({ content }) {
                                     mx: 'auto',
                                     mb: 2,
                                     flexShrink: 0,
-                                    boxShadow: '0 8px 24px rgba(13, 148, 136, 0.25)',
+                                    boxShadow: '0 8px 24px rgba(var(--accent-primary-rgb), 0.25)',
                                 }}
                             >
                                 {index + 1}

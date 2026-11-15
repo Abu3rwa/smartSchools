@@ -43,6 +43,7 @@ export default function WritingAssignmentsPage() {
     openAssignment,
     editAssignment,
     newAssignment,
+    deactivate,
   } = useWritingAssignmentsData();
 
   const formatDate = (value) => new Date(value).toLocaleDateString(i18n.language, {
@@ -169,7 +170,7 @@ export default function WritingAssignmentsPage() {
                     <span className="wa-task-meta">
                       {t(`writing:teacher.types.${assignment.writingType}`)}
                       {" · "}
-                      {t("writing:teacher.sectionCount", { n: (assignment.sections || []).length })}
+                      {t("writing:teacher.sectionCount", { n: assignment.sectionCount ?? (assignment.sections || []).length })}
                       {" · "}
                       {t("writing:teacher.totalPoints", { n: assignment.totalPoints || 0 })}
                     </span>
@@ -203,6 +204,9 @@ export default function WritingAssignmentsPage() {
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => editAssignment(assignment._id)}>
                         <HiOutlinePencilAlt size={14} aria-hidden="true" />
                         {t("writing:teacher.edit")}
+                      </button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => deactivate(assignment._id)}>
+                        {t("writing:teacher.closeTask")}
                       </button>
                     </div>
                   </td>

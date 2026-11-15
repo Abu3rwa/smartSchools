@@ -15,6 +15,7 @@ import {
     FEATURE_KEYS,
     FEATURES,
     getDefaultPlanConfig,
+    getFeaturesForPlan,
     getPlanName,
     isRecognizedPlan,
     normalizePlan,
@@ -94,7 +95,7 @@ const ensureDefaultPlansExist = async (userId = null) => {
     }
 };
 
-const serializePlan = (planDoc) => {
+export const serializePlan = (planDoc) => {
     const plan = toPlainObject(planDoc);
     const normalizedKey = normalizePlan(plan.key);
 
@@ -104,7 +105,13 @@ const serializePlan = (planDoc) => {
         name: plan.name || getPlanName(normalizedKey),
         description: plan.description || '',
         limits: plan.limits || {},
-        features: normalizeFeaturePayload(plan.features),
+        // Features the stored plan never knew about fall back to the plan
+        // default from the FEATURES catalog, so a newly added feature shows
+        // up in the plan editor already ticked for the plans that include it.
+        features: normalizeFeaturePayload({
+            ...getFeaturesForPlan(normalizedKey),
+            ...plan.features
+        }),
         billing: {
             amount: plan.billing?.amount ?? 0,
             currency: plan.billing?.currency || 'USD',

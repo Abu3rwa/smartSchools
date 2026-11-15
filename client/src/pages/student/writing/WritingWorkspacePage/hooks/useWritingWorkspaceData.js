@@ -14,6 +14,33 @@ const EMPTY = {
   nextAction: null,
 };
 
+const UNSAVED_PREFIX = "writing.unsaved:";
+const unsavedKey = (projectId) => `${UNSAVED_PREFIX}${projectId}`;
+
+// A flush that could not reach the server keeps the text until the next load.
+const stashUnsaved = (projectId, payload) => {
+  try {
+    window.localStorage.setItem(
+      unsavedKey(projectId),
+      JSON.stringify({ ...payload, at: Date.now() }),
+    );
+  } catch {
+    // Storage full or blocked; nothing else can be done on the way out.
+  }
+};
+
+const takeUnsaved = (projectId) => {
+  try {
+    const raw = window.localStorage.getItem(unsavedKey(projectId));
+    if (!raw) return null;
+    window.localStorage.removeItem(unsavedKey(projectId));
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.sections) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 export function useWritingWorkspaceData() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -21,6 +48,7 @@ export function useWritingWorkspaceData() {
 
   const [data, setData] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [working, setWorking] = useState([]);
   const [title, setTitle] = useState("");
   const [saveState, setSaveState] = useState("idle");
@@ -28,27 +56,41 @@ export function useWritingWorkspaceData() {
   const [attempt, setAttempt] = useState(0);
   const dirty = useRef(false);
   const timer = useRef(null);
+  // Bumped by every load and submit, so a late autosave response cannot resurrect an older stage.
+  const generation = useRef(0);
 
   useEffect(() => {
     let active = true;
+    generation.current += 1;
     setLoading(true);
+    setFailed(false);
     writingService
       .getProject(projectId)
       .then((payload) => {
         if (!active) return;
+        const unsaved = takeUnsaved(projectId);
+        const serverSavedAt = payload.project.autosave.savedAt;
+        const localIsNewer =
+          unsaved &&
+          (!serverSavedAt ||
+            Number(unsaved.at) > new Date(serverSavedAt).getTime());
         setData(payload);
-        setWorking(payload.project.autosave.sections);
-        setTitle(payload.project.autosave.title || "");
-        setSavedAt(payload.project.autosave.savedAt);
-        setSaveState("idle");
-      })
-      .catch((error) => {
-        if (active) {
-          toast.error(
-            error?.response?.data?.message || t("writing:student.loadFailed"),
-          );
-          navigate("/portal/writing");
+        if (localIsNewer) {
+          setWorking(unsaved.sections);
+          setTitle(unsaved.title || "");
+          setSavedAt(serverSavedAt);
+          dirty.current = true;
+          setSaveState("pending");
+        } else {
+          setWorking(payload.project.autosave.sections);
+          setTitle(payload.project.autosave.title || "");
+          setSavedAt(serverSavedAt);
+          setSaveState("idle");
         }
+      })
+      .catch(() => {
+        // Stay on the page and say the load failed; bouncing to the feed would look like the task vanished.
+        if (active) setFailed(true);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -56,7 +98,7 @@ export function useWritingWorkspaceData() {
     return () => {
       active = false;
     };
-  }, [attempt, navigate, projectId, t]);
+  }, [attempt, projectId]);
 
   const readOnly = useMemo(() => {
     const stage = data.project?.stage;
@@ -82,12 +124,14 @@ export function useWritingWorkspaceData() {
     timer.current = setTimeout(async () => {
       if (!dirty.current) return;
       dirty.current = false;
+      const gen = generation.current;
       setSaveState("saving");
       try {
         const result = await writingService.autosave(
           projectId,
           payload.current,
         );
+        if (gen !== generation.current) return;
         setSavedAt(result.savedAt);
         setSaveState("saved");
         setData((current) => ({
@@ -99,6 +143,7 @@ export function useWritingWorkspaceData() {
           },
         }));
       } catch (error) {
+        if (gen !== generation.current) return;
         setSaveState("idle");
         toast.error(
           error?.response?.data?.message || t("writing:student.saveFailed"),
@@ -115,7 +160,10 @@ export function useWritingWorkspaceData() {
     () => () => {
       if (!dirty.current) return;
       dirty.current = false;
-      writingService.autosave(projectId, payload.current).catch(() => {});
+      const payloadToFlush = payload.current;
+      writingService.autosave(projectId, payloadToFlush).catch(() => {
+        stashUnsaved(projectId, payloadToFlush);
+      });
     },
     [projectId],
   );
@@ -202,6 +250,7 @@ export function useWritingWorkspaceData() {
 
   const submit = useCallback(async () => {
     dirty.current = false;
+    generation.current += 1;
     if (timer.current) clearTimeout(timer.current);
     setSaveState("idle");
     try {
@@ -260,6 +309,7 @@ export function useWritingWorkspaceData() {
     data,
     editSection,
     editTitle,
+    failed,
     feedback,
     latestDraft,
     loading,

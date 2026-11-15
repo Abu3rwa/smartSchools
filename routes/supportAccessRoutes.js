@@ -7,9 +7,11 @@ import {
     checkIn,
     getSurvey,
     hub,
+    noConcerns,
     requireSupportAccess,
     resolveCode,
     saveSurvey,
+    skip,
     submitSurvey,
 } from '../controllers/supportAccessController.js';
 
@@ -24,6 +26,8 @@ router.get('/hub', hub);
 router.get('/surveys/:surveyId', getSurvey);
 router.put('/surveys/:surveyId/answers', saveSurvey);
 router.post('/surveys/:surveyId/submit', submitSurvey);
+router.post('/surveys/:surveyId/no-concerns', noConcerns);
+router.post('/surveys/:surveyId/skip', skip);
 router.post('/plans/:planId/checkins', checkIn);
 
 export default router;

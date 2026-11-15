@@ -4,6 +4,7 @@ import Student from '../models/Student.js';
 import Subject from '../models/Subject.js';
 import Teacher from '../models/Teacher.js';
 import { isHomeroomSubject } from './plpAccessService.js';
+import { isValidEmail } from '../utils/newsletterRecipients.js';
 import SupportCheckIn from '../models/SupportCheckIn.js';
 import SupportCycle from '../models/SupportCycle.js';
 import SupportPlan from '../models/SupportPlan.js';
@@ -498,6 +499,9 @@ export const addExternalTeacher = async ({
     const cleanEmail = String(email || '').trim().toLowerCase();
     if (!cleanName || !cleanEmail) {
         throw supportError(400, 'EXTERNAL_FIELDS', 'Add the teacher name and email.');
+    }
+    if (!isValidEmail(cleanEmail)) {
+        throw supportError(400, 'EXTERNAL_EMAIL_INVALID', 'Enter a valid email address for this teacher.');
     }
     if (!mongoose.isValidObjectId(subjectId)) {
         throw supportError(400, 'SUBJECT_INVALID', 'Choose the subject this teacher covers.');

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { getGoogle } from '../services/googleApiClient.js';
+import { getGoogle, isGoogleConfigured } from '../services/googleApiClient.js';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
@@ -22,6 +22,39 @@ import { encryptSecret, decryptSecret } from '../utils/secretCrypto.js';
 import logger from '../utils/logger.js';
 
 const DEFAULT_CLIENT_URL = getClientUrl();
+
+const accountRoles = (user) => (
+    Array.isArray(user?.roles) && user.roles.length ? user.roles : [user?.role].filter(Boolean)
+);
+
+/**
+ * A teacher who is not also an admin. Admins keep the password door because
+ * support preview and impersonation flows depend on it.
+ */
+export const isTeacherOnlyAccount = (user) => {
+    const roles = accountRoles(user);
+    return roles.includes('teacher')
+        && !roles.includes('admin')
+        && !roles.includes('super_admin');
+};
+
+/**
+ * Every reason the Google callback must refuse a sign-in, as a single word the
+ * login page can turn into a sentence. Empty means the sign-in may continue.
+ */
+export const googleSignInIssue = ({ user, schoolId, role }) => {
+    if (user && user.isActive === false) return 'account_inactive';
+    if (user && role === 'teacher' && !accountRoles(user).includes('teacher')) {
+        return 'not_teacher';
+    }
+    if (user && user.school && schoolId && String(user.school) !== String(schoolId)) {
+        return 'school_mismatch';
+    }
+    // A public page must never mint school accounts: without a school in the
+    // link there is nowhere to attach a new teacher.
+    if (!user && !schoolId) return 'no_account';
+    return '';
+};
 
 const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
 
@@ -197,6 +230,17 @@ export const login = asyncHandler(async (req, res) => {
         });
     }
 
+    // Teachers sign in with Google so their mail leaves from their own
+    // mailbox instead of the school's SMTP account. The flag stays off until
+    // every client has a Google door; see docs/plans/login-google-theme.
+    if (process.env.TEACHER_GOOGLE_ONLY === 'true' && isTeacherOnlyAccount(user)) {
+        return res.status(403).json({
+            success: false,
+            code: 'TEACHER_GOOGLE_ONLY',
+            message: 'Teachers sign in with Google. Use "Continue with Google" on the login page.'
+        });
+    }
+
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -292,6 +336,9 @@ export const getMe = asyncHandler(async (req, res) => {
                 avatar: user.avatar,
                 lastLogin: user.lastLogin,
                 mustChangePassword: user.mustChangePassword,
+                // Screens can say "reconnect Google to send mail" instead of
+                // failing silently when the token is gone.
+                gmailConnected: Boolean(user.hasGmailConnected?.()),
                 permissions: user.permissions || [],
                 permissionScopes: user.permissionScopes || {},
                 uiPreferences: {
@@ -816,7 +863,7 @@ export const endSchoolAdminPreview = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
-    const { schoolSlug, frontendOrigin } = req.query;
+    const { schoolSlug, frontendOrigin, role } = req.query;
 
     // Check if Google OAuth credentials are configured
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -844,6 +891,9 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     // Step 3: Prepare signed state with school context (CSRF protection)
     const statePayload = { nonce: crypto.randomBytes(16).toString('hex') };
     if (schoolSlug) statePayload.schoolSlug = schoolSlug;
+    // Which door the sign-in started from. It is signed with the state, so the
+    // callback can refuse a Google account that is not a teacher.
+    if (role === 'teacher') statePayload.role = 'teacher';
     if (frontendOrigin) statePayload.frontendOrigin = resolveSafeClientUrl(frontendOrigin);
     const state = jwt.sign(statePayload, process.env.JWT_SECRET, { expiresIn: '10m' });
 
@@ -858,6 +908,18 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         authUrl
+    });
+});
+
+/**
+ * @desc    Report whether Google sign-in can be offered on this deployment
+ * @route   GET /api/auth/google/status
+ * @access  Public
+ */
+export const getGoogleAuthStatus = asyncHandler(async (req, res) => {
+    res.json({
+        success: true,
+        data: { configured: isGoogleConfigured() }
     });
 });
 
@@ -920,6 +982,13 @@ export const googleCallback = asyncHandler(async (req, res) => {
         // Step 6: Find or create user in our database
         let user = await User.findOne({ email: googleUser.email }).setOptions({ skipTenantFilter: true });
         let isNewUser = false;
+
+        // Deactivated accounts, the wrong door and the wrong school are
+        // refused before any token is issued or any token is stored.
+        const issue = googleSignInIssue({ user, schoolId, role: state.role });
+        if (issue) {
+            return res.redirect(`${clientUrl}/login?error=${encodeURIComponent(issue)}`);
+        }
 
         if (!user) {
             // New user - create account

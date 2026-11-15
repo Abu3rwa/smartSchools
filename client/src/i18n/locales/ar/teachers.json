@@ -54,7 +54,7 @@
     "assign": "توزيع",
     "deleteTeacher": "حذف المعلم",
     "copyEmail": "نسخ البريد",
-    "copyPassword": "نسخ كلمة المرور",
+    "copyLink": "نسخ رابط الدخول",
     "copyAll": "نسخ الكل",
     "downloadCsv": "تنزيل CSV",
     "creating": "جارٍ الإنشاء...",
@@ -116,14 +116,16 @@
   "credentials": {
     "singleTitle": "دعوة دخول المعلم",
     "bulkTitle": "دعوات دخول جماعية للمعلمين",
-    "copyNow": "انسخ هذه البيانات الآن!",
-    "copyOrDownloadNow": "انسخ أو نزّل هذه البيانات الآن!",
-    "passwordCannotBeViewedAgain": "لا يمكن عرض كلمة المرور مرة أخرى.",
-    "passwordsCannotBeViewedAgain": "لا يمكن عرض كلمات المرور مرة أخرى.",
+    "copyNow": "يدخل المعلمون باستخدام حساب Google.",
+    "copyOrDownloadNow": "شارك بيانات الدخول هذه إذا لم يصل بريد الدعوة.",
+    "passwordCannotBeViewedAgain": "لا توجد كلمة مرور لمشاركتها.",
+    "passwordsCannotBeViewedAgain": "لا يتم إنشاء كلمات مرور للمعلمين.",
     "password": "كلمة المرور",
+    "googleSignIn": "الدخول بحساب Google",
+    "googleHint": "سجّل الدخول بحساب Google باستخدام هذا البريد. لا تُرسل كلمة مرور.",
     "issues": "المشكلات",
     "deliveryIssue": "مشكلة في الإرسال",
-    "emailDeliveredHint": "تمت محاولة إرسال البريد لكل المعلمين المحددين. استخدم بيانات الاعتماد الاحتياطية المنسوخة عندما يفشل التسليم."
+    "emailDeliveredHint": "تمت محاولة إرسال بريد الدعوة لكل المعلمين المحددين. شارك صفحة الدخول مع أي معلم لم يصله البريد."
   },
   "toast": {
     "created": "تم إنشاء المعلم بنجاح!",

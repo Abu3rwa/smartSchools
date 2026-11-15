@@ -67,7 +67,7 @@
 .assignments-page__tabs [role="tab"].is-active {
   color: var(--primary);
   background: var(--stat-primary-bg);
-  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-primary-rgb), 0.25);
 }
 
 .assignments-page__tabs [role="tab"]:focus-visible {
@@ -137,7 +137,7 @@
 .assignments-kpi__icon--teal {
   background: var(--stat-primary-bg);
   color: var(--primary);
-  border-color: rgba(20, 184, 166, 0.28);
+  border-color: rgba(var(--accent-primary-rgb), 0.28);
 }
 
 .assignments-kpi__icon--blue {
@@ -280,7 +280,7 @@
 .assignments-status-tab.is-active .assignments-status-tab__count {
   background: var(--stat-primary-bg);
   color: var(--primary);
-  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-primary-rgb), 0.25);
 }
 
 .assignments-sort {
@@ -406,7 +406,7 @@
   flex-wrap: wrap;
   padding: 10px 20px;
   background: var(--stat-primary-bg);
-  border-bottom: 1px solid rgba(20, 184, 166, 0.25);
+  border-bottom: 1px solid rgba(var(--accent-primary-rgb), 0.25);
 }
 
 .assignments-bulkbar strong {
@@ -428,7 +428,7 @@
 }
 
 .assignments-bulkbar__button:hover:not(:disabled) {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(var(--accent-primary-rgb), 0.12);
 }
 
 .assignments-bulkbar__button:disabled {
@@ -438,7 +438,7 @@
 
 .assignments-bulkbar__select {
   height: 32px;
-  border: 1px solid rgba(20, 184, 166, 0.35);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.35);
   border-radius: 7px;
   background: var(--bg-primary);
   color: var(--text-secondary);
@@ -892,7 +892,7 @@
 
 .assignments-pager button.is-current {
   background: var(--stat-primary-bg);
-  border-color: rgba(20, 184, 166, 0.3);
+  border-color: rgba(var(--accent-primary-rgb), 0.3);
   color: var(--primary);
 }
 

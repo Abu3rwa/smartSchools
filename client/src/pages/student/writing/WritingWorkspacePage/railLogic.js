@@ -16,6 +16,18 @@ export const wordMatches = (row, query) => {
 };
 
 /**
+ * Every word the student has written, matched the way the server counts them:
+ * Unicode letters, so a draft written in Arabic ticks Arabic word-bank rows too.
+ */
+export const usedWordSet = (sections = []) =>
+  new Set(
+    (sections || [])
+      .map((row) => String(row?.text || "").toLowerCase())
+      .join(" ")
+      .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || [],
+  );
+
+/**
  * The server counts the word, its base form, and common inflections, so the
  * tick uses the same set instead of only the exact word.
  */

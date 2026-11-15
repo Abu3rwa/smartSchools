@@ -1,4 +1,6 @@
+import { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { countLabel } from "../../../../utils/countText.js";
 import {
   HiOutlineChat,
   HiOutlineCheckCircle,
@@ -49,10 +51,15 @@ export function FeedbackForSection({ note, number = 0 }) {
   );
 }
 
-export default function SectionCard({
+/**
+ * One section's editor. Memoised: typing in one paragraph must not re-render
+ * every other paragraph and its feedback.
+ */
+function SectionCard({
   canAdd,
   canRemove,
   definition,
+  label,
   note,
   onChange,
   onAdd,
@@ -66,13 +73,17 @@ export default function SectionCard({
   const words = countWords(section.text);
   const minWords = Number(definition?.minWords) || 0;
   const short = minWords > 0 && words < minWords;
+  const attachEditor = useCallback(
+    (node) => registerEditor(section.key, section.index, node),
+    [registerEditor, section.key, section.index],
+  );
 
   return (
     <section className="ws-section">
       <header className="ws-section-head">
-        <h3>{definition?.label || section.label || definition?.key}</h3>
+        <h3>{label || definition?.label || section.label || definition?.key}</h3>
         <span className={`ws-count${short ? " is-short" : ""}`}>
-          {t("writing:student.words", { n: words })}
+          {countLabel(t, "writing:student.wordCount", words)}
           {minWords > 0 && (
             <> / {t("writing:student.minWords", { n: minWords })}</>
           )}
@@ -84,18 +95,20 @@ export default function SectionCard({
       )}
 
       <textarea
-        ref={registerEditor}
+        ref={attachEditor}
         value={section.text}
         readOnly={readOnly}
-        rows={Math.min(14, Math.max(5, Math.ceil(words / 12)))}
+        // A fixed number of rows: growing by word count shifted the caret viewport
+        // under the child's hands. Height still follows the text through CSS.
+        rows={8}
         onChange={(event) =>
           onChange(section.key, section.index, event.target.value)
         }
-        onFocus={onFocus}
+        onFocus={() => onFocus(section.key, section.index)}
         data-paste-key={section.key}
         data-paste-index={section.index}
         placeholder={t("writing:student.sectionPlaceholder")}
-        aria-label={definition?.label || section.key}
+        aria-label={label || definition?.label || section.key}
       />
 
       {definition?.criteria?.length > 0 && (
@@ -114,7 +127,7 @@ export default function SectionCard({
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              onClick={onAdd}
+              onClick={() => onAdd(definition)}
             >
               <HiOutlinePlus size={15} aria-hidden="true" />
               {t("writing:student.addAnother", {
@@ -126,7 +139,7 @@ export default function SectionCard({
             <button
               type="button"
               className="btn btn-ghost btn-sm ws-remove"
-              onClick={onRemove}
+              onClick={() => onRemove(`${section.key}:${section.index}`)}
             >
               <HiOutlineTrash size={15} aria-hidden="true" />
               {t("writing:student.removeSection")}
@@ -137,3 +150,5 @@ export default function SectionCard({
     </section>
   );
 }
+
+export default memo(SectionCard);

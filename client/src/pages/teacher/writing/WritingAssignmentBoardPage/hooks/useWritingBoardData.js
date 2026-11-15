@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import writingService from "../../../../../services/writingService.js";
-import { creditErrorMessage, isCreditError } from "../../../../../utils/aiCredit.js";
+import { creditErrorMessage } from "../../../../../utils/aiCredit.js";
 
 export function useWritingBoardData() {
   const { assignmentId } = useParams();
@@ -12,11 +12,13 @@ export function useWritingBoardData() {
 
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [stageFilter, setStageFilter] = useState("");
   const [search, setSearch] = useState("");
   const [projectId, setProjectId] = useState("");
   const [history, setHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFailed, setHistoryFailed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [batchPending, setBatchPending] = useState(false);
   const loadedBoard = useRef(false);
@@ -30,9 +32,11 @@ export function useWritingBoardData() {
         if (!active) return;
         loadedBoard.current = true;
         setBoard(data);
+        setFailed(false);
       })
-      .catch((error) => {
-        if (active) toast.error(error?.response?.data?.message || "Could not load this writing task.");
+      .catch(() => {
+        // A failed board is not an empty class list; the page says so and offers a retry.
+        if (active) setFailed(true);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -43,19 +47,22 @@ export function useWritingBoardData() {
   useEffect(() => {
     if (!projectId) {
       setHistory(null);
+      setHistoryFailed(false);
       loadedHistory.current = "";
       return undefined;
     }
     let active = true;
     if (loadedHistory.current !== projectId) setHistoryLoading(true);
+    setHistoryFailed(false);
     writingService.getProjectHistory(projectId)
       .then((data) => {
         if (!active) return;
         loadedHistory.current = projectId;
         setHistory(data);
       })
-      .catch((error) => {
-        if (active) toast.error(error?.response?.data?.message || "Could not load that student.");
+      .catch(() => {
+        // Without this the modal fell back to a spinner that never stops.
+        if (active) setHistoryFailed(true);
       })
       .finally(() => {
         if (active) setHistoryLoading(false);
@@ -101,11 +108,19 @@ export function useWritingBoardData() {
         }));
       }
       if (result?.creditStopped) toast.error(t("writing:common.batchStopped"));
+      if (result?.budgetExhausted && result?.remaining > 0) {
+        toast(
+          t("writing:teacher.review.batchBudget", {
+            remaining: result.remaining,
+          }),
+        );
+      }
       refresh();
       return result;
     } catch (error) {
       toast.error(creditErrorMessage(error, t) || error?.response?.data?.message || t("writing:teacher.review.failed"));
-      if (isCreditError(error)) refresh();
+      // A timeout does not mean nothing was assessed: always re-read the board.
+      refresh();
       return null;
     } finally {
       setBatchPending(false);
@@ -119,7 +134,9 @@ export function useWritingBoardData() {
     batchPending,
     credit: board?.credit || null,
     emailDelivery: board?.emailDelivery || null,
+    failed,
     history,
+    historyFailed,
     historyLoading,
     loading,
     openStudent,

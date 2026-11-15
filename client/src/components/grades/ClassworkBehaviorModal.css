@@ -35,7 +35,7 @@
 }
 
 .classwork-behavior-eyebrow {
-    color: #0f766e;
+    color: var(--primary-700);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -60,7 +60,7 @@
     padding: 1rem;
     border-radius: 10px;
     background: #ecfdf5;
-    color: #115e59;
+    color: var(--primary-800);
     text-align: center;
 }
 
@@ -105,12 +105,12 @@
 }
 
 .classwork-behavior-rule.selected {
-    border-color: #0f766e;
-    background: #f0fdfa;
+    border-color: var(--primary-700);
+    background: var(--primary-50);
 }
 
 .classwork-behavior-rule strong {
-    color: #0f766e;
+    color: var(--primary-700);
 }
 
 .classwork-behavior-rule-label {
@@ -123,7 +123,7 @@
     width: 1rem;
     height: 1rem;
     margin: 0;
-    accent-color: #0f766e;
+    accent-color: var(--primary-700);
 }
 
 .classwork-behavior-rule-column.negative .classwork-behavior-rule strong {

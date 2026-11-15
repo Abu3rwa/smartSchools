@@ -87,8 +87,8 @@
 }
 
 .platform-refresh:hover:not(:disabled) {
-    border-color: var(--primary, #0d9488);
-    color: var(--primary, #0d9488);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 .platform-refresh:disabled {
@@ -173,8 +173,8 @@
 }
 
 .platform-kpi-icon.is-schools {
-    background: rgba(13, 148, 136, 0.12);
-    color: #0d9488;
+    background: rgba(var(--accent-primary-rgb), 0.12);
+    color: var(--primary-600);
 }
 
 .platform-kpi-icon.is-students {
@@ -253,7 +253,7 @@
     flex-shrink: 0;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--primary, #0d9488);
+    color: var(--primary);
     text-decoration: none;
     white-space: nowrap;
 }
@@ -376,7 +376,7 @@
     gap: 0.15rem;
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--primary, #0d9488);
+    color: var(--primary);
     white-space: nowrap;
 }
 
@@ -424,7 +424,7 @@
     height: 100%;
     min-width: 4px;
     border-radius: 999px;
-    background: var(--primary, #0d9488);
+    background: var(--primary);
 }
 
 .platform-plan-count {
@@ -465,11 +465,11 @@
 }
 
 .platform-chart-legend i.is-invoiced {
-    background: rgba(13, 148, 136, 0.28);
+    background: rgba(var(--accent-primary-rgb), 0.28);
 }
 
 .platform-chart-legend i.is-collected {
-    background: var(--primary, #0d9488);
+    background: var(--primary);
 }
 
 .platform-chart {
@@ -502,11 +502,11 @@
 }
 
 .platform-chart-bar.is-invoiced {
-    background: rgba(13, 148, 136, 0.28);
+    background: rgba(var(--accent-primary-rgb), 0.28);
 }
 
 .platform-chart-bar.is-collected {
-    background: var(--primary, #0d9488);
+    background: var(--primary);
 }
 
 .platform-chart-bar.is-students {
@@ -680,7 +680,7 @@
 }
 
 .platform-table-name:hover {
-    color: var(--primary, #0d9488);
+    color: var(--primary);
     text-decoration: underline;
 }
 
@@ -715,8 +715,8 @@
 }
 
 .platform-row-action:hover {
-    color: var(--primary, #0d9488);
-    border-color: var(--primary, #0d9488);
+    color: var(--primary);
+    border-color: var(--primary);
 }
 
 /* Status badges missing from the shared base sheet */
@@ -800,9 +800,9 @@
 
 .platform-error-retry {
     padding: 0.45rem 1rem;
-    border: 1px solid var(--primary, #0d9488);
+    border: 1px solid var(--primary);
     border-radius: 999px;
-    background: var(--primary, #0d9488);
+    background: var(--primary);
     color: #ffffff;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -820,7 +820,7 @@
 .platform-row-action:focus-visible,
 .platform-attention-row:focus-visible,
 .platform-error-retry:focus-visible {
-    outline: 2px solid var(--primary, #0d9488);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 

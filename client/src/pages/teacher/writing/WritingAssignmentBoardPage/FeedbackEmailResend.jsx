@@ -35,6 +35,7 @@ export default function FeedbackEmailResend({ history, emailDelivery, disabled }
   const preview = loadedPreview?.assessmentId === assessmentId ? loadedPreview : null;
   const message = preview?.previews.find((row) => row.role === previewRole) || preview?.previews[0];
   const label = (key, values) => t(`teacher.review.resend.${key}`, values);
+  const sentState = published.find((row) => row._id === assessmentId)?.publish?.email?.status;
   const recipientLabel = (role) => t(`teacher.review.${role === "student" ? "emailStudent" : "emailParents"}`);
 
   if (!published.length) return null;
@@ -99,14 +100,24 @@ export default function FeedbackEmailResend({ history, emailDelivery, disabled }
               ))}
             </select>
           </label>
+          {/* What the last send actually did. Publishing returns before the mail
+              leaves, so without this line a failure is invisible to the teacher. */}
+          {sentState && (
+            <p className={sentState === "failed" ? "wa-email-error" : "wa-hint"} role="status">
+              {label(`delivery.${sentState}`)}
+            </p>
+          )}
           <fieldset className="wa-review-notify" disabled={locked}>
             <legend className="wa-review-notify-label">{label("recipients")}</legend>
-            {[{ role: "student", allowed: emailDelivery?.students }, { role: "parents", allowed: emailDelivery?.parents }].filter((item) => item.allowed).map(({ role }) => (
+            {/* Both channels stay visible when gated off, like the publish panel:
+                hiding a channel leaves the teacher guessing why it is missing. */}
+            {[{ role: "student", allowed: emailDelivery?.students }, { role: "parents", allowed: emailDelivery?.parents }].map(({ role, allowed }) => (
               <label className="wa-review-check" key={role}>
-                <input type="checkbox" checked={notify[role]} onChange={(event) => { setNotify((current) => ({ ...current, [role]: event.target.checked })); clearPreview(); }} />
+                <input type="checkbox" checked={Boolean(allowed && notify[role])} disabled={!allowed} onChange={(event) => { setNotify((current) => ({ ...current, [role]: event.target.checked })); clearPreview(); }} />
                 <span>{recipientLabel(role)}</span>
               </label>
             ))}
+            {(!emailDelivery?.students || !emailDelivery?.parents) && <p className="wa-review-notify-hint">{label("disabled")}</p>}
           </fieldset>
           {!notify.student && !notify.parents && <p className="wa-hint">{label("chooseRecipients")}</p>}
           {error && <p className="wa-email-error" role="alert">{error}</p>}

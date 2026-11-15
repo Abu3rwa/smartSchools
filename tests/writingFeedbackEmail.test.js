@@ -13,7 +13,9 @@ import WritingDraft from '../models/WritingDraft.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
 
 import {
+    beginEmailDelivery,
     buildFeedbackEmail,
+    recordEmailDelivery,
     emailChannels,
     formatDueDate,
     notifyFeedbackPublished,
@@ -411,7 +413,9 @@ test('a parent email speaks in the teacher own voice instead of a third-person d
     assert.match(message.html, /I have read Areen&#39;s draft 2/);
     assert.match(message.html, /What I told Areen/);
     assert.match(message.html, /What I asked Areen to do next/);
-    assert.match(message.html, /See the feedback/);
+    // No parent writing page exists, so the parent email carries no link at all.
+    assert.equal(message.html.includes('https://portal.example.com/portal/writing/project/p1'), false);
+    assert.equal(message.html.includes('Open my writing'), false);
     assert.equal(message.html.includes('Do these next'), false);
     // First person belongs to the teacher who published: the parent is never
     // handed "the teacher" as some third party.
@@ -425,7 +429,7 @@ test('arabic feedback gets an arabic, right-to-left message', () => {
     assert.match(message.html, /lang="ar"/);
     assert.match(message.html, /ملاحظاتي على مسودة Areen 2/);
     assert.match(message.html, /ما طلبتُه من Areen بعد ذلك/);
-    assert.match(message.html, /عرض الملاحظات/);
+    assert.equal(message.html.includes('https://portal.example.com/portal/writing/project/p1'), false);
     assert.match(message.subject, /المسودة 2/);
 });
 
@@ -525,6 +529,9 @@ const stubDelivery = (t, overrides = {}) => {
         });
         t.mock.method(model.prototype, 'save', () => assert.fail('resend must not modify the writing workflow'));
     }
+    // The send is recorded on the assessment (status, attempts), but only in
+    // publish.email: stage, publish state and drafts stay untouched.
+    t.mock.method(WritingAssessment, 'updateOne', async () => ({ acknowledged: true }));
     t.mock.method(School, 'findOne', (filter) => {
         assert.equal(filter._id, ids.schoolId);
         return query({ name: 'Example School' });
@@ -682,9 +689,46 @@ test('resend deduplicates shared addresses and reports transport failures accura
     assert.deepEqual(shared, { sent: 1, failed: 0, missing: [] });
 });
 
+test('every send attempt leaves a record the review screen can read', async () => {
+    const writes = [];
+    const original = WritingAssessment.updateOne;
+    WritingAssessment.updateOne = async (filter, update) => {
+        writes.push({ filter, update });
+        return { acknowledged: true };
+    };
+    try {
+        const scope = { schoolId: ids.schoolId, assessmentId: ids.assessmentId };
+        await beginEmailDelivery({ ...scope, notify: { student: true, parents: false } });
+        assert.equal(writes[0].filter._id, ids.assessmentId);
+        assert.equal(writes[0].update.$set['publish.email.status'], 'pending');
+        assert.equal(writes[0].update.$inc['publish.email.attempts'], 1);
+        assert.deepEqual(writes[0].update.$set['publish.email.channels.student'], true);
+        assert.deepEqual(writes[0].update.$set['publish.email.channels.parents'], false);
+
+        await recordEmailDelivery({ ...scope, result: { results: [{ status: 'sent' }, { status: 'failed' }] } });
+        assert.equal(writes[1].update.$set['publish.email.status'], 'partial');
+        assert.ok(writes[1].update.$set['publish.email.sentAt'] instanceof Date);
+
+        await recordEmailDelivery({ ...scope, result: { skipped: 'off' } });
+        assert.equal(writes[2].update.$set['publish.email.status'], 'skipped');
+        assert.equal(writes[2].update.$set['publish.email.skippedReason'], 'off');
+
+        await recordEmailDelivery({ ...scope, result: { results: [{ status: 'failed' }] } });
+        assert.equal(writes[3].update.$set['publish.email.status'], 'failed');
+        assert.equal(writes[3].update.$set['publish.email.sentAt'], undefined);
+
+        await recordEmailDelivery({ ...scope, result: { skipped: 'error' } });
+        assert.equal(writes[4].update.$set['publish.email.status'], 'failed');
+    } finally {
+        WritingAssessment.updateOne = original;
+    }
+});
+
 test('automatic publish delivery retains its channel and skip behavior', async (t) => {
     const { records, sent } = stubDelivery(t);
-    const context = { schoolId: ids.schoolId, ...records, env: resendContext.env };
+    // Publish always carries the publishing teacher, exactly as the assessment
+    // service and the retry job pass it.
+    const context = { schoolId: ids.schoolId, userId: ids.userId, ...records, env: resendContext.env };
     assert.deepEqual(await notifyFeedbackPublished({ ...context, env: {} }), { skipped: 'off' });
     assert.deepEqual(await notifyFeedbackPublished({ ...context, assessment: { kind: 'comparison' } }), { skipped: 'not-feedback' });
     const result = await notifyFeedbackPublished(context);
@@ -692,10 +736,101 @@ test('automatic publish delivery retains its channel and skip behavior', async (
     assert.equal(sent.length, 2);
 });
 
+test('automatic publish never falls back to the school mailbox when the teacher cannot send', async (t) => {
+    const { records, sent } = stubDelivery(t);
+    gmailOAuthService.sendEmail.mock.mockImplementation(async () => { throw new Error('token revoked'); });
+    const context = { schoolId: ids.schoolId, userId: ids.userId, ...records, env: resendContext.env };
+    const result = await notifyFeedbackPublished(context);
+    assert.deepEqual(result.results, [{ email: 'student@example.test', status: 'failed' }, { email: 'parent@example.test', status: 'failed' }]);
+    assert.equal(sent.length, 0);
+});
+
 test('resend routes require staff, rate-limit sends, and never reach AI or credit', async () => {
-    const routes = await readFile(new URL('../routes/writingRoutes.js', import.meta.url), 'utf8');
-    assert.match(routes, /router\.post\('\/assessments\/:assessmentId\/email-preview', staff, previewFeedbackEmail\)/);
-    assert.match(routes, /router\.post\('\/assessments\/:assessmentId\/resend-email', staff, emailSendRateLimiter, resendFeedbackEmail\)/);
+    // Walk the real router and invoke the real guard: quote style and formatting
+    // cannot make this pass or fail, only a change to the actual chain can.
+    const router = (await import('../routes/writingRoutes.js')).default;
+    const layers = router.stack.filter((layer) => layer.route);
+    const guardOf = (path, method) => {
+        const layer = layers.find(
+            (l) => l.route.path === path && l.route.methods[method],
+        );
+        assert.ok(layer, `${method.toUpperCase()} ${path} must exist`);
+        return layer.route.stack.map((s) => s.handle);
+    };
+    const admits = (chain, role) => {
+        let passed = false;
+        chain[0](
+            { user: { role, roles: [role] } },
+            { status() { return this; }, json() { return this; } },
+            () => { passed = true; },
+        );
+        return passed;
+    };
+
+    // express-rate-limit returns an anonymous closure, so its presence is proved
+    // by the RateLimit-* headers it sets, not by a function name.
+    const isRateLimiter = async (fn) => {
+        const headers = {};
+        const req = {
+            ip: '203.0.113.7', method: 'POST', url: '/probe', headers: {},
+            app: { get: () => false },
+            connection: { remoteAddress: '203.0.113.7' },
+            socket: { remoteAddress: '203.0.113.7' },
+        };
+        const res = {
+            setHeader(k, v) { headers[k] = v; },
+            getHeader() {}, status() { return this; }, json() { return this; },
+            end() { return this; }, set() { return this; },
+        };
+        await fn(req, res, () => {});
+        return Object.keys(headers).some((k) => k.startsWith('RateLimit-'));
+    };
+
+    for (const [path, method, limiter] of [
+        ['/assessments/:assessmentId/email-preview', 'post', false],
+        ['/assessments/:assessmentId/resend-email', 'post', true],
+        ['/assessments/:assessmentId/publish', 'post', true],
+    ]) {
+        const chain = guardOf(path, method);
+        assert.ok(admits(chain, 'teacher'), `${path} must admit a teacher`);
+        assert.ok(admits(chain, 'admin'), `${path} must admit an admin`);
+        assert.equal(admits(chain, 'student'), false, `${path} must refuse a student`);
+        assert.equal(admits(chain, 'parent'), false, `${path} must refuse a parent`);
+        const middle = chain.slice(1, -1);
+        const limited = [];
+        for (const fn of middle) limited.push(await isRateLimiter(fn));
+        assert.equal(
+            limited.some(Boolean),
+            limiter,
+            limiter
+                ? `${path} must be rate-limited`
+                : `${path} is a preview and must not be rate-limited as a send`,
+        );
+    }
+
     const source = await readFile(new URL('../services/writingFeedbackEmailService.js', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /connectAi|assertCanSpend|chargeUsage|writingAssistantAssessmentService/);
+});
+
+test('a clipped parent email does not address the guardian as the writer', () => {
+    const long = 'word '.repeat(1600);
+    const message = build({
+        role: 'parent',
+        assignment: { ...assignment, sections: [{ key: 'body' }] },
+        draft: {
+            number: 2,
+            totalWords: 1600,
+            sections: [{ key: 'body', index: 0, text: `${long}recess helps students focus.` }]
+        },
+        assessment: {
+            ...assessment,
+            sections: [{
+                key: 'body', index: 0, label: 'Body paragraph',
+                strengths: [], improvements: [], evidence: 'recess helps students focus',
+                nextStep: 'Add one example.', why: ''
+            }]
+        }
+    });
+    assert.match(message.html, /The rest of the draft is in the app\./);
+    assert.equal(message.html.includes('your draft'), false);
 });

@@ -1,11 +1,11 @@
 .tt-page {
-  --tt-teal: var(--primary, #0d9488);
+  --tt-teal: var(--primary);
   --tt-ink: var(--text-primary, #0f172a);
   --tt-muted: var(--text-muted, #64748b);
   --tt-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --tt-surface: var(--bg-card, #ffffff);
   --tt-surface-2: var(--bg-secondary, #f8fafc);
-  --tt-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --tt-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --tt-amber: #b45309;
   --tt-amber-soft: color-mix(in srgb, #f59e0b 14%, transparent);
 
@@ -62,7 +62,7 @@
   gap: 7px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
   background: var(--tt-soft);
   color: var(--tt-teal);
   font-size: 0.95rem;
@@ -95,9 +95,9 @@
   width: 54px;
   height: 54px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #14b8a6, var(--tt-teal));
+  background: linear-gradient(135deg, var(--primary-500), var(--tt-teal));
   color: #ffffff;
-  box-shadow: 0 12px 24px -16px rgba(13, 148, 136, 0.9);
+  box-shadow: 0 12px 24px -16px rgba(var(--accent-primary-rgb), 0.9);
 }
 
 .tt-section-title {
@@ -138,7 +138,7 @@
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-.tt-subject--0 { --tt-subject-accent: #0d9488; --tt-subject-soft: color-mix(in srgb, #0d9488 12%, transparent); }
+.tt-subject--0 { --tt-subject-accent: var(--primary-600); --tt-subject-soft: color-mix(in srgb, var(--primary-600) 12%, transparent); }
 .tt-subject--1 { --tt-subject-accent: #d97706; --tt-subject-soft: color-mix(in srgb, #d97706 13%, transparent); }
 .tt-subject--2 { --tt-subject-accent: #4f46e5; --tt-subject-soft: color-mix(in srgb, #4f46e5 12%, transparent); }
 .tt-subject--3 { --tt-subject-accent: #db2777; --tt-subject-soft: color-mix(in srgb, #db2777 12%, transparent); }
@@ -387,7 +387,7 @@
 .tt-lesson:hover { background: var(--tt-surface-2); }
 .tt-lesson.is-active {
   background: var(--tt-soft);
-  border-color: color-mix(in srgb, var(--primary, #0d9488) 35%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
   color: var(--tt-teal);
   font-weight: 600;
 }
@@ -407,7 +407,7 @@
   justify-content: center;
   gap: 7px;
   padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
   border-radius: 11px;
   background: var(--tt-soft);
   color: var(--tt-teal);
@@ -415,7 +415,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.tt-practice-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--primary, #0d9488) 16%, transparent); }
+.tt-practice-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 16%, transparent); }
 .tt-practice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tt-practice-history {
@@ -464,7 +464,7 @@
   border: 1px solid var(--tt-line);
   border-radius: 18px;
   background:
-    radial-gradient(1200px 420px at 50% -20%, color-mix(in srgb, var(--primary, #0d9488) 7%, transparent), transparent 70%),
+    radial-gradient(1200px 420px at 50% -20%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%),
     var(--tt-surface);
   scroll-behavior: smooth;
 }
@@ -573,7 +573,7 @@
   height: 36px;
   margin-top: 2px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
   background: var(--tt-soft);
   color: var(--tt-teal);
 }
@@ -619,7 +619,7 @@
 .tt-bubble p + p { margin-top: 10px; }
 
 .tt-msg.is-student .tt-bubble {
-  background: linear-gradient(135deg, #0f766e 0%, #0d5f56 55%, #064e3b 100%);
+  background: linear-gradient(135deg, var(--primary-700) 0%, #0d5f56 55%, #064e3b 100%);
   color: #ffffff;
   font-weight: 500;
   border-end-end-radius: 6px;
@@ -665,9 +665,9 @@
 
 /* ---- Practice card ---- */
 .tt-practice-card {
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--primary, #0d9488) 4%, var(--tt-surface));
+  background: color-mix(in srgb, var(--primary) 4%, var(--tt-surface));
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -726,7 +726,7 @@
   line-height: 1.45;
   cursor: pointer;
 }
-.tt-option:hover { border-color: color-mix(in srgb, var(--primary, #0d9488) 40%, transparent); }
+.tt-option:hover { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
 .tt-option input { accent-color: var(--tt-teal); margin: 0; }
 .tt-option.is-chosen { border-color: var(--tt-teal); background: var(--tt-soft); }
 .tt-option.is-correct {
@@ -802,7 +802,7 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 /* The tutor is waiting on a try: the input says so before the student types. */
-.tt-composer.is-turn { border-color: color-mix(in srgb, var(--primary, #0d9488) 42%, transparent); }
+.tt-composer.is-turn { border-color: color-mix(in srgb, var(--primary) 42%, transparent); }
 .tt-composer-cue {
   display: inline-flex;
   align-items: center;
@@ -821,7 +821,7 @@
   gap: 10px;
 }
 .tt-composer:focus-within {
-  border-color: color-mix(in srgb, var(--primary, #0d9488) 45%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   box-shadow: 0 0 0 3px var(--tt-soft);
 }
 .tt-composer textarea {

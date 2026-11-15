@@ -104,7 +104,14 @@ router.post(
   compareDraft,
 );
 router.patch("/assessments/:assessmentId", staff, saveAssessmentEdits);
-router.post("/assessments/:assessmentId/publish", staff, publishAssessment);
+// Publishing can send a family email, so it goes through the same send limiter
+// as resend rather than being an unmetered second way to mail a guardian.
+router.post(
+  "/assessments/:assessmentId/publish",
+  staff,
+  emailSendRateLimiter,
+  publishAssessment,
+);
 router.post(
   "/assessments/:assessmentId/email-preview",
   staff,

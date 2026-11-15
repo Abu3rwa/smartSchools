@@ -147,7 +147,7 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
         )}
 
         {isInteractiveType && (
-          <p style={{ margin: "0.25rem 0 0.75rem", color: "#0f766e", fontSize: "0.86rem" }}>
+          <p style={{ margin: "0.25rem 0 0.75rem", color: "var(--primary-700)", fontSize: "0.86rem" }}>
             An AI-guided quiz session will be generated automatically when the student starts this task.
           </p>
         )}

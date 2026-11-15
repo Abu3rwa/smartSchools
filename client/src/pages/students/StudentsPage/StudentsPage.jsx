@@ -24,7 +24,7 @@ import {
     selectSchoolFeatureUsage
 } from '../../../store/slices/schoolFeaturesSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
-import { selectIsAdmin } from '../../../store/slices/authSlice';
+import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSlice';
 import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import {
     HiOutlineClipboardCheck,
@@ -80,6 +80,7 @@ const StudentsPage = () => {
     const loading = useSelector(selectStudentsLoading);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
+    const canEditClass = useSelector(selectCanEditClass);
     const schoolLimits = useSelector(selectSchoolFeatureLimits);
     const schoolUsage = useSelector(selectSchoolFeatureUsage);
 
@@ -195,9 +196,15 @@ const StudentsPage = () => {
 
     useEffect(() => {
         dispatch(fetchClasses({ limit: 'all', academicYear: selectedAcademicYear || undefined }));
-        dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
     }, [dispatch, selectedAcademicYear]);
+
+    // /departments rejects a plain teacher with 403, and only the admin/principal
+    // student forms read it.
+    useEffect(() => {
+        if (!canEditClass) return;
+        dispatch(fetchDepartments());
+    }, [dispatch, canEditClass]);
 
     useEffect(() => {
         dispatch(fetchStudents(studentsQueryParams));

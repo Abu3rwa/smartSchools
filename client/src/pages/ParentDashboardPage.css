@@ -1,6 +1,6 @@
 .parent-dashboard {
-    --pd-accent: #0f766e;
-    --pd-accent-strong: #115e59;
+    --pd-accent: var(--primary-700);
+    --pd-accent-strong: var(--primary-800);
     --pd-accent-soft: #ecfdf5;
     --pd-warn: #b45309;
     --pd-line: var(--border-color, #e2e8f0);
@@ -40,7 +40,7 @@
     padding: 22px;
     border-radius: 22px;
     color: #fff;
-    background: radial-gradient(130% 170% at 100% 0%, #14b8a6 0%, #0f766e 48%, #115e59 100%);
+    background: radial-gradient(130% 170% at 100% 0%, var(--primary-500) 0%, var(--primary-700) 48%, var(--primary-800) 100%);
     box-shadow: 0 24px 42px -30px rgb(15 118 110 / 70%);
 }
 
@@ -262,7 +262,7 @@
     height: 46px;
     flex: none;
     border-radius: 15px;
-    background: linear-gradient(135deg, var(--pd-accent) 0%, #14b8a6 100%);
+    background: linear-gradient(135deg, var(--pd-accent) 0%, var(--primary-500) 100%);
     color: #fff;
     font-size: 0.88rem;
     font-weight: 800;
@@ -345,7 +345,7 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--pd-accent) 0%, #14b8a6 100%);
+    background: linear-gradient(90deg, var(--pd-accent) 0%, var(--primary-500) 100%);
     transition: width 0.4s ease;
 }
 

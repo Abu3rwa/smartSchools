@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import {
@@ -24,10 +24,13 @@ import {
 } from "./assessmentPresentation.js";
 import { formatDateTime } from "./boardPresentation.js";
 import FeedbackEmailResend from "./FeedbackEmailResend.jsx";
+import DraftEssayView from "../../../student/writing/WritingWorkspacePage/DraftEssayView.jsx";
+import RubricStrip from "../../../student/writing/WritingWorkspacePage/RubricStrip.jsx";
+import "../../../student/writing/WritingWorkspacePage/WritingWorkspacePage.css";
 
 const pendingLabel = (pending, key) => pending === key;
 
-export default function ReviewPanel({ history, onChanged, emailDelivery }) {
+export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDelivery }) {
   const { t, i18n } = useTranslation(["writing"]);
   const project = history?.project || null;
   const drafts = history?.drafts || [];
@@ -80,12 +83,50 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comparisonStamp]);
 
-  // Nothing polls while a run is in flight; re-render so a dead run turns into a retry.
+  // A run started here or in another tab must finish on screen; a clock alone left the modal frozen.
   useEffect(() => {
     if (!runningRun) return undefined;
-    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+      onChanged();
+    }, 6000);
     return () => window.clearInterval(id);
-  }, [runningRun]);
+  }, [onChanged, runningRun]);
+
+  const feedbackEditable =
+    feedback?.aiStatus === "done" && feedback.publish?.state !== "published";
+  const comparisonEditable =
+    comparison?.aiStatus === "done" &&
+    comparison.publish?.state !== "published";
+
+  // Unsaved text lives here, not in the parent: compare the live form with the
+  // saved assessment so closing the panel can ask before dropping the edits.
+  const liveFeedback = useMemo(() => JSON.stringify(payloadFromForm(form)), [form]);
+  const liveComparison = useMemo(
+    () => JSON.stringify(payloadFromForm(comparisonForm)),
+    [comparisonForm],
+  );
+  const savedFeedback = useMemo(
+    () => JSON.stringify(payloadFromForm(formFromAssessment(feedback))),
+    [feedback],
+  );
+  const savedComparison = useMemo(
+    () => JSON.stringify(payloadFromForm(formFromAssessment(legacyComparison))),
+    [legacyComparison],
+  );
+  const dirty =
+    (feedbackEditable && liveFeedback !== savedFeedback) ||
+    (comparisonEditable && liveComparison !== savedComparison);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
+
+  const previewSections = useMemo(
+    () => payloadFromForm(form)?.sections || [],
+    [form],
+  );
 
   if (!project || !latestDraft) return null;
 
@@ -94,9 +135,13 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
   const run = async (key, action, successMessage) => {
     setPending(key);
     try {
-      await action();
+      const result = await action();
       await onChanged();
-      if (successMessage) toast.success(successMessage);
+      if (successMessage) {
+        toast.success(
+          typeof successMessage === "function" ? successMessage(result) : successMessage,
+        );
+      }
     } catch (error) {
       toast.error(
         creditErrorMessage(error, t) ||
@@ -147,12 +192,19 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
       ),
     }));
 
+  // The teacher's tap is the confirmation: re-running a finished draft is what
+  // the Assess / Re-assess button is for, so it says so to the server.
   const assess = () =>
     run(
       "assess",
-      () => writingService.assessDraft(latestDraft._id),
+      () => writingService.assessDraft(latestDraft._id, { force: true }),
       t("writing:teacher.review.assessedToast"),
     );
+  // A fresh run replaces the editable text, so ask before dropping unsaved edits.
+  const reassess = () => {
+    if (dirty && !window.confirm(t("writing:teacher.review.reassessDiscard"))) return;
+    assess();
+  };
   const saveFeedback = (assessment) =>
     run(
       "save",
@@ -163,6 +215,32 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
         ),
       t("writing:teacher.review.savedToast"),
     );
+  // The server sends no delivery result, so never claim an email went out.
+  const publishedMessage = (result) => {
+    if (result?.alreadyPublished) {
+      return t("writing:teacher.review.publishedAlready");
+    }
+    return t(
+      emailRecipients.student || emailRecipients.parents
+        ? "writing:teacher.review.publishedToastEmail"
+        : "writing:teacher.review.publishedToast",
+    );
+  };
+  // Publishing ends the round and cannot be taken back, so say what happens first.
+  const recipientNames = [
+    emailRecipients.student && t("writing:teacher.review.emailStudent"),
+    emailRecipients.parents && t("writing:teacher.review.emailParents"),
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const confirmPublish = () =>
+    window.confirm(
+      recipientNames
+        ? t("writing:teacher.review.publishConfirmEmail", {
+            recipients: recipientNames,
+          })
+        : t("writing:teacher.review.publishConfirm"),
+    );
   const publishFeedback = (assessment) =>
     run(
       "publish",
@@ -171,7 +249,7 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
           ...payloadFromForm(form),
           notify: emailRecipients,
         }),
-      t("writing:teacher.review.publishedToast"),
+      publishedMessage,
     );
 
   const saveComparison = (assessment) =>
@@ -188,11 +266,11 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
     run(
       "publishCompare",
       () =>
-        writingService.publishAssessment(
-          assessment._id,
-          payloadFromForm(comparisonForm),
-        ),
-      t("writing:teacher.review.publishedToast"),
+        writingService.publishAssessment(assessment._id, {
+          ...payloadFromForm(comparisonForm),
+          notify: emailRecipients,
+        }),
+      publishedMessage,
     );
 
   const moveStage = (stage) =>
@@ -243,11 +321,6 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
       t("writing:teacher.review.notebookSaved"),
     );
 
-  const feedbackEditable =
-    feedback?.aiStatus === "done" && feedback.publish?.state !== "published";
-  const comparisonEditable =
-    comparison?.aiStatus === "done" &&
-    comparison.publish?.state !== "published";
   const feedbackStale = isStaleAssessment(feedback, now);
   const lockedTo = project.teacherOverride?.stageLockedTo || "";
   const totalPoints = (history?.assignment?.rubric || []).reduce(
@@ -379,11 +452,29 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               type="button"
               className="btn btn-ghost btn-sm"
               disabled={Boolean(pending)}
-              onClick={assess}
+              onClick={reassess}
             >
               {t("writing:teacher.review.reassess")}
             </button>
           </div>
+
+          {/* The point of the preview is the highlighted quote: a note pinned to
+              the wrong words is the child's problem to discover otherwise. */}
+          <details className="wa-preview">
+            <summary>{t("writing:teacher.review.previewAsStudent")}</summary>
+            <p className="wa-hint">
+              {t("writing:teacher.review.previewHint")}
+            </p>
+            <div className="ws-page wa-preview-body">
+              <DraftEssayView
+                assessment={{ sections: previewSections }}
+                assignment={history?.assignment}
+                draft={latestDraft}
+                locale={i18n.language}
+              />
+              <RubricStrip scores={form.scores} />
+            </div>
+          </details>
 
           <label className="wa-field">
             <span>{t("writing:teacher.review.summary")}</span>
@@ -668,10 +759,14 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
               <span>{t("writing:teacher.review.reason")}</span>
               <input
                 type="text"
-                value={form.reason}
+                maxLength={400}
+                value={form.reason || ""}
                 readOnly={!feedbackEditable}
                 onChange={(event) => updateForm({ reason: event.target.value })}
               />
+              <em className="wa-hint">
+                {(form.reason || "").length} / 400
+              </em>
             </label>
           </div>
           <p className="wa-hint">
@@ -740,7 +835,9 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                 type="button"
                 className="btn btn-primary btn-sm"
                 disabled={Boolean(pending)}
-                onClick={() => publishFeedback(feedback)}
+                onClick={() => {
+                  if (confirmPublish()) publishFeedback(feedback);
+                }}
               >
                 {pendingLabel(pending, "publish")
                   ? t("writing:teacher.review.publishing")
@@ -992,11 +1089,12 @@ export default function ReviewPanel({ history, onChanged, emailDelivery }) {
                       type="button"
                       className="btn btn-primary btn-sm"
                       disabled={Boolean(pending)}
-                      onClick={() =>
+                      onClick={() => {
+                        if (!confirmPublish()) return;
                         embedded
                           ? publishFeedback(feedback)
-                          : publishComparison(comparison)
-                      }
+                          : publishComparison(comparison);
+                      }}
                     >
                       {pendingLabel(
                         pending,

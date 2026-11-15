@@ -40,6 +40,9 @@ import {
   validateSubmission,
   workingSectionsFor,
 } from "./writingAssistantLogic.js";
+import { fillStudentTokensDeep } from "./aiPromptSafety.js";
+import { getTeacherProfile } from "../helpers/teacherScoping.js";
+import { rubricRows } from "../client/src/utils/writingRubric.js";
 
 const badRequest = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
@@ -47,6 +50,8 @@ const notFound = (message) =>
   Object.assign(new Error(message), { statusCode: 404 });
 const forbidden = (message) =>
   Object.assign(new Error(message), { statusCode: 403 });
+const conflict = (message) =>
+  Object.assign(new Error(message), { statusCode: 409 });
 
 const objectId = (value) => {
   if (!mongoose.isValidObjectId(String(value || ""))) return null;
@@ -59,7 +64,7 @@ const sameId = (a, b) => String(a || "") === String(b || "");
 /* Assignment configuration                                            */
 /* ------------------------------------------------------------------ */
 
-const normalizeSectionRows = (input) => {
+export const normalizeSectionRows = (input) => {
   const rows = Array.isArray(input) ? input : [];
   const seen = new Set();
   const cleaned = [];
@@ -102,7 +107,7 @@ const normalizeSectionRows = (input) => {
   return cleaned;
 };
 
-const normalizeRubricRows = (input) => {
+export const normalizeRubricRows = (input) => {
   const rows = Array.isArray(input) ? input : [];
   const seen = new Set();
   const cleaned = [];
@@ -261,12 +266,37 @@ const assertGoalsInAudience = (goals, students) => {
  * One task belongs to one class. "Selected students" is a subset of that class,
  * never a mix of classes; the roster comes from the class, not from the request.
  */
+/**
+ * A teacher may only set work for a class they teach. Without this, any teacher
+ * in the school can assign work — and spend AI credit — in any class.
+ */
+const assertTeachesClass = async ({ schoolId, classId, userId, isAdmin }) => {
+  if (isAdmin) return;
+  const teacher = await getTeacherProfile(userId);
+  if (!teacher?._id)
+    throw forbidden("Only a teacher or an admin can set writing work.");
+  const teacherId = String(teacher._id);
+  const classDoc = await Class.findOne({ school: schoolId, _id: classId })
+    .select("classTeacher subjects.teacher")
+    .lean();
+  if (!classDoc) throw notFound("Class not found");
+  const teaches =
+    String(classDoc.classTeacher || "") === teacherId ||
+    (classDoc.subjects || []).some(
+      (row) => String(row.teacher || "") === teacherId,
+    );
+  if (!teaches) throw forbidden("You do not teach this class.");
+};
+
 const resolveAudience = async ({
   schoolId,
   classId,
   studentIds,
   academicYear,
+  userId,
+  isAdmin = false,
 }) => {
+  if (classId) await assertTeachesClass({ schoolId, classId, userId, isAdmin });
   const ids = uniqueIds(studentIds || []);
   if (ids.length) {
     if (!classId) throw badRequest("Choose a class before selecting students.");
@@ -324,6 +354,7 @@ export const createAssignment = async ({
   schoolId,
   academicYear = null,
   userId,
+  isAdmin = false,
   payload = {},
 }) => {
   const title = String(payload.title || "").trim();
@@ -338,6 +369,8 @@ export const createAssignment = async ({
     classId: objectId(payload.classId || payload.class),
     studentIds: payload.studentIds,
     academicYear,
+    userId,
+    isAdmin,
   });
   if (!audience.students.length)
     throw badRequest("No students matched that class.");
@@ -476,9 +509,31 @@ export const updateAssignment = async ({
             : assignment.students.map((row) => String(row))
           : [],
       academicYear: assignment.academicYear,
+      userId,
+      isAdmin,
     });
     if (!audience.students.length)
       throw badRequest("No students matched that class.");
+    // Removing a student who has already opened this task would hide their
+    // drafts and published feedback from them without deleting anything.
+    const keep = new Set(audience.students.map((row) => String(row)));
+    const leaving = (assignment.students || [])
+      .map((row) => String(row))
+      .filter((row) => !keep.has(row));
+    if (leaving.length) {
+      const started = await WritingProject.find({
+        school: schoolId,
+        assignment: assignment._id,
+        student: { $in: leaving },
+      })
+        .select("student")
+        .lean();
+      if (started.length) {
+        throw conflict(
+          "Some students in this task have already started writing. Keep them in the task, or hide the whole task instead.",
+        );
+      }
+    }
     assignment.class = audience.classId || undefined;
     assignment.students = audience.students;
     assignment.audienceMode = mode;
@@ -500,6 +555,23 @@ export const updateAssignment = async ({
   return assignment.toObject();
 };
 
+// A list row needs a task's name and counts, never its brief or rubric text.
+const LIST_COLUMNS = {
+  title: 1,
+  writingType: 1,
+  class: 1,
+  audienceMode: 1,
+  academicYear: 1,
+  dueDate: 1,
+  isActive: 1,
+  isTemplate: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  assignedBy: 1,
+  rubric: 1,
+};
+const LIST_LIMIT = 200;
+
 export const listAssignments = async ({
   schoolId,
   userId,
@@ -508,6 +580,7 @@ export const listAssignments = async ({
   academicYear,
   search = "",
   includeTemplates = false,
+  limit = LIST_LIMIT,
 } = {}) => {
   const query = { school: schoolId, isTemplate: includeTemplates === true };
   if (!isAdmin) query.assignedBy = userId;
@@ -520,9 +593,29 @@ export const listAssignments = async ({
     };
   }
 
-  const rows = await WritingAssignment.find(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  // Aggregated so the row carries counts instead of every student id and the
+  // full section list; `$limit` bounds what one refresh can transfer.
+  const rows = await WritingAssignment.aggregate(
+    [
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $limit: Math.min(Math.max(Number(limit) || LIST_LIMIT, 1), 500) },
+      {
+        $addFields: {
+          audienceSize: { $size: { $ifNull: ["$students", []] } },
+          sectionCount: { $size: { $ifNull: ["$sections", []] } },
+        },
+      },
+      {
+        $project: {
+          ...LIST_COLUMNS,
+          audienceSize: 1,
+          sectionCount: 1,
+        },
+      },
+    ],
+    { skipTenantFilter: true },
+  );
 
   const counts = rows.length
     ? await WritingProject.aggregate(
@@ -561,7 +654,8 @@ export const listAssignments = async ({
       (sum, item) => sum + (Number(item.maxScore) || 0),
       0,
     ),
-    audienceSize: (row.students || []).length,
+    audienceSize: row.audienceSize || 0,
+    sectionCount: row.sectionCount || 0,
     projectCount: countById.get(String(row._id))?.projects || 0,
     draftCount: countById.get(String(row._id))?.drafts || 0,
     stageCounts: countById.get(String(row._id))?.stages || {},
@@ -661,6 +755,7 @@ export const deactivateAssignment = async ({
   assignmentId,
   userId,
   isAdmin = false,
+  confirmed = false,
 }) => {
   const id = objectId(assignmentId);
   if (!id) throw notFound("Writing task not found.");
@@ -670,6 +765,29 @@ export const deactivateAssignment = async ({
   });
   if (!assignment) throw notFound("Writing task not found.");
   assertVisibleToTeacher(assignment, userId, isAdmin);
+
+  // Hiding the task takes every submitted essay and its published feedback out
+  // of the children's reach, so the teacher is told first and has to say yes.
+  if (!confirmed) {
+    const sentWork = await WritingProject.countDocuments({
+      school: schoolId,
+      assignment: assignment._id,
+      latestDraft: { $ne: null },
+    });
+    if (sentWork > 0) {
+      throw Object.assign(
+        new Error(
+          `${sentWork} ${sentWork === 1 ? "student has" : "students have"} already sent work. If you hide this task, they will no longer be able to open their essay or read your feedback. Confirm to hide it.`,
+        ),
+        {
+          statusCode: 409,
+          code: "CONFIRM_DEACTIVATE",
+          data: { sentWork },
+        },
+      );
+    }
+  }
+
   assignment.isActive = false;
   await assignment.save();
   return { _id: assignment._id, isActive: false };
@@ -709,6 +827,7 @@ export const instantiateTemplate = async ({
   schoolId,
   templateId,
   userId,
+  isAdmin = false,
   academicYear = null,
   payload = {},
 }) => {
@@ -719,6 +838,7 @@ export const instantiateTemplate = async ({
     schoolId,
     academicYear,
     userId,
+    isAdmin,
     payload: {
       ...template,
       ...payload,
@@ -736,6 +856,34 @@ export const instantiateTemplate = async ({
 /* ------------------------------------------------------------------ */
 /* Projects, autosave and submissions                                  */
 /* ------------------------------------------------------------------ */
+
+/**
+ * The word help a student saw is frozen the first time they open or save the
+ * task, so a vocabulary list edited mid-draft cannot change what the submitted
+ * essay is measured against.
+ */
+const resolveWordSupportSnapshot = async ({
+  schoolId,
+  studentId,
+  assignment,
+  project,
+}) => {
+  const prior = await WritingAssessment.findOne({
+    school: schoolId,
+    project: project._id,
+    "publish.state": "published",
+    "spellingTargets.0": { $exists: true },
+  })
+    .sort({ createdAt: -1 })
+    .select("spellingTargets")
+    .lean();
+  return resolveWritingWordSupport({
+    schoolId,
+    studentId,
+    assignment,
+    priorTargets: prior?.spellingTargets || [],
+  });
+};
 
 export const ensureProject = async ({
   schoolId,
@@ -810,6 +958,22 @@ export const autosaveProject = async ({
   project.lastEditedAt = new Date();
   if (project.stage === "not_started") project.stage = "drafting";
   if (project.stage === "feedback_published") project.stage = "revising";
+  // Projects created before the snapshot existed freeze it on first save.
+  if (!project.wordSupportSnapshot) {
+    const assignment = await WritingAssignment.findOne({
+      school: schoolId,
+      _id: project.assignment,
+    }).lean();
+    if (assignment) {
+      project.wordSupportSnapshot = await resolveWordSupportSnapshot({
+        schoolId,
+        studentId,
+        assignment,
+        project,
+      });
+      project.wordSupportResolvedAt = new Date();
+    }
+  }
   await project.save();
 
   return {
@@ -924,24 +1088,30 @@ export const submitDraft = async ({
   // existed fall back to resolving once.
   let wordSupport = project.wordSupportSnapshot || null;
   if (!wordSupport) {
-    const prior = await WritingAssessment.findOne({
-      school: schoolId,
-      project: project._id,
-      "publish.state": "published",
-      "spellingTargets.0": { $exists: true },
-    })
-      .sort({ createdAt: -1 })
-      .select("spellingTargets")
-      .lean();
-    wordSupport = await resolveWritingWordSupport({
+    wordSupport = await resolveWordSupportSnapshot({
       schoolId,
       studentId,
       assignment,
-      priorTargets: prior?.spellingTargets || [],
+      project,
     });
+    project.wordSupportSnapshot = wordSupport;
+    project.wordSupportResolvedAt = new Date();
   }
 
-  const number = (Number(project.draftCount) || 0) + 1;
+  // The counter alone can be stale after a failed submit; the stored drafts are
+  // the truth, and a number already taken would be rejected by the unique index.
+  const highest = await WritingDraft.findOne({
+    school: schoolId,
+    project: project._id,
+  })
+    .sort({ number: -1 })
+    .select("number")
+    .lean();
+  const number =
+    Math.max(
+      Number(project.draftCount) || 0,
+      Number(highest?.number) || 0,
+    ) + 1;
   const draftSections = buildDraftSections({ assignment, sections: working });
   const draft = await WritingDraft.create({
     school: schoolId,
@@ -1053,10 +1223,18 @@ export const openProject = async ({
     studentId,
     classId: student?.currentClass,
   });
-  if (!project.firstOpenedAt) {
-    project.firstOpenedAt = new Date();
-    await project.save();
+  // The first open freezes the word help; later opens only read it.
+  if (!project.wordSupportSnapshot) {
+    project.wordSupportSnapshot = await resolveWordSupportSnapshot({
+      schoolId,
+      studentId,
+      assignment,
+      project,
+    });
+    project.wordSupportResolvedAt = new Date();
   }
+  if (!project.firstOpenedAt) project.firstOpenedAt = new Date();
+  if (project.isModified()) await project.save();
   return getStudentProject({ schoolId, projectId: project._id, studentId });
 };
 
@@ -1075,7 +1253,9 @@ export const getTeacherBoard = async ({
 
   const [projects, roster] = await Promise.all([
     WritingProject.find(filter)
-      .populate("latestDraft", "number title totalWords submittedAt sections")
+      // The board renders a date and an id; draft text is fetched when a
+      // student is opened, never on every board refresh.
+      .populate("latestDraft", "number submittedAt")
       .populate(
         "latestAssessment",
         "kind aiStatus publish recommendation totalScore",
@@ -1239,7 +1419,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
     "publish.state": "published",
   })
     .select(
-      "draft previousDraft kind sections overall scores tasks spellingTargets spellingWins totalScore comparison recommendation publish publishedAt",
+      "draft previousDraft kind sections overall scores tasks spellingTargets spellingWins comparison recommendation publish publishedAt",
     )
     .sort({ createdAt: -1 })
     .lean();
@@ -1262,29 +1442,19 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
     ? project.autosave?.title || ""
     : project.latestDraft?.title || "";
 
-  // Only this student's own spelling words and assigned vocabulary lists reach
-  // the rail. Resolved on read, never stored on the assignment.
-  const wordSupport = await resolveWritingWordSupport({
-    schoolId,
-    studentId,
-    assignment,
-    priorTargets:
-      assessments.find((row) => row.spellingTargets?.length)?.spellingTargets ||
-      [],
-  });
-  // Keep the exact set this read serves so submit can freeze what the student
-  // actually saw, not what happens to resolve later.
-  if (JSON.stringify(project.wordSupportSnapshot) !== JSON.stringify(wordSupport)) {
-    await WritingProject.updateOne(
-      { school: schoolId, _id: project._id },
-      {
-        $set: {
-          wordSupportSnapshot: wordSupport,
-          wordSupportResolvedAt: new Date(),
-        },
-      },
-    );
-  }
+  // Reading the workspace must never rewrite it: the snapshot is frozen when
+  // the student opens or first saves, and a vocabulary edit made mid-draft must
+  // not change what the submitted essay is measured against.
+  const wordSupport =
+    project.wordSupportSnapshot ||
+    (await resolveWritingWordSupport({
+      schoolId,
+      studentId,
+      assignment,
+      priorTargets:
+        assessments.find((row) => row.spellingTargets?.length)
+          ?.spellingTargets || [],
+    }));
 
   return {
     project: {
@@ -1316,11 +1486,6 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       sections: assignment.sections,
       supports: assignment.supports,
       wordSupport,
-      rubric: assignment.rubric,
-      totalPoints: (assignment.rubric || []).reduce(
-        (sum, item) => sum + (Number(item.maxScore) || 0),
-        0,
-      ),
       workflow: assignment.workflow,
     },
     drafts: drafts.map((draft) => ({
@@ -1342,11 +1507,12 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       publishedAt: assessment.publish?.publishedAt,
       sections: assessment.sections,
       overall: assessment.overall,
-      scores: assessment.scores,
+      // Levels, not marks: the child reads a verdict per criterion, the same
+      // one the family email and the printed sheet show (R7).
+      scores: rubricRows(assessment.scores),
       tasks: assessment.tasks,
       spellingTargets: assessment.spellingTargets,
       spellingWins: assessment.spellingWins,
-      totalScore: assessment.totalScore,
       comparison: assessment.comparison,
       recommendation: assessment.recommendation,
     })),
@@ -1489,9 +1655,11 @@ export const markNotebookWritten = async ({
   });
   if (!project) throw notFound("Writing project not found.");
 
+  // The teacher's lock and the stage both have to agree: a stale "requested"
+  // mark must never carry a student back into the check stage.
   if (
-    project.stage !== "ready_for_notebook" &&
-    project.notebook?.state !== "requested"
+    project.stage !== "ready_for_notebook" ||
+    !canMoveTo(project, "awaiting_notebook_check")
   ) {
     throw badRequest(
       "Your teacher has not said this piece is ready for the notebook yet.",
@@ -1525,13 +1693,19 @@ export const getProjectHistory = async ({
     .lean();
   if (!project) throw notFound("Writing project not found.");
 
+  const assignment = await WritingAssignment.findOne({
+    school: schoolId,
+    _id: project.assignment,
+  }).lean();
+  // Ownership is checked before the heavy reads, and a task that was hard
+  // deleted is a 404, not a crash further down.
+  if (!assignment)
+    throw notFound("The writing task this belongs to no longer exists.");
+  assertVisibleToTeacher(assignment, userId, isAdmin);
+
   const studentId = project.student?._id || project.student;
-  const [assignment, drafts, assessments, profileAssessments, spelling] =
+  const [drafts, assessments, profileAssessments, spelling] =
     await Promise.all([
-      WritingAssignment.findOne({
-        school: schoolId,
-        _id: project.assignment,
-      }).lean(),
       WritingDraft.find({ school: schoolId, project: project._id })
         .sort({ number: 1 })
         .lean(),
@@ -1558,15 +1732,21 @@ export const getProjectHistory = async ({
         .lean(),
     ]);
 
-  assertVisibleToTeacher(assignment, userId, isAdmin);
+  const studentName =
+    `${project.student?.firstName || ""} ${project.student?.lastName || ""}`.trim();
 
   return {
     project: {
       ...project,
       id: String(project._id),
+      // The ledger is stored with a name slot, like every other AI sentence.
+      revisionLedger: fillStudentTokensDeep(
+        project.revisionLedger || [],
+        studentName,
+      ),
       student: {
         id: String(project.student?._id || project.student),
-        name: `${project.student?.firstName || ""} ${project.student?.lastName || ""}`.trim(),
+        name: studentName,
         code: project.student?.studentId || "",
       },
     },

@@ -8,6 +8,7 @@ import StructureStep from "./StructureStep.jsx";
 import SupportsStep from "./SupportsStep.jsx";
 import WritingCsvImportPanel from "./WritingCsvImportPanel.jsx";
 import { studentViewPreview } from "./form.js";
+import ErrorBanner from "../../../../components/shared/ErrorBanner.jsx";
 import { useWritingBuilderData } from "./hooks/useWritingBuilderData.js";
 import "../writingShared.css";
 
@@ -20,15 +21,18 @@ export default function WritingAssignmentBuilderPage() {
     assignmentId,
     classes,
     errors,
+    failed,
     form,
     isEdit,
     loading,
     onCancel,
+    retry,
     roster,
     save,
     saving,
     update,
     vocabularyLists,
+    wasActive,
   } = useWritingBuilderData();
 
   const applyCsv = useCallback((patch) => {
@@ -41,6 +45,27 @@ export default function WritingAssignmentBuilderPage() {
     return (
       <div className="wa-page wa-loading" aria-live="polite">
         <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="wa-page wa-builder">
+        <div className="wa-head">
+          <div>
+            <button type="button" className="btn btn-ghost btn-sm wa-back" onClick={onCancel}>
+              <HiOutlineArrowLeft size={16} aria-hidden="true" />
+              {t("writing:common.back")}
+            </button>
+            <h1>{t(isEdit ? "writing:teacher.builder.editTitle" : "writing:teacher.builder.newTitle")}</h1>
+          </div>
+        </div>
+        <ErrorBanner
+          message={t("writing:teacher.builder.loadFailed")}
+          onRetry={retry}
+          retryLabel={t("writing:teacher.retry")}
+        />
       </div>
     );
   }
@@ -62,7 +87,7 @@ export default function WritingAssignmentBuilderPage() {
       </div>
 
       <div className="wa-import-row">
-        <WritingCsvImportPanel onApplied={applyCsv} />
+        <WritingCsvImportPanel onApplied={applyCsv} supports={form.supports} />
       </div>
 
       <ol className="wa-steps" aria-label={t("writing:teacher.builder.stepsAria")}>
@@ -171,7 +196,7 @@ export default function WritingAssignmentBuilderPage() {
           {step === 0 ? t("writing:teacher.builder.cancel") : t("writing:teacher.builder.previous")}
         </button>
         <div className="wa-footer-actions">
-          {!isEdit && (
+          {(!isEdit || !wasActive) && (
             <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => save({ isActive: false })}>
               {t("writing:teacher.builder.saveDraft")}
             </button>
@@ -182,8 +207,10 @@ export default function WritingAssignmentBuilderPage() {
               <HiOutlineArrowRight size={16} aria-hidden="true" />
             </button>
           ) : (
-            <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save({ isActive: true })}>
-              {saving ? t("writing:teacher.builder.saving") : t(isEdit ? "writing:teacher.builder.saveChanges" : "writing:teacher.builder.publish")}
+            <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save()}>
+              {saving
+                ? t("writing:teacher.builder.saving")
+                : t(isEdit && wasActive ? "writing:teacher.builder.saveChanges" : "writing:teacher.builder.publish")}
             </button>
           )}
         </div>

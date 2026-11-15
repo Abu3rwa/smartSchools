@@ -17,8 +17,10 @@ export const writingService = {
     api.post("/writing/assignments", body).then(unwrap),
   updateAssignment: (assignmentId, body) =>
     api.patch(`/writing/assignments/${assignmentId}`, body).then(unwrap),
-  deactivateAssignment: (assignmentId) =>
-    api.delete(`/writing/assignments/${assignmentId}`).then(unwrap),
+  deactivateAssignment: (assignmentId, confirmed = false) =>
+    api
+      .delete(`/writing/assignments/${assignmentId}`, { data: { confirmed } })
+      .then(unwrap),
   previewWordSupport: (assignmentId, body) =>
     api
       .post(`/writing/assignments/${assignmentId}/word-support/preview`, body || {})
@@ -54,9 +56,10 @@ export const writingService = {
     api.post(`/writing/drafts/${draftId}/assess`, body || {}).then(unwrap),
   compareDraft: (draftId, body) =>
     api.post(`/writing/drafts/${draftId}/compare`, body || {}).then(unwrap),
+  // Assessment runs inside one request: five drafts can outlive the default 60 s timeout.
   assessAssignment: (assignmentId, body) =>
     api
-      .post(`/writing/assignments/${assignmentId}/assess`, body || {})
+      .post(`/writing/assignments/${assignmentId}/assess`, body || {}, { timeout: 180000 })
       .then(unwrap),
   saveAssessmentEdits: (assessmentId, body) =>
     api.patch(`/writing/assessments/${assessmentId}`, body || {}).then(unwrap),

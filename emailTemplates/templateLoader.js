@@ -175,12 +175,15 @@ export function renderTemplate(templateName, data = {}) {
   }
 
   for (const [key, value] of Object.entries(mergedData)) {
+    // A function replacer, not a string: `$&`, `$'` and friends inside a
+    // student's own words are replacement patterns to String.replace and would
+    // duplicate the footer or ship a raw placeholder to the family.
     // {{!key}} = raw (unescaped) HTML insertion for trusted template fragments
     const rawRegex = new RegExp(`\\{\\{!${key}\\}\\}`, 'g');
-    html = html.replace(rawRegex, value ?? '');
+    html = html.replace(rawRegex, () => String(value ?? ''));
     // {{key}} = HTML-escaped insertion (safe for user-supplied data)
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    html = html.replace(regex, escapeHtml(value));
+    html = html.replace(regex, () => escapeHtml(value));
   }
 
   if (FINAL_REPORT_TEMPLATE_NAMES.has(templateName)) {

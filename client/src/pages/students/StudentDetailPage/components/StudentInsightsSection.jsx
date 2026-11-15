@@ -34,7 +34,7 @@ const DEFAULT_GRADING_SCALE = [
     { grade: 'A', min: 93, max: 96, color: '#166534' },
     { grade: 'A-', min: 90, max: 92, color: '#15803d' },
     { grade: 'B+', min: 87, max: 89, color: '#059669' },
-    { grade: 'B', min: 83, max: 86, color: '#0d9488' },
+    { grade: 'B', min: 83, max: 86, color: 'var(--primary-600)' },
     { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
     { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
     { grade: 'C', min: 73, max: 76, color: '#4f46e5' },

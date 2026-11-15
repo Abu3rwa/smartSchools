@@ -34,7 +34,7 @@ export function personalIdentifiers({ firstName, lastName, email, studentEmail }
  * "the student", so the model still understands the sentence. Callers that fill
  * the name back afterwards pass STUDENT_TOKEN as the placeholder instead.
  */
-export function scrubPersonalText(value, identifiers = {}, { caseSensitive = false, placeholder = STUDENT_PLACEHOLDER, phoneNumbers = true } = {}) {
+export function scrubPersonalText(value, identifiers = {}, { caseSensitive = false, placeholder = STUDENT_PLACEHOLDER, phoneNumbers = true, minNameLength = 3 } = {}) {
     let text = String(value || "").trim();
     if (!text) return "";
 
@@ -48,7 +48,7 @@ export function scrubPersonalText(value, identifiers = {}, { caseSensitive = fal
     // Grace must not turn the word "may" or "grace" in the prose into a name.
     const flags = caseSensitive ? "g" : "gi";
     const names = [...(identifiers.names || [])]
-        .filter((name) => name.length > 2)
+        .filter((name) => name.length >= minNameLength)
         .sort((a, b) => b.length - a.length);
     for (const name of names) {
         text = text.replace(new RegExp(`\\b${escapeRegExp(name)}\\b`, flags), placeholder);

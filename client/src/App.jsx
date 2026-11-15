@@ -85,6 +85,7 @@ const ParentSupportPage = lazy(() => import("./pages/parent/support/ParentSuppor
 const ParentUpdatesPage = lazy(() => import("./pages/parent/updates/ParentUpdatesPage/ParentUpdatesPage"));
 const ParentTimetablePage = lazy(() => import("./pages/parent/timetable/ParentTimetablePage/ParentTimetablePage"));
 const SupportHubPage = lazy(() => import("./pages/teacher/support/SupportHubPage/SupportHubPage"));
+const StudentSupportPage = lazy(() => import("./pages/student/support/StudentSupportPage/StudentSupportPage"));
 const SupportAccessPage = lazy(() => import("./pages/supportAccess/SupportAccessPage/SupportAccessPage"));
 const SBRConfigPage = lazy(() => import("./pages/sbr/SBRConfigPage"));
 const SBRGenerationPage = lazy(() => import("./pages/sbr/SBRGenerationPage"));
@@ -875,7 +876,9 @@ function App() {
               path="parent/support"
               element={
                 <RoleRoute roles={["parent"]}>
-                  <ParentSupportPage />
+                  <FeatureGate feature="studentSupport" showUpgradePrompt>
+                    <ParentSupportPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -898,8 +901,20 @@ function App() {
             <Route
               path="support"
               element={
-                <RoleRoute roles={["admin", "teacher"]}>
-                  <SupportHubPage />
+                <RoleRoute roles={["admin", "teacher", "counselor", "nurse"]}>
+                  <FeatureGate feature="studentSupport" showUpgradePrompt>
+                    <SupportHubPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="student/support"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="studentSupport" showUpgradePrompt>
+                    <StudentSupportPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

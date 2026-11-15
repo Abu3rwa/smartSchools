@@ -1,3 +1,6 @@
+export const SCHOOL_WEEK_DAYS = [0, 1, 2, 3, 4];
+export const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
 export const getGreeting = (t) => {
     const hour = new Date().getHours();
     if (hour < 12) return t('dashboard:teacherDashboard.greetings.morning');
@@ -37,8 +40,24 @@ export const formatTime = (value, locale) => {
     }
 };
 
-export const buildTodaySchedule = (timetable = { periods: [], assignments: [] }) => {
-    const dayOfWeek = new Date().getDay();
+export const toMinutes = (value) => {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours > 23 || minutes > 59) return null;
+    return hours * 60 + minutes;
+};
+
+export const getNowMinutes = (date = new Date()) => date.getHours() * 60 + date.getMinutes();
+
+const resolvePeriod = (assignment, periodsMap) =>
+    (assignment.period && typeof assignment.period === 'object' ? assignment.period : null) ||
+    periodsMap.get(assignment.period) ||
+    null;
+
+export const buildDaySchedule = (timetable = { periods: [], assignments: [] }, dayOfWeek) => {
     const assignments = (timetable.assignments || []).filter((assignment) => {
         const days = assignment.daysOfWeek;
         if (!days || !Array.isArray(days) || days.length === 0) return true;
@@ -49,10 +68,7 @@ export const buildTodaySchedule = (timetable = { periods: [], assignments: [] })
 
     return assignments
         .map((assignment) => {
-            const periodObject =
-                (assignment.period && typeof assignment.period === 'object' ? assignment.period : null) ||
-                periodsMap.get(assignment.period) ||
-                null;
+            const periodObject = resolvePeriod(assignment, periodsMap);
 
             return {
                 ...assignment,
@@ -63,6 +79,83 @@ export const buildTodaySchedule = (timetable = { periods: [], assignments: [] })
             };
         })
         .sort((a, b) => a.order - b.order);
+};
+
+export const buildTodaySchedule = (timetable) => buildDaySchedule(timetable, new Date().getDay());
+
+/** Sun–Thu always; Fri/Sat only when the timetable actually uses them. */
+export const buildWeekSchedule = (timetable) => {
+    const days = [...SCHOOL_WEEK_DAYS];
+    [5, 6].forEach((day) => {
+        if (buildDaySchedule(timetable, day).length > 0) days.push(day);
+    });
+    return days.map((day) => ({ day, rows: buildDaySchedule(timetable, day) }));
+};
+
+export const getSlotState = (row, nowMinutes) => {
+    const start = toMinutes(row?.startTime);
+    const end = toMinutes(row?.endTime);
+    if (start === null || end === null) return 'upcoming';
+    if (nowMinutes >= end) return 'past';
+    if (nowMinutes >= start) return 'now';
+    return 'upcoming';
+};
+
+/**
+ * The next thing on the timetable. Periods without times cannot be counted down,
+ * so the first of them is offered without a "starts in" badge rather than dropped.
+ */
+export const getNextClass = (rows = [], nowMinutes) => {
+    const timed = rows.filter((row) => toMinutes(row.startTime) !== null && toMinutes(row.endTime) !== null);
+
+    if (timed.length === 0) {
+        return rows.length > 0 ? { row: rows[0], live: false, minutesUntil: null } : null;
+    }
+
+    const upcoming = timed.find((row) => toMinutes(row.endTime) > nowMinutes);
+    if (!upcoming) return null;
+
+    const start = toMinutes(upcoming.startTime);
+    return {
+        row: upcoming,
+        live: nowMinutes >= start,
+        minutesUntil: Math.max(0, start - nowMinutes)
+    };
+};
+
+export const buildClassChips = (assignedClasses = [], limit = 4) => {
+    const seen = new Set();
+    const chips = [];
+
+    assignedClasses.forEach((assignment) => {
+        const className = assignment?.class?.name;
+        if (!className) return;
+        const subjectName = assignment?.subject?.name || '';
+        const key = `${className}::${subjectName}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        chips.push({ key, className, subjectName });
+    });
+
+    return chips.slice(0, limit);
+};
+
+export const getPerformanceTone = (value) => {
+    const pct = Number(value) || 0;
+    if (pct >= 75) return 'emerald';
+    if (pct >= 60) return 'teal';
+    return 'amber';
+};
+
+/** Rounds the axis up to a multiple of three so the four gridline labels stay whole. */
+export const getWorkloadCeiling = (counts = []) => {
+    const max = counts.reduce((acc, value) => Math.max(acc, Number(value) || 0), 0);
+    return Math.max(6, Math.ceil(max / 3) * 3);
+};
+
+export const getInitial = (name) => {
+    const trimmed = String(name || '').trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : '—';
 };
 
 export const getTodayLabel = (locale) => {

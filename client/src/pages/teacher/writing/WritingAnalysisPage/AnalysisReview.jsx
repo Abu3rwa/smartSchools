@@ -4,6 +4,7 @@ import StandardCard from "./StandardCard.jsx";
 import PublishPreview from "./PublishPreview.jsx";
 import {
   attentionOf,
+  categoryLabel,
   growthTone,
   pieceByIdOf,
   splitPatterns,
@@ -17,7 +18,7 @@ function PatternList({ patterns, t }) {
         <li key={`${pattern.category}-${pattern.kind}-${index}`}>
           <div className="wa-card-head">
             <strong>
-              {t(`writing:teacher.analysis.categories.${pattern.category}`)}
+              {categoryLabel(t, pattern.category)}
             </strong>
             <span className={`wa-ana-kind is-${pattern.kind}`}>
               {pattern.kind === "strength"
@@ -93,6 +94,13 @@ export default function AnalysisReview({
   );
   const vagueNotes = analysis.summary?.vagueNotes || 0;
   const quotesDropped = analysis.summary?.quotesDropped || 0;
+  const notesDropped = analysis.summary?.notesDropped || 0;
+  // A run can finish with warnings because a piece could not be read, or
+  // because evidence inside a piece could not be checked. They are different
+  // problems and only one of them can be retried.
+  const failedPieces = (analysis.pieceRuns || []).filter(
+    (run) => run.aiStatus === "failed" || run.aiStatus === "unusable",
+  ).length;
 
   const applyProposals = () => {
     if (replaceCount > 0 && !confirmApply) {
@@ -107,8 +115,16 @@ export default function AnalysisReview({
     <div className="wa-analysis-review">
       {analysis.status === "done_with_warnings" && (
         <div className="wa-ana-banner is-warning">
-          <h3>{t("writing:teacher.analysis.partialTitle")}</h3>
-          <p>{t("writing:teacher.analysis.partialBody")}</p>
+          <h3>
+            {failedPieces > 0
+              ? t("writing:teacher.analysis.partialTitleFailed")
+              : t("writing:teacher.analysis.partialTitleEvidence")}
+          </h3>
+          <p>
+            {failedPieces > 0
+              ? t("writing:teacher.analysis.partialBodyFailed")
+              : t("writing:teacher.analysis.partialBodyEvidence")}
+          </p>
           {vagueNotes > 0 && (
             <p className="wa-hint">
               {t("writing:teacher.analysis.vagueNotes", { n: vagueNotes })}
@@ -119,16 +135,23 @@ export default function AnalysisReview({
               {t("writing:teacher.analysis.quotesDropped", { n: quotesDropped })}
             </p>
           )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={onRetry}
-            disabled={busy === "retry"}
-          >
-            {busy === "retry"
-              ? t("writing:teacher.analysis.retrying")
-              : t("writing:teacher.analysis.retryFailed")}
-          </button>
+          {notesDropped > 0 && (
+            <p className="wa-hint">
+              {t("writing:teacher.analysis.notesDropped", { n: notesDropped })}
+            </p>
+          )}
+          {failedPieces > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onRetry}
+              disabled={busy === "retry"}
+            >
+              {busy === "retry"
+                ? t("writing:teacher.analysis.retrying")
+                : t("writing:teacher.analysis.retryFailed")}
+            </button>
+          )}
         </div>
       )}
 
@@ -299,12 +322,33 @@ export default function AnalysisReview({
                   late: growth.late,
                 })}
               </p>
+              {(growth.earlyQuote || growth.lateQuote) && (
+                <div className="wa-ana-growth-evidence">
+                  <h4>{t("writing:teacher.analysis.growthEvidenceTitle")}</h4>
+                  {growth.earlyQuote && (
+                    <>
+                      <span className="wa-hint">
+                        {t("writing:teacher.analysis.growthEarly")}
+                      </span>
+                      <blockquote>{growth.earlyQuote}</blockquote>
+                    </>
+                  )}
+                  {growth.lateQuote && (
+                    <>
+                      <span className="wa-hint">
+                        {t("writing:teacher.analysis.growthLate")}
+                      </span>
+                      <blockquote>{growth.lateQuote}</blockquote>
+                    </>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <p className="wa-hint">
               {t("writing:teacher.analysis.growthUnavailable", {
-                min: growth.minPieces || 4,
-                n: growth.pieces ?? 0,
+                min: growth.needed || growth.minPieces || 4,
+                n: growth.readable ?? growth.pieces ?? 0,
               })}
             </p>
           )}

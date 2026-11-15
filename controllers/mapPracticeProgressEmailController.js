@@ -5,6 +5,7 @@ import MapPracticeQuestion from '../models/MapPracticeQuestion.js';
 import Student from '../models/Student.js';
 import { ensureTeacherCanAccessStudent } from '../services/mapPracticeAccessService.js';
 import { buildMapPracticeProgressEmail } from '../services/mapPracticeProgressEmailService.js';
+import { teacherSenderPolicy } from '../services/senderPolicy.js';
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 import logger from '../utils/logger.js';
 
@@ -95,6 +96,7 @@ export const sendMapPracticeProgressEmail = asyncHandler(async (req, res) => {
         html: email.html,
         schoolId: req.schoolId,
         preferredUserId: req.user._id,
+        ...teacherSenderPolicy(req.user),
       });
       results.push({ email: recipient.email, type: recipient.type, status: 'sent' });
     } catch (error) {

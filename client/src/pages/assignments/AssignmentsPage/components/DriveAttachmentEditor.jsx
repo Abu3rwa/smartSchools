@@ -85,6 +85,12 @@ const DriveAttachmentEditor = ({
       onPersisted?.();
       toast.success(t("assignments:driveAttachments.uploaded"));
     } catch (error) {
+      // The stored connection died (revoked or expired) even though the status
+      // said connected. Re-read it so the Connect button returns instead of
+      // leaving a dead upload action.
+      if (error.response?.data?.code === "DRIVE_FILE_NOT_CONNECTED") {
+        loadConnection();
+      }
       toast.error(
         error.response?.data?.message ||
           t("assignments:driveAttachments.uploadFailed"),

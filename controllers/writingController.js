@@ -49,6 +49,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
     academicYear: resolveAcademicYearForRequest(req),
     userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
     payload: req.body || {},
   });
   res.status(201).json({ success: true, data: assignment });
@@ -93,6 +94,7 @@ export const deactivateAssignment = asyncHandler(async (req, res) => {
     assignmentId: req.params.assignmentId,
     userId: req.user._id,
     isAdmin: isAdminUser(req.user),
+    confirmed: req.body?.confirmed === true,
   });
   res.json({ success: true, data: result });
 });
@@ -134,6 +136,7 @@ export const instantiateTemplate = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
     templateId: req.params.templateId,
     userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
     academicYear: resolveAcademicYearForRequest(req),
     payload: req.body || {},
   });
@@ -211,6 +214,8 @@ export const assessDraft = asyncHandler(async (req, res) => {
     userId: req.user._id,
     isAdmin: isAdminUser(req.user),
     language: req.body?.language || req.query.language,
+    // A finished run costs credit again; only an explicit re-assess sends this.
+    force: req.body?.force === true,
   });
   res.status(201).json({ success: true, data: result });
 });
@@ -235,6 +240,7 @@ export const compareDraft = asyncHandler(async (req, res) => {
     userId: req.user._id,
     isAdmin: isAdminUser(req.user),
     language: req.body?.language || req.query.language,
+    force: req.body?.force === true,
   });
   res.status(201).json({ success: true, data: result });
 });

@@ -4,6 +4,7 @@ import Student from '../models/Student.js';
 import User from '../models/User.js';
 import ParentSetting from '../models/ParentSetting.js';
 import SessionBillingEmailDelivery from '../models/SessionBillingEmailDelivery.js';
+import { teacherSenderPolicy } from './senderPolicy.js';
 import { getStudentStatement, resolveBillingDateRange } from './sessionBillingService.js';
 import { getBillingOverview } from './sessionBillingReportService.js';
 import {
@@ -189,7 +190,8 @@ export const sendStatementEmail = async (schoolId, studentId, payload = {}, user
                 text: context.email.text,
                 html: context.email.html,
                 schoolId,
-                preferredUserId: user._id
+                preferredUserId: user._id,
+                ...teacherSenderPolicy(user)
             });
         } catch (error) {
             const reason = String(error?.message || error || 'Email delivery failed').slice(0, 500);

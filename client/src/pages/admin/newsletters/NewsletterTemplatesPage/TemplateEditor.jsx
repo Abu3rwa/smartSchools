@@ -483,8 +483,8 @@ function BlockEditor({ block, onChange, onUploadImage, isUploadingImage = false 
 /* ── Preview renderer (client-side mirror of server renderer) ─── */
 function buildPreviewHtml(template) {
   const g = template.globalStyle || {};
-  const primary = g.primaryColor || '#0d9488';
-  const secondary = g.secondaryColor || '#0f766e';
+  const primary = g.primaryColor || 'var(--primary-600)';
+  const secondary = g.secondaryColor || 'var(--primary-700)';
   const bg = g.backgroundColor || '#ffffff';
   const bodyColor = g.bodyTextColor || '#334155';
   const footerColor = g.footerTextColor || '#94a3b8';

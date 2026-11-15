@@ -17,6 +17,9 @@ import {
 } from "../analysisPresentation.js";
 
 const POLL_MS = 3000;
+const POLL_SLOW_MS = 15000;
+// A stuck run must not poll forever on a metered connection.
+const POLL_MAX_ATTEMPTS = 40;
 const ACTIVE_RUN = ["pending", "running"];
 
 const evidenceRowOf = (analysis, standardId, draftId) =>
@@ -210,23 +213,47 @@ export function useWritingAnalysisData({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied.from, applied.to, entryKey, selected, selectedDrafts]);
 
-  // A run reads in the background; poll until it settles.
+  // A run reads in the background; poll until it settles, then stop. The
+  // interval doubles after the first minute and polling ends after ~4 minutes,
+  // so a wedged run costs a handful of requests, not one every 3 s forever.
+  const [pollStalled, setPollStalled] = useState(false);
   useEffect(() => {
-    if (!analysis?._id || !ACTIVE_RUN.includes(analysis.status)) return undefined;
+    if (!analysis?._id || !ACTIVE_RUN.includes(analysis.status)) {
+      setPollStalled(false);
+      return undefined;
+    }
     let active = true;
-    const timer = setInterval(() => {
+    let attempts = 0;
+    let timer = null;
+    const tick = () => {
+      attempts += 1;
+      if (attempts > POLL_MAX_ATTEMPTS) {
+        setPollStalled(true);
+        return;
+      }
       writingService
         .getAnalysis(analysis._id)
         .then((data) => {
           if (active) setAnalysis(data);
         })
         .catch(() => {});
-    }, POLL_MS);
+      timer = setTimeout(tick, attempts > 20 ? POLL_SLOW_MS : POLL_MS);
+    };
+    timer = setTimeout(tick, POLL_MS);
     return () => {
       active = false;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
   }, [analysis?._id, analysis?.status]);
+
+  const checkAgain = useCallback(() => {
+    if (!analysis?._id) return;
+    setPollStalled(false);
+    writingService
+      .getAnalysis(analysis._id)
+      .then((data) => setAnalysis(data))
+      .catch(() => setPollStalled(true));
+  }, [analysis?._id, setAnalysis]);
 
   const values = useMemo(() => {
     if (!analysis?._id) return {};
@@ -571,6 +598,7 @@ export function useWritingAnalysisData({
     applyCustomWindow,
     applied,
     busy,
+    checkAgain,
     chooseWindow,
     clearAll,
     clearAllDrafts,
@@ -582,6 +610,7 @@ export function useWritingAnalysisData({
     dismissPublishPreview,
     lastEvidenceChange,
     openAnalysis,
+    pollStalled,
     preparePublish,
     preset,
     publish,

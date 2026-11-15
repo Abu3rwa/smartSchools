@@ -38,3 +38,24 @@ test("rubricRows keeps the quote and falls back to nothing when there is none", 
   assert.equal(rows[1].explanation, "The ending arrives too soon.");
   assert.deepEqual(rubricRows(undefined), []);
 });
+
+test("rubricRows keeps the verdict the server already worked out", () => {
+  const rows = rubricRows([
+    { key: "ideas", label: "Ideas", level: "near", filled: 3, dots: 5 },
+  ]);
+  assert.equal(rows[0].level, "near");
+  assert.equal(rows[0].filled, 3);
+  assert.equal(rows[0].dots, 5);
+  assert.equal(rows[0].ratio, 3 / 5);
+});
+
+test("a rubric explanation never carries marks to the child", () => {
+  const rows = rubricRows([
+    { key: "ideas", label: "Ideas", score: 4, maxScore: 5, explanation: "You scored 4 out of 5. The ideas are clear." },
+    { key: "voice", label: "Voice", score: 8, maxScore: 10, explanation: "Your score is 8/10, but the letter sounds like you." },
+    { key: "ending", label: "Ending", score: 3, maxScore: 5, explanation: "The ending arrives too soon." },
+  ]);
+  assert.equal(rows[0].explanation, "The ideas are clear.");
+  assert.equal(rows[1].explanation, "but the letter sounds like you.");
+  assert.equal(rows[2].explanation, "The ending arrives too soon.");
+});

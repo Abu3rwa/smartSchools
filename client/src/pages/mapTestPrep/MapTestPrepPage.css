@@ -110,7 +110,7 @@
 .map-prep-eyebrow,
 .map-section-kicker {
   margin: 0 0 6px;
-  color: var(--primary-600, #0d9488);
+  color: var(--primary-600, var(--primary-600));
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;

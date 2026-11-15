@@ -83,3 +83,17 @@ test('classwork and gradebook grade rows show the assignment title when present'
     assert.doesNotMatch(html, /\{\{.+\}\}/);
   }
 });
+
+test('renderTemplate inserts $ replacement patterns literally', () => {
+  const html = renderTemplate('attendanceRequestNew', {
+    requesterName: "Say $' and $& and $$",
+    requesterEmail: 'parent@example.com',
+    typeLabel: 'Late Arrival',
+    notesSection: '<div class="section">ok</div>',
+    schoolName: 'School One',
+  });
+
+  assert.match(html, /Say \$&#39; and \$&amp; and \$\$/);
+  assert.equal((html.match(/School One/g) || []).length, 1);
+  assert.doesNotMatch(html, /\{\{/);
+});

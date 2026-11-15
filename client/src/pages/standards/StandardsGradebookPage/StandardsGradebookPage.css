@@ -889,7 +889,7 @@
 
 .gb-email-stats strong {
   font-size: 1.25rem;
-  color: var(--primary, #0d9488);
+  color: var(--primary);
 }
 
 .gb-email-stats span {

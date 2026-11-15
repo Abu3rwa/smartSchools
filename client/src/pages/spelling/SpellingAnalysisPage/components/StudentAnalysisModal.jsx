@@ -17,7 +17,7 @@ import {
 } from 'recharts';
 import spellingAnalysisService from '../../../../services/spellingAnalysisService';
 
-const ERROR_COLORS = ['#14b8a6', '#0ea5e9', '#6366f1', '#f59e0b', '#ec4899', '#22c55e', '#ef4444', '#8b5cf6'];
+const ERROR_COLORS = ['var(--primary-500)', '#0ea5e9', '#6366f1', '#f59e0b', '#ec4899', '#22c55e', '#ef4444', '#8b5cf6'];
 
 const errorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -203,7 +203,7 @@ export default function StudentAnalysisModal({ language, onClose, studentId, win
                                                 type="monotone"
                                                 dataKey="accuracy"
                                                 name={t('spellingAnalysis:analysis.accuracy')}
-                                                stroke="#14b8a6"
+                                                stroke="#d97706"
                                                 strokeWidth={2}
                                                 dot={{ r: 3 }}
                                             />

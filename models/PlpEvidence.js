@@ -20,6 +20,10 @@ const plpEvidenceSchema = new mongoose.Schema({
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     period: { type: mongoose.Schema.Types.ObjectId, ref: 'TimetablePeriod', default: null },
     capturedVia: { type: String, enum: ['manual', 'timetable'], default: 'manual' },
+    // Written from an approved support action. The source link keeps a support
+    // observation from being suggested back as independent new evidence.
+    supportCase: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportCase', default: null },
+    supportVersion: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportPlanVersion', default: null },
 }, { timestamps: true });
 
 plpEvidenceSchema.plugin(tenantIsolationPlugin);

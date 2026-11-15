@@ -1,5 +1,13 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
+import { countLabel } from "../../../../utils/countText.js";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -9,8 +17,10 @@ import {
 } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
 import { printableErrorText } from "../../../../utils/printDocument.js";
+import ErrorBanner from "../../../../components/shared/ErrorBanner.jsx";
 import ComparisonCard from "./ComparisonCard.jsx";
 import DraftEssayView from "./DraftEssayView.jsx";
+import { usedWordSet } from "./railLogic.js";
 import FeedbackCard from "./FeedbackCard.jsx";
 import SectionCard from "./SectionCard.jsx";
 import { noteForSlot } from "./sectionFeedback.js";
@@ -28,6 +38,7 @@ export default function WritingWorkspacePage() {
     data,
     editSection,
     editTitle,
+    failed,
     feedback,
     latestDraft,
     loading,
@@ -49,7 +60,7 @@ export default function WritingWorkspacePage() {
   const activeEditor = useRef("");
   // null follows a deep link ("?draft=2" from My Writing) until the student picks a tab.
   const [picked, setPicked] = useState(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const linkedNumber = Number(searchParams.get("draft")) || 0;
   const linkedDraft = linkedNumber
     ? data.drafts.find((draft) => draft.number === linkedNumber) || null
@@ -57,33 +68,41 @@ export default function WritingWorkspacePage() {
   const view = picked ?? (linkedDraft ? linkedDraft.id : "write");
 
   const { assignment, project, tracker } = data;
+  // A reload finishes the action that triggered it; only then may the button come back.
+  useEffect(() => {
+    if (!loading) setBusy(false);
+  }, [loading]);
   const readiness = useMemo(
     () => draftReadiness({ assignment, sections: working }),
     [assignment, working],
   );
   // The rail ticks a word locally; nothing about word use is sent with autosave.
+  // Rescanning the whole piece waits for the editor, so typing never stutters.
+  const deferredWorking = useDeferredValue(working);
   const usedWords = useMemo(
-    () =>
-      new Set(
-        working
-          .map((row) => String(row.text || "").toLowerCase())
-          .join(" ")
-          .match(/[a-z0-9]+(?:['’][a-z]+)*/g) || [],
-      ),
-    [working],
+    () => usedWordSet(deferredWorking),
+    [deferredWorking],
   );
-  const registerEditor = useCallback((id, node) => {
+  const registerEditor = useCallback((key, index, node) => {
+    const id = `${key}:${index}`;
     if (node) editors.current.set(id, node);
     else editors.current.delete(id);
   }, []);
+  // Read through a ref so this callback keeps one identity while the text
+  // changes underneath it.
+  const workingRef = useRef(working);
+  workingRef.current = working;
+  const editSectionRef = useRef(editSection);
+  editSectionRef.current = editSection;
   const insertWord = useCallback(
     (word) => {
-      const fallback = working[0];
+      const rows = workingRef.current;
+      const fallback = rows[0];
       if (!word || !fallback) return;
       const id =
         activeEditor.current || `${fallback.key}:${fallback.index}`;
       const row =
-        working.find((item) => `${item.key}:${item.index}` === id) || fallback;
+        rows.find((item) => `${item.key}:${item.index}` === id) || fallback;
       const node = editors.current.get(`${row.key}:${row.index}`);
       const start = node?.selectionStart ?? row.text.length;
       const end = node?.selectionEnd ?? start;
@@ -91,7 +110,7 @@ export default function WritingWorkspacePage() {
       const after = row.text.slice(end);
       const lead = before && !/\s$/.test(before) ? " " : "";
       const trail = after && !/^\s/.test(after) ? " " : "";
-      editSection(
+      editSectionRef.current(
         `${row.key}:${row.index}`,
         `${before}${lead}${word}${trail}${after}`,
       );
@@ -102,8 +121,16 @@ export default function WritingWorkspacePage() {
         node.setSelectionRange(caret, caret);
       });
     },
-    [editSection, working],
+    [],
   );
+
+  const handleSectionChange = useCallback(
+    (key, index, text) => editSection(`${key}:${index}`, text),
+    [editSection],
+  );
+  const handleSectionFocus = useCallback((key, index) => {
+    activeEditor.current = `${key}:${index}`;
+  }, []);
 
   // A locked draft opens as the essay it is; the writing view comes back the moment it can be edited.
   const effectiveView =
@@ -128,6 +155,27 @@ export default function WritingWorkspacePage() {
     return (
       <div className="ws-page ws-loading" aria-live="polite">
         <div className="spinner" />
+        <p>{t("writing:student.loadingProject")}</p>
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="ws-page ws-failed">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm ws-back"
+          onClick={onBack}
+        >
+          <HiOutlineArrowLeft size={16} aria-hidden="true" />
+          {t("writing:student.myWriting")}
+        </button>
+        <ErrorBanner
+          message={t("writing:student.loadFailed")}
+          onRetry={reload}
+          retryLabel={t("writing:student.retry")}
+        />
       </div>
     );
   }
@@ -156,10 +204,17 @@ export default function WritingWorkspacePage() {
   const confirmSubmit = async () => {
     setBusy(true);
     const result = await submit();
-    setBusy(false);
     setSheetOpen(false);
     // The draft is frozen; refetch so the tracker, locks and next step are right.
-    if (result) reload();
+    // Busy stays on until that refetch lands, so the footer cannot submit twice.
+    if (result) {
+      // A deep link to an older draft must not outlive the submit that moved us on.
+      setPicked(null);
+      if (linkedNumber) setSearchParams({}, { replace: true });
+      reload();
+    } else {
+      setBusy(false);
+    }
   };
 
   const printDraft = async () => {
@@ -180,8 +235,8 @@ export default function WritingWorkspacePage() {
   const notebookDone = async () => {
     setBusy(true);
     const done = await markNotebook();
-    setBusy(false);
     if (done) reload();
+    else setBusy(false);
   };
 
   const blocked = project.canSubmit && project.canSubmit.allowed === false;
@@ -260,7 +315,7 @@ export default function WritingWorkspacePage() {
             >
               {t("writing:student.draftTab", { n: draft.number })}
               <span>
-                {t("writing:student.words", { n: draft.totalWords || 0 })}
+                {countLabel(t, "writing:student.wordCount", draft.totalWords || 0)}
               </span>
             </button>
           ))}
@@ -272,11 +327,21 @@ export default function WritingWorkspacePage() {
       )}
 
       {project.stage === "submitted" || project.stage === "feedback_ready" ? (
-        <p className="ws-notice">
-          {t("writing:student.teacherReviewing", {
-            n: Math.max(1, project.draftCount),
-          })}
-        </p>
+        <div className="ws-notice is-action">
+          <span>
+            {t("writing:student.teacherReviewing", {
+              n: Math.max(1, project.draftCount),
+            })}
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={loading}
+            onClick={reload}
+          >
+            {t("writing:student.checkForFeedback")}
+          </button>
+        </div>
       ) : null}
       {project.stage === "ready_for_notebook" ? (
         <div className="ws-notice is-action">
@@ -401,27 +466,18 @@ export default function WritingWorkspacePage() {
                         Math.max(Number(definition.maxCount) || 1, 1)
                     }
                     canRemove={!readOnly && rows.length > minCount}
-                    definition={{
-                      ...definition,
-                      label:
-                        definition.repeatable && rows.length > 1
-                          ? `${definition.label} ${Number(section.index) + 1}`
-                          : definition.label,
-                    }}
+                    definition={definition}
+                    label={
+                      definition.repeatable && rows.length > 1
+                        ? `${definition.label} ${Number(section.index) + 1}`
+                        : definition.label
+                    }
                     note={noteForSlot(feedback, section)}
-                    onChange={(key, index, text) =>
-                      editSection(`${key}:${index}`, text)
-                    }
-                    onFocus={() => {
-                      activeEditor.current = `${section.key}:${section.index}`;
-                    }}
-                    registerEditor={(node) =>
-                      registerEditor(`${section.key}:${section.index}`, node)
-                    }
-                    onAdd={() => addSlot(definition)}
-                    onRemove={() =>
-                      removeSlot(`${section.key}:${section.index}`)
-                    }
+                    onChange={handleSectionChange}
+                    onFocus={handleSectionFocus}
+                    registerEditor={registerEditor}
+                    onAdd={addSlot}
+                    onRemove={removeSlot}
                     readOnly={readOnly}
                     section={section}
                   />
@@ -459,11 +515,11 @@ export default function WritingWorkspacePage() {
       <footer className="ws-bar">
         <div className="ws-bar-stats">
           <strong>
-            {t("writing:student.words", {
-              n: viewedDraft
-                ? viewedDraft.totalWords || 0
-                : readiness.totalWords,
-            })}
+            {countLabel(
+              t,
+              "writing:student.wordCount",
+              viewedDraft ? viewedDraft.totalWords || 0 : readiness.totalWords,
+            )}
           </strong>
           {!viewedDraft &&
             ((Number(assignment.minWords) || 0) > 0 ||
@@ -489,7 +545,7 @@ export default function WritingWorkspacePage() {
         <button
           type="button"
           className="btn btn-primary"
-          disabled={readOnly || blocked || busy || Boolean(viewedDraft)}
+          disabled={readOnly || blocked || busy || loading || Boolean(viewedDraft)}
           title={blocked ? project.canSubmit?.reason : undefined}
           onClick={() => setSheetOpen(true)}
         >

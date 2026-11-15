@@ -57,7 +57,47 @@ const getRoleDisplayName = (role) => {
     }
 };
 
-const buildInviteEmailContent = ({
+const buildTeacherGoogleInviteContent = ({ schoolName, displayName, recipientEmail }) => {
+    // A teacher signs in with Google so their mail leaves from their own
+    // mailbox. Sending a password they are not meant to use only causes
+    // support calls, so this email carries the Google door instead.
+    const signInUrl = `${getPortalUrl()}/login?role=teacher`;
+    const subject = `${schoolName} teacher sign-in`;
+
+    return {
+        subject,
+        message: [
+            `Hello ${displayName},`,
+            '',
+            `Your ${schoolName} teacher account is ready.`,
+            `Email: ${recipientEmail}`,
+            '',
+            'Sign in with Google using this email address:',
+            signInUrl,
+            '',
+            'If you did not expect this email, contact your school administrator.'
+        ].join('\n'),
+        htmlContent: `
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
+            <h2 style="margin-bottom: 16px;">${escapeHtml(subject)}</h2>
+            <p>Hello ${escapeHtml(displayName)},</p>
+            <p>Your ${escapeHtml(schoolName)} teacher account is ready.</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:20px 0;">
+                <p style="margin:0;"><strong>Email:</strong> ${escapeHtml(recipientEmail)}</p>
+            </div>
+            <p>Sign in with Google using this email address.</p>
+            <p>
+                <a href="${escapeHtml(signInUrl)}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;">
+                    Sign in with Google
+                </a>
+            </p>
+            <p>If you did not expect this email, contact your school administrator.</p>
+        </div>
+    `.trim()
+    };
+};
+
+export const buildInviteEmailContent = ({
     schoolName,
     recipientName,
     recipientEmail,
@@ -68,6 +108,9 @@ const buildInviteEmailContent = ({
     const frontendUrl = getPortalUrl();
     const displayName = recipientName || getRoleDisplayName(role);
     const roleLabel = getRoleDisplayName(role);
+    if (role === 'teacher') {
+        return buildTeacherGoogleInviteContent({ schoolName, displayName, recipientEmail });
+    }
     const linkedChildrenLine = linkedStudents.length > 0
         ? `Linked student${linkedStudents.length > 1 ? 's' : ''}: ${linkedStudents.join(', ')}`
         : null;
@@ -165,6 +208,13 @@ export const upsertInvitedUser = async ({
         throw new Error('Valid email is required');
     }
 
+    // Teachers never receive a usable password: they sign in with Google.
+    // The account still needs an unguessable one internally.
+    const googleOnlyTeacher = role === 'teacher';
+    const accountPassword = googleOnlyTeacher
+        ? crypto.randomBytes(32).toString('hex')
+        : tempPassword;
+
     let user = null;
     let created = false;
 
@@ -209,13 +259,13 @@ export const upsertInvitedUser = async ({
         if (!user) {
             user = new User({
                 email: normalizedEmail,
-                password: tempPassword,
+                password: accountPassword,
                 role,
                 school: schoolId,
                 firstName,
                 lastName,
                 isActive: true,
-                mustChangePassword: true
+                mustChangePassword: !googleOnlyTeacher
             });
             created = true;
         } else {
@@ -237,10 +287,10 @@ export const upsertInvitedUser = async ({
     user.firstName = firstName || user.firstName;
     user.lastName = lastName || user.lastName;
     user.isActive = true;
-    user.mustChangePassword = true;
+    user.mustChangePassword = !googleOnlyTeacher;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    user.password = tempPassword;
+    if (!googleOnlyTeacher) user.password = tempPassword;
     await user.save();
     await clearRefreshToken(user._id);
 

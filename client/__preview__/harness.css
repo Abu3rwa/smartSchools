@@ -1,0 +1,26 @@
+/* TEMPORARY harness chrome: stands in for the real sidebar + header boxes. */
+.preview-side {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--sidebar-width);
+    background: var(--bg-secondary);
+    border-inline-end: 1px solid var(--border-color);
+    z-index: 20;
+}
+
+.preview-top {
+    position: fixed;
+    top: 0;
+    inset-inline-start: var(--sidebar-width);
+    inset-inline-end: 0;
+    height: var(--header-height);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 20;
+}
+
+@media (max-width: 899px) {
+    .preview-side { display: none; }
+    .preview-top { inset-inline-start: 0; }
+}

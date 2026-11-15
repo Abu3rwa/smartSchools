@@ -160,7 +160,7 @@
 }
 
 .clp-chip.is-on {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(var(--accent-primary-rgb), 0.12);
   border-color: var(--primary-500);
   color: var(--text-accent);
   font-weight: 600;
@@ -456,7 +456,7 @@
 }
 
 .clp-filter.is-active {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(var(--accent-primary-rgb), 0.12);
   border-color: var(--primary-500);
   color: var(--text-accent);
 }
@@ -472,7 +472,7 @@
 }
 
 .clp-filter.is-active .clp-filter-count {
-  background: rgba(20, 184, 166, 0.18);
+  background: rgba(var(--accent-primary-rgb), 0.18);
 }
 
 /* ── Bulk actions ──────────────────────────────────────── */

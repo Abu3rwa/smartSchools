@@ -105,9 +105,40 @@ export function buildStudentFacts({
 }
 
 /**
- * Replaces every occurrence of the child's own name with the name token, and
- * every classmate name with a neutral placeholder. Emails and long numbers are
- * scrubbed too. The reply is filled back with fillStudentTokens* after the call.
+ * Name parts that are also ordinary English words. Scrubbing these
+ * case-insensitively turns "I may go" into "I {{student}} go", which corrupts the
+ * essay the model is meant to judge and breaks quote validation downstream.
+ * They are matched case-sensitively instead: a capitalised "May" is a name, a
+ * lowercase "may" is a verb. Every other part stays case-insensitive so a
+ * lowercase "sara" in a child's draft is still removed.
+ */
+const COMMON_WORD_NAMES = new Set([
+    "may", "will", "hope", "grace", "faith", "joy", "charity", "rose", "lily",
+    "dawn", "eve", "summer", "autumn", "april", "june", "jean", "gene", "art",
+    "bill", "bob", "bud", "clay", "dean", "don", "ford", "frank", "grant",
+    "herb", "jack", "jay", "lance", "mark", "mason", "miles", "neil", "nick",
+    "pat", "ray", "reed", "rex", "rich", "rob", "rod", "ron", "roy", "russ",
+    "scott", "tad", "ted", "tom", "van", "wade", "ward", "win", "worth",
+    "young", "angel", "baby", "blossom", "brook", "candy", "chance", "chase",
+    "china", "crystal", "daisy", "diamond", "dolly", "earl", "fanny", "fleur",
+    "forest", "gale", "garnet", "ginger", "harmony", "hazel", "heather",
+    "holly", "hunter", "iris", "ivy", "jade", "jasmine", "jewel", "junior",
+    "kitty", "lake", "lane", "lark", "laurel", "leaf", "lemon", "liberty",
+    "lucky", "magic", "major", "maple", "marina", "meadow", "melody", "mercy",
+    "merry", "misty", "morning", "noble", "north", "ocean", "olive", "opal",
+    "pansy", "pearl", "penny", "pepper", "petunia", "poppy", "precious",
+    "prince", "princess", "rain", "rainbow", "raven", "river", "robin",
+    "ruby", "sage", "sandy", "scarlet", "sky", "sonny", "sparkle", "star",
+    "stone", "storm", "sunny", "sunshine", "sweet", "temple", "terra",
+    "tiger", "treasure", "trinity", "venus", "violet", "virginia", "winter",
+    "wonder", "woody", "york", "zen",
+]);
+
+/**
+ * Replaces every occurrence of the child's own name — the full name and each
+ * part — with the name token, and every classmate name with a neutral
+ * placeholder. Emails and long numbers are scrubbed too. The reply is filled
+ * back with fillStudentTokens* after the call.
  */
 export function scrubForPrompt(value, {
     name,
@@ -117,8 +148,29 @@ export function scrubForPrompt(value, {
     phoneNumbers = true
 } = {}) {
     const own = String(name || "").trim();
-    const ownParts = new Set(own.toLowerCase().split(/\s+/).filter(Boolean));
-    let text = scrubPersonalText(value, { names: own ? [own] : [] }, { placeholder, phoneNumbers });
+    const ownParts = own.split(/\s+/).filter(Boolean);
+    const ownPartSet = new Set(ownParts.map((part) => part.toLowerCase()));
+
+    // The full name is never an English word, so it is always matched
+    // case-insensitively — unless the whole name IS one common word ("May"),
+    // in which case it joins the case-sensitive pass with the other parts.
+    const ownIsCommonWord = COMMON_WORD_NAMES.has(own.toLowerCase());
+    const safeParts = ownParts.filter((part) => !COMMON_WORD_NAMES.has(part.toLowerCase()));
+    const wordParts = ownParts.filter((part) => COMMON_WORD_NAMES.has(part.toLowerCase()));
+
+    let text = scrubPersonalText(
+        value,
+        { names: [...(ownIsCommonWord ? [] : [own]), ...safeParts].filter((entry) => entry.length >= 2) },
+        { placeholder, phoneNumbers, minNameLength: 2 }
+    );
+    const caseSensitiveNames = [...(ownIsCommonWord ? [own] : []), ...wordParts];
+    if (caseSensitiveNames.length) {
+        text = scrubPersonalText(
+            text,
+            { names: caseSensitiveNames },
+            { placeholder, phoneNumbers: false, caseSensitive: true, minNameLength: 2 }
+        );
+    }
 
     const others = Array.from(new Set(
         roster
@@ -132,7 +184,7 @@ export function scrubForPrompt(value, {
             .filter((entry) => entry.length > 2)
     )).filter((entry) => {
         const lower = entry.toLowerCase();
-        return lower !== own.toLowerCase() && !ownParts.has(lower);
+        return lower !== own.toLowerCase() && !ownPartSet.has(lower);
     });
     if (others.length) {
         text = scrubPersonalText(text, { names: others }, { caseSensitive: true, placeholder: rosterPlaceholder, phoneNumbers: false });
@@ -258,4 +310,66 @@ export function correctivePrompt(prompt, problems) {
 
 Your previous answer was rejected. Fix exactly these problems and change nothing else: ${problems.join(", ")}.
 Rewrite the whole answer with those problems removed.`;
+}
+
+const NAME_TOKEN_INNER = /^(?:student(?:[\s_-]?name)?|child(?:[\s_-]?name)?|pupil(?:[\s_-]?name)?|name)$/i;
+
+/**
+ * Models invent their own spelling of the name slot. Every variant that means
+ * "the student" becomes the one token the server knows how to fill; any other
+ * brace shape is dropped so it can never reach a family literally.
+ */
+export function canonicalizeNameTokens(value) {
+    return String(value ?? "").replace(/\{\{([^{}]*)\}\}/g, (match, inner) =>
+        NAME_TOKEN_INNER.test(String(inner).trim()) ? STUDENT_TOKEN : ""
+    );
+}
+
+/**
+ * One generated string, made as safe as it can be: phrase-class problems are
+ * removed, anything left is reported so the caller can refuse the reply.
+ * An empty string is not a problem here — callers inspect fields, not replies.
+ */
+export function cleanGeneratedString(value) {
+    const text = String(value ?? "");
+    if (!text.trim()) return { text, problems: [] };
+    if (inspectGeneratedText(text, { allowToken: true }).ok) return { text, problems: [] };
+    const stripped = stripFlaggedFormulas(text);
+    return { text: stripped, problems: inspectGeneratedText(stripped, { allowToken: true }).problems };
+}
+
+/**
+ * The same inspection across a whole nested reply. Keys named in skipKeys are
+ * left untouched: a verbatim quote of the child's own writing is evidence, not
+ * advice, and rewording it would break the anchor it exists for.
+ */
+export function sanitizeGeneratedFields(value, { skipKeys = ["evidence"], path = "" } = {}) {
+    if (typeof value === "string") {
+        const { text, problems } = cleanGeneratedString(value);
+        return { value: text, problems: problems.map((problem) => ({ path, problem })) };
+    }
+    if (Array.isArray(value)) {
+        const problems = [];
+        const rows = value.map((entry, index) => {
+            const result = sanitizeGeneratedFields(entry, { skipKeys, path: `${path}[${index}]` });
+            problems.push(...result.problems);
+            return result.value;
+        });
+        return { value: rows, problems };
+    }
+    if (value && typeof value === "object") {
+        const problems = [];
+        const output = {};
+        for (const [key, entry] of Object.entries(value)) {
+            if (skipKeys.includes(key)) {
+                output[key] = entry;
+                continue;
+            }
+            const result = sanitizeGeneratedFields(entry, { skipKeys, path: path ? `${path}.${key}` : key });
+            problems.push(...result.problems);
+            output[key] = result.value;
+        }
+        return { value: output, problems };
+    }
+    return { value, problems: [] };
 }

@@ -116,6 +116,12 @@ export const FEATURES = {
         description: 'A student-facing tutor that answers only from the lessons and standards imported for the class subject, with per-student credit controlled by the school admin.',
         plans: ['professional', 'enterprise']
     },
+    studentSupport: {
+        key: 'studentSupport',
+        label: 'Student Support',
+        description: 'Run the student support workbench: support cases, family surveys, intervention plans and evidence reports.',
+        plans: ['professional', 'enterprise']
+    },
     revisionPlanning: {
         key: 'revisionPlanning',
         label: 'Revision Planning',

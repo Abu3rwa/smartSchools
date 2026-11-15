@@ -1,16 +1,22 @@
-const SectionCard = ({ title, icon: Icon, action, children, className }) => {
-    return (
-        <div className={`teacher-card ${className || ''}`.trim()}>
-            <div className="card-header">
-                <h3 className="card-title">
-                    {Icon && <Icon className="card-icon" size={20} />}
-                    {title}
-                </h3>
-                {action}
+import { toneVar } from '../constants';
+
+const SectionCard = ({ title, subtitle, icon: Icon, tone = 'teal', action, badge, children, className }) => (
+    <section className={`td-card${className ? ` ${className}` : ''}`} style={{ '--tone': toneVar(tone) }}>
+        <div className="td-head">
+            {Icon && (
+                <span className="td-plate">
+                    <Icon size={17} />
+                </span>
+            )}
+            <div className="td-heading">
+                <h3 className="td-title">{title}</h3>
+                {subtitle ? <p className="td-sub">{subtitle}</p> : null}
             </div>
-            {children}
+            {action}
+            {badge}
         </div>
-    );
-};
+        {children}
+    </section>
+);
 
 export default SectionCard;

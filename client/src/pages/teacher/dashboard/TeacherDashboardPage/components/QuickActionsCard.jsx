@@ -1,25 +1,40 @@
-import { Grid } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineArrowRight } from 'react-icons/hi';
+import { HiOutlineArrowRight, HiOutlineSparkles } from 'react-icons/hi';
 import SectionCard from './SectionCard';
+import { toneVar } from '../constants';
 
 const QuickActionsCard = ({ actions }) => {
     const { t } = useTranslation(['dashboard']);
 
     return (
-        <SectionCard className="quick-actions-card" title={t('dashboard:teacherDashboard.quickActions.title')}>
-            <Grid container spacing={1.5}>
-                {actions.map((action, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                        <Link to={action.path} className="quick-action">
-                            <action.icon size={24} />
-                            <span>{t(`dashboard:teacherDashboard.${action.labelKey}`)}</span>
-                            <HiOutlineArrowRight className="action-arrow" size={18} />
-                        </Link>
-                    </Grid>
+        <SectionCard
+            title={t('dashboard:teacherDashboard.quickActions.title')}
+            icon={HiOutlineSparkles}
+            tone="purple"
+        >
+            <div className="td-actions">
+                {actions.map((action) => (
+                    <Link
+                        to={action.path}
+                        className="td-action"
+                        key={action.path}
+                        style={{ '--tone': toneVar(action.tone) }}
+                    >
+                        <span className="td-plate" aria-hidden="true">
+                            <action.icon size={18} />
+                        </span>
+                        <span className="td-action-label">
+                            {t(`dashboard:teacherDashboard.${action.labelKey}`)}
+                        </span>
+                        <span className="td-go" aria-hidden="true">
+                            <span className="td-flip">
+                                <HiOutlineArrowRight size={15} />
+                            </span>
+                        </span>
+                    </Link>
                 ))}
-            </Grid>
+            </div>
         </SectionCard>
     );
 };

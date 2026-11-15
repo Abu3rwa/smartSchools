@@ -25,6 +25,7 @@ import {
     isCompatibleDestinationRecord,
     normalizeDestinationRecordIds,
 } from '../services/plpGoalCopyService.js';
+import { teacherSenderPolicy } from '../services/senderPolicy.js';
 import logger from '../utils/logger.js';
 import {
     assertRecordAccess,
@@ -1231,6 +1232,7 @@ export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
                 html: context.email.html,
                 schoolId: req.user.school,
                 preferredUserId: req.user._id,
+                ...teacherSenderPolicy(req.user),
             });
         } catch (error) {
             const reason = describeEmailDeliveryError(error);

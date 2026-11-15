@@ -21,10 +21,13 @@ export function useWritingBuilderData() {
   const isEdit = Boolean(assignmentId);
 
   const [form, setForm] = useState(emptyForm);
+  const [wasActive, setWasActive] = useState(true);
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [errors, setErrors] = useState({});
   const [vocabularyLists, setVocabularyLists] = useState([]);
 
@@ -66,18 +69,24 @@ export function useWritingBuilderData() {
     if (!isEdit) return undefined;
     let active = true;
     setLoading(true);
+    setFailed(false);
     writingService.getAssignment(assignmentId)
       .then((assignment) => {
-        if (active) setForm(formFromAssignment(assignment));
+        if (active) {
+          setForm(formFromAssignment(assignment));
+          // A draft stays a draft: saving changes must not quietly publish it.
+          setWasActive(assignment.isActive !== false);
+        }
       })
-      .catch((error) => {
-        if (active) toast.error(error?.response?.data?.message || t("writing:teacher.builder.loadFailed"));
+      .catch(() => {
+        // An empty form plus a working Save would overwrite the real task.
+        if (active) setFailed(true);
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [assignmentId, isEdit, t]);
+  }, [assignmentId, attempt, isEdit]);
 
   // The goals repeater needs the roster, so the class pick loads the students.
   useEffect(() => {
@@ -106,7 +115,9 @@ export function useWritingBuilderData() {
     name: `${row.firstName || ""} ${row.lastName || ""}`.trim() || row.name || row.studentId || "",
   })), [students]);
 
-  const save = useCallback(async ({ isActive = true } = {}) => {
+  const save = useCallback(async ({ isActive = isEdit ? wasActive : true } = {}) => {
+    // Never PATCH a blank form over a task that failed to load.
+    if (isEdit && (loading || failed)) return false;
     const check = validateForm(form);
     if (!check.ok) {
       setErrors(check.errors);
@@ -119,7 +130,8 @@ export function useWritingBuilderData() {
       const saved = isEdit
         ? await writingService.updateAssignment(assignmentId, payload)
         : await writingService.createAssignment(payload);
-      toast.success(t(isEdit ? "writing:teacher.builder.saved" : "writing:teacher.builder.published"));
+      const wentLive = isEdit ? isActive && !wasActive : isActive;
+      toast.success(t(wentLive ? "writing:teacher.builder.published" : "writing:teacher.builder.saved"));
       navigate(`/portal/writing/assignments/${saved?._id || assignmentId}`);
       return true;
     } catch (error) {
@@ -128,11 +140,12 @@ export function useWritingBuilderData() {
     } finally {
       setSaving(false);
     }
-  }, [assignmentId, form, isEdit, navigate, t]);
+  }, [assignmentId, failed, form, isEdit, loading, navigate, t, wasActive]);
 
   return {
     assignmentId,
     errors,
+    failed,
     form,
     isEdit,
     classes,
@@ -140,7 +153,9 @@ export function useWritingBuilderData() {
     vocabularyLists,
     loading,
     saving,
+    wasActive,
     update,
+    retry: () => setAttempt((current) => current + 1),
     save,
     onCancel: () => navigate("/portal/writing/assignments"),
   };

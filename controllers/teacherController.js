@@ -106,7 +106,8 @@ const prepareTeacherLoginInvite = async ({
         throw new Error('Teacher account does not have an email address');
     }
 
-    const tempPassword = generateStrongTempPassword();
+    // Teachers sign in with Google; no temporary password is generated or
+    // returned. The invite email carries the Google door instead.
     const inviteProvision = await upsertInvitedUser({
         existingUserId: teacherUser._id,
         schoolId: teacher.school,
@@ -114,7 +115,7 @@ const prepareTeacherLoginInvite = async ({
         firstName: teacherUser.firstName,
         lastName: teacherUser.lastName,
         role: 'teacher',
-        tempPassword,
+        tempPassword: '',
         allowRoleCorrection: true
     });
 
@@ -126,7 +127,7 @@ const prepareTeacherLoginInvite = async ({
             recipientEmail: inviteProvision.email,
             recipientName: `${teacherUser.firstName || ''} ${teacherUser.lastName || ''}`.trim(),
             role: 'teacher',
-            tempPassword
+            tempPassword: ''
         })
         : { emailSent: false, error: null };
 
@@ -134,7 +135,6 @@ const prepareTeacherLoginInvite = async ({
         teacherId: teacher._id,
         userId: inviteProvision.user._id,
         email: inviteProvision.email,
-        tempPassword,
         created: inviteProvision.created,
         emailSent: inviteDelivery.emailSent,
         error: inviteDelivery.error || null

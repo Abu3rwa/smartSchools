@@ -15,6 +15,7 @@ import Subject from "../models/Subject.js";
 import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { parseLiveLessonCsv, serializeLiveLessonCsv } from "../services/liveLessonCsvService.js";
+import { isTeacherOnlySender } from "../services/senderPolicy.js";
 import { assertLiveLessonHtmlSafe } from "../services/liveLessonHtmlSafety.js";
 import { generateChargesForSession } from "../services/sessionBillingService.js";
 import {
@@ -1122,6 +1123,8 @@ export const createLiveSession = asyncHandler(async (req, res) => {
         className: classDoc.name || "your class",
         sessionUrl,
         timeZone: await getSchoolTimeZone(req.schoolId),
+        preferredUserId: session.teacherId || req.user._id,
+        requirePreferredSender: isTeacherOnlySender(req.user),
       });
     } catch (error) {
       logger.error("live_lesson_invitation_email_failed", {

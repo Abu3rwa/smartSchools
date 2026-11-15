@@ -238,7 +238,7 @@
 .question-instruction {
     /* font-size: 0.95rem; */
     font-weight: 700;
-    color: #14b8a6;
+    color: var(--primary-500);
     /* margin-bottom: var(--spacing-sm); */
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 2px solid var(--primary, #6366f1);
@@ -256,7 +256,7 @@
     font-weight: 500;
     line-height: 1.6;
     margin-bottom: var(--spacing-lg);
-    background: #14b8a6;
+    background: var(--primary-500);
     white-space: pre-line;
     color: white;
     padding: 10px;

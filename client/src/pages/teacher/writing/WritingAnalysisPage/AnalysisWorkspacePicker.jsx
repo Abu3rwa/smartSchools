@@ -3,9 +3,13 @@ import { useTranslation } from "react-i18next";
 
 const idOf = (row) => String(row?._id || row || "");
 
-const classNameOf = (row) => {
+const classNameOf = (row, t) => {
   if (!row) return "";
-  const name = row.name || `Grade ${row.grade}`;
+  const name =
+    row.name ||
+    (row.grade
+      ? t("writing:teacher.analysis.gradeN", { n: row.grade })
+      : t("writing:teacher.analysis.noGrade"));
   return row.section ? `${name} · ${row.section}` : name;
 };
 
@@ -57,14 +61,27 @@ export default function AnalysisWorkspacePicker({ workspace, scope }) {
   const loadingStudents = studentsState === "loading";
   const studentsFailed = studentsState === "failed";
   const noSubjects = Boolean(classId) && subjectChoices.length === 0;
+  // Once a student is chosen the card is not asking for anything; it is
+  // showing the run and offering a way to change it.
+  const hasStudent = Boolean(studentId);
 
   return (
     <section className="wa-card wa-ana-picker">
       <div className="wa-card-head">
         <div>
-          <h2>{t("writing:teacher.analysis.pickerTitle")}</h2>
+          <h2>
+            {t(
+              hasStudent
+                ? "writing:teacher.analysis.pickerTitleChosen"
+                : "writing:teacher.analysis.pickerTitle",
+            )}
+          </h2>
           <p className="wa-card-sub">
-            {t("writing:teacher.analysis.pickerHint")}
+            {t(
+              hasStudent
+                ? "writing:teacher.analysis.pickerHintChosen"
+                : "writing:teacher.analysis.pickerHint",
+            )}
           </p>
         </div>
         {workspace.projectId && (
@@ -87,7 +104,7 @@ export default function AnalysisWorkspacePicker({ workspace, scope }) {
             </option>
             {(classes || []).map((row) => (
               <option key={idOf(row)} value={idOf(row)}>
-                {classNameOf(row)}
+                {classNameOf(row, t)}
               </option>
             ))}
           </select>

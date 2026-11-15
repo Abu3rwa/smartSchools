@@ -74,7 +74,19 @@
       "fullTimetable": "الجدول الكامل",
       "loadError": "تعذر تحميل الجدول.",
       "empty": "لا توجد حصص مجدولة اليوم.",
-      "periodFallback": "الحصة {{index}}"
+      "periodFallback": "الحصة {{index}}",
+      "now": "الآن",
+      "next": "الحصة التالية",
+      "week": "الأسبوع",
+      "retry": "إعادة المحاولة",
+      "dayDone": "انتهت حصص اليوم",
+      "dayDoneMeta": "لا توجد حصص متبقية في جدول اليوم.",
+      "noneToday": "لا حصص اليوم",
+      "startsIn": "بعد {{m}} د",
+      "running": "جارية الآن",
+      "classesCount": "عدد الحصص: {{value}}",
+      "noClasses": "لا حصص",
+      "room": "قاعة"
     },
     "subRequests": {
       "title": "طلبات البديل",
@@ -95,7 +107,8 @@
       "pendingRequestsCount_other": "{{count}} طلب بديل معلق",
       "confirmOrDecline": "يرجى التأكيد أو الرفض.",
       "viewAndRespond": "عرض والرد",
-      "empty": "لا توجد طلبات بديل معلقة."
+      "empty": "لا توجد طلبات بديل معلقة.",
+      "allClear": "لا شيء بانتظارك"
     },
     "quickActions": {
       "title": "إجراءات سريعة",
@@ -128,7 +141,9 @@
         "thu": "الخميس",
         "fri": "الجمعة",
         "sat": "السبت"
-      }
+      },
+      "classAverage": "المتوسط",
+      "classes": "حصص"
     }
   }
 }

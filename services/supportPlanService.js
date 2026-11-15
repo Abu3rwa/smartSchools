@@ -129,7 +129,7 @@ export const recordCheckIn = async ({
     if (!['done', 'didnt_fit', 'need_help'].includes(status)) {
         throw supportError(400, 'CHECKIN_STATUS', 'Choose done, did not fit, or need help.');
     }
-    if (!['published', 'closed'].includes(plan.status)) {
+    if (plan.status !== 'published') {
         throw supportError(409, 'PLAN_NOT_LIVE', 'Check-ins open when the plan is published.');
     }
     const found = findPlanTask(plan, taskId);
@@ -138,12 +138,19 @@ export const recordCheckIn = async ({
         throw supportError(400, 'TASK_SCOPE', 'That task belongs to the other side of the plan.');
     }
 
+    const actorKey = actorKind === 'parent'
+        ? `parent:${String(respondentId || '')}`
+        : actorKind === 'student'
+            ? `student:${String(respondentId || studentId || plan.student || '')}`
+            : `${actorKind || 'teacher'}:${String(actorId || '')}`;
+
     const checkIn = await SupportCheckIn.findOneAndUpdate(
         {
             school: plan.school,
             plan: plan._id,
             taskId,
             scope,
+            actorKey,
         },
         {
             $set: {
@@ -155,6 +162,7 @@ export const recordCheckIn = async ({
                 actorKind,
                 actor: actorId,
                 respondent: respondentId,
+                actorKey,
             },
         },
         { new: true, upsert: true, setDefaultsOnInsert: true },

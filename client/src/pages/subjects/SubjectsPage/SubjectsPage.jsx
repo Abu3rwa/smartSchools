@@ -74,6 +74,9 @@ const SubjectsPage = () => {
     }, [dispatch, subjectsQueryParams]);
 
     useEffect(() => {
+        // /import/templates/:entity rejects a plain teacher with 403, and the
+        // template pill belongs to the admin-only import actions in the header.
+        if (!isAdmin) return;
         let mounted = true;
         importTemplateService.getEntityTemplate('subjects')
             .then((meta) => {
@@ -85,7 +88,7 @@ const SubjectsPage = () => {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [isAdmin]);
 
     const handleCloseModal = () => {
         setShowModal(false);

@@ -1,5 +1,5 @@
 .support-hub {
-  --support-accent: #0f766e;
+  --support-accent: var(--primary-700);
   --support-accent-soft: #ecfdf5;
   --support-line: var(--border-color, #e2e8f0);
   --support-ink: var(--text-primary, #0f172a);

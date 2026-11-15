@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const COLORS = ['#14b8a6', '#0ea5e9', '#6366f1', '#f59e0b', '#ec4899', '#22c55e'];
+const COLORS = ['var(--primary-500)', '#0ea5e9', '#6366f1', '#f59e0b', '#ec4899', '#22c55e'];
 
 export default function ClassComparisonSection({ classes, explaining, grades, narrative, onExplain }) {
     const { t } = useTranslation(['spellingAnalysis']);

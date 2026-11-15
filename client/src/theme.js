@@ -12,10 +12,14 @@ const baseThemeOptions = {
   },
   palette: {
     mode: 'dark',
+    // One brand for both modes: the amber lantern accent.
+    // Old teal primary, kept for reference:
+    // primary: { main: '#14b8a6', light: '#2dd4bf', dark: '#0d9488' },
     primary: {
-      main: '#14b8a6',
-      light: '#2dd4bf',
-      dark: '#0d9488',
+      main: '#b45309',
+      light: '#f59e0b',
+      dark: '#92400e',
+      contrastText: '#ffffff',
     },
     secondary: {
       main: '#1e293b',
@@ -33,7 +37,8 @@ const baseThemeOptions = {
     },
     success: { main: '#10b981' },
     error: { main: '#ef4444' },
-    warning: { main: '#f59e0b' },
+    // Warnings are orange so they never read as the amber brand.
+    warning: { main: '#c2410c', light: '#ea580c', dark: '#9a3412' },
   },
   typography: {
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -54,6 +59,8 @@ const baseThemeOptions = {
         },
         contained: {
           background: 'var(--brand-gradient)',
+          // Ink on the amber brand; white would fail contrast on it.
+          color: 'var(--on-accent, #101828)',
           '&:hover': {
             background: 'var(--brand-gradient-hover)',
           },
@@ -72,19 +79,17 @@ const baseThemeOptions = {
 };
 
 const lightPaletteOverrides = {
-  primary: {
-    main: '#0d9488',
-    light: '#14b8a6',
-    dark: '#0f766e',
-  },
+  // The brand primary is shared by both modes now, so there is no light-only
+  // primary to override. Old block, kept for reference:
+  // primary: { main: '#b45309', light: '#f59e0b', dark: '#92400e' },
   background: {
-    default: '#f8fafc',
+    default: '#f7f8fa',
     paper: '#ffffff',
   },
   text: {
-    primary: '#0f172a',
-    secondary: '#334155',
-    disabled: '#94a3b8',
+    primary: '#101828',
+    secondary: '#344054',
+    disabled: '#667085',
   },
 };
 

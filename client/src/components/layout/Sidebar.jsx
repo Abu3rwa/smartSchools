@@ -687,6 +687,7 @@ const Sidebar = () => {
       icon: HiOutlineLifebuoy,
       labelKey: "studentSupport",
       roles: ["admin", "teacher"],
+      feature: "studentSupport",
       section: "support",
     },
     {
@@ -694,6 +695,15 @@ const Sidebar = () => {
       icon: HiOutlineLifebuoy,
       labelKey: "studentSupport",
       roles: ["parent"],
+      feature: "studentSupport",
+      section: "support",
+    },
+    {
+      path: "/portal/student/support",
+      icon: HiOutlineLifebuoy,
+      labelKey: "studentSupport",
+      roles: ["student"],
+      feature: "studentSupport",
       section: "support",
     },
     {

@@ -53,6 +53,11 @@ export default function TagInput({ label, value = [], onChange, placeholder, max
         }}
         onBlur={() => add(draft)}
       />
+      {value.length >= max && (
+        <p className="wa-hint" role="status">
+          {t("writing:teacher.builder.tagLimit", { max })}
+        </p>
+      )}
     </div>
   );
 }

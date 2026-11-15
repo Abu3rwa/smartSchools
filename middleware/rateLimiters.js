@@ -17,6 +17,7 @@ export const aiFeatureRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'AI_RATE_LIMITED',
         message: 'Too many AI requests. Please try again in a few minutes.'
     },
     standardHeaders: true,
@@ -34,6 +35,7 @@ export const tutorRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'TUTOR_RATE_LIMITED',
         message: 'Too many tutor requests. Please wait a few minutes and try again.'
     },
     standardHeaders: true,
@@ -50,6 +52,7 @@ export const voiceClipRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'VOICE_CLIP_RATE_LIMITED',
         message: 'Too many sound requests. Please wait a moment and try again.'
     },
     standardHeaders: true,
@@ -66,6 +69,7 @@ export const classworkSelfCheckRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'SELF_CHECK_RATE_LIMITED',
         message: 'Too many self-check requests. Please wait a few minutes and try again.'
     },
     standardHeaders: true,
@@ -82,6 +86,7 @@ export const fluencyAttemptRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'FLUENCY_ATTEMPT_RATE_LIMITED',
         message: 'Too many reading recordings. Please wait a few minutes and try again.'
     },
     standardHeaders: true,
@@ -98,6 +103,7 @@ export const readingHeartbeatRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'READING_HEARTBEAT_RATE_LIMITED',
         message: 'Too many reading updates. Please wait a moment and try again.'
     },
     standardHeaders: true,
@@ -110,6 +116,7 @@ export const readingAnswerDraftRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'DRAFT_SAVE_RATE_LIMITED',
         message: 'Too many draft saves. Please wait a moment and try again.'
     },
     standardHeaders: true,
@@ -126,6 +133,7 @@ export const fluencyListenRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'PLAYBACK_RATE_LIMITED',
         message: 'Too many playback requests. Please wait a minute and try again.'
     },
     standardHeaders: true,
@@ -142,6 +150,7 @@ export const practiceQuestionRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'PRACTICE_RATE_LIMITED',
         message: 'Practice is temporarily limited. Please wait a few minutes before continuing.'
     },
     standardHeaders: true,
@@ -158,6 +167,7 @@ export const emailSendRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'EMAIL_RATE_LIMITED',
         message: 'Too many email requests. Please try again later.'
     },
     standardHeaders: true,
@@ -174,6 +184,7 @@ export const supportCodeLimiter = rateLimit({
     keyGenerator: (req, res) => ipKeyGenerator(req, res),
     message: {
         success: false,
+        code: 'SUPPORT_CODE_RATE_LIMITED',
         message: 'Too many code attempts. Please wait a few minutes and try again.'
     },
     standardHeaders: true,
@@ -190,6 +201,7 @@ export const supportAccessLimiter = rateLimit({
     keyGenerator: (req, res) => ipKeyGenerator(req, res),
     message: {
         success: false,
+        code: 'RATE_LIMITED',
         message: 'Too many requests. Please wait a moment and try again.'
     },
     standardHeaders: true,
@@ -206,6 +218,7 @@ export const importRateLimiter = rateLimit({
     keyGenerator: userKeyGenerator,
     message: {
         success: false,
+        code: 'IMPORT_RATE_LIMITED',
         message: 'Too many export/import requests. Please try again in a few minutes.'
     },
     standardHeaders: true,
@@ -222,6 +235,7 @@ export const demoRequestLimiter = rateLimit({
     keyGenerator: (req, res) => ipKeyGenerator(req, res),
     message: {
         success: false,
+        code: 'DEMO_RATE_LIMITED',
         message: 'Too many demo requests from this connection. Please try again later.'
     },
     standardHeaders: true,

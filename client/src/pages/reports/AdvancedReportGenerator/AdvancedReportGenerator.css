@@ -12,13 +12,13 @@
   --rg-faint:       color-mix(in srgb, var(--text-muted, #718096) 48%, var(--text-primary, #ffffff));
   --rg-line:        var(--border-color, rgba(255, 255, 255, 0.08));
   --rg-line-strong: var(--border-color-hover, rgba(255, 255, 255, 0.15));
-  --rg-accent:      var(--primary, #14b8a6);
+  --rg-accent:      var(--primary);
   --rg-ease:        cubic-bezier(0.22, 0.61, 0.36, 1);
   --rg-shadow:      0 1px 2px rgba(0,0,0,0.35), 0 16px 36px -22px rgba(0,0,0,0.85);
 
   /* semantic tones */
-  --rg-teal:        #2dd4bf;
-  --rg-teal-ink:    #5eead4;
+  --rg-teal:        var(--primary-400);
+  --rg-teal-ink:    var(--primary-300);
   --rg-teal-soft:   rgba(45, 212, 191, 0.12);
   --rg-teal-line:   rgba(45, 212, 191, 0.28);
   --rg-rose:        #fb7185;
@@ -58,8 +58,8 @@
   --rg-line:        #e3e8ef;
   --rg-line-strong: #d3dbe6;
   --rg-shadow:      0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -22px rgba(15,23,42,0.12);
-  --rg-teal:        #0d9488;
-  --rg-teal-ink:    #0f766e;
+  --rg-teal:        var(--primary-600);
+  --rg-teal-ink:    var(--primary-700);
   --rg-teal-soft:   #e7f6f4;
   --rg-teal-line:   #b9e6e0;
   --rg-rose:        #e11d48;

@@ -31,11 +31,11 @@
   background: var(--accent-gradient);
   color: var(--on-accent);
   border: none;
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.25);
 }
 .ss-page .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+  box-shadow: 0 4px 14px rgba(var(--accent-primary-rgb), 0.35);
 }
 .ss-page .btn-primary:active:not(:disabled) {
   transform: translateY(0);

@@ -86,8 +86,8 @@
 }
 
 .admin-stat-icon.demo {
-    background: rgba(13, 148, 136, 0.15);
-    color: #0d9488;
+    background: rgba(var(--accent-primary-rgb), 0.15);
+    color: var(--primary-600);
 }
 
 .admin-stat-info h3 {

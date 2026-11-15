@@ -1,5 +1,5 @@
 .parent-support {
-  --ps-accent: #0f766e;
+  --ps-accent: var(--primary-700);
   --ps-accent-soft: #ecfdf5;
   --ps-character: #7c3aed;
   --ps-character-soft: #f5f3ff;
@@ -833,5 +833,52 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+.parent-support-request {
+  align-content: start;
+}
+
+.parent-support-request form {
+  display: grid;
+  gap: 10px;
+}
+
+.parent-support-request-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ps-muted);
+}
+
+.parent-support-request-field textarea {
+  padding: 9px 11px;
+  border: 1px solid var(--ps-line);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card, #fff);
+  color: var(--ps-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.parent-support-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .parent-support-request-actions {
+    flex-direction: column-reverse;
+  }
+  .parent-support-request-actions .btn {
+    width: 100%;
   }
 }

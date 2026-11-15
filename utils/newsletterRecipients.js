@@ -1,4 +1,4 @@
-function isValidEmail(email) {
+export function isValidEmail(email) {
   if (!email) return false;
   const e = email.toString().trim().toLowerCase();
   // Simple pragmatic validator (we only need to reject obvious garbage).

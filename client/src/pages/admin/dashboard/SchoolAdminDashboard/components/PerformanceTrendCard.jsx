@@ -23,7 +23,7 @@ export default function PerformanceTrendCard({ data }) {
         ? data.filter((point) => point.average !== null).length
         : 0;
     // A lone recorded month has nothing to connect, so it needs a visible point.
-    const dot = pointsWithValues <= 2 ? { r: 3, fill: 'var(--primary, #0d9488)' } : false;
+    const dot = pointsWithValues <= 2 ? { r: 3, fill: '#d97706' } : false;
 
     return (
         <section className="admin-panel admin-panel-chart">
@@ -46,8 +46,8 @@ export default function PerformanceTrendCard({ data }) {
                         >
                             <defs>
                                 <linearGradient id="adminTrendFill" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="var(--primary, #0d9488)" stopOpacity={0.22} />
-                                    <stop offset="100%" stopColor="var(--primary, #0d9488)" stopOpacity={0} />
+                                    <stop offset="0%" stopColor="#d97706" stopOpacity={0.22} />
+                                    <stop offset="100%" stopColor="#d97706" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid
@@ -90,7 +90,7 @@ export default function PerformanceTrendCard({ data }) {
                             <Area
                                 type="monotone"
                                 dataKey="average"
-                                stroke="var(--primary, #0d9488)"
+                                stroke="#d97706"
                                 strokeWidth={2}
                                 fill="url(#adminTrendFill)"
                                 dot={dot}

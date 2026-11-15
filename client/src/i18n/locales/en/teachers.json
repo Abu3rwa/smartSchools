@@ -54,7 +54,7 @@
     "assign": "Assign",
     "deleteTeacher": "Delete Teacher",
     "copyEmail": "Copy email",
-    "copyPassword": "Copy password",
+    "copyLink": "Copy sign-in link",
     "copyAll": "Copy all",
     "downloadCsv": "Download CSV",
     "creating": "Creating...",
@@ -114,16 +114,18 @@
     }
   },
   "credentials": {
-    "singleTitle": "Teacher Login Invite",
-    "bulkTitle": "Bulk Teacher Login Invites",
-    "copyNow": "Copy these credentials now!",
-    "copyOrDownloadNow": "Copy or download these credentials now!",
-    "passwordCannotBeViewedAgain": "The password cannot be viewed again.",
-    "passwordsCannotBeViewedAgain": "Passwords cannot be viewed again.",
+    "singleTitle": "Teacher sign-in invite",
+    "bulkTitle": "Bulk teacher sign-in invites",
+    "copyNow": "Teachers sign in with Google.",
+    "copyOrDownloadNow": "Share these sign-in details if the invite email does not arrive.",
+    "passwordCannotBeViewedAgain": "There is no password to share.",
+    "passwordsCannotBeViewedAgain": "No passwords are created for teachers.",
     "password": "Password",
+    "googleSignIn": "Google sign-in",
+    "googleHint": "Sign in with Google using this email address. No password is sent.",
     "issues": "Issues",
     "deliveryIssue": "Delivery issue",
-    "emailDeliveredHint": "Email delivery was attempted for every selected teacher. Use the copied fallback credentials when delivery fails."
+    "emailDeliveredHint": "An invite email was attempted for every selected teacher. Share the sign-in page with any teacher who did not receive it."
   },
   "toast": {
     "created": "Teacher created successfully!",

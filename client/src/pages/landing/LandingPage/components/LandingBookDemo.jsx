@@ -89,7 +89,7 @@ export default function LandingBookDemo({ uiText, language }) {
                         <Box sx={{ display: 'grid', gap: 1.25 }}>
                             {highlights.map((item) => (
                                 <Box key={item} sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', typography: 'body2' }}>
-                                    <HiOutlineCheckCircle size={18} style={{ color: 'var(--primary, #0d9488)', flexShrink: 0 }} />
+                                    <HiOutlineCheckCircle size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                                     {item}
                                 </Box>
                             ))}
@@ -100,7 +100,7 @@ export default function LandingBookDemo({ uiText, language }) {
                         <Paper elevation={0} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 3, border: 1, borderColor: 'divider', boxShadow: '0 24px 60px -40px rgba(15, 23, 42, 0.45)' }}>
                             {sent ? (
                                 <Box sx={{ py: 4, textAlign: 'center' }}>
-                                    <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: 'rgba(13, 148, 136, 0.1)', color: 'var(--primary, #0d9488)', mb: 2 }}>
+                                    <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: 'rgba(var(--accent-primary-rgb), 0.1)', color: 'var(--primary)', mb: 2 }}>
                                         <HiOutlineSparkles size={28} />
                                     </Box>
                                     <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>

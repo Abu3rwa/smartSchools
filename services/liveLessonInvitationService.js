@@ -93,6 +93,8 @@ export const sendLiveLessonInvitationEmails = async ({
   className,
   sessionUrl = buildPortalLink(`/live-lessons/sessions/${session._id}`),
   timeZone,
+  preferredUserId = null,
+  requirePreferredSender = false,
 }) => {
   const { recipients, skipped } = resolveLiveLessonInvitationRecipients(roster);
 
@@ -113,6 +115,10 @@ export const sendLiveLessonInvitationEmails = async ({
       to: email,
       ...message,
       schoolId: session.school,
+      preferredUserId,
+      // A teacher's invitation goes from their own Google account, never the
+      // school's shared SMTP sender.
+      ...(requirePreferredSender ? { allowAdminFallback: false, allowSmtp: false } : {}),
     })));
     results.forEach((result, resultIndex) => {
       if (result.status === "fulfilled") {

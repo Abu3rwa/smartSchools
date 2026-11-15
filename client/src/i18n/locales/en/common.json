@@ -26,6 +26,13 @@
     "currentlyImpersonating": "You are currently impersonating",
     "exitImpersonation": "Exit Impersonation"
   },
+  "rateLimit": {
+    "ai": "Too many AI requests. Please wait a few minutes and try again.",
+    "draftSave": "Too many saves at once. Please wait a moment and try again.",
+    "email": "Too many emails sent just now. Please wait a while and try again.",
+    "import": "Too many import and export requests. Please try again in a few minutes.",
+    "generic": "Too many requests. Please wait a moment and try again."
+  },
   "pagination": {
     "summary": "Showing {{from}}-{{to}} of {{total}}",
     "rowsPerPage": "Rows per page",

@@ -3,6 +3,7 @@ import School from '../models/School.js';
 import Student from '../models/Student.js';
 import SessionBillingEntry from '../models/SessionBillingEntry.js';
 import SessionBillingEmailDelivery from '../models/SessionBillingEmailDelivery.js';
+import { teacherSenderPolicy } from './senderPolicy.js';
 import {
     getBillingSettings,
     getStudentContacts,
@@ -108,7 +109,8 @@ const sendRecipient = async ({
             text: email.text,
             html: email.html,
             schoolId,
-            preferredUserId: user._id
+            preferredUserId: user._id,
+            ...teacherSenderPolicy(user)
         });
         await SessionBillingEmailDelivery.updateOne({ _id: delivery._id }, {
             $set: {

@@ -44,7 +44,7 @@
 }
 
 .an-tab.active {
-  background: rgba(20, 184, 166, 0.14);
+  background: rgba(var(--accent-primary-rgb), 0.14);
   color: var(--text-accent);
 }
 
@@ -163,7 +163,7 @@
 
 .an-issue.active {
   border-color: var(--primary-500);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(var(--accent-primary-rgb), 0.08);
 }
 
 .an-issue-title {

@@ -27,10 +27,10 @@
   );
   --ia-line: var(--border-color, rgba(255, 255, 255, 0.08));
   --ia-line-strong: var(--border-color-hover, rgba(255, 255, 255, 0.15));
-  --ia-accent: var(--primary, #14b8a6);
+  --ia-accent: var(--primary);
 
-  --ia-teal: #2dd4bf;
-  --ia-teal-ink: #5eead4;
+  --ia-teal: var(--primary-400);
+  --ia-teal-ink: var(--primary-300);
   --ia-teal-soft: rgba(45, 212, 191, 0.12);
   --ia-teal-line: rgba(45, 212, 191, 0.28);
   --ia-rose: #fb7185;
@@ -71,8 +71,8 @@
   --ia-line: #e3e8ef;
   --ia-line-strong: #d3dbe6;
 
-  --ia-teal: #0d9488;
-  --ia-teal-ink: #0f766e;
+  --ia-teal: var(--primary-600);
+  --ia-teal-ink: var(--primary-700);
   --ia-teal-soft: #e7f6f4;
   --ia-teal-line: #b9e6e0;
   --ia-rose: #e11d48;
@@ -1867,7 +1867,7 @@ textarea.ia-field-box.is-area {
 }
 
 .ia-overlay :is(button, a, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--primary, #14b8a6);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -1904,7 +1904,7 @@ textarea.ia-field-box.is-area {
 }
 
 .ia-dialog a {
-  color: var(--ia-accent, var(--primary, #0d9488));
+  color: var(--ia-accent, var(--primary));
 }
 
 .ia-dialog-note {

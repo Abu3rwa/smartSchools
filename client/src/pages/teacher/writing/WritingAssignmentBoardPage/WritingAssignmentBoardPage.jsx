@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { countLabel } from "../../../../utils/countText.js";
 import {
   HiOutlineArrowLeft,
   HiOutlineChartBar,
   HiOutlinePencilAlt,
+  HiOutlineRefresh,
   HiOutlineSearch,
   HiOutlineSparkles,
 } from "react-icons/hi";
@@ -17,6 +19,8 @@ import {
 import ReviewPanel from "./ReviewPanel.jsx";
 import PasteAttempts from "./PasteAttempts.jsx";
 import CreditChip from "../components/CreditChip.jsx";
+import ErrorBanner from "../../../../components/shared/ErrorBanner.jsx";
+import useFocusTrap from "../../../../hooks/useFocusTrap.js";
 import { useWritingBoardData } from "./hooks/useWritingBoardData.js";
 import "../writingShared.css";
 
@@ -29,7 +33,9 @@ export default function WritingAssignmentBoardPage() {
     batchPending,
     credit,
     emailDelivery,
+    failed,
     history,
+    historyFailed,
     historyLoading,
     loading,
     onBack,
@@ -47,19 +53,39 @@ export default function WritingAssignmentBoardPage() {
   } = useWritingBoardData();
 
   // The review dialog owns the screen: Escape closes it and the page behind it stays put.
+  const modalRef = useRef(null);
+  const closeRef = useRef(null);
+  // ReviewPanel owns the editable text, so it reports whether leaving would lose it.
+  const dirtyRef = useRef(false);
+  const onDirtyChange = useCallback((value) => {
+    dirtyRef.current = value;
+  }, []);
+
+  const requestClose = useCallback(() => {
+    if (
+      dirtyRef.current &&
+      !window.confirm(t("writing:teacher.review.discardEdits"))
+    ) {
+      return;
+    }
+    openStudent("");
+  }, [openStudent, t]);
+
+  useFocusTrap({
+    active: Boolean(projectId),
+    containerRef: modalRef,
+    initialFocusRef: closeRef,
+    onEscape: requestClose,
+  });
+
   useEffect(() => {
     if (!projectId) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") openStudent("");
-    };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [openStudent, projectId]);
+  }, [projectId]);
 
   if (loading) {
     return (
@@ -68,6 +94,34 @@ export default function WritingAssignmentBoardPage() {
       </div>
     );
   }
+
+  // Nothing loaded: say the load failed and offer a retry, never an empty class list.
+  if (failed && !assignment) {
+    return (
+      <div className="wa-page wa-board">
+        <div className="wa-head">
+          <div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm wa-back"
+              onClick={onBack}
+            >
+              <HiOutlineArrowLeft size={16} aria-hidden="true" />
+              {t("writing:common.back")}
+            </button>
+            <h1>{t("writing:teacher.board.title")}</h1>
+          </div>
+        </div>
+        <ErrorBanner
+          message={t("writing:teacher.boardLoadFailed")}
+          onRetry={refresh}
+          retryLabel={t("writing:teacher.retry")}
+        />
+      </div>
+    );
+  }
+
+  const selectedRow = rows.find((row) => row.projectId === projectId) || null;
 
   const labelFor = (section) =>
     section.label ||
@@ -112,8 +166,10 @@ export default function WritingAssignmentBoardPage() {
               <HiOutlineSparkles size={16} aria-hidden="true" />
               {batchPending
                 ? t("writing:teacher.review.assessing")
-                : t("writing:teacher.review.batch", {
-                    n: summary.awaitingAssessment,
+                : t("writing:teacher.review.batchUpTo", {
+                    // One run assesses five drafts at most; say so rather than
+                    // promising the whole queue.
+                    n: Math.min(summary.awaitingAssessment, 5),
                   })}
             </button>
           )}
@@ -123,6 +179,14 @@ export default function WritingAssignmentBoardPage() {
           </button>
         </div>
       </div>
+
+      {failed && (
+        <ErrorBanner
+          message={t("writing:teacher.boardLoadFailed")}
+          onRetry={refresh}
+          retryLabel={t("writing:teacher.retry")}
+        />
+      )}
 
       {summary && (
         <div className="wa-stats">
@@ -239,11 +303,11 @@ export default function WritingAssignmentBoardPage() {
                       <span
                         className="wa-paste-badge"
                         title={t("writing:teacher.paste.title", {
-                          count: row.pasteAttempts,
+                          n: row.pasteAttempts,
                         })}
                       >
                         {t("writing:teacher.paste.badge", {
-                          count: row.pasteAttempts,
+                          n: row.pasteAttempts,
                         })}
                       </span>
                     )}
@@ -276,9 +340,11 @@ export default function WritingAssignmentBoardPage() {
       </div>
 
       {projectId && (
-        <div className="wa-modal-backdrop" onClick={() => openStudent("")}>
+        <div className="wa-modal-backdrop" onClick={requestClose}>
           <div
             className="wa-modal"
+            ref={modalRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="wa-review-title"
@@ -288,6 +354,7 @@ export default function WritingAssignmentBoardPage() {
               <div className="wa-modal-id">
                 <h2 id="wa-review-title">
                   {history?.project?.student?.name ||
+                    selectedRow?.name ||
                     t("writing:teacher.board.loading")}
                 </h2>
                 {history && (
@@ -303,6 +370,14 @@ export default function WritingAssignmentBoardPage() {
               <div className="wa-modal-head-actions">
                 <button
                   type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={refresh}
+                >
+                  <HiOutlineRefresh size={16} aria-hidden="true" />
+                  {t("writing:teacher.board.refresh")}
+                </button>
+                <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={analyseStudent}
                 >
@@ -312,8 +387,8 @@ export default function WritingAssignmentBoardPage() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => openStudent("")}
-                  autoFocus
+                  ref={closeRef}
+                  onClick={requestClose}
                 >
                   {t("writing:teacher.board.closePanel")}
                 </button>
@@ -323,6 +398,16 @@ export default function WritingAssignmentBoardPage() {
             {historyLoading && (
               <div className="wa-modal-loading">
                 <div className="spinner" />
+              </div>
+            )}
+
+            {!historyLoading && !history && historyFailed && (
+              <div className="wa-modal-loading">
+                <ErrorBanner
+                  message={t("writing:teacher.historyLoadFailed")}
+                  onRetry={refresh}
+                  retryLabel={t("writing:teacher.retry")}
+                />
               </div>
             )}
 
@@ -348,6 +433,7 @@ export default function WritingAssignmentBoardPage() {
                   <ReviewPanel
                     history={history}
                     onChanged={refresh}
+                    onDirtyChange={onDirtyChange}
                     emailDelivery={emailDelivery}
                   />
                 </div>
@@ -373,9 +459,7 @@ export default function WritingAssignmentBoardPage() {
                           })}
                         </h4>
                         <span>
-                          {t("writing:teacher.board.words", {
-                            n: draft.totalWords || 0,
-                          })}
+                          {countLabel(t, "writing:teacher.board.wordCount", draft.totalWords || 0)}
                         </span>
                       </header>
                       <p className="wa-draft-time">

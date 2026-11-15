@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import {
   HiOutlineArrowLeft,
   HiOutlineArrowPath,
   HiOutlineCheck,
+  HiOutlineCheckCircle,
+  HiOutlineChevronDown,
   HiOutlineClipboardDocumentCheck,
   HiOutlineKey,
   HiOutlineLanguage,
@@ -12,6 +14,8 @@ import {
 } from "react-icons/hi2";
 import supportAccessService from "../../../services/supportAccessService.js";
 import SurveyForm from "../../../components/support/SurveyForm.jsx";
+import ErrorBanner from "../../../components/shared/ErrorBanner.jsx";
+import { computeHomeProgress } from "../../../utils/supportProgress.js";
 import "./SupportAccessPage.css";
 
 const TOKEN_KEY = "support.accessToken";
@@ -24,12 +28,96 @@ const monthLabel = (month, language) => {
   return new Intl.DateTimeFormat(isArabic(language) ? "ar-EG" : "en-GB", { month: "long" }).format(date);
 };
 
-const StatusChip = ({ status }) => {
-  const { t } = useTranslation("support");
-  return <span className={`access-chip is-${status}`}>{t(`status.${status}`, { defaultValue: status })}</span>;
+const dueLabel = (dueDate, language) => {
+  if (!dueDate) return "";
+  const date = new Date(dueDate);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(isArabic(language) ? "ar-EG" : "en-GB", { day: "numeric", month: "short" }).format(date);
 };
 
-const HomeTask = ({ task, planId, token, busy, onCheckIn, t }) => {
+const initials = (name = "") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+
+const surveyState = (status) => {
+  if (status === "submitted" || status === "skipped") return "done";
+  if (status === "opened") return "inProgress";
+  return "notStarted";
+};
+
+const isFinished = (survey) => survey.status === "submitted" || survey.status === "skipped";
+
+const isOverdue = (survey) => {
+  if (!survey.dueDate || isFinished(survey)) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(survey.dueDate) < today;
+};
+
+const groupSurveys = (surveys, language) => {
+  const groups = new Map();
+  for (const survey of surveys) {
+    const key = `${survey.academicYear}|${survey.month}|${survey.subject?.id || survey.audience}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        month: survey.month,
+        academicYear: survey.academicYear,
+        subject: survey.subject?.name || "",
+        surveys: [],
+      });
+    }
+    groups.get(key).surveys.push(survey);
+  }
+  return [...groups.values()].map((group) => ({
+    ...group,
+    surveys: [...group.surveys].sort((a, b) => (
+      String(a.student?.name || "").localeCompare(String(b.student?.name || ""), language)
+    )),
+    done: group.surveys.filter(isFinished).length,
+  }));
+};
+
+const SurveyRow = ({ survey, studentName, studentClass, language, disabled, onOpen, t }) => {
+  const state = surveyState(survey.status);
+  const due = dueLabel(survey.dueDate, language);
+  const overdue = isOverdue(survey);
+  const action = state === "inProgress" ? t("access.continue") : t("access.answer");
+  return (
+    <li className={`access-survey-row is-${state}`}>
+      <span className="access-avatar" aria-hidden="true">{initials(studentName)}</span>
+      <div className="access-survey-main">
+        <strong>{studentName}</strong>
+        <span>
+          {studentClass}
+          {due && (
+            <em className={overdue ? "is-overdue" : ""}>
+              {overdue ? t("access.overdue", { date: due }) : t("access.dueOn", { date: due })}
+            </em>
+          )}
+        </span>
+      </div>
+      <span className={`access-state is-${state}`}>{t(`access.state.${state}`)}</span>
+      {state !== "done" && (
+        <button
+          type="button"
+          className={`btn btn-sm ${state === "inProgress" ? "btn-primary" : "btn-secondary"}`}
+          disabled={disabled}
+          aria-label={`${action}: ${studentName}`}
+          onClick={() => onOpen(survey.id)}
+        >
+          {action}
+        </button>
+      )}
+    </li>
+  );
+};
+
+const StatusChip = ({ status, plan = false }) => {
+  const { t } = useTranslation("support");
+  const key = plan ? `plan.status.${status}` : `status.${status}`;
+  return <span className={`access-chip is-${status}`}>{t(key, { defaultValue: status })}</span>;
+};
+
+const HomeTask = ({ task, planId, token, busy, onCheckIn, readOnly, t }) => {
   const [note, setNote] = useState(task.note2 || "");
   const [noteOpen, setNoteOpen] = useState(false);
   const options = [
@@ -43,33 +131,43 @@ const HomeTask = ({ task, planId, token, busy, onCheckIn, t }) => {
         <span>{task.title}</span>
         {task.note && <em>{task.note}</em>}
       </div>
-      <div className="access-task-controls" role="group" aria-label={t("parent.taskLabel")}>
-        {options.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            className={`access-status ${task.status === option.key ? `is-active is-${option.key}` : ""}`}
-            disabled={busy}
-            aria-pressed={task.status === option.key}
-            onClick={() => onCheckIn(planId, task.id, option.key, note)}
-          >
-            {option.icon}
-            <span>{option.label}</span>
+      {readOnly ? (
+        task.status && (
+          <span className={`access-family-mark is-${task.status}`}>
+            {options.find((option) => option.key === task.status)?.label}
+          </span>
+        )
+      ) : (
+        <>
+          <div className="access-task-controls" role="group" aria-label={t("parent.taskLabel")}>
+            {options.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={`access-status ${task.status === option.key ? `is-active is-${option.key}` : ""}`}
+                disabled={busy}
+                aria-pressed={task.status === option.key}
+                onClick={() => onCheckIn(planId, task.id, option.key, note)}
+              >
+                {option.icon}
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" className="access-note-toggle" onClick={() => setNoteOpen((open) => !open)}>
+            {noteOpen ? t("plan.hideNote") : t("plan.addNote")}
           </button>
-        ))}
-      </div>
-      <button type="button" className="access-note-toggle" onClick={() => setNoteOpen((open) => !open)}>
-        {noteOpen ? t("plan.hideNote") : t("plan.addNote")}
-      </button>
-      {noteOpen && (
-        <input
-          className="access-note-input"
-          value={note}
-          maxLength={300}
-          placeholder={t("plan.notePlaceholder")}
-          onChange={(event) => setNote(event.target.value)}
-          onBlur={() => task.status && onCheckIn(planId, task.id, task.status, note)}
-        />
+          {noteOpen && (
+            <input
+              className="access-note-input"
+              value={note}
+              maxLength={300}
+              placeholder={t("plan.notePlaceholder")}
+              onChange={(event) => setNote(event.target.value)}
+              onBlur={() => task.status && note !== (task.note2 || "") && onCheckIn(planId, task.id, task.status, note)}
+            />
+          )}
+        </>
       )}
     </li>
   );
@@ -80,10 +178,13 @@ const PlanBlock = ({ plan, previous, arabic, token, busy, onCheckIn, t }) => (
     <div className="access-plan-head">
       <div>
         <p>{t("parent.monthPlan", { month: monthLabel(plan.month, arabic ? "ar" : "en") })}</p>
-        <h3>{t("parent.planTitle")}</h3>
+        <h3>{pick(plan.headline, plan.headlineAr, arabic) || t("parent.planTitle")}</h3>
       </div>
-      <StatusChip status={plan.status} />
+      <StatusChip status={plan.status} plan />
     </div>
+    {pick(plan.summary, plan.summaryAr, arabic) && (
+      <p className="access-plan-summary">{pick(plan.summary, plan.summaryAr, arabic)}</p>
+    )}
 
     <div className="access-progress">
       <div>
@@ -117,12 +218,13 @@ const PlanBlock = ({ plan, previous, arabic, token, busy, onCheckIn, t }) => (
             <ul>
               {goal.homeTasks.map((task) => (
                 <HomeTask
-                  key={task.id}
+                  key={`${plan.id}:${task.id}`}
                   task={{ ...task, title: pick(task.title, task.titleAr, arabic), note: pick(task.note, task.noteAr, arabic) }}
                   planId={plan.id}
                   token={token}
                   busy={busy}
                   onCheckIn={onCheckIn}
+                  readOnly={plan.status !== "published"}
                   t={t}
                 />
               ))}
@@ -169,6 +271,9 @@ const SupportAccessPage = () => {
   const [notice, setNotice] = useState("");
   const [openSurvey, setOpenSurvey] = useState(null);
   const [surveyBusy, setSurveyBusy] = useState(false);
+  const [hubError, setHubError] = useState(false);
+  const [view, setView] = useState("todo");
+  const [expanded, setExpanded] = useState({});
   const autoTried = useRef(false);
 
   const clearSession = useCallback((message = "") => {
@@ -176,6 +281,7 @@ const SupportAccessPage = () => {
     setToken("");
     setHub(null);
     setOpenSurvey(null);
+    setHubError(false);
     setNotice(message);
     setLoading(false);
   }, []);
@@ -184,11 +290,15 @@ const SupportAccessPage = () => {
     try {
       const data = await supportAccessService.hub(accessToken);
       setHub(data);
+      setHubError(false);
       setNotice("");
     } catch (error) {
       const status = error.response?.status;
-      clearSession(status === 401 ? t("access.expiredBody") : "");
-      if (status !== 401) toast.error(error.response?.data?.message || t("access.loadFailed"));
+      if (status === 401) {
+        clearSession(t("access.expiredBody"));
+      } else {
+        setHubError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -210,7 +320,14 @@ const SupportAccessPage = () => {
       const data = await supportAccessService.resolve(trimmed);
       sessionStorage.setItem(TOKEN_KEY, data.token);
       setToken(data.token);
-      setHub({ respondent: data.respondent, school: data.school, student: data.student, surveys: data.surveys, plans: data.plans });
+      setHub({
+        enabled: data.enabled,
+        respondent: data.respondent,
+        school: data.school,
+        student: data.student,
+        surveys: data.surveys,
+        plans: data.plans,
+      });
       setCode("");
       if (window.location.search) {
         window.history.replaceState({}, "", window.location.pathname);
@@ -250,6 +367,7 @@ const SupportAccessPage = () => {
     try {
       const survey = await supportAccessService.getSurvey(token, surveyId);
       setOpenSurvey(survey);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setHub((current) => ({
         ...current,
         surveys: current.surveys.map((row) => (
@@ -266,7 +384,8 @@ const SupportAccessPage = () => {
   const handleSaveSurvey = async (answers) => {
     setSurveyBusy(true);
     try {
-      await supportAccessService.saveSurvey(token, openSurvey.id, answers);
+      const saved = await supportAccessService.saveSurvey(token, openSurvey.id, answers, openSurvey.revision);
+      setOpenSurvey((current) => ({ ...current, revision: saved.revision, lastSavedAt: saved.lastSavedAt }));
       toast.success(t("survey.saved"));
     } catch (error) {
       toast.error(error.response?.data?.message || t("survey.saveFailed"));
@@ -278,7 +397,7 @@ const SupportAccessPage = () => {
   const handleSubmitSurvey = async (answers) => {
     setSurveyBusy(true);
     try {
-      await supportAccessService.submitSurvey(token, openSurvey.id, answers);
+      await supportAccessService.submitSurvey(token, openSurvey.id, answers, openSurvey.revision);
       setOpenSurvey((current) => ({ ...current, status: "submitted" }));
       setHub((current) => ({
         ...current,
@@ -291,6 +410,35 @@ const SupportAccessPage = () => {
       setSurveyBusy(false);
     }
   };
+
+  const markSurvey = async (nextStatus, action, successKey) => {
+    setSurveyBusy(true);
+    try {
+      await action();
+      setOpenSurvey((current) => ({ ...current, status: nextStatus, noConcerns: nextStatus === "submitted" && current.noConcerns }));
+      setHub((current) => ({
+        ...current,
+        surveys: current.surveys.map((row) => (row.id === openSurvey.id ? { ...row, status: nextStatus } : row)),
+      }));
+      toast.success(t(successKey));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("survey.submitFailed"));
+    } finally {
+      setSurveyBusy(false);
+    }
+  };
+
+  const handleNoConcerns = () => markSurvey(
+    "submitted",
+    () => supportAccessService.noConcerns(token, openSurvey.id),
+    "survey.noConcernsSaved",
+  );
+
+  const handleSkip = () => markSurvey(
+    "skipped",
+    () => supportAccessService.skip(token, openSurvey.id),
+    "survey.skipped",
+  );
 
   const handleCheckIn = async (planId, taskId, status, note) => {
     setBusy(true);
@@ -306,9 +454,8 @@ const SupportAccessPage = () => {
               task.id === saved.taskId ? { ...task, status: saved.status, note2: saved.note || "" } : task
             )),
           }));
-          const done = goals.reduce((sum, goal) => sum + goal.homeTasks.filter((task) => task.status === "done").length, 0);
-          const total = goals.reduce((sum, goal) => sum + goal.homeTasks.length, 0);
-          return { ...plan, goals, homeProgress: { ...plan.homeProgress, done, total } };
+          const progress = computeHomeProgress(goals);
+          return { ...plan, goals, homeProgress: { ...plan.homeProgress, ...progress } };
         }),
       }));
     } catch (error) {
@@ -325,6 +472,33 @@ const SupportAccessPage = () => {
   const respondent = hub?.respondent;
   const roleLabel = respondent?.kind === "parent" ? t("access.parentRole") : t("access.teacherRole");
 
+  const surveys = useMemo(() => hub?.surveys || [], [hub]);
+  const groups = useMemo(() => groupSurveys(surveys, i18n.language), [surveys, i18n.language]);
+  const doneCount = surveys.filter(isFinished).length;
+  const todoCount = surveys.length - doneCount;
+  const studentOf = (survey) => survey?.student || hub?.student || null;
+
+  const openGroup = openSurvey ? groups.find((group) => group.surveys.some((row) => row.id === openSurvey.id)) : null;
+  const openRow = openGroup?.surveys.find((row) => row.id === openSurvey.id) || null;
+  const openStudent = studentOf(openRow || openSurvey);
+  const openIndex = openGroup ? openGroup.surveys.findIndex((row) => row.id === openSurvey.id) : -1;
+  const nextSurvey = useMemo(() => {
+    if (!openSurvey) return null;
+    const ordered = groups.flatMap((group) => group.surveys);
+    const start = ordered.findIndex((row) => row.id === openSurvey.id);
+    const rotated = [...ordered.slice(start + 1), ...ordered.slice(0, Math.max(start, 0))];
+    return rotated.find((row) => !isFinished(row)) || null;
+  }, [groups, openSurvey]);
+
+  const closeSurvey = () => {
+    setOpenSurvey(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const groupOpen = (group, index) => expanded[group.key] ?? (
+    index === 0 || (group.month === groups[0]?.month && group.academicYear === groups[0]?.academicYear)
+  );
+
   return (
     <div className={`access-page ${arabic ? "is-rtl" : ""}`} dir={arabic ? "rtl" : "ltr"}>
       <header className="access-topbar">
@@ -340,6 +514,14 @@ const SupportAccessPage = () => {
 
       {loading ? (
         <div className="access-loading"><div className="spinner" /></div>
+      ) : hubError ? (
+        <main className="access-hub">
+          <ErrorBanner
+            message={t("access.loadFailed")}
+            onRetry={() => { setLoading(true); setHubError(false); loadHub(token); }}
+            retryLabel={t("common.retry")}
+          />
+        </main>
       ) : !hub ? (
         <main className="access-gate">
           <div className="access-gate-card">
@@ -368,79 +550,210 @@ const SupportAccessPage = () => {
             <p className="access-help">{t("access.help")}</p>
           </div>
         </main>
-      ) : (
+      ) : hub.enabled === false ? (
         <main className="access-hub">
           <section className="access-who">
             <div>
-              <span className="access-role">{roleLabel}</span>
-              <h1>{respondent?.name}</h1>
-              {hub.student && (
-                <p>{t("access.aboutStudent", { name: hub.student.name, className: hub.student.class })}</p>
-              )}
+              <h1>{hub.school?.name || t("access.brand")}</h1>
             </div>
             <button type="button" className="access-exit" onClick={() => clearSession("")}>
               <HiOutlineArrowLeft size={15} />
               {t("access.changeCode")}
             </button>
           </section>
-
-          {notice && <p className="access-notice is-banner" role="alert">{notice}</p>}
-
           <section className="access-section">
-            <div className="access-section-head">
-              <h2>{t("access.surveysTitle")}</h2>
-              <span>{hub.surveys.length}</span>
+            <div className="access-all-done" role="status">
+              <HiOutlineClipboardDocumentCheck size={30} />
+              <strong>{t("access.disabledTitle")}</strong>
+              <p>{t("access.disabledBody")}</p>
             </div>
-            {hub.surveys.length === 0 ? (
-              <p className="access-muted">{t("access.noSurveys")}</p>
-            ) : (
-              <ul className="access-survey-list">
-                {hub.surveys.map((survey) => (
-                  <li key={survey.id} className="access-survey-row">
-                    <div>
-                      <strong>
-                        {monthLabel(survey.month, i18n.language)}
-                        {survey.subject?.name ? ` · ${survey.subject.name}` : ""}
-                      </strong>
-                      <span>
-                        {hub.student?.name}
-                        {survey.dueDate ? ` · ${t("access.dueBy")}` : ""}
-                      </span>
-                    </div>
-                    <StatusChip status={survey.status} />
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={surveyBusy || survey.status === "submitted"}
-                      onClick={() => openSurveyById(survey.id)}
-                    >
-                      {survey.status === "submitted" ? t("access.submitted") : t("access.openSurvey")}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
-
-          {openSurvey && (
-            <section className="access-section access-survey-open">
-              <div className="access-section-head">
-                <h2>{t("access.surveyTitle")}</h2>
-                <button type="button" className="access-close" onClick={() => setOpenSurvey(null)}>
-                  <HiOutlineXMark size={17} />
+          <p className="access-foot">{t("access.foot")}</p>
+        </main>
+      ) : (
+        <main className="access-hub">
+          {!openSurvey ? (
+            <>
+              <section className="access-who">
+                <div>
+                  <span className="access-role">{roleLabel}</span>
+                  <h1>{respondent?.name}</h1>
+                  {hub.student && (
+                    <p>{t("access.aboutStudent", { name: hub.student.name, className: hub.student.class })}</p>
+                  )}
+                </div>
+                <button type="button" className="access-exit" onClick={() => clearSession("")}>
+                  <HiOutlineArrowLeft size={15} />
+                  {t("access.changeCode")}
                 </button>
+              </section>
+
+              {notice && <p className="access-notice is-banner" role="alert">{notice}</p>}
+
+              <section className="access-section">
+                <div className="access-section-head">
+                  <div className="access-section-title">
+                    <h2>{t("access.surveysTitle")}</h2>
+                    {surveys.length > 0 && (
+                      <p>{t("access.surveysSummary", { open: todoCount, done: doneCount })}</p>
+                    )}
+                  </div>
+                </div>
+
+                {surveys.length === 0 ? (
+                  <p className="access-muted">{t("access.noSurveys")}</p>
+                ) : (
+                  <>
+                    <div className="access-tabs" role="tablist" aria-label={t("access.surveysTitle")}>
+                      {[
+                        { key: "todo", label: t("access.toAnswer"), n: todoCount },
+                        { key: "done", label: t("access.doneTab"), n: doneCount },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={view === tab.key}
+                          className={`access-tab ${view === tab.key ? "is-active" : ""}`}
+                          onClick={() => setView(tab.key)}
+                        >
+                          {tab.label}
+                          <b>{tab.n}</b>
+                        </button>
+                      ))}
+                    </div>
+
+                    {(view === "todo" ? todoCount : doneCount) === 0 ? (
+                      view === "todo" ? (
+                        <div className="access-all-done" role="status">
+                          <HiOutlineCheckCircle size={30} />
+                          <strong>{t("access.allDoneTitle")}</strong>
+                          <p>{t("access.allDoneBody")}</p>
+                        </div>
+                      ) : (
+                        <p className="access-muted">{t("access.noneDone")}</p>
+                      )
+                    ) : (
+                      <div className="access-groups">
+                        {groups.map((group, index) => {
+                          const rows = group.surveys.filter((survey) => (
+                            view === "done" ? isFinished(survey) : !isFinished(survey)
+                          ));
+                          if (!rows.length) return null;
+                          const open = groupOpen(group, index);
+                          const panelId = `access-group-${index}`;
+                          const share = group.surveys.length ? (group.done / group.surveys.length) * 100 : 0;
+                          return (
+                            <div key={group.key} className="access-group">
+                              <button
+                                type="button"
+                                className="access-group-head"
+                                aria-expanded={open}
+                                aria-controls={panelId}
+                                onClick={() => setExpanded((current) => ({ ...current, [group.key]: !open }))}
+                              >
+                                <span className="access-group-title">
+                                  <strong>
+                                    {[monthLabel(group.month, i18n.language), group.subject].filter(Boolean).join(" · ")}
+                                  </strong>
+                                  <em>{t("access.groupProgress", { done: group.done, total: group.surveys.length })}</em>
+                                </span>
+                                <span className="access-group-bar" aria-hidden="true">
+                                  <i style={{ width: `${share}%` }} />
+                                </span>
+                                <HiOutlineChevronDown size={16} className={`access-group-chevron ${open ? "is-flipped" : ""}`} />
+                              </button>
+                              {open && (
+                                <ul id={panelId} className="access-survey-list">
+                                  {rows.map((survey) => {
+                                    const student = studentOf(survey);
+                                    return (
+                                      <SurveyRow
+                                        key={survey.id}
+                                        survey={survey}
+                                        studentName={student?.name || t("access.surveyTitle")}
+                                        studentClass={student?.class || ""}
+                                        language={i18n.language}
+                                        disabled={surveyBusy}
+                                        onOpen={openSurveyById}
+                                        t={t}
+                                      />
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            </>
+          ) : (
+            <section className="access-section access-survey-open">
+              <button type="button" className="access-back" onClick={closeSurvey}>
+                <HiOutlineArrowLeft size={15} />
+                {t("access.allSurveys")}
+              </button>
+
+              <div className="access-survey-hero">
+                <span className="access-avatar is-large" aria-hidden="true">{initials(openStudent?.name || "")}</span>
+                <div>
+                  <h2>{openStudent?.name || t("access.surveyTitle")}</h2>
+                  <p>
+                    {[
+                      openStudent?.class,
+                      openSurvey.subject?.name || openRow?.subject?.name,
+                      monthLabel(openSurvey.month || openRow?.month, i18n.language),
+                    ].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                {openGroup && openGroup.surveys.length > 1 && (
+                  <span className="access-position">
+                    {t("access.position", { index: openIndex + 1, total: openGroup.surveys.length })}
+                  </span>
+                )}
               </div>
-              <SurveyForm
-                survey={openSurvey}
-                saving={surveyBusy}
-                submitting={surveyBusy}
-                onSave={handleSaveSurvey}
-                onSubmit={handleSubmitSurvey}
-              />
+
+              {isFinished(openSurvey) ? (
+                <div className="access-finished" role="status">
+                  <HiOutlineCheckCircle size={36} />
+                  <h3>{t("access.sentTitle")}</h3>
+                  <p>{nextSurvey ? t("access.remaining", { n: todoCount }) : t("access.allDoneBody")}</p>
+                  <div className="access-finished-actions">
+                    {nextSurvey && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={surveyBusy}
+                        onClick={() => openSurveyById(nextSurvey.id)}
+                      >
+                        {t("access.nextStudent", { name: studentOf(nextSurvey)?.name || "" })}
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-secondary" onClick={closeSurvey}>
+                      {t("access.allSurveys")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <SurveyForm
+                  key={openSurvey.id}
+                  survey={openSurvey}
+                  saving={surveyBusy}
+                  submitting={surveyBusy}
+                  onSave={handleSaveSurvey}
+                  onSubmit={handleSubmitSurvey}
+                  onNoConcerns={handleNoConcerns}
+                  onSkip={handleSkip}
+                />
+              )}
             </section>
           )}
 
-          {respondent?.kind === "parent" && hub.plans?.length > 0 && (
+          {!openSurvey && respondent?.kind === "parent" && hub.plans?.length > 0 && (
             <section className="access-section">
               <div className="access-section-head">
                 <h2>{t("access.planTitle")}</h2>

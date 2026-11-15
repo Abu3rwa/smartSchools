@@ -445,7 +445,8 @@ export const ledgerSummary = (ledger = []) => (ledger || []).reduce(
 /* ------------------------------------------------------------------ */
 
 // Words are matched whole and case-insensitively; contractions stay one token.
-const SPELLING_TOKEN = /[a-z0-9]+(?:['’][a-z]+)*/g;
+// Unicode letters so an Arabic draft counts its words too, not just Latin ones.
+const SPELLING_TOKEN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
 
 export const textTokens = (value) => String(value || '').toLowerCase().match(SPELLING_TOKEN) || [];
 

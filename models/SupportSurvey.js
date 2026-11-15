@@ -15,6 +15,8 @@ const supportQuestionSchema = new mongoose.Schema({
     anchorsAr: [{ type: String, trim: true, maxlength: 80 }],
     required: { type: Boolean, default: true },
     allowComment: { type: Boolean, default: false },
+    scored: { type: Boolean, default: true },
+    diagnostic: { type: Boolean, default: false },
 }, { _id: false });
 
 const supportAnswerSchema = new mongoose.Schema({
@@ -28,9 +30,11 @@ const supportAnswerSchema = new mongoose.Schema({
 
 const supportSurveySchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
-    cycle: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportCycle', required: true },
+    cycle: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportCycle', default: null },
+    case: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportCase', default: null },
+    review: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportReview', default: null },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
-    audience: { type: String, enum: ['teacher', 'parent'], default: 'teacher' },
+    audience: { type: String, enum: ['teacher', 'parent', 'student'], default: 'teacher' },
     subject: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subject',
@@ -38,35 +42,84 @@ const supportSurveySchema = new mongoose.Schema({
         required: function required() { return this.audience === 'teacher'; },
     },
     respondent: { type: mongoose.Schema.Types.ObjectId, ref: 'SupportRespondent', required: true },
+    respondentSlot: {
+        type: String,
+        enum: ['mother', 'father', 'guardian', 'other', '', null],
+        default: '',
+    },
     round: { type: Number, default: 1, min: 1 },
     language: { type: String, enum: ['en', 'ar'], default: 'en' },
     dueDate: { type: Date, default: null },
     status: {
         type: String,
-        enum: ['draft', 'sent', 'opened', 'submitted'],
+        enum: ['draft', 'sent', 'opened', 'submitted', 'skipped', 'cancelled'],
         default: 'draft',
     },
     questionSource: { type: String, enum: ['fixed', 'library', 'ai'], default: 'fixed' },
+    // Snapshot of the bank versions used, and why each question was selected.
+    questionRefs: {
+        type: [{
+            id: { type: String, required: true },
+            ref: { type: String, required: true },
+            version: { type: Number, required: true },
+            concern: { type: String, default: '' },
+            reason: { type: String, default: '' },
+        }],
+        default: [],
+    },
     aiModel: { type: String, default: '', trim: true },
     questions: { type: [supportQuestionSchema], default: [] },
     answers: { type: [supportAnswerSchema], default: [] },
+    // Bumped on every save so a stale tab cannot overwrite newer answers.
+    revision: { type: Number, default: 1, min: 1 },
+    noConcerns: { type: Boolean, default: false },
+    noConcernsAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
     openedAt: { type: Date, default: null },
     lastSavedAt: { type: Date, default: null },
     submittedAt: { type: Date, default: null },
     reminderCount: { type: Number, default: 0, min: 0 },
     lastReminderAt: { type: Date, default: null },
+    reminderFailedAt: { type: Date, default: null },
+    escalatedAt: { type: Date, default: null },
+    // A staff member copied a paper answer into the survey on a family's behalf.
+    assistedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assistedAt: { type: Date, default: null },
+    deliveryMethod: {
+        type: String,
+        enum: ['email', 'printed', 'assisted', 'portal'],
+        default: 'email',
+    },
+    deliveryState: {
+        type: String,
+        enum: ['pending', 'sent', 'failed', 'handed_over', 'recorded', 'portal'],
+        default: 'pending',
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
 supportSurveySchema.plugin(tenantIsolationPlugin);
 supportSurveySchema.index(
-    { school: 1, cycle: 1, respondent: 1, audience: 1, subject: 1 },
-    { unique: true },
+    { school: 1, review: 1, respondent: 1, audience: 1, subject: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { review: { $type: 'objectId' } },
+        name: 'one_survey_per_review_respondent',
+    },
 );
-supportSurveySchema.index({ school: 1, student: 1, cycle: 1, status: 1 });
+supportSurveySchema.index(
+    { school: 1, cycle: 1, respondent: 1, audience: 1, subject: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { cycle: { $type: 'objectId' } },
+        name: 'one_survey_per_cycle_respondent',
+    },
+);
+supportSurveySchema.index({ school: 1, case: 1, createdAt: -1 });
+supportSurveySchema.index({ school: 1, student: 1, case: 1, status: 1 });
 supportSurveySchema.index({ school: 1, respondent: 1, status: 1, dueDate: 1 });
 supportSurveySchema.index({ school: 1, cycle: 1, status: 1 });
+supportSurveySchema.index({ school: 1, review: 1, status: 1 });
 
 export default mongoose.model('SupportSurvey', supportSurveySchema);

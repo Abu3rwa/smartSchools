@@ -13,7 +13,7 @@ import {
   formatUsd,
 } from "../../utils/aiCredit.js";
 import CreditHistoryTable from "./CreditHistoryTable.jsx";
-import "../teacher/writing/writingShared.css";
+import "../../styles/waPrimitives.css";
 import "./aiCredit.css";
 
 const PRESETS = [2, 5, 10, 20];

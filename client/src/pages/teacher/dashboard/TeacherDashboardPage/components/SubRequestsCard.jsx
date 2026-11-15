@@ -1,44 +1,67 @@
-import { Box, Typography } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineClipboardList } from 'react-icons/hi';
+import {
+    HiOutlineArrowRight,
+    HiOutlineCheckCircle,
+    HiOutlineClipboardList,
+    HiOutlineExclamation
+} from 'react-icons/hi';
 import SectionCard from './SectionCard';
+import CardLink from './CardLink';
 
 const SubRequestsCard = ({ pendingCount, pendingSubsCount }) => {
     const { t } = useTranslation(['dashboard']);
+    const hasPending = pendingSubsCount > 0;
+
+    let body;
+    if (pendingCount.loading) {
+        body = (
+            <div className="td-state">
+                <div className="td-sk" style={{ width: 36, height: 36, borderRadius: 12, flex: '0 0 auto' }} />
+                <div className="td-skrow-body">
+                    <div className="td-sk" style={{ height: 13, width: '60%' }} />
+                    <div className="td-sk" style={{ height: 10, width: '80%', marginTop: 7 }} />
+                </div>
+            </div>
+        );
+    } else if (hasPending) {
+        body = (
+            <div className="td-state pending">
+                <i><HiOutlineExclamation size={19} /></i>
+                <div>
+                    <b>{t('dashboard:teacherDashboard.subRequests.pendingRequestsCount', { count: pendingSubsCount })}</b>
+                    <p>{t('dashboard:teacherDashboard.subRequests.confirmOrDecline')}</p>
+                    <Link to="/portal/substitutions" className="td-btn amber">
+                        <span className="td-flip"><HiOutlineArrowRight size={14} /></span>
+                        {t('dashboard:teacherDashboard.subRequests.viewAndRespond')}
+                    </Link>
+                </div>
+            </div>
+        );
+    } else {
+        body = (
+            <div className="td-state clear">
+                <i><HiOutlineCheckCircle size={19} /></i>
+                <div>
+                    <b>{t('dashboard:teacherDashboard.subRequests.allClear')}</b>
+                    <p>{t('dashboard:teacherDashboard.subRequests.empty')}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <SectionCard
-            className="sub-requests-card"
             title={t('dashboard:teacherDashboard.subRequests.title')}
             icon={HiOutlineClipboardList}
-            action={
-                <Link to="/portal/substitutions" className="btn btn-ghost btn-sm">
+            tone={hasPending ? 'amber' : 'emerald'}
+            action={(
+                <CardLink to="/portal/substitutions">
                     {t('dashboard:teacherDashboard.subRequests.viewAll')}
-                </Link>
-            }
-        >
-            {pendingCount.loading ? (
-                <p className="empty-text">{t('dashboard:teacherDashboard.subRequests.loading')}</p>
-            ) : pendingSubsCount > 0 ? (
-                <Box sx={{ py: 1 }}>
-                    <Typography variant="body1" fontWeight={600} color="primary.main">
-                        {t('dashboard:teacherDashboard.subRequests.pendingRequestsCount', { count: pendingSubsCount })}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        {t('dashboard:teacherDashboard.subRequests.confirmOrDecline')}
-                    </Typography>
-                    <Link
-                        to="/portal/substitutions"
-                        className="btn btn-ghost btn-sm"
-                        style={{ marginTop: 8, display: 'inline-block' }}
-                    >
-                        {t('dashboard:teacherDashboard.subRequests.viewAndRespond')}
-                    </Link>
-                </Box>
-            ) : (
-                <p className="empty-text">{t('dashboard:teacherDashboard.subRequests.empty')}</p>
+                </CardLink>
             )}
+        >
+            <div className="td-subsbody">{body}</div>
         </SectionCard>
     );
 };

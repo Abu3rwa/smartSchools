@@ -114,6 +114,7 @@ import hrRoutes from "./routes/hrRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import supportParentRoutes from "./routes/supportParentRoutes.js";
 import supportAccessRoutes from "./routes/supportAccessRoutes.js";
+import supportStudentRoutes from "./routes/supportStudentRoutes.js";
 import plpRoutes from "./routes/plpRoutes.js";
 import standardAssessmentFeatureRoutes from "./routes/standardAssessmentRoutes.js";
 import grammarTestRoutes from "./routes/grammarTestRoutes.js";
@@ -127,6 +128,8 @@ import { expireStaleSubstitutionRequests } from "./services/substitutionExpirySe
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { runBehaviorStatusJob } from "./jobs/behaviorStatusJob.js";
+import { runSupportReminderSweep } from "./jobs/supportReminderJob.js";
+import { runWritingFeedbackEmailRetry } from "./jobs/writingFeedbackEmailRetryJob.js";
 import { runReadingTranscriptPurgeJob } from "./jobs/readingTranscriptPurgeJob.js";
 import { runInboxAssistantJob } from "./jobs/inboxAssistantJob.js";
 import { runInboxNewsletterAutoReplyJob } from "./jobs/inboxNewsletterAutoReplyJob.js";
@@ -392,6 +395,7 @@ app.use("/api/interventions", interventionRoutes);
 app.use("/api/parent/support", supportParentRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/support-access", supportAccessRoutes);
+app.use("/api/student/support", supportStudentRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/assessments", assessmentRoutes);
 app.use("/api/reteach-tasks", reteachTaskRoutes);
@@ -572,6 +576,49 @@ const server = httpServer.listen(PORT, () => {
 
     setTimeout(runBehaviorSweep, 60 * 1000);
     activeIntervals.push(setInterval(runBehaviorSweep, BEHAVIOR_STATUS_INTERVAL_MS));
+  }
+
+  // Student support reminders: at most two nudges per unanswered survey, then a
+  // staff note. Only schools that switched support on are touched.
+  if (process.env.RUN_SUPPORT_REMINDER_JOB !== "false") {
+    const SUPPORT_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    let supportReminderRunning = false;
+    const runSupportReminders = async () => {
+      if (supportReminderRunning) return;
+      supportReminderRunning = true;
+      try {
+        const summary = await runSupportReminderSweep();
+        if ((summary?.sent || 0) > 0 || (summary?.failed || 0) > 0 || (summary?.escalated || 0) > 0) {
+          logger.info("support_reminder_sweep", summary);
+        }
+      } finally {
+        supportReminderRunning = false;
+      }
+    };
+    setTimeout(runSupportReminders, 2 * 60 * 1000);
+    activeIntervals.push(setInterval(runSupportReminders, SUPPORT_REMINDER_INTERVAL_MS));
+  }
+
+  // Writing feedback email: publish returns before the family mail is sent, so
+  // a failed or interrupted send is retried here (max three attempts) instead of
+  // staying invisible behind a "published" state.
+  if (process.env.RUN_WRITING_EMAIL_RETRY_JOB !== "false") {
+    const WRITING_EMAIL_RETRY_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+    let writingEmailRetryRunning = false;
+    const runWritingEmailRetry = async () => {
+      if (writingEmailRetryRunning) return;
+      writingEmailRetryRunning = true;
+      try {
+        const summary = await runWritingFeedbackEmailRetry();
+        if ((summary?.retried || 0) > 0) logger.info("writing_feedback_email_retry", summary);
+      } catch (err) {
+        logger.error("Writing feedback email retry job error:", err?.message || err);
+      } finally {
+        writingEmailRetryRunning = false;
+      }
+    };
+    setTimeout(runWritingEmailRetry, 5 * 60 * 1000);
+    activeIntervals.push(setInterval(runWritingEmailRetry, WRITING_EMAIL_RETRY_INTERVAL_MS));
   }
 
   if (process.env.RUN_COMMUNICATION_EMAIL_SCHEDULER !== "false") {

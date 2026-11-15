@@ -10,6 +10,12 @@ const answerToState = (answer = {}) => ({
   textValue: answer.textValue || "",
 });
 
+const isAnswered = (value = {}) => (
+  value.scaleValue != null
+  || Number.isInteger(value.choiceIndex)
+  || String(value.textValue || "").trim() !== ""
+);
+
 const formFromSurvey = (survey) => {
   const initial = {};
   for (const question of survey?.questions || []) {
@@ -19,21 +25,28 @@ const formFromSurvey = (survey) => {
   return initial;
 };
 
-const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = false, readOnly = false }) => {
+const SurveyForm = ({
+  survey,
+  onSubmit,
+  onSave,
+  onNoConcerns,
+  onSkip,
+  submitting = false,
+  saving = false,
+  readOnly = false,
+  disabled = false,
+}) => {
   const { t, i18n } = useTranslation("support");
   const isArabic = String(i18n.language || "").startsWith("ar");
   const [answers, setAnswers] = useState(() => formFromSurvey(survey));
   const [error, setError] = useState("");
+  const [confirm, setConfirm] = useState("");
   const submitted = survey?.status === "submitted" || readOnly;
+  const locked = submitted || disabled || Boolean(confirm);
 
   const questions = useMemo(() => survey?.questions || [], [survey]);
   const answeredCount = useMemo(
-    () => questions.filter((question) => {
-      const value = answers[question.id] || {};
-      return value.scaleValue != null
-        || Number.isInteger(value.choiceIndex)
-        || String(value.textValue || "").trim() !== "";
-    }).length,
+    () => questions.filter((question) => isAnswered(answers[question.id])).length,
     [answers, questions],
   );
 
@@ -48,19 +61,10 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
   const payload = () => questions.map((question) => ({
     questionId: question.id,
     ...answers[question.id],
-  })).filter((answer) => (
-    answer.scaleValue != null
-    || Number.isInteger(answer.choiceIndex)
-    || String(answer.textValue || "").trim() !== ""
-  ));
+  })).filter(isAnswered);
 
   const handleSubmit = () => {
-    const missing = questions.filter((question) => (
-      question.required
-      && (answers[question.id]?.scaleValue == null
-        && !Number.isInteger(answers[question.id]?.choiceIndex)
-        && !String(answers[question.id]?.textValue || "").trim())
-    ));
+    const missing = questions.filter((question) => question.required && !isAnswered(answers[question.id]));
     if (missing.length > 0) {
       setError(t("survey.requiredHint"));
       return;
@@ -80,8 +84,8 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
       <ol className="support-survey-questions">
         {questions.map((question, index) => {
           const value = answers[question.id] || {};
-          const options = isArabic ? (question.optionsAr?.length ? question.optionsAr : question.options) : question.options;
-          const anchors = isArabic ? (question.anchorsAr?.length ? question.anchorsAr : question.anchors) : question.anchors;
+          const options = isArabic && question.optionsAr?.length ? question.optionsAr : question.options;
+          const anchors = isArabic && question.anchorsAr?.length ? question.anchorsAr : question.anchors;
           return (
             <li key={question.id} className="support-question">
               <div className="support-question-head">
@@ -98,7 +102,7 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
                       type="button"
                       className={`support-scale-option ${Number(value.scaleValue) === scale ? "is-selected" : ""}`}
                       aria-pressed={Number(value.scaleValue) === scale}
-                      disabled={submitted}
+                      disabled={locked}
                       onClick={() => update(question.id, { scaleValue: scale })}
                     >
                       <span className="support-scale-dot" aria-hidden="true">{scale}</span>
@@ -110,19 +114,22 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
 
               {question.kind === "choice" && (
                 <div className="support-choices" role="radiogroup" aria-label={pick(question.prompt, question.promptAr, isArabic)}>
-                  {(options || []).map((option, idx) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="radio"
-                      aria-checked={Number(value.choiceIndex) === idx}
-                      className={`support-choice ${Number(value.choiceIndex) === idx ? "is-selected" : ""}`}
-                      disabled={submitted}
-                      onClick={() => update(question.id, { choiceIndex: idx })}
-                    >
-                      {option}
-                    </button>
-                  ))}
+                  {(options || []).map((option, idx) => {
+                    const chosen = Number.isInteger(value.choiceIndex) && value.choiceIndex === idx;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={chosen}
+                        className={`support-choice ${chosen ? "is-selected" : ""}`}
+                        disabled={locked}
+                        onClick={() => update(question.id, { choiceIndex: idx })}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -132,7 +139,7 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
                   rows={4}
                   maxLength={1000}
                   value={value.textValue || ""}
-                  disabled={submitted}
+                  disabled={locked}
                   placeholder={t("survey.optionalPlaceholder")}
                   onChange={(event) => update(question.id, { textValue: event.target.value })}
                 />
@@ -146,19 +153,59 @@ const SurveyForm = ({ survey, onSubmit, onSave, submitting = false, saving = fal
 
       {!submitted ? (
         <div className="support-survey-actions">
-          {onSave && (
-            <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => onSave(payload())}>
-              {saving ? t("survey.saving") : t("survey.saveForNow")}
-            </button>
+          {confirm ? (
+            <div className="support-survey-confirm" role="group" aria-label={t("survey.confirmTitle")}>
+              <p>
+                {confirm === "none" ? t("survey.confirmNoConcerns") : t("survey.confirmSkip")}
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={submitting || saving}
+                onClick={() => setConfirm("")}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={submitting || saving}
+                onClick={() => (confirm === "none" ? onNoConcerns?.() : onSkip?.())}
+              >
+                {confirm === "none" ? t("survey.noConcerns") : t("survey.skip")}
+              </button>
+            </div>
+          ) : (
+            <>
+              {onSave && (
+                <button type="button" className="btn btn-secondary" disabled={saving || disabled} onClick={() => onSave(payload())}>
+                  {saving ? t("survey.saving") : t("survey.saveForNow")}
+                </button>
+              )}
+              <button type="button" className="btn btn-primary" disabled={submitting || disabled} onClick={handleSubmit}>
+                {submitting ? t("survey.submitting") : t("survey.submit")}
+              </button>
+              {(onNoConcerns || onSkip) && (
+                <div className="support-survey-quiet-actions">
+                  {onNoConcerns && (
+                    <button type="button" className="support-link-btn" disabled={disabled} onClick={() => setConfirm("none")}>
+                      {t("survey.noConcerns")}
+                    </button>
+                  )}
+                  {onSkip && (
+                    <button type="button" className="support-link-btn" disabled={disabled} onClick={() => setConfirm("skip")}>
+                      {t("survey.skip")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
-          <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? t("survey.submitting") : t("survey.submit")}
-          </button>
         </div>
       ) : (
         <div className="support-survey-done">
-          <strong>{t("survey.thankYouTitle")}</strong>
-          <p>{t("survey.thankYouBody")}</p>
+          <strong>{survey?.noConcerns ? t("survey.noConcernsDoneTitle") : t("survey.thankYouTitle")}</strong>
+          <p>{survey?.noConcerns ? t("survey.noConcernsDoneBody") : t("survey.thankYouBody")}</p>
         </div>
       )}
     </div>

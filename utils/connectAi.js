@@ -95,32 +95,59 @@ async function connectOpenAi(prompt, options = {}) {
   const modelsToTry = [modelName, process.env.OPENAI_FALLBACK_MODEL]
     .filter((model, index, all) => model && all.indexOf(model) === index);
 
+  const maxTokens = Number(options.maxTokens);
+  const requestBody = (candidateModel, advanced) => ({
+    model: candidateModel,
+    service_tier: "default",
+    messages: [{ role: "user", content }],
+    ...(advanced && options.json ? { response_format: { type: "json_object" } } : {}),
+    ...(advanced && Number.isFinite(maxTokens) && maxTokens > 0
+      ? { max_completion_tokens: maxTokens }
+      : {}),
+  });
+  // An endpoint that rejects JSON mode or the token cap still gets a plain
+  // request rather than failing the whole call.
+  const rejectsAdvancedOptions = (message) =>
+    /response_format|max_completion_tokens|max_tokens|json_object/i.test(String(message || ""));
+
   let lastError = null;
 
   for (const candidateModel of modelsToTry) {
     let response;
-    try {
-      response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
+    let payload = {};
+    let advanced = Boolean(options.json || (Number.isFinite(maxTokens) && maxTokens > 0));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(requestBody(candidateModel, advanced)),
+          signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS()),
+        });
+      } catch (error) {
+        const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+        lastError = openAiError(timedOut ? 504 : 502, timedOut ? "Request timed out" : error?.message, candidateModel);
+        logger.warn("OpenAI request failed", { model: candidateModel, message: error?.message });
+        response = null;
+        break;
+      }
+      payload = await response.json().catch(() => ({}));
+      if (response.ok) break;
+      const message = payload?.error?.message || "";
+      if (attempt === 0 && advanced && rejectsAdvancedOptions(message)) {
+        logger.warn("OpenAI rejected advanced request options; retrying without them", {
           model: candidateModel,
-          service_tier: "default",
-          messages: [{ role: "user", content }],
-        }),
-        signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS()),
-      });
-    } catch (error) {
-      const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
-      lastError = openAiError(timedOut ? 504 : 502, timedOut ? "Request timed out" : error?.message, candidateModel);
-      logger.warn("OpenAI request failed", { model: candidateModel, message: error?.message });
+          message,
+        });
+        advanced = false;
+        continue;
+      }
       break;
     }
-
-    const payload = await response.json().catch(() => ({}));
+    if (!response) break;
 
     if (!response.ok) {
       const message = payload?.error?.message || `HTTP ${response.status}`;

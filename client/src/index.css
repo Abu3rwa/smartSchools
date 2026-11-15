@@ -3,22 +3,36 @@
    ========================================== */
 
 :root {
-  /* Primary Colors (Teal / Navy palette) */
-  --primary-50: #f0fdfa;
-  --primary-100: #ccfbf1;
-  --primary-200: #99f6e4;
-  --primary-300: #5eead4;
-  --primary-400: #2dd4bf;
-  --primary-500: #14b8a6;
-  --primary-600: #0d9488;
-  --primary-700: #0f766e;
-  --primary-800: #115e59;
-  --primary-900: #134e4a;
+  /* Primary Colors (brand amber ramp - the same ramp in both themes) */
+  /* Old teal ramp, kept for reference:
+     --primary-50: #f0fdfa;
+     --primary-100: #ccfbf1;
+     --primary-200: #99f6e4;
+     --primary-300: #5eead4;
+     --primary-400: #2dd4bf;
+     --primary-500: #14b8a6;
+     --primary-600: #0d9488;
+     --primary-700: #0f766e;
+     --primary-800: #115e59;
+     --primary-900: #134e4a; */
+  --primary-50: #fffbeb;
+  --primary-100: #fef3c7;
+  --primary-200: #fde68a;
+  --primary-300: #fcd34d;
+  --primary-400: #f59e0b;
+  --primary-500: #d97706;
+  --primary-600: #b45309;
+  --primary-700: #92400e;
+  --primary-800: #78350f;
+  --primary-900: #451a03;
 
   /* Accent Colors */
-  --accent-gradient: linear-gradient(135deg, #0f172a 0%, #0d9488 100%);
+  /* Old dark accent (ink -> teal), kept for reference:
+     --accent-gradient: linear-gradient(135deg, #0f172a 0%, #0d9488 100%); */
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   /* Brand text must stay readable on the dark sidebar, so its stops are light. */
-  --brand-text-gradient: linear-gradient(135deg, #ffffff 0%, #5eead4 100%);
+  /* Old dark stops (white -> teal): linear-gradient(135deg, #ffffff 0%, #5eead4 100%); */
+  --brand-text-gradient: linear-gradient(135deg, #ffffff 0%, #fcd34d 100%);
   --accent-purple: #8b5cf6;
   --accent-pink: #ec4899;
   --accent-cyan: #06b6d4;
@@ -46,7 +60,8 @@
   --text-primary: #ffffff;
   --text-secondary: #a0aec0;
   --text-muted: #718096;
-  --text-accent: #2dd4bf;
+  /* Old dark accent text (teal): #2dd4bf; */
+  --text-accent: #fbbf24;
 
   /* Border Colors */
   --border-color: rgba(255, 255, 255, 0.08);
@@ -56,7 +71,8 @@
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(13, 148, 136, 0.3);
+  /* Old dark glow (teal): 0 0 20px rgba(13, 148, 136, 0.3); */
+  --shadow-glow: 0 0 20px rgba(245, 158, 11, 0.3);
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -101,13 +117,21 @@
   --overlay-bg: rgba(0, 0, 0, 0.55);
 
   /* Semantic: single primary + focus */
-  --primary: #14b8a6;
-  --focus-ring: rgba(13, 148, 136, 0.35);
-  --brand-gradient: linear-gradient(135deg, #0f172a 0%, #0d9488 100%);
-  --brand-gradient-hover: linear-gradient(135deg, #1e293b 0%, #14b8a6 100%);
-  --brand-gradient-bar: linear-gradient(90deg, #0f172a 0%, #0d9488 100%);
-  --brand-rgb-start: 15, 23, 42;
-  --brand-rgb-end: 13, 148, 136;
+  /* Old dark primary (teal):
+     --primary: #14b8a6;
+     --focus-ring: rgba(13, 148, 136, 0.35);
+     --brand-gradient: linear-gradient(135deg, #0f172a 0%, #0d9488 100%);
+     --brand-gradient-hover: linear-gradient(135deg, #1e293b 0%, #14b8a6 100%);
+     --brand-gradient-bar: linear-gradient(90deg, #0f172a 0%, #0d9488 100%);
+     --brand-rgb-start: 15, 23, 42;
+     --brand-rgb-end: 13, 148, 136; */
+  --primary: #b45309;
+  --focus-ring: rgba(245, 158, 11, 0.45);
+  --brand-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --brand-gradient-hover: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  --brand-gradient-bar: linear-gradient(90deg, #101828 0%, #92400e 100%);
+  --brand-rgb-start: 16, 24, 40;
+  --brand-rgb-end: 245, 158, 11;
 
   /* Success / Error / Warning scales (dark theme) */
   --success-50: #ecfdf5;
@@ -126,34 +150,50 @@
   --error-600: #dc2626;
   --error-700: #b91c1c;
   --danger-500: #ef4444;
-  --warning-50: #fffbeb;
-  --warning-100: #fef3c7;
-  --warning-200: #fde68a;
-  --warning-300: #fcd34d;
-  --warning-500: #f59e0b;
-  --warning-600: #d97706;
-  --warning-700: #b45309;
-  --warning-800: #92400e;
+  /* Warning scale is orange, never brand amber, so the two never read as one.
+     Old amber warning scale, kept for reference:
+     --warning-50: #fffbeb;
+     --warning-100: #fef3c7;
+     --warning-200: #fde68a;
+     --warning-300: #fcd34d;
+     --warning-500: #f59e0b;
+     --warning-600: #d97706;
+     --warning-700: #b45309;
+     --warning-800: #92400e; */
+  --warning-50: #fff7ed;
+  --warning-100: #ffedd5;
+  --warning-200: #fed7aa;
+  --warning-300: #fdba74;
+  --warning-400: #fb923c;
+  /* Dark surfaces need the brighter orange for the same text contrast the
+     darker stop gives on white. */
+  --warning-500: #fb923c;
+  --warning-600: #c2410c;
+  --warning-700: #9a3412;
+  --warning-800: #7c2d12;
 
   /* Glass card, text on accent (e.g. nav active) */
   --glass-bg: rgba(30, 30, 53, 0.7);
-  --on-accent: #ffffff;
+  /* Old dark value (white on teal): #ffffff; */
+  --on-accent: #101828;
 
   /* Grade colors (semantic) */
   --grade-success: #10b981;
   --grade-success-alt: #22c55e;
-  --grade-warning: #eab308;
-  --grade-warning-alt: #f59e0b;
+  /* Old amber grade stops: --grade-warning: #eab308; --grade-warning-alt: #f59e0b; */
+  --grade-warning: #fb923c;
+  --grade-warning-alt: #fdba74;
   --grade-error: #ef4444;
 
   /* For rgba() use in components (e.g. LessonPlanPage) */
-  --accent-primary-rgb: 13, 148, 136;
+  /* Old dark value (teal): 13, 148, 136; */
+  --accent-primary-rgb: 180, 83, 9;
 
   /* Stat card / subtle backgrounds */
-  --stat-primary-bg: rgba(13, 148, 136, 0.15);
-  --stat-secondary-bg: rgba(20, 184, 166, 0.15);
+  --stat-primary-bg: rgba(245, 158, 11, 0.15);
+  --stat-secondary-bg: rgba(180, 83, 9, 0.12);
   --stat-success-bg: rgba(16, 185, 129, 0.15);
-  --stat-warning-bg: rgba(245, 158, 11, 0.15);
+  --stat-warning-bg: rgba(249, 115, 22, 0.15);
 
   /* Sidebar icon colors (dark theme) */
   --icon-blue: #60a5fa;
@@ -172,8 +212,10 @@
   --status-success-bg: rgba(52, 211, 153, 0.15);
   --status-error: #f87171;
   --status-error-bg: rgba(248, 113, 113, 0.15);
-  --status-warning: #fbbf24;
-  --status-warning-bg: rgba(251, 191, 36, 0.15);
+  /* Old amber warning status: --status-warning: #fbbf24;
+     --status-warning-bg: rgba(251, 191, 36, 0.15); */
+  --status-warning: #fb923c;
+  --status-warning-bg: rgba(251, 146, 60, 0.15);
   --status-info: #60a5fa;
   --status-info-bg: rgba(96, 165, 250, 0.15);
 
@@ -187,10 +229,11 @@
   --mastery-not-started-bg: rgba(148, 163, 184, 0.12);
 
   /* Chart palette (dark theme) */
-  --chart-1: #2dd4bf;
+  /* Old dark chart-1 (teal): #2dd4bf; */
+  --chart-1: #fbbf24;
   --chart-2: #60a5fa;
   --chart-3: #a78bfa;
-  --chart-4: #fbbf24;
+  --chart-4: #fb923c;
   --chart-5: #f472b6;
 
   /* Surface / subtle background for sections */
@@ -202,8 +245,8 @@
   --badge-draft-text:     var(--text-secondary);
   --badge-review-bg:      rgba(249, 115, 22, 0.15);
   --badge-review-text:    #fb923c;
-  --badge-revision-bg:    rgba(245, 158, 11, 0.15);
-  --badge-revision-text:  var(--accent-amber);
+  --badge-revision-bg:    rgba(249, 115, 22, 0.18);
+  --badge-revision-text:  #fb923c;
   --badge-approved-bg:    var(--status-success-bg);
   --badge-approved-text:  var(--status-success);
   --badge-rejected-bg:    var(--status-error-bg);
@@ -248,52 +291,59 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   /* GradeBook light */
-  --primary-50: #f0fdfa;
-  --primary-100: #ccfbf1;
-  --primary-200: #99f6e4;
-  --primary-300: #5eead4;
-  --primary-400: #2dd4bf;
-  --primary-500: #14b8a6;
-  --primary-600: #0d9488;
-  --primary-700: #0f766e;
-  --primary-800: #115e59;
-  --primary-900: #134e4a;
+  /* Brand is a single amber, flat. Amber itself never carries text on white,
+     so text and links use the darker stop. */
+  --primary-50: #fffbeb;
+  --primary-100: #fef3c7;
+  --primary-200: #fde68a;
+  --primary-300: #fcd34d;
+  --primary-400: #f59e0b;
+  --primary-500: #d97706;
+  --primary-600: #b45309;
+  --primary-700: #92400e;
+  --primary-800: #78350f;
+  --primary-900: #451a03;
 
-  --accent-gradient: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
-  /* Dark teal stops read on the white sidebar; the default stops are too pale. */
-  --brand-text-gradient: linear-gradient(135deg, #134e4a 0%, #0f766e 100%);
+  --accent-gradient: #f59e0b;
+  /* Flat ink wordmark: no gradient text. */
+  --brand-text-gradient: #101828;
   --accent-purple: #7c3aed;
   --accent-pink: #db2777;
   --accent-cyan: #0891b2;
   --accent-emerald: #059669;
   --accent-amber: #d97706;
   --accent-red: #dc2626;
-  --bg-primary: #f8fafc;
+  --bg-primary: #f7f8fa;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f0f2f5;
+  --bg-tertiary: #f2f4f7;
   --bg-card: #ffffff;
-  --bg-card-hover: #f8fafc;
+  --bg-card-hover: #f7f8fa;
   --bg-input: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-color-hover: rgba(0, 0, 0, 0.15);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --text-primary: #101828;
+  --text-secondary: #344054;
+  --text-muted: #667085;
+  --border-color: rgba(16, 24, 40, 0.08);
+  --border-color-hover: rgba(16, 24, 40, 0.16);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 8px 24px rgba(16, 24, 40, 0.1);
   --overlay-bg: rgba(0, 0, 0, 0.35);
 
+  /* One radius scale for the light surface */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
   /* Semantic (light theme) */
-  --primary: #0d9488;
-  --focus-ring: rgba(13, 148, 136, 0.25);
-  --text-accent: #0d9488;
-  --shadow-glow: 0 0 20px rgba(13, 148, 136, 0.2);
-  --brand-gradient: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
-  --brand-gradient-hover: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
-  --brand-gradient-bar: linear-gradient(90deg, #0d9488 0%, #14b8a6 100%);
-  --brand-rgb-start: 13, 148, 136;
-  --brand-rgb-end: 20, 184, 166;
+  --primary: #b45309;
+  --focus-ring: rgba(180, 83, 9, 0.35);
+  --text-accent: #b45309;
+  --shadow-glow: 0 0 20px rgba(245, 158, 11, 0.25);
+  --brand-gradient: #f59e0b;
+  --brand-gradient-hover: #d97706;
+  --brand-gradient-bar: #101828;
+  --brand-rgb-start: 16, 24, 40;
+  --brand-rgb-end: 180, 83, 9;
 
   --success-50: #ecfdf5;
   --success-100: #d1fae5;
@@ -311,14 +361,25 @@
   --error-600: #dc2626;
   --error-700: #b91c1c;
   --danger-500: #dc2626;
-  --warning-50: #fffbeb;
-  --warning-100: #fef3c7;
-  --warning-200: #fde68a;
-  --warning-300: #fcd34d;
-  --warning-500: #f59e0b;
-  --warning-600: #d97706;
-  --warning-700: #b45309;
-  --warning-800: #92400e;
+  /* Warning scale is orange, never brand amber, so the two never read as one.
+     Old amber warning scale, kept for reference:
+     --warning-50: #fffbeb;
+     --warning-100: #fef3c7;
+     --warning-200: #fde68a;
+     --warning-300: #fcd34d;
+     --warning-500: #f59e0b;
+     --warning-600: #d97706;
+     --warning-700: #b45309;
+     --warning-800: #92400e; */
+  --warning-50: #fff7ed;
+  --warning-100: #ffedd5;
+  --warning-200: #fed7aa;
+  --warning-300: #fdba74;
+  --warning-400: #ea580c;
+  --warning-500: #c2410c;
+  --warning-600: #9a3412;
+  --warning-700: #7c2d12;
+  --warning-800: #431407;
 
   /* Sidebar icon colors (light theme) */
   --icon-blue: #3b82f6;
@@ -332,28 +393,31 @@
   --icon-indigo: #6366f1;
   --icon-teal: #14b8a6;
 
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --on-accent: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --on-accent: #101828;
 
   --grade-success: #059669;
   --grade-success-alt: #16a34a;
-  --grade-warning: #d97706;
-  --grade-warning-alt: #b45309;
+  /* Old amber grade stops: --grade-warning: #d97706; --grade-warning-alt: #b45309; */
+  --grade-warning: #c2410c;
+  --grade-warning-alt: #9a3412;
   --grade-error: #dc2626;
 
-  --accent-primary-rgb: 13, 148, 136;
-  --stat-primary-bg: rgba(13, 148, 136, 0.12);
-  --stat-secondary-bg: rgba(20, 184, 166, 0.12);
+  --accent-primary-rgb: 180, 83, 9;
+  --stat-primary-bg: rgba(245, 158, 11, 0.14);
+  --stat-secondary-bg: rgba(180, 83, 9, 0.1);
   --stat-success-bg: rgba(5, 150, 105, 0.12);
-  --stat-warning-bg: rgba(217, 119, 6, 0.12);
+  --stat-warning-bg: rgba(249, 115, 22, 0.12);
 
   /* Status / mastery semantic tokens (light theme) */
   --status-success: #059669;
   --status-success-bg: rgba(5, 150, 105, 0.12);
   --status-error: #dc2626;
   --status-error-bg: rgba(220, 38, 38, 0.1);
-  --status-warning: #d97706;
-  --status-warning-bg: rgba(217, 119, 6, 0.1);
+  /* Old amber warning status: --status-warning: #d97706;
+     --status-warning-bg: rgba(217, 119, 6, 0.1); */
+  --status-warning: #c2410c;
+  --status-warning-bg: rgba(194, 65, 12, 0.1);
   --status-info: #3b82f6;
   --status-info-bg: rgba(59, 130, 246, 0.1);
 
@@ -367,23 +431,23 @@
   --mastery-not-started-bg: rgba(100, 116, 139, 0.1);
 
   /* Chart palette (light theme) */
-  --chart-1: #0d9488;
+  --chart-1: #b45309;
   --chart-2: #3b82f6;
   --chart-3: #8b5cf6;
-  --chart-4: #d97706;
+  --chart-4: #ea580c;
   --chart-5: #ec4899;
 
   /* Surface / subtle background for sections */
-  --surface-bg: #f8fafc;
-  --surface-muted: rgba(0, 0, 0, 0.03);
+  --surface-bg: #f7f8fa;
+  --surface-muted: rgba(16, 24, 40, 0.04);
 
   /* Status badge tokens (light theme) */
   --badge-draft-bg:       #f3f4f6;
   --badge-draft-text:     #374151;
   --badge-review-bg:      #ffedd5;
   --badge-review-text:    #9a3412;
-  --badge-revision-bg:    #fef3c7;
-  --badge-revision-text:  #92400e;
+  --badge-revision-bg:    #ffedd5;
+  --badge-revision-text:  #9a3412;
   --badge-approved-bg:    #dcfce7;
   --badge-approved-text:  #166534;
   --badge-rejected-bg:    #fee2e2;
@@ -485,13 +549,15 @@ p {
 }
 
 a {
-  color: var(--primary-400);
+  /* The 400 stop is bright amber: readable on dark surfaces but too light on
+     white, so links use the darker stops that pass AA in both themes. */
+  color: var(--primary-600);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 
 a:hover {
-  color: var(--primary-300);
+  color: var(--primary-700);
 }
 
 /* ==========================================
@@ -1021,7 +1087,8 @@ tbody tr:hover {
 }
 
 .text-warning {
-  color: var(--accent-amber);
+  /* Orange, not the amber brand: a warning must not read as brand colour. */
+  color: var(--warning-500);
 }
 
 /* Inline toast-style messages (e.g. ReportTemplates) */

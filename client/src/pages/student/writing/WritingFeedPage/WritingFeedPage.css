@@ -1,11 +1,11 @@
 .wf-page {
-  --wf-teal: var(--primary, #0d9488);
+  --wf-teal: var(--primary);
   --wf-ink: var(--text-primary, #0f172a);
   --wf-muted: var(--text-muted, #64748b);
   --wf-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --wf-surface: var(--bg-card, #ffffff);
   --wf-surface-2: var(--bg-secondary, #f8fafc);
-  --wf-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --wf-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --wf-amber: #b45309;
   --wf-indigo: #4338ca;
   --wf-green: #15803d;
@@ -106,7 +106,7 @@
 }
 
 .wf-table tbody tr:last-child td { border-bottom: 0; }
-.wf-table tbody tr:hover { background: color-mix(in srgb, var(--primary, #0d9488) 4%, transparent); }
+.wf-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
 .wf-table tbody tr.is-waiting { background: color-mix(in srgb, var(--text-muted, #64748b) 3%, transparent); }
 
 .wf-title {
@@ -147,7 +147,7 @@
   background: var(--wf-line);
 }
 .wf-progress-seg.is-done { background: var(--wf-teal); }
-.wf-progress-seg.is-current { background: color-mix(in srgb, var(--primary, #0d9488) 45%, #ffffff); }
+.wf-progress-seg.is-current { background: color-mix(in srgb, var(--primary) 45%, #ffffff); }
 
 .wf-progress-label { font-size: 0.82rem; font-weight: 600; line-height: 1.35; }
 

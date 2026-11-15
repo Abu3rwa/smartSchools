@@ -1,11 +1,11 @@
 .ta-page {
-  --ta-teal: var(--primary, #0d9488);
+  --ta-teal: var(--primary);
   --ta-ink: var(--text-primary, #0f172a);
   --ta-muted: var(--text-muted, #64748b);
   --ta-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --ta-surface: var(--bg-card, #ffffff);
   --ta-surface-2: var(--bg-secondary, #f8fafc);
-  --ta-soft: color-mix(in srgb, var(--primary, #0d9488) 10%, transparent);
+  --ta-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --ta-amber: #b45309;
   --ta-green: #15803d;
 
@@ -48,7 +48,7 @@
   white-space: nowrap;
 }
 .ta-chip.is-on {
-  border-color: color-mix(in srgb, var(--primary, #0d9488) 35%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
   background: var(--ta-soft);
   color: var(--ta-teal);
 }
@@ -102,7 +102,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ta-tab.is-active .ta-tab-badge {
-  background: color-mix(in srgb, var(--primary, #0d9488) 16%, transparent);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
 }
 .ta-tab-dot {
   width: 7px;
@@ -187,7 +187,7 @@
   border-radius: 10px;
   cursor: pointer;
 }
-.ta-switch:hover { border-color: color-mix(in srgb, var(--primary, #0d9488) 40%, transparent); }
+.ta-switch:hover { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
 .ta-switch input { margin-top: 3px; accent-color: var(--ta-teal); }
 .ta-switch span { display: flex; flex-direction: column; gap: 2px; }
 .ta-switch strong { font-size: 1rem; }
@@ -430,7 +430,7 @@
   gap: 12px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d9488) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
   border-radius: 10px;
   background: var(--ta-surface);
 }

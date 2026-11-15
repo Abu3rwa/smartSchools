@@ -186,3 +186,46 @@ test('an assignment saved on the server reloads into the editor unchanged', () =
   assert.equal("maxDrafts" in form.workflow, false);
   assert.equal(buildPayload(form).rubric[0].maxScore, 5);
 });
+
+test('an Arabic task keeps every row and the keys the server stores', () => {
+  const section = (label) => ({
+    key: '', label, required: true, repeatable: false, minCount: 1, maxCount: 1, minWords: 0,
+  });
+  const form = {
+    ...emptyForm(),
+    title: 'مقال عن الزي المدرسي',
+    classId: 'c1',
+    sections: [section('المقدمة'), section('الزي  المدرسي'), section('الخاتمة')],
+    rubric: [{ key: '', label: 'الأفكار', maxScore: 5, appliesToSections: ['*'] }],
+  };
+
+  assert.equal(slugify('الزي  المدرسي'), 'الزي_المدرسي');
+  const payload = buildPayload(form);
+  assert.deepEqual(payload.sections.map((row) => row.key), ['المقدمة', 'الزي_المدرسي', 'الخاتمة']);
+  assert.deepEqual(payload.sections.map((row) => row.label), ['المقدمة', 'الزي  المدرسي', 'الخاتمة']);
+  assert.equal(payload.rubric[0].key, 'الأفكار');
+  assert.equal(validateForm(form).ok, true);
+});
+
+test('two Arabic parts with the same name are refused before save', () => {
+  const section = (label) => ({
+    key: '', label, required: true, repeatable: false, minCount: 1, maxCount: 1, minWords: 0,
+  });
+  const form = {
+    ...emptyForm(),
+    title: 'مقال',
+    classId: 'c1',
+    sections: [section('المقدمة'), section('المقدمة')],
+  };
+  assert.equal(validateForm(form).errors.sections, 'duplicateSection');
+});
+
+test('a mark line with neither a name nor a key is refused', () => {
+  const form = {
+    ...emptyForm(),
+    title: 'Opinion essay',
+    classId: 'c1',
+    rubric: [{ key: '', label: '   ', maxScore: 5, appliesToSections: ['*'] }],
+  };
+  assert.equal(validateForm(form).errors.rubric, 'rubricIncomplete');
+});

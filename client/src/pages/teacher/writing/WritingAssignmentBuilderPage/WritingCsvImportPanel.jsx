@@ -5,7 +5,7 @@ import { buildWritingCsvTemplate, formPatchFromCsv, parseWritingCsv } from "./wr
 
 const RULE_KEYS = ["rule1", "rule2", "rule3", "rule4", "rule5", "rule6", "rule7"];
 
-export default function WritingCsvImportPanel({ onApplied }) {
+export default function WritingCsvImportPanel({ onApplied, supports = null }) {
   const { t } = useTranslation(["writing"]);
   const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -40,13 +40,22 @@ export default function WritingCsvImportPanel({ onApplied }) {
     try {
       setParsed(parseWritingCsv(await file.text()));
     } catch (parseError) {
-      setError(parseError.message || t("writing:teacher.builder.csv.failed"));
+      // The parser throws a code with its values; an unknown code falls back to
+      // the parser's English sentence rather than showing nothing.
+      const code = parseError?.code;
+      const translated = code
+        ? t(`writing:teacher.builder.csv.errors.${code}`, {
+          ...parseError.params,
+          defaultValue: "",
+        })
+        : "";
+      setError(translated || parseError.message || t("writing:teacher.builder.csv.failed"));
     }
   };
 
   const apply = () => {
     if (!parsed) return;
-    onApplied(formPatchFromCsv(parsed));
+    onApplied(formPatchFromCsv(parsed, supports));
     close();
   };
 
@@ -107,6 +116,9 @@ export default function WritingCsvImportPanel({ onApplied }) {
               max: parsed.maxWords || t("writing:teacher.builder.previewNoMax"),
             })
             : t("writing:teacher.builder.csv.noLength")}</span>
+          {(supports?.wordSupport?.vocabulary?.enabled || supports?.wordSupport?.spelling?.enabled) && (
+            <span>{t("writing:teacher.builder.csv.wordSupportKept")}</span>
+          )}
           <button type="button" className="btn btn-primary btn-sm" onClick={apply}>
             {t("writing:teacher.builder.csv.apply")}
           </button>

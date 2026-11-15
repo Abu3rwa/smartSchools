@@ -27,7 +27,7 @@ export default function LandingFeatures({ content }) {
                 <div className="landing-card-grid">
                     {(content.features.items || []).map(({ iconKey, title, description }, index) => {
                         const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
-                        const featureMeta = featureMetaMap[iconKey] || { audience: 'For schools', highlight: `Feature ${index + 1}`, tint: 'rgba(13,148,136,0.2)' };
+                        const featureMeta = featureMetaMap[iconKey] || { audience: 'For schools', highlight: `Feature ${index + 1}`, tint: 'rgba(var(--accent-primary-rgb),0.2)' };
                         return (
                             <Paper
                                 key={title || index}

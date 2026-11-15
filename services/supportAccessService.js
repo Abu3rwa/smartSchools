@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
+import { createHmac } from 'node:crypto';
 import School from '../models/School.js';
-import Student from '../models/Student.js';
 import SupportCheckIn from '../models/SupportCheckIn.js';
 import SupportPlan from '../models/SupportPlan.js';
 import SupportRespondent from '../models/SupportRespondent.js';
@@ -22,11 +22,15 @@ import {
     studentSummary,
 } from './supportSerializers.js';
 
-export const supportError = (status, code, message) => {
+export const supportError = (status, code, message, details = null) => {
     const error = new Error(message);
     error.status = status;
     error.statusCode = status;
     error.code = code;
+    if (details) {
+        error.details = details;
+        error.data = details;
+    }
     return error;
 };
 
@@ -36,12 +40,20 @@ const codeIsTaken = async (code) => {
     return Boolean(existing);
 };
 
+const codeLookupFor = (code) => createHmac(
+    'sha256',
+    String(process.env.SUPPORT_CODE_SECRET || process.env.JWT_SECRET || 'support-code'),
+)
+    .update(normalizeCode(code))
+    .digest('hex');
+
 export const issueCode = async (respondent, { rotate = false } = {}) => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
         const code = generateCode();
         if (await codeIsTaken(code)) continue;
         respondent.codeHash = hashCode(code);
         respondent.codeHint = codeHint(code);
+        respondent.codeLookup = codeLookupFor(code);
         respondent.codeIssuedAt = new Date();
         respondent.failedAttempts = 0;
         respondent.lockedUntil = null;
@@ -174,15 +186,27 @@ export const findRespondentByCode = async (rawCode) => {
     if (!CODE_PATTERN.test(code)) {
         throw supportError(400, 'CODE_FORMAT', 'Enter the six-digit code from your email.');
     }
-    const candidates = await SupportRespondent.find({
-        codeHint: codeHint(code),
+    const direct = await SupportRespondent.findOne({
+        codeLookup: codeLookupFor(code),
         active: true,
     })
         .select('+codeHash')
-        .setOptions({ skipTenantFilter: true })
-        .limit(20);
+        .setOptions({ skipTenantFilter: true });
 
-    const match = candidates.find((candidate) => verifyCode(code, candidate.codeHash));
+    // Codes issued before the exact lookup existed only have the two-digit
+    // hint. That fallback stays for the handful of rows that still need it.
+    const candidates = direct
+        ? [direct]
+        : await SupportRespondent.find({
+            codeHint: codeHint(code),
+            active: true,
+            $or: [{ codeLookup: '' }, { codeLookup: { $exists: false } }],
+        })
+            .select('+codeHash')
+            .setOptions({ skipTenantFilter: true })
+            .limit(20);
+
+    const match = direct || candidates.find((candidate) => verifyCode(code, candidate.codeHash));
     if (!match) {
         if (candidates.length > 0 && candidates.length <= 3) {
             for (const candidate of candidates) {
@@ -219,9 +243,19 @@ export const loadRespondent = async (respondentId) => {
     return respondent;
 };
 
-export const buildAccessHub = async (respondent) => {
+export const buildAccessHub = async (respondent, { enabled = true } = {}) => {
     const schoolId = respondent.school?._id || respondent.school;
     const school = await School.findById(schoolId).select('name').lean().setOptions({ skipTenantFilter: true });
+    if (!enabled) {
+        return {
+            enabled: false,
+            respondent: serializeRespondent(respondent),
+            school: { id: String(schoolId), name: school?.name || '' },
+            student: studentSummary(respondent.student),
+            surveys: [],
+            plans: [],
+        };
+    }
 
     const surveys = await SupportSurvey.find({ school: schoolId, respondent: respondent._id })
         .setOptions({ skipTenantFilter: true })
@@ -236,8 +270,7 @@ export const buildAccessHub = async (respondent) => {
             path: 'student',
             populate: { path: 'currentClass', select: 'name grade section' },
         })
-        .sort({ createdAt: -1 })
-        .limit(24);
+        .sort({ createdAt: -1 });
 
     let plans = [];
     if (respondent.kind === 'parent' && respondent.student) {
@@ -245,6 +278,7 @@ export const buildAccessHub = async (respondent) => {
             school: schoolId,
             student: respondent.student._id,
             status: { $in: ['published', 'closed'] },
+            staffOnly: { $ne: true },
         })
             .setOptions({ skipTenantFilter: true })
             .sort({ publishedAt: -1 })
@@ -255,16 +289,24 @@ export const buildAccessHub = async (respondent) => {
                 plan: { $in: planDocs.map((plan) => plan._id) },
             }).setOptions({ skipTenantFilter: true }).lean()
             : [];
+        // One parent never sees the other parent's check-in status or note.
+        const parentKey = `parent:${String(respondent._id)}`;
+        const ownCheckIns = checkIns.filter((checkIn) => (
+            checkIn.actorKey
+                ? checkIn.actorKey === parentKey
+                : String(checkIn.respondent || '') === String(respondent._id)
+        ));
         plans = planDocs.map((plan) => ({
             ...serializePlan(
                 plan,
-                checkIns.filter((checkIn) => String(checkIn.plan) === String(plan._id)),
+                ownCheckIns.filter((checkIn) => String(checkIn.plan) === String(plan._id)),
             ),
             student: studentSummary(respondent.student),
         }));
     }
 
     return {
+        enabled: true,
         respondent: serializeRespondent(respondent),
         school: { id: String(schoolId), name: school?.name || '' },
         student: studentSummary(respondent.student),

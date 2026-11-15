@@ -59,6 +59,7 @@ const pieceRunSchema = new mongoose.Schema(
         quotesDropped: { type: Number, default: 0 },
         quotesKept: { type: Number, default: 0 },
         vagueNotes: { type: Number, default: 0 },
+        notesDropped: { type: Number, default: 0 },
         tokens: { type: Number, default: 0 },
         costCents: { type: Number, default: 0 },
         // Normalised evidence for this piece, kept so a retry and the review
@@ -77,6 +78,9 @@ const evidenceRowSchema = new mongoose.Schema(
         submittedAt: { type: Date, default: null },
         opportunity: { type: Boolean, default: false },
         absence: { type: Boolean, default: false },
+        // The quoted words could not be found in the piece: there is nothing
+        // for the teacher to check on this row.
+        unverifiable: { type: Boolean, default: false },
         judgment: {
             type: String,
             enum: ['met', 'partly', 'not_met', 'none'],
@@ -85,6 +89,14 @@ const evidenceRowSchema = new mongoose.Schema(
         quote: { type: String, trim: true, default: '' },
         note: { type: String, trim: true, default: '' },
         teacherOverridden: { type: Boolean, default: false }
+    },
+    { _id: false }
+);
+
+const conflictSchema = new mongoose.Schema(
+    {
+        quote: { type: String, trim: true, default: '' },
+        judgments: { type: [String], default: [] }
     },
     { _id: false }
 );
@@ -104,10 +116,14 @@ const standardResultSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['not_observed', 'insufficient_evidence', 'fragile', 'developing', 'consistent', 'transfer'],
+            enum: ['not_observed', 'insufficient_evidence', 'not_shown', 'fragile', 'developing', 'consistent', 'transfer'],
             default: 'not_observed'
         },
         proposedLevel: { type: Number, min: 0, max: 4, default: null },
+        // Child standards that were also chosen; the parent is judged by them.
+        coveredBy: { type: [String], default: [] },
+        // The same quoted line judged two ways: the teacher has to look at it.
+        conflict: { type: conflictSchema, default: null },
         teacherLevel: { type: Number, min: 0, max: 4, default: null },
         teacherNote: { type: String, trim: true, default: '', maxlength: 600 }
     },
@@ -184,6 +200,21 @@ const writingAnalysisSchema = new mongoose.Schema(
 
 writingAnalysisSchema.index({ school: 1, student: 1, createdAt: -1 });
 writingAnalysisSchema.index({ school: 1, class: 1, createdAt: -1 });
+// One run in flight and one current analysis per student and subject. A
+// find-then-create is not enough under concurrency; the database holds the
+// invariant, so a second create fails instead of forking the record.
+writingAnalysisSchema.index(
+    { school: 1, student: 1, subject: 1 },
+    { unique: true, name: 'one_pending_analysis_per_subject', partialFilterExpression: { status: 'pending' } }
+);
+writingAnalysisSchema.index(
+    { school: 1, student: 1, subject: 1 },
+    { unique: true, name: 'one_running_analysis_per_subject', partialFilterExpression: { status: 'running' } }
+);
+writingAnalysisSchema.index(
+    { school: 1, student: 1, subject: 1 },
+    { unique: true, name: 'one_current_analysis_per_subject', partialFilterExpression: { isCurrent: true } }
+);
 writingAnalysisSchema.plugin(tenantIsolationPlugin);
 
 const WritingAnalysis = mongoose.model('WritingAnalysis', writingAnalysisSchema);

@@ -300,7 +300,7 @@ const AdminAcademicExcellenceDashboard = () => {
                     <YAxis domain={[0, 100]} />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="avgMastery" stroke="#0f766e" name="Avg Mastery %" strokeWidth={2} />
+                    <Line type="monotone" dataKey="avgMastery" stroke="#d97706" name="Avg Mastery %" strokeWidth={2} />
                     <Line type="monotone" dataKey="atRiskPercent" stroke="#dc2626" name="At Risk %" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -320,7 +320,7 @@ const AdminAcademicExcellenceDashboard = () => {
                   <XAxis type="number" domain={[0, 100]} />
                   <YAxis dataKey="className" type="category" width={140} />
                   <Tooltip />
-                  <Bar dataKey="avgMastery" fill="#0f766e" name="Avg Mastery %" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="avgMastery" fill="#d97706" name="Avg Mastery %" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

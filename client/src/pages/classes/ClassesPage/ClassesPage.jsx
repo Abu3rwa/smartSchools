@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchClasses, selectClasses, selectClassesPagination, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
-import { selectIsAdmin } from '../../../store/slices/authSlice';
+import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineOfficeBuilding, HiOutlineX } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import classService from '../../../services/classService';
@@ -27,6 +27,7 @@ const ClassesPage = () => {
     const error = useSelector(selectClassesError);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
+    const canEditClass = useSelector(selectCanEditClass);
     const importInputRef = useRef(null);
     const [templateMeta, setTemplateMeta] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -56,14 +57,18 @@ const ClassesPage = () => {
     }), [academicYear, currentPage, pageSize, debouncedSearchTerm]);
 
     useEffect(() => {
+        // /departments and /import/templates/* reject a plain teacher with 403,
+        // and only the admin Add-Class / import UI reads their results.
+        if (!canEditClass) return;
         dispatch(fetchDepartments());
-    }, [dispatch]);
+    }, [dispatch, canEditClass]);
 
     useEffect(() => {
         dispatch(fetchClasses(classQueryParams));
     }, [dispatch, classQueryParams]);
 
     useEffect(() => {
+        if (!canEditClass) return;
         let mounted = true;
         importTemplateService.getEntityTemplate('classes')
             .then((meta) => {
@@ -75,7 +80,7 @@ const ClassesPage = () => {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [canEditClass]);
 
     const totalItems = Number.isFinite(Number(pagination?.total))
         ? Number(pagination.total)

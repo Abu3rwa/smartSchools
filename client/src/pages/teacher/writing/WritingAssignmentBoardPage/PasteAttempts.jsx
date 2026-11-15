@@ -24,7 +24,7 @@ export default function PasteAttempts({ history }) {
     <section className="wa-paste-flag" role="alert">
       <h4>
         <HiOutlineExclamation size={18} aria-hidden="true" />
-        {t("writing:teacher.paste.title", { count: attempts.length })}
+        {t("writing:teacher.paste.title", { n: attempts.length })}
       </h4>
       <p className="wa-hint">{t("writing:teacher.paste.hint")}</p>
       <ul>

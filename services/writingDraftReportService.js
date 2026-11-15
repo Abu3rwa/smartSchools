@@ -13,6 +13,7 @@ import WritingDraft from "../models/WritingDraft.js";
 import WritingAssessment from "../models/WritingAssessment.js";
 import Student from "../models/Student.js";
 import School from "../models/School.js";
+import { rubricLevel, stripScoreTalk } from "../client/src/utils/writingRubric.js";
 
 const fail = (message, statusCode) => {
   const error = new Error(message);
@@ -56,6 +57,7 @@ const LABELS = {
     student: "Student",
     noFeedback: "Feedback has not been published yet.",
     page: "Writing",
+    levels: { strong: "Strong", near: "Nearly there", needs: "Needs work" },
   },
   ar: {
     draft: "المسودة",
@@ -78,6 +80,7 @@ const LABELS = {
     student: "الطالب",
     noFeedback: "لم تُنشر الملاحظات بعد.",
     page: "الكتابة",
+    levels: { strong: "قوي", near: "قريب من المطلوب", needs: "يحتاج إلى عمل" },
   },
 };
 
@@ -154,13 +157,15 @@ const wordUseHtml = (evidence, L) => {
     </section>`;
 };
 
-const buildHtml = ({
+/** Pure builder: the sheet is string work only, so it can be checked directly. */
+export const buildDraftSheet = ({
   school,
   student,
   assignment,
   draft,
   assessment,
   includeWordUse,
+  showScores = true,
 }) => {
   const language = assessment?.language === "ar" ? "ar" : "en";
   const L = LABELS[language];
@@ -168,6 +173,14 @@ const buildHtml = ({
     `${student?.firstName || ""} ${student?.lastName || ""}`.trim();
   const scores = assessment?.scores || [];
   const overall = assessment?.overall || {};
+  // The teacher sheet keeps the marks. The student sheet shows the same row as
+  // a verdict, so a printed copy carries no points home (R7).
+  const scoreCell = (row) =>
+    showScores
+      ? `${Number(row.score) || 0} / ${Number(row.maxScore) || 0}`
+      : L.levels[rubricLevel(row.score, row.maxScore).level];
+  const scoreNote = (row) =>
+    showScores ? row.explanation || "" : stripScoreTalk(row.explanation);
   const date = draft?.submittedAt
     ? new Date(draft.submittedAt).toLocaleDateString(
         language === "ar" ? "ar" : "en-GB",
@@ -236,7 +249,7 @@ const buildHtml = ({
       ? `
     ${overall.summary ? `<p>${escapeHtml(overall.summary)}</p>` : ""}
     ${overall.nextPriorities?.length ? `<div class="block"><h3>${L.priorities}</h3>${listHtml(overall.nextPriorities)}</div>` : ""}
-    ${scores.length ? `<div class="block"><h3>${L.scores}</h3><table><tbody>${scores.map((row) => `<tr><td>${escapeHtml(row.label || row.key)}</td><td>${Number(row.score) || 0} / ${Number(row.maxScore) || 0}</td><td>${escapeHtml(row.explanation || "")}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    ${scores.length ? `<div class="block"><h3>${L.scores}</h3><table><tbody>${scores.map((row) => `<tr><td>${escapeHtml(row.label || row.key)}</td><td>${escapeHtml(scoreCell(row))}</td><td>${escapeHtml(scoreNote(row))}</td></tr>`).join("")}</tbody></table></div>` : ""}
     ${(assessment.sections || []).map((row) => sectionFeedbackHtml(row, L)).join("")}
     ${spellingHtml(assessment.spellingTargets, assessment.spellingWins, L)}
     ${includeWordUse ? wordUseHtml(assessment.wordUseEvidence, L) : ""}
@@ -303,12 +316,13 @@ export const renderWritingProjectHtml = async ({
     .sort({ createdAt: -1 })
     .lean();
 
-  return buildHtml({
+  return buildDraftSheet({
     school,
     student,
     assignment,
     draft,
     assessment,
     includeWordUse,
+    showScores: !studentId,
   });
 };

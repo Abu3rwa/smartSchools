@@ -14,7 +14,7 @@ import {
 } from "../../utils/aiCredit.js";
 import ManageCreditDialog from "./ManageCreditDialog.jsx";
 import TablePagination from "../../components/common/TablePagination.jsx";
-import "../teacher/writing/writingShared.css";
+import "../../styles/waPrimitives.css";
 import "./aiCredit.css";
 
 const MAX_CENTS = 100000;

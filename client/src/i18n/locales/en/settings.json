@@ -57,7 +57,8 @@
     "socialStudies": "Social Studies",
     "gradeAnalytics": "Grade Analytics",
     "parentGradebook": "Parent Gradebook",
-    "traditionalReportCards": "Traditional Report Cards"
+    "traditionalReportCards": "Traditional Report Cards",
+    "studentSupport": "Student Support"
   },
   "upgradePrompt": {
     "lockedTitle": "{{feature}} is locked",

@@ -1,122 +1,127 @@
 import { useSelector } from 'react-redux';
-import { Alert, Box, Button, Grid, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { HiOutlineCalendar, HiOutlineClipboardList, HiOutlineClock } from 'react-icons/hi';
+import {
+    HiOutlineAcademicCap,
+    HiOutlineCalendar,
+    HiOutlineClipboardList,
+    HiOutlineTrendingUp
+} from 'react-icons/hi';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { selectPendingCount } from '../../../../store/slices/substitutionsSlice';
-import TeacherDashboardHeader from './components/TeacherDashboardHeader';
-import SummaryStat from './components/SummaryStat';
+import { selectMyClasses } from '../../../../store/slices/teacherSlice';
+import DashboardHero from './components/DashboardHero';
+import KpiRow from './components/KpiRow';
 import TodayScheduleCard from './components/TodayScheduleCard';
 import SubRequestsCard from './components/SubRequestsCard';
+import AtRiskCard from './components/AtRiskCard';
 import QuickActionsCard from './components/QuickActionsCard';
-import InboxBadge from './components/InboxBadge';
 import TeacherAnalyticsSection from './components/TeacherAnalyticsSection';
 import useTeacherDashboardData from './hooks/useTeacherDashboardData';
+import useInboxAttention from './hooks/useInboxAttention';
+import useNowMinutes from './hooks/useNowMinutes';
 import { QUICK_ACTIONS } from './constants';
-import { getTodayLabel } from './utils/teacherDashboardPresentation';
+import { buildClassChips, getNextClass, getTodayLabel } from './utils/teacherDashboardPresentation';
 import './TeacherDashboardPage.css';
 
 const TeacherDashboardPage = () => {
-    const theme = useTheme();
-    const isSm = useMediaQuery(theme.breakpoints.down('sm'));
-    const navigate = useNavigate();
     const { t, i18n } = useTranslation(['dashboard']);
-
     const user = useSelector(selectUser);
     const pendingCount = useSelector(selectPendingCount);
+    const myClasses = useSelector(selectMyClasses);
+    const inboxCount = useInboxAttention();
+    const nowMinutes = useNowMinutes();
 
     const {
         timetableLoading,
         timetableError,
         todaySchedule,
+        weekSchedule,
         analyticsData,
         analyticsLoading,
-        analyticsError
+        analyticsError,
+        reload
     } = useTeacherDashboardData();
 
+    const locale = i18n.resolvedLanguage || i18n.language;
     const firstName = user?.firstName ?? t('dashboard:teacherDashboard.fallbacks.teacherName');
-    const todayLabel = getTodayLabel(i18n.resolvedLanguage || i18n.language);
-    const todayClassesCount = todaySchedule.length;
     const pendingSubsCount = pendingCount?.count ?? 0;
+    const summary = analyticsData?.summary;
+    const analyticsReady = !analyticsLoading && !analyticsError;
+    const timetableReady = !timetableLoading && !timetableError;
+    const average = analyticsReady ? Math.round(Number(summary?.avgClassPerformance) || 0) : null;
+
+    const kpis = [
+        {
+            tone: 'teal',
+            icon: HiOutlineCalendar,
+            value: timetableReady ? todaySchedule.length : '—',
+            label: t('dashboard:teacherDashboard.summary.classesToday')
+        },
+        {
+            tone: pendingSubsCount > 0 ? 'amber' : 'emerald',
+            icon: HiOutlineClipboardList,
+            value: pendingCount?.loading ? '—' : pendingSubsCount,
+            label: t('dashboard:teacherDashboard.summary.pendingSubRequests')
+        },
+        {
+            tone: 'blue',
+            icon: HiOutlineAcademicCap,
+            value: analyticsReady ? summary?.activeClasses ?? 0 : '—',
+            label: t('dashboard:teacherDashboard.analytics.summary.activeClasses')
+        },
+        {
+            tone: 'emerald',
+            icon: HiOutlineTrendingUp,
+            value: average === null ? '—' : `${average}%`,
+            label: t('dashboard:teacherDashboard.analytics.summary.avgClassPerformance'),
+            percent: average ?? 0
+        }
+    ];
 
     return (
-        <Box className="teacher-dashboard" sx={{ p: { xs: 2, sm: 3 } }}>
-            <TeacherDashboardHeader firstName={firstName} isSm={isSm} />
+        <div className="tdash">
+            <DashboardHero
+                firstName={firstName}
+                dateLabel={getTodayLabel(locale)}
+                classChips={buildClassChips(myClasses)}
+                inboxCount={inboxCount}
+                loading={timetableLoading}
+                error={timetableError}
+                hasClasses={todaySchedule.length > 0}
+                next={getNextClass(todaySchedule, nowMinutes)}
+                locale={locale}
+            />
 
-            <Grid container spacing={2} className="summary-row">
-                <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineCalendar} label={t('dashboard:teacherDashboard.summary.today')} value={todayLabel} />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineClock} label={t('dashboard:teacherDashboard.summary.classesToday')} value={todayClassesCount || '—'} />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineClipboardList} label={t('dashboard:teacherDashboard.summary.pendingSubRequests')} value={pendingSubsCount || '0'} />
-                </Grid>
-            </Grid>
+            <KpiRow items={kpis} />
 
-            <InboxBadge />
+            <div className="td-grid">
+                <TodayScheduleCard
+                    todaySchedule={todaySchedule}
+                    weekSchedule={weekSchedule}
+                    timetableLoading={timetableLoading}
+                    timetableError={timetableError}
+                    nowMinutes={nowMinutes}
+                    onRetry={reload}
+                />
+                <div className="td-aside">
+                    <SubRequestsCard pendingCount={pendingCount} pendingSubsCount={pendingSubsCount} />
+                    <AtRiskCard
+                        students={analyticsData?.atRiskStudents || []}
+                        loading={analyticsLoading}
+                        error={analyticsError}
+                    />
+                </div>
+            </div>
 
-            {pendingSubsCount > 0 && (
-                <Alert
-                    severity="warning"
-                    sx={{ mb: 2 }}
-                    action={(
-                        <Button color="inherit" size="small" onClick={() => navigate('/portal/substitutions')}>
-                            {t('dashboard:teacherDashboard.subRequests.bannerAction')}
-                        </Button>
-                    )}
-                >
-                    {t('dashboard:teacherDashboard.subRequests.bannerMessage', { count: pendingSubsCount })}
-                </Alert>
-            )}
+            <QuickActionsCard actions={QUICK_ACTIONS} />
 
-            {timetableLoading ? (
-                <Box
-                    sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 200,
-                        gap: 2
-                    }}
-                >
-                    <div className="spinner" />
-                    <Typography variant="body2" color="text.secondary">
-                        {t('dashboard:teacherDashboard.loading.message')}
-                    </Typography>
-                </Box>
-            ) : (
-                <Grid container spacing={2}>
-                    <Grid item xs={12} lg={6}>
-                        <TodayScheduleCard todaySchedule={todaySchedule} timetableError={timetableError} />
-                    </Grid>
-
-                    <Grid item xs={12} lg={6}>
-                        <SubRequestsCard pendingCount={pendingCount} pendingSubsCount={pendingSubsCount} />
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <QuickActionsCard actions={QUICK_ACTIONS} />
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        {analyticsLoading ? (
-                            <div className="teacher-card analytics-card">
-                                <div className="card-header">
-                                    <h3 className="card-title">{t('dashboard:teacherDashboard.analytics.title')}</h3>
-                                </div>
-                                <p className="empty-text">{t('dashboard:teacherDashboard.loading.message')}</p>
-                            </div>
-                        ) : (
-                            <TeacherAnalyticsSection analyticsData={analyticsData} analyticsError={analyticsError} />
-                        )}
-                    </Grid>
-                </Grid>
-            )}
-        </Box>
+            <TeacherAnalyticsSection
+                analyticsData={analyticsData}
+                analyticsLoading={analyticsLoading}
+                analyticsError={analyticsError}
+                onRetry={reload}
+            />
+        </div>
     );
 };
 

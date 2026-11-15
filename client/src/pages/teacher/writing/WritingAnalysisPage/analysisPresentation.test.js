@@ -3,11 +3,13 @@ import test from 'node:test';
 import {
   allStandardSelection,
   attentionOf,
+  categoryLabel,
   codeDepth,
   DEFAULT_STANDARD_COUNT,
   defaultStandardSelection,
   fromDateInput,
   initialLevelDraft,
+  isChildCode,
   overlappingStandards,
   overlapSummary,
   progressOf,
@@ -15,6 +17,8 @@ import {
   splitPatterns,
   standardGroups,
   toDateInput,
+  usageStatusOf,
+  usageTone,
   windowRange,
 } from './analysisPresentation.js';
 
@@ -125,6 +129,22 @@ test('a parent and child ticked by hand are reported as an overlap', () => {
   assert.equal(overlappingStandards(standards, ['b', 'c']).length, 0);
 });
 
+test('a letter suffix is a part of its parent, a number is not', () => {
+  assert.equal(isChildCode('L.5.1', 'L.5.1A'), true);
+  assert.equal(isChildCode('L.5.1', 'L.5.1.A'), true);
+  assert.equal(isChildCode('L.5.1', 'L.5.10'), false);
+  assert.equal(isChildCode('L.5.1', 'L.5.2'), false);
+  assert.equal(isChildCode('L.5.1', 'L.5.1'), false);
+  const standards = [
+    { _id: 'a', code: 'L.5.1' },
+    { _id: 'b', code: 'L.5.1A' },
+    { _id: 'c', code: 'L.5.10' },
+  ];
+  assert.deepEqual(defaultStandardSelection(standards, [], 12), ['b', 'c']);
+  assert.equal(overlappingStandards(standards, ['a', 'b']).length, 1);
+  assert.equal(overlappingStandards(standards, ['a', 'c']).length, 0);
+});
+
 test('overlaps are summarised once per parent', () => {
   const summary = overlapSummary([
     { parent: { code: 'L.2' }, child: { code: 'L.2.A' } },
@@ -170,4 +190,32 @@ test('patterns split into recurring and seen-once, and scale labels follow langu
   assert.equal(single.length, 1);
   assert.equal(scaleLabel(4, 'en'), 'Exceeds Standard');
   assert.equal(scaleLabel(0, 'ar'), 'لم يُظهر أي أداء');
+});
+
+test('the wording follows the evidence, not the level bucket', () => {
+  const row = (applicable, met, partly = 0) => ({
+    counts: { applicable, met, partly, notMet: 0 },
+  });
+  // 2 of 2 met used to arrive as "about half", because the level table caps
+  // at 2 for a two-piece window.
+  assert.equal(usageStatusOf(row(2, 2)), 'every_piece');
+  assert.equal(usageStatusOf(row(3, 2)), 'most_pieces');
+  assert.equal(usageStatusOf(row(2, 1)), 'half_pieces');
+  assert.equal(usageStatusOf(row(3, 1)), 'few_pieces');
+  assert.equal(usageStatusOf(row(2, 0, 2)), 'partly_used');
+  assert.equal(usageStatusOf(row(2, 0)), 'not_used');
+  assert.equal(usageStatusOf(row(1, 1)), 'one_piece');
+  assert.equal(usageStatusOf(row(0, 0)), 'no_chance');
+  assert.equal(usageStatusOf({}), 'no_chance');
+  assert.equal(usageTone('every_piece'), 'green');
+  assert.equal(usageTone('partly_used'), 'amber');
+});
+
+test('known category words are translated, school wording is left as written', () => {
+  const t = (key) => `t:${key.split('.').pop()}`;
+  assert.equal(categoryLabel(t, 'Conventions'), 't:conventions');
+  assert.equal(categoryLabel(t, 'Organization'), 't:organisation');
+  assert.equal(categoryLabel(t, 'sentence_structure'), 'sentence_structure');
+  assert.equal(categoryLabel(t, 'الكتابة'), 'الكتابة');
+  assert.equal(categoryLabel(t, ''), '');
 });

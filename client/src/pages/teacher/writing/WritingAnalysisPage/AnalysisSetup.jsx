@@ -3,6 +3,7 @@ import { formatDate } from "../WritingAssignmentBoardPage/boardPresentation.js";
 import { formatTokens, formatUsd } from "../../../../utils/aiCredit.js";
 import {
   WINDOW_PRESETS,
+  categoryLabel,
   codeDepth,
   codeOf,
   overlapSummary,
@@ -161,10 +162,7 @@ export default function AnalysisSetup({ data }) {
                 <div key={group.category || "other"} className="wa-ana-group">
                   <h4 className="wa-ana-group-title">
                     {group.category
-                      ? t(
-                          `writing:teacher.analysis.categories.${group.category}`,
-                          group.category,
-                        )
+                      ? categoryLabel(t, group.category)
                       : t("writing:teacher.analysis.categoryOther")}
                   </h4>
                   <div className="wa-analysis-standards">

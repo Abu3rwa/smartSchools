@@ -57,7 +57,8 @@
     "socialStudies": "الدراسات الاجتماعية",
     "gradeAnalytics": "تحليلات الدرجات",
     "parentGradebook": "دفتر درجات ولي الأمر",
-    "traditionalReportCards": "شهادات التقويم التقليدية"
+    "traditionalReportCards": "شهادات التقويم التقليدية",
+    "studentSupport": "دعم الطلاب"
   },
   "upgradePrompt": {
     "lockedTitle": "{{feature}} مقفلة",

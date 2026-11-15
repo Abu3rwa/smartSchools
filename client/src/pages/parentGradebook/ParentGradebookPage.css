@@ -1,5 +1,5 @@
 .parent-gradebook {
-    --pg-accent: #0f766e;
+    --pg-accent: var(--primary-700);
     --pg-accent-soft: #ecfdf5;
     --pg-line: var(--border-color, #e2e8f0);
     --pg-ink: var(--text-primary, #0f172a);

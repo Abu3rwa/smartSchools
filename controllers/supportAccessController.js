@@ -10,13 +10,22 @@ import {
 } from '../services/supportAccessService.js';
 import {
     findSurveyForRespondent,
+    markNoConcerns,
     saveAnswers,
+    skipSurvey,
     submitAnswers,
 } from '../services/supportSurveyService.js';
 import { recordCheckIn } from '../services/supportPlanService.js';
+import { loadSettings } from '../services/supportSettingsService.js';
+import { refreshReviewStatus } from '../services/supportReviewService.js';
 import { serializeSurvey } from '../services/supportSerializers.js';
 
 const respondentSchool = (req) => req.supportRespondent.school?._id || req.supportRespondent.school;
+
+const hubEnabled = async (respondent) => {
+    const settings = await loadSettings(respondent.school?._id || respondent.school);
+    return settings.enabled === true;
+};
 
 export const requireSupportAccess = asyncHandler(async (req, res, next) => {
     const header = String(req.headers.authorization || '');
@@ -32,12 +41,12 @@ export const resolveCode = asyncHandler(async (req, res) => {
     const matched = await findRespondentByCode(req.body.code);
     const respondent = await loadRespondent(matched._id);
     const token = signAccessToken(respondent);
-    const hub = await buildAccessHub(respondent);
+    const hub = await buildAccessHub(respondent, { enabled: await hubEnabled(respondent) });
     res.json({ success: true, data: { token, ...hub } });
 });
 
 export const hub = asyncHandler(async (req, res) => {
-    const data = await buildAccessHub(req.supportRespondent);
+    const data = await buildAccessHub(req.supportRespondent, { enabled: await hubEnabled(req.supportRespondent) });
     res.json({ success: true, data });
 });
 
@@ -59,12 +68,17 @@ export const getSurvey = asyncHandler(async (req, res) => {
 
 export const saveSurvey = asyncHandler(async (req, res) => {
     const survey = await surveyForRequest(req);
-    const saved = await saveAnswers({ survey, incomingAnswers: req.body.answers });
+    const saved = await saveAnswers({
+        survey,
+        incomingAnswers: req.body.answers,
+        expectedRevision: req.body.expectedRevision,
+    });
     res.json({
         success: true,
         data: {
             id: String(saved._id),
             status: saved.status,
+            revision: saved.revision,
             lastSavedAt: saved.lastSavedAt,
         },
     });
@@ -72,14 +86,40 @@ export const saveSurvey = asyncHandler(async (req, res) => {
 
 export const submitSurvey = asyncHandler(async (req, res) => {
     const survey = await surveyForRequest(req);
-    const submitted = await submitAnswers({ survey, incomingAnswers: req.body.answers });
+    const submitted = await submitAnswers({
+        survey,
+        incomingAnswers: req.body.answers,
+        expectedRevision: req.body.expectedRevision,
+    });
+    await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
     res.json({
         success: true,
         data: {
             id: String(submitted._id),
             status: submitted.status,
+            revision: submitted.revision,
             submittedAt: submitted.submittedAt,
         },
+    });
+});
+
+export const noConcerns = asyncHandler(async (req, res) => {
+    const survey = await surveyForRequest(req);
+    const saved = await markNoConcerns({ survey });
+    await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
+    res.json({
+        success: true,
+        data: { id: String(saved._id), status: saved.status, noConcerns: saved.noConcerns === true },
+    });
+});
+
+export const skip = asyncHandler(async (req, res) => {
+    const survey = await surveyForRequest(req);
+    const saved = await skipSurvey({ survey, reason: req.body?.reason });
+    await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
+    res.json({
+        success: true,
+        data: { id: String(saved._id), status: saved.status },
     });
 });
 

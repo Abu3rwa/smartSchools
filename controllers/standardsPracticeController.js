@@ -17,6 +17,7 @@ import {
   selectStandardsUpdateEntries,
   standardsUpdateAveragePercentage,
 } from "../services/standardsUpdateEmailService.js";
+import { teacherSenderPolicy } from "../services/senderPolicy.js";
 import { sendTransactionalEmail } from "../services/transactionalEmailService.js";
 import {
   generateGrammarQuestion,
@@ -6415,6 +6416,7 @@ export const sendSBGradebookEmail = asyncHandler(async (req, res) => {
           html: email.html,
           schoolId: req.schoolId,
           preferredUserId: req.user._id,
+          ...teacherSenderPolicy(req.user),
         });
         results.push({
           studentId: item.studentId,

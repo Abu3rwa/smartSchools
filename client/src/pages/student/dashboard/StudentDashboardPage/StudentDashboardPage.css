@@ -23,7 +23,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 16px);
   background:
-    radial-gradient(120% 170% at 100% 0%, rgba(20, 184, 166, 0.16), transparent 55%),
+    radial-gradient(120% 170% at 100% 0%, rgba(var(--accent-primary-rgb), 0.16), transparent 55%),
     linear-gradient(180deg, var(--bg-secondary), var(--bg-tertiary));
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -68,9 +68,9 @@
   border-radius: 18px;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 184, 166, 0.14);
+  background: rgba(var(--accent-primary-rgb), 0.14);
   color: var(--primary-400);
-  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-primary-rgb), 0.22);
 }
 
 @media (min-width: 600px) {
@@ -87,8 +87,8 @@
 }
 
 .student-dashboard-group {
-  --group-accent: #14b8a6;
-  --group-tint: rgba(20, 184, 166, 0.14);
+  --group-accent: var(--primary-500);
+  --group-tint: rgba(var(--accent-primary-rgb), 0.14);
 }
 
 .student-dashboard-group[data-group="practice"] {

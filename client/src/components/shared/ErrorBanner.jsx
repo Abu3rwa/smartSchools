@@ -7,7 +7,7 @@ import { HiOutlineExclamationCircle, HiOutlineRefresh } from 'react-icons/hi';
  *   <ErrorBanner message="Failed to load data" />
  *   <ErrorBanner message={error} onRetry={() => dispatch(fetchData())} />
  */
-const ErrorBanner = ({ message = 'Something went wrong', onRetry }) => {
+const ErrorBanner = ({ message = 'Something went wrong', onRetry, retryLabel = 'Retry' }) => {
     return (
         <div role="alert" style={{
             display: 'flex',
@@ -41,7 +41,7 @@ const ErrorBanner = ({ message = 'Something went wrong', onRetry }) => {
                         whiteSpace: 'nowrap'
                     }}
                 >
-                    <HiOutlineRefresh size={14} /> Retry
+                    <HiOutlineRefresh size={14} /> {retryLabel}
                 </button>
             )}
         </div>

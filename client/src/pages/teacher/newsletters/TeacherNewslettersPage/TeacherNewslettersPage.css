@@ -49,7 +49,7 @@
 }
 
 .tn-tab.is-active {
-  background: rgba(20, 184, 166, 0.14);
+  background: rgba(var(--accent-primary-rgb), 0.14);
   color: var(--text-accent);
 }
 
@@ -105,7 +105,7 @@
   align-self: center;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(var(--accent-primary-rgb), 0.12);
   color: var(--text-accent);
   font-size: 12px;
   font-weight: 600;

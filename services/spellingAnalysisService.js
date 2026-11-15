@@ -428,7 +428,11 @@ export const sendParentDraft = async ({ schoolId, draftId, userId }) => {
             text: draft.body,
             html,
             schoolId,
-            preferredUserId: userId || null
+            preferredUserId: userId || null,
+            // A teacher's spelling note never leaves through the shared SMTP
+            // account; a missing Google token fails visibly instead.
+            allowAdminFallback: false,
+            allowSmtp: false
         });
     } catch (error) {
         throw httpError(`Email could not be sent: ${error?.message || 'unknown error'}`, 502, 'SPELLING_ANALYSIS_SEND_FAILED');

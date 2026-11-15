@@ -9,10 +9,8 @@
 import {
   CONTENT_RULES,
   PRIVACY_RULES,
-  STUDENT_TOKEN,
   scrubForPrompt,
 } from "./aiPromptSafety.js";
-import { scrubPersonalText } from "./newsletterPrivacy.js";
 import {
   ANALYSIS_LIMITS,
   PATTERN_CATEGORIES,
@@ -23,27 +21,12 @@ import {
 const JUDGMENTS = new Set(["met", "partly", "not_met"]);
 
 /** The piece exactly as the model will see it: names and contacts scrubbed. */
-export const promptSafeText = (text, studentName = "") => {
-  let safe = scrubForPrompt(String(text || ""), {
+export const promptSafeText = (text, studentName = "", roster = []) =>
+  scrubForPrompt(String(text || ""), {
     name: studentName,
+    roster,
     phoneNumbers: true,
   });
-  // A draft usually names its author by first name only, so each part of the
-  // name is scrubbed as well; the full name alone would leave "Sara" intact.
-  const parts = String(studentName || "")
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part.length > 2)
-    .sort((a, b) => b.length - a.length);
-  for (const part of parts) {
-    safe = scrubPersonalText(
-      safe,
-      { names: [part] },
-      { placeholder: STUDENT_TOKEN, phoneNumbers: false },
-    );
-  }
-  return safe;
-};
 
 const standardLine = (row, key) => {
   const parts = [`[${key}] ${row.code ? `${row.code} — ` : ""}${row.name || ""}`.trim()];
@@ -64,8 +47,9 @@ export const buildPieceEvidencePrompt = ({
   rubric = [],
   language = "en",
   studentName = "",
+  roster = [],
 }) => {
-  const safeText = promptSafeText(text, studentName);
+  const safeText = promptSafeText(text, studentName, roster);
   const standardBlock = standards
     .map((row, index) => standardLine(row, `S${index + 1}`))
     .join("\n\n");
@@ -83,12 +67,17 @@ WHAT YOU RECEIVE
 - The writing type and any rubric criteria from the task, to decide whether a standard had a fair chance to appear.
 
 HOW TO JUDGE EACH STANDARD
+The bar is USE, NOT EXPLAIN. You are looking for the student applying the skill in their own writing, and you point at the words where they did it. You are not checking whether the writing explains or discusses the rule. A student who used a conjunction correctly has met the standard even though the piece never mentions conjunctions. A student who explained the rule perfectly but never used it has not met it.
+- Judge only the requirement this standard names. Do not charge one slip to another standard: a missing capital letter is not a spelling problem, and a repeated word is not an organisation problem. If the standard is about spelling, only spelling counts.
+- Judge the piece in front of you, against this standard only. Do not carry a judgment over from another piece or another standard.
+- Some standards are worded as a task the student does out loud ("explain the function of…", "determine…", "interpret…"). For those, the writing can show the skill only through use. Judge the use. If this piece gave no chance to use it, set opportunity false rather than calling the student down for not explaining it in the piece.
+
 For every standard key listed above, decide:
 1. "opportunity": true only if this piece and this kind of task actually gave the student a chance to show the standard. A story cannot show "uses headings"; a letter cannot show "uses suspense". If there was no real chance, set opportunity false.
-2. "judgment": when opportunity is true, one of "met", "partly", "not_met". When opportunity is false, use "none".
-3. "quote": a verbatim excerpt from the piece, at most ${ANALYSIS_LIMITS.maxQuoteWords} words, that shows exactly what you judged. For "met" or "partly", quote the words that show the skill. For "not_met", quote the actual attempt that shows the gap. Copy the words exactly; never paraphrase, translate or tidy them. When the judgment is "partly", the quote must contain the flaw you describe.
+2. "judgment": when opportunity is true, one of "met", "partly", "not_met". When opportunity is false, use "none". Use the same bar for every standard and every piece: "met" means the student used the skill and it worked; "partly" means the student used it and it partly worked; "not_met" means the student tried it and it did not work.
+3. "quote": a verbatim excerpt from the piece, at most ${ANALYSIS_LIMITS.maxQuoteWords} words, that shows exactly what you judged. For "met" or "partly", quote the words that show the skill being used. For "not_met", quote the actual attempt that shows the gap. Copy the words exactly; never paraphrase, translate or tidy them. When the judgment is "partly", the quote must contain the flaw you describe.
 4. "absence": true only when the standard is missing altogether and there is no attempt to quote, for example "no title of a work appears". When absence is true, judgment must be "not_met" and quote must be "". Otherwise false. Never invent a fragment to stand in for something that is not there.
-5. "note": at most ${ANALYSIS_LIMITS.maxNoteChars} characters, plain language, saying what the quoted words show. Describe only the quoted words. Never claim errors in text you did not quote: do not write "elsewhere", "throughout", "the rest of the piece", "several", "many", "often", "sometimes", "in places" or "generally". No scores, marks, percentages, levels or advice.
+5. "note": at most ${ANALYSIS_LIMITS.maxNoteChars} characters, plain language, saying what the quoted words show. Describe the writer's move: what the student did with the skill, not what the rule is and not what they should have written instead. Write it as "uses a conjunction to join two ideas", not "should have used a comma". Describe only the quoted words. Never claim errors in text you did not quote: do not write "elsewhere", "throughout", "the rest of the piece", "several", "many", "often", "sometimes", "in places" or "generally". No scores, marks, percentages, levels or advice.
 
 RULES
 - Judge only what this piece shows. Do not guess from the task, the title or other pieces.
@@ -102,7 +91,7 @@ After the standard judgments, list at most two strengths and at most two issues 
 - "category": one of ${categories}.
 - "kind": "strength" or "issue".
 - "quote": a verbatim excerpt of at most ${ANALYSIS_LIMITS.maxQuoteWords} words that shows the pattern, or "".
-- "note": at most ${ANALYSIS_LIMITS.maxNoteChars} characters, describing only that quote.
+- "note": at most ${ANALYSIS_LIMITS.maxNoteChars} characters, describing only that quote, in the same voice: what the writer did, not what the rule is.
 Do not repeat the same observation twice, and do not report a pattern without something in the piece to support it.
 
 PIECE
@@ -142,10 +131,32 @@ const keyIndex = (key) => {
  * quote carrying the student token is restored to whichever form of the name
  * is actually in the piece; a quote that still cannot be found is dropped.
  */
+const CLASSMATE_SLOT = /\{\{\s*classmate\s*\}\}|a classmate/gi;
+const CLASSMATE_TEST = /\{\{\s*classmate\s*\}\}|a classmate/i;
+
+// A classmate's real name is never recoverable, so the slot is matched as a
+// short run of words instead; anything longer was invented, not replaced.
+const quoteWithClassmateSlot = (quote, text) => {
+  const parts = normalizeText(quote)
+    .split(CLASSMATE_SLOT)
+    .map((part) => normalizeText(part))
+    .filter(Boolean);
+  if (parts.length < 2) return false;
+  const pattern = parts
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+(?:[\\p{L}'’-]+\\s+){1,3}");
+  return new RegExp(pattern, "iu").test(normalizeText(text));
+};
+
 const normalizeQuote = ({ quote, text, studentName, limits }) => {
   const raw = normalizeText(quote);
   if (!raw) return { quote: "", real: false };
   const trimmed = raw.split(/\s+/).slice(0, limits.maxQuoteWords).join(" ");
+  if (CLASSMATE_TEST.test(trimmed)) {
+    return quoteWithClassmateSlot(trimmed, text)
+      ? { quote: trimmed, real: true }
+      : { quote: "", real: false };
+  }
   if (!/\{\{\s*student\s*\}\}/i.test(trimmed)) {
     return quoteIsReal(trimmed, text)
       ? { quote: trimmed, real: true }
@@ -215,7 +226,7 @@ export const normalizePieceEvidence = ({
   limits = ANALYSIS_LIMITS,
 }) => {
   const rows = Array.isArray(parsed?.standards) ? parsed.standards : [];
-  if (!rows.length) return { ok: false, reason: "no_standards", standards: [], patterns: [], quotesDropped: 0, quotesKept: 0 };
+  if (!rows.length) return { ok: false, reason: "no_standards", standards: [], patterns: [], quotesDropped: 0, quotesKept: 0, notesDropped: 0 };
 
   const byKey = new Map();
   const byCode = new Map();
@@ -229,6 +240,7 @@ export const normalizePieceEvidence = ({
   let quotesDropped = 0;
   let quotesKept = 0;
   let vagueNotes = 0;
+  let notesDropped = 0;
   const evidence = [];
 
   for (const row of rows) {
@@ -246,6 +258,7 @@ export const normalizePieceEvidence = ({
         standard: standard.standard,
         opportunity: false,
         absence: false,
+        unverifiable: false,
         judgment: "none",
         quote: "",
         note: cleanNote(row?.note, limits),
@@ -260,6 +273,7 @@ export const normalizePieceEvidence = ({
         standard: standard.standard,
         opportunity: true,
         absence: true,
+        unverifiable: false,
         judgment: "not_met",
         quote: "",
         note: cleanNote(row?.note, limits),
@@ -280,7 +294,12 @@ export const normalizePieceEvidence = ({
     else quotesDropped += 1;
 
     let note = cleanNote(row?.note, limits);
-    if (checked.real && note && noteDescribesOtherText(note, checked.quote)) {
+    if (!checked.real) {
+      // The note describes the quoted words. With no quote there is nothing to
+      // check it against, so it goes with it.
+      if (note) notesDropped += 1;
+      note = "";
+    } else if (note && noteDescribesOtherText(note, checked.quote)) {
       note = "";
       vagueNotes += 1;
     }
@@ -289,6 +308,7 @@ export const normalizePieceEvidence = ({
       standard: standard.standard,
       opportunity: true,
       absence: false,
+      unverifiable: !checked.real,
       judgment,
       quote: checked.quote,
       note,
@@ -296,7 +316,7 @@ export const normalizePieceEvidence = ({
   }
 
   if (!evidence.length) {
-    return { ok: false, reason: "no_matching_standards", standards: [], patterns: [], quotesDropped, quotesKept, vagueNotes };
+    return { ok: false, reason: "no_matching_standards", standards: [], patterns: [], quotesDropped, quotesKept, vagueNotes, notesDropped };
   }
 
   const judged = evidence.filter((row) => row.opportunity && !row.absence).length;
@@ -313,7 +333,10 @@ export const normalizePieceEvidence = ({
         limits,
       });
       let note = cleanNote(row?.note, limits);
-      if (checked.real && note && noteDescribesOtherText(note, checked.quote)) {
+      if (!checked.real) {
+        if (note) notesDropped += 1;
+        note = "";
+      } else if (note && noteDescribesOtherText(note, checked.quote)) {
         note = "";
         vagueNotes += 1;
       }
@@ -334,5 +357,6 @@ export const normalizePieceEvidence = ({
     quotesDropped,
     quotesKept,
     vagueNotes,
+    notesDropped,
   };
 };

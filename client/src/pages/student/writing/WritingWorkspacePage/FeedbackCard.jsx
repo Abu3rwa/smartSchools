@@ -63,8 +63,8 @@ export default function FeedbackCard({
             {t("writing:student.doTheseNext")}
           </h3>
           <ol className="ws-feedback-card-list">
-            {priorities.map((item) => (
-              <li key={item}>{item}</li>
+            {priorities.map((item, index) => (
+              <li key={`${index}:${item}`}>{item}</li>
             ))}
           </ol>
         </>
