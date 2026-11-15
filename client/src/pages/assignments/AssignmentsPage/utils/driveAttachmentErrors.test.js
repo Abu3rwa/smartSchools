@@ -39,6 +39,20 @@ test("a refused upload names the upload step", () => {
   );
 });
 
+test("a dead connection tells the teacher to reconnect", () => {
+  const message = driveUploadErrorMessage(t, {
+    response: {
+      data: {
+        code: "DRIVE_FILE_NOT_CONNECTED",
+        reason: "refresh_failed",
+        message: "Connect Google Drive for attachments before uploading files.",
+      },
+    },
+  });
+
+  assert.equal(message, "assignments:driveAttachments.testExpired");
+});
+
 test("server messages and the generic copy are still used when Google gave no reason", () => {
   assert.equal(
     driveUploadErrorMessage(t, {

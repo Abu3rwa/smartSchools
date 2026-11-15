@@ -5,6 +5,9 @@
  */
 export const driveUploadErrorMessage = (t, error) => {
   const data = error?.response?.data;
+  if (data?.code === "DRIVE_FILE_NOT_CONNECTED") {
+    return t("assignments:driveAttachments.testExpired");
+  }
   if (data?.code === "DRIVE_FILE_API_FAILED" && data.reason) {
     const key =
       data.step === "share"

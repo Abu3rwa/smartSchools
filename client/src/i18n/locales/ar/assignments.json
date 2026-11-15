@@ -583,6 +583,8 @@
     "connectedAs": "متصل باسم {{email}}",
     "anyoneWithLink": "الملفات المرفوعة تصبح قابلة للعرض من قبل أي شخص يملك الرابط. لا ترفع أي ملفات خاصة.",
     "testConnection": "اختبار الاتصال",
+    "reconnect": "إعادة ربط Google Drive",
+    "testExpired": "انتهت صلاحية اتصال Google Drive. أعد ربطه ثم حاول مجددًا.",
     "testing": "جارٍ الاختبار...",
     "testOk": "Google Drive يعمل: تم رفع ملف الاختبار وأصبح قابلًا للعرض لأي شخص يملك الرابط.",
     "testUploadBlocked": "رفض Google الرفع ({{reason}}). لن يتمكن الطلاب من استلام ملفات Drive حتى يُحل ذلك.",

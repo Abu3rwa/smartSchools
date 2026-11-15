@@ -423,6 +423,30 @@ test('the connection test stops when Google refuses the upload itself', async (t
     assert.deepEqual(calls.deleted, []);
 });
 
+test('a refresh token Google no longer accepts is reported as a reconnect, not as "connected"', async (t) => {
+    const user = {
+        googleDriveFileTokens: {
+            accessToken: 'expired',
+            refreshToken: 'dead',
+            grantedScopes: [GOOGLE_DRIVE_FILE_SCOPE],
+            expiryDate: new Date(0)
+        },
+        hasGoogleDriveFileConnected() { return true; },
+        googleDriveFileTokenNeedsRefresh() { return true; },
+        async updateGoogleDriveFileTokens() { return this; }
+    };
+    t.mock.method(User, 'findById', async () => user);
+    t.mock.method(googleDriveFileService, 'buildOAuthClient', () => ({
+        setCredentials() {},
+        refreshAccessToken: async () => { throw new Error('invalid_grant'); }
+    }));
+
+    await assert.rejects(
+        () => googleDriveFileService.buildDriveClient('user-1'),
+        (error) => error.code === 'DRIVE_FILE_NOT_CONNECTED' && error.reason === 'refresh_failed'
+    );
+});
+
 /* ---------------------------------------------------------------- */
 /* Upload middleware errors                                          */
 /* ---------------------------------------------------------------- */

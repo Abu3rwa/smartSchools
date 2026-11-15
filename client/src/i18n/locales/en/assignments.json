@@ -583,6 +583,8 @@
     "connectedAs": "Connected as {{email}}",
     "anyoneWithLink": "Uploaded files become viewable by anyone with the link. Don't upload anything private.",
     "testConnection": "Test connection",
+    "reconnect": "Reconnect Google Drive",
+    "testExpired": "Your Google Drive connection has expired. Reconnect it, then try again.",
     "testing": "Testing...",
     "testOk": "Google Drive works: the test file uploaded and is viewable by anyone with the link.",
     "testUploadBlocked": "Google refused the upload ({{reason}}). Students can't receive Drive files until this is fixed.",

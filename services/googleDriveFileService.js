@@ -6,10 +6,11 @@ import { GOOGLE_DRIVE_FILE_SCOPES, hasDriveFileScope } from '../config/googleDri
 
 const DRIVE_FILE_FIELDS = 'id,name,mimeType,size,webViewLink,iconLink';
 
-const connectionError = () => {
+const connectionError = (reason = 'not_connected') => {
     const error = new Error('Connect Google Drive for attachments before uploading files.');
     error.code = 'DRIVE_FILE_NOT_CONNECTED';
     error.statusCode = 403;
+    error.reason = reason;
     return error;
 };
 
@@ -101,7 +102,7 @@ class GoogleDriveFileService {
             await user.updateGoogleDriveFileTokens(credentials, user.googleDriveFileTokens.email);
         } catch (error) {
             logger.error('google_drive_file_refresh_failed', { user: String(userId), message: error?.message });
-            throw connectionError();
+            throw connectionError('refresh_failed');
         }
         return user;
     }
@@ -109,7 +110,7 @@ class GoogleDriveFileService {
     async buildDriveClient(userId) {
         const user = await this.refreshTokenIfNeeded(userId);
         if (!hasDriveFileScope(user.googleDriveFileTokens?.grantedScopes)) {
-            throw connectionError();
+            throw connectionError('scope_missing');
         }
         const oauth2Client = this.buildOAuthClient();
         oauth2Client.setCredentials({

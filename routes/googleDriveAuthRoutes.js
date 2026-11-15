@@ -122,6 +122,7 @@ router.post('/test', protect, async (req, res) => {
         return res.status(error.statusCode || 500).json({
             success: false,
             ...(error.code ? { code: error.code } : {}),
+            ...(error.reason ? { reason: error.reason } : {}),
             message: error.statusCode && error.statusCode < 500
                 ? error.message
                 : 'Could not test the Google Drive connection.'

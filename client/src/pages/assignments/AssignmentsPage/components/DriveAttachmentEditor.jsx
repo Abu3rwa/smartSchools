@@ -89,10 +89,12 @@ const DriveAttachmentEditor = ({
       toast.success(t("assignments:driveAttachments.uploaded"));
     } catch (error) {
       // The stored connection died (revoked or expired) even though the status
-      // said connected. Re-read it so the Connect button returns instead of
-      // leaving a dead upload action.
-      if (error.response?.data?.code === "DRIVE_FILE_NOT_CONNECTED") {
-        loadConnection();
+      // said connected. Show the reconnect action and say why.
+      const data = error.response?.data;
+      if (data?.code === "DRIVE_FILE_NOT_CONNECTED") {
+        setTestResult({ failed: true, reconnect: true, reason: data?.reason || "" });
+        toast.error(t("assignments:driveAttachments.testExpired"));
+        return;
       }
       toast.error(driveUploadErrorMessage(t, error));
     } finally {
@@ -112,15 +114,14 @@ const DriveAttachmentEditor = ({
         reason: String(result?.uploadReason || result?.shareReason || ""),
       });
     } catch (error) {
-      if (error.response?.data?.code === "DRIVE_FILE_NOT_CONNECTED") {
-        loadConnection();
-      }
+      const data = error.response?.data;
+      // A dead token is not a "test failed" dead end: the card must offer the
+      // reconnect action right where the failure is shown.
+      const reconnect = data?.code === "DRIVE_FILE_NOT_CONNECTED";
       setTestResult({
         failed: true,
-        reason:
-          error.response?.data?.reason ||
-          error.response?.data?.code ||
-          "",
+        reconnect,
+        reason: data?.reason || data?.code || "",
       });
     } finally {
       setTesting(false);
@@ -132,7 +133,9 @@ const DriveAttachmentEditor = ({
     if (testResult.failed) {
       return (
         <p className="assignments-drawer__notice">
-          {t("assignments:driveAttachments.testFailed")}
+          {testResult.reconnect
+            ? t("assignments:driveAttachments.testExpired")
+            : t("assignments:driveAttachments.testFailed")}
         </p>
       );
     }
@@ -271,6 +274,16 @@ const DriveAttachmentEditor = ({
               {testing
                 ? t("assignments:driveAttachments.testing")
                 : t("assignments:driveAttachments.testConnection")}
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={connecting || controlsDisabled}
+              onClick={connect}
+            >
+              {connecting
+                ? t("assignments:driveAttachments.connecting")
+                : t("assignments:driveAttachments.reconnect")}
             </button>
             {renderTestResult()}
           </div>
