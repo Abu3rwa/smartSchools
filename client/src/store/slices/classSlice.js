@@ -25,9 +25,16 @@ export const fetchClasses = createAsyncThunk('classes/fetchClasses', async (para
 
 export const fetchClass = createAsyncThunk(
   'classes/fetchClass',
-  async (classId) => {
-    const response = await classService.getClass(classId);
-    return response;
+  async (classId, { rejectWithValue }) => {
+    try {
+      const response = await classService.getClass(classId);
+      return response;
+    } catch (error) {
+      return rejectWithValue({
+        status: error.response?.status ?? 0,
+        message: error.response?.data?.message || error.message || 'Failed to load class'
+      });
+    }
   }
 );
 
@@ -147,6 +154,10 @@ const initialState = {
   status: 'idle',
   error: null,
   classesRequestId: null,
+  detailStatus: 'idle',
+  detailError: null,
+  detailClassId: null,
+  detailRequestId: null,
   analytics: null,
   analyticsLoading: false,
   insights: null,
@@ -182,11 +193,16 @@ const classesSlice = createSlice({
         state.error = action.error.message;
         state.classesRequestId = null;
       })
-      .addCase(fetchClass.pending, (state) => {
+      .addCase(fetchClass.pending, (state, action) => {
+        state.detailRequestId = action.meta.requestId;
+        state.detailStatus = 'loading';
+        state.detailError = null;
         state.status = 'loading';
         state.error = null;
       })
       .addCase(fetchClass.fulfilled, (state, action) => {
+        if (state.detailRequestId !== action.meta.requestId) return;
+        state.detailRequestId = null;
         state.status = 'succeeded';
         const data = action.payload?.data || action.payload;
         const cls = data.class || data;
@@ -194,10 +210,21 @@ const classesSlice = createSlice({
           ...cls,
           students: data.students || cls.students || []
         };
+        state.detailClassId = state.selectedClass._id ?? null;
+        state.detailStatus = 'ready';
       })
       .addCase(fetchClass.rejected, (state, action) => {
+        if (state.detailRequestId !== action.meta.requestId) return;
+        state.detailRequestId = null;
+        const statusCode = action.payload?.status;
+        state.detailStatus = statusCode === 404
+          ? 'notFound'
+          : statusCode === 403
+            ? 'forbidden'
+            : 'error';
+        state.detailError = action.payload?.message || action.error.message;
         state.status = 'failed';
-        state.error = action.error.message;
+        state.error = state.detailError;
       })
       .addCase(createClass.pending, (state) => {
         state.status = 'loading';
@@ -293,6 +320,9 @@ export const selectCurrentClass = (state) => state.classes.selectedClass;
 export const selectClassStudents = (state) => state.classes.selectedClass?.students || EMPTY_STUDENTS;
 export const selectClassesLoading = (state) => state.classes.status === 'loading';
 export const selectClassesError = (state) => state.classes.error;
+export const selectClassDetailStatus = (state) => state.classes.detailStatus;
+export const selectClassDetailError = (state) => state.classes.detailError;
+export const selectClassDetailId = (state) => state.classes.detailClassId;
 
 export const selectClassAnalytics = (state) => state.classes.analytics;
 export const selectClassInsights = (state) => state.classes.insights;

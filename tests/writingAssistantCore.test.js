@@ -39,6 +39,7 @@ import {
   normalizeFeedback,
   renderDraftForPrompt,
 } from "../services/writingAssistantPrompts.js";
+import { sanitizeGeneratedFields } from "../services/aiPromptSafety.js";
 import { presetRubric, presetSections } from "../constants/writingPresets.js";
 
 const essay = () => ({
@@ -883,6 +884,52 @@ test("a pathologically deep reply is rejected, not allowed to overflow the stack
     normalizeFeedback({ parsed: null, draft: { sections: [] }, snapshot: { sections: [], rubric: [] } }),
     { ok: false, error: "The AI reply could not be read as JSON." },
   );
+});
+
+test("a ledger read from a Mongoose document stays plain data", async () => {
+  // The project document is loaded without .lean(), so its revisionLedger rows
+  // are subdocuments. Spreading one carries $__ / _doc / $__parent, which point
+  // back at the parent document; the recursive reply inspection then walked that
+  // cycle and every reassessment of a student with revision tasks died with
+  // "Maximum call stack size exceeded".
+  const { default: mongoose } = await import("mongoose");
+  const storeSchema = new mongoose.Schema(
+    {
+      id: String,
+      text: String,
+      status: String,
+      checks: Number,
+      unresolvedStreak: Number,
+      introducedDraft: Number,
+    },
+    { _id: false },
+  );
+  const Project =
+    mongoose.models.LedgerProbe ||
+    mongoose.model("LedgerProbe", new mongoose.Schema({ revisionLedger: [storeSchema] }));
+  const project = new Project({
+    revisionLedger: [{ id: "t1", text: "Use stronger verbs", status: "open" }],
+  });
+
+  const tasks = tasksForCheckback({ tasks: project.revisionLedger });
+  assert.deepEqual(tasks, [{ id: "t1", text: "Use stronger verbs" }]);
+
+  const merged = mergeRevisionLedger({
+    ledger: project.revisionLedger,
+    tasks,
+    taskResults: [{ id: "t1", applied: false }],
+    draftNumber: 3,
+  });
+  assert.deepEqual(Object.keys(merged[0]).sort(), [
+    "checks",
+    "id",
+    "introducedDraft",
+    "lastCheckedDraft",
+    "status",
+    "text",
+    "unresolvedStreak",
+  ]);
+  assert.doesNotThrow(() => sanitizeGeneratedFields({ revisionLedger: merged }));
 });
 
 test("a reply that names sections by label is filed under the real section key", () => {

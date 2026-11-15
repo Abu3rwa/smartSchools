@@ -1,7 +1,13 @@
 {
   "page": {
     "title": "الفصول",
-    "subtitle": "إدارة فصول المدرسة وتسجيل الطلاب"
+    "subtitle": "إدارة فصول المدرسة وتسجيل الطلاب",
+    "count_zero": "{{count}} فصل",
+    "count_one": "{{count}} فصل",
+    "count_two": "{{count}} فصلان",
+    "count_few": "{{count}} فصول",
+    "count_many": "{{count}} فصلاً",
+    "count_other": "{{count}} فصل"
   },
   "actions": {
     "importCsv": "استيراد CSV",
@@ -35,7 +41,14 @@
       "subjects": "المواد",
       "actions": "الإجراءات"
     },
-    "mainSection": "رئيسي"
+    "mainSection": "رئيسي",
+    "capacityUsage": "المستخدم {{used}} من {{capacity}} مقعد"
+  },
+  "states": {
+    "loading": "جارٍ تحميل الفصول",
+    "refreshing": "جارٍ التحديث…",
+    "loadFailedTitle": "تعذّر تحميل الفصول",
+    "refreshFailed": "تعذّر تحديث قائمة الفصول. قد تكون الفصول أدناه غير محدثة."
   },
   "status": {
     "inactive": "غير نشط"
@@ -43,8 +56,146 @@
   "empty": {
     "title": "لا توجد فصول",
     "description": "أنشئ فصلاً جديداً للبدء",
+    "teacherDescription": "تظهر الفصول التي تُدرّسها هنا بعد إضافتها.",
     "noMatches": "لا توجد فصول مطابقة للبحث",
     "noMatchesDescription": "جرّب اسم فصل أو مستوى صف مختلف."
+  },
+  "detail": {
+    "back": "رجوع إلى الفصول",
+    "loading": "جارٍ تحميل الفصل",
+    "refreshing": "جارٍ التحديث…",
+    "notFoundTitle": "الفصل غير موجود",
+    "notFoundBody": "قد يكون هذا الفصل قد حُذف أو يتبع مدرسة أخرى.",
+    "forbiddenTitle": "لا صلاحية للوصول إلى هذا الفصل",
+    "forbiddenBody": "لا يملك حسابك صلاحية عرض هذا الفصل. اطلب من مدير المدرسة منحك الصلاحية إن كنت بحاجة إليها.",
+    "errorTitle": "تعذّر تحميل هذا الفصل",
+    "errorBody": "لم تُحمَّل تفاصيل الفصل. تحقق من الاتصال وحاول مرة أخرى.",
+    "refreshFailed": "تعذّر تحديث تفاصيل الفصل. قد تكون المعلومات أدناه غير محدثة.",
+    "meta": {
+      "academicYear": "العام الدراسي {{year}}",
+      "section": "الشعبة {{section}}",
+      "noRoom": "بدون غرفة",
+      "capacityLabel": "مقعد",
+      "studentsCount": "{{total}} من الطلاب",
+      "subjectsCount": "{{total}} من المواد"
+    },
+    "actions": {
+      "enterGrades": "إدخال الدرجات",
+      "gradebook": "دفتر الدرجات",
+      "weeklyReport": "التقرير الأسبوعي",
+      "editClass": "تعديل الفصل",
+      "enrollStudents": "تسجيل طلاب",
+      "loadAnalytics": "تحميل التحليلات",
+      "refreshAnalytics": "تحديث",
+      "generateInsights": "توليد الرؤى",
+      "generating": "جارٍ التوليد…"
+    },
+    "roster": {
+      "title": "الطلاب",
+      "count": "{{total}} مسجّل",
+      "columns": {
+        "student": "الطالب",
+        "id": "المعرّف",
+        "gender": "الجنس",
+        "actions": "الإجراءات"
+      },
+      "emptyTitle": "لا يوجد طلاب بعد",
+      "emptyBody": "يظهر الطلاب المسجلون هنا مع روابط لملفاتهم وتقاريرهم ودفتر الدرجات.",
+      "unenrollAria": "إزالة {{name}} من هذا الفصل"
+    },
+    "studentActions": {
+      "gradebook": "دفتر الدرجات",
+      "report": "التقرير",
+      "details": "الملف",
+      "edit": "تعديل",
+      "remove": "إزالة"
+    },
+    "subjects": {
+      "title": "المواد",
+      "add": "إضافة مادة",
+      "empty": "لم تُسند مواد لهذا الفصل بعد.",
+      "unknown": "مادة غير معروفة",
+      "unassigned": "لم يُسند معلم",
+      "teacherAria": "المعلم:",
+      "homeroom": "فصل المربي",
+      "homeroomHint": "حصص التربية والإرشاد لا تُقيَّم في دفتر الدرجات.",
+      "remove": "إزالة"
+    },
+    "analytics": {
+      "title": "التحليلات",
+      "loading": "جارٍ تحميل التحليلات",
+      "loadFailed": "تعذّر تحميل التحليلات.",
+      "generated": "تم توليد الرؤى",
+      "insightsFailed": "تعذّر توليد الرؤى.",
+      "emptyInsights": "لم يُرجع الذكاء الاصطناعي أي رؤى. حاول مرة أخرى.",
+      "bySubject": "المتوسط حسب المادة",
+      "attendance": "الحضور",
+      "present": "متوسط الحضور {{rate}}%",
+      "sessions": "({{total}} حصة)",
+      "support": "طلاب يحتاجون الدعم ({{total}})",
+      "supportAvg": "المتوسط {{value}}%",
+      "supportAttendance": "الحضور {{value}}%",
+      "insights": "الرؤى",
+      "primaryLanguage": "اللغة الأساسية",
+      "secondaryLanguage": "اللغة الثانية",
+      "noSecondary": "بدون",
+      "noData": "لا توجد تحليلات لهذا الفصل بعد."
+    },
+    "editDialog": {
+      "title": "تعديل الفصل",
+      "active": "الفصل نشط",
+      "save": "حفظ التغييرات",
+      "saving": "جارٍ الحفظ…"
+    },
+    "subjectDialog": {
+      "title": "إضافة مادة",
+      "subject": "المادة",
+      "selectSubject": "اختر المادة",
+      "teacher": "المعلم",
+      "selectTeacher": "اختر المعلم",
+      "add": "إضافة المادة",
+      "adding": "جارٍ الإضافة…",
+      "selectBoth": "اختر مادة ومعلمًا أولاً."
+    },
+    "enroll": {
+      "title": "تسجيل طلاب",
+      "searchLabel": "ابحث عن الطلاب",
+      "searchPlaceholder": "ابحث بالاسم أو معرّف الطالب",
+      "searching": "جارٍ البحث…",
+      "minQuery": "اكتب حرفين على الأقل للبحث.",
+      "noResults": "لا يوجد طلاب نشطون يطابقون «{{query}}».",
+      "allEnrolled": "كل طالب يطابق «{{query}}» مسجّل بالفعل في هذا الفصل.",
+      "searchFailed": "تعذّر البحث عن الطلاب.",
+      "clearSearch": "مسح البحث",
+      "selected": "{{total}} محدد",
+      "clearSelection": "مسح التحديد",
+      "enroll": "تسجيل {{total}}",
+      "enrollAction": "تسجيل",
+      "enrolling": "جارٍ التسجيل…",
+      "selectHint": "حدد الطلاب لتسجيلهم."
+    },
+    "confirm": {
+      "removeSubjectTitle": "إزالة المادة؟",
+      "removeSubjectBody": "لن تبقى «{{subject}}» ضمن هذا الفصل. تُحفظ الدرجات الحالية.",
+      "unenrollTitle": "إزالة الطالب من الفصل؟",
+      "unenrollBody": "سيُزال {{name}} من هذا الفصل. يبقى سجل الطالب ودرجاته.",
+      "remove": "إزالة",
+      "removing": "جارٍ الإزالة…"
+    },
+    "toast": {
+      "updated": "تم تحديث الفصل بنجاح",
+      "updateFailed": "فشل تحديث الفصل",
+      "subjectAdded": "تمت إضافة المادة إلى الفصل",
+      "subjectAddFailed": "فشل إضافة المادة",
+      "subjectRemoved": "تمت إزالة المادة من الفصل",
+      "subjectRemoveFailed": "فشلت إزالة المادة",
+      "enrolled": "تم تسجيل {{total}} من الطلاب",
+      "enrolledPartial": "تم تسجيل {{modified}} من {{total}} من الطلاب. الباقي غير نشط أو لم يعد متاحًا.",
+      "enrollNone": "لم يُسجَّل أي طالب. قد يكونون غير نشطين أو مسجلين بالفعل في هذا الفصل.",
+      "enrollFailed": "فشل تسجيل الطلاب",
+      "unenrolled": "تمت إزالة الطالب من الفصل",
+      "unenrollFailed": "فشلت إزالة الطالب"
+    }
   },
   "modal": {
     "createTitle": "إنشاء فصل جديد"
@@ -53,6 +204,8 @@
     "gradeLevel": "مستوى الصف *",
     "selectGrade": "اختر الصف",
     "gradeOption": "الصف {{grade}}",
+    "academicYear": "العام الدراسي",
+    "academicYearPlaceholder": "مثال: 2025-2026",
     "section": "الشعبة",
     "sectionPlaceholder": "مثال: A أو B أو C",
     "department": "القسم",
@@ -62,6 +215,7 @@
     "capacity": "السعة"
   },
   "confirm": {
+    "toggleTitle": "تغيير حالة الفصل؟",
     "toggleActive": "هل أنت متأكد من رغبتك في {{action}} {{className}}؟",
     "deleteClassOnly": "يبقى الطلاب مسجلين وتُحتفظ بكل الدرجات والحضور والتقارير السابقة.",
     "deleteWithData": "يتم فصل الطلاب المسجلين وحذف بيانات الفصل المرتبطة. لا يمكن التراجع عن هذا الإجراء."

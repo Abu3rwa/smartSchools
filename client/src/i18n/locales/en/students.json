@@ -1,7 +1,13 @@
 {
   "page": {
     "title": "Students",
-    "subtitle": "Manage student records and view performance"
+    "subtitle": "Manage student records and view performance",
+    "count_zero": "{{count}} students",
+    "count_one": "{{count}} student",
+    "count_two": "{{count}} students",
+    "count_few": "{{count}} students",
+    "count_many": "{{count}} students",
+    "count_other": "{{count}} students"
   },
   "capacity": {
     "title": "Plan Capacity:",
@@ -73,6 +79,7 @@
     "hasLogin": "Has Login",
     "noEmail": "No email",
     "unassigned": "Unassigned",
+    "visibleCount": "{{total}} shown",
     "columns": {
       "student": "Student",
       "id": "ID",
@@ -98,9 +105,17 @@
     "active": "active",
     "inactive": "inactive"
   },
+  "states": {
+    "loading": "Loading students",
+    "refreshing": "Updating…",
+    "refreshFailed": "Couldn't refresh the student list. The records below may be out of date.",
+    "loadFailedTitle": "Couldn't load students",
+    "loadFailedBody": "The student list did not load. Check the connection and try again."
+  },
   "empty": {
-    "noStudents": "No students found",
+    "noStudents": "No students yet",
     "noStudentsHint": "Add a student or import a class list to get started.",
+    "teacherHint": "Students appear here once they are enrolled in your class.",
     "noMatches": "No students match these filters",
     "noMatchesHint": "Try a different name, or clear the filters to see the whole roster."
   },
@@ -173,13 +188,14 @@
     "studentHasNoEmail": "doesn't have an email on file. Enter one to send the login invite.",
     "emailAddress": "Email Address *",
     "emailPlaceholder": "student@example.com",
-    "selectedStudentsSummary": "{{count}} selected students",
+    "selectedStudentsSummary": "{{total}} selected students",
     "selectedStudentsFallback": "Selected students"
   },
   "confirm": {
     "resetPassword": "Reset password for {{name}}?",
     "sendParentCredentials": "Send mobile app login credentials to {{count}} parent contact(s) for {{name}}?\n\nThis will create or reset their parent account password.",
-    "sendParentInvite": "Send login invites to {{count}} parent contact(s) for {{name}}?\n\nThis will create or rotate their parent account password.",
+    "sendParentInviteTitle": "Send parent invite?",
+    "sendParentInviteBody": "Send a login invite to the {{emails}} parent email contact(s) on file for {{name}}? This creates or resets their parent account password.",
     "deleteStudent": "Delete {{name}}?",
     "permanentDeleteInactive": "Permanently delete inactive student {{name}}?\n\nThis action cannot be undone."
   },
@@ -224,7 +240,7 @@
     "selectCsv": "Please select a .csv file",
     "selectClass": "Please select a class",
     "noValidData": "No valid data to import",
-    "rowsFailed": "{{count}} rows failed",
+    "rowsFailed": "{{total}} rows failed",
     "importFailed": "Import failed"
   },
   "promotionCenter": {

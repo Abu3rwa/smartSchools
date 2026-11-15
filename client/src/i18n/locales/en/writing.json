@@ -528,9 +528,9 @@
       "previewLoading": "Preparing…"
     },
     "paste": {
-      "title": "Paste attempts detected: {{count}}",
+      "title": "Paste attempts detected: {{n}}",
       "hint": "Pasting is blocked in the writing box. Each row is something the student tried to paste, with the time it happened. It never reached the draft.",
-      "badge": "Paste ×{{count}}",
+      "badge": "Paste ×{{n}}",
       "draftN": "Draft {{n}}",
       "notSubmitted": "not sent yet",
       "chars": "{{n}} characters",

@@ -360,9 +360,35 @@ export const tasksFromPriorities = (priorities = []) => (priorities || [])
     .slice(0, 3)
     .map((text, index) => ({ id: `t${index + 1}`, text }));
 
+/**
+ * Tasks and ledger rows are read straight from Mongoose documents. A document
+ * carries $__ / _doc internals that point back at its parent, so copying it as
+ * plain data has to name the fields: a spread would smuggle a cycle into the
+ * recursive reply inspection and blow the stack.
+ */
+const plainTask = (row = {}) => ({ id: String(row.id || ''), text: String(row.text || '') });
+
+const plainLedgerEntry = (row = {}) => ({
+    id: String(row.id || ''),
+    text: String(row.text || ''),
+    introducedDraft: Number(row.introducedDraft) || 1,
+    checks: Number(row.checks) || 0,
+    unresolvedStreak: Number(row.unresolvedStreak) || 0,
+    status: typeof row.status === 'string' && row.status ? row.status : 'open',
+    ...(row.lastCheckedDraft !== undefined && row.lastCheckedDraft !== null
+        ? { lastCheckedDraft: Number(row.lastCheckedDraft) }
+        : {}),
+    ...(row.resolvedDraft !== undefined && row.resolvedDraft !== null
+        ? { resolvedDraft: Number(row.resolvedDraft) }
+        : {}),
+    ...(row.note ? { note: String(row.note) } : {})
+});
+
 /** The tasks a revision is checked against, stored or derived from the priorities. */
 export const tasksForCheckback = (assessment) => {
-    const stored = (assessment?.tasks || []).filter((row) => row?.id && row?.text);
+    const stored = (assessment?.tasks || [])
+        .filter((row) => row?.id && row?.text)
+        .map(plainTask);
     return stored.length ? stored : tasksFromPriorities(assessment?.overall?.nextPriorities);
 };
 
@@ -379,7 +405,11 @@ export const mergeRevisionLedger = ({
     draftNumber = 1
 }) => {
     const results = new Map((taskResults || []).map((row) => [String(row.id), row]));
-    const known = new Map((ledger || []).filter((row) => row?.id).map((row) => [row.id, row]));
+    const known = new Map(
+        (ledger || [])
+            .filter((row) => row?.id)
+            .map((row) => [String(row.id), plainLedgerEntry(row)])
+    );
     const next = [];
     const asked = new Set();
 

@@ -1,7 +1,13 @@
 {
   "page": {
     "title": "Classes",
-    "subtitle": "Manage your school classes and student enrollment"
+    "subtitle": "Manage your school classes and student enrollment",
+    "count_zero": "{{count}} classes",
+    "count_one": "{{count}} class",
+    "count_two": "{{count}} classes",
+    "count_few": "{{count}} classes",
+    "count_many": "{{count}} classes",
+    "count_other": "{{count}} classes"
   },
   "actions": {
     "importCsv": "Import CSV",
@@ -35,7 +41,14 @@
       "subjects": "Subjects",
       "actions": "Actions"
     },
-    "mainSection": "Main"
+    "mainSection": "Main",
+    "capacityUsage": "{{used}} of {{capacity}} seats used"
+  },
+  "states": {
+    "loading": "Loading classes",
+    "refreshing": "Updating…",
+    "loadFailedTitle": "Couldn't load classes",
+    "refreshFailed": "Couldn't refresh the class list. The classes below may be out of date."
   },
   "status": {
     "inactive": "Inactive"
@@ -43,8 +56,146 @@
   "empty": {
     "title": "No classes found",
     "description": "Create a new class to get started",
+    "teacherDescription": "Classes you teach appear here once they are added.",
     "noMatches": "No classes match your search",
     "noMatchesDescription": "Try a different class name or grade level."
+  },
+  "detail": {
+    "back": "Back to Classes",
+    "loading": "Loading class",
+    "refreshing": "Updating…",
+    "notFoundTitle": "Class not found",
+    "notFoundBody": "This class may have been deleted or belongs to another school.",
+    "forbiddenTitle": "No access to this class",
+    "forbiddenBody": "Your account doesn't have permission to view this class. Ask a school administrator if you need access.",
+    "errorTitle": "Couldn't load this class",
+    "errorBody": "The class details didn't load. Check the connection and try again.",
+    "refreshFailed": "Couldn't refresh the class details. The information below may be out of date.",
+    "meta": {
+      "academicYear": "Academic year {{year}}",
+      "section": "Section {{section}}",
+      "noRoom": "No room",
+      "capacityLabel": "seats",
+      "studentsCount": "{{total}} students",
+      "subjectsCount": "{{total}} subjects"
+    },
+    "actions": {
+      "enterGrades": "Enter Grades",
+      "gradebook": "Gradebook",
+      "weeklyReport": "Weekly Report",
+      "editClass": "Edit Class",
+      "enrollStudents": "Enroll Students",
+      "loadAnalytics": "Load Analytics",
+      "refreshAnalytics": "Refresh",
+      "generateInsights": "Generate Insights",
+      "generating": "Generating…"
+    },
+    "roster": {
+      "title": "Students",
+      "count": "{{total}} enrolled",
+      "columns": {
+        "student": "Student",
+        "id": "ID",
+        "gender": "Gender",
+        "actions": "Actions"
+      },
+      "emptyTitle": "No students yet",
+      "emptyBody": "Enrolled students appear here with links to their record, report and gradebook.",
+      "unenrollAria": "Remove {{name}} from this class"
+    },
+    "studentActions": {
+      "gradebook": "Gradebook",
+      "report": "Report",
+      "details": "Details",
+      "edit": "Edit",
+      "remove": "Remove"
+    },
+    "subjects": {
+      "title": "Subjects",
+      "add": "Add Subject",
+      "empty": "No subjects assigned to this class yet.",
+      "unknown": "Unknown subject",
+      "unassigned": "No teacher assigned",
+      "teacherAria": "Teacher:",
+      "homeroom": "Homeroom",
+      "homeroomHint": "Homeroom and advisory periods aren't graded in the gradebook.",
+      "remove": "Remove"
+    },
+    "analytics": {
+      "title": "Analytics",
+      "loading": "Loading analytics",
+      "loadFailed": "Couldn't load analytics.",
+      "generated": "Insights generated",
+      "insightsFailed": "Couldn't generate insights.",
+      "emptyInsights": "The AI returned no insights. Try again.",
+      "bySubject": "Average by subject",
+      "attendance": "Attendance",
+      "present": "{{rate}}% average attendance",
+      "sessions": "({{total}} sessions)",
+      "support": "Students to support ({{total}})",
+      "supportAvg": "Avg {{value}}%",
+      "supportAttendance": "Attendance {{value}}%",
+      "insights": "Insights",
+      "primaryLanguage": "Primary language",
+      "secondaryLanguage": "Second language",
+      "noSecondary": "None",
+      "noData": "No analytics for this class yet."
+    },
+    "editDialog": {
+      "title": "Edit Class",
+      "active": "Class is active",
+      "save": "Save Changes",
+      "saving": "Saving…"
+    },
+    "subjectDialog": {
+      "title": "Add Subject",
+      "subject": "Subject",
+      "selectSubject": "Select Subject",
+      "teacher": "Teacher",
+      "selectTeacher": "Select Teacher",
+      "add": "Add Subject",
+      "adding": "Adding…",
+      "selectBoth": "Select a subject and a teacher first."
+    },
+    "enroll": {
+      "title": "Enroll Students",
+      "searchLabel": "Find students",
+      "searchPlaceholder": "Search by name or student ID",
+      "searching": "Searching…",
+      "minQuery": "Type at least 2 characters to search.",
+      "noResults": "No active students match “{{query}}”.",
+      "allEnrolled": "Every student matching “{{query}}” is already in this class.",
+      "searchFailed": "Couldn't search students.",
+      "clearSearch": "Clear search",
+      "selected": "{{total}} selected",
+      "clearSelection": "Clear selection",
+      "enroll": "Enroll {{total}}",
+      "enrollAction": "Enroll",
+      "enrolling": "Enrolling…",
+      "selectHint": "Select students to enroll."
+    },
+    "confirm": {
+      "removeSubjectTitle": "Remove subject?",
+      "removeSubjectBody": "{{subject}} will no longer be part of this class. Existing grades are kept.",
+      "unenrollTitle": "Remove student from class?",
+      "unenrollBody": "{{name}} will be removed from this class. The student's record and grades stay.",
+      "remove": "Remove",
+      "removing": "Removing…"
+    },
+    "toast": {
+      "updated": "Class updated successfully",
+      "updateFailed": "Failed to update class",
+      "subjectAdded": "Subject added to the class",
+      "subjectAddFailed": "Failed to add subject",
+      "subjectRemoved": "Subject removed from the class",
+      "subjectRemoveFailed": "Failed to remove subject",
+      "enrolled": "{{total}} students enrolled",
+      "enrolledPartial": "{{modified}} of {{total}} students enrolled. The rest were inactive or no longer available.",
+      "enrollNone": "No students were enrolled. They may be inactive or already in this class.",
+      "enrollFailed": "Failed to enroll students",
+      "unenrolled": "Student removed from the class",
+      "unenrollFailed": "Failed to remove the student"
+    }
   },
   "modal": {
     "createTitle": "Create New Class"
@@ -53,6 +204,8 @@
     "gradeLevel": "Grade Level *",
     "selectGrade": "Select Grade",
     "gradeOption": "Grade {{grade}}",
+    "academicYear": "Academic year",
+    "academicYearPlaceholder": "e.g., 2025-2026",
     "section": "Section",
     "sectionPlaceholder": "e.g., A, B, C",
     "department": "Department",
@@ -62,6 +215,7 @@
     "capacity": "Capacity"
   },
   "confirm": {
+    "toggleTitle": "Change class status?",
     "toggleActive": "Are you sure you want to {{action}} {{className}}?",
     "deleteClassOnly": "Students stay enrolled and every grade, attendance and report they already have is kept.",
     "deleteWithData": "Enrolled students are detached and related class data is removed. This cannot be undone."

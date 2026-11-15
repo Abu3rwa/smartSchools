@@ -2,8 +2,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { combineReducers, configureStore } from '@reduxjs/toolkit';
+import { Toaster } from 'react-hot-toast';
 import i18n from '../src/i18n';
 import authReducer from '../src/store/slices/authSlice';
 import teacherReducer from '../src/store/slices/teacherSlice';
@@ -14,6 +15,7 @@ import departmentReducer from '../src/store/slices/departmentSlice';
 import uiReducer from '../src/store/slices/uiSlice';
 import TeacherDashboardPage from '../src/pages/teacher/dashboard/TeacherDashboardPage/TeacherDashboardPage';
 import ClassesPage from '../src/pages/classes/ClassesPage/ClassesPage';
+import ClassDetailPage from '../src/pages/classes/ClassDetailPage/ClassDetailPage';
 import StudentsPage from '../src/pages/students/StudentsPage/StudentsPage';
 import SubjectsPage from '../src/pages/subjects/SubjectsPage/SubjectsPage';
 import studentReducer from '../src/store/slices/studentCoreSlice';
@@ -54,7 +56,16 @@ const reducer = combineReducers({
     ui: uiReducer
 });
 
-const options = { lang: 'en', theme: 'dark', mode: 'full', subs: 2, inbox: true, page: 'dashboard', role: 'teacher' };
+const options = { lang: 'en', theme: 'dark', mode: 'full', subs: 2, inbox: true, page: 'dashboard', role: 'admin' };
+
+/* TEMPORARY: query params let headless Chrome capture exact states. */
+const previewParams = new URLSearchParams(location.search);
+['lang', 'theme', 'mode', 'page', 'role'].forEach((key) => {
+    if (previewParams.has(key)) options[key] = previewParams.get(key);
+});
+if (previewParams.has('subs')) options.subs = Number(previewParams.get('subs'));
+if (previewParams.has('inbox')) options.inbox = previewParams.get('inbox') !== 'false';
+
 let store;
 let root;
 
@@ -79,6 +90,29 @@ const buildStore = () => configureStore({
             loading: false,
             fetched: true,
             error: null
+        },
+        subjects: {
+            subjects: [
+                { _id: 's-math', name: 'Mathematics', code: 'MATH', grade: 5 },
+                { _id: 's-sci', name: 'Science', code: 'SCI', grade: 5 },
+                { _id: 's-home', name: 'Homeroom', code: 'HR', grade: 5 },
+                { _id: 's-eng', name: 'English Language', code: 'ENG', grade: 5 }
+            ],
+            pagination: null,
+            gradeSubjects: [],
+            loading: false,
+            error: null
+        },
+        teachers: {
+            teachers: [
+                { _id: 't1', user: { firstName: 'Layla', lastName: 'Hassan' } },
+                { _id: 't2', user: { firstName: 'Omar', lastName: 'Saleh' } }
+            ],
+            pagination: null,
+            currentTeacher: null,
+            myClasses: [],
+            loading: false,
+            error: null
         }
     },
     middleware: (getDefault) => getDefault({ serializableCheck: false, immutableCheck: false })
@@ -93,6 +127,7 @@ const applyDocument = () => {
 const PAGE_PATHS = {
     dashboard: '/portal/dashboard',
     classes: '/portal/classes',
+    classDetail: '/portal/classes/c1',
     students: '/portal/students',
     subjects: '/portal/subjects'
 };
@@ -100,6 +135,7 @@ const PAGE_PATHS = {
 const PAGES = {
     dashboard: <TeacherDashboardPage />,
     classes: <ClassesPage />,
+    classDetail: <ClassDetailPage />,
     students: <StudentsPage />,
     subjects: <SubjectsPage />
 };
@@ -110,6 +146,7 @@ const render = async () => {
     stub.subs = options.subs;
     stub.inbox = options.inbox;
     stub.role = options.role;
+    stub.delay = previewParams.has('delay') ? Number(previewParams.get('delay')) : 120;
     stub.calls = [];
     applyDocument();
     await i18n.changeLanguage(options.lang);
@@ -117,6 +154,7 @@ const render = async () => {
 
     if (root) root.unmount();
     store = buildStore();
+    window.__store = store;
     root = createRoot(document.getElementById('root'));
     root.render(
         <StrictMode>
@@ -127,11 +165,15 @@ const render = async () => {
                         <div className="main-content">
                             <div className="preview-top" aria-hidden="true" />
                             <div className="page-content">
-                                {PAGES[options.page] || <TeacherDashboardPage />}
+                                <Routes>
+                                    <Route path="/portal/classes/:id" element={<ClassDetailPage />} />
+                                    <Route path="*" element={PAGES[options.page] || <TeacherDashboardPage />} />
+                                </Routes>
                             </div>
                         </div>
                     </div>
                 </MemoryRouter>
+                <Toaster position="top-right" />
             </Provider>
         </StrictMode>
     );
@@ -259,6 +301,38 @@ window.__gradientText = () => {
 
 await render();
 document.body.setAttribute('data-ready', 'true');
+
+/* TEMPORARY: dump layout metrics into the DOM for headless --dump-dom. */
+if (previewParams.has('probe')) {
+    setTimeout(() => {
+        const doc = document.documentElement;
+        const wide = [];
+        document.querySelectorAll('body *').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && (r.right > doc.clientWidth + 1 || r.left < -1)) {
+                wide.push({
+                    el: (typeof el.className === 'string' && el.className.slice(0, 50)) || el.tagName,
+                    left: Math.round(r.left),
+                    right: Math.round(r.right),
+                    w: Math.round(r.width)
+                });
+            }
+        });
+        const hero = document.querySelector('.gp-hero');
+        const pre = document.createElement('pre');
+        pre.id = 'probe';
+        pre.textContent = JSON.stringify({
+            innerWidth: window.innerWidth,
+            clientWidth: doc.clientWidth,
+            scrollWidth: doc.scrollWidth,
+            compact: window.matchMedia('(max-width: 899px)').matches,
+            hero: hero ? { w: Math.round(hero.getBoundingClientRect().width), sw: hero.scrollWidth } : null,
+            bodySw: document.body.scrollWidth,
+            wide: wide.slice(0, 12)
+        });
+        document.body.appendChild(pre);
+    }, 1200);
+}
 
 const parseRgb = (value) => {
     const s = String(value);

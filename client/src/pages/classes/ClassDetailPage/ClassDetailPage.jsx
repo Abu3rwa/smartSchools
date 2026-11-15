@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { useMediaQuery } from '@mui/material';
 import {
     fetchClass,
     fetchClasses,
@@ -9,7 +10,9 @@ import {
     selectCurrentClass,
     selectClassStudents,
     selectClasses,
-    selectClassesLoading,
+    selectClassDetailStatus,
+    selectClassDetailError,
+    selectClassDetailId,
     addSubjectToClass,
     removeSubjectFromClass,
     fetchClassAnalytics,
@@ -28,11 +31,29 @@ import { selectTeachers } from '../../../store/slices/teacherSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
-import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb, HiOutlinePencil, HiOutlineX, HiOutlineSearch } from 'react-icons/hi';
+import {
+    HiOutlineArrowLeft,
+    HiOutlineUserGroup,
+    HiOutlineBookOpen,
+    HiOutlineClipboardList,
+    HiOutlinePlus,
+    HiOutlineDocumentText,
+    HiOutlineChartBar,
+    HiOutlineLightBulb,
+    HiOutlinePencil,
+    HiOutlineSearch,
+    HiOutlineUser,
+    HiOutlineX,
+    HiOutlineExclamationCircle
+} from 'react-icons/hi';
 import toast from 'react-hot-toast';
-import api from '../../../config/api';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
+import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import useFocusTrap from '../../../hooks/useFocusTrap';
 import StudentFormModal from '../../students/StudentsPage/components/StudentFormModal';
+import useEnrollSearch from './hooks/useEnrollSearch';
+import { formatTeacherName, resolveDetailView, summarizeEnrollResult } from './utils/classDetailState';
+import '../../../styles/greenPages.css';
 import './ClassDetailPage.css';
 
 const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
@@ -72,14 +93,24 @@ const isHomeroomSubject = (subject) => {
     return HOMEROOM_SUBJECT_MATCHERS.some((term) => name.includes(term) || code.includes(term));
 };
 
+const studentInitials = (student) =>
+    `${student?.firstName?.charAt(0) || ''}${student?.lastName?.charAt(0) || ''}`;
+
+const studentName = (student) =>
+    [student?.firstName, student?.lastName].filter(Boolean).join(' ').trim();
+
 const ClassDetailPage = () => {
     const { id } = useParams();
     const dispatch = useDispatch();
-    const { t } = useTranslation(['students']);
+    const { t } = useTranslation(['classes', 'students', 'common']);
+    const isCompact = useMediaQuery('(max-width: 899px)');
+
     const currentClass = useSelector(selectCurrentClass);
     const students = useSelector(selectClassStudents);
     const classes = useSelector(selectClasses);
-    const loading = useSelector(selectClassesLoading);
+    const detailStatus = useSelector(selectClassDetailStatus);
+    const detailError = useSelector(selectClassDetailError);
+    const detailClassId = useSelector(selectClassDetailId);
     const subjectsList = useSelector(selectSubjects);
     const teachersList = useSelector(selectTeachers);
     const departments = useSelector(selectDepartments);
@@ -87,39 +118,73 @@ const ClassDetailPage = () => {
     const isAdmin = useSelector(selectIsAdmin);
     const canEditClass = useSelector(selectCanEditClass);
 
-    const [showSubjectModal, setShowSubjectModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editFormData, setEditFormData] = useState({ grade: '', section: '', academicYear: '', department: '', room: '', capacity: 40, isActive: true });
-    const [selectedSubject, setSelectedSubject] = useState('');
-    const [selectedTeacher, setSelectedTeacher] = useState('');
-    const [submitting, setSubmitting] = useState(false);
-    const [showAnalytics, setShowAnalytics] = useState(false);
-    const [insightsPrimaryLanguage, setInsightsPrimaryLanguage] = useState('en');
-    const [insightsSecondaryLanguage, setInsightsSecondaryLanguage] = useState('');
-
-    // Enroll students modal state
-    const [showEnrollModal, setShowEnrollModal] = useState(false);
-    const [enrollSearch, setEnrollSearch] = useState('');
-    const [enrollSearchResults, setEnrollSearchResults] = useState([]);
-    const [enrollSearching, setEnrollSearching] = useState(false);
-    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
-    const [enrolling, setEnrolling] = useState(false);
-
-    // Edit student modal state (admin only)
-    const [showStudentEditModal, setShowStudentEditModal] = useState(false);
-    const [editingStudentId, setEditingStudentId] = useState(null);
-    const [studentFormData, setStudentFormData] = useState(() => emptyStudentForm(academicYear));
-    const [savingStudent, setSavingStudent] = useState(false);
-
     const analytics = useSelector(selectClassAnalytics);
     const insightsData = useSelector(selectClassInsights);
     const analyticsLoading = useSelector(selectClassAnalyticsLoading);
     const insightsLoading = useSelector(selectClassInsightsLoading);
 
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editFormData, setEditFormData] = useState({
+        grade: '',
+        section: '',
+        academicYear: '',
+        department: '',
+        room: '',
+        capacity: 40,
+        isActive: true
+    });
+    const [submitting, setSubmitting] = useState(false);
+
+    const [showSubjectModal, setShowSubjectModal] = useState(false);
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const [selectedTeacher, setSelectedTeacher] = useState('');
+    const [removeSubjectTarget, setRemoveSubjectTarget] = useState(null);
+    const [removingSubject, setRemovingSubject] = useState(false);
+    const [removeSubjectError, setRemoveSubjectError] = useState('');
+
+    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    const [enrolling, setEnrolling] = useState(false);
+
+    const [unenrollTarget, setUnenrollTarget] = useState(null);
+    const [unenrolling, setUnenrolling] = useState(false);
+    const [unenrollError, setUnenrollError] = useState('');
+
+    const [showStudentEditModal, setShowStudentEditModal] = useState(false);
+    const [editingStudentId, setEditingStudentId] = useState(null);
+    const [studentFormData, setStudentFormData] = useState(() => emptyStudentForm(academicYear));
+    const [savingStudent, setSavingStudent] = useState(false);
+
+    const [showAnalytics, setShowAnalytics] = useState(false);
+    const [analyticsError, setAnalyticsError] = useState('');
+    const [insightsError, setInsightsError] = useState('');
+    const [insightsPrimaryLanguage, setInsightsPrimaryLanguage] = useState('en');
+    const [insightsSecondaryLanguage, setInsightsSecondaryLanguage] = useState('');
+
+    const editDialogRef = useRef(null);
+    const subjectDialogRef = useRef(null);
+    const subjectSelectRef = useRef(null);
+    const enrollDialogRef = useRef(null);
+    const enrollSearchRef = useRef(null);
+
+    const enrolledIds = useMemo(() => new Set(students.map((student) => student._id)), [students]);
+    const {
+        query: enrollQuery,
+        setQuery: setEnrollQuery,
+        reset: resetEnrollSearch,
+        retry: retryEnrollSearch,
+        status: enrollStatus,
+        results: enrollResults,
+        error: enrollError
+    } = useEnrollSearch({ enrolledIds, active: showEnrollModal });
+
     useEffect(() => {
         dispatch(fetchClass(id));
         dispatch(fetchClasses({ limit: 'all' }));
         dispatch(clearClassAnalyticsData());
+        setShowAnalytics(false);
+        setAnalyticsError('');
+        setInsightsError('');
     }, [dispatch, id]);
 
     // /departments rejects a plain teacher with 403; only the edit-class and
@@ -129,34 +194,97 @@ const ClassDetailPage = () => {
         dispatch(fetchDepartments());
     }, [dispatch, canEditClass]);
 
-    const openEditModal = () => {
-        if (currentClass) {
-            setEditFormData({
-                grade: currentClass.grade?.toString() ?? '',
-                section: currentClass.section ?? '',
-                academicYear: currentClass.academicYear ?? academicYear ?? '',
-                department: currentClass.department?._id ?? currentClass.department ?? '',
-                room: currentClass.room ?? '',
-                capacity: currentClass.capacity ?? 40,
-                isActive: currentClass.isActive !== false
-            });
-            setShowEditModal(true);
+    const closeEditModal = useCallback(() => {
+        setShowEditModal(false);
+    }, []);
+
+    const closeSubjectModal = useCallback(() => {
+        setShowSubjectModal(false);
+    }, []);
+
+    const closeEnrollModal = useCallback(() => {
+        setShowEnrollModal(false);
+        setSelectedStudentIds([]);
+        resetEnrollSearch();
+    }, [resetEnrollSearch]);
+
+    useFocusTrap({
+        active: showEditModal,
+        containerRef: editDialogRef,
+        onEscape: () => {
+            if (!submitting) closeEditModal();
         }
+    });
+
+    useFocusTrap({
+        active: showSubjectModal,
+        containerRef: subjectDialogRef,
+        initialFocusRef: subjectSelectRef,
+        onEscape: () => {
+            if (!submitting) closeSubjectModal();
+        }
+    });
+
+    useFocusTrap({
+        active: showEnrollModal,
+        containerRef: enrollDialogRef,
+        initialFocusRef: enrollSearchRef,
+        onEscape: () => {
+            if (!enrolling) closeEnrollModal();
+        }
+    });
+
+    const view = resolveDetailView({
+        status: detailStatus,
+        routeId: id,
+        currentClassId: currentClass?._id,
+        detailClassId,
+        error: detailError
+    });
+
+    const insightsText = useMemo(() => {
+        const value = insightsData?.insights ?? insightsData?.data?.insights;
+        return typeof value === 'string' ? value.trim() : '';
+    }, [insightsData]);
+
+    const hasAnalyticsData = Boolean(
+        analytics?.gradeStatsBySubject?.length ||
+        analytics?.attendanceSummary ||
+        analytics?.studentsToSupport?.length
+    );
+
+    const openEditModal = () => {
+        if (!currentClass) return;
+        setEditFormData({
+            grade: currentClass.grade?.toString() ?? '',
+            section: currentClass.section ?? '',
+            academicYear: currentClass.academicYear ?? academicYear ?? '',
+            department: currentClass.department?._id ?? currentClass.department ?? '',
+            room: currentClass.room ?? '',
+            capacity: currentClass.capacity ?? 40,
+            isActive: currentClass.isActive !== false
+        });
+        setShowEditModal(true);
     };
 
-    const handleUpdateClass = async (e) => {
-        e.preventDefault();
+    const handleUpdateClass = async (event) => {
+        event.preventDefault();
+        if (submitting) return;
         setSubmitting(true);
         try {
-            const payload = { ...editFormData, grade: parseInt(editFormData.grade, 10), capacity: editFormData.capacity || 40 };
+            const payload = {
+                ...editFormData,
+                grade: parseInt(editFormData.grade, 10),
+                capacity: editFormData.capacity || 40
+            };
             if (payload.department === '') payload.department = undefined;
             const result = await dispatch(updateClass({ id, data: payload }));
             if (updateClass.fulfilled.match(result)) {
-                toast.success('Class updated successfully');
-                setShowEditModal(false);
+                toast.success(t('classes:detail.toast.updated'));
+                closeEditModal();
                 dispatch(fetchClass(id));
             } else {
-                toast.error(result.payload || 'Failed to update class');
+                toast.error(t('classes:detail.toast.updateFailed'));
             }
         } finally {
             setSubmitting(false);
@@ -165,14 +293,19 @@ const ClassDetailPage = () => {
 
     const handleLoadAnalytics = () => {
         setShowAnalytics(true);
+        setAnalyticsError('');
         dispatch(fetchClassAnalytics({ classId: id, academicYear: currentClass?.academicYear })).then((result) => {
-            if (fetchClassAnalytics.rejected.match(result)) toast.error(result.payload || 'Failed to load analytics');
+            if (fetchClassAnalytics.rejected.match(result)) {
+                setAnalyticsError(t('classes:detail.analytics.loadFailed'));
+            }
         });
     };
 
     const handleGenerateInsights = () => {
+        if (insightsLoading) return;
         const requestedLanguages = buildRequestedLanguages(insightsPrimaryLanguage, insightsSecondaryLanguage);
         const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
+        setInsightsError('');
         dispatch(fetchClassInsights({
             classId: id,
             academicYear: currentClass?.academicYear,
@@ -182,19 +315,26 @@ const ClassDetailPage = () => {
             secondaryLanguage: insightsSecondaryLanguage,
             language: toLegacyLanguageValue(normalizedRequestedLanguages)
         })).then((result) => {
-            if (fetchClassInsights.rejected.match(result)) toast.error(result.payload || 'Failed to generate insights');
-            else toast.success('Insights generated');
+            if (fetchClassInsights.rejected.match(result)) {
+                setInsightsError(t('classes:detail.analytics.insightsFailed'));
+                return;
+            }
+            const generated = result.payload?.insights ?? result.payload?.data?.insights;
+            if (!generated || !String(generated).trim()) {
+                setInsightsError(t('classes:detail.analytics.emptyInsights'));
+                return;
+            }
+            toast.success(t('classes:detail.analytics.generated'));
         });
     };
 
-    const handleAddSubject = async (e) => {
-        e.preventDefault();
-
+    const handleAddSubject = async (event) => {
+        event.preventDefault();
+        if (submitting) return;
         if (!selectedSubject || !selectedTeacher) {
-            toast.error('Please select both a subject and a teacher');
+            toast.error(t('classes:detail.subjectDialog.selectBoth'));
             return;
         }
-
         setSubmitting(true);
         try {
             const result = await dispatch(addSubjectToClass({
@@ -202,91 +342,114 @@ const ClassDetailPage = () => {
                 subjectId: selectedSubject,
                 teacherId: selectedTeacher
             }));
-
             if (addSubjectToClass.fulfilled.match(result)) {
-                toast.success('Subject added to class successfully');
-                setShowSubjectModal(false);
+                toast.success(t('classes:detail.toast.subjectAdded'));
+                closeSubjectModal();
                 setSelectedSubject('');
                 setSelectedTeacher('');
+                dispatch(fetchClass(id));
             } else {
-                toast.error(result.payload || 'Failed to add subject');
+                toast.error(t('classes:detail.toast.subjectAddFailed'));
             }
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleRemoveSubject = async (subjectId) => {
+    const requestRemoveSubject = (item, subjectId) => {
         if (!isAdmin) return;
-        if (!window.confirm('Remove this subject from the class?')) return;
+        setRemoveSubjectError('');
+        setRemoveSubjectTarget({
+            id: subjectId,
+            name: item.subject?.name || t('classes:detail.subjects.unknown')
+        });
+    };
 
-        const result = await dispatch(removeSubjectFromClass({ classId: id, subjectId }));
-        if (removeSubjectFromClass.fulfilled.match(result)) {
-            toast.success('Subject removed from class successfully');
-        } else {
-            toast.error(result.payload || 'Failed to remove subject');
+    const confirmRemoveSubject = async () => {
+        if (!removeSubjectTarget || removingSubject) return;
+        setRemovingSubject(true);
+        setRemoveSubjectError('');
+        try {
+            const result = await dispatch(removeSubjectFromClass({
+                classId: id,
+                subjectId: removeSubjectTarget.id
+            }));
+            if (removeSubjectFromClass.fulfilled.match(result)) {
+                toast.success(t('classes:detail.toast.subjectRemoved'));
+                setRemoveSubjectTarget(null);
+                dispatch(fetchClass(id));
+            } else {
+                setRemoveSubjectError(t('classes:detail.toast.subjectRemoveFailed'));
+            }
+        } finally {
+            setRemovingSubject(false);
         }
     };
 
-    // Enroll students handlers
-    const enrolledStudentIds = new Set(students.map((s) => s._id));
-
-    const handleEnrollSearch = useCallback(async (searchTerm) => {
-        if (!searchTerm || searchTerm.length < 2) {
-            setEnrollSearchResults([]);
-            return;
-        }
-        setEnrollSearching(true);
-        try {
-            const response = await api.get('/students', { params: { search: searchTerm, limit: 20, status: 'active' } });
-            const results = response.data?.data?.students || [];
-            setEnrollSearchResults(results.filter((s) => !enrolledStudentIds.has(s._id)));
-        } catch {
-            setEnrollSearchResults([]);
-        } finally {
-            setEnrollSearching(false);
-        }
-    }, [enrolledStudentIds]);
-
-    useEffect(() => {
-        if (!showEnrollModal) return;
-        const timer = setTimeout(() => handleEnrollSearch(enrollSearch), 300);
-        return () => clearTimeout(timer);
-    }, [enrollSearch, showEnrollModal, handleEnrollSearch]);
-
     const toggleStudentSelection = (studentId) => {
-        setSelectedStudentIds((prev) =>
-            prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
-        );
+        setSelectedStudentIds((previous) => (
+            previous.includes(studentId)
+                ? previous.filter((value) => value !== studentId)
+                : [...previous, studentId]
+        ));
     };
 
     const handleEnrollSubmit = async () => {
-        if (selectedStudentIds.length === 0) return;
+        if (selectedStudentIds.length === 0 || enrolling) return;
+        const requested = selectedStudentIds.length;
         setEnrolling(true);
         try {
             const result = await dispatch(enrollStudentsInClass({ classId: id, studentIds: selectedStudentIds }));
             if (enrollStudentsInClass.fulfilled.match(result)) {
-                toast.success(`${selectedStudentIds.length} student(s) enrolled`);
-                setShowEnrollModal(false);
-                setSelectedStudentIds([]);
-                setEnrollSearch('');
-                setEnrollSearchResults([]);
+                const serverModified = result.payload?.response?.data?.modifiedCount;
+                const summary = summarizeEnrollResult({
+                    requested,
+                    modified: Number.isFinite(serverModified) ? serverModified : requested
+                });
+                if (summary.isNone) {
+                    toast.error(t('classes:detail.toast.enrollNone'));
+                } else if (summary.isPartial) {
+                    toast.success(t('classes:detail.toast.enrolledPartial', {
+                        modified: summary.modified,
+                        total: summary.requested
+                    }));
+                } else {
+                    toast.success(t('classes:detail.toast.enrolled', { total: summary.modified }));
+                }
+                closeEnrollModal();
                 dispatch(fetchClass(id));
             } else {
-                toast.error(result.payload || 'Failed to enroll students');
+                toast.error(t('classes:detail.toast.enrollFailed'));
             }
         } finally {
             setEnrolling(false);
         }
     };
 
-    const handleUnenroll = async (studentId, studentName) => {
-        if (!window.confirm(`Remove ${studentName} from this class?`)) return;
-        const result = await dispatch(unenrollStudentFromClass({ classId: id, studentId }));
-        if (unenrollStudentFromClass.fulfilled.match(result)) {
-            toast.success('Student removed from class');
-        } else {
-            toast.error(result.payload || 'Failed to remove student');
+    const requestUnenroll = (student) => {
+        if (!canEditClass) return;
+        setUnenrollError('');
+        setUnenrollTarget({ id: student._id, name: studentName(student) });
+    };
+
+    const confirmUnenroll = async () => {
+        if (!unenrollTarget || unenrolling) return;
+        setUnenrolling(true);
+        setUnenrollError('');
+        try {
+            const result = await dispatch(unenrollStudentFromClass({
+                classId: id,
+                studentId: unenrollTarget.id
+            }));
+            if (unenrollStudentFromClass.fulfilled.match(result)) {
+                toast.success(t('classes:detail.toast.unenrolled'));
+                setUnenrollTarget(null);
+                dispatch(fetchClass(id));
+            } else {
+                setUnenrollError(t('classes:detail.toast.unenrollFailed'));
+            }
+        } finally {
+            setUnenrolling(false);
         }
     };
 
@@ -341,428 +504,726 @@ const ClassDetailPage = () => {
                 resetStudentForm();
                 dispatch(fetchClass(id));
             } else {
-                toast.error(result.payload || t('students:toast.updateFailed'));
+                toast.error(t('students:toast.updateFailed'));
             }
         } finally {
             setSavingStudent(false);
         }
     };
 
-    if (loading) {
-        return (
-            <div className="loading-container">
-                <div className="spinner"></div>
-            </div>
-        );
-    }
-
-    if (!currentClass) {
-        return (
-            <div className="not-found">
-                <h2>Class not found</h2>
-                <Link to="/portal/classes" className="btn btn-secondary">Back to Classes</Link>
-            </div>
-        );
-    }
+    const statusTitleKey = view.kind === 'notFound'
+        ? 'classes:detail.notFoundTitle'
+        : view.kind === 'forbidden'
+            ? 'classes:detail.forbiddenTitle'
+            : 'classes:detail.errorTitle';
+    const statusBodyKey = view.kind === 'notFound'
+        ? 'classes:detail.notFoundBody'
+        : view.kind === 'forbidden'
+            ? 'classes:detail.forbiddenBody'
+            : 'classes:detail.errorBody';
 
     return (
-        <div className="class-detail-page">
-            {/* Back Link */}
-            <Link to="/portal/classes" className="back-link">
-                <HiOutlineArrowLeft />
-                Back to Classes
-            </Link>
-
-            {/* Header */}
-            <div className="detail-header">
-                <div className="class-info">
-                    <div className="class-grade-lg">{currentClass.grade}</div>
-                    <div>
-                        <h1>{currentClass.name}</h1>
-                        <p className="text-muted">{currentClass.academicYear} • {currentClass.department?.name ? `${currentClass.department.name} • ` : ''}{currentClass.room || 'No room assigned'}</p>
-                    </div>
-                </div>
-                <div className="header-actions">
-                    {canEditClass && (
-                        <button type="button" className="btn btn-secondary" onClick={openEditModal}>
-                            <HiOutlinePencil />
-                            Edit Class
-                        </button>
-                    )}
-                    <Link to={`/portal/grades/weekly/class/${id}`} className="btn btn-secondary">
-                        <HiOutlineDocumentText />
-                        Weekly Report
-                    </Link>
-                    <Link to={`/portal/classes/${id}/gradebook`} className="btn btn-secondary">
-                        <HiOutlineBookOpen />
-                        Gradebook
-                    </Link>
-                    <Link to={`/portal/grades/entry?class=${id}`} className="btn btn-primary">
-                        <HiOutlineClipboardList />
-                        Enter Grades
-                    </Link>
-                </div>
-            </div>
-
-            {/* Stats */}
-            <div className="class-stats">
-                <div className="stat-item">
-                    <HiOutlineUserGroup size={24} />
-                    <div>
-                        <span className="stat-value">{students.length}</span>
-                        <span className="stat-label">Students</span>
-                    </div>
-                </div>
-                <div className="stat-item">
-                    <HiOutlineBookOpen size={24} />
-                    <div>
-                        <span className="stat-value">{currentClass.subjects?.length || 0}</span>
-                        <span className="stat-label">Subjects</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Content Grid */}
-            <div className="detail-grid">
-                {/* Students List */}
-                <div className="card">
-                    <div className="card-header">
-                        <h3 className="card-title">Students</h3>
-                        <div className="card-header-actions">
-                            <span className="badge badge-primary">{students.length} enrolled</span>
-                            {canEditClass && (
-                                <button className="btn btn-sm btn-primary" onClick={() => setShowEnrollModal(true)}>
-                                    <HiOutlinePlus /> Enroll Students
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    <div className="students-table">
-                        {students.length > 0 ? (
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Student</th>
-                                        <th>ID</th>
-                                        <th>Gender</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {students.map(student => (
-                                        <tr key={student._id}>
-                                            <td>
-                                                <div className="student-cell">
-                                                    <div className="avatar-sm">
-                                                        {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
-                                                    </div>
-                                                    <span>{student.firstName} {student.lastName}</span>
-                                                </div>
-                                            </td>
-                                            <td className="text-muted">{student.studentId}</td>
-                                            <td className="text-muted text-capitalize">{student.gender}</td>
-                                            <td>
-                                                <Link to={`/portal/grades/student/${student._id}`} className="btn btn-ghost btn-sm">
-                                                    Gradebook
-                                                </Link>
-                                                <Link to={`/portal/grades/report/${student._id}`} className="btn btn-ghost btn-sm">
-                                                    View Report
-                                                </Link>
-                                                <Link to={`/portal/students/${student._id}`} className="btn btn-ghost btn-sm">
-                                                    Details
-                                                </Link>
-                                                {isAdmin && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-ghost btn-sm"
-                                                        onClick={() => openEditStudent(student)}
-                                                        title={t('students:actions.editStudent')}
-                                                    >
-                                                        <HiOutlinePencil size={16} />
-                                                        {t('students:actions.editStudent')}
-                                                    </button>
-                                                )}
-                                                {canEditClass && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-ghost btn-sm text-danger"
-                                                        onClick={() => handleUnenroll(student._id, `${student.firstName} ${student.lastName}`)}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        ) : (
-                            <p className="empty-message">No students enrolled in this class yet.</p>
-                        )}
-                    </div>
-                </div>
-
-                {/* Subjects */}
-                <div className="card">
-                    <div className="card-header">
-                        <h3 className="card-title">Subjects & Teachers</h3>
-                        {isAdmin && (
-                            <button className="btn btn-sm btn-primary" onClick={() => setShowSubjectModal(true)}>
-                                <HiOutlinePlus /> Add Subject
-                            </button>
-                        )}
-                    </div>
-                    <div className="subjects-list">
-                        {currentClass.subjects?.length > 0 ? (
-                            currentClass.subjects.map((item, index) => {
-                                const removableSubjectId = item.subject?._id || item.subject || item._id;
-                                const homeroom = isHomeroomSubject(item.subject);
-
-                                return (
-                                    <div key={item._id || item.subject?._id || index} className="subject-item">
-                                        <div className="subject-info">
-                                            <span className="subject-name">{item.subject?.name || 'Unknown'}</span>
-                                            <span className="subject-code">{item.subject?.code}</span>
-                                        </div>
-                                        <div className="teacher-info">
-                                            <span className="teacher-name">
-                                                {item.teacher?.user?.firstName || item.teacher?.user?.lastName
-                                                    ? `${item.teacher?.user?.firstName || ''} ${item.teacher?.user?.lastName || ''}`.trim()
-                                                    : 'Unassigned'}
-                                            </span>
-                                            {homeroom && (
-                                                <span className="homeroom-badge" title="This assignment controls PLP homeroom access">Homeroom (PLP)</span>
-                                            )}
-                                            {isAdmin && removableSubjectId && (
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-sm btn-danger"
-                                                    onClick={() => handleRemoveSubject(removableSubjectId)}
-                                                >
-                                                    Remove
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <p className="empty-message">No subjects assigned to this class.</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Analytics & Insights */}
-            <div className="card analytics-card">
-                <div className="card-header">
-                    <h3 className="card-title">
-                        <HiOutlineChartBar /> Analytics & AI Insights
-                    </h3>
-                    {!showAnalytics ? (
-                        <button type="button" className="btn btn-secondary" onClick={handleLoadAnalytics} disabled={analyticsLoading}>
-                            {analyticsLoading ? 'Loading...' : 'Load analytics'}
-                        </button>
-                    ) : (
-                        <div className="insights-action-group">
-                            <select
-                                value={insightsPrimaryLanguage}
-                                onChange={(event) => {
-                                    const nextPrimary = event.target.value;
-                                    setInsightsPrimaryLanguage(nextPrimary);
-                                    if (nextPrimary === insightsSecondaryLanguage) {
-                                        setInsightsSecondaryLanguage('');
-                                    }
-                                }}
-                                disabled={insightsLoading}
-                            >
-                                {AI_LANGUAGE_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                            <select
-                                value={insightsSecondaryLanguage}
-                                onChange={(event) => setInsightsSecondaryLanguage(event.target.value)}
-                                disabled={insightsLoading}
-                            >
-                                <option value="">None</option>
-                                {AI_LANGUAGE_OPTIONS
-                                    .filter((option) => option.value !== insightsPrimaryLanguage)
-                                    .map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                            </select>
-                            <button type="button" className="btn btn-primary" onClick={handleGenerateInsights} disabled={insightsLoading}>
-                                <HiOutlineLightBulb /> {insightsLoading ? 'Generating...' : 'Generate AI insights'}
-                            </button>
-                        </div>
-                    )}
-                </div>
-                {showAnalytics && (
-                    <div className="analytics-content">
-                        {analyticsLoading && !analytics && <p className="text-muted">Loading analytics...</p>}
-                        {analytics && !analyticsLoading && (
-                            <>
-                                <div className="analytics-summary">
-                                    {analytics.gradeStatsBySubject?.length > 0 && (
-                                        <div className="analytics-block">
-                                            <h4>Class average by subject</h4>
-                                            <ul className="analytics-list">
-                                                {analytics.gradeStatsBySubject.map((s) => (
-                                                    <li key={s.subjectId}>
-                                                        <span className="subject-name">{s.subjectName}</span>
-                                                        <span className="stat">{s.classAverage}%</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                    {analytics.attendanceSummary && (
-                                        <div className="analytics-block">
-                                            <h4>Attendance</h4>
-                                            <p>
-                                                {analytics.attendanceSummary.averageRate}% present
-                                                {analytics.attendanceSummary.totalSessions != null && (
-                                                    <span className="text-muted"> ({analytics.attendanceSummary.totalSessions} sessions)</span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    )}
-                                    {analytics.studentsToSupport?.length > 0 && (
-                                        <div className="analytics-block">
-                                            <h4>Students to support ({analytics.atRiskCount})</h4>
-                                            <ul className="analytics-list">
-                                                {analytics.studentsToSupport.map((s) => (
-                                                    <li key={s._id}>
-                                                        <Link to={`/portal/students/${s._id}`}>{s.firstName} {s.lastName}</Link>
-                                                        {(s.averagePercentage != null || s.attendanceRate != null) && (
-                                                            <span className="text-muted">
-                                                                {s.averagePercentage != null && ` avg ${s.averagePercentage}%`}
-                                                                {s.attendanceRate != null && ` attendance ${s.attendanceRate}%`}
-                                                            </span>
-                                                        )}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                                {(insightsData?.insights || insightsData?.data?.insights) && (
-                                    <div className="insights-block">
-                                        <h4><HiOutlineLightBulb /> AI insights</h4>
-                                        <div className="insights-text">
-                                            {((insightsData?.insights ?? insightsData?.data?.insights) || '')
-                                                .split(/\n+/)
-                                                .filter(Boolean)
-                                                .map((line, i) => (
-                                                    <p key={i}>{line.replace(/^[-•]\s*/, '')}</p>
-                                                ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
+        <div className="class-detail-page" aria-busy={view.refreshing || undefined}>
+            <div className="cd-topline">
+                <Link to="/portal/classes" className="cd-back-link">
+                    <HiOutlineArrowLeft aria-hidden="true" />
+                    <span>{t('classes:detail.back')}</span>
+                </Link>
+                {view.refreshing && (
+                    <span className="cd-refreshing" role="status">{t('classes:detail.refreshing')}</span>
                 )}
             </div>
 
-            {/* Edit Class Modal */}
+            {view.kind === 'loading' && (
+                <div className="cd-skeleton" aria-live="polite">
+                    <span className="gp-sr-only">{t('classes:detail.loading')}</span>
+                    <div className="cd-skeleton-head">
+                        <div className="gp-skeleton" style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)' }} />
+                        <div className="gp-skeleton-lines">
+                            <div className="gp-skeleton" style={{ width: '42%', height: 20 }} />
+                            <div className="gp-skeleton" style={{ width: '28%', height: 12 }} />
+                        </div>
+                    </div>
+                    <div className="gp-surface">
+                        {[0, 1, 2, 3, 4].map((row) => (
+                            <div className="gp-skeleton-row" key={row}>
+                                <div className="gp-skeleton" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                                <div className="gp-skeleton-lines">
+                                    <div className="gp-skeleton" style={{ width: '38%', height: 12 }} />
+                                    <div className="gp-skeleton" style={{ width: '60%', height: 10 }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {(view.kind === 'notFound' || view.kind === 'forbidden' || view.kind === 'error') && (
+                <div className="gp-surface">
+                    <div className="gp-empty" role={view.kind === 'error' ? 'alert' : undefined}>
+                        <span className="gp-empty-icon">
+                            <HiOutlineExclamationCircle size={26} />
+                        </span>
+                        <h2>{t(statusTitleKey)}</h2>
+                        <p>{t(statusBodyKey)}</p>
+                        <div className="cd-status-actions">
+                            {view.kind === 'error' && (
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => dispatch(fetchClass(id))}
+                                >
+                                    {t('common:actions.retry')}
+                                </button>
+                            )}
+                            <Link to="/portal/classes" className="btn btn-secondary btn-sm">
+                                {t('classes:detail.back')}
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {view.kind === 'ready' && currentClass && (
+                <>
+                    <header className="cd-identity gp-surface">
+                        <div className="cd-identity-main">
+                            <div className="cd-grade">{currentClass.grade}</div>
+                            <div className="cd-identity-text">
+                                <h1 className="cd-title">{currentClass.name}</h1>
+                                <div className="cd-meta">
+                                    <span className="cd-meta-chip">
+                                        {t('classes:detail.meta.academicYear', { year: currentClass.academicYear })}
+                                    </span>
+                                    {currentClass.section && (
+                                        <span className="cd-meta-chip">
+                                            {t('classes:detail.meta.section', { section: currentClass.section })}
+                                        </span>
+                                    )}
+                                    {currentClass.department?.name && (
+                                        <span className="cd-meta-chip">{currentClass.department.name}</span>
+                                    )}
+                                    <span className="cd-meta-chip">
+                                        {currentClass.room || t('classes:detail.meta.noRoom')}
+                                    </span>
+                                    {currentClass.isActive === false && (
+                                        <span className="cd-meta-chip is-inactive">{t('classes:status.inactive')}</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="cd-identity-side">
+                            <div className="cd-counts">
+                                <span className="gp-count-pill">
+                                    <HiOutlineUserGroup size={14} aria-hidden="true" />
+                                    {t('classes:detail.meta.studentsCount', { total: students.length })}
+                                </span>
+                                <span className="gp-count-pill">
+                                    <HiOutlineBookOpen size={14} aria-hidden="true" />
+                                    {t('classes:detail.meta.subjectsCount', { total: currentClass.subjects?.length || 0 })}
+                                </span>
+                                {currentClass.capacity > 0 && (
+                                    <span className="cd-capacity">
+                                        <bdi dir="ltr">{students.length} / {currentClass.capacity}</bdi>
+                                        <span>{t('classes:detail.meta.capacityLabel')}</span>
+                                    </span>
+                                )}
+                            </div>
+                            <div className="cd-actions">
+                                <Link to={`/portal/grades/entry?class=${id}`} className="btn btn-primary">
+                                    <HiOutlineClipboardList aria-hidden="true" />
+                                    {t('classes:detail.actions.enterGrades')}
+                                </Link>
+                                <Link to={`/portal/classes/${id}/gradebook`} className="btn btn-secondary">
+                                    <HiOutlineBookOpen aria-hidden="true" />
+                                    {t('classes:detail.actions.gradebook')}
+                                </Link>
+                                <Link to={`/portal/grades/weekly/class/${id}`} className="btn btn-secondary">
+                                    <HiOutlineDocumentText aria-hidden="true" />
+                                    {t('classes:detail.actions.weeklyReport')}
+                                </Link>
+                                {canEditClass && (
+                                    <button type="button" className="btn btn-secondary" onClick={openEditModal}>
+                                        <HiOutlinePencil aria-hidden="true" />
+                                        {t('classes:detail.actions.editClass')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    {view.error && (
+                        <div className="gp-error" role="alert">
+                            <p>{t('classes:detail.refreshFailed')}</p>
+                            <div className="gp-error-actions">
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => dispatch(fetchClass(id))}
+                                >
+                                    {t('common:actions.retry')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <section className="cd-roster gp-surface" aria-labelledby="cd-roster-title">
+                        <div className="cd-section-head">
+                            <h2 id="cd-roster-title" className="cd-section-title">
+                                {t('classes:detail.roster.title')}
+                            </h2>
+                            <div className="cd-section-actions">
+                                <span className="gp-count-pill">
+                                    {t('classes:detail.roster.count', { total: students.length })}
+                                </span>
+                                {canEditClass && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-primary"
+                                        onClick={() => setShowEnrollModal(true)}
+                                    >
+                                        <HiOutlinePlus aria-hidden="true" />
+                                        {t('classes:detail.actions.enrollStudents')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {students.length === 0 ? (
+                            <div className="gp-empty">
+                                <span className="gp-empty-icon">
+                                    <HiOutlineUserGroup size={26} />
+                                </span>
+                                <h3>{t('classes:detail.roster.emptyTitle')}</h3>
+                                <p>{t('classes:detail.roster.emptyBody')}</p>
+                                {canEditClass && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setShowEnrollModal(true)}
+                                    >
+                                        {t('classes:detail.actions.enrollStudents')}
+                                    </button>
+                                )}
+                            </div>
+                        ) : isCompact ? (
+                            <div className="cd-student-list">
+                                {students.map((student) => (
+                                    <article className="cd-student-card" key={student._id}>
+                                        <div className="cd-student-head">
+                                            <div className="avatar-sm" aria-hidden="true">{studentInitials(student)}</div>
+                                            <div className="cd-student-identity">
+                                                <Link to={`/portal/students/${student._id}`} className="cd-student-link">
+                                                    {studentName(student)}
+                                                </Link>
+                                                <span className="cd-student-id">{student.studentId}</span>
+                                                <span className="cd-student-gender">
+                                                    {t(`students:genders.${student.gender || 'other'}`)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="cd-student-actions">
+                                            <Link to={`/portal/grades/student/${student._id}`} className="btn btn-sm btn-secondary">
+                                                {t('classes:detail.studentActions.gradebook')}
+                                            </Link>
+                                            <Link to={`/portal/grades/report/${student._id}`} className="btn btn-sm btn-secondary">
+                                                {t('classes:detail.studentActions.report')}
+                                            </Link>
+                                            <Link to={`/portal/students/${student._id}`} className="btn btn-sm btn-secondary">
+                                                {t('classes:detail.studentActions.details')}
+                                            </Link>
+                                            {isAdmin && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-secondary"
+                                                    onClick={() => openEditStudent(student)}
+                                                >
+                                                    <HiOutlinePencil size={16} aria-hidden="true" />
+                                                    {t('classes:detail.studentActions.edit')}
+                                                </button>
+                                            )}
+                                            {canEditClass && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm cd-quiet-danger"
+                                                    onClick={() => requestUnenroll(student)}
+                                                    aria-label={t('classes:detail.roster.unenrollAria', { name: studentName(student) })}
+                                                >
+                                                    {t('classes:detail.studentActions.remove')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="cd-roster-scroll">
+                                <table className="cd-roster-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t('classes:detail.roster.columns.student')}</th>
+                                            <th>{t('classes:detail.roster.columns.id')}</th>
+                                            <th>{t('classes:detail.roster.columns.gender')}</th>
+                                            <th className="cd-roster-actions-head">{t('classes:detail.roster.columns.actions')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {students.map((student) => (
+                                            <tr key={student._id}>
+                                                <td>
+                                                    <div className="cd-student-cell">
+                                                        <div className="avatar-sm" aria-hidden="true">{studentInitials(student)}</div>
+                                                        <Link to={`/portal/students/${student._id}`} className="cd-student-link">
+                                                            {studentName(student)}
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                                <td className="cd-muted cd-student-id">{student.studentId}</td>
+                                                <td className="cd-muted">
+                                                    {t(`students:genders.${student.gender || 'other'}`)}
+                                                </td>
+                                                <td>
+                                                    <div className="cd-row-actions">
+                                                        <Link to={`/portal/grades/student/${student._id}`} className="cd-row-action">
+                                                            {t('classes:detail.studentActions.gradebook')}
+                                                        </Link>
+                                                        <Link to={`/portal/grades/report/${student._id}`} className="cd-row-action">
+                                                            {t('classes:detail.studentActions.report')}
+                                                        </Link>
+                                                        <Link to={`/portal/students/${student._id}`} className="cd-row-action">
+                                                            {t('classes:detail.studentActions.details')}
+                                                        </Link>
+                                                        {isAdmin && (
+                                                            <button
+                                                                type="button"
+                                                                className="cd-row-action"
+                                                                onClick={() => openEditStudent(student)}
+                                                            >
+                                                                {t('classes:detail.studentActions.edit')}
+                                                            </button>
+                                                        )}
+                                                        {canEditClass && (
+                                                            <>
+                                                                <span className="cd-row-divider" aria-hidden="true" />
+                                                                <button
+                                                                    type="button"
+                                                                    className="cd-row-action cd-quiet-danger"
+                                                                    onClick={() => requestUnenroll(student)}
+                                                                    aria-label={t('classes:detail.roster.unenrollAria', { name: studentName(student) })}
+                                                                >
+                                                                    {t('classes:detail.studentActions.remove')}
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </section>
+
+                    <div className="cd-lower-grid">
+                        <section className="cd-subjects gp-surface" aria-labelledby="cd-subjects-title">
+                            <div className="cd-section-head">
+                                <h2 id="cd-subjects-title" className="cd-section-title">
+                                    {t('classes:detail.subjects.title')}
+                                </h2>
+                                {isAdmin && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-secondary"
+                                        onClick={() => setShowSubjectModal(true)}
+                                    >
+                                        <HiOutlinePlus aria-hidden="true" />
+                                        {t('classes:detail.subjects.add')}
+                                    </button>
+                                )}
+                            </div>
+                            {currentClass.subjects?.length > 0 ? (
+                                <ul className="cd-subject-list">
+                                    {currentClass.subjects.map((item, index) => {
+                                        const removableSubjectId = item.subject?._id || item.subject || item._id;
+                                        const homeroom = isHomeroomSubject(item.subject);
+                                        return (
+                                            <li className="cd-subject-row" key={item._id || item.subject?._id || index}>
+                                                <div className="cd-subject-main">
+                                                    <span className="cd-subject-name">
+                                                        {item.subject?.name || t('classes:detail.subjects.unknown')}
+                                                    </span>
+                                                    {item.subject?.code && (
+                                                        <span className="cd-subject-code">{item.subject.code}</span>
+                                                    )}
+                                                </div>
+                                                <div className="cd-subject-meta">
+                                                    <span className="cd-subject-teacher">
+                                                        <HiOutlineUser size={14} aria-hidden="true" />
+                                                        <span className="gp-sr-only">
+                                                            {t('classes:detail.subjects.teacherAria')}
+                                                        </span>
+                                                        {formatTeacherName(item.teacher)
+                                                            || t('classes:detail.subjects.unassigned')}
+                                                    </span>
+                                                    {homeroom && (
+                                                        <span className="cd-homeroom" title={t('classes:detail.subjects.homeroomHint')}>
+                                                            {t('classes:detail.subjects.homeroom')}
+                                                        </span>
+                                                    )}
+                                                    {isAdmin && removableSubjectId && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm cd-quiet-danger"
+                                                            onClick={() => requestRemoveSubject(item, removableSubjectId)}
+                                                        >
+                                                            {t('classes:detail.subjects.remove')}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            ) : (
+                                <p className="cd-muted cd-empty-inline">{t('classes:detail.subjects.empty')}</p>
+                            )}
+                        </section>
+
+                        <section className="cd-analytics gp-surface" aria-labelledby="cd-analytics-title">
+                            <div className="cd-section-head">
+                                <h2 id="cd-analytics-title" className="cd-section-title">
+                                    <HiOutlineChartBar aria-hidden="true" />
+                                    {t('classes:detail.analytics.title')}
+                                </h2>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={handleLoadAnalytics}
+                                    disabled={analyticsLoading}
+                                >
+                                    {analyticsLoading
+                                        ? t('classes:detail.analytics.loading')
+                                        : showAnalytics
+                                            ? t('classes:detail.actions.refreshAnalytics')
+                                            : t('classes:detail.actions.loadAnalytics')}
+                                </button>
+                            </div>
+
+                            {showAnalytics && (
+                                <div className="cd-analytics-content">
+                                    {analyticsError && (
+                                        <div className="cd-inline-error" role="alert">
+                                            <span>{analyticsError}</span>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-secondary"
+                                                onClick={handleLoadAnalytics}
+                                            >
+                                                {t('common:actions.retry')}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {analyticsLoading && !analytics && (
+                                        <div className="cd-analytics-skeleton" aria-busy="true">
+                                            <span className="gp-sr-only">{t('classes:detail.analytics.loading')}</span>
+                                            {[0, 1, 2].map((row) => (
+                                                <div className="gp-skeleton" key={row} style={{ height: 14 }} />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {analytics && !hasAnalyticsData && (
+                                        <p className="cd-muted">{t('classes:detail.analytics.noData')}</p>
+                                    )}
+
+                                    {analytics && hasAnalyticsData && (
+                                        <div className="cd-analytics-summary">
+                                            {analytics.gradeStatsBySubject?.length > 0 && (
+                                                <div className="cd-analytics-block">
+                                                    <h3>{t('classes:detail.analytics.bySubject')}</h3>
+                                                    <ul className="cd-analytics-list">
+                                                        {analytics.gradeStatsBySubject.map((row) => (
+                                                            <li key={row.subjectId}>
+                                                                <span>{row.subjectName}</span>
+                                                                <span className="cd-analytics-stat">
+                                                                    <bdi dir="ltr">{row.classAverage}%</bdi>
+                                                                </span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {analytics.attendanceSummary && (
+                                                <div className="cd-analytics-block">
+                                                    <h3>{t('classes:detail.analytics.attendance')}</h3>
+                                                    <p>
+                                                        {t('classes:detail.analytics.present', {
+                                                            rate: analytics.attendanceSummary.averageRate
+                                                        })}
+                                                        {analytics.attendanceSummary.totalSessions != null && (
+                                                            <span className="cd-muted">
+                                                                {' '}
+                                                                {t('classes:detail.analytics.sessions', {
+                                                                    total: analytics.attendanceSummary.totalSessions
+                                                                })}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {analytics.studentsToSupport?.length > 0 && (
+                                                <div className="cd-analytics-block">
+                                                    <h3>
+                                                        {t('classes:detail.analytics.support', {
+                                                            total: analytics.atRiskCount ?? analytics.studentsToSupport.length
+                                                        })}
+                                                    </h3>
+                                                    <ul className="cd-analytics-list">
+                                                        {analytics.studentsToSupport.map((student) => (
+                                                            <li key={student._id}>
+                                                                <Link to={`/portal/students/${student._id}`}>
+                                                                    {student.firstName} {student.lastName}
+                                                                </Link>
+                                                                {(student.averagePercentage != null || student.attendanceRate != null) && (
+                                                                    <span className="cd-muted">
+                                                                        {student.averagePercentage != null && (
+                                                                            <bdi dir="ltr">
+                                                                                {t('classes:detail.analytics.supportAvg', { value: student.averagePercentage })}
+                                                                            </bdi>
+                                                                        )}
+                                                                        {student.attendanceRate != null && (
+                                                                            <bdi dir="ltr">
+                                                                                {t('classes:detail.analytics.supportAttendance', { value: student.attendanceRate })}
+                                                                            </bdi>
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="cd-insights-controls">
+                                        <label className="cd-field">
+                                            <span>{t('classes:detail.analytics.primaryLanguage')}</span>
+                                            <select
+                                                value={insightsPrimaryLanguage}
+                                                onChange={(event) => {
+                                                    const nextPrimary = event.target.value;
+                                                    setInsightsPrimaryLanguage(nextPrimary);
+                                                    if (nextPrimary === insightsSecondaryLanguage) {
+                                                        setInsightsSecondaryLanguage('');
+                                                    }
+                                                }}
+                                                disabled={insightsLoading}
+                                                aria-label={t('classes:detail.analytics.primaryLanguage')}
+                                            >
+                                                {AI_LANGUAGE_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label className="cd-field">
+                                            <span>{t('classes:detail.analytics.secondaryLanguage')}</span>
+                                            <select
+                                                value={insightsSecondaryLanguage}
+                                                onChange={(event) => setInsightsSecondaryLanguage(event.target.value)}
+                                                disabled={insightsLoading}
+                                                aria-label={t('classes:detail.analytics.secondaryLanguage')}
+                                            >
+                                                <option value="">{t('classes:detail.analytics.noSecondary')}</option>
+                                                {AI_LANGUAGE_OPTIONS
+                                                    .filter((option) => option.value !== insightsPrimaryLanguage)
+                                                    .map((option) => (
+                                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                                    ))}
+                                            </select>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary btn-sm"
+                                            onClick={handleGenerateInsights}
+                                            disabled={insightsLoading}
+                                        >
+                                            <HiOutlineLightBulb aria-hidden="true" />
+                                            {insightsLoading
+                                                ? t('classes:detail.actions.generating')
+                                                : t('classes:detail.actions.generateInsights')}
+                                        </button>
+                                    </div>
+
+                                    {insightsError && (
+                                        <div className="cd-inline-error" role="alert">
+                                            <span>{insightsError}</span>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-secondary"
+                                                onClick={handleGenerateInsights}
+                                                disabled={insightsLoading}
+                                            >
+                                                {t('common:actions.retry')}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {insightsText && (
+                                        <div className="cd-insights-block">
+                                            <h3>{t('classes:detail.analytics.insights')}</h3>
+                                            <div className="cd-insights-text">
+                                                {insightsText
+                                                    .split(/\n+/)
+                                                    .filter(Boolean)
+                                                    .map((line, index) => (
+                                                        <p key={index}>{line.replace(/^[-•]\s*/, '')}</p>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                </>
+            )}
+
             {showEditModal && (
-                <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Edit Class</h3>
-                            <button className="modal-close" onClick={() => setShowEditModal(false)}>&times;</button>
+                <div
+                    className="gp-overlay"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !submitting) closeEditModal();
+                    }}
+                >
+                    <div
+                        ref={editDialogRef}
+                        className="gp-dialog cd-dialog-lg"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cd-edit-title"
+                        aria-busy={submitting || undefined}
+                        tabIndex={-1}
+                    >
+                        <div className="gp-dialog-head">
+                            <h2 id="cd-edit-title" className="gp-dialog-title">
+                                {t('classes:detail.editDialog.title')}
+                            </h2>
+                            <button
+                                type="button"
+                                className="gp-dialog-close"
+                                onClick={closeEditModal}
+                                disabled={submitting}
+                                aria-label={t('common:actions.close')}
+                            >
+                                ×
+                            </button>
                         </div>
                         <form onSubmit={handleUpdateClass}>
-                            <div className="modal-body">
+                            <div className="gp-dialog-body">
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Grade Level *</label>
+                                        <label htmlFor="cd-edit-grade">{t('classes:form.gradeLevel')}</label>
                                         <select
+                                            id="cd-edit-grade"
                                             value={editFormData.grade}
-                                            onChange={(e) => setEditFormData({ ...editFormData, grade: e.target.value })}
+                                            onChange={(event) => setEditFormData({ ...editFormData, grade: event.target.value })}
                                             required
                                         >
-                                            <option value="">Select Grade</option>
-                                            {[...Array(12)].map((_, i) => (
-                                                <option key={i + 1} value={i + 1}>Grade {i + 1}</option>
+                                            <option value="">{t('classes:form.selectGrade')}</option>
+                                            {[...Array(12)].map((_, index) => (
+                                                <option key={index + 1} value={index + 1}>
+                                                    {t('classes:form.gradeOption', { grade: index + 1 })}
+                                                </option>
                                             ))}
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Section</label>
+                                        <label htmlFor="cd-edit-section">{t('classes:form.section')}</label>
                                         <input
+                                            id="cd-edit-section"
                                             type="text"
-                                            placeholder="e.g., A, B, C"
+                                            placeholder={t('classes:form.sectionPlaceholder')}
                                             value={editFormData.section}
-                                            onChange={(e) => setEditFormData({ ...editFormData, section: e.target.value.toUpperCase() })}
+                                            onChange={(event) => setEditFormData({
+                                                ...editFormData,
+                                                section: event.target.value.toUpperCase()
+                                            })}
                                             maxLength={2}
                                         />
                                     </div>
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Academic Year *</label>
+                                        <label htmlFor="cd-edit-year">{t('classes:form.academicYear')}</label>
                                         <input
+                                            id="cd-edit-year"
                                             type="text"
-                                            placeholder="e.g., 2024-2025"
+                                            placeholder={t('classes:form.academicYearPlaceholder')}
                                             value={editFormData.academicYear}
-                                            onChange={(e) => setEditFormData({ ...editFormData, academicYear: e.target.value })}
+                                            onChange={(event) => setEditFormData({ ...editFormData, academicYear: event.target.value })}
                                             required
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label>Department</label>
+                                        <label htmlFor="cd-edit-department">{t('classes:form.department')}</label>
                                         <select
+                                            id="cd-edit-department"
                                             value={editFormData.department}
-                                            onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                                            onChange={(event) => setEditFormData({ ...editFormData, department: event.target.value })}
                                         >
-                                            <option value="">— No department —</option>
-                                            {departments.map((d) => (
-                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            <option value="">{t('classes:form.noDepartment')}</option>
+                                            {departments.map((department) => (
+                                                <option key={department._id} value={department._id}>{department.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Room</label>
+                                        <label htmlFor="cd-edit-room">{t('classes:form.room')}</label>
                                         <input
+                                            id="cd-edit-room"
                                             type="text"
-                                            placeholder="e.g., Room 101"
+                                            placeholder={t('classes:form.roomPlaceholder')}
                                             value={editFormData.room}
-                                            onChange={(e) => setEditFormData({ ...editFormData, room: e.target.value })}
+                                            onChange={(event) => setEditFormData({ ...editFormData, room: event.target.value })}
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label>Capacity</label>
+                                        <label htmlFor="cd-edit-capacity">{t('classes:form.capacity')}</label>
                                         <input
+                                            id="cd-edit-capacity"
                                             type="number"
                                             value={editFormData.capacity}
-                                            onChange={(e) => setEditFormData({ ...editFormData, capacity: parseInt(e.target.value, 10) || 40 })}
+                                            onChange={(event) => setEditFormData({
+                                                ...editFormData,
+                                                capacity: parseInt(event.target.value, 10) || 40
+                                            })}
                                             min={1}
                                             max={100}
                                         />
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label className="checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={editFormData.isActive}
-                                            onChange={(e) => setEditFormData({ ...editFormData, isActive: e.target.checked })}
-                                        />
-                                        Active
-                                    </label>
-                                </div>
+                                <label className="cd-checkbox">
+                                    <input
+                                        type="checkbox"
+                                        checked={editFormData.isActive}
+                                        onChange={(event) => setEditFormData({ ...editFormData, isActive: event.target.checked })}
+                                    />
+                                    <span>{t('classes:detail.editDialog.active')}</span>
+                                </label>
                             </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
-                                    Cancel
+                            <div className="gp-dialog-foot">
+                                <button type="button" className="btn btn-secondary" onClick={closeEditModal} disabled={submitting}>
+                                    {t('common:actions.cancel')}
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={submitting}>
-                                    {submitting ? 'Saving...' : 'Save Changes'}
+                                    {submitting
+                                        ? t('classes:detail.editDialog.saving')
+                                        : t('classes:detail.editDialog.save')}
                                 </button>
                             </div>
                         </form>
@@ -770,25 +1231,49 @@ const ClassDetailPage = () => {
                 </div>
             )}
 
-            {/* Add Subject Modal */}
             {showSubjectModal && (
-                <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Add Subject to Class</h3>
-                            <button className="modal-close" onClick={() => setShowSubjectModal(false)}>&times;</button>
+                <div
+                    className="gp-overlay"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !submitting) closeSubjectModal();
+                    }}
+                >
+                    <div
+                        ref={subjectDialogRef}
+                        className="gp-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cd-subject-title"
+                        aria-busy={submitting || undefined}
+                        tabIndex={-1}
+                    >
+                        <div className="gp-dialog-head">
+                            <h2 id="cd-subject-title" className="gp-dialog-title">
+                                {t('classes:detail.subjectDialog.title')}
+                            </h2>
+                            <button
+                                type="button"
+                                className="gp-dialog-close"
+                                onClick={closeSubjectModal}
+                                disabled={submitting}
+                                aria-label={t('common:actions.close')}
+                            >
+                                ×
+                            </button>
                         </div>
                         <form onSubmit={handleAddSubject}>
-                            <div className="modal-body">
+                            <div className="gp-dialog-body">
                                 <div className="form-group">
-                                    <label>Subject *</label>
+                                    <label htmlFor="cd-subject-select">{t('classes:detail.subjectDialog.subject')}</label>
                                     <select
+                                        id="cd-subject-select"
+                                        ref={subjectSelectRef}
                                         value={selectedSubject}
-                                        onChange={(e) => setSelectedSubject(e.target.value)}
+                                        onChange={(event) => setSelectedSubject(event.target.value)}
                                         required
                                     >
-                                        <option value="">Select Subject</option>
-                                        {subjectsList.map(subject => (
+                                        <option value="">{t('classes:detail.subjectDialog.selectSubject')}</option>
+                                        {subjectsList.map((subject) => (
                                             <option key={subject._id} value={subject._id}>
                                                 {subject.name} ({subject.code})
                                             </option>
@@ -796,27 +1281,30 @@ const ClassDetailPage = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label>Teacher *</label>
+                                    <label htmlFor="cd-teacher-select">{t('classes:detail.subjectDialog.teacher')}</label>
                                     <select
+                                        id="cd-teacher-select"
                                         value={selectedTeacher}
-                                        onChange={(e) => setSelectedTeacher(e.target.value)}
+                                        onChange={(event) => setSelectedTeacher(event.target.value)}
                                         required
                                     >
-                                        <option value="">Select Teacher</option>
-                                        {teachersList.map(teacher => (
+                                        <option value="">{t('classes:detail.subjectDialog.selectTeacher')}</option>
+                                        {teachersList.map((teacher) => (
                                             <option key={teacher._id} value={teacher._id}>
-                                                {teacher.user?.firstName} {teacher.user?.lastName}
+                                                {formatTeacherName(teacher)}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowSubjectModal(false)}>
-                                    Cancel
+                            <div className="gp-dialog-foot">
+                                <button type="button" className="btn btn-secondary" onClick={closeSubjectModal} disabled={submitting}>
+                                    {t('common:actions.cancel')}
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={submitting}>
-                                    {submitting ? 'Adding...' : 'Add Subject'}
+                                    {submitting
+                                        ? t('classes:detail.subjectDialog.adding')
+                                        : t('classes:detail.subjectDialog.add')}
                                 </button>
                             </div>
                         </form>
@@ -824,72 +1312,198 @@ const ClassDetailPage = () => {
                 </div>
             )}
 
-            {/* Enroll Existing Students Modal */}
             {showEnrollModal && (
-                <div className="modal-overlay" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>
-                    <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Enroll Existing Students</h3>
-                            <button className="modal-close" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>&times;</button>
+                <div
+                    className="gp-overlay"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !enrolling) closeEnrollModal();
+                    }}
+                >
+                    <div
+                        ref={enrollDialogRef}
+                        className="gp-dialog cd-dialog-lg"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cd-enroll-title"
+                        aria-busy={enrolling || undefined}
+                        tabIndex={-1}
+                    >
+                        <div className="gp-dialog-head">
+                            <h2 id="cd-enroll-title" className="gp-dialog-title">
+                                {t('classes:detail.enroll.title')}
+                            </h2>
+                            <button
+                                type="button"
+                                className="gp-dialog-close"
+                                onClick={closeEnrollModal}
+                                disabled={enrolling}
+                                aria-label={t('common:actions.close')}
+                            >
+                                ×
+                            </button>
                         </div>
-                        <div className="modal-body">
-                            <div className="form-group">
-                                <label>Search students by name or ID</label>
-                                <div className="search-input-wrapper">
-                                    <HiOutlineSearch className="search-icon" />
+                        <div className="gp-dialog-body">
+                            <div className="cd-enroll-search">
+                                <label htmlFor="cd-enroll-input">{t('classes:detail.enroll.searchLabel')}</label>
+                                <div className="gp-search">
+                                    <HiOutlineSearch className="gp-search-icon" aria-hidden="true" />
                                     <input
+                                        id="cd-enroll-input"
+                                        ref={enrollSearchRef}
                                         type="text"
-                                        placeholder="Type at least 2 characters..."
-                                        value={enrollSearch}
-                                        onChange={(e) => setEnrollSearch(e.target.value)}
-                                        autoFocus
+                                        value={enrollQuery}
+                                        onChange={(event) => setEnrollQuery(event.target.value)}
+                                        placeholder={t('classes:detail.enroll.searchPlaceholder')}
+                                        autoComplete="off"
                                     />
+                                    {enrollQuery && (
+                                        <button
+                                            type="button"
+                                            className="gp-search-clear"
+                                            onClick={() => setEnrollQuery('')}
+                                            aria-label={t('classes:detail.enroll.clearSearch')}
+                                        >
+                                            <HiOutlineX size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
                             {selectedStudentIds.length > 0 && (
-                                <div className="selected-students-bar">
-                                    <span>{selectedStudentIds.length} student(s) selected</span>
-                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedStudentIds([])}>
-                                        Clear
+                                <div className="cd-selected-bar">
+                                    <span>{t('classes:detail.enroll.selected', { total: selectedStudentIds.length })}</span>
+                                    <button
+                                        type="button"
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() => setSelectedStudentIds([])}
+                                    >
+                                        {t('classes:detail.enroll.clearSelection')}
                                     </button>
                                 </div>
                             )}
 
-                            <div className="enroll-search-results">
-                                {enrollSearching && <p className="text-muted">Searching...</p>}
-                                {!enrollSearching && enrollSearch.length >= 2 && enrollSearchResults.length === 0 && (
-                                    <p className="text-muted">No students found</p>
+                            <div className="cd-enroll-results" aria-live="polite">
+                                {enrollStatus === 'idle' && (
+                                    <p className="cd-enroll-hint">{t('classes:detail.enroll.minQuery')}</p>
                                 )}
-                                {enrollSearchResults.map((student) => (
-                                    <label key={student._id} className={`enroll-student-row ${selectedStudentIds.includes(student._id) ? 'selected' : ''}`}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedStudentIds.includes(student._id)}
-                                            onChange={() => toggleStudentSelection(student._id)}
-                                        />
-                                        <div className="avatar-sm">
-                                            {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
-                                        </div>
-                                        <div className="enroll-student-info">
-                                            <span className="enroll-student-name">{student.firstName} {student.lastName}</span>
-                                            <span className="enroll-student-meta">{student.studentId}{student.currentClass?.name ? ` • ${student.currentClass.name}` : ''}</span>
-                                        </div>
-                                    </label>
-                                ))}
+                                {enrollStatus === 'searching' && (
+                                    <p className="cd-enroll-hint">{t('classes:detail.enroll.searching')}</p>
+                                )}
+                                {enrollStatus === 'empty' && (
+                                    <p className="cd-enroll-hint">
+                                        {t('classes:detail.enroll.noResults', { query: enrollQuery.trim() })}
+                                    </p>
+                                )}
+                                {enrollStatus === 'all-enrolled' && (
+                                    <p className="cd-enroll-hint">
+                                        {t('classes:detail.enroll.allEnrolled', { query: enrollQuery.trim() })}
+                                    </p>
+                                )}
+                                {enrollStatus === 'error' && (
+                                    <div className="cd-inline-error" role="alert">
+                                        <span>{enrollError || t('classes:detail.enroll.searchFailed')}</span>
+                                        <button type="button" className="btn btn-sm btn-secondary" onClick={retryEnrollSearch}>
+                                            {t('common:actions.retry')}
+                                        </button>
+                                    </div>
+                                )}
+                                {enrollStatus === 'ready' && enrollResults.map((student) => {
+                                    const checked = selectedStudentIds.includes(student._id);
+                                    return (
+                                        <label
+                                            key={student._id}
+                                            className={`cd-enroll-row${checked ? ' is-selected' : ''}`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleStudentSelection(student._id)}
+                                            />
+                                            <span className="avatar-sm" aria-hidden="true">{studentInitials(student)}</span>
+                                            <span className="cd-enroll-info">
+                                                <span className="cd-enroll-name">{studentName(student)}</span>
+                                                <span className="cd-enroll-meta">
+                                                    {student.studentId}
+                                                    {student.currentClass?.name ? ` • ${student.currentClass.name}` : ''}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    );
+                                })}
                             </div>
+
+                            {selectedStudentIds.length === 0 && (
+                                <p className="cd-enroll-hint">{t('classes:detail.enroll.selectHint')}</p>
+                            )}
                         </div>
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>
-                                Cancel
+                        <div className="gp-dialog-foot">
+                            <button type="button" className="btn btn-secondary" onClick={closeEnrollModal} disabled={enrolling}>
+                                {t('common:actions.cancel')}
                             </button>
-                            <button type="button" className="btn btn-primary" disabled={enrolling || selectedStudentIds.length === 0} onClick={handleEnrollSubmit}>
-                                {enrolling ? 'Enrolling...' : `Enroll ${selectedStudentIds.length || ''} Student(s)`}
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleEnrollSubmit}
+                                disabled={enrolling || selectedStudentIds.length === 0}
+                            >
+                                {enrolling
+                                    ? t('classes:detail.enroll.enrolling')
+                                    : selectedStudentIds.length > 0
+                                        ? t('classes:detail.enroll.enroll', { total: selectedStudentIds.length })
+                                        : t('classes:detail.enroll.enrollAction')}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(removeSubjectTarget)}
+                title={t('classes:detail.confirm.removeSubjectTitle')}
+                message={removeSubjectTarget
+                    ? t('classes:detail.confirm.removeSubjectBody', { subject: removeSubjectTarget.name })
+                    : ''}
+                confirmLabel={t('classes:detail.confirm.remove')}
+                cancelLabel={t('common:actions.cancel')}
+                closeLabel={t('common:actions.close')}
+                tone="danger"
+                busy={removingSubject}
+                busyLabel={t('classes:detail.confirm.removing')}
+                onConfirm={confirmRemoveSubject}
+                onCancel={() => {
+                    if (removingSubject) return;
+                    setRemoveSubjectTarget(null);
+                    setRemoveSubjectError('');
+                }}
+            >
+                {removeSubjectError ? (
+                    <p className="cd-dialog-error" role="alert">{removeSubjectError}</p>
+                ) : null}
+            </ConfirmDialog>
+
+            <ConfirmDialog
+                open={Boolean(unenrollTarget)}
+                title={t('classes:detail.confirm.unenrollTitle')}
+                message={unenrollTarget
+                    ? t('classes:detail.confirm.unenrollBody', { name: unenrollTarget.name })
+                    : ''}
+                confirmLabel={t('classes:detail.confirm.remove')}
+                cancelLabel={t('common:actions.cancel')}
+                closeLabel={t('common:actions.close')}
+                tone="danger"
+                busy={unenrolling}
+                busyLabel={t('classes:detail.confirm.removing')}
+                onConfirm={confirmUnenroll}
+                onCancel={() => {
+                    if (unenrolling) return;
+                    setUnenrollTarget(null);
+                    setUnenrollError('');
+                }}
+            >
+                {unenrollError ? (
+                    <p className="cd-dialog-error" role="alert">{unenrollError}</p>
+                ) : null}
+            </ConfirmDialog>
 
             <StudentFormModal
                 showModal={showStudentEditModal}

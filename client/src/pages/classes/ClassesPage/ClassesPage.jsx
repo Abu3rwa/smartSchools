@@ -12,7 +12,12 @@ import classService from '../../../services/classService';
 import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
 import TablePagination from '../../../components/common/TablePagination';
+import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import useDebouncedValue from '../../../hooks/useDebouncedValue';
+import useFocusTrap from '../../../hooks/useFocusTrap';
+import { useMediaQuery } from '@mui/material';
+import ClassCardList from './components/ClassCardList';
+import '../../../styles/greenPages.css';
 import './ClassesPage.css';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -29,12 +34,19 @@ const ClassesPage = () => {
     const isAdmin = useSelector(selectIsAdmin);
     const canEditClass = useSelector(selectCanEditClass);
     const importInputRef = useRef(null);
+    const createDialogRef = useRef(null);
+    const gradeSelectRef = useRef(null);
+    const deleteDialogRef = useRef(null);
+    const deleteCancelRef = useRef(null);
+    const isCompact = useMediaQuery('(max-width: 899px)');
     const [templateMeta, setTemplateMeta] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [toggleTarget, setToggleTarget] = useState(null);
+    const [toggling, setToggling] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleteMode, setDeleteMode] = useState('class_only');
@@ -115,19 +127,24 @@ const ClassesPage = () => {
         }
     };
 
-    const handleToggleActive = async (cls) => {
-        const willActivate = cls.isActive === false;
-        if (!window.confirm(t('classes:confirm.toggleActive', { className: cls.name, action: willActivate ? t('classes:actions.activate').toLowerCase() : t('classes:actions.deactivate').toLowerCase() }))) {
-            return;
-        }
+    const requestToggleActive = (cls) => {
+        setToggleTarget(cls);
+    };
 
+    const confirmToggleActive = async () => {
+        if (!toggleTarget) return;
+        const willActivate = toggleTarget.isActive === false;
+
+        setToggling(true);
         const result = await dispatch(updateClass({
-            id: cls._id,
+            id: toggleTarget._id,
             data: { isActive: willActivate }
         }));
+        setToggling(false);
 
         if (updateClass.fulfilled.match(result)) {
             toast.success(t('classes:toast.toggled', { state: willActivate ? t('classes:actions.activated') : t('classes:actions.deactivated') }));
+            setToggleTarget(null);
             dispatch(fetchClasses(classQueryParams));
         } else {
             toast.error(result.payload || t('classes:toast.toggleFailed'));
@@ -243,6 +260,22 @@ const ClassesPage = () => {
             : t('classes:template.fallback'))
         : null;
 
+    useFocusTrap({
+        active: showModal,
+        containerRef: createDialogRef,
+        initialFocusRef: gradeSelectRef,
+        onEscape: () => {
+            if (!submitting) setShowModal(false);
+        }
+    });
+
+    useFocusTrap({
+        active: Boolean(deleteTarget),
+        containerRef: deleteDialogRef,
+        initialFocusRef: deleteCancelRef,
+        onEscape: closeDeleteDialog
+    });
+
     return (
         <div className="classes-page">
             <input
@@ -252,19 +285,26 @@ const ClassesPage = () => {
                 style={{ display: 'none' }}
                 onChange={handleClassImportFileChange}
             />
-            <div className="page-header classes-hero">
-                <div className="classes-hero-text">
-                    <h1>{t('classes:page.title')}</h1>
-                    <p className="text-muted">{t('classes:page.subtitle')}</p>
-                    {templateNote && (
-                        <div className="classes-template-pill">
-                            <HiOutlineDownload size={14} />
-                            <span>{templateNote}</span>
-                        </div>
-                    )}
+            <div className="gp-hero classes-hero">
+                <div className="gp-hero-text classes-hero-text">
+                    <div className="gp-hero-title">
+                        <h1>{t('classes:page.title')}</h1>
+                        {(classes.length > 0 || (!loading && !error)) && (
+                            <span className="gp-count-pill">
+                                {t('classes:page.count', { count: totalItems })}
+                            </span>
+                        )}
+                        {templateNote && (
+                            <div className="classes-template-pill">
+                                <HiOutlineDownload size={14} />
+                                <span>{templateNote}</span>
+                            </div>
+                        )}
+                    </div>
+                    <p className="gp-hero-sub">{t('classes:page.subtitle')}</p>
                 </div>
                 {isAdmin && (
-                    <div className="header-actions">
+                    <div className="gp-hero-actions header-actions">
                         <button type="button" className="btn btn-ghost" onClick={handleDownloadSample}>
                             <HiOutlineDownload size={18} />
                             {t('classes:actions.downloadSample')}
@@ -281,9 +321,9 @@ const ClassesPage = () => {
                 )}
             </div>
 
-            <div className="classes-toolbar">
-                <div className="search-bar classes-search">
-                    <HiOutlineSearch className="search-icon" />
+            <div className="gp-toolbar classes-toolbar">
+                <div className="gp-search classes-search">
+                    <HiOutlineSearch className="gp-search-icon" aria-hidden="true" />
                     <input
                         type="text"
                         placeholder={t('classes:filters.searchPlaceholder')}
@@ -294,7 +334,7 @@ const ClassesPage = () => {
                     {searchTerm && (
                         <button
                             type="button"
-                            className="search-clear"
+                            className="gp-search-clear"
                             onClick={() => setSearchTerm('')}
                             aria-label={t('classes:filters.clearSearch')}
                         >
@@ -307,151 +347,228 @@ const ClassesPage = () => {
                         {t('classes:filters.matches', { total: totalItems })}
                     </span>
                 )}
+                {loading && classes.length > 0 && (
+                    <span className="classes-refreshing" role="status">
+                        {t('classes:states.refreshing')}
+                    </span>
+                )}
             </div>
 
-            {/* Classes Table */}
-            {loading ? (
-                <div className="loading-container">
-                    <div className="spinner"></div>
-                </div>
-            ) : error ? (
-                <div className="error-container">
-                    <p className="error-message">{error}</p>
-                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses(classQueryParams))}>
-                        {t('common:actions.retry')}
-                    </button>
-                </div>
-            ) : (
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>{t('classes:table.columns.className')}</th>
-                                <th>{t('classes:table.columns.section')}</th>
-                                <th>{t('classes:table.columns.department')}</th>
-                                <th>{t('classes:table.columns.academicYear')}</th>
-                                <th>{t('classes:table.columns.students')}</th>
-                                <th>{t('classes:table.columns.subjects')}</th>
-                                <th className="classes-th-actions">{t('classes:table.columns.actions')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {classes.map((cls, index) => (
-                                <tr key={cls._id} className="animate-fadeIn" style={{ animationDelay: `${index * 0.05}s` }}>
-                                    <td>
-                                        <div className="class-identity">
-                                            <span className="grade-badge">{cls.grade}</span>
-                                            <div className="class-identity-text">
-                                                <Link to={`/portal/classes/${cls._id}`} className="class-link">
-                                                    {cls.name}
-                                                </Link>
-                                                {cls.room && (
-                                                    <span className="class-room">
-                                                        <HiOutlineOfficeBuilding size={13} />
-                                                        {cls.room}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span className="class-section">{cls.section || t('classes:table.mainSection')}</span>
-                                    </td>
-                                    <td>{cls.department?.name ?? '—'}</td>
-                                    <td>
-                                        <span className="class-year">{cls.academicYear}</span>
-                                        {cls.isActive === false && (
-                                            <span className="badge badge-secondary class-inactive-badge">
-                                                {t('classes:status.inactive')}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <div className="stat-cell">
-                                            <HiOutlineUserGroup />
-                                            <span>
-                                                {cls.studentCount || 0}
-                                                {cls.capacity ? ` / ${cls.capacity}` : ''}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="stat-cell">
-                                            <HiOutlineBookOpen />
-                                            <span>{cls.subjects?.length || 0}</span>
-                                        </div>
-                                    </td>
-                                    <td className="classes-td-actions">
-                                        <div className="actions-cell">
-                                            <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
-                                                {t('common:actions.view')}
-                                            </Link>
-                                            {isAdmin && (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-sm btn-secondary"
-                                                        onClick={() => handleToggleActive(cls)}
-                                                    >
-                                                        {cls.isActive === false ? t('classes:actions.activate') : t('classes:actions.deactivate')}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="btn-icon btn-icon-danger"
-                                                        onClick={() => openDeleteDialog(cls)}
-                                                        title={t('common:actions.delete')}
-                                                        aria-label={t('common:actions.delete')}
-                                                    >
-                                                        <HiOutlineTrash size={16} />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {classes.length === 0 && (
-                        <div className="empty-state classes-empty-state">
-                            <span className="classes-empty-icon">
-                                <HiOutlineSearch size={26} />
-                            </span>
-                            <h3>{searchTerm.trim() ? t('classes:empty.noMatches') : t('classes:empty.title')}</h3>
-                            <p>{searchTerm.trim() ? t('classes:empty.noMatchesDescription') : t('classes:empty.description')}</p>
-                            {searchTerm.trim() ? (
-                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSearchTerm('')}>
-                                    {t('classes:filters.clearSearch')}
-                                </button>
-                            ) : (isAdmin && (
-                                <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}>
-                                    <HiOutlinePlus size={20} />
-                                    <span>{t('classes:actions.createClass')}</span>
-                                </button>
-                            ))}
+            {/* Classes: loading / error / empty / data */}
+            {classes.length === 0 && loading && (
+                <div className="gp-surface classes-table-surface" aria-busy="true" aria-live="polite">
+                    <span className="gp-sr-only">{t('classes:states.loading')}</span>
+                    {[0, 1, 2, 3, 4, 5].map((row) => (
+                        <div className="gp-skeleton-row" key={row}>
+                            <div className="gp-skeleton" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)' }} />
+                            <div className="gp-skeleton-lines">
+                                <div className="gp-skeleton" style={{ width: '32%', height: 12 }} />
+                                <div className="gp-skeleton" style={{ width: '55%', height: 10 }} />
+                            </div>
                         </div>
-                    )}
+                    ))}
                 </div>
             )}
-            <TablePagination
-                page={currentPage}
-                pageSize={pageSize}
-                totalItems={totalItems}
-                totalPages={totalPages}
-                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
-                onPageSizeChange={(nextSize) => {
-                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
-                    setCurrentPage(1);
-                }}
-            />
+
+            {classes.length === 0 && !loading && error && (
+                <div className="gp-surface">
+                    <div className="gp-empty" role="alert">
+                        <span className="gp-empty-icon">
+                            <HiOutlineSearch size={26} />
+                        </span>
+                        <h3>{t('classes:states.loadFailedTitle')}</h3>
+                        <p>{error}</p>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => dispatch(fetchClasses(classQueryParams))}>
+                            {t('common:actions.retry')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {classes.length === 0 && !loading && !error && (
+                <div className="gp-surface">
+                    <div className="gp-empty classes-empty-state">
+                        <span className="gp-empty-icon">
+                            <HiOutlineSearch size={26} />
+                        </span>
+                        <h3>{searchTerm.trim() ? t('classes:empty.noMatches') : t('classes:empty.title')}</h3>
+                        <p>{searchTerm.trim()
+                            ? t('classes:empty.noMatchesDescription')
+                            : (isAdmin ? t('classes:empty.description') : t('classes:empty.teacherDescription'))}</p>
+                        {searchTerm.trim() ? (
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSearchTerm('')}>
+                                {t('classes:filters.clearSearch')}
+                            </button>
+                        ) : (isAdmin && (
+                            <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}>
+                                <HiOutlinePlus size={20} />
+                                <span>{t('classes:actions.createClass')}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {classes.length > 0 && (
+                <>
+                    {error && (
+                        <div className="gp-error" role="alert">
+                            <p>{t('classes:states.refreshFailed')}</p>
+                            <div className="gp-error-actions">
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => dispatch(fetchClasses(classQueryParams))}>
+                                    {t('common:actions.retry')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {isCompact ? (
+                        <ClassCardList
+                            classes={classes}
+                            isAdmin={isAdmin}
+                            onToggleActive={requestToggleActive}
+                            onDelete={openDeleteDialog}
+                        />
+                    ) : (
+                        <div className="gp-surface classes-table-surface" aria-busy={loading || undefined}>
+                            <div className="table-container">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t('classes:table.columns.className')}</th>
+                                            <th>{t('classes:table.columns.section')}</th>
+                                            <th className="col-department">{t('classes:table.columns.department')}</th>
+                                            <th>{t('classes:table.columns.academicYear')}</th>
+                                            <th>{t('classes:table.columns.students')}</th>
+                                            <th>{t('classes:table.columns.subjects')}</th>
+                                            <th className="classes-th-actions">{t('classes:table.columns.actions')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {classes.map((cls, index) => (
+                                            <tr key={cls._id} className="animate-fadeIn" style={{ animationDelay: `${index * 0.05}s` }}>
+                                                <td>
+                                                    <div className="class-identity">
+                                                        <span className="grade-badge">{cls.grade}</span>
+                                                        <div className="class-identity-text">
+                                                            <Link to={`/portal/classes/${cls._id}`} className="class-link">
+                                                                {cls.name}
+                                                            </Link>
+                                                            {cls.room && (
+                                                                <span className="class-room">
+                                                                    <HiOutlineOfficeBuilding size={13} aria-hidden="true" />
+                                                                    {cls.room}
+                                                                </span>
+                                                            )}
+                                                            {cls.department?.name && (
+                                                                <span className="class-department-meta">{cls.department.name}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span className="class-section">{cls.section || t('classes:table.mainSection')}</span>
+                                                </td>
+                                                <td className="col-department">{cls.department?.name ?? '—'}</td>
+                                                <td>
+                                                    <span className="class-year">{cls.academicYear}</span>
+                                                    {cls.isActive === false && (
+                                                        <span className="badge badge-secondary class-inactive-badge">
+                                                            {t('classes:status.inactive')}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div className="stat-cell">
+                                                        <HiOutlineUserGroup aria-hidden="true" />
+                                                        <span>
+                                                            {cls.studentCount || 0}
+                                                            {cls.capacity ? ` / ${cls.capacity}` : ''}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="stat-cell">
+                                                        <HiOutlineBookOpen aria-hidden="true" />
+                                                        <span>{cls.subjects?.length || 0}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="classes-td-actions">
+                                                    <div className="actions-cell">
+                                                        <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
+                                                            {t('common:actions.view')}
+                                                        </Link>
+                                                        {isAdmin && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-sm btn-secondary"
+                                                                    onClick={() => requestToggleActive(cls)}
+                                                                >
+                                                                    {cls.isActive === false ? t('classes:actions.activate') : t('classes:actions.deactivate')}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn-icon btn-icon-danger"
+                                                                    onClick={() => openDeleteDialog(cls)}
+                                                                    title={t('common:actions.delete')}
+                                                                    aria-label={t('common:actions.delete')}
+                                                                >
+                                                                    <HiOutlineTrash size={16} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {classes.length > 0 && (
+                <div className="gp-pager">
+                    <TablePagination
+                        page={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        totalPages={totalPages}
+                        onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                        onPageSizeChange={(nextSize) => {
+                            setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
+                            setCurrentPage(1);
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Create Modal */}
             {showModal && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-overlay" onClick={() => { if (!submitting) setShowModal(false); }}>
+                    <div
+                        ref={createDialogRef}
+                        className="modal classes-create-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="classes-create-title"
+                        aria-busy={submitting || undefined}
+                        onClick={e => e.stopPropagation()}
+                    >
                         <div className="modal-header">
-                            <h3>{t('classes:modal.createTitle')}</h3>
-                            <button type="button" className="modal-close" onClick={() => setShowModal(false)} aria-label={t('common:actions.close')}>&times;</button>
+                            <h3 id="classes-create-title">{t('classes:modal.createTitle')}</h3>
+                            <button
+                                type="button"
+                                className="modal-close"
+                                onClick={() => setShowModal(false)}
+                                aria-label={t('common:actions.close')}
+                                disabled={submitting}
+                            >
+                                &times;
+                            </button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
@@ -459,6 +576,7 @@ const ClassesPage = () => {
                                     <div className="form-group">
                                         <label>{t('classes:form.gradeLevel')}</label>
                                         <select
+                                            ref={gradeSelectRef}
                                             value={formData.grade}
                                             onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                                             required
@@ -532,10 +650,12 @@ const ClassesPage = () => {
             {deleteTarget && (
                 <div className="modal-overlay" onClick={closeDeleteDialog}>
                     <div
+                        ref={deleteDialogRef}
                         className="modal classes-delete-modal"
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="classes-delete-title"
+                        aria-busy={deleting || undefined}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="modal-header">
@@ -576,7 +696,7 @@ const ClassesPage = () => {
                             </div>
                         </div>
                         <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
+                            <button ref={deleteCancelRef} type="button" className="btn btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
                                 {t('common:actions.cancel')}
                             </button>
                             <button type="button" className="btn btn-danger" onClick={confirmDeleteClass} disabled={deleting}>
@@ -586,6 +706,27 @@ const ClassesPage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(toggleTarget)}
+                title={t('classes:confirm.toggleTitle')}
+                message={toggleTarget ? t('classes:confirm.toggleActive', {
+                    action: (toggleTarget.isActive === false
+                        ? t('classes:actions.activate')
+                        : t('classes:actions.deactivate')).toLowerCase(),
+                    className: toggleTarget.name
+                }) : ''}
+                confirmLabel={toggleTarget?.isActive === false
+                    ? t('classes:actions.activate')
+                    : t('classes:actions.deactivate')}
+                cancelLabel={t('common:actions.cancel')}
+                closeLabel={t('common:actions.close')}
+                busy={toggling}
+                onConfirm={confirmToggleActive}
+                onCancel={() => {
+                    if (!toggling) setToggleTarget(null);
+                }}
+            />
         </div>
     );
 };

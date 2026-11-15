@@ -1,7 +1,13 @@
 {
   "page": {
     "title": "الطلاب",
-    "subtitle": "إدارة سجلات الطلاب ومتابعة الأداء"
+    "subtitle": "إدارة سجلات الطلاب ومتابعة الأداء",
+    "count_zero": "{{count}} طالب",
+    "count_one": "{{count}} طالب",
+    "count_two": "{{count}} طالبان",
+    "count_few": "{{count}} طلاب",
+    "count_many": "{{count}} طالباً",
+    "count_other": "{{count}} طالب"
   },
   "capacity": {
     "title": "سعة الخطة:",
@@ -73,6 +79,7 @@
     "hasLogin": "لديه حساب",
     "noEmail": "لا يوجد بريد",
     "unassigned": "غير مخصص",
+    "visibleCount": "{{total}} معروض",
     "columns": {
       "student": "الطالب",
       "id": "المعرّف",
@@ -98,9 +105,17 @@
     "active": "نشط",
     "inactive": "غير نشط"
   },
+  "states": {
+    "loading": "جارٍ تحميل الطلاب",
+    "refreshing": "جارٍ التحديث…",
+    "refreshFailed": "تعذّر تحديث قائمة الطلاب. قد تكون السجلات أدناه غير محدثة.",
+    "loadFailedTitle": "تعذّر تحميل الطلاب",
+    "loadFailedBody": "لم يتم تحميل قائمة الطلاب. تحقق من الاتصال وحاول مرة أخرى."
+  },
   "empty": {
-    "noStudents": "لا يوجد طلاب",
+    "noStudents": "لا يوجد طلاب بعد",
     "noStudentsHint": "أضف طالباً أو استورد قائمة الفصل من ملف CSV للبدء.",
+    "teacherHint": "يظهر الطلاب هنا بعد تسجيلهم في فصلك.",
     "noMatches": "لا يوجد طلاب يطابقون هذه المرشحات",
     "noMatchesHint": "جرّب اسماً آخر أو امسح المرشحات لعرض القائمة كاملة."
   },
@@ -173,13 +188,14 @@
     "studentHasNoEmail": "لا يملك بريداً إلكترونياً مسجلاً. أدخل بريداً لإرسال دعوة الدخول.",
     "emailAddress": "عنوان البريد الإلكتروني *",
     "emailPlaceholder": "student@example.com",
-    "selectedStudentsSummary": "{{count}} من الطلاب المحددين",
+    "selectedStudentsSummary": "{{total}} من الطلاب المحددين",
     "selectedStudentsFallback": "الطلاب المحددون"
   },
   "confirm": {
     "resetPassword": "إعادة تعيين كلمة المرور لـ {{name}}؟",
     "sendParentCredentials": "إرسال بيانات دخول تطبيق الهاتف إلى {{count}} من جهات الاتصال لولي الأمر للطالب {{name}}؟\n\nسيؤدي ذلك إلى إنشاء حساب ولي الأمر أو إعادة تعيين كلمة مروره.",
-    "sendParentInvite": "إرسال دعوات دخول إلى {{count}} من جهات اتصال أولياء الأمور للطالب {{name}}؟\n\nسيؤدي ذلك إلى إنشاء كلمة مرور حساب ولي الأمر أو تدويرها.",
+    "sendParentInviteTitle": "إرسال دعوة ولي الأمر؟",
+    "sendParentInviteBody": "إرسال دعوة دخول إلى {{emails}} من جهات اتصال أولياء الأمور المسجلة للطالب {{name}}؟ سيؤدي ذلك إلى إنشاء كلمة مرور حساب ولي الأمر أو إعادة تعيينها.",
     "deleteStudent": "حذف {{name}}؟",
     "permanentDeleteInactive": "حذف نهائي للطالب غير النشط {{name}}؟\n\nلا يمكن التراجع عن هذا الإجراء."
   },
@@ -224,7 +240,7 @@
     "selectCsv": "يرجى اختيار ملف CSV",
     "selectClass": "يرجى اختيار فصل",
     "noValidData": "لا توجد بيانات صالحة للاستيراد",
-    "rowsFailed": "فشل {{count}} صف",
+    "rowsFailed": "الصفوف التي فشلت: {{total}}",
     "importFailed": "فشل الاستيراد"
   },
   "promotionCenter": {

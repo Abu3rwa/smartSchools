@@ -876,3 +876,292 @@
         flex: 1 1 auto;
     }
 }
+
+/* ── Table surface, refreshing, mobile cards ──────────────────── */
+.students-page .students-table-surface {
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.students-page .student-cell .avatar-sm {
+    color: var(--on-accent);
+}
+
+.students-refreshing {
+    align-self: center;
+    font-size: 0.78rem;
+    color: var(--text-accent);
+}
+
+.students-page .students-card :focus-visible,
+.students-page .students-list-select :focus-visible {
+    outline: 2px solid var(--text-accent);
+    outline-offset: 2px;
+}
+
+.students-list-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.6rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.students-list-select label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.students-list-count {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.students-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.students-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.students-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.students-card-head input[type="checkbox"] {
+    flex-shrink: 0;
+}
+
+.students-card-identity {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.students-card-identity .student-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.students-card-identity .student-name:hover {
+    color: var(--primary-600);
+}
+
+.students-card-head .avatar-sm {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--accent-gradient);
+    color: var(--on-accent);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.students-card-head .avatar-sm.has-image {
+    background: var(--bg-tertiary);
+}
+
+.students-card-head .avatar-sm img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.students-card-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem 0.9rem;
+    margin: 0;
+}
+
+.students-card-meta > div {
+    min-width: 0;
+}
+
+.students-card-meta dt {
+    margin-bottom: 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.students-card-meta dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.students-card-invite {
+    grid-column: 1 / -1;
+}
+
+.students-card-invite-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+.students-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.students-card-actions .btn-icon {
+    width: 44px;
+    height: 44px;
+}
+
+.students-card .btn-xs {
+    min-height: 36px;
+}
+
+@media (max-width: 599px) {
+    .students-page .students-hero .header-actions .btn {
+        flex: 1 1 calc(50% - 0.3rem);
+        padding-inline: 0.5rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 899px) {
+    .students-page .students-filters {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end;
+        gap: 0.5rem;
+    }
+
+    .students-page .students-filters .gp-search,
+    .students-page .students-filters .students-active-filters,
+    .students-page .students-filters .students-refreshing {
+        grid-column: 1 / -1;
+    }
+
+    .students-page .students-filters .students-filter-field {
+        flex: none;
+        width: auto;
+        max-width: 100%;
+        min-width: 0;
+    }
+}
+
+/* ── Desktop density and intermediate-width column collapse ───── */
+.students-page .students-filters {
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.students-page .students-table-surface th,
+.students-page .students-table-surface td {
+    padding: 10px;
+}
+
+.students-page .students-table-surface td.font-mono {
+    white-space: nowrap;
+}
+
+.students-page .student-cell-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 20ch;
+}
+
+.students-page .student-cell .student-name,
+.students-page .student-cell .student-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.students-page .student-meta-line {
+    display: none;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+}
+
+@media (min-width: 900px) {
+    .students-page .students-hero .header-actions .btn {
+        padding-inline: 0.9rem;
+    }
+
+    .students-page .students-table-surface .invite-status-cell {
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-content: start;
+        align-items: center;
+        gap: 0.15rem 0.4rem;
+    }
+
+    .students-page .students-table-surface .invite-meta {
+        grid-column: 1 / -1;
+        font-size: 0.7rem;
+    }
+
+    .students-page .students-table-surface .invite-status-cell .btn {
+        min-height: 26px;
+        padding: 0 0.4rem;
+        font-size: 0.72rem;
+        gap: 0.25rem;
+    }
+
+    .students-page .students-table-surface .invite-status-cell .btn span {
+        display: none;
+    }
+
+    .students-page .students-table-surface .invite-status-cell .badge {
+        white-space: nowrap;
+    }
+
+    .students-page .student-cell .student-email {
+        max-width: 22ch;
+    }
+}
+
+@media (min-width: 900px) and (max-width: 1279px) {
+    .students-page .col-department,
+    .students-page .col-gender {
+        display: none;
+    }
+
+    .students-page .student-meta-line {
+        display: block;
+    }
+}

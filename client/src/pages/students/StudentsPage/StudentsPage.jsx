@@ -12,6 +12,8 @@ import {
     selectStudentsPagination,
     selectStudents,
     selectStudentsLoading,
+    selectStudentsRefreshing,
+    selectStudentsError,
     sendParentLoginInvite,
     sendStudentLoginInvite,
     updateStudent
@@ -53,6 +55,8 @@ import {
 import BulkDeleteModal from './components/BulkDeleteModal';
 import { parseCsvText } from '../../../utils/csvImport';
 import TablePagination from '../../../components/common/TablePagination';
+import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import '../../../styles/greenPages.css';
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -65,19 +69,21 @@ const buildSelectedStudentsSummary = (studentNames, t) => {
         return studentNames.join(', ');
     }
 
-    return t('students:credentials.selectedStudentsSummary', { count: studentNames.length });
+    return t('students:credentials.selectedStudentsSummary', { total: studentNames.length });
 };
 
 const StudentsPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { t } = useTranslation(['students']);
+    const { t } = useTranslation(['students', 'common']);
     const [searchParams] = useSearchParams();
     const searchFromUrl = searchParams.get('search') || '';
     const students = useSelector(selectStudents);
     const classes = useSelector(selectClasses);
     const departments = useSelector(selectDepartments);
     const loading = useSelector(selectStudentsLoading);
+    const refreshing = useSelector(selectStudentsRefreshing);
+    const studentsError = useSelector(selectStudentsError);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
     const canEditClass = useSelector(selectCanEditClass);
@@ -127,6 +133,7 @@ const StudentsPage = () => {
     const [loginTargetStudent, setLoginTargetStudent] = useState(null);
     const [sendingStudentInviteFor, setSendingStudentInviteFor] = useState(null);
     const [sendingParentInviteFor, setSendingParentInviteFor] = useState(null);
+    const [parentInviteTarget, setParentInviteTarget] = useState(null);
     const [showParentCredentialsResult, setShowParentCredentialsResult] = useState(false);
     const [parentCredentialsResult, setParentCredentialsResult] = useState(null);
 
@@ -383,7 +390,7 @@ const StudentsPage = () => {
         doSendStudentInvite(student, email);
     };
 
-    const handleSendParentInvite = async (student) => {
+    const handleSendParentInvite = (student) => {
         const parentEmailCount = [
             student.parentInfo?.fatherEmail,
             student.parentInfo?.motherEmail,
@@ -395,17 +402,17 @@ const StudentsPage = () => {
             return;
         }
 
-        const confirmed = window.confirm(
-            t('students:confirm.sendParentInvite', {
-                count: parentEmailCount,
-                name: `${student.firstName} ${student.lastName}`
-            })
-        );
-        if (!confirmed) return;
+        setParentInviteTarget({ student, parentEmailCount });
+    };
+
+    const confirmParentInvite = async () => {
+        const student = parentInviteTarget?.student;
+        if (!student) return;
 
         setSendingParentInviteFor(student._id);
         const result = await dispatch(sendParentLoginInvite(student._id));
         setSendingParentInviteFor(null);
+        setParentInviteTarget(null);
 
         if (sendParentLoginInvite.fulfilled.match(result)) {
             setParentCredentialsResult(result.payload.data);
@@ -642,7 +649,7 @@ const StudentsPage = () => {
                 dispatch(fetchSchoolFeatures());
             }
             if (result.payload.data.failed > 0) {
-                toast.error(t('students:toast.rowsFailed', { count: result.payload.data.failed }));
+                toast.error(t('students:toast.rowsFailed', { total: result.payload.data.failed }));
             }
         } else {
             toast.error(result.payload?.message || t('students:toast.importFailed'));
@@ -692,12 +699,15 @@ const StudentsPage = () => {
     const isAllSelected = students.length > 0
         && students.every((student) => selectedStudentIds.has(student._id));
 
-    const isFiltered = Boolean(searchTerm.trim()) || Boolean(filterClass);
+    const isYearFiltered = Boolean(selectedAcademicYear) && selectedAcademicYear !== academicYear;
+    const isFiltered = Boolean(searchTerm.trim()) || Boolean(filterClass) || isYearFiltered;
 
     const clearFilters = () => {
         setSearchTerm('');
         setFilterClass('');
+        setSelectedAcademicYear(academicYear || '');
         setCurrentPage(1);
+        setSelectedStudentIds(new Set());
     };
 
     const filterClassLabel = filterClass === 'unassigned'
@@ -706,15 +716,31 @@ const StudentsPage = () => {
 
     const activeFilterChips = [
         ...(searchTerm.trim() ? [{ key: 'search', label: searchTerm.trim(), onClear: () => setSearchTerm('') }] : []),
-        ...(filterClass ? [{ key: 'class', label: filterClassLabel || filterClass, onClear: () => setFilterClass('') }] : [])
+        ...(filterClass ? [{ key: 'class', label: filterClassLabel || filterClass, onClear: () => setFilterClass('') }] : []),
+        ...(isYearFiltered ? [{
+            key: 'year',
+            label: selectedAcademicYear,
+            onClear: () => {
+                setSelectedAcademicYear(academicYear || '');
+                setFilterClass('');
+                setCurrentPage(1);
+            }
+        }] : [])
     ];
 
     return (
         <div className="students-page">
-            <div className="page-header students-hero">
-                <div className="students-hero-text">
-                    <h1>{t('students:page.title')}</h1>
-                    <p className="text-muted">{t('students:page.subtitle')}</p>
+            <div className="gp-hero students-hero">
+                <div className="gp-hero-text students-hero-text">
+                    <div className="gp-hero-title">
+                        <h1>{t('students:page.title')}</h1>
+                        {!loading && !studentsError && (
+                            <span className="gp-count-pill">
+                                {t('students:page.count', { count: totalItems })}
+                            </span>
+                        )}
+                    </div>
+                    <p className="gp-hero-sub">{t('students:page.subtitle')}</p>
                     {showCapacityBanner && (
                         <div
                             className={`students-capacity-pill${studentCapacity.isFull ? ' is-full' : ''}`}
@@ -743,7 +769,7 @@ const StudentsPage = () => {
                 </div>
 
                 {isAdmin && (
-                    <div className="header-actions">
+                    <div className="gp-hero-actions header-actions">
                         <button
                             type="button"
                             className="btn btn-ghost"
@@ -829,9 +855,9 @@ const StudentsPage = () => {
                 </div>
             )}
 
-            <div className="filters-bar students-filters">
-                <div className="search-bar students-search">
-                    <HiOutlineSearch className="search-icon" />
+            <div className="gp-toolbar students-filters">
+                <div className="gp-search students-search">
+                    <HiOutlineSearch className="gp-search-icon" aria-hidden="true" />
                     <input
                         type="text"
                         placeholder={t('students:filters.searchPlaceholder')}
@@ -842,7 +868,7 @@ const StudentsPage = () => {
                     {searchTerm && (
                         <button
                             type="button"
-                            className="search-clear"
+                            className="gp-search-clear"
                             onClick={() => setSearchTerm('')}
                             aria-label={t('students:filters.clearSearch')}
                         >
@@ -850,7 +876,7 @@ const StudentsPage = () => {
                         </button>
                     )}
                 </div>
-                <label className="students-filter-field">
+                <label className="gp-field students-filter-field">
                     <span className="students-filter-label">{t('students:filters.academicYear')}</span>
                     <select
                         value={selectedAcademicYear}
@@ -867,7 +893,7 @@ const StudentsPage = () => {
                             .map((year) => <option key={year} value={year}>{year}</option>)}
                     </select>
                 </label>
-                <label className="students-filter-field">
+                <label className="gp-field students-filter-field">
                     <span className="students-filter-label">{t('students:filters.classFilter')}</span>
                     <select
                         value={filterClass}
@@ -881,22 +907,27 @@ const StudentsPage = () => {
                         ))}
                     </select>
                 </label>
+                {refreshing && (
+                    <span className="students-refreshing" role="status">
+                        {t('students:states.refreshing')}
+                    </span>
+                )}
                 {activeFilterChips.length > 0 && (
-                    <div className="students-active-filters">
+                    <div className="gp-chips students-active-filters">
                         {activeFilterChips.map((chip) => (
                             <button
                                 key={chip.key}
                                 type="button"
-                                className="students-filter-chip"
+                                className="gp-chip students-filter-chip"
                                 onClick={chip.onClear}
                             >
                                 <span>{chip.label}</span>
-                                <HiOutlineX size={14} />
+                                <HiOutlineX size={14} aria-hidden="true" />
                             </button>
                         ))}
                         <button
                             type="button"
-                            className="students-filter-reset"
+                            className="gp-chip-reset students-filter-reset"
                             onClick={clearFilters}
                         >
                             {t('students:filters.clearAll')}
@@ -905,12 +936,26 @@ const StudentsPage = () => {
                 )}
             </div>
 
+            {studentsError && students.length > 0 && (
+                <div className="gp-error" role="alert">
+                    <p>{t('students:states.refreshFailed')}</p>
+                    <div className="gp-error-actions">
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={refreshStudents}>
+                            {t('common:actions.retry')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <StudentsTable
                 students={students}
                 isAdmin={isAdmin}
                 loading={loading}
+                error={students.length === 0 ? studentsError : null}
+                onRetry={refreshStudents}
                 isFiltered={isFiltered}
                 onClearFilters={clearFilters}
+                onAddStudent={() => setShowModal(true)}
                 isAllSelected={isAllSelected}
                 selectedStudentIds={selectedStudentIds}
                 toggleSelectAllStudents={toggleSelectAllStudents}
@@ -922,18 +967,22 @@ const StudentsPage = () => {
                 handleEdit={handleEdit}
                 onStudentDeleted={refreshStudents}
             />
-            <TablePagination
-                page={currentPage}
-                pageSize={pageSize}
-                totalItems={totalItems}
-                totalPages={totalPages}
-                pageSizeOptions={[10, 15, 20, 50]}
-                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
-                onPageSizeChange={(nextSize) => {
-                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
-                    setCurrentPage(1);
-                }}
-            />
+            {students.length > 0 && (
+                <div className="gp-pager">
+                    <TablePagination
+                        page={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        totalPages={totalPages}
+                        pageSizeOptions={[10, 15, 20, 50]}
+                        onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                        onPageSizeChange={(nextSize) => {
+                            setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
+                            setCurrentPage(1);
+                        }}
+                    />
+                </div>
+            )}
 
             <StudentFormModal
                 showModal={showModal}
@@ -1012,6 +1061,24 @@ const StudentsPage = () => {
                 setDeleteYear={setBulkDeleteYear}
                 permanent={bulkDeletePermanent}
                 setPermanent={setBulkDeletePermanent}
+            />
+
+            <ConfirmDialog
+                open={Boolean(parentInviteTarget)}
+                title={t('students:confirm.sendParentInviteTitle')}
+                message={t('students:confirm.sendParentInviteBody', {
+                    emails: parentInviteTarget?.parentEmailCount ?? 0,
+                    name: parentInviteTarget
+                        ? `${parentInviteTarget.student.firstName} ${parentInviteTarget.student.lastName}`
+                        : ''
+                })}
+                confirmLabel={t('students:actions.sendParentInvite')}
+                busyLabel={t('students:actions.sendingParentInvite')}
+                cancelLabel={t('common:actions.cancel')}
+                closeLabel={t('common:actions.close')}
+                busy={Boolean(sendingParentInviteFor)}
+                onConfirm={confirmParentInvite}
+                onCancel={() => setParentInviteTarget(null)}
             />
         </div>
     );

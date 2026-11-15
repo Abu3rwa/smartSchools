@@ -169,6 +169,9 @@ const studentCoreSlice = createSlice({
         classStudents: [],
         pagination: null,
         loading: false,
+        refreshing: false,
+        loaded: false,
+        studentsRequestId: null,
         error: null
     },
     reducers: {
@@ -182,17 +185,26 @@ const studentCoreSlice = createSlice({
     extraReducers: (builder) => {
         builder
             // Fetch students
-            .addCase(fetchStudents.pending, (state) => {
-                state.loading = true;
+            .addCase(fetchStudents.pending, (state, action) => {
+                state.studentsRequestId = action.meta.requestId;
+                state.refreshing = state.loaded;
+                state.loading = !state.loaded;
                 state.error = null;
             })
             .addCase(fetchStudents.fulfilled, (state, action) => {
+                if (state.studentsRequestId !== action.meta.requestId) return;
+                state.studentsRequestId = null;
                 state.loading = false;
+                state.refreshing = false;
+                state.loaded = true;
                 state.students = action.payload.students;
                 state.pagination = action.payload.pagination;
             })
             .addCase(fetchStudents.rejected, (state, action) => {
+                if (state.studentsRequestId !== action.meta.requestId) return;
+                state.studentsRequestId = null;
                 state.loading = false;
+                state.refreshing = false;
                 state.error = action.payload;
             })
             // Fetch single student
@@ -285,5 +297,8 @@ export const selectStudentsPagination = (state) => state.students.pagination;
 export const selectCurrentStudent = (state) => state.students.currentStudent;
 export const selectClassStudents = (state) => state.students.classStudents;
 export const selectStudentsLoading = (state) => state.students.loading;
+export const selectStudentsRefreshing = (state) => state.students.refreshing;
+export const selectStudentsLoaded = (state) => state.students.loaded;
+export const selectStudentsError = (state) => state.students.error;
 
 export default studentCoreSlice.reducer;

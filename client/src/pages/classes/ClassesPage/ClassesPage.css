@@ -538,3 +538,188 @@
         max-width: 100%;
     }
 }
+
+/* ── Surface, refreshing indicator, mobile cards ─────────────── */
+.classes-page .classes-table-surface {
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.classes-page .grade-badge {
+    color: var(--on-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.classes-refreshing {
+    align-self: center;
+    font-size: 0.78rem;
+    color: var(--text-accent);
+}
+
+.classes-page .classes-card :focus-visible {
+    outline: 2px solid var(--text-accent);
+    outline-offset: 2px;
+}
+
+.classes-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.classes-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.classes-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.classes-card-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.classes-card-identity .class-link {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.classes-card-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+}
+
+.classes-card-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem 0.9rem;
+    margin: 0;
+}
+
+.classes-card-meta > div {
+    min-width: 0;
+}
+
+.classes-card-meta dt {
+    margin-bottom: 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.classes-card-meta dd {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.classes-capacity-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.classes-capacity-line svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.classes-capacity {
+    display: block;
+    width: 100%;
+    max-width: 160px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    overflow: hidden;
+}
+
+.classes-capacity-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary-400);
+}
+
+.classes-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.classes-card-actions .btn-icon {
+    width: 44px;
+    height: 44px;
+}
+
+@media (max-width: 599px) {
+    .classes-page .classes-hero .header-actions .btn {
+        flex: 1 1 calc(50% - 0.3rem);
+        padding-inline: 0.6rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* ── Desktop density and intermediate-width column collapse ───── */
+.classes-page .classes-template-pill {
+    margin-top: 0;
+}
+
+.classes-page .classes-toolbar {
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.classes-page .data-table thead th,
+.classes-page .data-table tbody td {
+    padding: 10px 12px;
+}
+
+.class-department-meta {
+    display: none;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+}
+
+@media (min-width: 900px) and (max-width: 1279px) {
+    .classes-page .col-department {
+        display: none;
+    }
+
+    .classes-page .class-department-meta {
+        display: block;
+    }
+
+    .classes-page .classes-th-actions {
+        width: 160px;
+    }
+}

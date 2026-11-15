@@ -1,0 +1,534 @@
+/* Shared layout primitives for Students, Classes and Class Details.
+   Colours come from the global theme tokens; nothing here redefines a theme
+   value, so these pages follow the app's light/dark theme like every other
+   surface. */
+
+/* ── Shared primitives ─────────────────────────────────────────── */
+
+:is(.students-page, .classes-page, .class-detail-page) {
+  width: 100%;
+  max-width: var(--content-max-width);
+}
+
+.gp-surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.gp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.gp-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.gp-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.gp-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.gp-hero-title h1 {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+
+.gp-hero-sub {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.gp-count-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--primary-400) 45%, transparent);
+  background: var(--stat-primary-bg);
+  color: var(--text-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gp-count-pill strong {
+  font-weight: 700;
+}
+
+.gp-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gp-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.gp-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 300px;
+  min-width: 220px;
+}
+
+.gp-search-icon {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 1.05rem;
+}
+
+.gp-search input {
+  width: 100%;
+  height: 40px;
+  padding-block: 0;
+  padding-inline: 2.4rem 2.2rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color-hover);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.gp-search input:focus-visible {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.gp-search-clear {
+  position: absolute;
+  inset-inline-end: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.gp-search-clear:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.gp-search-clear:focus-visible,
+.gp-chip:focus-visible,
+.gp-chip-reset:focus-visible,
+.gp-toolbar select:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+.gp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 1 190px;
+  min-width: 160px;
+}
+
+.gp-field label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.gp-field select {
+  width: 100%;
+  height: 40px;
+  padding: 0 0.7rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color-hover);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.gp-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+}
+
+.gp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 260px;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color-hover);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.gp-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-chip:hover {
+  border-color: var(--primary-400);
+  color: var(--text-primary);
+}
+
+.gp-chip-reset {
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gp-chip-reset:hover {
+  text-decoration: underline;
+}
+
+.gp-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--status-error) 35%, transparent);
+  color: var(--text-primary);
+}
+
+.gp-error p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.gp-error-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.gp-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 0.25rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.gp-empty h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.gp-empty p {
+  margin: 0 0 0.5rem;
+  max-width: 44ch;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.gp-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.gp-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text-primary) 8%, transparent),
+    transparent
+  );
+  animation: gp-shimmer 1.2s infinite;
+}
+
+.gp-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.gp-skeleton-row:last-child {
+  border-bottom: none;
+}
+
+.gp-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1;
+}
+
+.gp-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.gp-danger-quiet {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--status-error) 34%, transparent);
+  color: var(--status-error);
+}
+
+.gp-danger-quiet:hover {
+  background: var(--status-error-bg);
+  border-color: var(--status-error);
+  color: var(--status-error);
+}
+
+.gp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(4px);
+}
+
+.gp-dialog {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: gp-fade-in 0.16s ease;
+}
+
+.gp-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.gp-dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.gp-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gp-dialog-close:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.gp-dialog-close:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+.gp-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.gp-dialog-body p {
+  margin: 0;
+}
+
+.gp-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
+@keyframes gp-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes gp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-skeleton::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .gp-hero-title {
+    font-size: 1.35rem;
+  }
+
+  .gp-search,
+  .gp-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .gp-toolbar {
+    padding: 0.65rem;
+  }
+
+  .gp-pager {
+    justify-content: center;
+  }
+
+  .gp-dialog-foot {
+    flex-direction: column-reverse;
+  }
+
+  .gp-dialog-foot .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  :is(.students-page, .classes-page, .class-detail-page) .btn-sm {
+    min-height: 40px;
+  }
+
+  .students-card-identity .student-name,
+  .classes-card .class-link,
+  .cd-student-link,
+  .cd-back-link {
+    padding-block: 3px;
+  }
+}
+
+@media (max-width: 599px) {
+  .gp-hero-title {
+    font-size: 1.25rem;
+  }
+
+  .gp-hero,
+  .gp-toolbar {
+    margin-bottom: 0.75rem;
+  }
+}
