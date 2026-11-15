@@ -15,7 +15,9 @@ test('a freshly signed state round-trips the user id', () => {
 test('the signed state restricts the return destination to a known portal page', () => {
     const state = buildSignedState('user-123', 'notifications');
     assert.equal(parseSignedState(state).returnTo, 'notifications');
+    assert.equal(parseSignedState(buildSignedState('user-123', 'settings')).returnTo, 'settings');
     assert.equal(parseSignedState(buildSignedState('user-123', 'https://example.com')).returnTo, 'assignments');
+    assert.equal(parseSignedState(buildSignedState('user-123', '/portal/settings')).returnTo, 'assignments');
 });
 
 test('a tampered payload or signature is rejected', () => {

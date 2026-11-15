@@ -147,8 +147,10 @@ export const curriculumService = {
         return response?.data?.data?.classes || response?.data?.classes || [];
     },
 
-    async getGoogleDriveAuthUrl() {
-        const response = await api.get('/auth/google-drive/url');
+    async getGoogleDriveAuthUrl(returnTo) {
+        const response = await api.get('/auth/google-drive/url', {
+            params: returnTo ? { returnTo } : undefined
+        });
         return response?.data || {};
     },
 

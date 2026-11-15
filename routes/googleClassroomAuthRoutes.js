@@ -11,7 +11,11 @@ import logger from '../utils/logger.js';
 const router = express.Router();
 
 const redirectWith = (res, returnTo, query) => {
-    const path = returnTo === 'notifications' ? '/portal/notifications' : '/portal/assignments';
+    const path = returnTo === 'notifications'
+        ? '/portal/notifications'
+        : returnTo === 'settings'
+            ? '/portal/settings'
+            : '/portal/assignments';
     const suffix = returnTo === 'notifications' ? 'tab=gmail-cleanup&' : '';
     return res.redirect(`${getClientUrl()}${path}?${suffix}${query}`);
 };
@@ -23,6 +27,7 @@ router.get('/callback', async (req, res) => {
         const { code, state, error } = req.query;
         const parsedState = parseSignedState(state);
         if (parsedState?.returnTo === 'notifications') returnTo = 'notifications';
+        else if (parsedState?.returnTo === 'settings') returnTo = 'settings';
         if (error) {
             const key = returnTo === 'notifications' ? 'gmail_cleanup_error' : 'classroom_error';
             return redirectWith(res, returnTo, `${key}=${encodeURIComponent(String(error))}`);

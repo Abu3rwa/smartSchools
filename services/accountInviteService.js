@@ -4,7 +4,15 @@ import School from '../models/School.js';
 import User from '../models/User.js';
 import { clearRefreshToken } from './authTokenService.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
-import { getPortalUrl } from '../helpers/portalUrl.js';
+import { getPortalUrl, getClientUrl } from '../helpers/portalUrl.js';
+import { getPlatformBranding } from './platformBrandingService.js';
+import {
+    renderSchoolEmailShell,
+    EMAIL_COLORS,
+    emailDetailRows,
+    schoolAccent,
+    escapeHtml
+} from '../helpers/schoolEmailShell.js';
 
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
@@ -16,14 +24,6 @@ export const createAccountInviteConflictError = (message, code) => {
     error.code = code;
     return error;
 };
-
-const escapeHtml = (value) =>
-    String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 
 export const generateInvitePassword = () => {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -38,10 +38,34 @@ export const generateInvitePassword = () => {
     return `${pick(upper)}${chunk()}${pick(digits)}${pick(digits)}${chunk()}${pick(digits)}`;
 };
 
-const resolveSchoolName = async (schoolId) => {
-    if (!schoolId) return 'School';
-    const school = await School.findById(schoolId).select('name').lean();
-    return school?.name || 'School';
+const resolveSchool = async (schoolId) => {
+    if (!schoolId) return null;
+    return School.findById(schoolId)
+        .select('name branding contact.adminEmail')
+        .lean();
+};
+
+const resolveSenderEmail = async (actorUserId) => {
+    if (!actorUserId) return '';
+    const actor = await User.findById(actorUserId)
+        .select('email')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+    return String(actor?.email || '').trim();
+};
+
+const resolvePlatformIdentity = async () => {
+    let name = 'ClassHope';
+    try {
+        name = (await getPlatformBranding()).appName || name;
+    } catch {
+        // Branding is cosmetic and must never block an invite.
+    }
+    return {
+        name,
+        url: getPortalUrl(),
+        logoUrl: `${getClientUrl()}/apple-touch-icon.png`
+    };
 };
 
 const getRoleDisplayName = (role) => {
@@ -57,12 +81,38 @@ const getRoleDisplayName = (role) => {
     }
 };
 
-const buildTeacherGoogleInviteContent = ({ schoolName, displayName, recipientEmail }) => {
+// Inline styles and tables only: mail clients drop flex, grid and media queries.
+const emailButton = ({ href, label, accent }) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">`
+    + `<tr><td bgcolor="${accent}" style="background-color:${accent};border-radius:9px;">`
+    + `<a href="${escapeHtml(href)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:9px;">${escapeHtml(label)}</a>`
+    + `</td></tr></table>`;
+
+const emailParagraph = (html, { size = 15, color = EMAIL_COLORS.body, margin = '0 0 18px' } = {}) =>
+    `<p style="margin:${margin};font-size:${size}px;line-height:1.7;color:${color};">${html}</p>`;
+
+// The recipient replies to the person who sent the invite, not to a generic
+// "administrator" nobody can reach. The school contact is only a fallback.
+const contactAddressFor = ({ senderEmail, school }) =>
+    String(senderEmail || school?.contact?.adminEmail || '').trim();
+
+const contactParagraph = (address) => (address
+    ? emailParagraph(`If you did not expect this email, contact ${escapeHtml(address)}.`, { size: 13, color: EMAIL_COLORS.muted, margin: '0' })
+    : '');
+
+const buildTeacherGoogleInviteContent = ({
+    schoolName,
+    school = null,
+    senderEmail = '',
+    platform = null,
+    displayName,
+    recipientEmail
+}) => {
     // A teacher signs in with Google so their mail leaves from their own
     // mailbox. Sending a password they are not meant to use only causes
     // support calls, so this email carries the Google door instead.
     const signInUrl = `${getPortalUrl()}/login?role=teacher`;
     const subject = `${schoolName} teacher sign-in`;
+    const contactAddress = contactAddressFor({ senderEmail, school });
 
     return {
         subject,
@@ -72,33 +122,36 @@ const buildTeacherGoogleInviteContent = ({ schoolName, displayName, recipientEma
             `Your ${schoolName} teacher account is ready.`,
             `Email: ${recipientEmail}`,
             '',
-            'Sign in with Google using this email address:',
+            'Sign in with Google using this email address. There is no password to remember:',
             signInUrl,
             '',
-            'If you did not expect this email, contact your school administrator.'
-        ].join('\n'),
-        htmlContent: `
-        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
-            <h2 style="margin-bottom: 16px;">${escapeHtml(subject)}</h2>
-            <p>Hello ${escapeHtml(displayName)},</p>
-            <p>Your ${escapeHtml(schoolName)} teacher account is ready.</p>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:20px 0;">
-                <p style="margin:0;"><strong>Email:</strong> ${escapeHtml(recipientEmail)}</p>
-            </div>
-            <p>Sign in with Google using this email address.</p>
-            <p>
-                <a href="${escapeHtml(signInUrl)}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;">
-                    Sign in with Google
-                </a>
-            </p>
-            <p>If you did not expect this email, contact your school administrator.</p>
-        </div>
-    `.trim()
+            'Choose the Google account that matches this email address.',
+            contactAddress ? `If you did not expect this email, contact ${contactAddress}.` : null
+        ].filter((line) => line !== null).join('\n'),
+        htmlContent: renderSchoolEmailShell({
+            school,
+            subject,
+            eyebrow: 'Teacher sign-in',
+            bodyHtml: [
+                emailParagraph(`Hello ${escapeHtml(displayName)},`),
+                emailParagraph(`Your ${escapeHtml(schoolName)} teacher account is ready.`),
+                emailParagraph('Sign in with Google using this email address. There is no password to remember.'),
+                emailDetailRows([{ label: 'Email', value: recipientEmail }], { stack: true }),
+                emailButton({ href: signInUrl, label: 'Sign in with Google', accent: schoolAccent(school) }),
+                emailParagraph('Choose the Google account that matches this email address.', { size: 13, color: EMAIL_COLORS.muted, margin: '0 0 12px' }),
+                contactParagraph(contactAddress)
+            ].filter(Boolean).join('\n'),
+            footer: [schoolName],
+            platform
+        })
     };
 };
 
 export const buildInviteEmailContent = ({
-    schoolName,
+    schoolName = '',
+    school = null,
+    senderEmail = '',
+    platform = null,
     recipientName,
     recipientEmail,
     tempPassword,
@@ -108,61 +161,63 @@ export const buildInviteEmailContent = ({
     const frontendUrl = getPortalUrl();
     const displayName = recipientName || getRoleDisplayName(role);
     const roleLabel = getRoleDisplayName(role);
+    const resolvedSchoolName = String(schoolName || school?.name || 'School').trim() || 'School';
+
     if (role === 'teacher') {
-        return buildTeacherGoogleInviteContent({ schoolName, displayName, recipientEmail });
+        return buildTeacherGoogleInviteContent({
+            schoolName: resolvedSchoolName,
+            school,
+            senderEmail,
+            platform,
+            displayName,
+            recipientEmail
+        });
     }
+
     const linkedChildrenLine = linkedStudents.length > 0
         ? `Linked student${linkedStudents.length > 1 ? 's' : ''}: ${linkedStudents.join(', ')}`
         : null;
+    const contactAddress = contactAddressFor({ senderEmail, school });
 
-    const subject = `${schoolName} ${roleLabel} Login Credentials`;
+    const subject = `${resolvedSchoolName} ${roleLabel} Login Credentials`;
     const textParts = [
         `Hello ${displayName},`,
         '',
-        `Your ${schoolName} ${roleLabel.toLowerCase()} login is ready.`,
+        `Your ${resolvedSchoolName} ${roleLabel.toLowerCase()} login is ready. Use these details the first time you sign in.`,
         `Email: ${recipientEmail}`,
         `Temporary password: ${tempPassword}`,
         linkedChildrenLine,
         '',
         `Sign in: ${frontendUrl}`,
         '',
-        'You will be required to change this password the first time you sign in.',
-        'If you did not expect this email, contact your school administrator.'
-    ].filter(Boolean);
+        'Type the password exactly as shown. You will be asked to change it after you sign in.',
+        contactAddress ? `If you did not expect this email, contact ${contactAddress}.` : null
+    ].filter((line) => line !== null);
 
-    const htmlStudents = linkedStudents.length > 0
-        ? `
-            <p>
-                <strong>Linked student${linkedStudents.length > 1 ? 's' : ''}:</strong>
-                ${escapeHtml(linkedStudents.join(', '))}
-            </p>
-        `
-        : '';
-
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
-            <h2 style="margin-bottom: 16px;">${escapeHtml(subject)}</h2>
-            <p>Hello ${escapeHtml(displayName)},</p>
-            <p>Your ${escapeHtml(schoolName)} ${escapeHtml(roleLabel.toLowerCase())} login is ready.</p>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:20px 0;">
-                <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(recipientEmail)}</p>
-                <p style="margin:0;"><strong>Temporary password:</strong> ${escapeHtml(tempPassword)}</p>
-            </div>
-            ${htmlStudents}
-            <p>
-                <a href="${frontendUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;">
-                    Open Portal
-                </a>
-            </p>
-            <p>You will be required to change this password the first time you sign in.</p>
-            <p>If you did not expect this email, contact your school administrator.</p>
-        </div>
-    `.trim();
+    const bodyHtml = [
+        emailParagraph(`Hello ${escapeHtml(displayName)},`),
+        emailParagraph(`Your ${escapeHtml(resolvedSchoolName)} ${escapeHtml(roleLabel.toLowerCase())} login is ready. Use these details the first time you sign in.`),
+        emailDetailRows([
+            { label: 'Email', value: recipientEmail },
+            { label: 'Temporary password', value: tempPassword, mono: true },
+            { label: `Linked student${linkedStudents.length > 1 ? 's' : ''}`, value: linkedStudents.join(', ') }
+        ], { stack: true }),
+        emailButton({ href: frontendUrl, label: 'Open Portal', accent: schoolAccent(school) }),
+        emailParagraph('Type the password exactly as shown. You will be asked to change it after you sign in.', { size: 13, color: EMAIL_COLORS.muted, margin: '0 0 12px' }),
+        contactParagraph(contactAddress)
+    ].filter(Boolean).join('\n');
 
     return {
         subject,
         message: textParts.join('\n'),
-        htmlContent
+        htmlContent: renderSchoolEmailShell({
+            school,
+            subject,
+            eyebrow: `${roleLabel} login`,
+            bodyHtml,
+            footer: [resolvedSchoolName],
+            platform
+        })
     };
 };
 
@@ -312,9 +367,17 @@ export const deliverLoginInvite = async ({
     linkedStudents = [],
     studentId = null
 }) => {
-    const schoolName = await resolveSchoolName(schoolId);
+    const [school, senderEmail, platform] = await Promise.all([
+        resolveSchool(schoolId),
+        resolveSenderEmail(actorUserId),
+        resolvePlatformIdentity()
+    ]);
+    const schoolName = school?.name || 'School';
     const emailContent = buildInviteEmailContent({
         schoolName,
+        school,
+        senderEmail,
+        platform,
         recipientName,
         recipientEmail,
         tempPassword,

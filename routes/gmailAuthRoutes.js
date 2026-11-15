@@ -130,7 +130,9 @@ const flowKeys = ({ calendarAccess, cleanupAccess }) => (calendarAccess
  * @access  Public (state contains user ID)
  */
 router.get("/callback", async (req, res) => {
-  let redirectPath = "/settings";
+  // The portal mounts Settings under /portal; a bare /settings hits the client
+  // catch-all and the teacher never sees the connection result.
+  let redirectPath = "/portal/settings";
   let cleanupAccess = false;
   let calendarAccess = false;
   try {
@@ -162,7 +164,7 @@ router.get("/callback", async (req, res) => {
 
     if (!parsedState?.userId) {
       return res.redirect(
-        `${process.env.CLIENT_URL}/settings?gmail_error=invalid_state`,
+        `${process.env.CLIENT_URL}/portal/settings?gmail_error=invalid_state`,
       );
     }
 

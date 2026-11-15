@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { selectUser, logout, updateProfile } from '../../../../store/slices/authSlice';
 import { selectTheme, setTheme, selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
@@ -12,6 +13,7 @@ import { selectTheme, setTheme, selectCurrentAcademicYear } from '../../../../st
 const useSettingsPageData = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation(['settings']);
     const user = useSelector(selectUser);
     const theme = useSelector(selectTheme);
     const academicYear = useSelector(selectCurrentAcademicYear);
@@ -19,7 +21,7 @@ const useSettingsPageData = () => {
 
     const handleThemeChange = (newTheme) => {
         dispatch(setTheme(newTheme));
-        toast.success(`Theme changed to ${newTheme} mode`);
+        toast.success(t('settings:toasts.themeChanged', { theme: newTheme }));
     };
 
     const handleLogout = () => {
@@ -45,9 +47,9 @@ const useSettingsPageData = () => {
         setAvatarUploading(false);
 
         if (updateProfile.fulfilled.match(result)) {
-            toast.success('Profile photo updated');
+            toast.success(t('settings:toasts.photoUpdated'));
         } else {
-            toast.error(result.payload || 'Failed to update profile photo');
+            toast.error(result.payload || t('settings:toasts.photoFailed'));
         }
     };
 
@@ -57,9 +59,9 @@ const useSettingsPageData = () => {
         setAvatarUploading(false);
 
         if (updateProfile.fulfilled.match(result)) {
-            toast.success('Profile photo removed');
+            toast.success(t('settings:toasts.photoRemoved'));
         } else {
-            toast.error(result.payload || 'Failed to remove profile photo');
+            toast.error(result.payload || t('settings:toasts.photoRemoveFailed'));
         }
     };
 

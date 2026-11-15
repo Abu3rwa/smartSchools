@@ -138,8 +138,15 @@ const assignmentService = {
     return response.data;
   },
 
-  getDriveAuthUrl: async () => {
+  getDriveAuthUrl: async (returnTo) => {
     const response = await api.get("/auth/google-drive/url", {
+      params: { purpose: "attachments", ...(returnTo ? { returnTo } : {}) },
+    });
+    return response.data;
+  },
+
+  disconnectDriveConnection: async () => {
+    const response = await api.delete("/auth/google-drive/disconnect", {
       params: { purpose: "attachments" },
     });
     return response.data;

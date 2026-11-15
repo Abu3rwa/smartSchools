@@ -144,3 +144,66 @@ test('a non-teacher invite still carries the temporary password', () => {
     });
     assert.ok(content.message.includes('TempPass123'));
 });
+
+test('an invite asks the recipient to contact the sender, not an anonymous administrator', () => {
+    for (const role of ['student', 'parent', 'teacher']) {
+        const content = buildInviteEmailContent({
+            schoolName: 'Springfield',
+            senderEmail: 'admin@school.test',
+            recipientName: 'Sam Person',
+            recipientEmail: 'sam@school.test',
+            tempPassword: 'TempPass123',
+            role
+        });
+        const text = `${content.subject}\n${content.message}\n${content.htmlContent}`;
+        assert.ok(text.includes('contact admin@school.test'), `${role} invite must name the sender`);
+        assert.ok(!/contact your school administrator/i.test(text), `${role} invite must not point at an anonymous administrator`);
+    }
+});
+
+test('an invite falls back to the school contact email when no sender is known', () => {
+    const content = buildInviteEmailContent({
+        schoolName: 'Springfield',
+        school: { name: 'Springfield', contact: { adminEmail: 'office@school.test' } },
+        recipientName: 'Sam Student',
+        recipientEmail: 'sam@school.test',
+        tempPassword: 'TempPass123',
+        role: 'student'
+    });
+    assert.ok(content.message.includes('contact office@school.test'));
+});
+
+test('an invite carries the platform mark and name', () => {
+    const platform = {
+        name: 'ClassHope',
+        url: 'https://portal.test/portal',
+        logoUrl: 'https://cdn.test/apple-touch-icon.png'
+    };
+    for (const role of ['student', 'teacher']) {
+        const content = buildInviteEmailContent({
+            schoolName: 'Springfield',
+            senderEmail: 'admin@school.test',
+            platform,
+            recipientName: 'Sam Person',
+            recipientEmail: 'sam@school.test',
+            tempPassword: 'TempPass123',
+            role
+        });
+        assert.ok(content.htmlContent.includes(platform.logoUrl), `${role} invite must show the platform mark`);
+        assert.ok(content.htmlContent.includes('>ClassHope<'), `${role} invite must name the platform`);
+    }
+});
+
+test('the school logo heads the invite and the platform mark sits in the footer', () => {
+    const content = buildInviteEmailContent({
+        schoolName: 'Springfield',
+        school: { name: 'Springfield', branding: { logoUrl: 'https://cdn.test/school-logo.png', primaryColor: '#123456' } },
+        platform: { name: 'ClassHope', logoUrl: 'https://cdn.test/apple-touch-icon.png' },
+        recipientName: 'Sam Student',
+        recipientEmail: 'sam@school.test',
+        tempPassword: 'TempPass123',
+        role: 'student'
+    });
+    assert.ok(content.htmlContent.indexOf('school-logo.png') < content.htmlContent.indexOf('apple-touch-icon.png'));
+    assert.ok(content.htmlContent.includes('#123456'), 'the school accent colours the card');
+});

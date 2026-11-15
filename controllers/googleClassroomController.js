@@ -81,7 +81,9 @@ export const getClassroomAuthUrl = asyncHandler(async (req, res) => {
     if (!CLASSROOM_ROLES.has(req.user?.role)) {
         return res.status(403).json({ success: false, message: 'Not authorized to connect Google services.' });
     }
-    const returnTo = req.query.returnTo === 'notifications' ? 'notifications' : 'assignments';
+    const returnTo = ['notifications', 'settings'].includes(req.query.returnTo)
+        ? req.query.returnTo
+        : 'assignments';
     if (returnTo !== 'notifications'
         && !isClassroomEnabledForSchool(req.schoolId)
         && !isGoogleFormsEnabledForSchool(req.schoolId)) {

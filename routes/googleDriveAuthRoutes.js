@@ -19,10 +19,11 @@ const signStatePayload = (encodedPayload) => {
     return crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(encodedPayload).digest('base64url');
 };
 
-const buildSignedState = (userId, purpose = 'curriculum') => {
+const buildSignedState = (userId, purpose = 'curriculum', returnTo = '') => {
     const payload = {
         userId,
         purpose,
+        ...(returnTo === 'settings' ? { returnTo: 'settings' } : {}),
         nonce: crypto.randomBytes(16).toString('hex'),
         exp: Date.now() + OAUTH_STATE_TTL_MS
     };
@@ -61,7 +62,7 @@ const purposeOf = (req) => (req.query.purpose === 'attachments' ? 'attachments' 
 router.get('/url', protect, async (req, res) => {
     try {
         const purpose = purposeOf(req);
-        const state = buildSignedState(req.user._id.toString(), purpose);
+        const state = buildSignedState(req.user._id.toString(), purpose, req.query.returnTo);
         const authUrl = purpose === 'attachments'
             ? googleDriveFileService.getAuthUrl(state)
             : googleDriveOAuthService.getAuthUrl(state);
@@ -81,7 +82,11 @@ router.get('/callback', async (req, res) => {
     // The portal app mounts these pages under /portal (see client App.jsx).
     // Returning to the bare paths hits the catch-all route and bounces the
     // teacher to the dashboard, so the drive_connected flag never lands.
-    const returnPath = isAttachments ? '/portal/assignments' : '/portal/curriculum';
+    const returnPath = parsedState?.returnTo === 'settings'
+        ? '/portal/settings'
+        : isAttachments
+            ? '/portal/assignments'
+            : '/portal/curriculum';
     try {
         const { code, state, error } = req.query;
         if (error) return res.redirect(`${clientUrl}${returnPath}?drive_error=${encodeURIComponent(error)}`);

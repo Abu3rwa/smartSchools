@@ -1,11 +1,14 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const SettingsPageHeader = () => {
+    const { t } = useTranslation(['settings']);
+
     return (
-        <div className="page-header">
+        <div className="page-header settings-header">
             <div>
-                <h1>Settings</h1>
-                <p className="text-muted">Manage your account and application preferences</p>
+                <h1>{t('settings:page.title')}</h1>
+                <p className="text-muted">{t('settings:page.subtitle')}</p>
             </div>
         </div>
     );

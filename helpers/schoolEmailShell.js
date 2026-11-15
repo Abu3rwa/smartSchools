@@ -61,17 +61,28 @@ export const emailSectionTitle = (title) => `<p style="margin:24px 0 10px;font-s
     + `letter-spacing:0.8px;color:${EMAIL_COLORS.muted};">${escapeHtml(title)}</p>`;
 
 /**
- * A two-column label/value list. Built from tables because mail clients ignore
- * flex and grid entirely.
+ * A label/value list. Built from tables because mail clients ignore flex and
+ * grid entirely. `stack` puts the label above the value, which keeps a long
+ * value (a full email address, a one-time code) from being squeezed into a
+ * two-column row on a phone.
  */
-export const emailDetailRows = (rows) => {
+export const emailDetailRows = (rows, { stack = false } = {}) => {
     const visible = rows.filter((row) => String(row?.value ?? '') !== '');
     if (!visible.length) return '';
     const cells = visible.map((row, index) => {
         const edge = index < visible.length - 1 ? `border-bottom:1px solid ${EMAIL_COLORS.line};` : '';
+        // Monospace keeps one-time codes (passwords, PINs) unambiguous.
+        const mono = row.mono ? 'font-family:Consolas,Menlo,monospace;letter-spacing:1px;' : '';
+        const valueColor = row.color || EMAIL_COLORS.ink;
+        if (stack) {
+            return `<tr><td style="${edge}padding:12px 14px;">`
+                + `<p style="margin:0 0 3px;font-size:12px;color:${EMAIL_COLORS.muted};">${escapeHtml(row.label)}</p>`
+                + `<p style="margin:0;font-size:15px;font-weight:600;color:${valueColor};word-break:break-word;overflow-wrap:anywhere;${mono}">${escapeHtml(row.value)}</p>`
+                + `</td></tr>`;
+        }
         return `<tr>`
             + `<td style="${edge}padding:10px 14px;font-size:13px;color:${EMAIL_COLORS.muted};vertical-align:top;">${escapeHtml(row.label)}</td>`
-            + `<td style="${edge}padding:10px 14px;font-size:14px;font-weight:600;color:${row.color || EMAIL_COLORS.ink};vertical-align:top;">${escapeHtml(row.value)}</td>`
+            + `<td style="${edge}padding:10px 14px;font-size:14px;font-weight:600;color:${valueColor};vertical-align:top;word-break:break-word;overflow-wrap:anywhere;${mono}">${escapeHtml(row.value)}</td>`
             + `</tr>`;
     }).join('');
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" `
@@ -102,7 +113,8 @@ export const renderSchoolEmailShell = ({
     subject = '',
     eyebrow = '',
     bodyHtml = '',
-    footer = []
+    footer = [],
+    platform = null
 } = {}) => {
     const rtl = isRtl(language);
     const dir = rtl ? 'rtl' : 'ltr';
@@ -112,9 +124,37 @@ export const renderSchoolEmailShell = ({
     const logo = ABSOLUTE_LOGO.test(String(school?.branding?.logoUrl || ''))
         ? school.branding.logoUrl
         : '';
+    const platformName = String(platform?.name || '').trim();
+    const platformLogo = ABSOLUTE_LOGO.test(String(platform?.logoUrl || ''))
+        ? platform.logoUrl
+        : '';
+    const platformUrl = ABSOLUTE_LOGO.test(String(platform?.url || ''))
+        ? platform.url
+        : '';
+    // A school without its own logo still gets a finished header rather than an
+    // empty dark band; the platform mark is a real logo, not a broken image.
+    const headerLogo = logo || platformLogo;
+    const headerAlt = logo ? schoolName : platformName;
+    // One platform mark per email: the footer repeats it only when the header
+    // is carrying the school's own logo.
+    const footerMark = platformLogo && platformLogo !== logo ? platformLogo : '';
     const footerLines = (Array.isArray(footer) ? footer : [footer])
         .map((line) => String(line || '').trim())
         .filter(Boolean);
+    const platformNameHtml = platformUrl
+        ? `<a href="${escapeHtml(platformUrl)}" style="color:${EMAIL_COLORS.ink};font-weight:700;text-decoration:none;">${escapeHtml(platformName)}</a>`
+        : `<span style="color:${EMAIL_COLORS.ink};font-weight:700;">${escapeHtml(platformName)}</span>`;
+    const footerPlatform = platformName
+        ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${footerLines.length ? '10px' : '0'};">`
+            + `<tr>`
+            + (footerMark
+                ? `<td style="padding:0 ${rtl ? '0 0 10px' : '10px 0 0'};vertical-align:middle;">`
+                    + `<img src="${escapeHtml(footerMark)}" alt="${escapeHtml(platformName)}" width="22" height="22" style="display:block;width:22px;height:22px;border-radius:6px;">`
+                    + `</td>`
+                : '')
+            + `<td style="vertical-align:middle;font-size:12px;line-height:1.5;color:${EMAIL_COLORS.muted};text-align:${align};">${platformNameHtml}</td>`
+            + `</tr></table>`
+        : '';
 
     return `<!doctype html>
 <html dir="${dir}" lang="${language}">
@@ -124,14 +164,15 @@ export const renderSchoolEmailShell = ({
 ${preheader(subject)}
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="${dir}" lang="${language}" style="width:100%;max-width:600px;text-align:${align};direction:${dir};font-family:${EMAIL_FONT};color:${EMAIL_COLORS.ink};background-color:${EMAIL_COLORS.card};border:1px solid ${EMAIL_COLORS.line};border-top:4px solid ${accent};border-radius:16px;overflow:hidden;">
 <tr><td bgcolor="${EMAIL_COLORS.header}" style="background-color:${EMAIL_COLORS.header};padding:26px 30px;">
-${logo ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(schoolName)}" width="44" height="44" style="display:block;width:44px;height:44px;object-fit:contain;border-radius:9px;margin-bottom:14px;">` : ''}
+${headerLogo ? `<img src="${escapeHtml(headerLogo)}" alt="${escapeHtml(headerAlt)}" width="44" height="44" style="display:block;width:44px;height:44px;object-fit:contain;border-radius:9px;margin-bottom:14px;">` : ''}
 ${schoolName || eyebrow ? `<p style="${eyebrowStyle(rtl)}text-align:${align};">${escapeHtml([schoolName, eyebrow].filter(Boolean).join(' · '))}</p>` : ''}
 <h1 style="margin:0;font-size:22px;line-height:1.35;font-weight:700;color:#ffffff;text-align:${align};">${escapeHtml(subject)}</h1>
 </td></tr>
 <tr><td style="padding:28px 30px 8px;background-color:${EMAIL_COLORS.card};">
 ${bodyHtml}
 </td></tr>
-${footerLines.length ? `<tr><td style="padding:18px 30px 24px;background-color:${EMAIL_COLORS.card};border-top:1px solid ${EMAIL_COLORS.line};">
+${footerLines.length || footerPlatform ? `<tr><td style="padding:18px 30px 24px;background-color:${EMAIL_COLORS.card};border-top:1px solid ${EMAIL_COLORS.line};">
+${footerPlatform}
 ${footerLines.map((line, index) => `<p style="margin:0 0 ${index === footerLines.length - 1 ? '0' : '6px'};font-size:12px;line-height:1.6;color:${index ? EMAIL_COLORS.faint : EMAIL_COLORS.muted};text-align:${align};">${escapeHtml(line)}</p>`).join('\n')}
 </td></tr>` : ''}
 </table>

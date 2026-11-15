@@ -73,5 +73,95 @@
     "title": "Couldn't load this page",
     "body": "The connection dropped before this page could load. Check your connection and try again.",
     "retry": "Try again"
+  },
+  "page": {
+    "title": "Settings",
+    "subtitle": "Your account, appearance and connected apps in one place"
+  },
+  "actions": {
+    "subscription": "Subscription details",
+    "storage": "Database & storage",
+    "storageHint": "View MongoDB Atlas cluster storage metrics and cleanup options"
+  },
+  "profile": {
+    "title": "Profile",
+    "photoLabel": "Personal photo",
+    "fullName": "Full name",
+    "email": "Email",
+    "role": "Role",
+    "phone": "Phone",
+    "notSet": "Not set"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "theme": "Theme",
+    "themeHint": "Choose your preferred color scheme",
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "academic": {
+    "title": "Academic settings",
+    "currentYear": "Current academic year",
+    "hint": "School-wide academic year controlled by the school admin",
+    "changeHint": "Need to change it for everyone?",
+    "editSchool": "Edit school settings"
+  },
+  "account": {
+    "title": "Account",
+    "signOut": "Sign out",
+    "signOutHint": "Sign out from this account"
+  },
+  "toasts": {
+    "themeChanged": "Theme changed to {{theme}}",
+    "photoUpdated": "Profile photo updated",
+    "photoFailed": "Couldn't update the profile photo",
+    "photoRemoved": "Profile photo removed",
+    "photoRemoveFailed": "Couldn't remove the profile photo"
+  },
+  "googleConnections": {
+    "title": "Google connections",
+    "intro": "Connect your own Google account once, then choose which parts the school tools may use.",
+    "refresh": "Refresh",
+    "suiteTitle": "School Google account",
+    "suiteHint": "One Google sign-in turns on Gmail, Classroom and Forms together.",
+    "gmailName": "Gmail",
+    "gmailHint": "Sends school emails from your own address",
+    "classroomName": "Google Classroom",
+    "classroomHint": "Posts assignments and materials to your classes",
+    "formsName": "Google Forms",
+    "formsHint": "Reads quiz responses for assignments",
+    "driveTitle": "Google Drive",
+    "driveHint": "Drive connections are separate from the school Google account.",
+    "driveCurriculumName": "Drive for curriculum",
+    "driveCurriculumHint": "Reads curriculum files from your Drive",
+    "driveAttachmentsName": "Drive for assignment files",
+    "driveAttachmentsHint": "Uploads assignment files students can open without signing in",
+    "connectedAs": "Connected as {{email}}",
+    "connectedShort": "Connected",
+    "notConnected": "Not connected",
+    "expired": "Needs reconnecting",
+    "unavailable": "Not turned on for your school",
+    "checkFailed": "Couldn't check — try again",
+    "checking": "Checking…",
+    "connect": "Connect Google",
+    "reconnect": "Reconnect",
+    "opening": "Opening Google…",
+    "disconnect": "Disconnect",
+    "disconnecting": "Disconnecting…",
+    "confirmSuite": "Disconnect this Google account? Gmail, Classroom and Forms stop working until you connect again.",
+    "confirmDrive": "Disconnect this Google Drive connection?",
+    "confirmYes": "Yes, disconnect",
+    "confirmNo": "Keep it",
+    "suiteConnected": "Google account connected.",
+    "driveConnected": "Google Drive connected.",
+    "disconnectedToast": "Google connection removed.",
+    "errors": {
+      "generic": "Couldn't connect to Google. Try again.",
+      "missing_scope": "Google didn't grant every permission this needs. Reconnect and allow all of them.",
+      "invalid_state": "That sign-in link expired. Start again.",
+      "missing_parameters": "Google didn't send the sign-in details. Start again.",
+      "not_available": "Google isn't turned on for your school, or your teacher profile is missing.",
+      "consent_denied": "You cancelled the Google sign-in."
+    }
   }
 }

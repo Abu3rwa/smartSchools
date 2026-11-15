@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const RETURN_PATHS = new Set(['notifications', 'settings']);
 
 const getSecret = () => {
     const secret = process.env.GOOGLE_CLASSROOM_OAUTH_STATE_SECRET || process.env.JWT_SECRET;
@@ -17,7 +18,7 @@ export const buildSignedState = (userId, returnToOrNow = 'assignments', issuedAt
     const payload = {
         userId,
         purpose: 'google-classroom',
-        returnTo: returnTo === 'notifications' ? 'notifications' : 'assignments',
+        returnTo: RETURN_PATHS.has(returnTo) ? returnTo : 'assignments',
         nonce: crypto.randomBytes(16).toString('hex'),
         exp: now + OAUTH_STATE_TTL_MS
     };

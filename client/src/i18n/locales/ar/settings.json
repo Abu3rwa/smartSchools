@@ -73,5 +73,95 @@
     "title": "تعذّر تحميل هذه الصفحة",
     "body": "انقطع الاتصال قبل اكتمال تحميل الصفحة. تحقّق من الاتصال وحاول مجددًا.",
     "retry": "حاول مجددًا"
+  },
+  "page": {
+    "title": "الإعدادات",
+    "subtitle": "حسابك ومظهرك والتطبيقات المتصلة في مكان واحد"
+  },
+  "actions": {
+    "subscription": "تفاصيل الاشتراك",
+    "storage": "قاعدة البيانات والتخزين",
+    "storageHint": "عرض مقاييس تخزين MongoDB Atlas وخيارات التنظيف"
+  },
+  "profile": {
+    "title": "الملف الشخصي",
+    "photoLabel": "الصورة الشخصية",
+    "fullName": "الاسم الكامل",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "phone": "الهاتف",
+    "notSet": "غير محدد"
+  },
+  "appearance": {
+    "title": "المظهر",
+    "theme": "السمة",
+    "themeHint": "اختر نظام الألوان المفضل لديك",
+    "dark": "داكن",
+    "light": "فاتح"
+  },
+  "academic": {
+    "title": "الإعدادات الأكاديمية",
+    "currentYear": "السنة الأكاديمية الحالية",
+    "hint": "سنة أكاديمية على مستوى المدرسة يضبطها مدير المدرسة",
+    "changeHint": "هل تحتاج إلى تغييرها لجميع المستخدمين؟",
+    "editSchool": "تعديل إعدادات المدرسة"
+  },
+  "account": {
+    "title": "الحساب",
+    "signOut": "تسجيل الخروج",
+    "signOutHint": "تسجيل الخروج من هذا الحساب"
+  },
+  "toasts": {
+    "themeChanged": "تم تغيير السمة إلى {{theme}}",
+    "photoUpdated": "تم تحديث الصورة الشخصية",
+    "photoFailed": "تعذّر تحديث الصورة الشخصية",
+    "photoRemoved": "تمت إزالة الصورة الشخصية",
+    "photoRemoveFailed": "تعذّرت إزالة الصورة الشخصية"
+  },
+  "googleConnections": {
+    "title": "اتصالات Google",
+    "intro": "اربط حساب Google الخاص بك مرة واحدة، ثم اختر ما تستخدمه أدوات المدرسة منه.",
+    "refresh": "تحديث",
+    "suiteTitle": "حساب Google المدرسي",
+    "suiteHint": "تسجيل دخول واحد إلى Google يشغّل Gmail وClassroom وForms معًا.",
+    "gmailName": "Gmail",
+    "gmailHint": "يرسل رسائل المدرسة من عنوانك الخاص",
+    "classroomName": "Google Classroom",
+    "classroomHint": "ينشر الواجبات والمواد في صفوفك",
+    "formsName": "Google Forms",
+    "formsHint": "يقرأ إجابات الاختبارات للواجبات",
+    "driveTitle": "Google Drive",
+    "driveHint": "اتصالات Drive منفصلة عن حساب Google المدرسي.",
+    "driveCurriculumName": "Drive للمناهج",
+    "driveCurriculumHint": "يقرأ ملفات المناهج من Drive الخاص بك",
+    "driveAttachmentsName": "Drive لملفات الواجبات",
+    "driveAttachmentsHint": "يرفع ملفات الواجبات التي يفتحها الطلاب دون تسجيل دخول",
+    "connectedAs": "متصل باسم {{email}}",
+    "connectedShort": "متصل",
+    "notConnected": "غير متصل",
+    "expired": "يحتاج إلى إعادة اتصال",
+    "unavailable": "غير مفعّل لمدرستك",
+    "checkFailed": "تعذّر التحقق — حاول مرة أخرى",
+    "checking": "جارٍ التحقق…",
+    "connect": "ربط Google",
+    "reconnect": "إعادة الربط",
+    "opening": "جارٍ فتح Google…",
+    "disconnect": "فصل الاتصال",
+    "disconnecting": "جارٍ فصل الاتصال…",
+    "confirmSuite": "فصل حساب Google هذا؟ سيتوقف Gmail وClassroom وForms حتى تعيد الربط.",
+    "confirmDrive": "فصل اتصال Google Drive هذا؟",
+    "confirmYes": "نعم، افصل",
+    "confirmNo": "إبقاء الاتصال",
+    "suiteConnected": "تم ربط حساب Google.",
+    "driveConnected": "تم ربط Google Drive.",
+    "disconnectedToast": "تمت إزالة اتصال Google.",
+    "errors": {
+      "generic": "تعذّر الاتصال بـ Google. حاول مرة أخرى.",
+      "missing_scope": "لم يمنح Google كل الصلاحيات المطلوبة. أعد الربط ووافق على جميع الطلبات.",
+      "invalid_state": "انتهت صلاحية رابط تسجيل الدخول. ابدأ من جديد.",
+      "missing_parameters": "لم يرسل Google بيانات تسجيل الدخول. ابدأ من جديد.",
+      "not_available": "Google غير مفعّل لمدرستك، أو ملفك كمعلم غير موجود.",
+      "consent_denied": "ألغيت تسجيل الدخول إلى Google."
+    }
   }
 }

@@ -2,79 +2,99 @@
     animation: fadeIn 0.4s ease;
 }
 
+.settings-header {
+    margin-bottom: var(--spacing-sm);
+}
+
 .settings-grid {
-    /* Layout handled by MUI Grid (xs={12} md={6}) */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+    align-items: start;
     max-width: 100%;
+}
+
+.settings-col {
+    min-width: 0;
+}
+
+.settings-col--wide {
+    grid-column: 1 / -1;
 }
 
 .settings-actions-strip {
     margin-bottom: var(--spacing-md);
     display: flex;
     justify-content: flex-end;
+    gap: 0.6rem;
+    flex-wrap: wrap;
 }
 
 .settings-card {
     display: flex;
     flex-direction: column;
+    height: 100%;
 }
 
 .settings-card .card-header {
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
 }
 
 .settings-card .card-title {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    font-size: 1.1rem;
+    font-size: 1.05rem;
+}
+
+.settings-card .card-title svg {
+    color: var(--text-muted);
 }
 
 /* Profile Section */
-.profile-section {
+.profile-identity {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--spacing-lg);
-    padding: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
 }
 
 .profile-uploader {
     flex-shrink: 0;
 }
 
-.profile-info h4 {
-    margin-bottom: var(--spacing-xs);
+.profile-identity-text {
+    min-width: 0;
 }
 
-.profile-info p {
-    margin-bottom: var(--spacing-sm);
+.profile-name {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-md);
-}
-
-.info-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
-
-.info-item .label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+.profile-email {
+    margin: 0.15rem 0 0.5rem;
     color: var(--text-muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
 }
 
-.info-item .value {
-    font-weight: 500;
-    color: var(--text-primary);
+.profile-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.profile-phone {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
 }
 
 /* Setting Items */
@@ -132,17 +152,208 @@
     border-color: transparent;
 }
 
-.academic-year-select {
-    width: 150px;
+.setting-item--tight {
+    padding-top: 0;
+}
+
+.academic-year-value {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .danger-zone {
     border-color: var(--error-400);
 }
 
+/* Google connections */
+.google-connections-intro {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+}
+
+.google-connections-group {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--bg-tertiary);
+}
+
+.google-connections-group + .google-connections-group {
+    margin-top: var(--spacing-md);
+}
+
+.google-connections-group-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-sm);
+}
+
+.google-connections-group-head h4 {
+    margin: 0;
+    font-size: 0.98rem;
+}
+
+.google-connections-hint {
+    margin: 0.15rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.google-connections-account {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.google-connections-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.google-connections-row {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.google-connections-row:first-child {
+    border-top: none;
+}
+
+.google-connections-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+.google-connections-name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 0;
+}
+
+.google-connections-desc {
+    font-weight: 400;
+    font-size: 0.83rem;
+    color: var(--text-muted);
+}
+
+.google-connections-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.google-connections-status--ok {
+    color: var(--accent-emerald);
+}
+
+.google-connections-status--warn {
+    color: var(--warning-400);
+}
+
+.google-connections-status--error {
+    color: var(--error-400);
+}
+
+.google-connections-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.google-connections-row--stacked {
+    grid-template-columns: 32px minmax(0, 1fr);
+}
+
+.google-connections-row--stacked .google-connections-row-end {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.35rem;
+}
+
+.google-connections-note {
+    grid-column: 2;
+    margin: 0.35rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.google-connections-test {
+    grid-column: 2;
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+}
+
+.google-connections-test--ok {
+    color: var(--accent-emerald);
+}
+
+.google-connections-test--error {
+    color: var(--error-400);
+}
+
+.google-connections-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-sm);
+}
+
+.google-connections-row-end .google-connections-actions {
+    margin-top: 0;
+}
+
+.google-connections-confirm {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
 .locked-features-card .card-header {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: var(--spacing-xs);
 }
 
@@ -324,14 +535,17 @@
         grid-template-columns: 1fr;
     }
 
-    .profile-section {
-        flex-direction: column;
-        text-align: center;
-        align-items: center;
+    .settings-col--wide {
+        grid-column: auto;
     }
 
-    .info-grid {
-        grid-template-columns: 1fr;
+    .profile-identity {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .profile-meta {
+        justify-content: center;
     }
 
     .setting-item {
@@ -355,6 +569,40 @@
 
     .theme-option {
         flex: 1;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .profile-identity {
+        padding: var(--spacing-md);
+    }
+
+    .google-connections-row {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .google-connections-row > .google-connections-status {
+        grid-column: 2;
+    }
+
+    .google-connections-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .google-connections-group {
+        padding: var(--spacing-md);
+    }
+
+    .google-connections-actions,
+    .google-connections-row-end .google-connections-actions {
+        width: 100%;
+        margin-top: var(--spacing-sm);
+    }
+
+    .google-connections-actions .btn {
+        flex: 1 1 auto;
         justify-content: center;
     }
 }
