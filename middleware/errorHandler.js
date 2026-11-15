@@ -74,6 +74,12 @@ const buildErrorPayload = (error, originalError, statusCode) => {
     if (error.data !== undefined) {
         payload.data = error.data;
     }
+    if (error.step) {
+        payload.step = String(error.step);
+    }
+    if (error.reason) {
+        payload.reason = String(error.reason);
+    }
     if (process.env.NODE_ENV === 'development') {
         payload.stack = originalError.stack;
         if (statusCode >= 500) {

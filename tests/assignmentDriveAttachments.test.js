@@ -9,6 +9,7 @@ import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import notificationService from '../services/notificationService.js';
 import googleDriveFileService from '../services/googleDriveFileService.js';
+import { mapAttachmentsUploadError } from '../middleware/uploadAssignmentAttachments.js';
 import { GOOGLE_DRIVE_FILE_SCOPE, hasDriveFileScope } from '../config/googleDriveFileScopes.js';
 import {
     deleteAssignment,
@@ -340,6 +341,106 @@ test('a failed upload never reaches the sharing step', async (t) => {
         (error) => error.code === 'DRIVE_FILE_API_FAILED'
     );
     assert.equal(calls.shared.length, 0);
+});
+
+test('a Google refusal names the failing step and Google reason', async (t) => {
+    const refused = {
+        response: { status: 403, data: { error: { errors: [{ reason: 'cannotShare' }] } } }
+    };
+    mockDriveClient(t, { shareError: refused });
+
+    await assert.rejects(
+        () => googleDriveFileService.uploadAttachmentFile('user-1', { originalname: 'a.pdf', buffer: Buffer.from('x') }),
+        (error) => error.code === 'DRIVE_FILE_API_FAILED'
+            && error.step === 'share'
+            && error.reason === 'cannotShare'
+    );
+});
+
+/* ---------------------------------------------------------------- */
+/* Connection self-test                                              */
+/* ---------------------------------------------------------------- */
+
+const mockTestClient = (t, { createError = null, shareError = null } = {}) => {
+    const calls = { created: 0, shared: 0, deleted: [] };
+    const drive = {
+        files: {
+            create: async () => {
+                calls.created += 1;
+                if (createError) throw createError;
+                return { data: { id: 'test-file-1' } };
+            },
+            delete: async (params) => {
+                calls.deleted.push(params.fileId);
+                return { data: {} };
+            }
+        },
+        permissions: {
+            create: async () => {
+                calls.shared += 1;
+                if (shareError) throw shareError;
+                return { data: {} };
+            }
+        }
+    };
+    t.mock.method(googleDriveFileService, 'buildDriveClient', async () => ({ user: {}, drive }));
+    return calls;
+};
+
+test('the connection test reports success and always deletes its test file', async (t) => {
+    const calls = mockTestClient(t);
+
+    const result = await googleDriveFileService.testConnection('user-1');
+
+    assert.deepEqual(result, { upload: true, share: true, uploadReason: '', shareReason: '' });
+    assert.deepEqual(calls.deleted, ['test-file-1']);
+});
+
+test('the connection test names the share refusal but proves uploads work', async (t) => {
+    const calls = mockTestClient(t, {
+        shareError: { response: { status: 403, data: { error: { errors: [{ reason: 'sharingNotPermittedForDomainUsers' }] } } } }
+    });
+
+    const result = await googleDriveFileService.testConnection('user-1');
+
+    assert.equal(result.upload, true);
+    assert.equal(result.share, false);
+    assert.equal(result.shareReason, 'sharingNotPermittedForDomainUsers');
+    assert.equal(calls.shared, 1);
+    assert.deepEqual(calls.deleted, ['test-file-1']);
+});
+
+test('the connection test stops when Google refuses the upload itself', async (t) => {
+    const calls = mockTestClient(t, {
+        createError: { response: { status: 403, data: { error: { errors: [{ reason: 'accessNotConfigured' }] } } } }
+    });
+
+    const result = await googleDriveFileService.testConnection('user-1');
+
+    assert.equal(result.upload, false);
+    assert.equal(result.uploadReason, 'accessNotConfigured');
+    assert.equal(calls.shared, 0);
+    assert.deepEqual(calls.deleted, []);
+});
+
+/* ---------------------------------------------------------------- */
+/* Upload middleware errors                                          */
+/* ---------------------------------------------------------------- */
+
+test('rejected uploads answer with a readable 400 instead of a 500', () => {
+    const tooBig = mapAttachmentsUploadError(Object.assign(new Error('File too large'), { code: 'LIMIT_FILE_SIZE' }));
+    assert.equal(tooBig.statusCode, 400);
+    assert.match(tooBig.message, /10 MB/);
+
+    const tooMany = mapAttachmentsUploadError(Object.assign(new Error('too many'), { code: 'LIMIT_FILE_COUNT' }));
+    assert.equal(tooMany.statusCode, 400);
+    assert.match(tooMany.message, /5 files/);
+
+    const wrongType = mapAttachmentsUploadError(new Error('Invalid file type. Allowed: pdf.'));
+    assert.equal(wrongType.statusCode, 400);
+    assert.match(wrongType.message, /Invalid file type/);
+
+    assert.equal(mapAttachmentsUploadError(null), null);
 });
 
 test('trashing tolerates a file already gone from Drive', async (t) => {

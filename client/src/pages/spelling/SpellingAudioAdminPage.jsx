@@ -610,15 +610,20 @@ const SpellingAudioAdminPage = () => {
                     <Stack spacing={2}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
                             <Typography variant="h6" component="h2">{t('audioAdmin.aiTitle')}</Typography>
-                            {aiSettings && (
-                                <Chip
-                                    size="small"
-                                    color={aiSettings.envForcedOff ? 'warning' : aiSettings.available ? 'success' : 'default'}
-                                    label={aiSettings.envForcedOff
-                                        ? t('audioAdmin.chipForcedOff')
-                                        : aiSettings.available ? t('audioAdmin.chipOn') : t('audioAdmin.chipOff')}
-                                />
-                            )}
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                <Button component={Link} to="/portal/spelling/audio/review" variant="outlined">
+                                    {t('audioAdmin.review.title')}
+                                </Button>
+                                {aiSettings && (
+                                    <Chip
+                                        size="small"
+                                        color={aiSettings.envForcedOff ? 'warning' : aiSettings.available ? 'success' : 'default'}
+                                        label={aiSettings.envForcedOff
+                                            ? t('audioAdmin.chipForcedOff')
+                                            : aiSettings.available ? t('audioAdmin.chipOn') : t('audioAdmin.chipOff')}
+                                    />
+                                )}
+                            </Stack>
                         </Stack>
                         <Typography variant="body2" color="text.secondary">{t('audioAdmin.aiDescription')}</Typography>
                         <Typography variant="body2" color="text.secondary">

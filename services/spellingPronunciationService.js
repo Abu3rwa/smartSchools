@@ -17,6 +17,9 @@ import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 export const AI_AUDIO_ENV = 'SPELLING_AI_AUDIO';
 export const ACCENTS = Object.freeze(['us', 'uk']);
+// A clip that keeps coming out wrong stops here: regenerating costs the school
+// AI credits, so the admin marks it unusable instead of paying again.
+export const REVIEW_ATTEMPT_LIMIT = 3;
 const MAX_WORD_LENGTH = 200;
 
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -113,7 +116,7 @@ export const getAiAudioSettings = async (env = process.env) => {
 
 export const isAiAudioEnabledForSchool = async (_schoolId, env = process.env) => isAiAudioEnabled(env);
 
-const keysForWord = (word, config) => ACCENTS.map((accent) => {
+export const keysForWord = (word, config) => ACCENTS.map((accent) => {
     const instructions = instructionFor(accent);
     return {
         accent,
@@ -227,12 +230,14 @@ export const generateMissingPronunciations = async ({
     };
 };
 
-export const generateForSchool = async ({ schoolId, userId, grade = '', limit = 80, env = process.env }) => {
+export const generateForSchool = async ({ schoolId, userId, grade = '', week = '', limit = 80, env = process.env }) => {
     if (!(await isAiAudioEnabled(env))) return { available: false, generated: 0, failed: 0, remaining: 0, speechSeconds: 0, costCents: 0 };
     const normalizedGrade = String(grade || '').trim().toUpperCase();
+    const weekNumber = Number(week);
     const words = await SpellingWord.find({
         school: schoolId,
-        ...(normalizedGrade ? { grade: normalizedGrade } : {})
+        ...(normalizedGrade ? { grade: normalizedGrade } : {}),
+        ...(Number.isInteger(weekNumber) && weekNumber > 0 ? { week: weekNumber } : {})
     }).select('word').lean();
     return generateMissingPronunciations({
         schoolId,
@@ -418,6 +423,33 @@ export const removePronunciation = async ({ schoolId, userId, word, accent, env 
 };
 
 /**
+ * The document a regeneration writes. New bytes are a new clip: nobody has
+ * listened to them yet, so the review and the report are cleared and the
+ * attempt is counted.
+ */
+export const regenerationUpdate = ({ word, entry, config, speech, seconds, attempts }) => ({
+    $set: {
+        publicId: publicId(),
+        word: String(word).trim(),
+        model: config.model,
+        voice: entry.voice,
+        instructions: entry.instructions,
+        contentType: speech.contentType,
+        speechSeconds: seconds,
+        data: speech.buffer,
+        removedAt: null,
+        removedBy: null,
+        reviewedAt: null,
+        reviewedBy: null,
+        flaggedAt: null,
+        flaggedBy: null,
+        flagReason: null,
+        reviewAttempts: attempts + 1
+    },
+    $setOnInsert: { key: entry.key, accent: entry.accent }
+});
+
+/**
  * Explicit admin regeneration: synthesizes first, and only a successful result
  * replaces the stored clip. The new publicId changes the URL, so browsers that
  * cached the old immutable response fetch the new bytes instead.
@@ -429,6 +461,20 @@ export const regeneratePronunciation = async ({ schoolId, userId, word, accent, 
     const config = resolveTtsConfig(env);
     const entry = keysForWord(normalized, config).find((candidate) => candidate.accent === chosen);
     const seconds = estimateSpeechSeconds(normalized);
+
+    // Every regeneration costs the school AI credits, so a clip that keeps
+    // coming out wrong stops at the limit instead of draining the balance.
+    const existing = await SpellingPronunciation.findOne({ key: entry.key })
+        .select('reviewAttempts')
+        .lean();
+    const attempts = Number(existing?.reviewAttempts || 0);
+    if (attempts >= REVIEW_ATTEMPT_LIMIT) {
+        throw Object.assign(new Error(`This clip has already been regenerated ${attempts} times. Mark it as unusable instead.`), {
+            statusCode: 409,
+            code: 'SPELLING_PRONUNCIATION_ATTEMPT_LIMIT',
+            expose: true
+        });
+    }
 
     let speech;
     try {
@@ -449,21 +495,7 @@ export const regeneratePronunciation = async ({ schoolId, userId, word, accent, 
 
     await SpellingPronunciation.findOneAndUpdate(
         { key: entry.key },
-        {
-            $set: {
-                publicId: publicId(),
-                word: String(word).trim(),
-                model: config.model,
-                voice: entry.voice,
-                instructions: entry.instructions,
-                contentType: speech.contentType,
-                speechSeconds: seconds,
-                data: speech.buffer,
-                removedAt: null,
-                removedBy: null
-            },
-            $setOnInsert: { key: entry.key, accent: chosen }
-        },
+        regenerationUpdate({ word, entry, config, speech, seconds, attempts }),
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 

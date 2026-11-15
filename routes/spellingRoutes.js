@@ -47,14 +47,17 @@ import { getDictionaryWord } from '../controllers/dictionaryController.js';
 import {
     aiAudioCoverage,
     aiAudioSettings,
+    flagPronunciationIssue,
     generateAiWordAudio,
     getPronunciationAudio,
     importWordAudioCsv,
     deleteWordAudioExample,
     listWordAudioSettings,
+    pronunciationReviewQueue,
     regenerateAiPronunciation,
     removeAiPronunciation,
     replaceWordAudioExample,
+    reviewPronunciation,
     searchWordAudio,
     updateAiAudioSettings,
     updateWordAudioSetting,
@@ -120,6 +123,11 @@ router.get('/word-audio/ai/settings', authorize('admin'), aiAudioSettings);
 router.put('/word-audio/ai/settings', authorize('admin'), express.json(), updateAiAudioSettings);
 router.get('/word-audio/ai/coverage', authorize('admin'), aiAudioCoverage);
 router.post('/word-audio/ai/generate', authorize('admin'), express.json(), generateAiWordAudio);
+// Reviewing the clips: a teacher may only work on the grades they teach, and
+// only an admin may regenerate, because that spends the school's AI credits.
+router.get('/word-audio/review/queue', authorize('admin', 'department_principal', 'teacher'), pronunciationReviewQueue);
+router.post('/word-audio/review', express.json(), authorize('admin', 'department_principal', 'teacher'), reviewPronunciation);
+router.post('/word-audio/review/flag', express.json(), authorize('admin', 'department_principal', 'teacher'), flagPronunciationIssue);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
 router.post('/sessions', authorize('admin', 'department_principal', 'teacher'), startSession);
 router.get('/sessions', listSessions);

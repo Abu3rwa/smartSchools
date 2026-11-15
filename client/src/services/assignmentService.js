@@ -153,8 +153,18 @@ const assignmentService = {
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
+        // The editor reports the failure itself; two toasts say it twice.
+        skipErrorToast: true,
       },
     );
+    return response.data;
+  },
+
+  testDriveConnection: async () => {
+    const response = await api.post("/auth/google-drive/test", null, {
+      params: { purpose: "attachments" },
+      skipErrorToast: true,
+    });
     return response.data;
   },
 

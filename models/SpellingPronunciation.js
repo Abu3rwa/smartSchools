@@ -16,6 +16,18 @@ const spellingPronunciationSchema = new mongoose.Schema({
     // explicit admin regenerate clears this and mints a new publicId.
     removedAt: { type: Date, default: null },
     removedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Review state. The clip is shared by every school, so the verdict is stored
+    // on the clip: one school's admin reviews it and nobody repeats the work.
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Regenerations of this clip. New bytes are never reviewed, so the word
+    // goes back into the queue until somebody listens again.
+    reviewAttempts: { type: Number, default: 0, min: 0 },
+    // A "this clip is broken" report. Teachers cannot spend the school's AI
+    // credits, so they flag and an admin regenerates.
+    flaggedAt: { type: Date, default: null },
+    flaggedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    flagReason: { type: String, enum: ['silent', 'unclear', 'wrong', null], default: null },
     data: { type: Buffer, required: true, select: false }
 }, { timestamps: true, collection: 'spellingPronunciations' });
 

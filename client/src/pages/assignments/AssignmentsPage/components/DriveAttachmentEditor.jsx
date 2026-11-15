@@ -8,6 +8,7 @@ import {
 } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
 import assignmentService from "../../../../services/assignmentService";
+import { driveUploadErrorMessage } from "../utils/driveAttachmentErrors";
 
 const ACCEPT = ".pdf,.docx,.pptx,.xlsx,.jpg,.jpeg,.png,.webp,.gif";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -38,6 +39,8 @@ const DriveAttachmentEditor = ({
   const [connection, setConnection] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   const loadConnection = useCallback(() => {
     let active = true;
@@ -91,13 +94,71 @@ const DriveAttachmentEditor = ({
       if (error.response?.data?.code === "DRIVE_FILE_NOT_CONNECTED") {
         loadConnection();
       }
-      toast.error(
-        error.response?.data?.message ||
-          t("assignments:driveAttachments.uploadFailed"),
-      );
+      toast.error(driveUploadErrorMessage(t, error));
     } finally {
       setBusy(false);
     }
+  };
+
+  const runConnectionTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await assignmentService.testDriveConnection();
+      setTestResult({
+        ok: Boolean(result?.upload) && Boolean(result?.share),
+        upload: Boolean(result?.upload),
+        share: Boolean(result?.share),
+        reason: String(result?.uploadReason || result?.shareReason || ""),
+      });
+    } catch (error) {
+      if (error.response?.data?.code === "DRIVE_FILE_NOT_CONNECTED") {
+        loadConnection();
+      }
+      setTestResult({
+        failed: true,
+        reason:
+          error.response?.data?.reason ||
+          error.response?.data?.code ||
+          "",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const renderTestResult = () => {
+    if (!testResult) return null;
+    if (testResult.failed) {
+      return (
+        <p className="assignments-drawer__notice">
+          {t("assignments:driveAttachments.testFailed")}
+        </p>
+      );
+    }
+    if (testResult.ok) {
+      return (
+        <p className="assignments-drawer__notice">
+          {t("assignments:driveAttachments.testOk")}
+        </p>
+      );
+    }
+    if (!testResult.upload) {
+      return (
+        <p className="assignments-drawer__notice">
+          {t("assignments:driveAttachments.testUploadBlocked", {
+            reason: testResult.reason || "-",
+          })}
+        </p>
+      );
+    }
+    return (
+      <p className="assignments-drawer__notice">
+        {t("assignments:driveAttachments.testShareBlocked", {
+          reason: testResult.reason || "-",
+        })}
+      </p>
+    );
   };
 
   const handleFileSelect = async (event) => {
@@ -199,6 +260,20 @@ const DriveAttachmentEditor = ({
           <p className="text-muted">
             {t("assignments:driveAttachments.anyoneWithLink")}
           </p>
+
+          <div className="drive-attachment-test">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              disabled={testing || controlsDisabled}
+              onClick={runConnectionTest}
+            >
+              {testing
+                ? t("assignments:driveAttachments.testing")
+                : t("assignments:driveAttachments.testConnection")}
+            </button>
+            {renderTestResult()}
+          </div>
 
           {pendingFiles.length > 0 && (
             <div className="attachment-chips">

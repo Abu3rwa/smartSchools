@@ -108,6 +108,27 @@ router.get('/callback', async (req, res) => {
     }
 });
 
+// Real self-test for the attachment connection: it creates, shares and deletes
+// one tiny file in the caller's own Drive and reports which step failed.
+router.post('/test', protect, async (req, res) => {
+    if (purposeOf(req) !== 'attachments') {
+        return res.status(400).json({ success: false, message: 'Pick the attachments connection to test.' });
+    }
+    try {
+        const result = await googleDriveFileService.testConnection(req.user._id.toString());
+        return res.json({ success: true, ...result });
+    } catch (error) {
+        logger.error('Google Drive connection test failed:', error);
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            ...(error.code ? { code: error.code } : {}),
+            message: error.statusCode && error.statusCode < 500
+                ? error.message
+                : 'Could not test the Google Drive connection.'
+        });
+    }
+});
+
 router.get('/status', protect, async (req, res) => {
     try {
         const status = purposeOf(req) === 'attachments'

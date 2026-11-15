@@ -32,6 +32,7 @@ import {
     Typography
 } from '@mui/material';
 import { HiChevronDown, HiOutlineTrash } from 'react-icons/hi2';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
@@ -168,6 +169,14 @@ const SpellingCurriculumTab = ({
                                         disabled={exportingWordLibrary}
                                     >
                                         {t('exportAudioCsv')}
+                                    </Button>
+                                    <Button
+                                        component={Link}
+                                        to="/portal/spelling/audio/review"
+                                        variant="outlined"
+                                        size="small"
+                                    >
+                                        {t('audioAdmin.review.title')}
                                     </Button>
                                 </Stack>
                             </Stack>

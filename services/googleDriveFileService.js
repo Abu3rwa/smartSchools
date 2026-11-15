@@ -13,12 +13,29 @@ const connectionError = () => {
     return error;
 };
 
-const driveApiError = (error) => {
+// Google's error payload carries the actual reason (cannotShare, storageQuota,
+// accessNotConfigured...). Keeping it lets the client name the real cause
+// instead of showing one generic sentence for every failure.
+const googleErrorReason = (error) => {
+    const apiErrors = error?.errors
+        || error?.response?.data?.error?.errors
+        || [];
+    const reason = Array.isArray(apiErrors) ? apiErrors[0]?.reason : null;
+    if (reason) return String(reason);
+    const status = error?.response?.status || (typeof error?.code === 'number' ? error.code : null);
+    return status ? String(status) : '';
+};
+
+const driveApiError = (error, step = 'upload') => {
     const wrapped = new Error('Google Drive rejected the request. Try again, or reconnect Google Drive for attachments.');
     wrapped.code = 'DRIVE_FILE_API_FAILED';
     wrapped.statusCode = 502;
     wrapped.expose = true;
+    wrapped.step = step;
+    wrapped.reason = googleErrorReason(error);
     logger.error('google_drive_file_api_failed', {
+        step,
+        reason: wrapped.reason,
         code: error?.code,
         message: error?.message
     });
@@ -139,7 +156,7 @@ class GoogleDriveFileService {
             });
             created = response.data;
         } catch (error) {
-            throw driveApiError(error);
+            throw driveApiError(error, 'upload');
         }
 
         try {
@@ -150,7 +167,7 @@ class GoogleDriveFileService {
         } catch (error) {
             // Never leave an unshared orphan the teacher can't find in the app.
             await drive.files.update({ fileId: created.id, requestBody: { trashed: true } }).catch(() => {});
-            throw driveApiError(error);
+            throw driveApiError(error, 'share');
         }
 
         return {
@@ -161,6 +178,52 @@ class GoogleDriveFileService {
             webViewLink: created.webViewLink || '',
             iconLink: created.iconLink || ''
         };
+    }
+
+    /**
+     * One real round-trip against the teacher's Drive: create a tiny file,
+     * share it, delete it. Reports which step Google refused and why, so a
+     * failed upload never has to be diagnosed by guesswork.
+     */
+    async testConnection(userId) {
+        const { drive } = await this.buildDriveClient(userId);
+        const result = { upload: false, share: false, uploadReason: '', shareReason: '' };
+        const name = `GradeBook connection test ${new Date().toISOString()}`;
+
+        let fileId;
+        try {
+            const created = await drive.files.create({
+                requestBody: { name },
+                media: { mimeType: 'text/plain', body: Readable.from(Buffer.from('Connection test')) },
+                fields: 'id'
+            });
+            fileId = created?.data?.id;
+            result.upload = Boolean(fileId);
+            if (!fileId) result.uploadReason = 'no_file_id';
+        } catch (error) {
+            result.uploadReason = googleErrorReason(error) || 'request_failed';
+            logger.error('google_drive_test_upload_failed', { user: String(userId), reason: result.uploadReason, message: error?.message });
+            return result;
+        }
+
+        try {
+            await drive.permissions.create({
+                fileId,
+                requestBody: { role: 'reader', type: 'anyone' }
+            });
+            result.share = true;
+        } catch (error) {
+            result.shareReason = googleErrorReason(error) || 'request_failed';
+            logger.error('google_drive_test_share_failed', { user: String(userId), reason: result.shareReason, message: error?.message });
+        }
+
+        try {
+            await drive.files.delete({ fileId });
+        } catch (error) {
+            logger.warn('google_drive_test_delete_failed', { user: String(userId), message: error?.message });
+        }
+
+        return result;
     }
 
     /** Trashes rather than deletes, so a mistaken removal is recoverable in Drive. */

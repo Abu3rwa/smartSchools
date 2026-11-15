@@ -17,6 +17,21 @@ import {
     searchSchoolWordAudio,
     setAudioSetting
 } from '../services/wordAudioService.js';
+import {
+    flagPronunciation,
+    getReviewIndex,
+    getReviewQueue,
+    markPronunciationReviewed
+} from '../services/spellingPronunciationReviewService.js';
+
+// A user can hold several roles. Admins and principals see every grade; only a
+// pure teacher is limited to the grades they teach.
+const reviewRoleFor = (user) => {
+    const roles = [user?.role, ...(user?.roles || [])];
+    if (roles.includes('admin') || roles.includes('department_principal')) return 'admin';
+    if (roles.includes('teacher')) return 'teacher';
+    return user?.role || '';
+};
 
 export const importWordAudioCsv = asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'CSV file is required' });
@@ -96,6 +111,7 @@ export const generateAiWordAudio = asyncHandler(async (req, res) => {
         schoolId: req.schoolId,
         userId: req.user?._id,
         grade: req.body?.grade,
+        week: req.body?.week,
         limit
     });
     if (data.available === false) {
@@ -132,6 +148,51 @@ export const regenerateAiPronunciation = asyncHandler(async (req, res) => {
             code: 'SPELLING_AI_AUDIO_OFF'
         });
     }
+    return res.json({ success: true, data });
+});
+
+// The review queue for one grade and week: every word with both accents, and
+// whether its clip has been reviewed. Teachers only get the grades they teach.
+export const pronunciationReviewQueue = asyncHandler(async (req, res) => {
+    const grade = String(req.query?.grade || '').trim();
+    const week = String(req.query?.week || '').trim();
+    const role = reviewRoleFor(req.user);
+    // Without a grade and week the caller gets the list of weeks it may open.
+    if (!grade || !week) {
+        const index = await getReviewIndex({ schoolId: req.schoolId, user: req.user, role });
+        return res.json({ success: true, data: { ...index, mode: 'index' } });
+    }
+    const data = await getReviewQueue({
+        schoolId: req.schoolId,
+        user: req.user,
+        role,
+        grade,
+        week,
+        onlyPending: String(req.query?.onlyPending ?? 'false') === 'true'
+    });
+    return res.json({ success: true, data: { ...data, mode: 'queue' } });
+});
+
+export const reviewPronunciation = asyncHandler(async (req, res) => {
+    const data = await markPronunciationReviewed({
+        schoolId: req.schoolId,
+        user: req.user,
+        role: reviewRoleFor(req.user),
+        word: req.body?.word,
+        accent: req.body?.accent
+    });
+    return res.json({ success: true, data });
+});
+
+export const flagPronunciationIssue = asyncHandler(async (req, res) => {
+    const data = await flagPronunciation({
+        schoolId: req.schoolId,
+        user: req.user,
+        role: reviewRoleFor(req.user),
+        word: req.body?.word,
+        accent: req.body?.accent,
+        reason: req.body?.reason
+    });
     return res.json({ success: true, data });
 });
 

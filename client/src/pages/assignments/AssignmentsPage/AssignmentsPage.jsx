@@ -37,6 +37,7 @@ import {
   normalizeGradeStudentsFromClassStudents,
   sortGradeStudentsByName,
 } from "./utils/assignmentPresentation";
+import { driveUploadErrorMessage } from "./utils/driveAttachmentErrors";
 import "./AssignmentsPage.css";
 
 const PAGE_SIZE = 10;
@@ -490,7 +491,8 @@ const AssignmentsPage = () => {
         editingAssignment?.id || savedAssignment?.id || savedAssignment?._id;
       if (pendingDriveFiles.length > 0) {
         if (!driveAssignmentId) {
-          throw new Error(t("assignments:driveAttachments.uploadFailed"));
+          toast.error(t("assignments:driveAttachments.uploadFailed"));
+          return;
         }
 
         try {
@@ -511,10 +513,7 @@ const AssignmentsPage = () => {
             setEditingAssignment({ ...savedAssignment, id: driveAssignmentId });
             setForm((prev) => ({ ...prev, publishNow }));
           }
-          toast.error(
-            error.response?.data?.message ||
-              t("assignments:driveAttachments.uploadFailed"),
-          );
+          toast.error(driveUploadErrorMessage(t, error));
           return;
         }
       }
@@ -667,12 +666,18 @@ const AssignmentsPage = () => {
         : [];
       if (pendingDriveFiles.length > 0) {
         if (!draftId) {
-          throw new Error(t("assignments:driveAttachments.uploadFailed"));
+          toast.error(t("assignments:driveAttachments.uploadFailed"));
+          return;
         }
-        await assignmentService.uploadDriveAttachments(
-          draftId,
-          pendingDriveFiles,
-        );
+        try {
+          await assignmentService.uploadDriveAttachments(
+            draftId,
+            pendingDriveFiles,
+          );
+        } catch (error) {
+          toast.error(driveUploadErrorMessage(t, error));
+          return;
+        }
       }
 
       toast.success(t("assignments:toasts.autoDraftSaved"));

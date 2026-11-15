@@ -46,11 +46,38 @@ const fileFilter = (_req, file, cb) => {
   }
 };
 
-export const uploadAssignmentAttachments = multer({
+const attachmentsMulter = multer({
   storage,
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
   fileFilter,
 });
+
+// Multer failures are the teacher's file, not a server fault: without this
+// they surface as a 500 "Internal server error" and hide the real reason.
+export const mapAttachmentsUploadError = (error) => {
+  if (!error) return error;
+  if (error.code === "LIMIT_FILE_SIZE") {
+    error.statusCode = 400;
+    error.message = "Files must be 10 MB or smaller.";
+  } else if (error.code === "LIMIT_FILE_COUNT") {
+    error.statusCode = 400;
+    error.message = `Upload up to ${MAX_FILES} files at a time.`;
+  } else if (error.code === "LIMIT_UNEXPECTED_FILE") {
+    error.statusCode = 400;
+    error.message = "Unexpected file field. Use the attachments picker in the form.";
+  } else if (!error.statusCode) {
+    error.statusCode = 400;
+  }
+  return error;
+};
+
+export const uploadAssignmentAttachments = {
+  array: (field, maxCount) => (req, res, next) => {
+    attachmentsMulter.array(field, maxCount)(req, res, (error) =>
+      next(mapAttachmentsUploadError(error)),
+    );
+  },
+};
 
 export const requireAssignmentUploadAvailability = (req, res, next) => {
   if (!Array.isArray(req.files) || req.files.length === 0) return next();
