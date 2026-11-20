@@ -8,7 +8,7 @@
  */
 
 export const WRITING_PROMPT_VERSIONS = {
-  feedback: "feedback-2026-11-17.1",
+  feedback: "feedback-2026-11-20.1",
   comparison: "comparison-2026-11-16.3",
   analysis: "analysis-2026-11-16.1",
   note: "note-2026-11-16.1",

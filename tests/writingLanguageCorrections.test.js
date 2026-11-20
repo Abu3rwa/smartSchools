@@ -157,6 +157,60 @@ test("C05: only the context-identified final punctuation is highlighted", () => 
   assert.equal(row.anchor.start, text.lastIndexOf("."));
 });
 
+test("C05a: a punctuation label with no mark in the original is dropped", () => {
+  const text = "Did you know that you will get higher marks if you have longer recess.";
+  const result = run(
+    [d("intro", 0, text)],
+    [sec("intro", 0, {
+      mechanics: [fix("punctuation", "higher marks", "higher marks.", "This needs a full stop to end the question sentence.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(result.sections[0].mechanics.length, 0);
+  assert.equal(result.sections[0].mechanicsReview.status, "partial");
+  assert.ok(result.sections[0].mechanicsReview.reasons.includes("invalid_candidate"));
+});
+
+test("C05b: removing a correct comma after an opening phrase is dropped", () => {
+  const text = "First of all, recess helps us focus.";
+  const result = run(
+    [d("body", 0, text)],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "First of all,", "First of all", "This phrase does not need a comma here.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(result.sections[0].mechanics.length, 0);
+  assert.equal(result.sections[0].mechanicsReview.status, "partial");
+});
+
+test("C05c: a sentence-start capital is accepted as a punctuation fix", () => {
+  const text = "After we play. last week I go.";
+  const result = run(
+    [d("body", 0, text)],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "last", "Last", "Start a new sentence with a capital letter.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(result.sections[0].mechanics.length, 1);
+  assert.equal(result.sections[0].mechanics[0].correction, "Last");
+  assert.equal(sliceOf(text, result.sections[0].mechanics[0]), "last");
+});
+
+test("C05d: a stray colon can still be removed", () => {
+  const text = "so: I do not know what to say.";
+  const result = run(
+    [d("body", 0, text)],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "so:", "", "Remove this colon.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(result.sections[0].mechanics.length, 1);
+  assert.equal(result.sections[0].mechanics[0].correction, "");
+});
+
 test("C06: an explicit empty correction deletes; null or missing stays invalid", () => {
   const text = "I very like it.";
   const ok = run(
