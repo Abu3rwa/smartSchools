@@ -71,6 +71,24 @@ const allOccurrences = (text, needle) => {
   return found;
 };
 
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+const SINGLE_WORD = /^[\p{L}\p{N}]+$/u;
+
+/**
+ * A one-word quote such as "i" also matches inside "think"; the child's own
+ * word is the whole word. When at least one occurrence sits on word boundaries,
+ * those are the only real candidates.
+ */
+const preferWholeWords = (text, needle, spans) => {
+  if (!SINGLE_WORD.test(needle) || spans.length < 2) return spans;
+  const bounded = spans.filter(
+    (span) =>
+      !WORD_CHAR.test(text[span.start - 1] ?? "") &&
+      !WORD_CHAR.test(text[span.end] ?? ""),
+  );
+  return bounded.length ? bounded : spans;
+};
+
 /**
  * Whitespace-only equivalence: prompts collapse whitespace, so a quote may
  * differ from the draft only in runs of spaces/newlines. Case, apostrophes,
@@ -127,7 +145,7 @@ export const resolveCorrectionSpan = (sectionText, original, sourceQuote = "") =
   );
 
   // 2) Whitespace-only equivalence: prompts collapse runs of spaces/newlines.
-  let spans = literalSpans;
+  let spans = preferWholeWords(text, needle, literalSpans);
   if (!spans.length) {
     const collapsedNeedle = collapseFor(needle);
     if (!collapsedNeedle) return { ok: false, reason: "missing" };
@@ -142,7 +160,7 @@ export const resolveCorrectionSpan = (sectionText, original, sourceQuote = "") =
       if (collapseFor(slice) !== collapsedNeedle) continue;
       loose.push(candidate);
     }
-    spans = usable(loose);
+    spans = preferWholeWords(text, needle, usable(loose));
   }
 
   if (!spans.length) return { ok: false, reason: "missing" };

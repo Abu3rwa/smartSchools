@@ -211,6 +211,68 @@ test("C05d: a stray colon can still be removed", () => {
   assert.equal(result.sections[0].mechanics[0].correction, "");
 });
 
+test("C05e: a missing apostrophe and a missing comma are accepted when no mark exists to quote", () => {
+  const apostrophe = run(
+    [d("body", 0, "I dont like cold lunch.")],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "dont", "don't", "A contraction needs an apostrophe.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  const row = apostrophe.sections[0].mechanics[0];
+  assert.equal(row.correction, "don't");
+  assert.equal(sliceOf("I dont like cold lunch.", row), "dont");
+
+  const comma = run(
+    [d("body", 0, "I like apples oranges and pears.")],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "apples oranges", "apples, oranges", "Separate the items in a list with commas.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(comma.sections[0].mechanics.length, 1);
+  assert.equal(comma.sections[0].mechanics[0].correction, "apples, oranges");
+});
+
+test("C05f: an end mark added mid-sentence is still dropped, but the section's last word may take one", () => {
+  const midSentence = run(
+    [d("body", 0, "You earn higher marks because you work hard.")],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "higher marks", "higher marks.", "End this sentence with a period.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(midSentence.sections[0].mechanics.length, 0);
+  assert.equal(midSentence.sections[0].mechanicsReview.status, "partial");
+
+  const atTheEnd = run(
+    [d("body", 0, "We walked to the market")],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "market", "market.", "End this sentence with a period.")],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(atTheEnd.sections[0].mechanics.length, 1);
+  assert.equal(atTheEnd.sections[0].mechanics[0].correction, "market.");
+});
+
+test("C05h: a one-word quote resolves to the whole word, not a letter inside another word", () => {
+  const text = "In class i can think better after a break.";
+  const result = run(
+    [d("body", 0, text)],
+    [sec("body", 0, {
+      mechanics: [fix("punctuation", "i", "I", "The word I is always capitalized.", {
+        sourceQuote: "In class i can think better after a break.",
+      })],
+      mechanicsReview: reviewed,
+    })],
+  );
+  assert.equal(result.sections[0].mechanics.length, 1);
+  const row = result.sections[0].mechanics[0];
+  assert.equal(sliceOf(text, row), "i");
+  assert.equal(row.anchor.start, text.indexOf(" i ") + 1);
+});
+
 test("C06: an explicit empty correction deletes; null or missing stays invalid", () => {
   const text = "I very like it.";
   const ok = run(

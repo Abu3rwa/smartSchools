@@ -96,6 +96,10 @@ const runLiveFixture = async (fixture, runs) => {
       ...(process.env.WRITING_AI_MODEL
         ? { modelName: process.env.WRITING_AI_MODEL }
         : {}),
+      // Match production: JSON mode and the same reply budget, so a long
+      // feedback reply is not cut off and reported as unreadable.
+      json: true,
+      maxTokens: Number(process.env.WRITING_AI_MAX_TOKENS) || 6000,
       usage: false,
     });
     const latencyMs = Date.now() - startedAt;
