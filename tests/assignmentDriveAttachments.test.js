@@ -14,6 +14,7 @@ import { GOOGLE_DRIVE_FILE_SCOPE, hasDriveFileScope } from '../config/googleDriv
 import {
     deleteAssignment,
     deleteDriveAttachment,
+    updateDriveAttachmentVisibility,
     uploadDriveAttachments
 } from '../controllers/assignmentController.js';
 
@@ -106,8 +107,8 @@ test('uploading Drive attachments stores the returned metadata on the assignment
     assert.equal(calls.uploads.length, 1);
     assert.equal(calls.uploads[0].userId, 'admin-1');
     assert.equal(doc.saveCount, 1);
-    assert.deepEqual(doc.driveAttachments, [FILE_DOC]);
-    assert.deepEqual(response.body.data.driveAttachments, [FILE_DOC]);
+    assert.deepEqual(doc.driveAttachments, [{ ...FILE_DOC, visibility: 'students' }]);
+    assert.deepEqual(response.body.data.driveAttachments, [{ ...FILE_DOC, visibility: 'students' }]);
 });
 
 test('uploading without files is a 400 before any Drive call', async (t) => {
@@ -260,6 +261,119 @@ test('deleting the assignment trashes its Drive files best-effort', async (t) =>
     assert.equal(response.statusCode, 200);
     assert.deepEqual(calls.trashed, [{ userId: 'admin-1', fileIds: ['drive-1'] }]);
     assert.equal(doc.deleted, true);
+});
+
+/* ---------------------------------------------------------------- */
+/* Visibility endpoint                                               */
+/* ---------------------------------------------------------------- */
+
+const visibilityReq = (visibility, doc) => ({
+    params: { id: 'assignment-1', fileId: 'drive-1' },
+    body: { visibility },
+    schoolId: 'school-1',
+    user: { role: 'admin', _id: 'admin-1' },
+    doc
+});
+
+const mockVisibilityService = (t, { restrictError = null, shareError = null } = {}) => {
+    const calls = { restricted: [], shared: [] };
+    t.mock.method(googleDriveFileService, 'restrictFile', async (userId, fileId) => {
+        calls.restricted.push({ userId, fileId });
+        if (restrictError) throw restrictError;
+    });
+    t.mock.method(googleDriveFileService, 'shareFile', async (userId, fileId) => {
+        calls.shared.push({ userId, fileId });
+        if (shareError) throw shareError;
+    });
+    return calls;
+};
+
+test('marking a Drive file AI only removes its public link permission', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC, visibility: 'students' }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    const calls = mockVisibilityService(t);
+
+    const { response, nextError } = await invoke(
+        updateDriveAttachmentVisibility,
+        visibilityReq('private', doc)
+    );
+
+    assert.equal(nextError, null);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(calls.restricted, [{ userId: 'admin-1', fileId: 'drive-1' }]);
+    assert.deepEqual(calls.shared, []);
+    assert.equal(doc.driveAttachments[0].visibility, 'private');
+    assert.equal(doc.saveCount, 1);
+    assert.equal(response.body.data.warning, '');
+});
+
+test('sharing a file with students puts the public link permission back', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC, visibility: 'private' }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    const calls = mockVisibilityService(t);
+
+    const { response } = await invoke(
+        updateDriveAttachmentVisibility,
+        visibilityReq('students', doc)
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(calls.shared, [{ userId: 'admin-1', fileId: 'drive-1' }]);
+    assert.equal(doc.driveAttachments[0].visibility, 'students');
+});
+
+test('a Drive failure keeps the app-side choice and reports a warning', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC, visibility: 'students' }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    mockVisibilityService(t, { restrictError: Object.assign(new Error('nope'), { code: 'DRIVE_FILE_API_FAILED' }) });
+
+    const { response } = await invoke(
+        updateDriveAttachmentVisibility,
+        visibilityReq('private', doc)
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(doc.driveAttachments[0].visibility, 'private');
+    assert.equal(response.body.data.warning, 'DRIVE_FILE_API_FAILED');
+});
+
+test('a dead Drive connection is reported as a reconnect warning', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    mockVisibilityService(t, { shareError: Object.assign(new Error('gone'), { code: 'DRIVE_FILE_NOT_CONNECTED' }) });
+
+    const { response } = await invoke(
+        updateDriveAttachmentVisibility,
+        visibilityReq('students', doc)
+    );
+
+    assert.equal(response.body.data.warning, 'DRIVE_FILE_NOT_CONNECTED');
+});
+
+test('an unknown visibility value is a 400 before any Drive call', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    const calls = mockVisibilityService(t);
+
+    const { response } = await invoke(updateDriveAttachmentVisibility, visibilityReq('public', doc));
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(calls.restricted.length + calls.shared.length, 0);
+    assert.equal(doc.saveCount, 0);
+});
+
+test('an unknown file id is a 404 before any Drive call', async (t) => {
+    const doc = assignmentDoc({ driveAttachments: [{ ...FILE_DOC }] });
+    t.mock.method(Assignment, 'findOne', async () => doc);
+    const calls = mockVisibilityService(t);
+
+    const { response } = await invoke(updateDriveAttachmentVisibility, {
+        ...visibilityReq('private', doc),
+        params: { id: 'assignment-1', fileId: 'nope' }
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(calls.restricted.length, 0);
 });
 
 /* ---------------------------------------------------------------- */

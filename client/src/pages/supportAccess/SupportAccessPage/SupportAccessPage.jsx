@@ -12,13 +12,12 @@ import {
   HiOutlineLanguage,
   HiOutlineXMark,
 } from "react-icons/hi2";
-import supportAccessService from "../../../services/supportAccessService.js";
+import supportAccessService, { SUPPORT_TOKEN_KEY as TOKEN_KEY } from "../../../services/supportAccessService.js";
 import SurveyForm from "../../../components/support/SurveyForm.jsx";
 import ErrorBanner from "../../../components/shared/ErrorBanner.jsx";
 import { computeHomeProgress } from "../../../utils/supportProgress.js";
 import "./SupportAccessPage.css";
 
-const TOKEN_KEY = "support.accessToken";
 const isArabic = (language) => String(language || "").startsWith("ar");
 const pick = (en, ar, arabic) => (arabic ? ar || en : en || ar);
 
@@ -38,7 +37,8 @@ const dueLabel = (dueDate, language) => {
 const initials = (name = "") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
 
 const surveyState = (status) => {
-  if (status === "submitted" || status === "skipped") return "done";
+  if (status === "submitted") return "done";
+  if (status === "skipped") return "skipped";
   if (status === "opened") return "inProgress";
   return "notStarted";
 };
@@ -50,6 +50,16 @@ const isOverdue = (survey) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return new Date(survey.dueDate) < today;
+};
+
+// A skipped survey can be brought back by the same respondent until its due
+// date passes (Q7); afterwards only the school can reopen it.
+const isReopenable = (survey) => {
+  if (survey.status !== "skipped") return false;
+  if (!survey.dueDate) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(survey.dueDate) >= today;
 };
 
 const groupSurveys = (surveys, language) => {
@@ -76,10 +86,11 @@ const groupSurveys = (surveys, language) => {
   }));
 };
 
-const SurveyRow = ({ survey, studentName, studentClass, language, disabled, onOpen, t }) => {
+const SurveyRow = ({ survey, studentName, studentClass, language, disabled, onOpen, onReopen, t }) => {
   const state = surveyState(survey.status);
   const due = dueLabel(survey.dueDate, language);
   const overdue = isOverdue(survey);
+  const reopenable = isReopenable(survey);
   const action = state === "inProgress" ? t("access.continue") : t("access.answer");
   return (
     <li className={`access-survey-row is-${state}`}>
@@ -96,7 +107,17 @@ const SurveyRow = ({ survey, studentName, studentClass, language, disabled, onOp
         </span>
       </div>
       <span className={`access-state is-${state}`}>{t(`access.state.${state}`)}</span>
-      {state !== "done" && (
+      {reopenable ? (
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          disabled={disabled}
+          aria-label={`${t("access.reopen")}: ${studentName}`}
+          onClick={() => onReopen(survey.id)}
+        >
+          {t("access.reopen")}
+        </button>
+      ) : state !== "done" && (
         <button
           type="button"
           className={`btn btn-sm ${state === "inProgress" ? "btn-primary" : "btn-secondary"}`}
@@ -440,6 +461,25 @@ const SupportAccessPage = () => {
     "survey.skipped",
   );
 
+  const handleReopen = async (surveyId) => {
+    setSurveyBusy(true);
+    try {
+      const saved = await supportAccessService.reopen(token, surveyId);
+      setHub((current) => ({
+        ...current,
+        surveys: current.surveys.map((row) => (
+          row.id === surveyId ? { ...row, status: saved.status, revision: saved.revision } : row
+        )),
+      }));
+      toast.success(t("survey.reopened"));
+      await openSurveyById(surveyId);
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("survey.reopenFailed"));
+    } finally {
+      setSurveyBusy(false);
+    }
+  };
+
   const handleCheckIn = async (planId, taskId, status, note) => {
     setBusy(true);
     try {
@@ -676,6 +716,7 @@ const SupportAccessPage = () => {
                                         language={i18n.language}
                                         disabled={surveyBusy}
                                         onOpen={openSurveyById}
+                                        onReopen={handleReopen}
                                         t={t}
                                       />
                                     );
@@ -717,7 +758,35 @@ const SupportAccessPage = () => {
                 )}
               </div>
 
-              {isFinished(openSurvey) ? (
+              {openSurvey.status === "skipped" ? (
+                <div className="access-finished is-skipped" role="status">
+                  <HiOutlineArrowPath size={36} />
+                  <h3>{t("access.skippedTitle")}</h3>
+                  <p>
+                    {openSurvey.dueDate
+                      ? t(
+                        isReopenable(openSurvey) ? "access.skippedBodyDue" : "access.skippedBodyPast",
+                        { date: dueLabel(openSurvey.dueDate, i18n.language) },
+                      )
+                      : t("access.skippedBody")}
+                  </p>
+                  <div className="access-finished-actions">
+                    {isReopenable(openSurvey) && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={surveyBusy}
+                        onClick={() => handleReopen(openSurvey.id)}
+                      >
+                        {surveyBusy ? t("common.working") : t("access.reopen")}
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-secondary" onClick={closeSurvey}>
+                      {t("access.allSurveys")}
+                    </button>
+                  </div>
+                </div>
+              ) : isFinished(openSurvey) ? (
                 <div className="access-finished" role="status">
                   <HiOutlineCheckCircle size={36} />
                   <h3>{t("access.sentTitle")}</h3>

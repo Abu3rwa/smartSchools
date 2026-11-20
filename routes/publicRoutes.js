@@ -3,6 +3,11 @@ import bcrypt from 'bcryptjs';
 import School from '../models/School.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import {
+    optOutPageFor,
+    readOptOutToken,
+    recordWritingEmailOptOut,
+} from '../services/writingEmailOptOutService.js';
 
 const router = express.Router();
 
@@ -131,5 +136,31 @@ router.get('/pricing', (req, res) => {
         }
     });
 });
+
+/**
+ * @desc    Writing feedback email opt-out (link in the email footer)
+ * @route   GET /api/public/writing-email-opt-out/:token
+ * @access  Public — the signed token is the only credential
+ */
+router.get('/writing-email-opt-out/:token', asyncHandler(async (req, res) => {
+    const page = await optOutPageFor({ token: req.params.token });
+    res.status(page.statusCode).type('html').send(page.html);
+}));
+
+/**
+ * @desc    Record the writing feedback email opt-out
+ * @route   POST /api/public/writing-email-opt-out/:token
+ * @access  Public — only a deliberate button click reaches here
+ */
+router.post('/writing-email-opt-out/:token', asyncHandler(async (req, res) => {
+    const claim = readOptOutToken(req.params.token);
+    if (!claim) {
+        const page = await optOutPageFor({ token: req.params.token });
+        return res.status(page.statusCode).type('html').send(page.html);
+    }
+    await recordWritingEmailOptOut(claim);
+    const page = await optOutPageFor({ token: req.params.token, done: true });
+    res.status(page.statusCode).type('html').send(page.html);
+}));
 
 export default router;

@@ -89,7 +89,7 @@ const overrideFor = ({ planning, key, audience }) => {
     return Array.isArray(broad) ? broad : null;
 };
 
-const selectionInputs = ({ caseDoc, plan }) => {
+const selectionInputs = ({ plan }) => {
     const goalConcerns = (plan?.goals || []).map((goal) => goal.concern).filter(Boolean);
     return { goalConcerns, difficultyConcerns: [] };
 };
@@ -205,7 +205,13 @@ const serializeItem = (item) => ({
 const loadCaseSurveys = async ({ schoolId, caseId }) => SupportSurvey.find({
     school: schoolId,
     case: caseId,
-}).populate('subject', 'name').lean();
+})
+    .populate('subject', 'name')
+    // Recency scoring reads the period off review/cycle; without these the
+    // weight treats every survey as if it were answered this month.
+    .populate('review', 'month academicYear')
+    .populate('cycle', 'month academicYear')
+    .lean();
 
 const loadBanks = async ({ schoolId }) => {
     const [teacher, parent, student] = await Promise.all([
@@ -247,7 +253,7 @@ export const previewReview = async ({ schoolId, caseDoc, planning = null }) => {
     };
 };
 
-const dueDateFor = ({ planning, period, settings }) => {
+const dueDateFor = ({ planning, settings }) => {
     if (planning?.dueDate) {
         const parsed = new Date(planning.dueDate);
         if (!Number.isNaN(parsed.getTime())) return parsed;
@@ -284,7 +290,7 @@ const currentPlanDoc = async ({ schoolId, caseDoc }) => {
     return SupportPlan.findOne({ _id: caseDoc.currentPlan, school: schoolId }).lean();
 };
 
-const nextSequence = async ({ schoolId, caseDoc, period }) => {
+const nextSequence = async ({ schoolId, caseDoc }) => {
     const last = await SupportReview.findOne({
         school: schoolId,
         case: caseDoc._id,
@@ -351,14 +357,31 @@ const surveyForItem = async ({ schoolId, caseDoc, review, item, user }) => {
         respondent: respondentId,
         audience: item.audience,
         subject: payload.subject,
-    }).select('status answers');
+    }).select('status answers questions revision');
 
-    if (existing && ['submitted', 'skipped', 'cancelled'].includes(existing.status)) {
+    if (existing && ['submitted', 'skipped'].includes(existing.status)) {
         return { survey: existing, skipped: true };
     }
-    if (existing && (existing.answers || []).length > 0) {
-        // Never wipe an answer in progress when the review is rebuilt.
-        return { survey: existing, skipped: true };
+
+    if (existing) {
+        const nextIds = (payload.questions || []).map((question) => String(question.id));
+        const currentIds = (existing.questions || []).map((question) => String(question.id));
+        const sameSelection = nextIds.length === currentIds.length
+            && nextIds.every((id, index) => id === currentIds[index]);
+        if (!sameSelection) {
+            // Replace only affected surveys (Q5): the question set changes,
+            // answers to surviving questions are kept, and the revision bump
+            // tells any open tab to reload.
+            const surviving = new Set(nextIds);
+            payload.answers = (existing.answers || [])
+                .filter((answer) => surviving.has(String(answer.questionId)));
+            payload.revision = (existing.revision || 1) + 1;
+        }
+        if (existing.status === 'cancelled') {
+            // Re-preparing a cancelled review deliberately revives its surveys.
+            payload.status = 'draft';
+            payload.revision = (existing.revision || 1) + 1;
+        }
     }
 
     const survey = await SupportSurvey.findOneAndUpdate(
@@ -496,6 +519,34 @@ export const prepareReview = async ({ schoolId, caseDoc, user, planning = null }
         }
     }
 
+    // Anyone still open on this review who is no longer selected is cancelled
+    // here, so issuing can never reach a deselected recipient.
+    const keptKeys = new Set(items.map((item) => item.key));
+    const openSurveys = await SupportSurvey.find({
+        school: schoolId,
+        review: review._id,
+        status: { $in: ['draft', 'sent', 'opened'] },
+    }).select('audience subject respondentSlot');
+    for (const survey of openSurveys) {
+        const key = survey.audience === 'teacher'
+            ? `teacher:${survey.subject ? String(survey.subject) : ''}`
+            : survey.audience === 'parent'
+                ? `parent:${survey.respondentSlot || ''}`
+                : 'student';
+        if (keptKeys.has(key)) continue;
+        await SupportSurvey.updateOne(
+            { _id: survey._id },
+            { $set: { status: 'cancelled', updatedBy: user?._id || null }, $inc: { revision: 1 } },
+        );
+        results.push({
+            key,
+            surveyId: String(survey._id),
+            audience: survey.audience,
+            status: 'cancelled',
+            reason: 'deselected',
+        });
+    }
+
     return { review, results, warnings: config.warnings, questions: items.map(serializeItem) };
 };
 
@@ -549,16 +600,15 @@ export const issueReview = async ({ schoolId, caseDoc, review, user }) => {
             surveys: emailSurveys,
             student: caseDoc.student,
             senderUserId,
+            dedupeScope: `review:${review._id}`,
         });
         const byId = new Map(mailResults.map((row) => [row.surveyId, row]));
         for (const survey of emailSurveys) {
             const outcome = byId.get(String(survey._id));
+            const delivered = outcome?.status === 'sent'
+                || (outcome?.status === 'skipped' && outcome?.reason === 'already-sent');
             survey.status = 'sent';
-            survey.deliveryState = outcome?.status === 'sent'
-                ? 'sent'
-                : outcome?.status === 'skipped'
-                    ? 'failed'
-                    : 'failed';
+            survey.deliveryState = delivered ? 'sent' : 'failed';
             await survey.save();
             results.push({
                 surveyId: String(survey._id),
@@ -577,7 +627,7 @@ export const issueReview = async ({ schoolId, caseDoc, review, user }) => {
 };
 
 /** Long-lived printed slips: the code survives until the family hands it back. */
-export const listPrintedSlipsForReview = async ({ schoolId, review, caseDoc }) => SupportSurvey.find({
+export const listPrintedSlipsForReview = async ({ schoolId, review }) => SupportSurvey.find({
     school: schoolId,
     review: review._id,
     deliveryMethod: { $in: ['printed', 'assisted'] },
@@ -625,11 +675,14 @@ export const retryFailedDeliveries = async ({ schoolId, caseDoc, review, user })
         surveys: failed,
         student: caseDoc.student,
         senderUserId: caseDoc.homeroomTeacher?._id || caseDoc.owner?._id || user?._id || null,
+        dedupeScope: `review:${review._id}`,
     });
     const results = [];
     for (const survey of failed) {
         const outcome = mailResults.find((row) => row.surveyId === String(survey._id));
-        survey.deliveryState = outcome?.status === 'sent' ? 'sent' : 'failed';
+        const delivered = outcome?.status === 'sent'
+            || (outcome?.status === 'skipped' && outcome?.reason === 'already-sent');
+        survey.deliveryState = delivered ? 'sent' : 'failed';
         await survey.save();
         results.push({ surveyId: String(survey._id), status: outcome?.status || 'failed' });
     }
@@ -655,19 +708,24 @@ export const cancelReview = async ({ schoolId, review, user, reason = '' }) => {
     return review;
 };
 
-/** Called after a survey is submitted, skipped or marked no-concerns. */
+/** Called after a survey is submitted, skipped, reopened or marked no-concerns. */
 export const refreshReviewStatus = async ({ schoolId, reviewId }) => {
     if (!validId(reviewId)) return null;
     const review = await SupportReview.findOne({ _id: reviewId, school: schoolId });
-    if (!review || !['preparing', 'issued'].includes(review.status)) return review;
+    if (!review) return review;
     const open = await SupportSurvey.countDocuments({
         school: schoolId,
         review: review._id,
         status: { $in: ['draft', 'sent', 'opened'] },
     });
-    if (open === 0) {
+    if (['preparing', 'issued'].includes(review.status) && open === 0) {
         review.status = 'completed';
         review.completedAt = new Date();
+        await review.save();
+    } else if (review.status === 'completed' && open > 0) {
+        // A reopened survey makes a completed review active again.
+        review.status = 'issued';
+        review.completedAt = null;
         await review.save();
     }
     return review;

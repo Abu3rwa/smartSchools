@@ -298,6 +298,41 @@ test('approval freezes the rendered email and the resolved recipients', async ()
     assert.ok(Array.isArray(draft.approvedSnapshot?.recipients) && draft.approvedSnapshot.recipients.length > 0);
 });
 
+test('the draft schema accepts the recipient objects approval writes', () => {
+    // The approval tests above stub the model, so they cannot catch a schema
+    // that rejects the frozen snapshot the real controller saves.
+    const draft = new ReportDraft({
+        school: SCHOOL_A,
+        student: STUDENT_1,
+        teacher: TEACHER_1,
+        reportType: 'weekly',
+        period: 'November 2026',
+        dateRange: { startDate: new Date('2026-11-01'), endDate: new Date('2026-11-30') },
+        language: 'en',
+        content: '<p>Report body</p>'
+    });
+    draft.approvedSnapshot = {
+        subject: 'Frozen subject',
+        html: '<p>frozen</p>',
+        text: 'frozen',
+        recipients: [
+            { email: 'mother@family.test', name: 'Mom', type: 'mother' },
+            { email: 'teacher@school.test', name: 'Test Teacher', type: 'teacher' }
+        ],
+        senderEmail: 'sender@school.test',
+        senderName: 'Test Teacher',
+        language: 'en',
+        requestedLanguages: ['en'],
+        renderedAt: new Date(),
+        revision: 0
+    };
+    const validationError = draft.validateSync();
+    assert.equal(validationError, undefined);
+    const stored = draft.toObject().approvedSnapshot.recipients;
+    assert.deepEqual(stored.map((r) => r.email), ['mother@family.test', 'teacher@school.test']);
+    assert.deepEqual(stored.map((r) => r.type), ['mother', 'teacher']);
+});
+
 test('send delivers the frozen snapshot, not a fresh render of live data', async () => {
     resetState();
     const frozen = {

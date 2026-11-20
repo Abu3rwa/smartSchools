@@ -3,6 +3,13 @@ import Student from "../models/Student.js";
 import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 import * as writingService from "../services/writingAssistantService.js";
 import * as writingAssessmentService from "../services/writingAssistantAssessmentService.js";
+import * as writingSourcePackService from "../services/writingSourcePackService.js";
+import * as writingCommentBankService from "../services/writingCommentBankService.js";
+import * as writingBatchRunService from "../services/writingBatchRunService.js";
+import * as writingBulkPublishService from "../services/writingBulkPublishService.js";
+import * as writingClassInsightService from "../services/writingClassInsightService.js";
+import * as writingAiSelfTestService from "../services/writingAiSelfTestService.js";
+import { teacherToolsEnabled } from "../services/writingFlags.js";
 import {
   emailChannels,
   previewPublishedFeedbackEmail,
@@ -111,6 +118,48 @@ export const previewWordSupport = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+/* ------------------------------------------------------------------ */
+/* Teacher: lesson facts packs (school library)                        */
+/* ------------------------------------------------------------------ */
+
+export const listSourcePacks = asyncHandler(async (req, res) => {
+  const packs = await writingSourcePackService.listSourcePacks({
+    schoolId: req.schoolId,
+  });
+  res.json({ success: true, data: packs });
+});
+
+export const createSourcePack = asyncHandler(async (req, res) => {
+  const pack = await writingSourcePackService.createSourcePack({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    payload: req.body || {},
+  });
+  res.status(201).json({ success: true, data: pack });
+});
+
+export const updateSourcePack = asyncHandler(async (req, res) => {
+  const pack = await writingSourcePackService.updateSourcePack({
+    schoolId: req.schoolId,
+    packId: req.params.packId,
+    userId: req.user._id,
+    payload: req.body || {},
+  });
+  res.json({ success: true, data: pack });
+});
+
+export const assessmentEvidenceFacts = asyncHandler(async (req, res) => {
+  const data = await writingSourcePackService.evidenceFactsForAssessment({
+    schoolId: req.schoolId,
+    assessmentId: req.params.assessmentId,
+    sectionKey: String(req.query.key || ""),
+    index: Number(req.query.index) || 0,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+  });
+  res.json({ success: true, data });
+});
+
 export const saveAsTemplate = asyncHandler(async (req, res) => {
   const template = await writingService.saveAsTemplate({
     schoolId: req.schoolId,
@@ -144,7 +193,7 @@ export const instantiateTemplate = asyncHandler(async (req, res) => {
 });
 
 export const getBoard = asyncHandler(async (req, res) => {
-  const [board, credit] = await Promise.all([
+  const [board, credit, batchRun] = await Promise.all([
     writingService.getTeacherBoard({
       schoolId: req.schoolId,
       assignmentId: req.params.assignmentId,
@@ -153,10 +202,26 @@ export const getBoard = asyncHandler(async (req, res) => {
       isAdmin: isAdminUser(req.user),
     }),
     getCreditBadge({ schoolId: req.schoolId, userId: req.user._id }),
+    teacherToolsEnabled()
+      ? writingBatchRunService.latestBatchRun({
+          schoolId: req.schoolId,
+          assignmentId: req.params.assignmentId,
+          userId: req.user._id,
+          isAdmin: isAdminUser(req.user),
+        })
+      : null,
   ]);
   res.json({
     success: true,
-    data: { ...board, emailDelivery: emailChannels(), credit },
+    data: {
+      ...board,
+      emailDelivery: emailChannels(),
+      credit,
+      batchRun,
+      // Phase 5 screens are flag-gated; the UI reads the server's answer
+      // instead of assuming a deployment setting.
+      features: { teacherTools: teacherToolsEnabled() },
+    },
   });
 });
 
@@ -168,6 +233,33 @@ export const getProgress = asyncHandler(async (req, res) => {
     isAdmin: isAdminUser(req.user),
   });
   res.json({ success: true, data: progress });
+});
+
+export const getAssignmentInsight = asyncHandler(async (req, res) => {
+  const insight = await writingClassInsightService.assignmentInsight({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    classId: req.query.classId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+  });
+  res.json({ success: true, data: insight });
+});
+
+export const getAssignmentWorkload = asyncHandler(async (req, res) => {
+  const workload = await writingClassInsightService.assignmentWorkload({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+  });
+  res.json({ success: true, data: workload });
+});
+
+/** I12: the staff-only writing AI self-test. Costs no credit and stores nothing. */
+export const testWritingAi = asyncHandler(async (req, res) => {
+  const result = await writingAiSelfTestService.testWritingAi();
+  res.json({ success: true, data: result });
 });
 
 export const printProjectForTeacher = asyncHandler(async (req, res) => {
@@ -216,8 +308,11 @@ export const assessDraft = asyncHandler(async (req, res) => {
     language: req.body?.language || req.query.language,
     // A finished run costs credit again; only an explicit re-assess sends this.
     force: req.body?.force === true,
+    // K6: the teacher UI asks for the detached form so a slow provider never
+    // holds the request past the proxy timeout; the stored row reports the rest.
+    detached: req.body?.async === true,
   });
-  res.status(201).json({ success: true, data: result });
+  res.status(result.pending ? 202 : 201).json({ success: true, data: result });
 });
 
 export const assessAssignment = asyncHandler(async (req, res) => {
@@ -229,6 +324,51 @@ export const assessAssignment = asyncHandler(async (req, res) => {
     classId: req.body?.classId || req.query.classId,
     limit: req.body?.limit,
     language: req.body?.language || req.query.language,
+  });
+  res.json({ success: true, data: result });
+});
+
+// F3: the same batch work, but as a run the teacher can watch and resume.
+export const startBatchAssessment = asyncHandler(async (req, res) => {
+  const result = await writingBatchRunService.startBatch({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    classId: req.body?.classId || req.query.classId,
+    limit: req.body?.limit,
+    language: req.body?.language || req.query.language,
+    confirm: req.body?.confirm === true,
+  });
+  res.status(result.started ? 201 : 200).json({ success: true, data: result });
+});
+
+export const getBatchRun = asyncHandler(async (req, res) => {
+  const result = await writingBatchRunService.getBatchRun({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    batchRunId: req.params.batchRunId,
+  });
+  res.json({ success: true, data: result });
+});
+
+export const cancelBatchRun = asyncHandler(async (req, res) => {
+  const result = await writingBatchRunService.cancelBatchRun({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    batchRunId: req.params.batchRunId,
+  });
+  res.json({ success: true, data: result });
+});
+
+export const retryBatchRun = asyncHandler(async (req, res) => {
+  const result = await writingBatchRunService.retryBatchRun({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    batchRunId: req.params.batchRunId,
   });
   res.json({ success: true, data: result });
 });
@@ -279,6 +419,32 @@ export const previewFeedbackEmail = asyncHandler(async (req, res) => {
   res.json({ success: true, data: result });
 });
 
+// F7: a dry run before the class-wide publish. Nothing is written or mailed.
+export const previewBulkPublish = asyncHandler(async (req, res) => {
+  const result = await writingBulkPublishService.previewBulkPublish({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    projectIds: req.body?.projectIds,
+    notify: req.body?.notify,
+  });
+  res.set("Cache-Control", "no-store");
+  res.json({ success: true, data: result });
+});
+
+export const bulkPublish = asyncHandler(async (req, res) => {
+  const result = await writingBulkPublishService.bulkPublish({
+    schoolId: req.schoolId,
+    assignmentId: req.params.assignmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    projectIds: req.body?.projectIds,
+    notify: req.body?.notify,
+  });
+  res.json({ success: true, data: result });
+});
+
 export const resendFeedbackEmail = asyncHandler(async (req, res) => {
   const result = await resendPublishedFeedbackEmail({
     schoolId: req.schoolId,
@@ -308,6 +474,75 @@ export const recordNotebookReview = asyncHandler(async (req, res) => {
     userId: req.user._id,
     isAdmin: isAdminUser(req.user),
     payload: req.body || {},
+  });
+  res.json({ success: true, data: result });
+});
+
+// F13: pull back a submission the student did not mean to send.
+export const returnDraftToStudent = asyncHandler(async (req, res) => {
+  const result = await writingAssessmentService.returnDraftToStudent({
+    schoolId: req.schoolId,
+    projectId: req.params.projectId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    payload: req.body || {},
+  });
+  res.json({ success: true, data: result });
+});
+
+// F1: rewrite one note; the reply replaces only that note in the editor.
+export const regenerateNote = asyncHandler(async (req, res) => {
+  const result = await writingAssessmentService.regenerateNote({
+    schoolId: req.schoolId,
+    assessmentId: req.params.assessmentId,
+    userId: req.user._id,
+    isAdmin: isAdminUser(req.user),
+    payload: req.body || {},
+  });
+  res.json({ success: true, data: result });
+});
+
+// F2: the teacher's own library of reusable notes.
+const criteriaFromQuery = (value) =>
+  (Array.isArray(value) ? value : [value])
+    .flatMap((entry) => String(entry || "").split(","))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+export const listCommentBank = asyncHandler(async (req, res) => {
+  const result = await writingCommentBankService.listComments({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    sectionKey: req.query.sectionKey || "",
+    criteria: criteriaFromQuery(req.query.criteria),
+    skill: req.query.skill || "",
+  });
+  res.json({ success: true, data: result });
+});
+
+export const saveCommentBankNote = asyncHandler(async (req, res) => {
+  const result = await writingCommentBankService.saveComment({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    payload: req.body || {},
+  });
+  res.status(result.created ? 201 : 200).json({ success: true, data: result });
+});
+
+export const deleteCommentBankNote = asyncHandler(async (req, res) => {
+  const result = await writingCommentBankService.deleteComment({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    commentId: req.params.commentId,
+  });
+  res.json({ success: true, data: result });
+});
+
+export const markCommentBankNoteUsed = asyncHandler(async (req, res) => {
+  const result = await writingCommentBankService.markCommentUsed({
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    commentId: req.params.commentId,
   });
   res.json({ success: true, data: result });
 });

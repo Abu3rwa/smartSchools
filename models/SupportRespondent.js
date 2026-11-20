@@ -66,6 +66,8 @@ const supportRespondentSchema = new mongoose.Schema({
     lastAccessAt: { type: Date, default: null },
     failedAttempts: { type: Number, default: 0, min: 0 },
     lockedUntil: { type: Date, default: null },
+    // Bumped whenever a code is (re)issued so older access sessions die with it.
+    tokenVersion: { type: Number, default: 0, min: 0 },
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     active: { type: Boolean, default: true },
 }, { timestamps: true });

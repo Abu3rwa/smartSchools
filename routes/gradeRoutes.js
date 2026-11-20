@@ -25,9 +25,16 @@ import {
     getMissingGradesReport,
     importGrades
 } from '../controllers/gradebookController.js';
+import {
+    draftGradeLessonSummary,
+    extractGradeLessonSource,
+    previewGradeLessonEmail
+} from '../controllers/gradeLessonDraftController.js';
 import { protect, authorize, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { uploadGradeLessonSource } from '../middleware/uploadGradeLessonSource.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -51,6 +58,11 @@ router.post(
     bulkGradeHomework
 );
 router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
+
+// Lesson context for Grade Entry (draft/source/preview never save or send)
+router.post('/lesson/draft', authorize('teacher', 'admin'), aiFeatureRateLimiter, draftGradeLessonSummary);
+router.post('/lesson/source', authorize('teacher', 'admin'), aiFeatureRateLimiter, uploadGradeLessonSource, extractGradeLessonSource);
+router.post('/lesson/email-preview', authorize('teacher', 'admin'), previewGradeLessonEmail);
 
 // Get grades
 router.get('/my-grades', authorize('student'), getMyGrades);

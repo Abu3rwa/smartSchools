@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import CurrentAcademicPeriod from './CurrentAcademicPeriod';
 
 const WEEKDAY_OPTIONS = [
   { value: 0, labelKey: 'schoolSettings:weekdays.short.sun' },
@@ -13,6 +14,7 @@ const WEEKDAY_OPTIONS = [
 
 const SchoolYearTab = ({
   academicYears,
+  academicPeriod,
   fromYear,
   toYear,
   setFromYear,
@@ -102,6 +104,9 @@ const SchoolYearTab = ({
           {t('schoolSettings:schoolYear.intro')}
         </span>
       </div>
+      {academicPeriod && (
+        <CurrentAcademicPeriod period={academicPeriod} academicYears={academicYears} />
+      )}
       <div className="rollover-wizard card">
         <div className="wizard-step">
           <h4>{t('schoolSettings:schoolYear.step0.title')}</h4>
@@ -292,7 +297,7 @@ const SchoolYearTab = ({
         </div>
         <div className="wizard-step">
           <h4>{t('schoolSettings:schoolYear.step5.title')}</h4>
-          <p className="text-muted">{t('schoolSettings:schoolYear.step5.currentYear')} <strong>{currentAcademicYear}</strong></p>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step5.currentYear')} <strong><bdi dir="ltr">{academicPeriod?.active?.academicYear || currentAcademicYear}</bdi></strong></p>
           <button className="btn btn-primary" onClick={onSwitchToNewYear} disabled={!toYear || academicYearSaving}>
             {academicYearSaving ? t('schoolSettings:schoolYear.actions.switching') : t('schoolSettings:schoolYear.step5.action', { year: toYear || t('schoolSettings:schoolYear.step5.newYearFallback') })}
           </button>

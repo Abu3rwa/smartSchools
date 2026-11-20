@@ -11,8 +11,10 @@ import {
     fillStudentTokens,
     fillStudentTokensDeep,
     inspectGeneratedText,
+    sanitizeGeneratedFields,
     scrubForPrompt,
-    stripFlaggedFormulas
+    stripFlaggedFormulas,
+    toPlain
 } from '../services/aiPromptSafety.js';
 
 test('the two rule blocks say what the product promises', () => {
@@ -182,4 +184,51 @@ test('classmate names never rewrite ordinary prose', () => {
         roster: ['May Jones', 'Will Smith', 'Hope Brown'],
     });
     assert.equal(safe, prose);
+});
+
+/* ------------------------------------------------------------------ */
+/* A stored document is walked as data, never as an object graph       */
+/* ------------------------------------------------------------------ */
+
+const fakeDocument = (fields) => ({
+    ...fields,
+    toObject() {
+        return { ...fields };
+    },
+});
+
+test('a document with a parent back-reference becomes plain data', () => {
+    const section = { key: 'body', text: 'Cats sleep a lot.' };
+    const draft = fakeDocument({ _id: 'd1', sections: [section] });
+    // Every Mongoose subdocument points back at its owner; walking it as an
+    // object graph is what used to overflow the stack.
+    section._parent = draft;
+
+    const plain = toPlain(draft);
+    assert.equal(plain._id, 'd1');
+    assert.equal(plain.sections[0].text, 'Cats sleep a lot.');
+    assert.equal('_parent' in plain.sections[0], false);
+    assert.equal('toObject' in plain, false);
+});
+
+test('a cycle is cut instead of overflowing the stack', () => {
+    const node = { label: 'start' };
+    node.self = node;
+
+    assert.deepEqual(toPlain(node), { label: 'start', self: '' });
+    assert.doesNotThrow(() => fillStudentTokensDeep(node, 'Sara'));
+    assert.doesNotThrow(() => sanitizeGeneratedFields(node));
+    assert.doesNotThrow(() => createStudentRefs([]).restoreDeep(node));
+});
+
+test('a six-thousand-level value stops at the walk limit', () => {
+    let deep = 'bottom';
+    for (let level = 0; level < 6000; level += 1) deep = { child: deep };
+
+    assert.doesNotThrow(() => toPlain(deep));
+    assert.doesNotThrow(() => fillStudentTokensDeep(deep, 'Sara'));
+    assert.doesNotThrow(() => createStudentRefs([]).restoreDeep(deep));
+
+    const guarded = sanitizeGeneratedFields(deep);
+    assert.ok(guarded.problems.some((entry) => entry.problem === 'AI_DEPTH_GUARD'));
 });

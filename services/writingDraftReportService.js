@@ -13,7 +13,11 @@ import WritingDraft from "../models/WritingDraft.js";
 import WritingAssessment from "../models/WritingAssessment.js";
 import Student from "../models/Student.js";
 import School from "../models/School.js";
-import { rubricLevel, stripScoreTalk } from "../client/src/utils/writingRubric.js";
+import {
+  marksModeOf,
+  rubricLevel,
+  stripScoreTalk,
+} from "../client/src/utils/writingRubric.js";
 
 const fail = (message, statusCode) => {
   const error = new Error(message);
@@ -57,6 +61,9 @@ const LABELS = {
     student: "Student",
     noFeedback: "Feedback has not been published yet.",
     page: "Writing",
+    report: "Writing feedback",
+    marksLabel: "Marks",
+    marks: { words: "Words only", numbers: "Numbers only", words_numbers: "Words and numbers" },
     levels: { strong: "Strong", near: "Nearly there", needs: "Needs work" },
   },
   ar: {
@@ -80,6 +87,9 @@ const LABELS = {
     student: "الطالب",
     noFeedback: "لم تُنشر الملاحظات بعد.",
     page: "الكتابة",
+    report: "ملاحظات الكتابة",
+    marksLabel: "الدرجات",
+    marks: { words: "كلمات فقط", numbers: "أرقام فقط", words_numbers: "كلمات وأرقام" },
     levels: { strong: "قوي", near: "قريب من المطلوب", needs: "يحتاج إلى عمل" },
   },
 };
@@ -166,19 +176,27 @@ export const buildDraftSheet = ({
   assessment,
   includeWordUse,
   showScores = true,
+  marks = "words",
 }) => {
   const language = assessment?.language === "ar" ? "ar" : "en";
   const L = LABELS[language];
   const studentName =
     `${student?.firstName || ""} ${student?.lastName || ""}`.trim();
-  const scores = assessment?.scores || [];
+  // A criterion the class was not taught is teacher-only, like in the view (A7).
+  const scores = (assessment?.scores || []).filter(
+    (row) => showScores || !row.focusExcluded,
+  );
   const overall = assessment?.overall || {};
-  // The teacher sheet keeps the marks. The student sheet shows the same row as
-  // a verdict, so a printed copy carries no points home (R7).
-  const scoreCell = (row) =>
-    showScores
-      ? `${Number(row.score) || 0} / ${Number(row.maxScore) || 0}`
-      : L.levels[rubricLevel(row.score, row.maxScore).level];
+  // The teacher sheet keeps the marks. The student sheet follows the school
+  // policy: verdict words, verdict plus number, or the number alone (C4, R7).
+  const numberCell = (row) =>
+    `${Number(row.score) || 0} / ${Number(row.maxScore) || 0}`;
+  const scoreCell = (row) => {
+    if (showScores) return numberCell(row);
+    const level = L.levels[rubricLevel(row.score, row.maxScore).level];
+    if (marks === "numbers") return numberCell(row);
+    return marks === "words_numbers" ? `${level} · ${numberCell(row)}` : level;
+  };
   const scoreNote = (row) =>
     showScores ? row.explanation || "" : stripScoreTalk(row.explanation);
   const date = draft?.submittedAt
@@ -197,7 +215,9 @@ export const buildDraftSheet = ({
   * { box-sizing: border-box; }
   body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12pt; line-height: 1.55; }
   header { border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 18px; }
-  .school { font-size: 10pt; letter-spacing: .06em; text-transform: uppercase; color: #64748b; }
+  .letterhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .school { font-size: 10pt; letter-spacing: .06em; text-transform: uppercase; color: #64748b; margin: 0; }
+  .doc { font-size: 10pt; font-weight: 700; color: #475569; margin: 0; }
   h1 { margin: 4px 0 2px; font-size: 20pt; }
   .meta { color: #64748b; font-size: 9.5pt; display: flex; gap: 18px; flex-wrap: wrap; }
   h2 { font-size: 13pt; margin: 20px 0 6px; color: #0d9488; }
@@ -214,20 +234,30 @@ export const buildDraftSheet = ({
   .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; }
   .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 9px; font-size: 10pt; }
   .chip.win { border-color: #16a34a; background: #f0fdf4; color: #15803d; }
+  /* Grayscale: the tick, not the green, marks a used word. */
+  .chip.win::before { content: "✓ "; }
   .muted { color: #64748b; font-size: 10pt; }
   table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
   td, th { border-bottom: 1px solid #e2e8f0; padding: 5px 6px; text-align: start; vertical-align: top; }
-  footer { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9pt; color: #94a3b8; }
+  footer { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9.5pt; color: #64748b; }
+  @media print {
+    h2, h3, h4 { page-break-after: avoid; }
+    tr { page-break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
   <header>
-    <p class="school">${escapeHtml(school?.name || "")}</p>
+    <div class="letterhead">
+      <p class="school">${escapeHtml(school?.name || "")}</p>
+      <p class="doc">${L.report}</p>
+    </div>
     <h1>${escapeHtml(assignment?.title || L.page)}</h1>
     <p class="meta">
       <span>${L.student}: ${escapeHtml(studentName)}</span>
       <span>${L.draft} ${escapeHtml(draft?.number || "")}</span>
       ${date ? `<span>${L.submitted}: ${escapeHtml(date)}</span>` : ""}
+      ${showScores ? "" : `<span>${L.marksLabel}: ${L.marks[marks] || L.marks.words}</span>`}
     </p>
   </header>
 
@@ -288,7 +318,9 @@ export const renderWritingProjectHtml = async ({
     Student.findOne({ school: schoolId, _id: project.student })
       .select("firstName lastName")
       .lean(),
-    School.findOne({ _id: schoolId }).select("name").lean(),
+    School.findOne({ _id: schoolId })
+      .select("name settings.writingFeedback.marksMode")
+      .lean(),
   ]);
   if (!assignment) throw fail("Writing task not found.", 404);
 
@@ -301,6 +333,9 @@ export const renderWritingProjectHtml = async ({
     : await WritingDraft.findOne({
         school: schoolId,
         project: project._id,
+        // Without an explicit draft, the printout is the current revision, and a
+        // returned submission is not one (F13).
+        withdrawn: { $ne: true },
       })
         .sort({ number: -1 })
         .lean();
@@ -324,5 +359,6 @@ export const renderWritingProjectHtml = async ({
     assessment,
     includeWordUse,
     showScores: !studentId,
+    marks: marksModeOf(school?.settings?.writingFeedback?.marksMode),
   });
 };

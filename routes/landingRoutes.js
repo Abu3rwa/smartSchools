@@ -22,6 +22,13 @@ import {
     normalizeLandingLanguage,
     resolveLandingDynamicBlocks
 } from '../utils/landingLocalization.js';
+import {
+    SCHOOL_SEARCH_FETCH_LIMIT,
+    SCHOOL_SEARCH_RESULT_LIMIT,
+    buildSchoolSearchFilter,
+    parseSchoolSearchQuery,
+    toPublicSchoolSummary
+} from '../utils/landingSchoolSearch.js';
 
 const router = express.Router();
 
@@ -229,21 +236,48 @@ router.post('/content/reset', protect, superAdminOnly, asyncHandler(async (req, 
 }));
 
 /**
- * @desc    Get all active schools for public landing page
- * @route   GET /api/landing/schools
+ * @desc    Bounded public school lookup for the landing page sign-in finder
+ * @route   GET /api/landing/schools?q=<term>
  * @access  Public
+ *
+ * The finder helps a visitor who already knows their school reach its sign-in
+ * page, so it returns a small literal match over name/slug only. There is no
+ * directory listing, no count query and no capacity/contact/settings exposure.
  */
 router.get('/schools', asyncHandler(async (req, res) => {
-    const schools = await School.find({ 
-        isActive: true,
-        'subscription.status': { $in: ['active', 'trial'] }
-    })
-    .select('name slug settings.maxStudents')
-    .sort({ name: 1 });
+    const parsed = parseSchoolSearchQuery(req.query.q);
+
+    if (!parsed.ok) {
+        return res.status(400).json({
+            success: false,
+            message: 'Enter between 2 and 80 characters to search.',
+            errors: parsed.errors,
+        });
+    }
+
+    if (!parsed.query) {
+        return res.json({
+            success: true,
+            data: { schools: [], hasMore: false },
+        });
+    }
+
+    const rows = await School.find(buildSchoolSearchFilter(parsed.query))
+        .select('name slug -_id')
+        .sort({ name: 1, slug: 1 })
+        .limit(SCHOOL_SEARCH_FETCH_LIMIT)
+        .lean();
+
+    const schools = rows
+        .slice(0, SCHOOL_SEARCH_RESULT_LIMIT)
+        .map(toPublicSchoolSummary);
 
     res.json({
         success: true,
-        data: { schools }
+        data: {
+            schools,
+            hasMore: rows.length > SCHOOL_SEARCH_RESULT_LIMIT,
+        },
     });
 }));
 

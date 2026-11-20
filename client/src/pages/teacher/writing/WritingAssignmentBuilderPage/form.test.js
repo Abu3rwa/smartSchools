@@ -5,6 +5,7 @@ import {
   buildPayload,
   emptyForm,
   formFromAssignment,
+  formFromTemplate,
   moveRow,
   normalizeSectionRow,
   slugify,
@@ -44,6 +45,58 @@ test('reordering a section stops at both ends', () => {
   assert.deepEqual(moveRow(list, 0, -1), list);
   assert.deepEqual(moveRow(list, 2, 1), list);
   assert.deepEqual(moveRow(list, 1, -1).map((row) => row.key), ['b', 'a', 'c']);
+});
+
+test('taught focus is typed one skill per line and saved as a trimmed list', () => {
+  const form = {
+    ...emptyForm(),
+    title: 'Opinion essay',
+    classId: 'c1',
+    taughtFocus: '  Topic sentences  \n\nOne reason per paragraph\n',
+  };
+  const payload = buildPayload(form);
+  assert.deepEqual(payload.taughtFocus, [
+    'Topic sentences',
+    'One reason per paragraph',
+  ]);
+
+  const loaded = formFromAssignment({ taughtFocus: ['Topic sentences'] });
+  assert.equal(loaded.taughtFocus, 'Topic sentences');
+  assert.equal(emptyForm().taughtFocus, '');
+});
+
+test('a template fills the lesson and leaves the audience to the new task', () => {
+  const current = {
+    ...emptyForm(),
+    title: 'My new task',
+    classId: 'c1',
+    studentIds: ['s1'],
+    goals: [{ student: 's1', text: 'Join two reasons.' }],
+    dueDate: '2026-12-01',
+  };
+  const next = formFromTemplate(current, {
+    title: 'Homework in Finland (template)',
+    writingType: 'essay',
+    taughtFocus: ['Topic sentences'],
+    sections: [{ key: 'body', label: 'Body', required: true }],
+    rubric: [{ key: 'ideas', label: 'Ideas', maxScore: 5 }],
+    supports: { wordBank: ['because'], wordSupport: { spelling: { enabled: true, maxWords: 4 } } },
+    sourcePack: 'pack1',
+    workflow: { teacherPublishesFeedback: false },
+  });
+
+  assert.equal(next.title, 'Homework in Finland');
+  assert.equal(next.classId, 'c1');
+  assert.deepEqual(next.studentIds, ['s1']);
+  assert.deepEqual(next.goals, current.goals);
+  assert.equal(next.dueDate, '2026-12-01');
+  assert.equal(next.taughtFocus, 'Topic sentences');
+  assert.deepEqual(next.sections.map((row) => row.key), ['body']);
+  assert.equal(next.rubric[0].maxScore, 5);
+  assert.deepEqual(next.supports.wordBank, ['because']);
+  assert.equal(next.supports.wordSupport.spelling.enabled, true);
+  assert.equal(next.sourcePackId, 'pack1');
+  assert.equal(next.workflow.teacherPublishesFeedback, false);
 });
 
 test('a task cannot be published without a title, a class, or something to mark', () => {
@@ -185,6 +238,32 @@ test('an assignment saved on the server reloads into the editor unchanged', () =
   assert.equal(form.workflow.requireNotebookCheck, false);
   assert.equal("maxDrafts" in form.workflow, false);
   assert.equal(buildPayload(form).rubric[0].maxScore, 5);
+});
+
+test('a lesson facts pack and an exemplar survive the round trip', () => {
+  const form = {
+    ...emptyForm(),
+    title: 'Opinion essay',
+    classId: 'c1',
+    sourcePackId: 'p1',
+    exemplarText: 'A strong example of the task.',
+  };
+  const payload = buildPayload(form);
+  assert.equal(payload.sourcePackId, 'p1');
+  assert.equal(payload.exemplarText, 'A strong example of the task.');
+
+  const reloaded = formFromAssignment({
+    ...payload,
+    class: 'c1',
+    sourcePack: 'p1',
+  });
+  assert.equal(reloaded.sourcePackId, 'p1');
+  assert.equal(reloaded.exemplarText, 'A strong example of the task.');
+
+  // Clearing both is an explicit intent the server can act on.
+  const cleared = buildPayload({ ...form, sourcePackId: '', exemplarText: '' });
+  assert.equal(cleared.sourcePackId, '');
+  assert.equal(cleared.exemplarText, '');
 });
 
 test('an Arabic task keeps every row and the keys the server stores', () => {

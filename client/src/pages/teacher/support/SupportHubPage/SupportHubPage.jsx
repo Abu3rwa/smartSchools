@@ -39,6 +39,12 @@ const TABS = [
 const STATUSES = ["active", "closed"];
 const SEVERITIES = ["watch", "support", "intensive"];
 
+const ATTENTION_TONES = {
+  surveyOverdue: "is-intensive",
+  acknowledge: "is-watch",
+  reviewOverdue: "is-support",
+};
+
 const SupportHubPage = () => {
   const { t, i18n } = useTranslation("support");
   const dispatch = useDispatch();
@@ -61,6 +67,8 @@ const SupportHubPage = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [attention, setAttention] = useState(null);
+  const [attentionFailed, setAttentionFailed] = useState(false);
 
   const [openCaseId, setOpenCaseId] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -139,6 +147,22 @@ const SupportHubPage = () => {
     if (tab === "cases") loadCases();
   }, [tab, loadCases]);
 
+  const loadAttention = useCallback(async () => {
+    setAttentionFailed(false);
+    try {
+      const result = await supportService.getAttention();
+      setAttention(result);
+    } catch {
+      // The case table must keep working even when this strip cannot load.
+      setAttention(null);
+      setAttentionFailed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "cases") loadAttention();
+  }, [tab, loadAttention]);
+
   const setFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
 
   const openCreated = (created) => {
@@ -148,12 +172,14 @@ const SupportHubPage = () => {
       setOpenCaseId(created.id);
     } else {
       loadCases();
+      loadAttention();
     }
   };
 
   const closeCase = () => {
     setOpenCaseId("");
     loadCases();
+    loadAttention();
   };
 
   const disabled = loadError?.response?.data?.code === "SUPPORT_DISABLED";
@@ -252,6 +278,46 @@ const SupportHubPage = () => {
             </section>
           ) : (
             <>
+              {(attention?.rows?.length > 0 || attentionFailed) && (
+                <section className="support-card support-attention">
+                  {attentionFailed ? (
+                    <div className="support-attention-failed">
+                      <span>{t("attention.loadFailed")}</span>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={loadAttention}>
+                        {t("common.retry")}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="support-attention-head">
+                        <h2>{t("attention.title")}</h2>
+                      </div>
+                      <ul className="support-attention-list">
+                        {attention.rows.map((row) => (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              className="support-attention-row"
+                              onClick={() => setOpenCaseId(row.caseId)}
+                            >
+                              <span className="support-attention-student">{row.student}</span>
+                              <span className={`support-chip ${ATTENTION_TONES[row.kind] || "is-support"}`}>
+                                {t(`attention.kind.${row.kind}`)}{row.detail ? ` · ${row.detail}` : ""}
+                              </span>
+                              <span className="support-attention-owner">{row.owner || t("table.unassigned")}</span>
+                              <span className="support-attention-due">
+                                {row.dueAt ? dueLabel(row.dueAt, i18n.language) : ""}
+                              </span>
+                              <HiOutlineArrowRight size={14} aria-hidden="true" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </section>
+              )}
+
               <div className="support-toolbar is-compact">
                 <label>
                   <span>{t("toolbar.status")}</span>

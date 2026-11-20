@@ -1,26 +1,10 @@
-import BehaviorIncident from '../../models/BehaviorIncident.js';
+import { behaviorEvidenceRows } from '../behavior/eventQueryService.js';
 import { endOfDay } from './dateRange.js';
 
-/**
- * Evidence collector for behavior.
- * Queries BehaviorIncident with date range filtering.
- */
+const serious = (row) => row.formalCase?.isSerious || ['high', 'critical'].includes(row.severity);
+const countedCase = (row) => row.formalCase && !['voided', 'merged'].includes(row.formalCase.status);
 export async function collect({ schoolId, studentId, startDate, endDate }) {
-    const query = {
-        school: schoolId,
-        student: studentId,
-        status: { $nin: ['voided', 'merged'] }
-    };
-
-    const dateFilter = {};
-    if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = endOfDay(endDate);
-    if (Object.keys(dateFilter).length > 0) query.occurredAt = dateFilter;
-
-    const incidents = await BehaviorIncident.find(query)
-        .populate('behaviorType', 'name level')
-        .sort({ occurredAt: -1 })
-        .lean();
+    const incidents = await behaviorEvidenceRows({ schoolId, studentId, startDate, endDate: endDate ? endOfDay(endDate) : null });
 
     if (incidents.length === 0) {
         return {
@@ -38,13 +22,13 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
     let seriousCount = 0;
 
     for (const incident of incidents) {
-        const status = incident.status || 'unknown';
+        const status = countedCase(incident) ? incident.formalCase.status : (incident.followUpCompletedAt ? 'closed' : incident.status || 'open');
         byStatus[status] = (byStatus[status] || 0) + 1;
 
-        const typeName = incident.behaviorType?.name || 'Unknown';
+        const typeName = incident.typeName || incident.category || 'formal_case';
         byType[typeName] = (byType[typeName] || 0) + 1;
 
-        if (incident.isSerious) seriousCount += 1;
+        if (serious(incident)) seriousCount += 1;
     }
 
     const resolvedCount = (byStatus['closed'] || 0) + (byStatus['approved'] || 0);
@@ -55,8 +39,8 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
     const olderIncidents = incidents.slice(half);
     const newerIncidents = incidents.slice(0, half);
 
-    const olderSerious = olderIncidents.filter(i => i.isSerious).length;
-    const newerSerious = newerIncidents.filter(i => i.isSerious).length;
+    const olderSerious = olderIncidents.filter(serious).length;
+    const newerSerious = newerIncidents.filter(serious).length;
 
     let trend = 'insufficient_data';
     if (incidents.length >= 4) {
@@ -66,7 +50,8 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
     }
 
     const facts = [];
-    facts.push(`Behavior incidents: ${incidents.length} total.`);
+    const formalCount = incidents.filter(countedCase).length;
+    facts.push(`Behavior records: ${incidents.length} total, including ${formalCount} formal cases. Routine observations do not count toward consequences.`);
     facts.push(`Serious incidents: ${seriousCount}.`);
     facts.push(`Resolved: ${resolvedCount}. Pending: ${pendingCount}. In progress: ${inProgressCount}.`);
 
@@ -85,7 +70,9 @@ export async function collect({ schoolId, studentId, startDate, endDate }) {
         available: true,
         recordCount: incidents.length,
         metrics: {
-            totalIncidents: incidents.length,
+            totalRecords: incidents.length,
+            totalIncidents: formalCount,
+            routineRecords: incidents.length - formalCount,
             seriousCount,
             resolvedCount,
             pendingCount,

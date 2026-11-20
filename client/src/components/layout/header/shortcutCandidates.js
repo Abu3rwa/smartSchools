@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '../../../constants/permissions';
+import { PERMISSIONS } from '../../../constants/permissions.js';
 
 export const MAX_SHORTCUTS = 10;
 

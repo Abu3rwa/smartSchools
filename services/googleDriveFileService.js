@@ -142,8 +142,11 @@ class GoogleDriveFileService {
         return { connected, email: connected ? user.googleDriveFileTokens.email : null };
     }
 
-    /** Uploads one file, then makes it viewable by anyone with the link. */
-    async uploadAttachmentFile(userId, file) {
+    /**
+     * Uploads one file. Student-facing sources are link-shared so families and
+     * Classroom can open them; private sources stay visible only to the teacher.
+     */
+    async uploadAttachmentFile(userId, file, { share = true } = {}) {
         const { drive } = await this.buildDriveClient(userId);
         let created;
         try {
@@ -160,15 +163,17 @@ class GoogleDriveFileService {
             throw driveApiError(error, 'upload');
         }
 
-        try {
-            await drive.permissions.create({
-                fileId: created.id,
-                requestBody: { role: 'reader', type: 'anyone' }
-            });
-        } catch (error) {
-            // Never leave an unshared orphan the teacher can't find in the app.
-            await drive.files.update({ fileId: created.id, requestBody: { trashed: true } }).catch(() => {});
-            throw driveApiError(error, 'share');
+        if (share) {
+            try {
+                await drive.permissions.create({
+                    fileId: created.id,
+                    requestBody: { role: 'reader', type: 'anyone' }
+                });
+            } catch (error) {
+                // Never leave an unshared orphan the teacher can't find in the app.
+                await drive.files.update({ fileId: created.id, requestBody: { trashed: true } }).catch(() => {});
+                throw driveApiError(error, 'share');
+            }
         }
 
         return {
@@ -179,6 +184,64 @@ class GoogleDriveFileService {
             webViewLink: created.webViewLink || '',
             iconLink: created.iconLink || ''
         };
+    }
+
+    /** Makes an already-uploaded file openable by anyone with its link. */
+    async shareFile(userId, fileId) {
+        const { drive } = await this.buildDriveClient(userId);
+        try {
+            await drive.permissions.create({
+                fileId,
+                requestBody: { role: 'reader', type: 'anyone' }
+            });
+        } catch (error) {
+            throw driveApiError(error, 'share');
+        }
+    }
+
+    /** Removes the anyone-with-link permission so the file is owner-only again. */
+    async restrictFile(userId, fileId) {
+        const { drive } = await this.buildDriveClient(userId);
+        try {
+            const { data } = await drive.permissions.list({
+                fileId,
+                fields: 'permissions(id,type)'
+            });
+            const publicPermissions = (data?.permissions || []).filter(
+                (permission) => permission.type === 'anyone'
+            );
+            await Promise.all(
+                publicPermissions.map((permission) =>
+                    drive.permissions.delete({ fileId, permissionId: permission.id })
+                )
+            );
+        } catch (error) {
+            if (isNotFound(error)) return;
+            throw driveApiError(error, 'permissions');
+        }
+    }
+
+    /** Downloads the bytes of a file this app uploaded, so AI can read it again. */
+    async downloadFile(userId, fileId) {
+        const { drive } = await this.buildDriveClient(userId);
+        try {
+            const response = await drive.files.get(
+                { fileId, alt: 'media' },
+                { responseType: 'arraybuffer' }
+            );
+            const data = response?.data;
+            if (Buffer.isBuffer(data)) return data;
+            return Buffer.from(data || []);
+        } catch (error) {
+            if (isNotFound(error)) {
+                const missing = new Error('The Drive file is no longer available. Upload it again or choose another source.');
+                missing.code = 'DRIVE_FILE_NOT_FOUND';
+                missing.statusCode = 404;
+                missing.expose = true;
+                return Promise.reject(missing);
+            }
+            throw driveApiError(error, 'download');
+        }
     }
 
     /**

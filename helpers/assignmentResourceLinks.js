@@ -36,6 +36,7 @@ export const buildAssignmentResourceLinks = (assignment, { classroomUrl = '' } =
     }
 
     for (const att of Array.isArray(assignment?.driveAttachments) ? assignment.driveAttachments : []) {
+        if (att?.visibility === 'private') continue;
         push(toSafeLink(att?.webViewLink, att?.fileName));
     }
 

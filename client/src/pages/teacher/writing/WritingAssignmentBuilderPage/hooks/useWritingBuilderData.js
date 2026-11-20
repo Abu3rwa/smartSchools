@@ -6,7 +6,7 @@ import writingService from "../../../../../services/writingService.js";
 import classService from "../../../../../services/classService.js";
 import studentService from "../../../../../services/studentService.js";
 import api from "../../../../../config/api.js";
-import { buildPayload, emptyForm, formFromAssignment, validateForm } from "../form.js";
+import { buildPayload, emptyForm, formFromAssignment, formFromTemplate, validateForm } from "../form.js";
 
 const listFrom = (payload) => {
   const raw = payload?.data ?? payload;
@@ -30,6 +30,29 @@ export function useWritingBuilderData() {
   const [attempt, setAttempt] = useState(0);
   const [errors, setErrors] = useState({});
   const [vocabularyLists, setVocabularyLists] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) return undefined;
+    let active = true;
+    setTemplatesLoading(true);
+    writingService
+      .listTemplates()
+      .then((rows) => {
+        if (active) setTemplates(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (active) setTemplates([]);
+      })
+      .finally(() => {
+        if (active) setTemplatesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isEdit]);
 
   useEffect(() => {
     let active = true;
@@ -110,6 +133,39 @@ export function useWritingBuilderData() {
     setErrors({});
   }, []);
 
+  /** F8: the template list is slim; the full configuration is read on choose. */
+  const applyTemplate = useCallback(async (templateId) => {
+    if (!templateId) return false;
+    try {
+      const template = await writingService.getAssignment(templateId);
+      setForm((current) => formFromTemplate(current, template));
+      setErrors({});
+      toast.success(t("writing:teacher.builder.template.applied"));
+      return true;
+    } catch {
+      toast.error(t("writing:teacher.builder.template.failed"));
+      return false;
+    }
+  }, [t]);
+
+  const saveTemplate = useCallback(async () => {
+    if (!assignmentId || savingTemplate) return false;
+    setSavingTemplate(true);
+    try {
+      await writingService.saveAsTemplate(assignmentId);
+      toast.success(t("writing:teacher.builder.template.saved"));
+      return true;
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          t("writing:teacher.builder.template.saveFailed"),
+      );
+      return false;
+    } finally {
+      setSavingTemplate(false);
+    }
+  }, [assignmentId, savingTemplate, t]);
+
   const roster = useMemo(() => students.map((row) => ({
     id: String(row._id || row.id),
     name: `${row.firstName || ""} ${row.lastName || ""}`.trim() || row.name || row.studentId || "",
@@ -153,8 +209,13 @@ export function useWritingBuilderData() {
     vocabularyLists,
     loading,
     saving,
+    savingTemplate,
     wasActive,
     update,
+    applyTemplate,
+    saveTemplate,
+    templates,
+    templatesLoading,
     retry: () => setAttempt((current) => current + 1),
     save,
     onCancel: () => navigate("/portal/writing/assignments"),

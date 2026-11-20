@@ -3,25 +3,73 @@
     border-radius: var(--radius-md, 8px);
     padding: 0.75rem;
     background: var(--bg-primary, #fff);
+    margin-top: 0.75rem;
+}
+
+.lesson-plan-link-selector:not(.is-open) {
+    padding: 0.5rem 0.65rem;
 }
 
 .lesson-plan-link-selector__header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.75rem;
-    margin-bottom: 0.5rem;
 }
 
-.lesson-plan-link-selector__header h4 {
-    margin: 0;
+.lesson-plan-link-selector__toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.15rem 0;
+    border: none;
+    background: none;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.lesson-plan-link-selector__toggle:focus-visible {
+    outline: 2px solid var(--primary, #3b82f6);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm, 6px);
+}
+
+.lesson-plan-link-selector__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.lesson-plan-link-selector__label {
     font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary, #111827);
 }
 
-.lesson-plan-link-selector__header p {
-    margin: 0.2rem 0 0;
+.lesson-plan-link-selector__count {
     font-size: 0.8rem;
     color: var(--text-secondary, #6b7280);
+}
+
+.lesson-plan-link-selector__chevron {
+    flex: none;
+    width: 1.1rem;
+    height: 1.1rem;
+    color: var(--text-secondary, #6b7280);
+    transition: transform 0.15s ease;
+}
+
+.lesson-plan-link-selector.is-open .lesson-plan-link-selector__chevron {
+    transform: rotate(180deg);
+}
+
+.lesson-plan-link-selector__body {
+    margin-top: 0.65rem;
 }
 
 .lesson-plan-link-selector__search {

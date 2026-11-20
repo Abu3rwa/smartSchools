@@ -15,85 +15,62 @@ import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
 import { fetchSubPendingCountThunk } from "../../store/slices/substitutionsSlice";
 import { PERMISSIONS } from "../../constants/permissions";
 import {
-  HiOutlineHome,
-  HiOutlineBell,
-  HiOutlineMicrophone,
-  HiOutlineChatBubbleLeftRight,
-  HiOutlineEnvelope,
-  HiOutlineCalendarDays,
-  HiOutlineClock,
-  HiOutlineUserCircle,
-  HiOutlineRectangleGroup,
-  HiOutlineUsers,
-  HiOutlineArrowPathRoundedSquare,
-  HiOutlineDocumentText,
-  HiOutlinePencilSquare,
-  HiOutlinePlusCircle,
-  HiOutlineTableCells,
-  HiOutlineCheckBadge,
-  HiOutlineLink,
-  HiOutlineChartBar,
-  HiOutlineBookOpen,
-  HiOutlineLifebuoy,
-  HiOutlineSparkles,
-  HiOutlineArrowTrendingUp,
-  HiOutlineNewspaper,
-  HiOutlineDocumentCheck,
-  HiOutlineAdjustmentsHorizontal,
-  HiOutlinePrinter,
-  HiOutlineDocumentChartBar,
-  HiOutlineCalendar,
-  HiOutlineInboxArrowDown,
-  HiOutlineTicket,
-  HiOutlineMegaphone,
-  HiOutlineUserPlus,
-  HiOutlineFaceSmile,
-  HiOutlineChartPie,
-  HiOutlineIdentification,
-  HiOutlineTag,
-  HiOutlineBuildingOffice,
-  HiOutlineCreditCard,
-  HiOutlineCommandLine,
-  HiOutlineAcademicCap,
-  HiOutlineClipboardDocumentCheck,
-  HiOutlineCheckCircle,
-  HiOutlineStar,
-  HiOutlineRectangleStack,
-  HiOutlineArrowPath,
-  HiOutlineCog6Tooth,
   HiOutlineChevronLeft,
   HiOutlineChevronRight,
   HiOutlineBars3,
   HiOutlineLockClosed,
-  HiOutlinePresentationChartBar,
-  HiOutlineBanknotes,
-  HiOutlineCalculator,
-  HiOutlineReceiptPercent,
-  HiOutlineDocumentCurrencyDollar,
-  HiOutlineUserGroup,
-  HiOutlineBriefcase,
-  HiOutlineSparkles as HiOutlinePLP,
   HiOutlineMagnifyingGlass,
   HiOutlineXMark,
   HiOutlineChevronDown,
 } from "react-icons/hi2";
+import {
+  NavHome,
+  NavBell,
+  NavMail,
+  NavUsers,
+  NavBook,
+  NavChart,
+  NavChecklist,
+  NavCalendar,
+  NavCog,
+  NavSparkles,
+  NavChat,
+  NavInbox,
+  NavUserCircle,
+  NavMic,
+  NavIdCard,
+  NavClasses,
+  NavRepeat,
+  NavGrad,
+  NavTable,
+  NavDoc,
+  NavPencil,
+  NavPlusCircle,
+  NavDocChart,
+  NavDocCheck,
+  NavLayers,
+  NavBadgeCheck,
+  NavTrend,
+  NavNews,
+  NavPresentation,
+  NavMegaphone,
+  NavSliders,
+  NavClock,
+  NavSmile,
+  NavCheckCircle,
+  NavStar,
+  NavRefresh,
+  NavLifebuoy,
+  NavTag,
+  NavCash,
+  NavCalculator,
+  NavReceipt,
+  NavCurrency,
+  NavCard,
+  NavOffice,
+  NavTerminal,
+} from "../icons/navIcons";
 import "./Sidebar.css";
-
-const SECTION_TONES = {
-  overview: "tone-blue",
-  communication: "tone-cyan",
-  teaching: "tone-purple",
-  assessment: "tone-pink",
-  support: "tone-red",
-  operations: "tone-teal",
-  finance: "tone-green",
-  tutoring: "tone-amber",
-  hr: "tone-indigo",
-  plp: "tone-amber",
-  insights: "tone-orange",
-  admin: "tone-indigo",
-  account: "tone-cyan",
-};
 
 const COLLAPSED_SECTIONS_KEY = "sidebar.collapsedSections";
 
@@ -276,20 +253,20 @@ const Sidebar = () => {
   const navItems = [
     {
       path: "/portal/dashboard",
-      icon: HiOutlineHome,
+      icon: NavHome,
       labelKey: "dashboard",
       section: "overview",
     },
     {
       path: "/portal/notifications",
-      icon: HiOutlineBell,
+      icon: NavBell,
       labelKey: "notifications",
       roles: ["admin", "teacher", "department_principal", "staff"],
       section: "overview",
     },
     {
       path: "/portal/messages",
-      icon: HiOutlineChatBubbleLeftRight,
+      icon: NavChat,
       labelKey: "messages",
       roles: ["admin", "teacher", "department_principal", "staff"],
       section: "communication",
@@ -297,7 +274,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/inbox",
-      icon: HiOutlineInboxArrowDown,
+      icon: NavInbox,
       labelKey: "inbox",
       roles: ["admin", "teacher"],
       feature: "inboxAssistant",
@@ -305,7 +282,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/email-composer",
-      icon: HiOutlineEnvelope,
+      icon: NavMail,
       labelKey: "emailComposer",
       roles: ["admin", "teacher", "department_principal", "staff"],
       permissions: [
@@ -316,56 +293,56 @@ const Sidebar = () => {
     },
     // {
     //   path: "/portal/my-schedule",
-    //   icon: HiOutlineCalendarDays,
+    //   icon: NavCalendar,
     //   labelKey: "mySchedule",
     //   teacher: true,
     //   section: "teaching",
     // },
     // {
     //   path: "/portal/my-timetable",
-    //   icon: HiOutlineClock,
+    //   icon: NavClock,
     //   labelKey: "myTimetable",
     //   teacher: true,
     //   section: "teaching",
     // },
     {
       path: "/portal/my-attendance",
-      icon: HiOutlineUserCircle,
+      icon: NavUserCircle,
       labelKey: "myAttendance",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/plp/logger",
-      icon: HiOutlineMicrophone,
+      icon: NavMic,
       labelKey: "observationLog",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/classes",
-      icon: HiOutlineRectangleGroup,
+      icon: NavClasses,
       labelKey: "classes",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/students",
-      icon: HiOutlineUsers,
+      icon: NavUsers,
       labelKey: "students",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/students/promotion-center",
-      icon: HiOutlineArrowPathRoundedSquare,
+      icon: NavRepeat,
       labelKey: "promotionCenter",
       admin: true,
       section: "assessment",
     },
     {
       path: "/portal/lessons",
-      icon: HiOutlineDocumentText,
+      icon: NavDoc,
       labelKey: "lessonPlans",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [
@@ -376,28 +353,35 @@ const Sidebar = () => {
     },
     {
       path: "/portal/assignments",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "assignments",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
+      path: "/portal/skillpath-studio",
+      icon: NavBadgeCheck,
+      labelKey: "skillpathStudio",
+      roles: ["admin", "department_principal", "teacher"],
+      section: "teaching",
+    },
+    {
       path: "/portal/grades/entry",
-      icon: HiOutlinePlusCircle,
+      icon: NavPlusCircle,
       labelKey: "gradeEntry",
       roles: ["admin", "teacher"],
       section: "assessment",
     },
     {
       path: "/portal/gradebook",
-      icon: HiOutlineTableCells,
+      icon: NavTable,
       labelKey: "gradebook",
       roles: ["admin", "teacher", "department_principal"],
       section: "assessment",
     },
     {
       path: "/portal/parent-gradebook",
-      icon: HiOutlineAcademicCap,
+      icon: NavGrad,
       labelKey: "myGrades",
       roles: ["parent"],
       feature: "parentGradebook",
@@ -405,7 +389,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/sbr/reports",
-      icon: HiOutlineDocumentChartBar,
+      icon: NavDocChart,
       labelKey: "sbrReports",
       roles: ["parent"],
       permissions: [PERMISSIONS.VIEW_SBR_REPORTS],
@@ -413,21 +397,21 @@ const Sidebar = () => {
     },
     {
       path: "/portal/attendance-requests",
-      icon: HiOutlineInboxArrowDown,
+      icon: NavInbox,
       labelKey: "attendanceRequests",
       roles: ["parent"],
       section: "operations",
     },
     {
       path: "/portal/parent/timetable",
-      icon: HiOutlineCalendarDays,
+      icon: NavCalendar,
       labelKey: "parentTimetable",
       roles: ["parent"],
       section: "operations",
     },
     {
       path: "/portal/map-test-prep",
-      icon: HiOutlineAcademicCap,
+      icon: NavGrad,
       labelKey: "mapTestPrep",
       roles: ["admin", "teacher"],
       feature: "mapTestPrep",
@@ -435,7 +419,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/map-test-prep/student",
-      icon: HiOutlineAcademicCap,
+      icon: NavGrad,
       labelKey: "mapTestPrep",
       roles: ["student"],
       feature: "mapTestPrep",
@@ -443,35 +427,35 @@ const Sidebar = () => {
     },
     {
       path: "/portal/spelling",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "spelling",
       roles: ["admin", "department_principal", "teacher"],
       section: "assessment",
     },
     {
       path: "/portal/spelling/student",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "spelling",
       roles: ["student"],
       section: "assessment",
     },
     {
       path: "/portal/vocabulary",
-      icon: HiOutlineBookOpen,
+      icon: NavBook,
       labelKey: "vocabulary",
       roles: ["admin", "department_principal", "teacher"],
       section: "assessment",
     },
     {
       path: "/portal/vocabulary/student",
-      icon: HiOutlineBookOpen,
+      icon: NavBook,
       labelKey: "vocabulary",
       roles: ["student"],
       section: "assessment",
     },
     {
       path: "/portal/standards",
-      icon: HiOutlineCheckBadge,
+      icon: NavBadgeCheck,
       labelKey: "standards",
       roles: ["admin", "teacher", "department_principal"],
       feature: "standardsPractice",
@@ -480,7 +464,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/grammar-assessments",
-      icon: HiOutlineClipboardDocumentCheck,
+      icon: NavChecklist,
       labelKey: "grammarAssessments",
       roles: ["admin", "teacher", "department_principal"],
       feature: "standardsPractice",
@@ -489,7 +473,7 @@ const Sidebar = () => {
     // Social Studies — teacher
     // {
     //   path: "/portal/social-studies",
-    //   icon: HiOutlineBookOpen,
+    //   icon: NavBook,
     //   labelKey: "socialStudies",
     //   roles: ["admin", "teacher", "department_principal"],
     //   feature: "socialStudies",
@@ -498,7 +482,7 @@ const Sidebar = () => {
 
     // {
     //   path: "/portal/curriculum",
-    //   icon: HiOutlineBookOpen,
+    //   icon: NavBook,
     //   labelKey: "curriculumPlanning",
     //   roles: ["admin", "teacher", "department_principal"],
     //   permissions: [
@@ -520,7 +504,7 @@ const Sidebar = () => {
     // },
     // {
     //   path: "/portal/interventions",
-    //   icon: HiOutlineLifebuoy,
+    //   icon: NavLifebuoy,
     //   labelKey: "interventions",
     //   roles: ["admin", "teacher", "department_principal"],
     //   feature: "interventionTracking",
@@ -528,7 +512,7 @@ const Sidebar = () => {
     // },
     // {
     //   path: "/portal/teacher-academic-excellence",
-    //   icon: HiOutlineSparkles,
+    //   icon: NavSparkles,
     //   labelKey: "academicExcellenceTeacher",
     //   roles: ["admin", "teacher", "department_principal"],
     //   feature: "academicIntelligence",
@@ -536,7 +520,7 @@ const Sidebar = () => {
     // },
     {
       path: "/portal/student-grouping",
-      icon: HiOutlineRectangleStack,
+      icon: NavLayers,
       labelKey: "studentGrouping",
       roles: ["admin", "teacher", "department_principal"],
       feature: "academicIntelligence",
@@ -544,7 +528,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/admin-academic-excellence",
-      icon: HiOutlineArrowTrendingUp,
+      icon: NavTrend,
       labelKey: "academicExcellenceAnalytics",
       roles: ["admin", "department_principal"],
       feature: "academicIntelligence",
@@ -552,7 +536,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/newsletters",
-      icon: HiOutlineNewspaper,
+      icon: NavNews,
       labelKey: "newsletters",
       teacher: true,
       feature: "newsletterCommunication",
@@ -560,7 +544,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/live-lessons",
-      icon: HiOutlinePresentationChartBar,
+      icon: NavPresentation,
       labelKey: "liveLessons",
       roles: ["admin", "department_principal", "teacher"],
       liveLessons: true,
@@ -568,7 +552,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/live-lessons/join",
-      icon: HiOutlinePresentationChartBar,
+      icon: NavPresentation,
       labelKey: "liveLessons",
       roles: ["student"],
       liveLessons: true,
@@ -576,7 +560,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/newsletters/admin",
-      icon: HiOutlineDocumentCheck,
+      icon: NavDocCheck,
       labelKey: "newslettersReview",
       admin: true,
       feature: "newsletterCommunication",
@@ -584,7 +568,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/newsletters/history",
-      icon: HiOutlineNewspaper,
+      icon: NavNews,
       labelKey: "newsletters",
       roles: ["parent"],
       feature: "newsletterCommunication",
@@ -592,14 +576,14 @@ const Sidebar = () => {
     },
     {
       path: "/portal/parent/updates",
-      icon: HiOutlineMegaphone,
+      icon: NavMegaphone,
       labelKey: "parentUpdates",
       roles: ["parent"],
       section: "communication",
     },
     {
       path: "/portal/sbr/config",
-      icon: HiOutlineAdjustmentsHorizontal,
+      icon: NavSliders,
       labelKey: "sbrConfig",
       roles: ["admin"],
       permissions: [PERMISSIONS.MANAGE_SBR_SCALES],
@@ -607,7 +591,7 @@ const Sidebar = () => {
     },
     // {
     //   path: "/portal/sbr",
-    //   icon: HiOutlineDocumentChartBar,
+    //   icon: NavDocChart,
     //   labelKey: "sbrReports",
     //   roles: ["admin", "teacher", "parent"],
     //   permissions: [
@@ -625,14 +609,14 @@ const Sidebar = () => {
     // },
     {
       path: "/portal/timetable",
-      icon: HiOutlineClock,
+      icon: NavClock,
       labelKey: "timetable",
       roles: ["admin", "teacher", "department_principal"],
       section: "operations",
     },
     // {
     //   path: "/portal/school-calendar",
-    //   icon: HiOutlineCalendarDays,
+    //   icon: NavCalendar,
     //   labelKey: "schoolCalendar",
     //   roles: ["admin", "department_principal", "teacher"],
     //   permissions: [PERMISSIONS.MANAGE_EVENTS],
@@ -640,14 +624,14 @@ const Sidebar = () => {
     // },
     // {
     //   path: "/portal/attendance",
-    //   icon: HiOutlineUsers,
+    //   icon: NavUsers,
     //   labelKey: "attendance",
     //   roles: ["admin", "department_principal"],
     //   section: "operations",
     // },
     // {
     //   path: "/portal/attendance-requests",
-    //   icon: HiOutlineInboxArrowDown,
+    //   icon: NavInbox,
     //   labelKey: "attendanceRequests",
     //   roles: ["admin", "department_principal", "teacher", "parent"],
     //   section: "operations",
@@ -661,7 +645,7 @@ const Sidebar = () => {
     // },
     // {
     //   path: "/portal/attendance-reminders",
-    //   icon: HiOutlineMegaphone,
+    //   icon: NavMegaphone,
     //   labelKey: "attendanceReminders",
     //   roles: ["admin"],
     //   section: "operations",
@@ -676,7 +660,7 @@ const Sidebar = () => {
     // },
     {
       path: "/portal/behavior",
-      icon: HiOutlineFaceSmile,
+      icon: NavSmile,
       labelKey: "behaviorManagement",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [PERMISSIONS.MANAGE_BEHAVIOR, PERMISSIONS.VIEW_BEHAVIOR],
@@ -684,7 +668,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/support",
-      icon: HiOutlineLifebuoy,
+      icon: NavLifebuoy,
       labelKey: "studentSupport",
       roles: ["admin", "teacher"],
       feature: "studentSupport",
@@ -692,7 +676,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/parent/support",
-      icon: HiOutlineLifebuoy,
+      icon: NavLifebuoy,
       labelKey: "studentSupport",
       roles: ["parent"],
       feature: "studentSupport",
@@ -700,7 +684,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/student/support",
-      icon: HiOutlineLifebuoy,
+      icon: NavLifebuoy,
       labelKey: "studentSupport",
       roles: ["student"],
       feature: "studentSupport",
@@ -708,21 +692,21 @@ const Sidebar = () => {
     },
     {
       path: "/portal/teachers",
-      icon: HiOutlineIdentification,
+      icon: NavIdCard,
       labelKey: "teachers",
       roles: ["admin", "department_principal"],
       section: "admin",
     },
     {
       path: "/portal/subjects",
-      icon: HiOutlineTag,
+      icon: NavTag,
       labelKey: "subjects",
       roles: ["Admin"],
       section: "teaching",
     },
     {
       path: "/portal/reading/texts",
-      icon: HiOutlineRectangleStack,
+      icon: NavLayers,
       labelKey: "reading",
       roles: ["admin", "teacher"],
       feature: "readingAssistant",
@@ -730,7 +714,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/reading/assignments",
-      icon: HiOutlineRectangleStack,
+      icon: NavLayers,
       labelKey: "readingResults",
       roles: ["admin", "teacher"],
       feature: "readingAssistant",
@@ -738,7 +722,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/writing/assignments",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "writing",
       roles: ["admin", "teacher"],
       feature: "writingAssistant",
@@ -746,7 +730,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/writing/analysis",
-      icon: HiOutlineChartBar,
+      icon: NavChart,
       labelKey: "writingAnalysis",
       roles: ["admin", "teacher"],
       feature: "writingAssistant",
@@ -754,7 +738,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/tutor/students",
-      icon: HiOutlineChatBubbleLeftRight,
+      icon: NavChat,
       labelKey: "tutorConversations",
       roles: ["admin", "teacher"],
       feature: "studentAiTutor",
@@ -762,7 +746,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/tutor/admin",
-      icon: HiOutlineAdjustmentsHorizontal,
+      icon: NavSliders,
       labelKey: "tutorControl",
       roles: ["admin"],
       feature: "studentAiTutor",
@@ -770,14 +754,14 @@ const Sidebar = () => {
     },
     {
       path: "/portal/ai-credit",
-      icon: HiOutlineCreditCard,
+      icon: NavCard,
       labelKey: "aiCreditDashboard",
       roles: ["admin"],
       section: "admin",
     },
     {
       path: "/portal/spelling-analysis",
-      icon: HiOutlineSparkles,
+      icon: NavSparkles,
       labelKey: "spellingAnalysis",
       roles: ["admin"],
       feature: "spellingAnalysis",
@@ -785,28 +769,29 @@ const Sidebar = () => {
     },
     {
       path: "/portal/school-settings",
-      icon: HiOutlineBuildingOffice,
+      icon: NavOffice,
       labelKey: "schoolSettings",
       admin: true,
       section: "admin",
     },
     {
       path: "/portal/user-management",
-      icon: HiOutlineUsers,
+      icon: NavUsers,
       labelKey: "userManagement",
       roles: ["admin"],
+      permissions: ["manage_users", "manage_school_settings"],
       section: "admin",
     },
     {
       path: "/portal/settings/subscription",
-      icon: HiOutlineCreditCard,
+      icon: NavCard,
       labelKey: "subscription",
       admin: true,
       section: "admin",
     },
     {
       path: "/portal/api-docs",
-      icon: HiOutlineCommandLine,
+      icon: NavTerminal,
       labelKey: "apiDocumentation",
       admin: true,
       feature: "apiAccess",
@@ -814,7 +799,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/my-grades",
-      icon: HiOutlineAcademicCap,
+      icon: NavGrad,
       labelKey: "myGrades",
       roles: ["student"],
       section: "assessment",
@@ -822,7 +807,7 @@ const Sidebar = () => {
     // Social Studies — student
     {
       path: "/portal/social-studies/student",
-      icon: HiOutlineBookOpen,
+      icon: NavBook,
       labelKey: "socialStudiesStudent",
       roles: ["student"],
       feature: "socialStudies",
@@ -830,35 +815,42 @@ const Sidebar = () => {
     },
     {
       path: "/portal/my-assignments",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "assignments",
       roles: ["student"],
       section: "assessment",
     },
     {
       path: "/portal/student-attendance",
-      icon: HiOutlineClipboardDocumentCheck,
+      icon: NavChecklist,
       labelKey: "myAttendance",
       roles: ["student"],
       section: "operations",
     },
     {
       path: "/portal/practice",
-      icon: HiOutlineSparkles,
+      icon: NavSparkles,
       labelKey: "practice",
       roles: ["student"],
       section: "assessment",
     },
     {
+      path: "/portal/skillpath",
+      icon: NavStar,
+      labelKey: "skillpath",
+      roles: ["student"],
+      section: "assessment",
+    },
+    {
       path: "/portal/practice/sb-results",
-      icon: HiOutlineCheckCircle,
+      icon: NavCheckCircle,
       labelKey: "sbResults",
       roles: ["student"],
       section: "assessment",
     },
     {
       path: "/portal/academic-excellence",
-      icon: HiOutlineStar,
+      icon: NavStar,
       labelKey: "academicExcellence",
       roles: ["student"],
       feature: "academicIntelligence",
@@ -866,7 +858,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/reading",
-      icon: HiOutlineRectangleStack,
+      icon: NavLayers,
       labelKey: "reading",
       roles: ["student"],
       feature: "readingAssistant",
@@ -874,7 +866,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/writing",
-      icon: HiOutlinePencilSquare,
+      icon: NavPencil,
       labelKey: "myWriting",
       roles: ["student"],
       feature: "writingAssistant",
@@ -882,7 +874,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/tutor",
-      icon: HiOutlineSparkles,
+      icon: NavSparkles,
       labelKey: "aiTutor",
       roles: ["student"],
       feature: "studentAiTutor",
@@ -890,7 +882,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/revision",
-      icon: HiOutlineArrowPath,
+      icon: NavRefresh,
       labelKey: "revisionPlans",
       roles: ["admin"],
       feature: "revisionPlanning",
@@ -898,7 +890,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance",
-      icon: HiOutlineBanknotes,
+      icon: NavCash,
       labelKey: "financeDashboard",
       roles: ["admin"],
       permissions: [
@@ -911,7 +903,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/fee-structures",
-      icon: HiOutlineCalculator,
+      icon: NavCalculator,
       labelKey: "feeStructures",
       roles: ["admin"],
       permissions: [
@@ -922,7 +914,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/discounts",
-      icon: HiOutlineReceiptPercent,
+      icon: NavReceipt,
       labelKey: "discounts",
       roles: ["admin"],
       permissions: [PERMISSIONS.MANAGE_DISCOUNTS],
@@ -930,7 +922,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/invoices",
-      icon: HiOutlineDocumentCurrencyDollar,
+      icon: NavCurrency,
       labelKey: "invoices",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_INVOICES, PERMISSIONS.CREATE_INVOICES],
@@ -938,7 +930,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/payments",
-      icon: HiOutlineCreditCard,
+      icon: NavCard,
       labelKey: "payments",
       roles: ["admin"],
       permissions: [PERMISSIONS.RECORD_PAYMENTS],
@@ -946,7 +938,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/reports",
-      icon: HiOutlineChartBar,
+      icon: NavChart,
       labelKey: "financeReports",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_FINANCE_REPORTS],
@@ -954,7 +946,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/finance/session-billing",
-      icon: HiOutlineClock,
+      icon: NavClock,
       labelKey: "sessionBilling",
       roles: ["admin"],
       permissions: [PERMISSIONS.VIEW_FINANCE_REPORTS],
@@ -963,7 +955,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/lesson-account",
-      icon: HiOutlineBanknotes,
+      icon: NavCash,
       labelKey: "lessonAccount",
       roles: ["student", "parent"],
       feature: "liveSessionBilling",
@@ -972,7 +964,7 @@ const Sidebar = () => {
     /*
     // ── HR & Staff Management ──    {
       path: "/portal/hr",
-      icon: HiOutlineUserGroup,
+      icon: NavUserGroup,
       labelKey: "hrDashboard",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_STAFF_PROFILES],
@@ -980,7 +972,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/staff",
-      icon: HiOutlineIdentification,
+      icon: NavIdCard,
       labelKey: "staffDirectory",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_STAFF_PROFILES],
@@ -988,7 +980,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/leave",
-      icon: HiOutlineCalendarDays,
+      icon: NavCalendar,
       labelKey: "leaveManagement",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.APPROVE_LEAVE],
@@ -996,7 +988,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/leave-settings",
-      icon: HiOutlineAdjustmentsHorizontal,
+      icon: NavSliders,
       labelKey: "leaveSettings",
       roles: ["admin"],
       permissions: [PERMISSIONS.MANAGE_LEAVE_TYPES],
@@ -1004,7 +996,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/certifications",
-      icon: HiOutlineAcademicCap,
+      icon: NavGrad,
       labelKey: "certifications",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_CERTIFICATIONS],
@@ -1012,7 +1004,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/reviews",
-      icon: HiOutlineClipboardDocumentCheck,
+      icon: NavChecklist,
       labelKey: "performanceReviews",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.MANAGE_PERFORMANCE_REVIEWS],
@@ -1020,7 +1012,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/pd",
-      icon: HiOutlineBookOpen,
+      icon: NavBook,
       labelKey: "professionalDevelopment",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.VIEW_PD_REPORTS],
@@ -1028,7 +1020,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/my",
-      icon: HiOutlineBriefcase,
+      icon: NavBriefcase,
       labelKey: "myHRProfile",
       roles: ["admin", "teacher", "department_principal", "staff"],
       permissions: [PERMISSIONS.VIEW_OWN_HR_PROFILE],
@@ -1036,7 +1028,7 @@ const Sidebar = () => {
     },
     {
       path: "/portal/hr/settings",
-      icon: HiOutlineCog6Tooth,
+      icon: NavCog,
       labelKey: "hrSettings",
       roles: ["admin"],
       permissions: [PERMISSIONS.MANAGE_HR_SETTINGS],
@@ -1046,7 +1038,7 @@ const Sidebar = () => {
     // ── PLP – Character Development ──
     {
       path: "/portal/plp",
-      icon: HiOutlinePLP,
+      icon: NavSparkles,
       labelKey: "plp",
       roles: ["admin", "teacher", "department_principal", "student"],
       section: "support",
@@ -1054,14 +1046,14 @@ const Sidebar = () => {
     },
     {
       path: "/portal/plp/my-tasks",
-      icon: HiOutlineCheckCircle,
+      icon: NavCheckCircle,
       labelKey: "plpMyTasks",
       roles: ["student"],
       section: "support",
     },
     {
       path: "/portal/settings",
-      icon: HiOutlineCog6Tooth,
+      icon: NavCog,
       roles: ["admin", "teacher", "department_principal"],
       labelKey: "settings",
       section: "account",
@@ -1082,7 +1074,10 @@ const Sidebar = () => {
     // Check role-based access first
     let hasRoleAccess = true;
     if (item.roles) {
-      hasRoleAccess = item.roles.includes(user?.role);
+      const assignedRoles = Array.isArray(user?.roles) ? user.roles : [];
+      hasRoleAccess =
+        item.roles.includes(user?.role) ||
+        assignedRoles.some((role) => item.roles.includes(role));
     } else if (item.admin && !isAdmin) {
       hasRoleAccess = false;
     } else if (item.teacher && !isTeacher) {
@@ -1181,6 +1176,9 @@ const Sidebar = () => {
             placeholder={t("layout.sidebar:actions.search")}
             aria-label={t("layout.sidebar:actions.search")}
           />
+          <span className="sidebar-search-hint" aria-hidden="true">
+            {t("layout.sidebar:actions.searchHint")}
+          </span>
           {searchQuery && (
             <button
               type="button"
@@ -1206,8 +1204,8 @@ const Sidebar = () => {
             <div
               key={sectionKey}
               className={`sidebar-nav-section ${
-                SECTION_TONES[sectionKey] || ""
-              } ${isSectionCollapsed ? "sidebar-section-collapsed" : ""}`}
+                isSectionCollapsed ? "sidebar-section-collapsed" : ""
+              }`}
             >
               {sidebarOpen && (
                 <button
@@ -1251,9 +1249,9 @@ const Sidebar = () => {
                       key={item.path}
                       to={item.path}
                       end={item.end || false}
-                      className={({ isActive }) =>
-                        `${itemClassName} ${isActive ? "active" : ""}`
-                      }
+                      className={`${itemClassName} ${
+                        isActiveNavItem(item, location.pathname) ? "active" : ""
+                      }`}
                     >
                       <item.icon className="nav-icon" size={20} />
                       {sidebarOpen && (
@@ -1304,7 +1302,13 @@ const Sidebar = () => {
         })}
         {searchQuery && itemsBySection.length === 0 && (
           <div className="sidebar-empty">
-            {t("layout.sidebar:actions.noResults")}
+            <HiOutlineMagnifyingGlass size={18} />
+            <span className="sidebar-empty-title">
+              {t("layout.sidebar:actions.noResults")}
+            </span>
+            <span className="sidebar-empty-hint">
+              {t("layout.sidebar:actions.noResultsHint")}
+            </span>
           </div>
         )}
       </nav>

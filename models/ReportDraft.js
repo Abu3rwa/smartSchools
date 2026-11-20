@@ -1,6 +1,15 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
+// Declared as its own schema: inside an inline array element definition the
+// `type` key is read as the array's element type, which silently turned the
+// frozen recipient list into [String] and rejected the recipient objects.
+const approvedRecipientSchema = new mongoose.Schema({
+    email: String,
+    name: String,
+    type: String
+}, { _id: false });
+
 const reportDraftSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
@@ -94,11 +103,7 @@ const reportDraftSchema = new mongoose.Schema({
         subject: { type: String, default: null },
         html: { type: String, default: null },
         text: { type: String, default: null },
-        recipients: [{
-            email: String,
-            name: String,
-            type: String
-        }],
+        recipients: [approvedRecipientSchema],
         senderEmail: { type: String, default: null },
         senderName: { type: String, default: null },
         language: { type: String, default: null },

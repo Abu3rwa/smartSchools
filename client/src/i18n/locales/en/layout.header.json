@@ -1,19 +1,18 @@
 {
   "actions": {
     "openMenu": "Open menu",
-    "toggleTheme": "Toggle theme",
-    "toggleLanguage": "Switch language",
-    "toggleLanguageTo": "Switch to {{language}}",
-    "pinCurrentPage": "Pin this page",
-    "unpinCurrentPage": "Unpin this page",
-    "manageShortcuts": "Manage shortcuts",
-    "userMenu": "User menu"
+    "userMenu": "Account menu"
   },
   "shortcuts": {
-    "title": "Header shortcuts",
+    "title": "Shortcuts",
     "hint": "Choose up to {{max}} links.",
-    "pinCurrentPage": "Pin current page",
     "pinCurrentPageDisabled": "Open a pinnable page first",
+    "addThisPage": "Add this page",
+    "removeThisPage": "Remove this page",
+    "editShortcuts": "Edit shortcuts",
+    "doneEditing": "Done",
+    "emptyHint": "Add pages you use often.",
+    "atLimitHint": "Remove a shortcut before adding another.",
     "orderTitle": "Shortcut order",
     "orderHint": "Drag or use the arrows.",
     "none": "No shortcuts selected",
@@ -22,16 +21,21 @@
     "noResults": "No page matches that search",
     "moveUp": "Move up",
     "moveDown": "Move down",
-    "remove": "Remove from shortcuts",
-    "more": "{{total}} more"
+    "remove": "Remove from shortcuts"
   },
   "menu": {
+    "shortcuts": "Shortcuts",
     "settings": "Settings",
-    "logout": "Logout"
-  },
-  "roleSwitcher": {
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "language": "Language",
     "switchRole": "Switch role",
-    "title": "Switch Active Role"
+    "switchingRole": "Switching role…",
+    "switchRoleFailed": "Could not switch role. You are still signed in with your current role.",
+    "balanceLoading": "Loading…",
+    "balanceUnavailable": "Unavailable",
+    "logout": "Sign out"
   },
   "impersonation": {
     "viewing": "Viewing as {{name}} ({{role}})",

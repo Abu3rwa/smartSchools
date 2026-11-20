@@ -14,6 +14,7 @@ import {
     classScope,
     closeCase,
     createCase,
+    listAttention,
     listCases,
     listParentRequests,
     loadCase,
@@ -76,7 +77,10 @@ import {
     dismissSuggestion,
     listSuggestions,
 } from '../services/supportSuggestionService.js';
-import { recordAssistedResponse } from '../services/supportSurveyService.js';
+import {
+    recordAssistedResponse,
+    reopenSurvey as reopenSurveyService,
+} from '../services/supportSurveyService.js';
 import { teacherClassIds } from '../services/supportCycleService.js';
 import { supportError } from '../services/supportAccessService.js';
 import { sendPrintableHtml, withPrintPageCss } from '../utils/printableHtml.js';
@@ -363,6 +367,16 @@ export const getRequests = asyncHandler(async (req, res) => {
     res.json({ success: true, data: { requests: data } });
 });
 
+export const getAttention = asyncHandler(async (req, res) => {
+    await assertSupportEnabled({ schoolId: schoolOf(req), user: req.user });
+    const data = await listAttention({
+        schoolId: schoolOf(req),
+        user: req.user,
+        academicYear: req.academicYear,
+    });
+    res.json({ success: true, data });
+});
+
 /** A pending request has no owner yet, so class teachers answer it, not loadCase. */
 const requestCaseForStaff = async (req) => {
     if (!mongoose.isValidObjectId(req.params.caseId)) {
@@ -536,6 +550,20 @@ export const markHandedOver = asyncHandler(async (req, res) => {
     res.json({ success: true, data: { id: String(updated._id), status: updated.status, deliveryState: updated.deliveryState } });
 });
 
+export const reopenSurvey = asyncHandler(async (req, res) => {
+    const { caseDoc, context } = await activeCaseForRequest(req);
+    requireManage(context);
+    const survey = await SupportSurvey.findOne({
+        _id: req.params.surveyId,
+        school: schoolOf(req),
+        case: caseDoc._id,
+    });
+    if (!survey) throw supportError(404, 'SURVEY_NOT_FOUND', 'That survey is not part of this case.');
+    const saved = await reopenSurveyService({ survey, actorKind: 'staff' });
+    await refreshReviewStatus({ schoolId: schoolOf(req), reviewId: survey.review });
+    res.json({ success: true, data: { id: String(saved._id), status: saved.status, revision: saved.revision } });
+});
+
 export const assistedResponse = asyncHandler(async (req, res) => {
     const { caseDoc, context } = await activeCaseForRequest(req);
     requireManage(context);
@@ -640,6 +668,7 @@ export const approveVersion = asyncHandler(async (req, res) => {
         caseDoc,
         versionId: version._id,
         user: req.user,
+        note: req.body?.note,
     });
     res.json({ success: true, data: serializePlanVersion(approved, { family: false }) });
 });
@@ -669,7 +698,8 @@ export const publishVersion = asyncHandler(async (req, res) => {
 });
 
 export const goalOutcome = asyncHandler(async (req, res) => {
-    const { caseDoc } = await activeCaseForRequest(req);
+    const { caseDoc, context } = await activeCaseForRequest(req);
+    requireManage(context);
     const version = await loadVersionForCase({
         schoolId: schoolOf(req),
         caseId: caseDoc._id,

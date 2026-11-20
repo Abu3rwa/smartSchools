@@ -1,235 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import {
-  HiOutlineArrowDownTray,
-  HiOutlineArrowUpTray,
-  HiOutlineCalendarDays,
-  HiOutlineCheck,
-  HiOutlineChevronLeft,
-  HiOutlineChevronRight,
-  HiOutlineClipboardDocument,
-  HiOutlineClock,
-  HiOutlineCog6Tooth,
-  HiOutlineEllipsisVertical,
-  HiOutlineEye,
-  HiOutlineFunnel,
-  HiOutlinePencilSquare,
-  HiOutlinePlay,
-  HiOutlinePlus,
-  HiOutlinePresentationChartBar,
-  HiOutlineShare,
-  HiOutlineStop,
-  HiOutlineTrash,
-  HiOutlineXMark,
-} from "react-icons/hi2";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
 import { fetchSubjects, selectSubjects } from "../../store/slices/subjectSlice";
-import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
-import LiveQuestionEditor from "../../components/liveLessons/LiveQuestionEditor";
 import {
-  LIVE_QUESTION_KIND_LABELS,
-  buildLiveQuestionPayload,
   createLiveQuestion,
   linkLiveLessonLevels,
-  prepareLiveQuestion,
 } from "../../utils/liveLessonQuestionDraft.js";
-import { LIVE_LESSON_SAMPLE_CSV } from "./liveLessonCsvTemplate";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
-import QuestionTypeGuide from "../../components/assessment/QuestionTypeGuide";
+import LiveLessonsHeader from "./components/LiveLessonsHeader";
+import SettingsPanel from "./components/SettingsPanel";
+import SelectionBar from "./components/SelectionBar";
+import ShareInvitations from "./components/ShareInvitations";
+import LibraryEmptyState from "./components/LibraryEmptyState";
+import LibraryToolbar from "./components/LibraryToolbar";
+import LibraryBreadcrumbs from "./components/LibraryBreadcrumbs";
+import FolderActions from "./components/FolderActions";
+import FolderGrid from "./components/FolderGrid";
+import LessonsListView from "./components/LessonsListView";
+import SessionHistory from "./components/SessionHistory";
+import PreviewDialog from "./components/PreviewDialog";
+import SessionDialog from "./components/SessionDialog";
+import FolderDialog from "./components/FolderDialog";
+import OrganizeDialog from "./components/OrganizeDialog";
+import PositionDialog from "./components/PositionDialog";
+import ShareDialog from "./components/ShareDialog";
+import MoveDialog from "./components/MoveDialog";
+import ImportEditorDialog from "./components/ImportEditorDialog";
+import {
+  defaultListState,
+  downloadLessonCsv,
+  downloadTemplate,
+  emptyForm,
+  localDateTimeValue,
+  readListPreferences,
+  toEditorSlide,
+  toStoredSlide,
+  unlinkedLevelMessage,
+} from "./utils/liveLessonPageUtils";
 import "./LiveLessonsPage.css";
-
-const emptyForm = {
-  title: "",
-  description: "",
-  subject: "",
-  classId: "",
-  subjectId: "",
-  grade: "",
-  language: "en",
-  slides: [],
-};
-const defaultListState = {
-  classId: "",
-  subject: "",
-  page: 1,
-  pageSize: 25,
-  showDone: false,
-  folderId: "",
-  search: "",
-  dateFrom: "",
-  dateTo: "",
-  status: "",
-};
-const SHOW_LESSON_FOLDERS = false;
-
-/**
- * The editor works on a complete question draft, so every input it shows has a value, and the kind's
- * unused fields are emptied at save instead of at every keystroke. A levelled slide imported from a
- * CSV names its group in words, because a group id only means something inside this class.
- */
-const toEditorSlide = (slide = {}) => ({
-  ...slide,
-  examples: slide.examples || [],
-  question: slide.question ? prepareLiveQuestion(slide.question) : undefined,
-  variants: (slide.variants || []).map((variant) => ({
-    ...(variant.groupId ? { groupId: String(variant.groupId) } : {}),
-    ...(variant.group ? { group: variant.group } : {}),
-    question: prepareLiveQuestion(variant.question),
-  })),
-});
-
-const toStoredSlide = (slide = {}) => {
-  const { variants = [], ...rest } = slide;
-  return {
-    ...rest,
-    ...(slide.question ? { question: buildLiveQuestionPayload(slide.question) } : {}),
-    ...(variants.length
-      ? {
-        // A level is stored by group id; the CSV's name was only ever how the teacher wrote it down.
-        variants: variants.map((variant) => ({
-          groupId: variant.groupId,
-          question: buildLiveQuestionPayload(variant.question),
-        })),
-      }
-      : {}),
-  };
-};
-
-const liveNumericRuleSummary = (rule = {}) => {
-  const unit = rule.unit ? ` ${rule.unit}` : "";
-  if (rule.mode === "range") {
-    return `Any value from ${rule.min}${unit} to ${rule.max}${unit}.`;
-  }
-  if (rule.mode === "tolerance") {
-    return `${rule.value}${unit} plus or minus ${rule.tolerance}${unit}.`;
-  }
-  if (rule.mode === "relative") {
-    return `Within ${rule.tolerance}% of ${rule.value}${unit}.`;
-  }
-  return `${rule.value}${unit}.`;
-};
-
-/**
- * Levelled questions are no longer authored in the editor, so the only way a slide can arrive with a
- * level is a CSV that named one. A name this class does not have would send that level to nobody.
- */
-const unlinkedLevelMessage = (slides = []) => {
-  const index = slides.findIndex((entry) =>
-    (entry.variants || []).some((variant) => !variant.groupId),
-  );
-  if (index === -1) return "";
-  const variant = slides[index].variants.find((entry) => !entry.groupId);
-  return `Slide ${index + 1} has a levelled question${variant.group ? ` for the group "${variant.group}"` : ""}, which this class does not have. Correct that group name in the CSV, or remove the levelled question.`;
-};
-
-const normalizeListState = (saved = {}) => {
-  const preferences = saved && typeof saved === "object" ? saved : {};
-  return {
-    classId: typeof preferences.classId === "string" ? preferences.classId : "",
-    subject: typeof preferences.subject === "string" ? preferences.subject : "",
-    page:
-      Number.isInteger(Number(preferences.page)) && Number(preferences.page) > 0
-        ? Number(preferences.page)
-        : 1,
-    pageSize: [10, 25, 50].includes(Number(preferences.pageSize))
-      ? Number(preferences.pageSize)
-      : 25,
-    showDone: preferences.showDone === true,
-    folderId: typeof preferences.folderId === "string" ? preferences.folderId : "",
-    search: typeof preferences.search === "string" ? preferences.search : "",
-    dateFrom:
-      typeof preferences.dateFrom === "string" ? preferences.dateFrom : "",
-    dateTo: typeof preferences.dateTo === "string" ? preferences.dateTo : "",
-    status: ["waiting", "live", "ended"].includes(preferences.status)
-      ? preferences.status
-      : "",
-  };
-};
-
-const localDateTimeValue = (date) => {
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 16);
-};
-
-const readListPreferences = (key) => {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(key) || "{}");
-    return {
-      lessons: normalizeListState(saved.lessons),
-      sessions: normalizeListState(saved.sessions),
-    };
-  } catch {
-    return { lessons: defaultListState, sessions: defaultListState };
-  }
-};
-
-const downloadTemplate = () => {
-  const blob = new Blob([LIVE_LESSON_SAMPLE_CSV], {
-    type: "text/csv;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "live-lesson-sample.csv";
-  link.click();
-  URL.revokeObjectURL(url);
-};
-
-const downloadLessonCsv = async (lesson) => {
-  const response = await api.get(`/live/lessons/${lesson._id}/export.csv`, {
-    responseType: "blob",
-  });
-  const blob = response.data;
-  const header = await blob.slice(0, 64).text();
-  if (!String(response.headers?.["content-type"] || "").toLowerCase().includes("text/csv") ||
-      !header.replace(/^\uFEFF/, "").startsWith("format_version,")) {
-    throw new Error("The export response was not a valid Live Lesson CSV.");
-  }
-  const disposition = String(response.headers?.["content-disposition"] || "");
-  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "live-lesson.csv";
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-
-const formatSessionDuration = (session) => {
-  if (!session.startedAt) return "—";
-  const end = session.endedAt
-    ? new Date(session.endedAt).getTime()
-    : Date.now();
-  const pausedAt =
-    session.paused && session.pausedAt
-      ? new Date(session.pausedAt).getTime()
-      : NaN;
-  const currentPauseMs = Number.isFinite(pausedAt)
-    ? Math.max(0, end - pausedAt)
-    : 0;
-  const pausedMs =
-    Math.max(0, Number(session.totalPausedMs) || 0) + currentPauseMs;
-  const minutes = Math.max(
-    0,
-    Math.floor(
-      (end - new Date(session.startedAt).getTime() - pausedMs) / 60000,
-    ),
-  );
-  return minutes < 60
-    ? `${minutes} min`
-    : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-};
-
-const getSessionDisplayDate = (session) =>
-  session.scheduledAt && session.status === "waiting"
-    ? session.scheduledAt
-    : session.startedAt || session.createdAt;
 
 const LiveLessonsPage = () => {
   const dispatch = useDispatch();
@@ -253,7 +64,6 @@ const LiveLessonsPage = () => {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
   const [selectedFile, setSelectedFile] = useState("");
   const [exportingLessonId, setExportingLessonId] = useState("");
-  const [lessonClasses, setLessonClasses] = useState({});
   const [teachers, setTeachers] = useState([]);
   const [incomingShares, setIncomingShares] = useState([]);
   const [outgoingShares, setOutgoingShares] = useState([]);
@@ -271,7 +81,17 @@ const LiveLessonsPage = () => {
   const [bulkDeletingLessons, setBulkDeletingLessons] = useState(false);
   const [folderSaving, setFolderSaving] = useState(false);
   const [folderDialog, setFolderDialog] = useState(null);
-  const [shortcutTargets, setShortcutTargets] = useState({});
+  const [folderCounts, setFolderCounts] = useState({
+    totalLessons: 0,
+    unfiled: 0,
+  });
+  const [folderSort, setFolderSort] = useState("order");
+  const [reorderMode, setReorderMode] = useState(false);
+  const [lessonSearchInput, setLessonSearchInput] = useState("");
+  const [organizeDialog, setOrganizeDialog] = useState(null);
+  const [organizeSaving, setOrganizeSaving] = useState(false);
+  const [positionDialog, setPositionDialog] = useState(null);
+  const [positionSaving, setPositionSaving] = useState(false);
   const [bulkRespondingToShares, setBulkRespondingToShares] = useState(false);
   const [previewLesson, setPreviewLesson] = useState(null);
   const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
@@ -403,8 +223,13 @@ const LiveLessonsPage = () => {
   };
 
   // The library is paged and filtered by the server, so a teacher with a large
-  // library downloads one page instead of every lesson they ever wrote.
+  // library downloads one page instead of every lesson they ever wrote. The
+  // folders home loads no lesson rows at all.
   const loadLessons = useCallback(async () => {
+    if (lessonListState.view === "home") {
+      setLessonLoading(false);
+      return;
+    }
     const requestId = lessonRequestRef.current + 1;
     lessonRequestRef.current = requestId;
     setLessonLoading(true);
@@ -413,9 +238,13 @@ const LiveLessonsPage = () => {
         params: {
           page: lessonListState.page,
           limit: lessonListState.pageSize,
-          includeDone: lessonListState.showDone ? "true" : "false",
-          ...(lessonListState.classId
-            ? { classId: lessonListState.classId }
+          order: lessonListState.order === "az" ? "az" : lessonListState.order,
+          ...(lessonListState.view === "folder" && lessonListState.folderId
+            ? { folderId: lessonListState.folderId }
+            : {}),
+          ...(lessonListState.view === "unfiled" ? { unfiled: "true" } : {}),
+          ...(lessonListState.search
+            ? { search: lessonListState.search }
             : {}),
           ...(lessonListState.subject
             ? { subjectId: lessonListState.subject }
@@ -453,15 +282,19 @@ const LiveLessonsPage = () => {
       if (lessonRequestRef.current === requestId) setLessonLoading(false);
     }
   }, [
-    lessonListState.classId,
+    lessonListState.folderId,
+    lessonListState.order,
     lessonListState.page,
     lessonListState.pageSize,
-    lessonListState.showDone,
+    lessonListState.search,
     lessonListState.subject,
+    lessonListState.view,
   ]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  // Refreshing folders after a move or a rename keeps the current view on
+  // screen; only the first load takes over the page with the loader.
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const [settingsResponse, folderResponse] = await Promise.all([
@@ -469,6 +302,9 @@ const LiveLessonsPage = () => {
         api.get("/live/lessons/folders"),
       ]);
       setFolders(folderResponse.data?.data?.folders || []);
+      setFolderCounts(
+        folderResponse.data?.data?.counts || { totalLessons: 0, unfiled: 0 },
+      );
       setFoldersLoaded(true);
       setAiHtmlReviewEnabled(
         settingsResponse.data?.data?.aiHtmlReviewEnabled === true,
@@ -481,7 +317,7 @@ const LiveLessonsPage = () => {
         requestError.response?.data?.message || "Could not load live lessons.",
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -538,6 +374,7 @@ const LiveLessonsPage = () => {
     setLessonListState(saved.lessons);
     setSessionListState(saved.sessions);
     setSessionSearchInput(saved.sessions.search || "");
+    setLessonSearchInput(saved.lessons.search || "");
     setPreferencesLoaded(true);
   }, [preferencesKey]);
 
@@ -554,6 +391,48 @@ const LiveLessonsPage = () => {
     }, 400);
     return () => window.clearTimeout(timer);
   }, [sessionSearchInput, preferencesLoaded]);
+
+  // Library search covers every folder. Typing lands on the search view after a
+  // pause; clearing the box returns to the folder home.
+  useEffect(() => {
+    if (!preferencesLoaded) return undefined;
+    const timer = window.setTimeout(() => {
+      const term = lessonSearchInput.trim();
+      setLessonListState((current) => {
+        if (term === current.search &&
+          (term ? current.view === "search" : current.view !== "search")) {
+          return current;
+        }
+        return term
+          ? {
+              ...current,
+              view: "search",
+              folderId: "",
+              search: term,
+              order: current.order === "teaching" ? "recent" : current.order,
+              page: 1,
+            }
+          : { ...current, view: "home", folderId: "", search: "", page: 1 };
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [lessonSearchInput, preferencesLoaded]);
+
+  // Ordering controls belong to one list. Leaving the list ends reorder mode
+  // and closes the position prompt instead of carrying them to another view.
+  useEffect(() => {
+    setReorderMode(false);
+    setPositionDialog(null);
+    if (lessonListState.view !== "folder" && lessonListState.order === "teaching") {
+      setLessonListState((current) => ({ ...current, order: "recent" }));
+    }
+  }, [
+    lessonListState.view,
+    lessonListState.folderId,
+    lessonListState.order,
+    lessonListState.search,
+    folderSort,
+  ]);
 
   useEffect(() => {
     if (preferencesLoaded) {
@@ -651,9 +530,12 @@ const LiveLessonsPage = () => {
     }
   }, [user?.role]);
 
+  // Session history is its own tab and is only fetched when a teacher opens it.
   useEffect(() => {
-    if (preferencesLoaded && classesLoaded && subjectsLoaded) loadSessions();
-  }, [loadSessions, preferencesLoaded, classesLoaded, subjectsLoaded]);
+    if (tab !== "sessions" || !preferencesLoaded) return;
+    void loadSessions();
+    // The filter object is the request, so a filter change re-fetches only here.
+  }, [tab, loadSessions, preferencesLoaded]);
 
   useEffect(() => {
     if (!preferencesLoaded || !classesLoaded || !subjectsLoaded || !foldersLoaded) return;
@@ -697,19 +579,33 @@ const LiveLessonsPage = () => {
       if (classId === state.classId && subject === state.subject) return state;
       return { ...state, classId, subject, page: 1 };
     };
-    setLessonListState((current) => sanitize(current, false));
     setSessionListState((current) => sanitize(current, true));
     setLessonListState((current) => {
-      const validFolder = !current.folderId ||
-        current.folderId === "__unfiled__" ||
-        folders.some((folder) => String(folder._id) === current.folderId);
-      return validFolder ? current : { ...current, folderId: "", page: 1 };
+      const nextSubject = validSubject(current.subject, false)
+        ? current.subject
+        : "";
+      if (current.view !== "folder") {
+        return nextSubject === current.subject
+          ? current
+          : { ...current, subject: nextSubject, page: 1 };
+      }
+      const validFolder = folders.some(
+        (folder) => String(folder._id) === current.folderId,
+      );
+      if (validFolder && nextSubject === current.subject) return current;
+      return {
+        ...current,
+        view: validFolder ? current.view : "home",
+        folderId: validFolder ? current.folderId : "",
+        subject: nextSubject,
+        page: 1,
+      };
     });
   }, [preferencesLoaded, classesLoaded, subjectsLoaded, foldersLoaded, classes, subjects, folders]);
 
   useEffect(() => {
     if (!preferencesLoaded) return;
-    loadLessons();
+    void loadLessons();
   }, [loadLessons, preferencesLoaded]);
 
   useEffect(() => {
@@ -724,9 +620,10 @@ const LiveLessonsPage = () => {
   useEffect(() => {
     setFilteredSelectionActive(false);
   }, [
-    lessonListState.classId,
-    lessonListState.showDone,
+    lessonListState.folderId,
+    lessonListState.search,
     lessonListState.subject,
+    lessonListState.view,
   ]);
 
   useEffect(() => {
@@ -1000,7 +897,15 @@ const LiveLessonsPage = () => {
       if (editorMode === "edit") {
         await api.put(`/live/lessons/${editingLessonId}`, lessonData);
       } else {
-        await api.post("/live/lessons", lessonData);
+        const created = await api.post("/live/lessons", lessonData);
+        const createdLessonId = String(created.data?.data?.lesson?._id || "");
+        // A lesson imported while a folder is open lands in that folder, so the
+        // teacher does not have to organize it a second time.
+        if (createdLessonId && lessonListState.view === "folder" && lessonListState.folderId) {
+          await api.post(
+            `/live/lessons/folders/${lessonListState.folderId}/lessons/${createdLessonId}`,
+          );
+        }
       }
       closeEditor(true);
       await reloadLibrary();
@@ -1218,17 +1123,9 @@ const LiveLessonsPage = () => {
     const availableClassIds = new Set(
       classes.map((classItem) => String(classItem._id)),
     );
-    const savedChoice = lessonClasses[lesson._id];
-    if (savedChoice && availableClassIds.has(String(savedChoice))) {
-      return String(savedChoice);
-    }
     const assignedClassId = String(lesson.classId?._id || lesson.classId || "");
     if (assignedClassId && availableClassIds.has(assignedClassId)) {
       return assignedClassId;
-    }
-    const filteredClassId = String(lessonListState.classId || "");
-    if (filteredClassId && availableClassIds.has(filteredClassId)) {
-      return filteredClassId;
     }
     return String(classes[0]?._id || "");
   };
@@ -1430,12 +1327,6 @@ const LiveLessonsPage = () => {
             : item,
         ),
       );
-      // The launch picker and the session list were both filtered by the old class.
-      setLessonClasses((current) => {
-        const next = { ...current };
-        delete next[lesson._id];
-        return next;
-      });
       setNotice(
         response.data?.message
           || `“${lesson.title}” moved to ${selected?.name || "the selected class"}.`,
@@ -1467,6 +1358,21 @@ const LiveLessonsPage = () => {
     .sort()
     .reverse();
 
+  const navigateLibrary = (view, folderId = "") => {
+    setLessonSearchInput("");
+    setReorderMode(false);
+    setSelectedLessonIds([]);
+    setOrganizeDialog(null);
+    setLessonListState((current) => ({
+      ...current,
+      view,
+      folderId,
+      search: "",
+      page: 1,
+      order: view === "folder" ? "teaching" : "recent",
+    }));
+  };
+
   const createFolder = (parentId = null) => {
     setFolderDialog({ mode: "create", parentId, name: "" });
   };
@@ -1495,7 +1401,7 @@ const LiveLessonsPage = () => {
         setFolders((current) =>
           current.map((folder) =>
             String(folder._id) === String(updatedFolder._id)
-              ? updatedFolder
+              ? { ...folder, name: updatedFolder.name }
               : folder,
           ),
         );
@@ -1507,12 +1413,8 @@ const LiveLessonsPage = () => {
         });
         const folder = response.data?.data?.folder;
         setFolders((current) => [...current, folder]);
-        setLessonListState((current) => ({
-          ...current,
-          folderId: String(folder._id),
-          page: 1,
-        }));
-        setNotice(`Folder “${folder.name}” created.`);
+        setNotice(`Folder “${folder.name}” created. Add lessons from All lessons or Unfiled.`);
+        navigateLibrary("folder", String(folder._id));
       }
       setFolderDialog(null);
     } catch (requestError) {
@@ -1532,14 +1434,11 @@ const LiveLessonsPage = () => {
     try {
       await api.delete(`/live/lessons/folders/${folder._id}`);
       setFolders((current) => current.filter((item) => String(item._id) !== String(folder._id)));
-      setLessonListState((current) => ({
-        ...current,
-        folderId: String(current.folderId) === String(folder._id)
-          ? (folder.parentId ? String(folder.parentId) : "")
-          : current.folderId,
-        page: 1,
-      }));
+      if (String(lessonListState.folderId) === String(folder._id)) {
+        navigateLibrary(folder.parentId ? "folder" : "home", folder.parentId ? String(folder.parentId) : "");
+      }
       setNotice(`Empty folder “${folder.name}” deleted.`);
+      await loadData({ silent: true });
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not delete folder.");
     } finally {
@@ -1547,27 +1446,27 @@ const LiveLessonsPage = () => {
     }
   };
 
-  const addLessonShortcut = async (lesson, folderId) => {
-    if (!folderId) {
-      setError("Choose a folder before adding a shortcut.");
-      return;
-    }
+  const toggleFolderPin = async (folder) => {
+    if (folderSaving) return;
     setFolderSaving(true);
     setError("");
     try {
-      await api.post(`/live/lessons/folders/${folderId}/lessons/${lesson._id}`);
+      const response = await api.patch(
+        `/live/lessons/folders/${folder._id}`,
+        { pinned: !folder.pinned },
+      );
+      const updated = response.data?.data?.folder;
       setFolders((current) =>
-        current.map((folder) =>
-          String(folder._id) === String(folderId) &&
-          !folder.lessonIds.some((id) => String(id) === String(lesson._id))
-            ? { ...folder, lessonIds: [...folder.lessonIds, lesson._id] }
-            : folder,
+        current.map((item) =>
+          String(item._id) === String(folder._id)
+            ? { ...item, pinned: updated?.pinned === true }
+            : item,
         ),
       );
-      setShortcutTargets((current) => ({ ...current, [lesson._id]: "" }));
-      setNotice(`Shortcut to “${lesson.title}” added. The original lesson was not copied.`);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Could not add lesson shortcut.");
+      setError(
+        requestError.response?.data?.message || "Could not update this folder.",
+      );
     } finally {
       setFolderSaving(false);
     }
@@ -1591,6 +1490,8 @@ const LiveLessonsPage = () => {
         ),
       );
       setNotice(`Shortcut removed from “${folder.name}”. The lesson and its history remain.`);
+      void loadLessons();
+      await loadData({ silent: true });
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not remove lesson shortcut.");
     } finally {
@@ -1615,6 +1516,7 @@ const LiveLessonsPage = () => {
             : item,
         ),
       );
+      void loadLessons();
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not reorder folder lessons.");
     } finally {
@@ -1622,14 +1524,141 @@ const LiveLessonsPage = () => {
     }
   };
 
+  const moveLessonToPosition = async () => {
+    const folder = folders.find(
+      (item) => String(item._id) === String(lessonListState.folderId),
+    );
+    const position = Number(positionDialog?.position);
+    if (!folder || !positionDialog) return;
+    const lessonIds = folder.lessonIds.map(String);
+    const from = lessonIds.indexOf(String(positionDialog.lessonId));
+    if (!Number.isInteger(position) || position < 1 || position > lessonIds.length) {
+      setError(`Enter a whole number from 1 to ${lessonIds.length}.`);
+      return;
+    }
+    if (from < 0) return;
+    const next = [...lessonIds];
+    next.splice(position - 1, 0, next.splice(from, 1)[0]);
+    setPositionSaving(true);
+    setError("");
+    try {
+      await api.patch(`/live/lessons/folders/${folder._id}/lessons/order`, {
+        lessonIds: next,
+      });
+      setFolders((current) =>
+        current.map((item) =>
+          String(item._id) === String(folder._id)
+            ? { ...item, lessonIds: next }
+            : item,
+        ),
+      );
+      setPositionDialog(null);
+      setLessonListState((current) => ({
+        ...current,
+        page: Math.max(1, Math.ceil(position / current.pageSize)),
+      }));
+      void loadLessons();
+      setNotice(`Lesson moved to position ${position} in “${folder.name}”.`);
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Could not move this lesson in the folder.",
+      );
+    } finally {
+      setPositionSaving(false);
+    }
+  };
+
+  const openOrganizeDialog = (lessonIds) => {
+    const ids = [...new Set(lessonIds.map(String))];
+    if (!ids.length) return;
+    setOrganizeDialog({
+      lessonIds: ids,
+      mode: "move",
+      destination: "",
+    });
+  };
+
+  const applyOrganize = async () => {
+    const lessonIds = organizeDialog?.lessonIds || [];
+    if (!lessonIds.length || organizeSaving) return;
+    const mode = organizeDialog.mode;
+    const destination = organizeDialog.destination;
+    if (!destination) {
+      setError("Choose where these lessons should go first.");
+      return;
+    }
+    const addFolderId = destination !== "unfiled" ? destination : "";
+    if (
+      mode === "move" &&
+      !addFolderId &&
+      lessonListState.view === "unfiled"
+    ) {
+      return;
+    }
+    setOrganizeSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      if (addFolderId) {
+        await api.post(`/live/lessons/folders/${addFolderId}/lessons/bulk`, {
+          lessonIds,
+        });
+      }
+      if (mode === "move") {
+        // From one folder the source is that folder; from All or search the
+        // lesson leaves every folder it sat in, which is a true move.
+        const sourceFolderIds = lessonListState.view === "folder" && lessonListState.folderId
+          ? [String(lessonListState.folderId)]
+          : folders
+              .filter((folder) =>
+                folder.lessonIds.some((id) => lessonIds.includes(String(id))),
+              )
+              .map((folder) => String(folder._id));
+        const removeFolderIds = sourceFolderIds.filter((id) => id !== addFolderId);
+        if (removeFolderIds.length) {
+          await api.post("/live/lessons/folders/remove-shortcuts", {
+            folderIds: removeFolderIds,
+            lessonIds,
+          });
+        }
+      }
+      const destinationName = addFolderId
+        ? folders.find((folder) => String(folder._id) === addFolderId)?.name ||
+          "the folder"
+        : "Unfiled";
+      setNotice(
+        mode === "move"
+          ? `Moved ${lessonIds.length} lesson${lessonIds.length === 1 ? "" : "s"} to ${destinationName}. Lessons, slides and history were not copied or deleted.`
+          : `Added shortcuts to ${lessonIds.length} lesson${lessonIds.length === 1 ? "" : "s"} in ${destinationName}. The lessons were not copied.`,
+      );
+      setOrganizeDialog(null);
+      setSelectedLessonIds([]);
+      setFilteredSelectionActive(false);
+      void loadLessons();
+      await loadData({ silent: true });
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Could not organize these lessons. Reload the library and try again.",
+      );
+    } finally {
+      setOrganizeSaving(false);
+    }
+  };
+
   const reorderSiblingFolders = async (folder, direction) => {
     const siblings = folders
       .filter((item) => String(item.parentId || "") === String(folder.parentId || ""))
-      .sort((left, right) => left.sortOrder - right.sortOrder);
+      .sort((left, right) =>
+        Number(right.pinned === true) - Number(left.pinned === true) ||
+        left.sortOrder - right.sortOrder ||
+        left.name.localeCompare(right.name));
     const folderIds = siblings.map((item) => String(item._id));
     const index = folderIds.indexOf(String(folder._id));
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= folderIds.length) return;
+    if (Boolean(siblings[targetIndex].pinned) !== Boolean(folder.pinned)) return;
     [folderIds[index], folderIds[targetIndex]] = [folderIds[targetIndex], folderIds[index]];
     setFolderSaving(true);
     setError("");
@@ -1682,22 +1711,33 @@ const LiveLessonsPage = () => {
       new Map(classes.map((classItem) => [String(classItem._id), classItem])),
     [classes],
   );
-  const folderPaths = useMemo(() => {
-    const folderById = new Map(folders.map((folder) => [String(folder._id), folder]));
-    return new Map(folders.map((folder) => {
-      const path = [];
-      const visited = new Set();
-      let current = folder;
-      while (current && !visited.has(String(current._id))) {
-        visited.add(String(current._id));
-        path.unshift(current.name);
-        current = current.parentId
-          ? folderById.get(String(current.parentId))
-          : null;
-      }
-      return [String(folder._id), path.join(" / ")];
-    }));
-  }, [folders]);
+  const folderById = useMemo(
+    () => new Map(folders.map((folder) => [String(folder._id), folder])),
+    [folders],
+  );
+  const folderPathNames = useCallback((folder) => {
+    const names = [];
+    const visited = new Set();
+    let current = folder;
+    while (current && !visited.has(String(current._id))) {
+      visited.add(String(current._id));
+      names.unshift(current.name);
+      current = current.parentId
+        ? folderById.get(String(current.parentId))
+        : null;
+    }
+    return names;
+  }, [folderById]);
+  const folderPaths = useMemo(
+    () =>
+      new Map(
+        folders.map((folder) => [
+          String(folder._id),
+          folderPathNames(folder).join(" / "),
+        ]),
+      ),
+    [folders, folderPathNames],
+  );
   const listSubjectsForClass = (classId) => {
     if (!classId) return subjects;
     const selectedClass = classesById.get(String(classId));
@@ -1710,23 +1750,89 @@ const LiveLessonsPage = () => {
       assignedIds.includes(String(subject._id)),
     );
   };
-  const lessonSubjects = listSubjectsForClass(lessonListState.classId);
   const sessionSubjects = listSubjectsForClass(sessionListState.classId);
   const editorSubjects = listSubjectsForClass(form.classId);
-  const activeFolder = SHOW_LESSON_FOLDERS
-    ? folders.find((folder) => String(folder._id) === lessonListState.folderId)
-    : null;
-  const folderLessonIds = new Set(folders.flatMap((folder) => (folder.lessonIds || []).map(String)));
-  // The server applies the filters, the sort, and the page slice, so these rows are
-  // already exactly what this page of the library shows.
+  const sortFolders = useCallback((list) => (
+    [...list].sort((left, right) => (
+      folderSort === "az"
+        ? left.name.localeCompare(right.name)
+        : Number(right.pinned === true) - Number(left.pinned === true) ||
+          left.sortOrder - right.sortOrder ||
+          left.name.localeCompare(right.name)
+    ))
+  ), [folderSort]);
+  const rootFolders = useMemo(
+    () => sortFolders(folders.filter((folder) => !folder.parentId)),
+    [folders, sortFolders],
+  );
+  const activeFolder = useMemo(
+    () =>
+      folders.find(
+        (folder) => String(folder._id) === String(lessonListState.folderId),
+      ) || null,
+    [folders, lessonListState.folderId],
+  );
+  const childFolders = useMemo(
+    () =>
+      activeFolder
+        ? sortFolders(
+            folders.filter(
+              (folder) =>
+                String(folder.parentId || "") === String(activeFolder._id),
+            ),
+          )
+        : [],
+    [folders, activeFolder, sortFolders],
+  );
+  const folderLessonTotal = useCallback((folderId) => {
+    const seen = new Set();
+    const stack = [String(folderId)];
+    let total = 0;
+    while (stack.length) {
+      const id = stack.pop();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const folder = folderById.get(id);
+      if (!folder) continue;
+      total += folder.lessonIds.length;
+      for (const child of folders) {
+        if (String(child.parentId || "") === id) stack.push(String(child._id));
+      }
+    }
+    return total;
+  }, [folderById, folders]);
+  const lessonFolderByLesson = useMemo(() => {
+    const map = new Map();
+    for (const folder of folders) {
+      for (const id of folder.lessonIds) {
+        if (!map.has(String(id))) map.set(String(id), folder);
+      }
+    }
+    return map;
+  }, [folders]);
+  const breadcrumbFolders = useMemo(() => {
+    if (!activeFolder) return [];
+    const chain = [];
+    const visited = new Set();
+    let current = activeFolder;
+    while (current && !visited.has(String(current._id))) {
+      visited.add(String(current._id));
+      chain.unshift(current);
+      current = current.parentId
+        ? folderById.get(String(current.parentId))
+        : null;
+    }
+    return chain;
+  }, [activeFolder, folderById]);
   const visibleLessons = lessons;
   const lessonTotal = lessonPagination.total;
-  const libraryTotal = lessonPagination.libraryTotal || lessonPagination.total;
+  const libraryTotal = Math.max(
+    folderCounts.totalLessons || 0,
+    lessonPagination.libraryTotal || 0,
+    lessonPagination.total || 0,
+  );
   const lessonPages = Math.max(1, lessonPagination.pages);
   const lessonPage = Math.min(lessonPagination.page, lessonPages);
-  const lessonFiltersActive = Boolean(
-    lessonListState.classId || lessonListState.subject || lessonListState.showDone,
-  );
   const sessionFiltersActive = Boolean(
     sessionListState.search ||
       sessionListState.classId ||
@@ -1750,9 +1856,12 @@ const LiveLessonsPage = () => {
     try {
       const response = await api.get("/live/lessons/selection", {
         params: {
-          includeDone: lessonListState.showDone ? "true" : "false",
-          ...(lessonListState.classId
-            ? { classId: lessonListState.classId }
+          ...(lessonListState.view === "folder" && lessonListState.folderId
+            ? { folderId: lessonListState.folderId }
+            : {}),
+          ...(lessonListState.view === "unfiled" ? { unfiled: "true" } : {}),
+          ...(lessonListState.search
+            ? { search: lessonListState.search }
             : {}),
           ...(lessonListState.subject
             ? { subjectId: lessonListState.subject }
@@ -1781,6 +1890,21 @@ const LiveLessonsPage = () => {
       setSelectingAllLessons(false);
     }
   };
+  const toggleLessonSelection = (lessonId, checked) =>
+    setSelectedLessonIds((current) =>
+      checked
+        ? [...new Set([...current, String(lessonId)])]
+        : current.filter((id) => String(id) !== String(lessonId)),
+    );
+  const togglePageSelection = (checked) =>
+    setSelectedLessonIds((current) => {
+      const visibleIds = new Set(
+        visibleLessons.map((lesson) => String(lesson._id)),
+      );
+      return checked
+        ? [...new Set([...current, ...visibleIds])]
+        : current.filter((id) => !visibleIds.has(String(id)));
+    });
   const showRange = (page, pageSize, count) =>
     count
       ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} of ${count}`
@@ -1791,174 +1915,21 @@ const LiveLessonsPage = () => {
     teacher?.email ||
     "Teacher";
   const shareableTeachers = teachers;
-  const renderFolderTree = (parentId = null, depth = 0) => folders
-    .filter((folder) => String(folder.parentId || "") === String(parentId || ""))
-    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
-    .map((folder) => (
-      <div className="live-folder-tree-node" key={folder._id}>
-        <div className={`live-folder-tree-row ${lessonListState.folderId === String(folder._id) ? "active" : ""}`}>
-          <button
-            className="live-folder-select"
-            style={{ paddingLeft: `${0.65 + depth * 1.1}rem` }}
-            onClick={() => updateLessonList({ folderId: String(folder._id), page: 1 })}
-            aria-current={lessonListState.folderId === String(folder._id) ? "page" : undefined}
-          >
-            <span>{folder.name}</span>
-            <small>{folder.lessonIds.length}</small>
-          </button>
-          <button
-            type="button"
-            title="Move folder up"
-            aria-label={`Move ${folder.name} up`}
-            disabled={folderSaving || !folders.some((item) =>
-              String(item.parentId || "") === String(folder.parentId || "") &&
-              item.sortOrder < folder.sortOrder)}
-            onClick={() => reorderSiblingFolders(folder, -1)}
-          >↑</button>
-          <button
-            type="button"
-            title="Move folder down"
-            aria-label={`Move ${folder.name} down`}
-            disabled={folderSaving || !folders.some((item) =>
-              String(item.parentId || "") === String(folder.parentId || "") &&
-              item.sortOrder > folder.sortOrder)}
-            onClick={() => reorderSiblingFolders(folder, 1)}
-          >↓</button>
-        </div>
-        {renderFolderTree(String(folder._id), depth + 1)}
-      </div>
-    ));
-
-  const liveTabs = [
-    {
-      key: "lessons",
-      label: "My lessons",
-      Icon: HiOutlinePresentationChartBar,
-      badge: libraryTotal,
-    },
-    {
-      key: "sessions",
-      label: "Session history",
-      Icon: HiOutlineClock,
-      badge: sessionPagination.total,
-    },
-    ...(user?.role === "admin"
-      ? [
-          {
-            key: "settings",
-            label: "School settings",
-            Icon: HiOutlineCog6Tooth,
-            badge: 0,
-          },
-        ]
-      : []),
-  ];
-  const liveTabRefs = useRef([]);
-  const focusLiveTab = (index) => {
-    const next = liveTabs[index];
-    if (!next) return;
-    setTab(next.key);
-    liveTabRefs.current[index]?.focus();
-  };
-  const onLiveTabKeyDown = (event, index) => {
-    if (event.key === "Home") {
-      event.preventDefault();
-      focusLiveTab(0);
-      return;
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      focusLiveTab(liveTabs.length - 1);
-      return;
-    }
-    const rtl = document.documentElement.getAttribute("dir") === "rtl";
-    const step =
-      event.key === "ArrowRight"
-        ? rtl
-          ? -1
-          : 1
-        : event.key === "ArrowLeft"
-          ? rtl
-            ? 1
-            : -1
-          : 0;
-    if (!step) return;
-    event.preventDefault();
-    focusLiveTab((index + step + liveTabs.length) % liveTabs.length);
-  };
 
   return (
     <div className="live-lessons-page">
-      <header className="live-page-head">
-        <h1>Live lessons</h1>
-        <span className="live-page-chip">
-          <HiOutlinePresentationChartBar size={16} aria-hidden="true" />
-          {libraryTotal} {libraryTotal === 1 ? "lesson" : "lessons"} in your
-          library
-        </span>
-      </header>
-
-      <div className="live-topbar">
-        <nav
-          className="live-lessons-tabs"
-          role="tablist"
-          aria-label="Live lesson sections"
-        >
-          {liveTabs.map(({ key, label, Icon, badge }, index) => {
-            const active = tab === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                id={`live-tab-${key}`}
-                ref={(node) => {
-                  liveTabRefs.current[index] = node;
-                }}
-                aria-selected={active}
-                aria-controls="live-lessons-panel"
-                tabIndex={active ? 0 : -1}
-                className={active ? "active" : ""}
-                onClick={() => setTab(key)}
-                onKeyDown={(event) => onLiveTabKeyDown(event, index)}
-              >
-                <Icon size={17} aria-hidden="true" />
-                <span className="live-tab-label">{label}</span>
-                {badge > 0 && <span className="live-tab-count">{badge}</span>}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="live-topbar-actions">
-          {tab === "lessons" && (
-            <>
-              <button className="live-secondary-button" onClick={copyAiPrompt}>
-                {promptCopied ? (
-                  <HiOutlineCheck />
-                ) : (
-                  <HiOutlineClipboardDocument />
-                )}
-                {promptCopied ? "Copied to clipboard" : "Copy AI prompt + sample"}
-              </button>
-              <button className="live-primary-button" onClick={openImportEditor}>
-                <HiOutlineArrowUpTray /> Import CSV lesson
-              </button>
-            </>
-          )}
-          {tab === "sessions" && ["teacher", "admin"].includes(user?.role) && (
-            <button
-              className="live-delete-session"
-              onClick={deleteFinishedSessions}
-              disabled={deletingFinishedSessions}
-            >
-              <HiOutlineTrash />
-              {deletingFinishedSessions
-                ? "Deleting finished sessions…"
-                : "Delete all finished sessions"}
-            </button>
-          )}
-        </div>
-      </div>
+      <LiveLessonsHeader
+        libraryTotal={libraryTotal}
+        sessionTotal={sessionPagination.total}
+        userRole={user?.role}
+        tab={tab}
+        onTabChange={setTab}
+        onNewFolder={() => createFolder()}
+        onImport={openImportEditor}
+        folderSaving={folderSaving}
+        onDeleteFinishedSessions={deleteFinishedSessions}
+        deletingFinishedSessions={deletingFinishedSessions}
+      />
 
       {error && (
         <div className="live-error-banner" role="alert">
@@ -1980,64 +1951,15 @@ const LiveLessonsPage = () => {
         tabIndex={0}
       >
         {tab === "settings" ? (
-          <>
-            {user?.role === "admin" && (
-              <section className="live-safety-setting">
-                <div>
-                  <strong>AI HTML safety review</strong>
-                  <p>
-                    When enabled, AI reviews HTML and scripts before saving. When
-                    disabled, CSS animation still works but slides containing
-                    JavaScript are rejected. Approved scripts run in an isolated,
-                    network-restricted sandbox.
-                  </p>
-                </div>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={aiHtmlReviewEnabled}
-                    disabled={savingHtmlReviewSetting}
-                    onChange={(event) =>
-                      updateAiHtmlReviewSetting(event.target.checked)
-                    }
-                  />
-                  {savingHtmlReviewSetting
-                    ? "Saving…"
-                    : aiHtmlReviewEnabled
-                      ? "Enabled"
-                      : "Disabled"}
-                </label>
-              </section>
-            )}
-            {user?.role === "admin" && (
-              <section className="live-safety-setting">
-                <div>
-                  <strong>Suggested marks for approval</strong>
-                  <p>
-                    When enabled, a teacher marking a live session can ask for a
-                    first mark and comment on the written answers that are waiting.
-                    Nothing is saved or shared until the teacher approves it, and
-                    turning this off leaves the mark sheet exactly as it was.
-                  </p>
-                </div>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={markDraftEnabled}
-                    disabled={savingMarkDraftSetting}
-                    onChange={(event) =>
-                      updateMarkDraftSetting(event.target.checked)
-                    }
-                  />
-                  {savingMarkDraftSetting
-                    ? "Saving…"
-                    : markDraftEnabled
-                      ? "Enabled"
-                      : "Disabled"}
-                </label>
-              </section>
-            )}
-          </>
+          <SettingsPanel
+            isAdmin={user?.role === "admin"}
+            aiHtmlReviewEnabled={aiHtmlReviewEnabled}
+            savingHtmlReviewSetting={savingHtmlReviewSetting}
+            onToggleAiHtmlReview={updateAiHtmlReviewSetting}
+            markDraftEnabled={markDraftEnabled}
+            savingMarkDraftSetting={savingMarkDraftSetting}
+            onToggleMarkDraft={updateMarkDraftSetting}
+          />
         ) : loading || (tab === "lessons" && lessonLoading && !lessonPagination.total) ? (
           <div className="live-loading" role="status">
             <span className="live-spinner" aria-hidden="true" />
@@ -2047,2139 +1969,322 @@ const LiveLessonsPage = () => {
           <>
             {["teacher", "admin"].includes(user?.role) &&
               selectedLessonIds.length > 0 && (
-                <div className="live-selection-bar" role="status">
-                  <span className="live-selection-count">
-                    {selectedLessonIds.length} selected
-                  </span>
-                  <button
-                    className="live-secondary-button"
-                    onClick={() => {
-                      setShareLessons(
-                        selectedLessonIds.map(
-                          (id) =>
-                            lessonSummaries[String(id)] || {
-                              _id: id,
-                              title: "",
-                            },
-                        ),
-                      );
-                      setShareRecipient("");
-                    }}
-                  >
-                    <HiOutlineShare /> Share
-                  </button>
-                  <button
-                    className="live-delete-session"
-                    onClick={deleteSelectedLessons}
-                    disabled={bulkDeletingLessons}
-                  >
-                    <HiOutlineTrash />
-                    {bulkDeletingLessons ? "Deleting…" : "Delete"}
-                  </button>
-                  <button
-                    type="button"
-                    className="live-icon-button"
-                    aria-label="Clear selection"
-                    title="Clear selection"
-                    onClick={() => {
-                      setSelectedLessonIds([]);
-                      setFilteredSelectionActive(false);
-                    }}
-                  >
-                    <HiOutlineXMark />
-                  </button>
-                </div>
+                <SelectionBar
+                  count={selectedLessonIds.length}
+                  onShare={() => {
+                    setShareLessons(
+                      selectedLessonIds.map(
+                        (id) =>
+                          lessonSummaries[String(id)] || {
+                            _id: id,
+                            title: "",
+                          },
+                      ),
+                    );
+                    setShareRecipient("");
+                  }}
+                  onOrganize={() => openOrganizeDialog(selectedLessonIds)}
+                  onDelete={deleteSelectedLessons}
+                  deleting={bulkDeletingLessons}
+                  onClear={() => {
+                    setSelectedLessonIds([]);
+                    setFilteredSelectionActive(false);
+                  }}
+                />
               )}
             {["teacher", "admin"].includes(user?.role) &&
               (incomingShares.length > 0 || outgoingShares.length > 0) && (
-                <section
-                  className="live-share-invitations"
-                  aria-label="Lesson sharing invitations"
-                >
-                  {incomingShares.length > 0 && (
-                    <div>
-                      <div className="live-share-bulk-heading">
-                        <h2>Lessons shared with you</h2>
-                        <label>
-                          <input
-                            type="checkbox"
-                            aria-label="Select all incoming lesson invitations"
-                            checked={
-                              incomingShares.length > 0 &&
-                              incomingShares.every((invitation) =>
-                                selectedIncomingShareIds.includes(
-                                  String(invitation._id),
-                                ),
-                              )
-                            }
-                            onChange={(event) =>
-                              setSelectedIncomingShareIds(
-                                event.target.checked
-                                  ? incomingShares.map((invitation) =>
-                                      String(invitation._id),
-                                    )
-                                  : [],
-                              )
-                            }
-                          />
-                          Select all
-                        </label>
-                      </div>
-                      <div className="live-share-bulk-actions">
-                        <button
-                          className="live-primary-button"
-                          disabled={bulkRespondingToShares}
-                          onClick={() =>
-                            respondToSelectedShares(
-                              "accept",
-                              incomingShares.map((invitation) =>
-                                String(invitation._id),
-                              ),
-                            )
-                          }
-                        >
-                          {bulkRespondingToShares ? "Processing…" : "Accept all"}
-                        </button>
-                        <button
-                          className="live-secondary-button"
-                          disabled={bulkRespondingToShares}
-                          onClick={() =>
-                            respondToSelectedShares(
-                              "decline",
-                              incomingShares.map((invitation) =>
-                                String(invitation._id),
-                              ),
-                            )
-                          }
-                        >
-                          Decline all
-                        </button>
-                        {selectedIncomingShareIds.length > 0 && (
-                          <>
-                            <button
-                              className="live-primary-button"
-                              disabled={bulkRespondingToShares}
-                              onClick={() => respondToSelectedShares("accept")}
-                            >
-                              Accept selected ({selectedIncomingShareIds.length})
-                            </button>
-                            <button
-                              className="live-secondary-button"
-                              disabled={bulkRespondingToShares}
-                              onClick={() => respondToSelectedShares("decline")}
-                            >
-                              Decline selected ({selectedIncomingShareIds.length})
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      <ul>
-                        {incomingShares.map((invitation) => (
-                          <li key={invitation._id}>
-                            <input
-                              type="checkbox"
-                              aria-label={`Select invitation for ${invitation.lesson?.title || "shared lesson"}`}
-                              checked={selectedIncomingShareIds.includes(
-                                String(invitation._id),
-                              )}
-                              disabled={bulkRespondingToShares}
-                              onChange={(event) =>
-                                setSelectedIncomingShareIds((current) =>
-                                  event.target.checked
-                                    ? [
-                                        ...new Set([
-                                          ...current,
-                                          String(invitation._id),
-                                        ]),
-                                      ]
-                                    : current.filter(
-                                        (id) =>
-                                          String(id) !== String(invitation._id),
-                                      ),
-                                )
-                              }
-                            />
-                            <div>
-                              <strong>
-                                {invitation.lesson?.title || "Shared lesson"}
-                              </strong>
-                              <span>
-                                From{" "}
-                                {[
-                                  invitation.sender?.firstName,
-                                  invitation.sender?.lastName,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ") || "a teacher"}
-                                {invitation.lesson?.subject
-                                  ? ` · ${invitation.lesson.subject}`
-                                  : ""}
-                              </span>
-                            </div>
-                            <div className="live-share-actions">
-                              <button
-                                className="live-primary-button"
-                                disabled={bulkRespondingToShares}
-                                onClick={() =>
-                                  respondToShare(invitation._id, "accept")
-                                }
-                              >
-                                Accept and add
-                              </button>
-                              <button
-                                className="live-secondary-button"
-                                disabled={bulkRespondingToShares}
-                                onClick={() =>
-                                  respondToShare(invitation._id, "decline")
-                                }
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {outgoingShares.length > 0 && (
-                    <div>
-                      <h2>Pending shares</h2>
-                      <ul>
-                        {outgoingShares.map((invitation) => (
-                          <li key={invitation._id}>
-                            <div>
-                              <strong>
-                                {invitation.lesson?.title || "Shared lesson"}
-                              </strong>
-                              <span>
-                                Shared with {getTeacherName(invitation.recipient)}
-                              </span>
-                            </div>
-                            <button
-                              className="live-delete-session"
-                              onClick={() => revokeShare(invitation._id)}
-                            >
-                              Revoke
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </section>
+                <ShareInvitations
+                  incomingShares={incomingShares}
+                  outgoingShares={outgoingShares}
+                  selectedIncomingShareIds={selectedIncomingShareIds}
+                  bulkRespondingToShares={bulkRespondingToShares}
+                  onToggleAllIncoming={(checked) =>
+                    setSelectedIncomingShareIds(
+                      checked
+                        ? incomingShares.map((invitation) =>
+                            String(invitation._id),
+                          )
+                        : [],
+                    )
+                  }
+                  onToggleIncoming={(id, checked) =>
+                    setSelectedIncomingShareIds((current) =>
+                      checked
+                        ? [...new Set([...current, String(id)])]
+                        : current.filter(
+                            (item) => String(item) !== String(id),
+                          ),
+                    )
+                  }
+                  onRespondToSelectedShares={respondToSelectedShares}
+                  onRespondToShare={respondToShare}
+                  onRevokeShare={revokeShare}
+                  getTeacherName={getTeacherName}
+                />
               )}
             {libraryTotal === 0 && !lessonLoading ? (
-              <div className="live-empty-state">
-                <div className="live-empty-icon">
-                  <HiOutlinePresentationChartBar size={32} />
-                </div>
-                <h2>Start with a lesson you already teach</h2>
-                <p>
-                  Import a CSV to create opening, teaching, example, question,
-                  activity, and exit-ticket slides. No AI generation required.
-                </p>
-                <button
-                  className="live-primary-button"
-                  onClick={openImportEditor}
-                >
-                  <HiOutlinePlus /> Import your first lesson
-                </button>
-                <button className="live-text-button" onClick={downloadTemplate}>
-                  <HiOutlineArrowDownTray /> Download the sample lesson CSV
-                </button>
-              </div>
+              <LibraryEmptyState
+                onImport={openImportEditor}
+                onDownloadTemplate={downloadTemplate}
+              />
             ) : (
-              <>
-                {SHOW_LESSON_FOLDERS && (
-                <section className="live-folder-organizer" aria-label="Organize lessons">
-                  <nav className="live-folder-navigation" aria-label="Lesson folders">
-                    <div className="live-folder-navigation-heading">
-                      <span>Folders</span>
-                      <button
-                        className="live-folder-create-button"
-                        disabled={folderSaving}
-                        onClick={() => createFolder()}
-                      >
-                        <HiOutlinePlus /> New
-                      </button>
-                    </div>
-                    <button
-                      className={`live-folder-select ${!lessonListState.folderId ? "active" : ""}`}
-                      onClick={() => updateLessonList({ folderId: "", page: 1 })}
-                      aria-current={!lessonListState.folderId ? "page" : undefined}
-                    >
-                      <span>All lessons</span>
-                      <small>{libraryTotal}</small>
-                    </button>
-                    <button
-                      className={`live-folder-select ${lessonListState.folderId === "__unfiled__" ? "active" : ""}`}
-                      onClick={() => updateLessonList({ folderId: "__unfiled__", page: 1 })}
-                      aria-current={lessonListState.folderId === "__unfiled__" ? "page" : undefined}
-                    >
-                      <span>Unfiled</span>
-                      <small>{lessons.filter((lesson) => !folderLessonIds.has(String(lesson._id))).length}</small>
-                    </button>
-                    <div className="live-folder-tree">{renderFolderTree()}</div>
-                  </nav>
-                  <div className="live-folder-management">
-                    <div className="live-folder-management-heading">
-                      <div>
-                        <span className="live-folder-eyebrow">
-                          {activeFolder ? "SELECTED FOLDER" : "LESSON LIBRARY"}
-                        </span>
-                        <h2>{activeFolder?.name || "All lessons"}</h2>
-                      </div>
-                    </div>
-                    <div className="live-folder-management-actions">
-                      {activeFolder && (
-                        <>
-                          <button
-                            className="live-secondary-button"
-                            disabled={folderSaving}
-                            onClick={() => createFolder(String(activeFolder._id))}
-                          ><HiOutlinePlus /> Add subfolder</button>
-                          <button
-                            className="live-secondary-button"
-                            disabled={folderSaving}
-                            onClick={() => renameFolder(activeFolder)}
-                          ><HiOutlinePencilSquare /> Rename folder</button>
-                          <button
-                            className="live-delete-session"
-                            disabled={folderSaving}
-                            onClick={() => deleteFolder(activeFolder)}
-                          ><HiOutlineTrash /> Delete empty</button>
-                        </>
-                      )}
-                    </div>
-                    <p className="live-folder-helper">
-                      {activeFolder
-                        ? "Lessons can appear in multiple folders. Assignments and session history stay unchanged."
-                        : "Create folders for units, weeks, or topics. Add lessons as shortcuts without changing the originals."}
-                    </p>
-                  </div>
-                </section>
-                )}
-                <div className="live-list-filters" aria-label="Filter lessons">
-                  <span className="live-list-filters-heading">
-                    <HiOutlineFunnel size={15} aria-hidden="true" />
-                    Filter lessons
-                  </span>
-                  <label>
-                    Assigned class
-                    <select
-                      value={lessonListState.classId}
-                      onChange={(event) =>
-                        updateLessonList({
-                          classId: event.target.value,
-                          subject: "",
-                          page: 1,
-                        })
-                      }
-                    >
-                      <option value="">All classes</option>
-                      {classes.map((classItem) => (
-                        <option key={classItem._id} value={classItem._id}>
-                          {classItem.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Subject
-                    <select
-                      value={lessonListState.subject}
-                      onChange={(event) =>
-                        updateLessonList({ subject: event.target.value, page: 1 })
-                      }
-                    >
-                      <option value="">All subjects</option>
-                      {lessonSubjects.map((subject) => (
-                        <option key={subject._id} value={subject._id}>
-                          {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="live-checkbox-filter">
-                    <input
-                      type="checkbox"
-                      checked={lessonListState.showDone}
-                      onChange={(event) =>
-                        updateLessonList({
-                          showDone: event.target.checked,
-                          page: 1,
-                        })
-                      }
-                    />
-                    Show done lessons
-                  </label>
-                  {["teacher", "admin"].includes(user?.role) && lessonTotal > 0 && (
-                    <button
-                      className="live-text-button live-select-all"
-                      onClick={toggleAllFilteredLessons}
-                      disabled={selectingAllLessons}
-                    >
-                      {filteredSelectionActive ? (
-                        <HiOutlineXMark />
-                      ) : (
-                        <HiOutlineCheck />
-                      )}
-                      {filteredSelectionActive
-                        ? "Clear all filtered selections"
-                        : selectingAllLessons
-                          ? "Selecting lessons…"
-                          : `Select all filtered (${lessonTotal})`}
-                    </button>
-                  )}
-                  <button
-                    className="live-text-button"
-                    onClick={() => updateLessonList({ ...defaultListState })}
-                    disabled={!lessonFiltersActive}
-                    title={
-                      lessonFiltersActive
-                        ? "Clear the class, subject and done filters"
-                        : "No filters are set"
+              <div className="live-library">
+                <LibraryToolbar
+                  searchValue={lessonSearchInput}
+                  onSearchChange={setLessonSearchInput}
+                  onClearSearch={() => setLessonSearchInput("")}
+                  subjects={subjects}
+                  showSubjectFilter={lessonListState.view !== "home"}
+                  subjectValue={lessonListState.subject}
+                  onSubjectChange={(value) =>
+                    updateLessonList({ subject: value, page: 1 })
+                  }
+                  view={lessonListState.view}
+                  onNavigateLibrary={navigateLibrary}
+                  unfiledCount={folderCounts.unfiled}
+                  folderSort={folderSort}
+                  onFolderSortChange={(value) => {
+                    setFolderSort(value);
+                    if (value !== "order") {
+                      setReorderMode(false);
                     }
-                  >
-                    Clear filters
-                  </button>
-                </div>
-                <div className="live-list-table-wrap">
-                  <table className="live-list-table has-select">
-                    <thead>
-                      <tr>
-                        <th>
-                          {["teacher", "admin"].includes(user?.role) && (
-                            <input
-                              type="checkbox"
-                              aria-label="Select all lessons on this page"
-                              checked={
-                                visibleLessons.length > 0 &&
-                                visibleLessons.every((lesson) =>
-                                  selectedLessonIds.includes(String(lesson._id)),
-                                )
-                              }
-                              onChange={(event) =>
-                                setSelectedLessonIds((current) => {
-                                  const visibleIds = new Set(
-                                    visibleLessons.map((lesson) =>
-                                      String(lesson._id),
-                                    ),
-                                  );
-                                  return event.target.checked
-                                    ? [...new Set([...current, ...visibleIds])]
-                                    : current.filter(
-                                        (id) => !visibleIds.has(String(id)),
-                                      );
-                                })
-                              }
-                            />
-                          )}
-                        </th>
-                        <th>Lesson</th>
-                        <th>Status</th>
-                        <th>Subject</th>
-                        <th>Slides</th>
-                        <th>Updated</th>
-                        <th>Assigned class</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleLessons.map((lesson) => (
-                        <tr
-                          key={lesson._id}
-                          className={
-                            selectedLessonIds.includes(String(lesson._id))
-                              ? "is-selected"
-                              : ""
-                          }
-                        >
-                          <td>
-                            {["teacher", "admin"].includes(user?.role) && (
-                              <input
-                                type="checkbox"
-                                aria-label={`Select ${lesson.title} for bulk actions`}
-                                checked={selectedLessonIds.includes(
-                                  String(lesson._id),
-                                )}
-                                onChange={(event) =>
-                                  setSelectedLessonIds((current) =>
-                                    event.target.checked
-                                      ? [
-                                          ...new Set([
-                                            ...current,
-                                            String(lesson._id),
-                                          ]),
-                                        ]
-                                      : current.filter(
-                                          (id) =>
-                                            String(id) !== String(lesson._id),
-                                        ),
-                                  )
-                                }
-                              />
-                            )}
-                          </td>
-                          <td>
-                            <strong>{lesson.title}</strong>
-                            {lesson.description && (
-                              <small>{lesson.description}</small>
-                            )}
-                          </td>
-                          <td>
-                            {lesson.isDone ? (
-                              <span className="live-lesson-done-pill">Done</span>
-                            ) : (
-                              <span className="live-cell-empty">—</span>
-                            )}
-                          </td>
-                          <td>
-                            {lesson.subjectId?.name || lesson.subject || "—"}
-                            {!lesson.classId && (
-                              <small>Not linked to a class</small>
-                            )}
-                          </td>
-                          <td className="live-cell-number">
-                            {lesson.slideCount ?? lesson.slides?.length ?? 0}
-                          </td>
-                          <td>
-                            {lesson.updatedAt
-                              ? new Date(lesson.updatedAt).toLocaleDateString()
-                              : "—"}
-                          </td>
-                          <td>
-                            <select
-                              aria-label={`Class to launch ${lesson.title} with`}
-                              value={getSessionClassId(lesson)}
-                              onChange={(event) =>
-                                setLessonClasses((previous) => ({
-                                  ...previous,
-                                  [lesson._id]: event.target.value,
-                                }))
-                              }
-                              disabled={!classes.length}
-                            >
-                              {!classes.length && (
-                                <option value="">No available classes</option>
-                              )}
-                              {classes.map((classItem) => (
-                                <option key={classItem._id} value={classItem._id}>
-                                  {classItem.name}
-                                </option>
-                              ))}
-                            </select>
-                            {lesson.academicYear && (
-                              <small>{lesson.academicYear}</small>
-                            )}
-                          </td>
-                          <td className="live-list-row-actions">
-                            <button
-                              className="live-secondary-button"
-                              onClick={() => void openLessonPreview(lesson._id)}
-                            >
-                              <HiOutlineEye /> Preview
-                            </button>
-                            <button
-                              className="live-primary-button"
-                              onClick={() => openSessionDialog(lesson, false)}
-                              disabled={!getSessionClassId(lesson)}
-                            >
-                              <HiOutlinePlay /> Start
-                            </button>
-                            <button
-                              className="live-secondary-button"
-                              onClick={() => openSessionDialog(lesson, true)}
-                              disabled={!getSessionClassId(lesson)}
-                            >
-                              Schedule
-                            </button>
-                            <button
-                              className="live-lesson-actions-trigger"
-                              aria-haspopup="menu"
-                              aria-expanded={lessonActionMenu?.lessonId === String(lesson._id)}
-                              aria-label={`More actions for ${lesson.title}`}
-                              onClick={(event) => toggleLessonActionMenu(event, lesson)}
-                            >
-                              <HiOutlineEllipsisVertical />
-                              <span>More</span>
-                            </button>
-                            {SHOW_LESSON_FOLDERS && <details className="live-lesson-organize-menu">
-                              <summary>Organize</summary>
-                              <div className="live-lesson-organize-content">
-                                <label>
-                                  Add shortcut to
-                                  <select
-                                    value={shortcutTargets[lesson._id] || ""}
-                                    onChange={(event) =>
-                                      setShortcutTargets((current) => ({
-                                        ...current,
-                                        [lesson._id]: event.target.value,
-                                      }))
-                                    }
-                                  >
-                                    <option value="">Choose a folder</option>
-                                    {folders.map((folder) => (
-                                      <option
-                                        key={folder._id}
-                                        value={folder._id}
-                                        disabled={folder.lessonIds.some((id) => String(id) === String(lesson._id))}
-                                      >
-                                        {folderPaths.get(String(folder._id)) || folder.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <button
-                                  className="live-secondary-button"
-                                  disabled={folderSaving || !shortcutTargets[lesson._id]}
-                                  onClick={() => addLessonShortcut(lesson, shortcutTargets[lesson._id])}
-                                >Add shortcut</button>
-                                {activeFolder && (
-                                  <>
-                                    <button
-                                      className="live-secondary-button"
-                                      disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) <= 0}
-                                      onClick={() => reorderFolderLessons(activeFolder, lesson._id, -1)}
-                                    >Move lesson up</button>
-                                    <button
-                                      className="live-secondary-button"
-                                      disabled={folderSaving || activeFolder.lessonIds.indexOf(String(lesson._id)) === activeFolder.lessonIds.length - 1}
-                                      onClick={() => reorderFolderLessons(activeFolder, lesson._id, 1)}
-                                    >Move lesson down</button>
-                                    <button
-                                      className="live-delete-session"
-                                      disabled={folderSaving}
-                                      onClick={() => removeLessonShortcut(lesson, activeFolder)}
-                                    >Remove from this folder</button>
-                                  </>
-                                )}
-                              </div>
-                            </details>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!visibleLessons.length && !lessonLoading && (
-                    <div className="live-list-empty">
-                      <HiOutlineFunnel size={22} aria-hidden="true" />
-                      {lessonFiltersActive ? (
-                        <>
-                          <p>No lessons match these filters.</p>
-                          <button
-                            className="live-secondary-button"
-                            onClick={() =>
-                              updateLessonList({ ...defaultListState })
-                            }
-                          >
-                            Clear filters
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <p>
-                            Every lesson in your library is marked done, so
-                            there is nothing left to launch.
-                          </p>
-                          <button
-                            className="live-secondary-button"
-                            onClick={() =>
-                              updateLessonList({ showDone: true, page: 1 })
-                            }
-                          >
-                            Show done lessons
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {lessonActionMenu && (() => {
-                  const { lesson } = lessonActionMenu;
-                  const run = (action) => {
-                    setLessonActionMenu(null);
-                    action(lesson);
-                  };
-                  return createPortal(
-                    <div
-                      ref={lessonActionMenuRef}
-                      className="live-lesson-action-menu"
-                      role="menu"
-                      aria-label={`Actions for ${lesson.title}`}
-                      style={{
-                        top: lessonActionMenu.top,
-                        right: lessonActionMenu.right,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => run((item) => openLessonEditor(item._id))}
-                      >
-                        <HiOutlinePencilSquare /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={Boolean(exportingLessonId)}
-                        onClick={() => run((item) => void exportLesson(item))}
-                      >
-                        <HiOutlineArrowDownTray />
-                        {exportingLessonId === String(lesson._id)
-                          ? "Exporting…"
-                          : "Export CSV"}
-                      </button>
-                      {["teacher", "admin"].includes(user?.role) && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => run((item) => {
-                            setShareLessons([item]);
-                            setShareRecipient("");
-                          })}
-                        >
-                          <HiOutlineShare /> Share
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => run(setLessonDone)}
-                      >
-                        <HiOutlineCheck />
-                        {lesson.isDone ? "Mark not done" : "Mark done"}
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => run((item) => void openMoveDialog(item))}
-                      >
-                        <HiOutlineCalendarDays /> Move to another year
-                      </button>
-                      <div className="live-lesson-action-menu-sep" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="is-danger"
-                        onClick={() => run((item) => deleteLesson(item._id))}
-                      >
-                        <HiOutlineTrash /> Delete
-                      </button>
-                    </div>,
-                    document.body,
-                  );
-                })()}
-                <div className="live-list-pagination">
-                  <span>
-                    Showing{" "}
-                    {showRange(
+                  }}
+                  reorderMode={reorderMode}
+                  onToggleReorder={() => setReorderMode((value) => !value)}
+                  order={lessonListState.order}
+                  onOrderChange={(value) =>
+                    updateLessonList({ order: value, page: 1 })
+                  }
+                  folderSaving={folderSaving}
+                  userRole={user?.role}
+                  lessonTotal={lessonTotal}
+                  onToggleAllFiltered={toggleAllFilteredLessons}
+                  selectingAllLessons={selectingAllLessons}
+                  filteredSelectionActive={filteredSelectionActive}
+                />
+
+                {lessonListState.view === "folder" && (
+                  <div className="live-library-folderbar">
+                    <LibraryBreadcrumbs
+                      breadcrumbFolders={breadcrumbFolders}
+                      onNavigateLibrary={navigateLibrary}
+                    />
+                    <FolderActions
+                      activeFolder={activeFolder}
+                      childFolders={childFolders}
+                      folderSaving={folderSaving}
+                      onCreateFolder={createFolder}
+                      onRenameFolder={renameFolder}
+                      onDeleteFolder={deleteFolder}
+                    />
+                  </div>
+                )}
+
+                {lessonListState.view === "home" ? (
+                  <FolderGrid
+                    rootFolders={rootFolders}
+                    folders={folders}
+                    reorderMode={reorderMode}
+                    folderSaving={folderSaving}
+                    folderLessonTotal={folderLessonTotal}
+                    unfiledCount={folderCounts.unfiled}
+                    onOpenFolder={(folderId) =>
+                      navigateLibrary("folder", folderId)
+                    }
+                    onReorderSibling={reorderSiblingFolders}
+                    onTogglePin={(folder) => void toggleFolderPin(folder)}
+                    onCreateFolder={() => createFolder()}
+                    onOrganizeUnfiled={() => navigateLibrary("unfiled")}
+                  />
+                ) : (
+                  <LessonsListView
+                    listState={lessonListState}
+                    updateLessonList={updateLessonList}
+                    activeFolder={activeFolder}
+                    childFolders={childFolders}
+                    folders={folders}
+                    folderPaths={folderPaths}
+                    folderLessonTotal={folderLessonTotal}
+                    reorderMode={reorderMode}
+                    folderSaving={folderSaving}
+                    lessonPage={lessonPage}
+                    lessonPages={lessonPages}
+                    lessonLoading={lessonLoading}
+                    lessons={visibleLessons}
+                    userRole={user?.role}
+                    selectedLessonIds={selectedLessonIds}
+                    onTogglePageSelection={togglePageSelection}
+                    onToggleLessonSelection={toggleLessonSelection}
+                    onNavigateLibrary={navigateLibrary}
+                    lessonFolderByLesson={lessonFolderByLesson}
+                    onReorderLesson={reorderFolderLessons}
+                    onSetPosition={(lesson, position) =>
+                      setPositionDialog({
+                        lessonId: String(lesson._id),
+                        title: lesson.title,
+                        position,
+                      })
+                    }
+                    onPreviewLesson={(lessonId) =>
+                      void openLessonPreview(lessonId)
+                    }
+                    onStartLesson={(lesson) =>
+                      openSessionDialog(lesson, false)
+                    }
+                    getSessionClassId={getSessionClassId}
+                    lessonActionMenu={lessonActionMenu}
+                    onToggleActionMenu={toggleLessonActionMenu}
+                    lessonActionMenuRef={lessonActionMenuRef}
+                    exportingLessonId={exportingLessonId}
+                    onOpenLessonEditor={openLessonEditor}
+                    onOpenOrganizeDialog={openOrganizeDialog}
+                    onRemoveShortcut={removeLessonShortcut}
+                    onExportLesson={(lesson) => void exportLesson(lesson)}
+                    onShareLesson={(lesson) => {
+                      setShareLessons([lesson]);
+                      setShareRecipient("");
+                    }}
+                    onToggleLessonDone={setLessonDone}
+                    onOpenMoveDialog={(lesson) => void openMoveDialog(lesson)}
+                    onDeleteLesson={deleteLesson}
+                    onCloseActionMenu={() => setLessonActionMenu(null)}
+                    rangeText={showRange(
                       lessonPage,
                       lessonListState.pageSize,
                       lessonTotal,
                     )}
-                  </span>
-                  <label>
-                    Rows
-                    <select
-                      value={lessonListState.pageSize}
-                      onChange={(event) =>
-                        updateLessonList({
-                          pageSize: Number(event.target.value),
-                          page: 1,
-                        })
-                      }
-                    >
-                      {[10, 25, 50].map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    disabled={lessonLoading || lessonPage <= 1}
-                    onClick={() => updateLessonList({ page: lessonPage - 1 })}
-                    aria-label="Previous page of lessons"
-                  >
-                    <HiOutlineChevronLeft aria-hidden="true" />
-                    Previous
-                  </button>
-                  <span aria-live="polite">
-                    Page {lessonPage} of {lessonPages}
-                  </span>
-                  <button
-                    disabled={lessonLoading || lessonPage >= lessonPages}
-                    onClick={() => updateLessonList({ page: lessonPage + 1 })}
-                    aria-label="Next page of lessons"
-                  >
-                    Next
-                    <HiOutlineChevronRight aria-hidden="true" />
-                  </button>
-                </div>
-              </>
+                    onClearSearch={() => setLessonSearchInput("")}
+                    onImport={openImportEditor}
+                    onUpdatePage={(page) => updateLessonList({ page })}
+                  />
+                )}
+              </div>
             )}
           </>
         ) : (
-          <>
-            <div className="live-list-filters is-grid">
-              <span className="live-list-filters-heading">
-                <HiOutlineFunnel size={15} aria-hidden="true" />
-                Filter sessions
-              </span>
-              <label>
-                Search sessions
-                <input
-                  type="search"
-                  value={sessionSearchInput}
-                  placeholder="Lesson, class, subject, or code"
-                  onChange={(event) => setSessionSearchInput(event.target.value)}
-                />
-              </label>
-              <label>
-                Class
-                <select
-                  value={sessionListState.classId}
-                  onChange={(event) =>
-                    updateSessionList({
-                      classId: event.target.value,
-                      subject: "",
-                      page: 1,
-                    })
-                  }
-                >
-                  <option value="">All classes</option>
-                  {classes.map((classItem) => (
-                    <option key={classItem._id} value={classItem._id}>
-                      {classItem.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Subject
-                <select
-                  value={sessionListState.subject}
-                  onChange={(event) =>
-                    updateSessionList({ subject: event.target.value, page: 1 })
-                  }
-                >
-                  <option value="">All subjects</option>
-                  <option value="__unknown__">Unknown / not set</option>
-                  {sessionSubjects.map((subject) => (
-                    <option key={subject._id} value={subject._id}>
-                      {subject.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Status
-                <select
-                  value={sessionListState.status}
-                  onChange={(event) =>
-                    updateSessionList({ status: event.target.value, page: 1 })
-                  }
-                >
-                  <option value="">All statuses</option>
-                  <option value="waiting">Waiting</option>
-                  <option value="live">Live</option>
-                  <option value="ended">Ended</option>
-                </select>
-              </label>
-              <label>
-                From date
-                <input
-                  type="date"
-                  value={sessionListState.dateFrom}
-                  onChange={(event) =>
-                    updateSessionList({ dateFrom: event.target.value, page: 1 })
-                  }
-                />
-              </label>
-              <label>
-                To date
-                <input
-                  type="date"
-                  value={sessionListState.dateTo}
-                  onChange={(event) =>
-                    updateSessionList({ dateTo: event.target.value, page: 1 })
-                  }
-                />
-              </label>
-              <button
-                className="live-text-button"
-                onClick={() => {
-                  setSessionSearchInput("");
-                  updateSessionList({ ...defaultListState });
-                }}
-                disabled={!sessionFiltersActive}
-                title={
-                  sessionFiltersActive
-                    ? "Clear the search, class, subject, status and date filters"
-                    : "No filters are set"
-                }
-              >
-                Clear filters
-              </button>
-            </div>
-            <div className="live-list-table-wrap">
-              <table className="live-list-table">
-                <thead>
-                  <tr>
-                    <th>Session</th>
-                    <th>Class</th>
-                    <th>Subject</th>
-                    <th>Date</th>
-                    <th>Duration</th>
-                    <th>Timer</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessions.map((session) => (
-                    <tr key={session._id}>
-                      <td>
-                        <strong>
-                          {session.lessonSnapshot?.title || "Live lesson"}
-                        </strong>
-                      </td>
-                      <td>
-                        {classesById.get(
-                          String(session.classId?._id || session.classId),
-                        )?.name ||
-                          session.classId?.name ||
-                          "Class"}
-                      </td>
-                      <td>
-                        {session.lessonSnapshot?.subject || "Unknown / not set"}
-                      </td>
-                      <td>
-                        {getSessionDisplayDate(session)
-                          ? new Date(
-                              getSessionDisplayDate(session),
-                            ).toLocaleString()
-                          : "—"}
-                      </td>
-                      <td>{formatSessionDuration(session)}</td>
-                      <td>
-                        {session.timerDurationMinutes > 0
-                          ? `${session.timerDurationMinutes} min`
-                          : "—"}
-                        {session.scheduledAt && session.status === "waiting" && (
-                          <small>
-                            Scheduled{" "}
-                            {new Date(session.scheduledAt).toLocaleString()}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`live-status-pill ${session.status}`}>
-                          {session.status}
-                        </span>
-                      </td>
-                      <td className="live-list-row-actions">
-                        {session.status !== "ended" && (
-                          <button
-                            className="live-secondary-button"
-                            onClick={() =>
-                              navigate(
-                                `/portal/live-lessons/sessions/${session._id}`,
-                              )
-                            }
-                          >
-                            {session.status === "waiting"
-                              ? "Open / start"
-                              : "Open session"}
-                          </button>
-                        )}
-                        {session.status === "live" &&
-                          String(session.teacherId) ===
-                            String(user?._id || user?.id) && (
-                            <button
-                              className="live-delete-session"
-                              onClick={() => endSession(session)}
-                              disabled={Boolean(endingSessionId)}
-                            >
-                              <HiOutlineStop />{" "}
-                              {endingSessionId === String(session._id)
-                                ? "Ending…"
-                                : "End session"}
-                            </button>
-                          )}
-                        <button
-                          className="live-secondary-button"
-                          onClick={() =>
-                            navigate(
-                              `/portal/live-lessons/sessions/${session._id}/report`,
-                            )
-                          }
-                        >
-                          Report
-                        </button>
-                        <button
-                          className="live-secondary-button"
-                          onClick={() =>
-                            navigate(
-                              `/portal/live-lessons/sessions/${session._id}/replay`,
-                            )
-                          }
-                        >
-                          Replay
-                        </button>
-                        <button
-                          className="live-delete-session"
-                          onClick={() => deleteSession(session)}
-                          disabled={session.status === "live"}
-                          title={
-                            session.status === "live"
-                              ? "End the live session before deleting its history."
-                              : "Delete this session history"
-                          }
-                        >
-                          <HiOutlineTrash /> Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!sessions.length && (
-                <div className="live-list-empty">
-                  <HiOutlineClock size={22} aria-hidden="true" />
-                  {sessionFiltersActive ? (
-                    <>
-                      <p>No sessions match these filters.</p>
-                      <button
-                        className="live-secondary-button"
-                        onClick={() => {
-                          setSessionSearchInput("");
-                          updateSessionList({ ...defaultListState });
-                        }}
-                      >
-                        Clear filters
-                      </button>
-                    </>
-                  ) : (
-                    <p>
-                      No sessions yet. Start a live lesson to see sessions and
-                      reports here.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="live-list-pagination">
-              <span>
-                Showing{" "}
-                {showRange(
-                  sessionPagination.page || sessionListState.page,
-                  sessionListState.pageSize,
-                  sessionPagination.total,
-                )}
-              </span>
-              <label>
-                Rows
-                <select
-                  value={sessionListState.pageSize}
-                  onChange={(event) =>
-                    updateSessionList({
-                      pageSize: Number(event.target.value),
-                      page: 1,
-                    })
-                  }
-                >
-                  {[10, 25, 50].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                disabled={sessionListState.page <= 1}
-                onClick={() =>
-                  updateSessionList({ page: sessionListState.page - 1 })
-                }
-                aria-label="Previous page of sessions"
-              >
-                <HiOutlineChevronLeft aria-hidden="true" />
-                Previous
-              </button>
-              <span aria-live="polite">
-                Page {sessionPagination.pages ? sessionListState.page : 0} of{" "}
-                {sessionPagination.pages || 0}
-              </span>
-              <button
-                disabled={
-                  !sessionPagination.pages ||
-                  sessionListState.page >= sessionPagination.pages
-                }
-                onClick={() =>
-                  updateSessionList({ page: sessionListState.page + 1 })
-                }
-                aria-label="Next page of sessions"
-              >
-                Next
-                <HiOutlineChevronRight aria-hidden="true" />
-              </button>
-            </div>
-          </>
+          <SessionHistory
+            sessions={sessions}
+            classes={classes}
+            classesById={classesById}
+            sessionSubjects={sessionSubjects}
+            sessionListState={sessionListState}
+            updateSessionList={updateSessionList}
+            sessionSearchInput={sessionSearchInput}
+            setSessionSearchInput={setSessionSearchInput}
+            sessionFiltersActive={sessionFiltersActive}
+            endingSessionId={endingSessionId}
+            onEndSession={endSession}
+            onDeleteSession={deleteSession}
+            sessionPagination={sessionPagination}
+            rangeText={showRange(
+              sessionPagination.page || sessionListState.page,
+              sessionListState.pageSize,
+              sessionPagination.total,
+            )}
+            navigate={navigate}
+            user={user}
+          />
         )}
       </div>
 
-      {(previewLoading || previewLesson || previewError) && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={() => {
-            if (!previewLoading) {
-              setPreviewLesson(null);
-              setPreviewError("");
-            }
-          }}
-        >
-          <section
-            className="live-preview-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-preview-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="live-import-header">
-              <div>
-                <span className="live-eyebrow">LESSON PREVIEW</span>
-                <h2 id="live-preview-title">
-                  {previewLesson?.title || "Preview lesson"}
-                </h2>
-                {previewLesson?.description && (
-                  <p>{previewLesson.description}</p>
-                )}
-              </div>
-              <button
-                className="live-dialog-close"
-                onClick={() => {
-                  setPreviewLesson(null);
-                  setPreviewError("");
-                }}
-                aria-label="Close lesson preview"
-                disabled={previewLoading}
-              >
-                ×
-              </button>
-            </header>
-            {previewLoading && (
-              <p className="live-preview-status" role="status">
-                Loading lesson preview…
-              </p>
-            )}
-            {previewError && (
-              <p
-                className="live-preview-status live-preview-error"
-                role="alert"
-              >
-                {previewError}
-              </p>
-            )}
-            {previewLesson &&
-              (() => {
-                const slides = previewLesson.slides || [];
-                const slide = slides[previewSlideIndex];
-                return (
-                  <>
-                    <div className="live-preview-slide-strip">
-                      {slides.map((item, index) => (
-                        <button
-                          type="button"
-                          className={`live-preview-chip ${previewSlideIndex === index ? "active" : ""}`}
-                          key={`${index}-${item.title || item.type}`}
-                          onClick={() => setPreviewSlideIndex(index)}
-                          aria-current={
-                            previewSlideIndex === index ? "step" : undefined
-                          }
-                        >
-                          <span>{String(index + 1).padStart(2, "0")}</span>
-                          {item.title || item.type}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="live-preview-dialog-content">
-                      {slide ? (
-                        <>
-                          <LiveLessonSlide
-                            slide={slide}
-                            index={previewSlideIndex}
-                            total={slides.length}
-                            language={previewLesson.language}
-                          />
-                          {slide.question && (
-                            <section className="live-preview-question">
-                              <span className="live-eyebrow">
-                                QUESTION ·{" "}
-                                {LIVE_QUESTION_KIND_LABELS[slide.question.kind] ||
-                                  "Multiple choice"}
-                              </span>
-                              <h3>{slide.question.prompt}</h3>
-                              {(slide.question.options || []).length > 0 && (
-                                <ol type="A">
-                                  {slide.question.options.map((option) => (
-                                    <li
-                                      key={option.id}
-                                      className={
-                                        option.id === slide.question.correctOptionId ||
-                                        (slide.question.correctOptionIds || []).includes(option.id)
-                                          ? "correct"
-                                          : ""
-                                      }
-                                    >
-                                      {option.text}
-                                      {(option.id === slide.question.correctOptionId ||
-                                        (slide.question.correctOptionIds || []).includes(option.id)) && (
-                                        <strong> · Correct answer</strong>
-                                      )}
-                                    </li>
-                                  ))}
-                                </ol>
-                              )}
-                              {(slide.question.matchingPairs || []).length > 0 && (
-                                <ul className="live-preview-pairs">
-                                  {slide.question.matchingPairs.map((pair, pairIndex) => (
-                                    <li key={`pair-${pairIndex}`}>
-                                      {pair.left} &rarr; {pair.right}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                              {(slide.question.orderingItems || []).length > 0 && (
-                                <ol>
-                                  {slide.question.orderingItems.map((item, itemIndex) => (
-                                    <li key={item.id || `step-${itemIndex}`}>{item.text}</li>
-                                  ))}
-                                </ol>
-                              )}
-                              {(slide.question.blanks || []).length > 0 && (
-                                <ul className="live-preview-pairs">
-                                  {slide.question.blanks.map((blank) => (
-                                    <li key={blank.id}>
-                                      {blank.id}: {(blank.accepts || []).join(" / ")}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                              {slide.question.numericRule && (
-                                <p>
-                                  <strong>Answer:</strong>{" "}
-                                  {liveNumericRuleSummary(slide.question.numericRule)}
-                                </p>
-                              )}
-                              {slide.question.guidance && (
-                                <p>
-                                  <strong>Guidance:</strong> {slide.question.guidance}
-                                </p>
-                              )}
-                              {slide.question.criteria && (
-                                <p>
-                                  <strong>Marking criteria:</strong> {slide.question.criteria}
-                                </p>
-                              )}
-                              {slide.question.explanation && (
-                                <p>
-                                  <strong>Explanation:</strong>{" "}
-                                  {slide.question.explanation}
-                                </p>
-                              )}
-                              {(slide.variants || []).length > 0 && (
-                                <p className="live-preview-levels">
-                                  This slide also sends a levelled question to{" "}
-                                  {slide.variants.length}{" "}
-                                  {slide.variants.length === 1 ? "group" : "groups"} of this class.
-                                </p>
-                              )}
-                            </section>
-                          )}
-                        </>
-                      ) : (
-                        <p className="live-preview-status">
-                          This lesson has no slides to preview.
-                        </p>
-                      )}
-                    </div>
-                    <footer className="live-preview-navigation">
-                      <span>
-                        {slides.length
-                          ? `Slide ${previewSlideIndex + 1} of ${slides.length}`
-                          : "No slides"}
-                      </span>
-                      <div>
-                        <button
-                          type="button"
-                          className="live-secondary-button"
-                          disabled={previewSlideIndex <= 0}
-                          onClick={() =>
-                            setPreviewSlideIndex((index) => index - 1)
-                          }
-                        >
-                          Previous
-                        </button>
-                        <button
-                          type="button"
-                          className="live-primary-button"
-                          disabled={previewSlideIndex >= slides.length - 1}
-                          onClick={() =>
-                            setPreviewSlideIndex((index) => index + 1)
-                          }
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </footer>
-                  </>
-                );
-              })()}
-          </section>
-        </div>
-      )}
+      <PreviewDialog
+        previewLoading={previewLoading}
+        previewLesson={previewLesson}
+        previewError={previewError}
+        previewSlideIndex={previewSlideIndex}
+        onSlideChange={setPreviewSlideIndex}
+        onClose={() => {
+          setPreviewLesson(null);
+          setPreviewError("");
+        }}
+      />
 
-      {sessionDraft && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={() => !creatingSession && setSessionDraft(null)}
-        >
-          <section
-            className="live-share-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-session-create-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <span className="live-eyebrow">
-                  {sessionDraft.scheduled ? "SCHEDULE CLASS" : "START CLASS"}
-                </span>
-                <h2 id="live-session-create-title">
-                  {sessionDraft.lesson.title}
-                </h2>
-              </div>
-              <button
-                className="live-dialog-close"
-                onClick={() => setSessionDraft(null)}
-                aria-label="Close session setup"
-                disabled={creatingSession}
-              >
-                ×
-              </button>
-            </header>
-            <label className="live-edit-field">
-              Class for this session
-              <select
-                value={sessionDraft.classId}
-                onChange={(event) =>
-                  setSessionDraft((current) => ({
-                    ...current,
-                    classId: event.target.value,
-                  }))
-                }
-              >
-                {classes.map((classItem) => (
-                  <option key={classItem._id} value={classItem._id}>
-                    {classItem.name}
-                  </option>
-                ))}
-              </select>
-              <span>
-                Defaults to the lesson’s assigned class. You can choose any of
-                your classes for this session.
-              </span>
-            </label>
-            {sessionDraft.scheduled && (
-              <label className="live-edit-field">
-                Scheduled date and time
-                <input
-                  type="datetime-local"
-                  min={localDateTimeValue(new Date())}
-                  value={sessionDraft.scheduledAt}
-                  onChange={(event) =>
-                    setSessionDraft((current) => ({
-                      ...current,
-                      scheduledAt: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </label>
-            )}
-            <label className="live-edit-field">
-              Online meeting link (optional)
-              <input
-                type="url"
-                inputMode="url"
-                maxLength={2048}
-                placeholder="https://meet.google.com/..."
-                value={sessionDraft.meetingUrl}
-                onChange={(event) =>
-                  setSessionDraft((current) => ({
-                    ...current,
-                    meetingUrl: event.target.value,
-                  }))
-                }
-              />
-              <span>
-                Students in this class can open the meeting separately from the
-                Live Lesson. Use a secure HTTPS link.
-              </span>
-            </label>
-            <label className="live-edit-field live-invitation-option">
-              <span>
-                <input
-                  type="checkbox"
-                  checked={sessionDraft.sendInvitationEmail}
-                  onChange={(event) =>
-                    setSessionDraft((current) => ({
-                      ...current,
-                      sendInvitationEmail: event.target.checked,
-                    }))
-                  }
-                />
-                Email an invitation to students
-              </span>
-              <span>
-                Optional. Sends the Live Lesson link, scheduled time (if set),
-                and meeting link (if provided) to student email addresses.
-              </span>
-            </label>
-            <label className="live-edit-field">
-              Class timer (minutes)
-              <input
-                type="number"
-                min="0"
-                max="240"
-                step="1"
-                value={sessionDraft.timerDurationMinutes}
-                onChange={(event) =>
-                  setSessionDraft((current) => ({
-                    ...current,
-                    timerDurationMinutes: event.target.value,
-                  }))
-                }
-              />
-              <span>
-                Starts when you start the class. Use 0 for no timer. The timer
-                will notify you at zero but will not end the session.
-              </span>
-            </label>
-            <footer>
-              <button
-                className="live-secondary-button"
-                onClick={() => setSessionDraft(null)}
-                disabled={creatingSession}
-              >
-                Cancel
-              </button>
-              <button
-                className="live-primary-button"
-                onClick={createSession}
-                disabled={
-                  creatingSession ||
-                  !sessionDraft.classId ||
-                  !/^\d+$/.test(String(sessionDraft.timerDurationMinutes)) ||
-                  Number(sessionDraft.timerDurationMinutes) > 240
-                }
-              >
-                {creatingSession
-                  ? "Creating…"
-                  : sessionDraft.scheduled
-                    ? "Schedule session"
-                    : "Create session"}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+      <SessionDialog
+        sessionDraft={sessionDraft}
+        setSessionDraft={setSessionDraft}
+        creatingSession={creatingSession}
+        onCreate={createSession}
+        classes={classes}
+      />
 
-      {SHOW_LESSON_FOLDERS && folderDialog && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={() => !folderSaving && setFolderDialog(null)}
-        >
-          <form
-            className="live-share-dialog live-folder-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-folder-dialog-title"
-            onSubmit={saveFolderDialog}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <span className="live-eyebrow">LESSON ORGANIZATION</span>
-                <h2 id="live-folder-dialog-title">
-                  {folderDialog.mode === "rename"
-                    ? "Rename folder"
-                    : folderDialog.parentId
-                      ? "Create subfolder"
-                      : "Create folder"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="live-dialog-close"
-                onClick={() => setFolderDialog(null)}
-                aria-label="Close folder dialog"
-                disabled={folderSaving}
-              >
-                ×
-              </button>
-            </header>
-            <label className="live-edit-field" htmlFor="live-folder-name">
-              Folder name
-              <input
-                id="live-folder-name"
-                type="text"
-                autoFocus
-                required
-                maxLength={100}
-                value={folderDialog.name}
-                onChange={(event) =>
-                  setFolderDialog((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="For example, Week 1"
-                disabled={folderSaving}
-              />
-              <span>Use a unit, week, topic, or any name that helps you find lessons.</span>
-            </label>
-            <footer>
-              <button
-                type="button"
-                className="live-secondary-button"
-                onClick={() => setFolderDialog(null)}
-                disabled={folderSaving}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="live-primary-button"
-                disabled={folderSaving || !folderDialog.name.trim()}
-              >
-                {folderSaving
-                  ? "Saving…"
-                  : folderDialog.mode === "rename"
-                    ? "Save name"
-                    : "Create folder"}
-              </button>
-            </footer>
-          </form>
-        </div>
-      )}
+      <FolderDialog
+        folderDialog={folderDialog}
+        setFolderDialog={setFolderDialog}
+        folderSaving={folderSaving}
+        onSubmit={saveFolderDialog}
+        onClose={() => setFolderDialog(null)}
+      />
 
-      {shareLessons.length > 0 && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={() => setShareLessons([])}
-        >
-          <section
-            className="live-share-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-share-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <span className="live-eyebrow">TEACHER-TO-TEACHER</span>
-                <h2 id="live-share-title">
-                  Share{" "}
-                  {shareLessons.length === 1
-                    ? `“${shareLessons[0].title}”`
-                    : `${shareLessons.length} lessons`}
-                </h2>
-              </div>
-              <button
-                className="live-dialog-close"
-                onClick={() => setShareLessons([])}
-                aria-label="Close share dialog"
-              >
-                ×
-              </button>
-            </header>
-            <p>
-              The recipient can accept a copy of each lesson. Your lessons and
-              session histories stay separate.
-            </p>
-            <label className="live-edit-field">
-              Teacher
-              <select
-                value={shareRecipient}
-                onChange={(event) => setShareRecipient(event.target.value)}
-              >
-                <option value="">Choose a teacher…</option>
-                {shareableTeachers.map((teacher) => (
-                  <option key={teacher._id} value={teacher._id}>
-                    {getTeacherName(teacher)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {!shareableTeachers.length && (
-              <p className="live-list-empty">
-                No other active teachers are available to share with.
-              </p>
-            )}
-            <footer>
-              <button
-                className="live-secondary-button"
-                onClick={() => setShareLessons([])}
-              >
-                Cancel
-              </button>
-              <button
-                className="live-primary-button"
-                disabled={!shareRecipient || shareSaving}
-                onClick={shareLessonWithTeacher}
-              >
-                {shareSaving
-                  ? "Sending…"
-                  : `Send ${shareLessons.length === 1 ? "invitation" : `${shareLessons.length} invitations`}`}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+      <OrganizeDialog
+        organizeDialog={organizeDialog}
+        setOrganizeDialog={setOrganizeDialog}
+        organizeSaving={organizeSaving}
+        folderPaths={folderPaths}
+        currentFolderId={lessonListState.folderId}
+        unfiledView={lessonListState.view === "unfiled"}
+        onSubmit={() => void applyOrganize()}
+        onClose={() => setOrganizeDialog(null)}
+      />
 
-      {moveLessonTarget && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={() => {
-            if (!moveLessonSaving) closeMoveDialog();
-          }}
-        >
-          <section
-            className="live-share-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-move-lesson-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <span className="live-eyebrow">ACADEMIC YEAR</span>
-                <h2 id="live-move-lesson-title">
-                  Move “{moveLessonTarget.title}”
-                </h2>
-              </div>
-              <button
-                className="live-dialog-close"
-                onClick={closeMoveDialog}
-                aria-label="Close move lesson dialog"
-                disabled={moveLessonSaving}
-              >
-                ×
-              </button>
-            </header>
-            <p>
-              Filed under{" "}
-              {moveLessonOptions?.lesson?.academicYear || "no academic year"}.
-              Slides and past sessions stay as they are — only the class this
-              lesson launches with, and the year it is filed under, change.
-            </p>
-            {moveLessonLoading && (
-              <p className="live-preview-status" role="status">
-                Loading the classes you teach…
-              </p>
-            )}
-            {moveLessonOptions?.canMove === false && (
-              <p className="live-preview-status live-preview-error" role="alert">
-                This lesson has a {moveLessonOptions.blockingSessionStatus}{" "}
-                session. End or delete it before moving the lesson.
-              </p>
-            )}
-            {!moveLessonLoading && !moveLessonOptions?.targets?.length && (
-              <p className="live-list-empty">
-                You are not assigned to another class yet. Rollover creates next
-                year’s classes without teachers, so ask your school to assign you
-                there before moving this lesson.
-              </p>
-            )}
-            {!!moveLessonOptions?.targets?.length && (
-              <label className="live-edit-field">
-                Destination class
-                <select
-                  value={moveLessonClassId}
-                  onChange={(event) => setMoveLessonClassId(event.target.value)}
-                >
-                  <option value="">Choose a class…</option>
-                  {moveLessonYears.map((year) => (
-                    <optgroup key={year} label={year}>
-                      {moveLessonOptions.targets
-                        .filter((target) => target.academicYear === year)
-                        .map((target) => (
-                          <option
-                            key={target._id}
-                            value={target._id}
-                            disabled={target.isCurrentClass}
-                          >
-                            {`${target.name}${target.section ? ` · ${target.section}` : ""}${
-                              target.isCurrentClass ? " · current" : ""
-                            }`}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-            )}
-            {selectedMoveTarget?.subjectCleared && (
-              <p className="live-preview-status">
-                That class does not teach{" "}
-                {moveLessonTarget.subject || "this subject"} yet, so the subject
-                link will be cleared. The lesson keeps its subject name.
-              </p>
-            )}
-            {moveLessonError && (
-              <p className="live-preview-status live-preview-error" role="alert">
-                {moveLessonError}
-              </p>
-            )}
-            <footer>
-              <button
-                className="live-secondary-button"
-                onClick={closeMoveDialog}
-                disabled={moveLessonSaving}
-              >
-                Cancel
-              </button>
-              <button
-                className="live-primary-button"
-                onClick={moveLessonToClass}
-                disabled={
-                  !selectedMoveTarget
-                  || moveLessonSaving
-                  || moveLessonLoading
-                  || moveLessonOptions?.canMove === false
-                }
-              >
-                {moveLessonSaving ? "Moving…" : "Move lesson"}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+      <PositionDialog
+        positionDialog={positionDialog}
+        setPositionDialog={setPositionDialog}
+        positionSaving={positionSaving}
+        maxPosition={activeFolder?.lessonIds.length || 0}
+        onSubmit={() => void moveLessonToPosition()}
+        onClose={() => setPositionDialog(null)}
+      />
 
-      {importOpen && (
-        <div
-          className="live-import-overlay"
-          role="presentation"
-          onClick={closeEditor}
-        >
-          <section
-            className="live-import-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-import-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="live-import-header">
-              <div>
-                <span className="live-eyebrow">
-                  {editorMode === "edit"
-                    ? "LESSON EDITOR"
-                    : "CSV LESSON BUILDER"}
-                </span>
-                <h2 id="live-import-title">
-                  {editorMode === "edit" ? "Edit lesson" : "Import a lesson"}
-                </h2>
-              </div>
-              <button
-                className="live-dialog-close"
-                onClick={closeEditor}
-                aria-label="Close lesson editor"
-                disabled={saving}
-              >
-                ×
-              </button>
-            </header>
-            {editorMode === "create" && (
-              <div className="live-import-toolbar">
-                <div className="live-session-actions">
-                  <button className="live-text-button" onClick={copyAiPrompt}>
-                    {promptCopied ? (
-                      <HiOutlineCheck />
-                    ) : (
-                      <HiOutlineClipboardDocument />
-                    )}
-                    {promptCopied ? "Copied" : "Copy AI prompt"}
-                  </button>
-                  <button
-                    className="live-text-button"
-                    onClick={downloadTemplate}
-                  >
-                    <HiOutlineArrowDownTray /> Sample CSV
-                  </button>
-                  <QuestionTypeGuide flow="live" className="live-text-button" />
-                </div>
-              </div>
-            )}
-            {editorMode === "create" && (
-              <label className="live-file-drop">
-                <HiOutlineArrowUpTray size={27} />
-                <strong>{fileName || "Choose a CSV file to preview"}</strong>
-                <span>
-                  Import standard lesson CSVs or a portable CSV exported from a
-                  Live Lesson. Portable files preserve slides and metadata;
-                  class/subject assignments are matched to this school.
-                </span>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleSelectFile}
-                />
-              </label>
-            )}
-            {editorMode === "edit" && saving && (
-              <div className="live-loading">Loading lesson…</div>
-            )}
-            {errors.length > 0 && (
-              <div className="live-import-errors" role="alert">
-                <strong>
-                  {editorMode === "edit"
-                    ? "Fix these lesson issues to continue"
-                    : "Fix these CSV issues to continue"}
-                </strong>
-                {errors.map((item, index) => (
-                  <p key={`${item.row}-${item.field}-${index}`}>
-                    Row {item.row} · {item.field}: {item.message}
-                  </p>
-                ))}
-              </div>
-            )}
-            {form.slides.length > 0 && (
-              <div className="live-import-preview">
-                <div className="live-preview-heading">
-                  <div>
-                    <span className="live-eyebrow">
-                      {editorMode === "edit" ? "EDIT LESSON" : "PREVIEW"} ·{" "}
-                      {form.slides.length} SLIDES
-                    </span>
-                    <h3>
-                      {editorMode === "edit"
-                        ? "Update lesson content and slides"
-                        : "Review and polish before saving"}
-                    </h3>
-                  </div>
-                  {editorMode === "edit" && (
-                    <div className="live-slide-edit-actions">
-                      <button
-                        className="live-secondary-button"
-                        onClick={addSlide}
-                        disabled={form.slides.length >= 200}
-                      >
-                        <HiOutlinePlus /> Add slide
-                      </button>
-                      <button
-                        className="live-delete-slide"
-                        onClick={deleteSelectedSlide}
-                        disabled={form.slides.length <= 1}
-                      >
-                        <HiOutlineTrash /> Remove selected
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <label className="live-edit-field">
-                  Lesson title
-                  <input
-                    value={form.title}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        title: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="live-edit-field">
-                  Description
-                  <textarea
-                    rows={4}
-                    value={form.description || ""}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        description: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <div className="live-lesson-metadata-fields">
-                  {form.importHints && (
-                    <p className="live-import-assignment-hint">
-                      Exported assignment: {form.importHints.assignedClass || "No class"} · {form.importHints.assignedSubject || "No subject"}.
-                      Choose the destination class and subject below; matching assignments were selected when available.
-                    </p>
-                  )}
-                  <label className="live-edit-field">
-                    Assigned class
-                    <select
-                      value={form.classId}
-                      onChange={(event) =>
-                        setForm((previous) => ({
-                          ...previous,
-                          classId: event.target.value,
-                          subjectId: "",
-                          subject: "",
-                        }))
-                      }
-                    >
-                      <option value="">Choose a class…</option>
-                      {classes.map((classItem) => (
-                        <option key={classItem._id} value={classItem._id}>
-                          {classItem.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="live-edit-field">
-                    Class subject
-                    <select
-                      value={form.subjectId}
-                      disabled={!form.classId}
-                      onChange={(event) => {
-                        const selectedSubject = editorSubjects.find(
-                          (item) => String(item._id) === event.target.value,
-                        );
-                        setForm((previous) => ({
-                          ...previous,
-                          subjectId: event.target.value,
-                          subject: selectedSubject?.name || "",
-                        }));
-                      }}
-                    >
-                      <option value="">
-                        {form.classId
-                          ? "Choose a subject…"
-                          : "Choose a class first"}
-                      </option>
-                      {editorSubjects.map((subject) => (
-                        <option key={subject._id} value={subject._id}>
-                          {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="live-edit-field">
-                    Grade
-                    <input
-                      value={form.grade || ""}
-                      onChange={(event) =>
-                        setForm((previous) => ({
-                          ...previous,
-                          grade: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="live-edit-field">
-                    Language
-                    <input
-                      value={form.language || "en"}
-                      onChange={(event) =>
-                        setForm((previous) => ({
-                          ...previous,
-                          language: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="live-preview-slide-strip">
-                  {form.slides.map((slide, index) => (
-                    <button
-                      className={`live-preview-chip ${selectedSlideIndex === index ? "active" : ""}`}
-                      key={`${index}-${slide.title}`}
-                      onClick={() => setSelectedSlideIndex(index)}
-                    >
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                      {slide.title || slide.type}
-                    </button>
-                  ))}
-                </div>
-                <div className="live-preview-workspace">
-                  <LiveLessonSlide
-                    slide={activeSlide}
-                    index={selectedSlideIndex}
-                    total={form.slides.length}
-                    language={form.language}
-                  />
-                  {activeSlide && (
-                    <div className="live-preview-editors">
-                      {editorMode === "edit" && (
-                        <label className="live-edit-field">
-                          Slide type
-                          <select
-                            value={activeSlide.type}
-                            onChange={(event) =>
-                              changeSlideType(
-                                selectedSlideIndex,
-                                event.target.value,
-                              )
-                            }
-                          >
-                            {[
-                              "opening",
-                              "goals",
-                              "content",
-                              "examples",
-                              "html",
-                              "question",
-                              "activity",
-                              "exit-ticket",
-                            ].map((type) => (
-                              <option value={type} key={type}>
-                                {type.replace("-", " ")}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                      <label className="live-edit-field">
-                        Slide title
-                        <input
-                          value={activeSlide.title || ""}
-                          onChange={(event) =>
-                            updateSlide(selectedSlideIndex, {
-                              title: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      {activeSlide.type === "html" ? (
-                        <label className="live-edit-field">
-                          Slide HTML
-                          <textarea
-                            rows={12}
-                            value={activeSlide.html || ""}
-                            onChange={(event) =>
-                              updateSlide(selectedSlideIndex, {
-                                html: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      ) : (
-                        <label className="live-edit-field">
-                          Slide content
-                          <textarea
-                            rows={3}
-                            value={activeSlide.body || ""}
-                            onChange={(event) =>
-                              updateSlide(selectedSlideIndex, {
-                                body: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      )}
-                      {editorMode === "edit" &&
-                        activeSlide.type === "examples" && (
-                          <label className="live-edit-field">
-                            Examples (one per line)
-                            <textarea
-                              rows={3}
-                              value={(activeSlide.examples || []).join("\n")}
-                              onChange={(event) =>
-                                updateSlide(selectedSlideIndex, {
-                                  examples: event.target.value
-                                    .split(/\r?\n/)
-                                    .filter((item) => item.trim()),
-                                })
-                              }
-                            />
-                          </label>
-                        )}
-                      {editorMode === "edit" && (
-                        <>
-                          <label className="live-edit-field">
-                            Image URL
-                            <input
-                              value={activeSlide.imageUrl || ""}
-                              onChange={(event) =>
-                                updateSlide(selectedSlideIndex, {
-                                  imageUrl: event.target.value,
-                                })
-                              }
-                              placeholder="https://…"
-                            />
-                          </label>
-                          <label className="live-edit-field">
-                            Teacher notes
-                            <textarea
-                              rows={4}
-                              value={activeSlide.speakerNotes || ""}
-                              onChange={(event) =>
-                                updateSlide(selectedSlideIndex, {
-                                  speakerNotes: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                        </>
-                      )}
-                      {activeSlide.question && (
-                        <LiveQuestionEditor
-                          question={activeSlide.question}
-                          onChange={(question) =>
-                            updateSlide(selectedSlideIndex, { question })
-                          }
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="live-preview-note">
-                  Slide design, question answers, and explanation are stored in
-                  the lesson; answer keys stay hidden from students until the
-                  teacher reveals results.
-                </div>
-              </div>
-            )}
-            <footer className="live-import-footer">
-              <button
-                className="live-secondary-button"
-                onClick={closeEditor}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-              <button
-                className="live-primary-button"
-                onClick={saveImportedLesson}
-                disabled={
-                  saving ||
-                  (editorMode === "create" &&
-                    (!selectedFile || !form.classId || !form.subjectId)) ||
-                  form.slides.length === 0 ||
-                  !form.title.trim()
-                }
-              >
-                {saving
-                  ? "Saving…"
-                  : editorMode === "edit"
-                    ? "Update lesson"
-                    : "Save lesson"}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+      <ShareDialog
+        shareLessons={shareLessons}
+        onClose={() => setShareLessons([])}
+        shareRecipient={shareRecipient}
+        setShareRecipient={setShareRecipient}
+        teachers={shareableTeachers}
+        getTeacherName={getTeacherName}
+        shareSaving={shareSaving}
+        onSend={shareLessonWithTeacher}
+      />
+
+      <MoveDialog
+        target={moveLessonTarget}
+        options={moveLessonOptions}
+        loading={moveLessonLoading}
+        classId={moveLessonClassId}
+        setClassId={setMoveLessonClassId}
+        years={moveLessonYears}
+        selectedTarget={selectedMoveTarget}
+        error={moveLessonError}
+        saving={moveLessonSaving}
+        onClose={closeMoveDialog}
+        onMove={moveLessonToClass}
+      />
+
+      <ImportEditorDialog
+        open={importOpen}
+        editorMode={editorMode}
+        saving={saving}
+        onClose={closeEditor}
+        onCopyAiPrompt={copyAiPrompt}
+        promptCopied={promptCopied}
+        fileName={fileName}
+        hasSelectedFile={Boolean(selectedFile)}
+        onSelectFile={handleSelectFile}
+        errors={errors}
+        form={form}
+        setForm={setForm}
+        classes={classes}
+        editorSubjects={editorSubjects}
+        activeSlide={activeSlide}
+        selectedSlideIndex={selectedSlideIndex}
+        onSelectSlide={setSelectedSlideIndex}
+        onAddSlide={addSlide}
+        onDeleteSelectedSlide={deleteSelectedSlide}
+        onChangeSlideType={changeSlideType}
+        onUpdateSlide={updateSlide}
+        onSave={saveImportedLesson}
+      />
     </div>
   );
 };

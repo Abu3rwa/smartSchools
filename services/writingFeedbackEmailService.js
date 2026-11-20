@@ -14,12 +14,19 @@ import {
   draftText,
   comparisonHtml,
   comparisonText,
+  languageHtml,
+  languageTextLines,
   //
   prepareDraftRows,
   rubricHtml,
   rubricText,
 } from "./writingFeedbackEmailBlocks.js";
-import { fillStudentTokensDeep } from "./aiPromptSafety.js";
+import { fillStudentTokensDeep, toPlain } from "./aiPromptSafety.js";
+import { marksModeOf } from "../client/src/utils/writingRubric.js";
+import {
+  buildOptOutUrl,
+  optedOutEmails,
+} from "./writingEmailOptOutService.js";
 
 /**
  * The one email the writing module sends: feedback was published for a draft.
@@ -81,6 +88,32 @@ const COPY = {
     rubricLevel: { strong: "Strong", near: "Nearly there", needs: "Needs work" },
     draftTruncated: "The rest of your draft is in the app.",
     parentDraftTruncated: "The rest of the draft is in the app.",
+    languageTitle: "Language corrections",
+    languageHint: "Use these corrections when you revise this paragraph.",
+    languageParentHint:
+      "These are the language corrections to review with your child.",
+    languageOriginal: "Original",
+    languageChange: "Change to",
+    languageWhy: "Why",
+    languageRemove: "Remove this",
+    languageNumber: "Correction {{n}}",
+    languageCategory: {
+      grammar: "Grammar",
+      verb_tense: "Verb tense",
+      punctuation: "Punctuation",
+      spelling: "Spelling",
+      legacy: "Language",
+    },
+    languageNone: "No language corrections were suggested for this paragraph.",
+    languagePartial:
+      "This language check is incomplete. Some parts may need another review.",
+    languageUnavailable:
+      "Language corrections are not available for this feedback.",
+    languageSourceNotShown:
+      "This correction refers to text not shown in this email.",
+    languageExcerpt: "The rest of your draft is in the app.",
+    languageParentExcerpt:
+      "This email contains an excerpt. Ask the teacher for the remaining feedback.",
     sectionsLabel: "Feedback by part",
     workedLabel: "What worked",
     tryThisLabel: "Try this",
@@ -103,6 +136,7 @@ const COPY = {
     meta: "Draft {{n}} · {{words}} words",
     due: " · due {{date}}",
     footer: "{{schoolName}}",
+    optOut: "Stop these emails",
   },
   ar: {
     studentHeadline: "ملاحظاتك على المسودة {{n}} جاهزة",
@@ -131,6 +165,29 @@ const COPY = {
     },
     draftTruncated: "بقية المسودة في التطبيق.",
     parentDraftTruncated: "بقية المسودة في التطبيق.",
+    languageTitle: "تصحيحات لغوية",
+    languageHint: "استفد من هذه التصحيحات عند مراجعة هذه الفقرة.",
+    languageParentHint: "هذه تصحيحات لغوية يمكن مراجعتها مع طفلك.",
+    languageOriginal: "النص الأصلي",
+    languageChange: "التعديل المقترح",
+    languageWhy: "السبب",
+    languageRemove: "احذف هذا",
+    languageNumber: "التصحيح {{n}}",
+    languageCategory: {
+      grammar: "القواعد",
+      verb_tense: "زمن الفعل",
+      punctuation: "علامات الترقيم",
+      spelling: "الإملاء",
+      legacy: "اللغة",
+    },
+    languageNone: "لم تُقترح تصحيحات لغوية لهذه الفقرة.",
+    languagePartial:
+      "هذا التدقيق اللغوي غير مكتمل. قد تحتاج بعض الأجزاء إلى مراجعة أخرى.",
+    languageUnavailable: "التصحيحات اللغوية غير متاحة ضمن هذه الملاحظات.",
+    languageSourceNotShown: "يشير هذا التصحيح إلى نص غير معروض في هذه الرسالة.",
+    languageExcerpt: "بقية المسودة في التطبيق.",
+    languageParentExcerpt:
+      "تحتوي هذه الرسالة على مقتطف. اطلب من المعلم بقية الملاحظات.",
     sectionsLabel: "ملاحظات على كل جزء",
     workedLabel: "ما نجح",
     tryThisLabel: "جرّب هذا",
@@ -153,6 +210,7 @@ const COPY = {
     meta: "المسودة {{n}} · {{words}} كلمة",
     due: " · التسليم {{date}}",
     footer: "{{schoolName}}",
+    optOut: "إيقاف هذه الرسائل",
   },
 };
 
@@ -207,15 +265,38 @@ export const publishChannels = (channels = {}, notify = {}) => ({
   parents: Boolean(channels.parents) && notify?.parents !== false,
 });
 
+const GUARDIAN_FIELDS = [
+  ["fatherEmail", "father"],
+  ["motherEmail", "mother"],
+  ["guardianEmail", "guardian"],
+];
+
+/**
+ * A lean read loses the Student model method, so the same fields are read
+ * directly; both paths feed one recipient list.
+ */
+const contactEntries = (student) => {
+  if (typeof student?.getAllContactEmailEntries === "function") {
+    return student.getAllContactEmailEntries();
+  }
+  const entries = [];
+  for (const [field, type] of GUARDIAN_FIELDS) {
+    if (student?.parentInfo?.[field]) {
+      entries.push({ type, email: student.parentInfo[field] });
+    }
+  }
+  for (const email of [student?.studentEmail, student?.email, student?.user?.email]) {
+    if (email) entries.push({ type: "student", email });
+  }
+  return entries;
+};
+
 /**
  * Student and guardian addresses for one project. A guardian address that is also
  * the student's own address is dropped so that family gets one email, not two.
  */
 export const resolveRecipients = ({ student, channels = {} } = {}) => {
-  const entries =
-    typeof student?.getAllContactEmailEntries === "function"
-      ? student.getAllContactEmailEntries()
-      : [];
+  const entries = contactEntries(student);
 
   const studentEmails = channels.students
     ? uniqueEmails([
@@ -273,9 +354,9 @@ const statusHtml = ({ language, stage, nextDraft }) => {
     .join("");
   const labels = copy.statusSteps
     .map((label, index) => {
-      const color = index <= current ? "#0f766e" : "#94a3b8";
+      const color = index <= current ? "#0f766e" : "#64748b";
       const weight = index <= current ? "700" : "400";
-      return `<td style="padding:8px 2px 0;font-size:11px;line-height:1.4;color:${color};font-weight:${weight};">${escapeHtml(label)}</td>`;
+      return `<td style="padding:8px 2px 0;font-size:12px;line-height:1.4;color:${color};font-weight:${weight};">${escapeHtml(label)}</td>`;
     })
     .join("");
 
@@ -322,6 +403,10 @@ const normalizeSections = (sections) =>
         .filter(Boolean),
       nextStep: String(section?.nextStep || "").trim(),
       why: String(section?.why || "").trim(),
+      // Stored as published: the fallback card must not lose corrections just
+      // because the draft text itself could not be shown.
+      mechanics: Array.isArray(section?.mechanics) ? section.mechanics : [],
+      mechanicsReview: section?.mechanicsReview || null,
     }))
     .filter(
       (section) =>
@@ -329,7 +414,8 @@ const normalizeSections = (sections) =>
         section.strengths.length ||
         section.improvements.length ||
         section.nextStep ||
-        section.why,
+        section.why ||
+        section.mechanics.length,
     );
 
 const sectionFieldHtml = (label, value, language) =>
@@ -343,18 +429,18 @@ const sectionListHtml = (label, items, language) => {
     .map((item) => `<li style="margin:0 0 3px;">${escapeHtml(item)}</li>`)
     .join("");
   return [
-    `<p style="margin:8px 0 0;font-size:11px;font-weight:700;color:#0f766e;${language === "ar" ? "" : "letter-spacing:.6px;text-transform:uppercase;"}">${escapeHtml(label)}</p>`,
+    `<h3 style="margin:8px 0 0;font-size:12px;font-weight:700;color:#0f766e;${language === "ar" ? "" : "letter-spacing:.6px;text-transform:uppercase;"}">${escapeHtml(label)}</h3>`,
     `<ul style="margin:3px 0 0;${tag}:18px;font-size:13px;line-height:${language === "ar" ? "1.7" : "1.5"};color:#334155;">${list}</ul>`,
   ].join("");
 };
 
-const sectionsHtml = (sections, language, copy) => {
+const sectionsHtml = (sections, language, copy, showCorrections = true) => {
   if (!sections.length) return "";
   const cards = sections
     .map((section) => {
       const body = [
         section.label
-          ? `<p dir="auto" style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">${escapeHtml(section.label)}</p>`
+          ? `<h3 dir="auto" style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">${escapeHtml(section.label)}</h3>`
           : "",
         sectionListHtml(copy.workedLabel, section.strengths, language),
         sectionListHtml(copy.improveLabel, section.improvements, language),
@@ -363,6 +449,17 @@ const sectionsHtml = (sections, language, copy) => {
           : "",
         section.why
           ? sectionFieldHtml(copy.whyLabel, section.why, language)
+          : "",
+        // When the draft block already listed the omitted parts, the cards do
+        // not repeat their corrections.
+        showCorrections
+          ? languageHtml({
+              mechanicsList: section.mechanics,
+              mechanicsReview: section.mechanicsReview,
+              inline: new Set(),
+              copy,
+              language,
+            })
           : "",
       ].join("");
       return [
@@ -389,7 +486,7 @@ const buttonHtml = ({ url, label }) => {
 
 const labelHtml = (text, language) =>
   text
-    ? `<p style="margin:20px 0 8px;font-size:11px;font-weight:700;color:#0f766e;${language === "ar" ? "" : "letter-spacing:.8px;text-transform:uppercase;"}">${escapeHtml(text)}</p>`
+    ? `<h2 style="margin:20px 0 8px;font-size:12px;font-weight:700;color:#0f766e;${language === "ar" ? "" : "letter-spacing:.8px;text-transform:uppercase;"}">${escapeHtml(text)}</h2>`
     : "";
 
 const summaryHtml = ({ summary, language }) => {
@@ -416,13 +513,16 @@ export const buildFeedbackEmail = ({
   assessment: rawAssessment = {},
   comparison: rawComparison = null,
   url = "",
+  // L7: one signed link per address; the footer carries the address's own.
+  optOutUrl = "",
   resend = false,
+  marks = "words",
 } = {}) => {
   // A name slot can arrive after the AI run — a teacher edit, or a reply stored
   // before filling moved here — so it is filled again at the point of sending.
   const name = String(studentName || studentFirstName || "").trim();
-  const assessment = fillStudentTokensDeep(rawAssessment, name);
-  const comparison = fillStudentTokensDeep(rawComparison, name);
+  const assessment = fillStudentTokensDeep(toPlain(rawAssessment), name);
+  const comparison = fillStudentTokensDeep(toPlain(rawComparison), name);
   const lang = languageOf(language);
   const base = COPY[lang];
   const isParent = role === "parent";
@@ -433,6 +533,8 @@ export const buildFeedbackEmail = ({
         ...base,
         draftTruncated: base.parentDraftTruncated,
         comparisonWinsLabel: base.parentComparisonWinsLabel,
+        languageHint: base.languageParentHint,
+        languageExcerpt: base.languageParentExcerpt,
       }
     : base;
   const intro = resend
@@ -457,12 +559,16 @@ export const buildFeedbackEmail = ({
     .filter(Boolean)
     .slice(0, 3);
   const sections = normalizeSections(assessment.sections);
-  const { rows: draftRows, truncated } = prepareDraftRows({
+  const { rows: draftRows, truncated, omitted } = prepareDraftRows({
     paragraphs: essayParagraphs({ assignment, sections: draft?.sections }),
     notes: assessment.sections,
+    languageSections: assessment.sections,
   });
   const hasDraft = draftRows.length > 0;
-  const rubricScores = assessment.scores || [];
+  // A criterion outside what the class was taught is not shown to a family (A7).
+  const rubricScores = (assessment.scores || []).filter(
+    (row) => !row.focusExcluded,
+  );
 
   // The draft and the rubric enrich a message; they are never a reason to send one.
   if (!summary && priorities.length === 0 && sections.length === 0) return null;
@@ -485,13 +591,14 @@ export const buildFeedbackEmail = ({
     next: nextDraft,
   };
 
-  const rubricBody = rubricHtml({ scores: rubricScores, language: lang, copy });
+  const rubricBody = rubricHtml({ scores: rubricScores, language: lang, copy, marks });
   const comparisonBody = comparisonHtml({ comparison, language: lang, copy });
   const draftBody = draftHtml({
     rows: draftRows,
     language: lang,
     copy,
     truncated,
+    omitted,
   });
   const draftLabel = fill(
     isParent ? copy.parentDraftLabel : copy.studentDraftLabel,
@@ -521,6 +628,9 @@ export const buildFeedbackEmail = ({
       pieceMeta: `${fill(copy.meta, { n: draftNumber, words })}${due ? fill(copy.due, { date: due }) : ""}`,
       statusLabel: copy.statusLabel,
       footer: fill(copy.footer, { schoolName }),
+      optOutHtml: optOutUrl
+        ? `<p style="margin:8px 0 0;font-size:13px;line-height:1.6;"><a href="${escapeHtml(optOutUrl)}" style="color:#0f766e;text-decoration:underline;">${escapeHtml(copy.optOut)}</a></p>`
+        : "",
       statusHtml: statusHtml({
         language: lang,
         stage: project.stage,
@@ -561,7 +671,7 @@ export const buildFeedbackEmail = ({
       sectionsBlock:
         !hasDraft && sections.length
           ? labelHtml(copy.sectionsLabel, lang) +
-            sectionsHtml(sections, lang, copy)
+            sectionsHtml(sections, lang, copy, omitted.length === 0)
           : "",
       // No parent button: there is no parent writing page, and the email already
       // carries the draft and every note. A link no role can open is worse than none.
@@ -590,7 +700,7 @@ export const buildFeedbackEmail = ({
       ? `\n${fill(isParent ? copy.parentQuoteLabel : copy.studentQuoteLabel, values)}\n${summary}`
       : "",
     rubricBody
-      ? `\n${copy.rubricLabel}\n${rubricText({ scores: rubricScores, language: lang, copy })}`
+      ? `\n${copy.rubricLabel}\n${rubricText({ scores: rubricScores, language: lang, copy, marks })}`
       : "",
     priorities.length
       ? `\n${fill(isParent ? copy.parentListLabel : copy.studentListLabel, values)}\n${priorities.map((item, index) => `${index + 1}. ${item}`).join("\n")}`
@@ -604,7 +714,7 @@ export const buildFeedbackEmail = ({
         })}`
       : "",
     draftBody
-      ? `\n${draftLabel}\n${draftText({ rows: draftRows, language: lang, copy, truncated })}`
+      ? `\n${draftLabel}\n${draftText({ rows: draftRows, language: lang, copy, truncated, omitted })}`
       : "",
     !hasDraft && sections.length
       ? `\n${copy.sectionsLabel}\n${sections
@@ -620,11 +730,21 @@ export const buildFeedbackEmail = ({
             if (section.nextStep)
               lines.push(`    ${copy.nextStepLabel}: ${section.nextStep}`);
             if (section.why) lines.push(`    ${copy.whyLabel}: ${section.why}`);
+            if (omitted.length === 0) {
+              for (const line of languageTextLines({
+                mechanicsList: section.mechanics,
+                mechanicsReview: section.mechanicsReview,
+                copy,
+              })) {
+                lines.push(`    ${line}`);
+              }
+            }
             return lines.join("\n");
           })
           .join("\n")}`
       : "",
     url ? `\n${url}` : "",
+    optOutUrl ? `\n${copy.optOut}: ${optOutUrl}` : "",
     "",
     fill(copy.footer, { schoolName }),
   ]
@@ -654,7 +774,9 @@ const prepareFeedbackDelivery = async ({
       "user",
       "email",
     ),
-    School.findOne({ _id: schoolId }).select("name").lean(),
+    School.findOne({ _id: schoolId })
+      .select("name settings.writingFeedback.marksMode")
+      .lean(),
   ]);
   if (!student) return { skipped: "no-student" };
 
@@ -671,6 +793,22 @@ const prepareFeedbackDelivery = async ({
   if (!recipients.studentEmails.length && !recipients.parentEmails.length) {
     return { skipped: "no-addresses" };
   }
+
+  // L7: a family that stopped these emails is recorded on the publish event and
+  // never built a message, so neither this send nor any later resend can reach them.
+  const stopped = await optedOutEmails({
+    schoolId,
+    emails: [...recipients.studentEmails, ...recipients.parentEmails],
+  });
+  const suppressed = [
+    ...recipients.studentEmails
+      .filter((email) => stopped.has(email))
+      .map((email) => ({ email, role: "student" })),
+    ...recipients.parentEmails
+      .filter((email) => stopped.has(email))
+      .map((email) => ({ email, role: "parent" })),
+  ];
+  const addressesFor = (emails) => emails.filter((email) => !stopped.has(email));
 
   const language = languageOf(assessment.language);
   // The published draft-to-draft comparison for the same draft, when the teacher
@@ -703,53 +841,85 @@ const prepareFeedbackDelivery = async ({
     draft,
     assessment,
     comparison,
+    marks: marksModeOf(school?.settings?.writingFeedback?.marksMode),
     url:
       base && project._id
         ? `${base}/portal/writing/project/${project._id}`
         : "",
   };
-  const messages = [
-    { role: "student", recipients: recipients.studentEmails },
-    { role: "parents", recipients: recipients.parentEmails },
-  ]
-    .filter((row) => row.recipients.length)
-    .map((row) => ({
-      ...row,
-      message: buildFeedbackEmail({
-        ...context,
-        role: row.role === "parents" ? "parent" : "student",
-      }),
-    }))
-    .filter((row) => row.message);
-  return messages.length ? { messages, missing } : { skipped: "empty" };
-};
 
-const sendFeedbackDelivery = async ({ messages, missing }, schoolId, senderUserId = null) => {
-  const results = [];
-  for (const { recipients, message } of messages) {
-    for (const email of recipients) {
-      try {
-        await sendTransactionalEmail({
-          to: email,
-          ...message,
-          schoolId,
-          preferredUserId: senderUserId,
-          // Feedback is the teacher's own words; it must not leave from the
-          // school's shared SMTP account.
-          allowAdminFallback: false,
-          allowSmtp: false,
-        });
-        results.push({ email, status: "sent" });
-      } catch (error) {
-        logger.warn("writing_feedback_email_failed", {
+  // L2: an address that already holds this feedback is never sent it again; the
+  // row stays visible in the preview and is reported as skipped.
+  const sentBefore = new Set(
+    (assessment.publish?.email?.deliveries || [])
+      .filter((row) => row.status === "sent")
+      .map((row) => String(row.email || "").toLowerCase()),
+  );
+  const apiBase =
+    String(env.API_URL || env.API_BASE_URL || "").replace(/\/+$/, "") ||
+    `http://localhost:${env.PORT || 5000}`;
+  const messages = [];
+  for (const [role, emails] of [
+    ["student", addressesFor(recipients.studentEmails)],
+    ["parent", addressesFor(recipients.parentEmails)],
+  ]) {
+    for (const email of emails) {
+      const message = buildFeedbackEmail({
+        ...context,
+        role,
+        optOutUrl: buildOptOutUrl({ baseUrl: apiBase, schoolId, email }),
+      });
+      if (message) {
+        messages.push({
+          role,
           email,
-          error: error?.message,
+          alreadySent: sentBefore.has(email),
+          message,
         });
-        results.push({ email, status: "failed" });
       }
     }
   }
-  return { results, missing };
+  if (!messages.length) {
+    return suppressed.length
+      ? { skipped: "suppressed", suppressed }
+      : { skipped: "empty" };
+  }
+  return { messages, suppressed, missing };
+};
+
+const sendFeedbackDelivery = async (
+  { messages, suppressed = [], missing = [] },
+  schoolId,
+  senderUserId = null,
+) => {
+  const results = [];
+  const alreadySent = [];
+  for (const { role, email, alreadySent: hasCopy, message } of messages) {
+    if (hasCopy) {
+      alreadySent.push({ email, role });
+      continue;
+    }
+    try {
+      await sendTransactionalEmail({
+        to: email,
+        ...message,
+        schoolId,
+        preferredUserId: senderUserId,
+        // Feedback is the teacher's own words; it must not leave from the
+        // school's shared SMTP account.
+        allowAdminFallback: false,
+        allowSmtp: false,
+      });
+      results.push({ email, role, status: "sent" });
+    } catch (error) {
+      logger.warn("writing_feedback_email_failed", {
+        email,
+        error: error?.message,
+      });
+      results.push({ email, role, status: "failed" });
+    }
+  }
+  return { results, alreadySent, suppressed, missing };
 };
 
 /**
@@ -777,6 +947,60 @@ export const beginEmailDelivery = async ({ schoolId, assessmentId, notify }) => 
   );
 };
 
+/**
+ * Writes the address rows the send is about to act on: one queued row per
+ * message, one suppressed row per opted-out address. Rows for the same address
+ * are replaced, so a retried failed row becomes queued again while a sent row
+ * (excluded from `messages` planning) is left untouched.
+ */
+const queueEmailDeliveries = async ({
+  schoolId,
+  assessmentId,
+  messages = [],
+  suppressed = [],
+}) => {
+  const now = new Date();
+  const planned = [
+    ...messages
+      .filter((row) => !row.alreadySent)
+      .map((row) => ({
+        email: row.email,
+        role: row.role,
+        status: "queued",
+        attempts: 0,
+        lastAttemptAt: now,
+      })),
+    ...suppressed.map((row) => ({
+      email: row.email,
+      role: row.role,
+      status: "suppressed",
+      attempts: 0,
+      suppressedReason: "opted-out",
+      lastAttemptAt: now,
+    })),
+  ];
+  if (!planned.length) return;
+  const scope = { school: schoolId, _id: assessmentId };
+  await WritingAssessment.updateOne(scope, {
+    $pull: {
+      "publish.email.deliveries": {
+        email: { $in: planned.map((row) => row.email) },
+      },
+    },
+  }).catch((error) =>
+    logger.warn("writing_feedback_email_record_failed", {
+      error: error?.message,
+    }),
+  );
+  await WritingAssessment.updateOne(scope, {
+    $push: { "publish.email.deliveries": { $each: planned } },
+  }).catch((error) =>
+    logger.warn("writing_feedback_email_record_failed", {
+      error: error?.message,
+    }),
+  );
+};
+
 const deliveryOutcome = (result) => {
   if (!result) return { status: "failed", lastError: "no result" };
   if (result.skipped) {
@@ -785,13 +1009,29 @@ const deliveryOutcome = (result) => {
       : { status: "skipped", skippedReason: result.skipped };
   }
   const results = result.results || [];
-  const sent = results.filter((row) => row.status === "sent").length;
-  if (!results.length) return { status: "skipped", skippedReason: "empty" };
-  if (!sent)
-    return { status: "failed", lastError: "every recipient failed", recipients: results.length };
-  if (sent < results.length)
-    return { status: "partial", lastError: "some recipients failed", recipients: results.length };
-  return { status: "sent", recipients: results.length };
+  const sentNow = results.filter((row) => row.status === "sent").length;
+  const failed = results.filter((row) => row.status === "failed").length;
+  const alreadySent = (result.alreadySent || []).length;
+  const suppressed = (result.suppressed || []).length;
+  const reached = sentNow + alreadySent;
+  if (failed && !reached)
+    return {
+      status: "failed",
+      lastError: "every recipient failed",
+      recipients: results.length,
+    };
+  if (failed)
+    return {
+      status: "partial",
+      lastError: "some recipients failed",
+      recipients: results.length + alreadySent,
+    };
+  if (!reached)
+    return {
+      status: "skipped",
+      skippedReason: suppressed ? "suppressed" : "empty",
+    };
+  return { status: "sent", recipients: reached };
 };
 
 export const recordEmailDelivery = async ({ schoolId, assessmentId, result }) => {
@@ -816,6 +1056,36 @@ export const recordEmailDelivery = async ({ schoolId, assessmentId, result }) =>
       error: error?.message,
     }),
   );
+  // L2: the per-address result, so the panel can name who has the feedback.
+  const now = new Date();
+  for (const row of result?.results || []) {
+    if (!row.email) continue;
+    const update = {
+      "publish.email.deliveries.$.status": row.status,
+      "publish.email.deliveries.$.lastAttemptAt": now,
+    };
+    if (row.status === "sent") {
+      update["publish.email.deliveries.$.sentAt"] = now;
+      update["publish.email.deliveries.$.lastError"] = "";
+    } else {
+      update["publish.email.deliveries.$.lastError"] = "send failed";
+    }
+    await WritingAssessment.updateOne(
+      {
+        school: schoolId,
+        _id: assessmentId,
+        "publish.email.deliveries.email": row.email,
+      },
+      {
+        $set: update,
+        $inc: { "publish.email.deliveries.$.attempts": 1 },
+      },
+    ).catch((error) =>
+      logger.warn("writing_feedback_email_record_failed", {
+        error: error?.message,
+      }),
+    );
+  }
 };
 
 export const notifyFeedbackPublished = async (context) => {
@@ -827,9 +1097,16 @@ export const notifyFeedbackPublished = async (context) => {
   let result;
   try {
     const prepared = await prepareFeedbackDelivery(context);
-    result = prepared.skipped
-      ? prepared
-      : await sendFeedbackDelivery(prepared, context.schoolId, context.userId);
+    if (prepared.skipped) {
+      result = prepared;
+    } else {
+      await queueEmailDeliveries({ ...delivery, ...prepared });
+      result = await sendFeedbackDelivery(
+        prepared,
+        context.schoolId,
+        context.userId,
+      );
+    }
   } catch (error) {
     logger.error("writing_feedback_email_error", { error: error?.message });
     result = { skipped: "error" };
@@ -954,6 +1231,13 @@ const preparePublishedFeedback = async ({
         "WRITING_EMAIL_EMPTY",
       );
     }
+    if (prepared.skipped === "suppressed") {
+      throw emailError(
+        "Everyone with a saved address has stopped writing feedback emails.",
+        409,
+        "WRITING_EMAIL_SUPPRESSED",
+      );
+    }
     throw emailError(
       "No email addresses are available for the selected recipients.",
       422,
@@ -964,16 +1248,23 @@ const preparePublishedFeedback = async ({
 };
 
 export const previewPublishedFeedbackEmail = async (context) => {
-  const { messages, missing } = await preparePublishedFeedback(context);
-  return {
-    previews: messages.map(({ role, recipients, message }) => ({
+  const { messages, suppressed, missing } = await preparePublishedFeedback(context);
+  const previews = [];
+  for (const [role, addressRole] of [
+    ["student", "student"],
+    ["parents", "parent"],
+  ]) {
+    const rows = messages.filter((row) => row.role === addressRole);
+    if (!rows.length) continue;
+    previews.push({
       role,
-      recipients: recipients.length,
-      subject: message.subject,
-      html: message.html,
-    })),
-    missing,
-  };
+      recipients: rows.length,
+      sent: rows.filter((row) => row.alreadySent).length,
+      subject: rows[0].message.subject,
+      html: rows[0].message.html,
+    });
+  }
+  return { previews, suppressed: suppressed.length, missing };
 };
 
 export const resendPublishedFeedbackEmail = async (context) => {
@@ -985,15 +1276,19 @@ export const resendPublishedFeedbackEmail = async (context) => {
   // A resend is a new attempt on the same record: the review screen must show
   // "sent" or "failed" from the attempt that actually ran, not from publish day.
   await beginEmailDelivery({ ...delivery, notify: context.notify });
-  const { results, missing } = await sendFeedbackDelivery(
+  await queueEmailDeliveries({ ...delivery, ...prepared });
+  const sent = await sendFeedbackDelivery(
     prepared,
     context.schoolId,
     context.userId,
   );
-  await recordEmailDelivery({ ...delivery, result: { results, missing } });
+  await recordEmailDelivery({ ...delivery, result: sent });
   return {
-    sent: results.filter((row) => row.status === "sent").length,
-    failed: results.filter((row) => row.status === "failed").length,
-    missing,
+    sent: sent.results.filter((row) => row.status === "sent").length,
+    failed: sent.results.filter((row) => row.status === "failed").length,
+    // L2: addresses that already hold this feedback were not emailed again.
+    skipped: sent.alreadySent.length,
+    suppressed: sent.suppressed.length,
+    missing: sent.missing,
   };
 };

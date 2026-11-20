@@ -8,6 +8,7 @@ import {
     getPlatformCredit,
     getSpellingAudioSettings,
     getVoiceSettings,
+    getWritingReport,
     grantTeacherCredit,
     listPlatformSchools,
     updateInboxSettings,
@@ -23,6 +24,7 @@ router.use(protect);
 router.use(superAdminOnly);
 
 router.get('/', getPlatformCredit);
+router.get('/writing-report', getWritingReport);
 router.patch('/settings', updatePlatformMarkup);
 router.get('/voice-settings', getVoiceSettings);
 router.patch('/voice-settings', updateVoiceSettings);

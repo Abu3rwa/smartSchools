@@ -19,13 +19,17 @@ export const getBehaviorRoster = asyncHandler(async (req, res) => {
 });
 
 export const getBehaviorEntries = asyncHandler(async (req, res) => {
-    const { range, student, severity, limit } = req.query;
+    const { range, student, severity, limit, offset, followUp, review, classId } = req.query;
     const data = await listEntries({
         req,
         range: range || 'all',
         studentId: student || null,
         severity: severity || null,
-        limit: limit || 50
+        limit: limit || 50,
+        offset: offset || 0,
+        followUp: followUp === 'true',
+        review: review === 'true',
+        classId
     });
     res.status(200).json({ success: true, data });
 });

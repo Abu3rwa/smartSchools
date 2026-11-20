@@ -2,9 +2,13 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // trust proxy is set in server.js so req.ip already resolves the real client IP;
 // ipKeyGenerator handles IPv6 normalisation required by express-rate-limit v7+.
-const userKeyGenerator = (req, res) => {
+// It expects an IP *string*: passing the request object made every request a new
+// bucket and silently disabled every limiter that fell back to it.
+export const clientKey = (req) => ipKeyGenerator(req.ip);
+
+const userKeyGenerator = (req) => {
     if (req.user?._id) return `user:${req.user._id}`;
-    return ipKeyGenerator(req, res);
+    return clientKey(req);
 };
 
 /**
@@ -181,7 +185,7 @@ export const emailSendRateLimiter = rateLimit({
 export const supportCodeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
-    keyGenerator: (req, res) => ipKeyGenerator(req, res),
+    keyGenerator: clientKey,
     message: {
         success: false,
         code: 'SUPPORT_CODE_RATE_LIMITED',
@@ -198,7 +202,7 @@ export const supportCodeLimiter = rateLimit({
 export const supportAccessLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 240,
-    keyGenerator: (req, res) => ipKeyGenerator(req, res),
+    keyGenerator: clientKey,
     message: {
         success: false,
         code: 'RATE_LIMITED',

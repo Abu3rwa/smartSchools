@@ -1,0 +1,62 @@
+.bl-workspace, .bl-dialog { color: var(--text-primary, #20252b); font-size: 14px; }
+.bl-workspace { max-width: 1200px; margin-inline: auto; }
+.bl-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-block-end: 16px; }
+.bl-header h1 { font-size: 25px; line-height: 1.2; margin: 0; letter-spacing: -.5px; }
+.bl-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bl-workspace button, .bl-dialog button { min-height: 44px; padding: 9px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border-color, #d8dde2); border-radius: 9px; background: var(--bg-card, white); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.bl-workspace button:disabled, .bl-dialog button:disabled { cursor: not-allowed; opacity: .55; }
+.bl-workspace .bl-primary, .bl-dialog .bl-primary { background: var(--primary-color, #f5be42); color: #282116; border-color: transparent; }
+.bl-workspace :focus-visible, .bl-dialog :focus-visible { outline: 3px solid #b57a0a; outline-offset: 3px; }
+.bl-filters { display: grid; grid-template-columns: 1fr 1.3fr .9fr 1.1fr .9fr; gap: 10px; margin-block-end: 14px; }
+.bl-workspace label, .bl-dialog label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; min-width: 0; }
+.bl-workspace select, .bl-dialog select, .bl-dialog input, .bl-dialog textarea { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; border: 1px solid var(--border-color, #ccd2d9); border-radius: 8px; padding: 10px; color: var(--text-primary, #20252b); background: var(--bg-card, #fff); font: inherit; font-size: 14px; }
+.bl-dialog textarea { resize: vertical; line-height: 1.65; }
+.bl-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border-color, #d8dde2); border-radius: 12px; overflow: hidden; background: var(--bg-card, #fff); }
+.bl-list li + li { border-top: 1px solid var(--border-color, #d8dde2); }
+.bl-workspace .bl-record { width: 100%; display: grid; grid-template-columns: minmax(140px, 1.1fr) minmax(160px, 2fr) minmax(120px, 1fr) 65px; gap: 16px; text-align: start; padding: 16px; border: none; border-radius: 0; align-items: center; font-weight: 400; }
+.bl-record:hover { background: var(--bg-secondary, #f6f7f8); }
+.bl-record-person, .bl-record-status { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.bl-record strong { display: block; font-size: 14px; }
+.bl-record small, .bl-muted, .bl-record time { color: var(--text-secondary, #59636f); font-size: 12px; }
+.bl-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.65; font-size: 13px; color: var(--text-secondary, #59636f); margin-block-start: 4px; overflow-wrap: anywhere; }
+.bl-badge { display: inline-block; width: fit-content; font-size: 12px; font-weight: 650; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color, #d8dde2); }
+.bl-minor { background: #f0f4f6; color: #354452; }
+.bl-moderate { background: #fff4db; color: #735200; }
+.bl-serious { background: #ffefed; color: #a52c22; }
+.bl-notice, .bl-error { padding: 12px; border: 1px solid var(--border-color, #ccd2d9); border-inline-start: 3px solid #aa7823; border-radius: 8px; line-height: 1.6; overflow-wrap: anywhere; }
+.bl-error { border-inline-start-color: #b5372c; }
+.bl-error button { margin-inline-start: 8px; }
+.bl-empty { padding: 45px 16px; text-align: center; border: 1px dashed var(--border-color, #ccd2d9); border-radius: 12px; }
+.bl-dialog { margin: auto; border: 1px solid var(--border-color, #ccd2d9); border-radius: 16px; padding: 0; width: min(680px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow: auto; background: var(--bg-card, white); box-shadow: 0 24px 70px #0003; }
+.bl-dialog::backdrop { background: #14203288; }
+.bl-dialog > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border-color, #d8dde2); position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 1; }
+.bl-dialog h2 { font-size: 20px; margin: 0; overflow-wrap: anywhere; }
+.bl-dialog h3 { font-size: 16px; margin: 4px 0 10px; }
+.bl-form { display: flex; flex-direction: column; gap: 14px; }
+.bl-dialog > .bl-form { padding: 20px; }
+.bl-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bl-dialog .bl-check { flex-direction: row; align-items: center; }
+.bl-check input { width: 20px; min-height: 20px; }
+.bl-description, .bl-suggestion p { white-space: pre-wrap; line-height: 1.7; overflow-wrap: anywhere; margin: 0; }
+.bl-description-tools { display: flex; flex-direction: column; gap: 12px; }
+.bl-description-tools small { color: var(--text-secondary, #59636f); line-height: 1.6; }
+.bl-suggestion { border: 1px solid var(--border-color, #d8dde2); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.bl-dialog details { border-top: 1px solid var(--border-color, #d8dde2); padding-block-start: 12px; }
+.bl-dialog summary { cursor: pointer; min-height: 44px; line-height: 1.6; font-weight: 650; }
+.bl-dialog section { display: flex; flex-direction: column; gap: 10px; }
+.bl-dialog p { line-height: 1.65; }
+.bl-workspace > nav { padding-block: 14px; justify-content: space-between; }
+@media (max-width: 650px) {
+    .bl-header h1 { font-size: 22px; }
+    .bl-header > .bl-actions { width: 100%; }
+    .bl-header > .bl-actions button { flex: 1; font-size: 12px; padding-inline: 7px; }
+    .bl-filters { display: flex; gap: 8px; overflow-x: auto; padding-block-end: 8px; }
+    .bl-filters label { flex: 0 0 140px; }
+    .bl-workspace .bl-record { grid-template-columns: 1fr auto; padding: 13px; gap: 9px; }
+    .bl-record > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+    .bl-record-status { grid-column: 1 / -1; grid-row: 3; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .bl-record time { grid-column: 2; grid-row: 1; }
+    .bl-dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; border: none; }
+    .bl-dialog > header, .bl-dialog > .bl-form { padding: 14px; }
+    .bl-fields { grid-template-columns: 1fr; }
+}

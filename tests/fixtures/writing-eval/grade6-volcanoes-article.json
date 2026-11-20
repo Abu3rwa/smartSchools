@@ -1,0 +1,89 @@
+{
+  "id": "grade6-volcanoes-article",
+  "source": "synthetic",
+  "note": "Grade 6 informative article at the expected level: four sections, one metaphor, one unsupported claim.",
+  "language": "en",
+  "assignment": {
+    "title": "How does a volcano work?",
+    "writingType": "informative",
+    "topic": "Volcanoes",
+    "instructions": "Explain how a volcano works in four short paragraphs. Use two facts from the lesson.",
+    "expectedLevel": "Grade 6",
+    "minWords": 100,
+    "maxWords": 350,
+    "sections": [
+      { "key": "introduction", "label": "Introduction", "kind": "introduction", "criteria": ["names the topic"], "instructions": "" },
+      { "key": "body", "label": "Body", "kind": "body", "criteria": ["explains the process"], "instructions": "" },
+      { "key": "conclusion", "label": "Conclusion", "kind": "conclusion", "criteria": ["closes the explanation"], "instructions": "" }
+    ],
+    "rubric": [
+      { "key": "ideas", "label": "Ideas", "description": "Facts and explanation", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "organisation", "label": "Organisation", "description": "Order and linking", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "conventions", "label": "Conventions", "description": "Spelling and sentences", "maxScore": 5, "appliesToSections": ["*"] }
+    ]
+  },
+  "draft": {
+    "number": 1,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "A volcano is a mountain that opens like a lid. Hot rock from deep inside the earth comes out." },
+      { "key": "body", "index": 0, "label": "Body", "text": "Deep under the ground the rock is so hot that it melts and becomes magma. The magma is lighter than the rock around it, so it pushes upward through cracks." },
+      { "key": "body", "index": 1, "label": "Body", "text": "When the magma reaches the top it is called lava. The lava flows down the sides and cools. After many years the cooled lava makes the mountain taller." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "Volcanoes are dangerous but they also make new land. That is why people still study them today." }
+    ]
+  },
+  "sampleReply": {
+    "sections": [
+      {
+        "key": "introduction",
+        "index": 0,
+        "strengths": ["The lid comparison helps a reader picture the opening."],
+        "improvements": ["Add one fact from the lesson to show where the hot rock comes from."],
+        "evidence": "Hot rock from deep inside the earth comes out",
+        "why": "The task asks for two lesson facts.",
+        "nextStep": "Name the layer under the ground in one sentence.",
+        "score": 4
+      },
+      {
+        "key": "body",
+        "index": 0,
+        "strengths": ["The chain from heat to magma to cracks is clear."],
+        "improvements": ["Explain why lighter rock rises in simpler words."],
+        "evidence": "The magma is lighter than the rock around it",
+        "why": "Younger readers need the cause in plain words.",
+        "nextStep": "Add a sentence that starts with This means.",
+        "score": 3
+      },
+      {
+        "key": "body",
+        "index": 1,
+        "strengths": ["Lava and mountain growth are connected in order."],
+        "improvements": ["Say how fast lava usually flows so the danger is clear."],
+        "evidence": "The lava flows down the sides and cools",
+        "why": "One number or comparison makes the fact concrete.",
+        "nextStep": "Add the walking speed comparison from the lesson.",
+        "score": 3
+      },
+      {
+        "key": "conclusion",
+        "index": 0,
+        "strengths": ["The closing answers why the topic matters."],
+        "improvements": ["Connect the new land idea to the process you described."],
+        "evidence": "they also make new land",
+        "why": "A closing link helps the reader remember the whole explanation.",
+        "nextStep": "Add the words cooled lava to the last sentence.",
+        "score": 3
+      }
+    ],
+    "overall": {
+      "summary": "The process is easy to follow from magma to lava to new land. Next, add the two lesson facts the task asks for.",
+      "nextPriorities": ["Add one lesson fact to the first paragraph.", "Explain in plain words why magma rises."]
+    },
+    "scores": [
+      { "key": "ideas", "score": 3, "explanation": "The process is explained but the two lesson facts are missing.", "evidence": "The magma is lighter than the rock around it" },
+      { "key": "organisation", "score": 4, "explanation": "Each paragraph does one job and the order is clear.", "evidence": "When the magma reaches the top it is called lava" },
+      { "key": "conventions", "score": 3, "explanation": "Sentences read well; a few long sentences could be shorter.", "evidence": "After many years the cooled lava makes the mountain taller" }
+    ],
+    "spellingTargets": [],
+    "recommendation": { "path": "revise", "reason": "Adding the two lesson facts will finish the explanation." }
+  }
+}

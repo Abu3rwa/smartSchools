@@ -21,7 +21,7 @@ const STATUS_OPTIONS = [
 
 const emptyFilters = () => ({ status: '', behaviorType: '', from: '', to: '', flagged: '', serious: '' });
 
-const IncidentDetail = ({ incidentId, isAdmin, onClose, onChanged }) => {
+export const IncidentDetail = ({ incidentId, isAdmin, onClose, onChanged }) => {
     const { t, i18n } = useTranslation(['behaviorConsequences']);
     const [bundle, setBundle] = useState(null);
     const [audit, setAudit] = useState([]);

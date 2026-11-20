@@ -1,68 +1,96 @@
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
+import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
+
+const SETUP_STEPS = [
+    { marker: '01', titleKey: 'account', bodyKey: 'body' },
+    { marker: '02', titleKey: 'access', bodyKey: 'body' },
+    { marker: '03', titleKey: 'daily', bodyKey: 'body' },
+];
 
 /**
- * How it works — uses .landing-card-grid for equal width cards.
+ * How a school goes from registration to everyday use. The markers are step
+ * numbers, not metrics.
  */
-export default function LandingHowItWorks({ content }) {
+export default function LandingHowItWorks({ copy, onRegister }) {
     return (
-        <Box component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper' }}>
-            <Container maxWidth="lg">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1, letterSpacing: 2, fontWeight: 700 }}>
-                    {content.howItWorks.overline}
-                </Typography>
-                <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 1, fontSize: { xs: '1.75rem', md: '2.25rem' } }}>
-                    {content.howItWorks.title}
-                </Typography>
-                <Typography color="text.secondary" align="center" sx={{ maxWidth: 600, mx: 'auto', mb: 5, fontSize: '1.05rem', lineHeight: 1.7 }}>
-                    {content.howItWorks.subtitle}
+        <Box component="section" id="school-setup" className="landing-public-section">
+            <Box className="landing-public-container">
+                <Typography
+                    component="h2"
+                    id="school-setup-heading"
+                    tabIndex={-1}
+                    sx={{
+                        fontWeight: 800,
+                        fontSize: { xs: 28, sm: 30, md: 32, lg: 36 },
+                        lineHeight: { xs: 1.3, lg: 1.2 },
+                        mb: { xs: 2, md: 2.5 },
+                        outline: 'none',
+                    }}
+                >
+                    {copy.setup?.title}
                 </Typography>
 
-                <div className="landing-card-grid">
-                    {(content.howItWorks.steps || []).map(({ title, description }, index) => (
-                        <Paper
-                            key={title || index}
-                            className="landing-lift-card"
-                            variant="outlined"
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                        gap: { xs: 2, md: 3 },
+                    }}
+                >
+                    {SETUP_STEPS.map((step) => (
+                        <Box
+                            key={step.marker}
                             sx={{
-                                p: 3.5,
-                                textAlign: 'center',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                height: '100%',
-                                '&:hover': { borderColor: 'primary.main' },
+                                border: 1,
+                                borderColor: 'divider',
+                                borderRadius: { xs: '16px', md: '18px' },
+                                bgcolor: 'background.paper',
+                                p: { xs: 2, md: 3 },
+                                minWidth: 0,
                             }}
                         >
-                            <Box
+                            <Typography
+                                aria-hidden="true"
                                 sx={{
-                                    width: 52,
-                                    height: 52,
-                                    borderRadius: '50%',
-                                    background: 'var(--brand-gradient)',
-                                    color: 'white',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
                                     fontWeight: 800,
-                                    fontSize: '1.2rem',
-                                    mx: 'auto',
-                                    mb: 2,
-                                    flexShrink: 0,
-                                    boxShadow: '0 8px 24px rgba(var(--accent-primary-rgb), 0.25)',
+                                    fontSize: '0.875rem',
+                                    letterSpacing: 1.5,
+                                    color: 'primary.main',
+                                    mb: 1,
                                 }}
                             >
-                                {index + 1}
-                            </Box>
-                            <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700, lineHeight: 1.3 }}>{title}</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7, flex: 1 }}>
-                                {description}
+                                {step.marker}
                             </Typography>
-                        </Paper>
+                            <Typography variant="h3" sx={{ fontWeight: 700, fontSize: '1.0625rem', mb: 1 }}>
+                                {copy.setup?.[step.titleKey]?.title}
+                            </Typography>
+                            <Typography sx={{ fontSize: 16, lineHeight: 1.65, color: 'text.secondary' }}>
+                                {copy.setup?.[step.titleKey]?.body}
+                            </Typography>
+                        </Box>
                     ))}
-                </div>
-            </Container>
+                </Box>
+
+                <Box
+                    sx={{
+                        mt: { xs: 2.5, md: 3 },
+                        border: 1,
+                        borderColor: 'divider',
+                        borderRadius: { xs: '16px', md: '18px' },
+                        p: { xs: 2, md: 3 },
+                        bgcolor: 'background.paper',
+                    }}
+                >
+                    <Typography sx={{ fontWeight: 700, mb: 1.5 }}>{copy.setup?.registerLead}</Typography>
+                    <Button variant="contained" onClick={onRegister} sx={{ minHeight: 48, fontWeight: 600 }}>
+                        {copy.actions?.register}
+                    </Button>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                        {copy.setup?.accountNote}
+                    </Typography>
+                </Box>
+            </Box>
         </Box>
     );
 }

@@ -70,6 +70,7 @@ const supportPlanVersionSchema = new mongoose.Schema({
     generatedAt: { type: Date, default: null },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     approvedAt: { type: Date, default: null },
+    approvalNote: { type: String, trim: true, maxlength: 600, default: '' },
     publishedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     publishedAt: { type: Date, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

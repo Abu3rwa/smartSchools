@@ -186,6 +186,10 @@ export function renderTemplate(templateName, data = {}) {
     html = html.replace(regex, () => escapeHtml(value));
   }
 
+  // Raw fragments are optional sections: an unfilled {{!section}} means the
+  // caller has nothing to show there, never a placeholder in the email body.
+  html = html.replace(/\{\{![^}]+\}\}/g, '');
+
   if (FINAL_REPORT_TEMPLATE_NAMES.has(templateName)) {
     html = inlineEmailStyles(html);
   }

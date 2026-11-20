@@ -118,6 +118,23 @@ const writingProjectSchema = new mongoose.Schema(
       reason: { type: String, trim: true, default: "" },
       stageLockedTo: { type: String, enum: WRITING_STAGES },
     },
+    // Every teacher-made stage move, with the reason for a re-opened round.
+    // Publishing closes a round; reopening one is auditable (D8).
+    stageHistory: {
+      type: [
+        new mongoose.Schema(
+          {
+            from: { type: String, trim: true, default: "" },
+            to: { type: String, trim: true, default: "" },
+            at: { type: Date, default: Date.now },
+            by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            reason: { type: String, trim: true, default: "" },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );

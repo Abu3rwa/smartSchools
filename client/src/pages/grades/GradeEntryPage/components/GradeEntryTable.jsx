@@ -1,6 +1,7 @@
 import {
     HiOutlineBell,
     HiOutlineCheckCircle,
+    HiOutlineEye,
     HiOutlinePencil,
     HiOutlineSave,
     HiOutlineX
@@ -21,7 +22,9 @@ const GradeEntryTable = ({
     editMode = false,
     onCancelEdit,
     showBehaviorAction = false,
-    onOpenBehavior
+    onOpenBehavior,
+    onPreviewStudent,
+    onPreviewEmail
 }) => {
     const { t } = useTranslation(['grades']);
 
@@ -49,7 +52,7 @@ const GradeEntryTable = ({
                                     onChange={(event) => onSendNotificationsChange(event.target.checked)}
                                 />
                                 <HiOutlineBell />
-                                {t('grades:entry.table.sendParentNotifications')}
+                                {t('grades:entry.table.sendEmails', { defaultValue: 'Email parents and students when saving' })}
                             </label>
                         )}
                     </div>
@@ -75,54 +78,76 @@ const GradeEntryTable = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {classStudents.map((student, index) => (
-                                <tr key={student._id}>
-                                    <td className="row-number">{index + 1}</td>
-                                    <td>
-                                        <div className="student-cell">
-                                            <div className="avatar-sm">
-                                                {student.firstName?.charAt(0)}
-                                                {student.lastName?.charAt(0)}
-                                            </div>
-                                            <span>{student.firstName} {student.lastName}</span>
-                                        </div>
-                                    </td>
-                                    <td className="text-muted font-mono">{student.studentId}</td>
-                                    <td>
-                                        <input
-                                            type="number"
-                                            className="marks-input"
-                                            value={grades[student._id]?.marks ?? ''}
-                                            onChange={(event) => onGradeChange(student._id, 'marks', event.target.value)}
-                                            min={0}
-                                            max={maxMarks}
-                                            step={0.01}
-                                            placeholder="-"
-                                        />
-                                    </td>
-                                    {showBehaviorAction && (
+                            {classStudents.map((student, index) => {
+                                const markValue = grades[student._id]?.marks;
+                                const numericMark = Number(markValue);
+                                const hasMark = markValue !== '' && markValue !== undefined;
+                                const previewValid = hasMark && markValue !== null
+                                    && Number.isFinite(numericMark) && numericMark >= 0 && numericMark <= maxMarks;
+
+                                return (
+                                    <tr key={student._id}>
+                                        <td className="row-number">{index + 1}</td>
                                         <td>
-                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => onOpenBehavior(student)}>
-                                                Score behavior
-                                            </button>
+                                            <div className="student-cell">
+                                                <div className="avatar-sm">
+                                                    {student.firstName?.charAt(0)}
+                                                    {student.lastName?.charAt(0)}
+                                                </div>
+                                                <span>{student.firstName} {student.lastName}</span>
+                                            </div>
                                         </td>
-                                    )}
-                                    <td>
-                                        <input
-                                            type="text"
-                                            className="remarks-input"
-                                            value={grades[student._id]?.remarks || ''}
-                                            onChange={(event) => onGradeChange(student._id, 'remarks', event.target.value)}
-                                            placeholder={t('grades:entry.table.optional')}
-                                        />
-                                    </td>
-                                    <td>
-                                        {grades[student._id]?.marks !== '' && grades[student._id]?.marks !== undefined && (
-                                            <HiOutlineCheckCircle className="status-icon success" size={20} />
+                                        <td className="text-muted font-mono">{student.studentId}</td>
+                                        <td>
+                                            <input
+                                                type="number"
+                                                className="marks-input"
+                                                value={grades[student._id]?.marks ?? ''}
+                                                onChange={(event) => onGradeChange(student._id, 'marks', event.target.value)}
+                                                min={0}
+                                                max={maxMarks}
+                                                step={0.01}
+                                                placeholder="-"
+                                            />
+                                        </td>
+                                        {showBehaviorAction && (
+                                            <td>
+                                                <button type="button" className="btn btn-outline btn-sm" onClick={() => onOpenBehavior(student)}>
+                                                    Score behavior
+                                                </button>
+                                            </td>
                                         )}
-                                    </td>
-                                </tr>
-                            ))}
+                                        <td>
+                                            <input
+                                                type="text"
+                                                className="remarks-input"
+                                                value={grades[student._id]?.remarks || ''}
+                                                onChange={(event) => onGradeChange(student._id, 'remarks', event.target.value)}
+                                                placeholder={t('grades:entry.table.optional')}
+                                            />
+                                        </td>
+                                        <td>
+                                            <div className="status-cell">
+                                                {hasMark && <HiOutlineCheckCircle className="status-icon success" size={20} />}
+                                                {onPreviewStudent && (
+                                                    <button
+                                                        type="button"
+                                                        className="row-preview-icon"
+                                                        onClick={() => onPreviewStudent(student)}
+                                                        disabled={!previewValid}
+                                                        aria-label={t('grades:entry.preview.rowLabel', { name: `${student.firstName} ${student.lastName}` })}
+                                                        title={previewValid
+                                                            ? t('grades:entry.lesson.previewEmail', { defaultValue: 'Preview email' })
+                                                            : t('grades:entry.preview.needsMark', { defaultValue: 'Enter a valid mark to preview this email' })}
+                                                    >
+                                                        <HiOutlineEye aria-hidden="true" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -131,7 +156,18 @@ const GradeEntryTable = ({
                     <div className="entry-summary">
                         <span>{t('grades:entry.table.summary', { entered: enteredCount, total: classStudents.length })}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="card-footer-actions">
+                        {onPreviewEmail && (
+                            <button
+                                type="button"
+                                className="btn btn-outline btn-lg"
+                                onClick={onPreviewEmail}
+                                disabled={enteredCount === 0}
+                            >
+                                <HiOutlineEye size={20} />
+                                {t('grades:entry.lesson.previewEmail', { defaultValue: 'Preview email' })}
+                            </button>
+                        )}
                         {editMode && (
                             <button type="button" className="btn btn-secondary btn-lg" onClick={onCancelEdit} disabled={submitting}>
                                 <HiOutlineX size={20} />

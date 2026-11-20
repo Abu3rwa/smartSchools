@@ -240,6 +240,8 @@ export default function WritingWorkspacePage() {
   };
 
   const blocked = project.canSubmit && project.canSubmit.allowed === false;
+  const awaitingTeacher =
+    project.stage === "submitted" || project.stage === "feedback_ready";
 
   const stillToWrite = [
     ...readiness.missingRequired,
@@ -326,7 +328,7 @@ export default function WritingWorkspacePage() {
         <p className="ws-instructions">{assignment.instructions}</p>
       )}
 
-      {project.stage === "submitted" || project.stage === "feedback_ready" ? (
+      {awaitingTeacher ? (
         <div className="ws-notice is-action">
           <span>
             {t("writing:student.teacherReviewing", {
@@ -368,10 +370,18 @@ export default function WritingWorkspacePage() {
         </p>
       ) : null}
 
+      {/* A draft with nothing published shows why the feedback card is absent. */}
+      {viewedDraft && !viewedAssessment && !awaitingTeacher && (
+        <p className="ws-notice">
+          {t("writing:student.noFeedbackYet", { n: viewedDraft.number })}
+        </p>
+      )}
+
       {/* Reading a draft shows that draft's own feedback, never the newest draft's. */}
       <FeedbackCard
         draftNumber={viewedDraft?.number || latestDraft?.number || 1}
         feedback={viewedDraft ? viewedAssessment : feedback}
+        marks={data.marksMode}
         pasteAttempts={(viewedDraft || latestDraft)?.pasteAttempts}
         onReadDraft={
           !viewedDraft && latestDraft ? () => setPicked(latestDraft.id) : null
@@ -473,6 +483,7 @@ export default function WritingWorkspacePage() {
                         : definition.label
                     }
                     note={noteForSlot(feedback, section)}
+                    draftNumber={latestDraft?.number || null}
                     onChange={handleSectionChange}
                     onFocus={handleSectionFocus}
                     registerEditor={registerEditor}

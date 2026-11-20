@@ -14,6 +14,8 @@ export const SUPPORT_SETTINGS_DEFAULTS = Object.freeze({
     maxSurveyLength: 10,
     reminderDays: 3,
     reminderCount: 2,
+    acknowledgmentDays: 2,
+    escalationBackup: null,
     autoSuggestions: false,
     aiPlanDrafts: true,
     suggestionWindowDays: 45,
@@ -25,6 +27,7 @@ export const SUPPORT_SETTINGS_DEFAULTS = Object.freeze({
         invitation: true,
         reminder: true,
         reminderEscalation: true,
+        acknowledgmentEscalation: true,
         planPublished: true,
         closure: true,
     },
@@ -41,6 +44,7 @@ const notificationSettingsSchema = new mongoose.Schema({
     invitation: { type: Boolean, default: true },
     reminder: { type: Boolean, default: true },
     reminderEscalation: { type: Boolean, default: true },
+    acknowledgmentEscalation: { type: Boolean, default: true },
     planPublished: { type: Boolean, default: true },
     closure: { type: Boolean, default: true },
 }, { _id: false });
@@ -83,6 +87,10 @@ const supportSettingsSchema = new mongoose.Schema({
     maxSurveyLength: { type: Number, default: SUPPORT_SETTINGS_DEFAULTS.maxSurveyLength, min: 1, max: 20 },
     reminderDays: { type: Number, default: SUPPORT_SETTINGS_DEFAULTS.reminderDays, min: 1, max: 30 },
     reminderCount: { type: Number, default: SUPPORT_SETTINGS_DEFAULTS.reminderCount, min: 0, max: 5 },
+    // Q12: school working days a case may sit before its owner must acknowledge it.
+    acknowledgmentDays: { type: Number, default: SUPPORT_SETTINGS_DEFAULTS.acknowledgmentDays, min: 1, max: 10 },
+    // Named staff member who absorbs acknowledgment escalations; falls back to admins.
+    escalationBackup: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     autoSuggestions: { type: Boolean, default: SUPPORT_SETTINGS_DEFAULTS.autoSuggestions },
     aiPlanDrafts: { type: Boolean, default: SUPPORT_SETTINGS_DEFAULTS.aiPlanDrafts },
     suggestionWindowDays: { type: Number, default: SUPPORT_SETTINGS_DEFAULTS.suggestionWindowDays, min: 7, max: 180 },

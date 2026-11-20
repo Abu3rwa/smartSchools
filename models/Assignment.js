@@ -170,6 +170,13 @@ const assignmentSchema = new mongoose.Schema(
                 size: { type: Number, default: 0 },
                 webViewLink: { type: String, trim: true, default: '' },
                 iconLink: { type: String, trim: true, default: '' },
+                // 'private' sources are teacher-only (AI material, answer keys).
+                // Rows saved before this field existed are student-facing.
+                visibility: {
+                    type: String,
+                    enum: ['students', 'private'],
+                    default: 'students'
+                },
                 uploadedAt: { type: Date, default: Date.now }
             }
         ],

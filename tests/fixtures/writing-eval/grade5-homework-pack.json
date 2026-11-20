@@ -1,0 +1,103 @@
+{
+  "id": "grade5-homework-pack",
+  "source": "synthetic",
+  "note": "A persuasive draft judged against a lesson-facts pack: one fact is already used in the draft, the reply cites an unused one by id, and the counterargument names the other side.",
+  "language": "en",
+  "assignment": {
+    "title": "Should students have less homework?",
+    "writingType": "essay",
+    "topic": "Homework",
+    "instructions": "Write an opinion about homework. Give one reason with an example and answer the other side.",
+    "expectedLevel": "Grade 5",
+    "minWords": 50,
+    "maxWords": 250,
+    "sections": [
+      { "key": "introduction", "label": "Introduction", "kind": "introduction", "criteria": ["states an opinion"], "instructions": "" },
+      { "key": "body", "label": "Body", "kind": "body", "criteria": ["gives a reason", "gives an example"], "instructions": "" },
+      { "key": "counterargument", "label": "Counterargument", "kind": "counterargument", "criteria": ["names the other side", "answers it"], "instructions": "" },
+      { "key": "conclusion", "label": "Conclusion", "kind": "conclusion", "criteria": ["restates the opinion"], "instructions": "" }
+    ],
+    "rubric": [
+      { "key": "ideas", "label": "Ideas", "description": "Opinion, reasons and support", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "organisation", "label": "Organisation", "description": "Order and linking", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "conventions", "label": "Conventions", "description": "Spelling and sentences", "maxScore": 5, "appliesToSections": ["*"] }
+    ]
+  },
+  "pack": {
+    "title": "Homework research notes",
+    "version": 1,
+    "facts": [
+      { "id": "f1", "text": "Finland gives students about thirty minutes of homework a night." },
+      { "id": "f2", "text": "Students who sleep nine hours remember more in class." },
+      { "id": "f3", "text": "Short quizzes at the end of a lesson help students remember more." }
+    ]
+  },
+  "draft": {
+    "number": 1,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "I think we should have less homework every night. We work hard at school all day." },
+      { "key": "body", "index": 0, "label": "Body", "text": "First, some countries give very little homework. In Finland students have about thirty minutes of homework a night. That gives them time to rest and play." },
+      { "key": "counterargument", "index": 0, "label": "Counterargument", "text": "Some people think homework teaches us to manage our time. But I disagree because children need free time after school to play." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "For these reasons, I think we should get less homework each night." }
+    ]
+  },
+  "sampleReply": {
+    "sections": [
+      {
+        "key": "introduction",
+        "index": 0,
+        "strengths": ["Your opinion is clear in the first sentence."],
+        "improvements": ["Say how much less homework you want, like one page instead of two."],
+        "evidence": "I think we should have less homework every night",
+        "why": "A clear opinion tells the reader what you will prove.",
+        "nextStep": "Add one short sentence that names the amount you want.",
+        "factId": "",
+        "score": 3
+      },
+      {
+        "key": "body",
+        "index": 0,
+        "strengths": ["The Finland example backs up your reason."],
+        "improvements": ["Explain why thirty minutes is better than more."],
+        "evidence": "In Finland students have about thirty minutes of homework a night",
+        "why": "An example is easier to trust when you say what it shows.",
+        "nextStep": "Add one sentence after rest and play and start it with This shows.",
+        "factId": "f2",
+        "score": 3
+      },
+      {
+        "key": "counterargument",
+        "index": 0,
+        "strengths": ["You name the other side and answer it in the next sentence."],
+        "improvements": ["Give one small detail about your time after school."],
+        "evidence": "Some people think homework teaches us to manage our time",
+        "why": "A fair answer to the other side makes your argument stronger.",
+        "nextStep": "Name one thing you would do with that free time.",
+        "factId": "",
+        "score": 3
+      },
+      {
+        "key": "conclusion",
+        "index": 0,
+        "strengths": ["The last sentence brings your opinion back."],
+        "improvements": ["Repeat your best reason in the closing sentence."],
+        "evidence": "I think we should get less homework each night",
+        "why": "A closing that repeats the main reason stays in the reader's mind.",
+        "nextStep": "Add because and your best reason at the end.",
+        "factId": "",
+        "score": 3
+      }
+    ],
+    "overall": {
+      "summary": "You gave a clear opinion and one country example. You also answered the other side. Next, explain how your example proves your reason.",
+      "nextPriorities": ["Explain the Finland example after you give it.", "Add one detail about free time after school."]
+    },
+    "scores": [
+      { "key": "ideas", "score": 3, "explanation": "The opinion and example are clear; the link between them is not said yet.", "evidence": "In Finland students have about thirty minutes of homework a night" },
+      { "key": "organisation", "score": 3, "explanation": "First and But order the ideas well.", "evidence": "But I disagree because children need free time after school to play" },
+      { "key": "conventions", "score": 3, "explanation": "Sentences are short and clear, and words are spelled well.", "evidence": "For these reasons, I think we should get less homework each night" }
+    ],
+    "spellingTargets": [],
+    "recommendation": { "path": "revise", "reason": "One sentence explaining the example will make the reason easy to follow." }
+  }
+}

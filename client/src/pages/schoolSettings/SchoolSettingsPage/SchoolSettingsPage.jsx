@@ -44,15 +44,14 @@ const SchoolSettingsPage = () => {
     setDeptFormData,
     users,
     usersLoading,
+    usersError,
+    reloadUsers,
     userModalState,
     handleEditUser,
-    handleUserSubmit,
-    handleCloseUserModal,
-    handlePermissionToggle,
-    setUserFormData,
     currentAcademicYear,
     academicYearSaving,
     academicYears,
+    academicPeriod,
     fromYear,
     setFromYear,
     toYear,
@@ -83,6 +82,9 @@ const SchoolSettingsPage = () => {
     schoolInfo,
     brandingLoading,
     communicationSettings,
+    writingFeedbackSettings,
+    handleWritingFeedbackMarksModeChange,
+    handleSaveWritingFeedbackSettings,
     admissionsPromotionSettings,
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
@@ -175,21 +177,11 @@ const SchoolSettingsPage = () => {
             <UsersTab
               users={users}
               loading={usersLoading}
+              error={usersError}
+              onRetry={reloadUsers}
               onEdit={handleEditUser}
               showOpenFullPageAction
-              modal={(
-                <UserRoleModal
-                  open={userModalState.open}
-                  editingUser={userModalState.editingUser}
-                  formData={userModalState.userFormData}
-                  departments={departments}
-                  onChange={setUserFormData}
-                  onPermissionToggle={handlePermissionToggle}
-                  onSubmit={handleUserSubmit}
-                  onClose={handleCloseUserModal}
-                  submitting={userModalState.submittingUser}
-                />
-              )}
+              modal={<UserRoleModal state={userModalState} />}
             />
           )}
 
@@ -244,6 +236,9 @@ const SchoolSettingsPage = () => {
               onSaveAttendanceReminderSettings={handleSaveAttendanceReminderSettings}
               onTeacherEmailDomainChange={handleTeacherEmailDomainChange}
               onSaveTeacherEmailDomain={handleSaveTeacherEmailDomain}
+              writingFeedbackSettings={writingFeedbackSettings}
+              onWritingFeedbackMarksModeChange={handleWritingFeedbackMarksModeChange}
+              onSaveWritingFeedbackSettings={handleSaveWritingFeedbackSettings}
             />
           )}
 
@@ -295,6 +290,7 @@ const SchoolSettingsPage = () => {
           {activeTab === 'schoolyear' && canManageSchoolSettings && (
             <SchoolYearTab
               academicYears={academicYears}
+              academicPeriod={academicPeriod}
               fromYear={fromYear}
               toYear={toYear}
               setFromYear={setFromYear}

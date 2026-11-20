@@ -24,6 +24,27 @@ test('assignment reminder includes external links as plain text and structured l
     ]);
 });
 
+test('assignment reminders never send an AI-only Drive file to families', () => {
+    const result = buildAssignmentReminderContent({
+        reminderText: 'Reminder.',
+        assignment: {
+            driveAttachments: [
+                { fileId: 'd1', fileName: 'Worksheet.pdf', webViewLink: 'https://drive.google.com/file/d/d1/view' },
+                {
+                    fileId: 'd2',
+                    fileName: 'Answer key.pdf',
+                    webViewLink: 'https://drive.google.com/file/d/d2/view',
+                    visibility: 'private'
+                }
+            ]
+        }
+    });
+
+    assert.deepEqual(result.links, [
+        { title: 'Worksheet.pdf', url: 'https://drive.google.com/file/d/d1/view' }
+    ]);
+});
+
 test('assignment reminder omits unsupported and credentialed URLs', () => {
     const result = buildAssignmentReminderContent({
         reminderText: 'Reminder.',

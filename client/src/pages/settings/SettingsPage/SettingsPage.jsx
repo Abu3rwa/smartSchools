@@ -65,13 +65,15 @@ const SettingsPage = () => {
                 <div className="settings-col">
                     <AppearanceCard theme={theme} onThemeChange={handleThemeChange} />
                 </div>
-                <div className="settings-col">
-                    <AcademicYearCard
-                        academicYear={academicYear}
-                        isAdmin={isAdmin}
-                        onNavigateToSchoolSettings={navigateToSchoolSettings}
-                    />
-                </div>
+                {isAdmin && (
+                    <div className="settings-col">
+                        <AcademicYearCard
+                            academicYear={academicYear}
+                            isAdmin={isAdmin}
+                            onNavigateToSchoolSettings={navigateToSchoolSettings}
+                        />
+                    </div>
+                )}
                 {showsGoogleConnections && (
                     <div className="settings-col settings-col--wide">
                         <GoogleConnectionsCard />

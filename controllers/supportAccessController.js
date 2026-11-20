@@ -5,18 +5,20 @@ import {
     buildAccessHub,
     findRespondentByCode,
     loadRespondent,
+    sessionStillValid,
     signAccessToken,
     supportError,
 } from '../services/supportAccessService.js';
 import {
     findSurveyForRespondent,
     markNoConcerns,
+    reopenSurvey as reopenSurveyService,
     saveAnswers,
     skipSurvey,
     submitAnswers,
 } from '../services/supportSurveyService.js';
 import { recordCheckIn } from '../services/supportPlanService.js';
-import { loadSettings } from '../services/supportSettingsService.js';
+import { assertSupportActive, loadSettings } from '../services/supportSettingsService.js';
 import { refreshReviewStatus } from '../services/supportReviewService.js';
 import { serializeSurvey } from '../services/supportSerializers.js';
 
@@ -33,7 +35,14 @@ export const requireSupportAccess = asyncHandler(async (req, res, next) => {
     if (!token) throw supportError(401, 'ACCESS_REQUIRED', 'Enter your code to continue.');
     const decoded = (await import('../services/supportAccessService.js')).verifyAccessToken(token);
     if (!decoded) throw supportError(401, 'ACCESS_EXPIRED', 'This access has expired. Enter your code again.');
-    req.supportRespondent = await loadRespondent(decoded.supportRespondent);
+    const respondent = await loadRespondent(decoded.supportRespondent);
+    if (!sessionStillValid(decoded, respondent)) {
+        throw supportError(401, 'ACCESS_EXPIRED', 'A newer code was issued. Enter the latest code to continue.');
+    }
+    req.supportRespondent = respondent;
+    // Sliding session: every request re-signs a fresh 30-minute token. The
+    // client stores it from the exposed X-Support-Token header.
+    res.setHeader('X-Support-Token', signAccessToken(respondent));
     next();
 });
 
@@ -67,6 +76,7 @@ export const getSurvey = asyncHandler(async (req, res) => {
 });
 
 export const saveSurvey = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: respondentSchool(req) });
     const survey = await surveyForRequest(req);
     const saved = await saveAnswers({
         survey,
@@ -85,6 +95,7 @@ export const saveSurvey = asyncHandler(async (req, res) => {
 });
 
 export const submitSurvey = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: respondentSchool(req) });
     const survey = await surveyForRequest(req);
     const submitted = await submitAnswers({
         survey,
@@ -104,6 +115,7 @@ export const submitSurvey = asyncHandler(async (req, res) => {
 });
 
 export const noConcerns = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: respondentSchool(req) });
     const survey = await surveyForRequest(req);
     const saved = await markNoConcerns({ survey });
     await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
@@ -114,6 +126,7 @@ export const noConcerns = asyncHandler(async (req, res) => {
 });
 
 export const skip = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: respondentSchool(req) });
     const survey = await surveyForRequest(req);
     const saved = await skipSurvey({ survey, reason: req.body?.reason });
     await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
@@ -123,11 +136,28 @@ export const skip = asyncHandler(async (req, res) => {
     });
 });
 
+export const reopen = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: respondentSchool(req) });
+    const survey = await surveyForRequest(req);
+    const saved = await reopenSurveyService({ survey, actorKind: 'respondent' });
+    await refreshReviewStatus({ schoolId: respondentSchool(req), reviewId: survey.review });
+    res.json({
+        success: true,
+        data: {
+            id: String(saved._id),
+            status: saved.status,
+            revision: saved.revision,
+            dueDate: saved.dueDate,
+        },
+    });
+});
+
 export const checkIn = asyncHandler(async (req, res) => {
     const respondent = req.supportRespondent;
     if (respondent.kind !== 'parent' || !respondent.student) {
         throw supportError(403, 'CHECKIN_PARENT_ONLY', 'Only the family can check in on home tasks.');
     }
+    await assertSupportActive({ schoolId: respondentSchool(req) });
     if (!mongoose.isValidObjectId(req.params.planId)) {
         throw supportError(400, 'PLAN_INVALID', 'Choose a plan.');
     }

@@ -43,6 +43,15 @@ import {
 import { fillStudentTokensDeep } from "./aiPromptSafety.js";
 import { getTeacherProfile } from "../helpers/teacherScoping.js";
 import { rubricRows } from "../client/src/utils/writingRubric.js";
+import {
+  packSnapshotForAssignment,
+  resolveAssignmentPack,
+  sourcePacksEnabled,
+} from "./writingSourcePackService.js";
+import { writingMarksMode } from "./writingMarksPolicy.js";
+import { stallSuggestion } from "./writingRevisionIntelligence.js";
+import { resolveRecipients } from "./writingFeedbackEmailService.js";
+import { optedOutEmails } from "./writingEmailOptOutService.js";
 
 const badRequest = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
@@ -192,6 +201,16 @@ const normalizeWorkflow = (input = {}) => ({
   requireNotebookCheck: input.requireNotebookCheck !== false,
   autoSuggestNextStep: input.autoSuggestNextStep !== false,
 });
+
+const normalizeTaughtFocus = (input) =>
+  (Array.isArray(input) ? input : [])
+    .map((row) =>
+      String(row || "")
+        .trim()
+        .slice(0, 120),
+    )
+    .filter(Boolean)
+    .slice(0, 8);
 
 /**
  * Teachers pick a writing type and get its structure; sending explicit sections
@@ -385,6 +404,15 @@ export const createAssignment = async ({
     .filter((row) => row.student && row.text);
   assertGoalsInAudience(goals, audience.students);
 
+  // Lesson facts are an opt-in rollout; with the flag off the id is ignored
+  // rather than attached, so a stale form cannot enable the feature silently.
+  const sourcePack = sourcePacksEnabled()
+    ? await resolveAssignmentPack({
+        schoolId,
+        sourcePackId: payload.sourcePackId,
+      })
+    : null;
+
   const assignment = await WritingAssignment.create({
     school: schoolId,
     academicYear: academicYear || undefined,
@@ -416,6 +444,11 @@ export const createAssignment = async ({
     aiConstraints: String(payload.aiConstraints || DEFAULT_AI_CONSTRAINTS)
       .trim()
       .slice(0, 2000),
+    taughtFocus: normalizeTaughtFocus(payload.taughtFocus),
+    sourcePack: sourcePack || undefined,
+    exemplarText: String(payload.exemplarText || "")
+      .trim()
+      .slice(0, 6000),
   });
 
   return assignment.toObject();
@@ -483,6 +516,20 @@ export const updateAssignment = async ({
     assignment.aiConstraints = String(payload.aiConstraints || "")
       .trim()
       .slice(0, 2000);
+  if (payload.taughtFocus !== undefined)
+    assignment.taughtFocus = normalizeTaughtFocus(payload.taughtFocus);
+  if (payload.exemplarText !== undefined)
+    assignment.exemplarText = String(payload.exemplarText || "")
+      .trim()
+      .slice(0, 6000);
+  // An empty id detaches the pack; an unknown one is refused, never ignored.
+  if (payload.sourcePackId !== undefined && sourcePacksEnabled()) {
+    assignment.sourcePack =
+      (await resolveAssignmentPack({
+        schoolId,
+        sourcePackId: payload.sourcePackId,
+      })) || undefined;
+  }
   if (payload.rubric !== undefined && !structure)
     assignment.rubric = normalizeRubricRows(payload.rubric);
   if (structure) {
@@ -692,6 +739,33 @@ export const getAssignmentForTeacher = async ({
 };
 
 /**
+ * G8: words the teacher set aside on an earlier round sink in this assignment's
+ * support lists. Decisions are evidence on the assessment, never a mark.
+ */
+const setAsideFor = async ({ schoolId, assignment, studentId }) => {
+  const rows = await WritingAssessment.find({
+    school: schoolId,
+    assignment: assignment._id,
+    student: studentId,
+  })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .select("wordUseEvidence")
+    .lean();
+  const words = new Set();
+  for (const row of rows) {
+    for (const source of ["spelling", "vocabulary"]) {
+      for (const item of row.wordUseEvidence?.[source] || []) {
+        if (item?.teacherDecision === "rejected" && item.word) {
+          words.add(String(item.word));
+        }
+      }
+    }
+  }
+  return [...words];
+};
+
+/**
  * What one student would see for a word-support config a teacher is still
  * editing. Reads only: nothing is saved and no word record changes.
  */
@@ -743,6 +817,7 @@ export const previewWordSupport = async ({
       },
     },
     priorTargets: published[0]?.spellingTargets || [],
+    setAside: await setAsideFor({ schoolId, assignment, studentId: student }),
   });
 };
 
@@ -818,6 +893,9 @@ export const saveAsTemplate = async ({
     rubric: source.rubric,
     workflow: source.workflow,
     aiConstraints: source.aiConstraints,
+    taughtFocus: source.taughtFocus,
+    sourcePack: source.sourcePack,
+    exemplarText: source.exemplarText,
   });
   return copy.toObject();
 };
@@ -847,6 +925,7 @@ export const instantiateTemplate = async ({
       rubric: template.rubric,
       supports: template.supports,
       workflow: template.workflow,
+      sourcePackId: payload.sourcePackId || template.sourcePack || undefined,
       goals: payload.goals || [],
       isTemplate: false,
     },
@@ -877,11 +956,16 @@ const resolveWordSupportSnapshot = async ({
     .sort({ createdAt: -1 })
     .select("spellingTargets")
     .lean();
+  const draftText = (project.autosave?.sections || [])
+    .map((row) => row.text)
+    .join("\n");
   return resolveWritingWordSupport({
     schoolId,
     studentId,
     assignment,
     priorTargets: prior?.spellingTargets || [],
+    draftText,
+    setAside: await setAsideFor({ schoolId, assignment, studentId }),
   });
 };
 
@@ -1019,7 +1103,7 @@ export const recordPasteAttempt = async ({
   };
 
   await WritingProject.updateOne(
-    { school: schoolId, _id: id },
+    { school: schoolId, _id: id, student: studentId },
     {
       $push: {
         pasteAttempts: { $each: [attempt], $slice: -MAX_PASTE_ATTEMPTS },
@@ -1100,9 +1184,11 @@ export const submitDraft = async ({
 
   // The counter alone can be stale after a failed submit; the stored drafts are
   // the truth, and a number already taken would be rejected by the unique index.
+  // A withdrawn draft gives its number back, so it is not counted here (F13).
   const highest = await WritingDraft.findOne({
     school: schoolId,
     project: project._id,
+    withdrawn: { $ne: true },
   })
     .sort({ number: -1 })
     .select("number")
@@ -1113,6 +1199,12 @@ export const submitDraft = async ({
       Number(highest?.number) || 0,
     ) + 1;
   const draftSections = buildDraftSections({ assignment, sections: working });
+  // The lesson facts are frozen with the draft: editing the pack later must not
+  // change how already-submitted writing is judged (B7).
+  const packSnapshot = await packSnapshotForAssignment({
+    schoolId,
+    assignment,
+  });
   const draft = await WritingDraft.create({
     school: schoolId,
     project: project._id,
@@ -1135,7 +1227,11 @@ export const submitDraft = async ({
         chars,
         text,
       })),
-    configSnapshot: { ...configSnapshotFor(assignment), wordSupport },
+    configSnapshot: {
+      ...configSnapshotFor(assignment),
+      wordSupport,
+      ...(packSnapshot ? { sourcePack: packSnapshot } : {}),
+    },
   });
 
   project.draftCount = number;
@@ -1381,6 +1477,47 @@ const publishedForDraft = (assessments, draftId) =>
   (assessments || []).find((assessment) => sameId(assessment.draft, draftId)) ||
   null;
 
+/** What a child may read of a section note: no marks, no teacher-only analysis. */
+export const childSections = (sections) =>
+  (sections || []).map((row) => ({
+    key: row.key,
+    index: row.index,
+    label: row.label,
+    strengths: row.strengths || [],
+    improvements: row.improvements || [],
+    evidence: row.evidence || "",
+    why: row.why || "",
+    nextStep: row.nextStep || "",
+    mechanics: (row.mechanics || []).map((item) => ({
+      original: item.original,
+      correction: item.correction,
+      // Typed language corrections carry the verified span and reason; legacy
+      // two-field pairs stay exactly as they were stored.
+      ...(item.category
+        ? {
+            category: item.category,
+            explanation: item.explanation || "",
+            ...(Number.isInteger(item.anchor?.start) &&
+            Number.isInteger(item.anchor?.end)
+              ? { anchor: { start: item.anchor.start, end: item.anchor.end } }
+              : {}),
+          }
+        : {}),
+    })),
+    // Only the public check state; teacher-only reason codes never leave here.
+    ...(row.mechanicsReview?.status
+      ? {
+          mechanicsReview: {
+            version: Number(row.mechanicsReview.version) || 1,
+            status: row.mechanicsReview.status,
+          },
+        }
+      : {}),
+    ...(row.scaffold?.text
+      ? { scaffold: { kind: row.scaffold.kind, text: row.scaffold.text } }
+      : {}),
+  }));
+
 /**
  * Everything a student may see for one project. Only the published assessment of
  * the current draft is returned, and no unpublished AI output leaves the server.
@@ -1405,9 +1542,11 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
   if (!assignment || assignment.isActive === false)
     throw notFound("Writing task not found.");
 
+  // A returned submission is not part of the child's history (F13).
   const drafts = await WritingDraft.find({
     school: schoolId,
     project: project._id,
+    withdrawn: { $ne: true },
   })
     .select("number title sections totalWords submittedAt pasteAttempts")
     .sort({ number: 1 })
@@ -1425,6 +1564,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
     .lean();
 
   const published = assessments;
+  const marksMode = await writingMarksMode(schoolId);
   const latestPublished =
     publishedForDraft(published, project.latestDraft?._id) ||
     published[0] ||
@@ -1454,6 +1594,8 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       priorTargets:
         assessments.find((row) => row.spellingTargets?.length)
           ?.spellingTargets || [],
+      draftText: working.map((row) => row.text || "").join("\n"),
+      setAside: await setAsideFor({ schoolId, assignment, studentId }),
     }));
 
   return {
@@ -1505,11 +1647,15 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
         : "",
       kind: assessment.kind,
       publishedAt: assessment.publish?.publishedAt,
-      sections: assessment.sections,
+      sections: childSections(assessment.sections),
       overall: assessment.overall,
       // Levels, not marks: the child reads a verdict per criterion, the same
-      // one the family email and the printed sheet show (R7).
-      scores: rubricRows(assessment.scores),
+      // one the family email and the printed sheet show (R7). A criterion the
+      // school did not teach this week is not shown at all (A7).
+      scores: rubricRows(
+        (assessment.scores || []).filter((row) => !row.focusExcluded),
+        { marks: marksMode },
+      ),
       tasks: assessment.tasks,
       spellingTargets: assessment.spellingTargets,
       spellingWins: assessment.spellingWins,
@@ -1526,6 +1672,7 @@ export const getStudentProject = async ({ schoolId, projectId, studentId }) => {
       assignment,
       publishedAssessment: latestPublished,
     }),
+    marksMode,
   };
 };
 
@@ -1689,7 +1836,11 @@ export const getProjectHistory = async ({
   const id = objectId(projectId);
   if (!id) throw notFound("Writing project not found.");
   const project = await WritingProject.findOne({ school: schoolId, _id: id })
-    .populate("student", "firstName lastName studentId")
+    .populate(
+      "student",
+      "firstName lastName studentId email studentEmail parentInfo",
+    )
+    .populate("student.user", "email")
     .lean();
   if (!project) throw notFound("Writing project not found.");
 
@@ -1704,7 +1855,7 @@ export const getProjectHistory = async ({
   assertVisibleToTeacher(assignment, userId, isAdmin);
 
   const studentId = project.student?._id || project.student;
-  const [drafts, assessments, profileAssessments, spelling] =
+  const [drafts, allAssessments, profileAssessments, spelling] =
     await Promise.all([
       WritingDraft.find({ school: schoolId, project: project._id })
         .sort({ number: 1 })
@@ -1732,16 +1883,48 @@ export const getProjectHistory = async ({
         .lean(),
     ]);
 
+  // F13: a returned submission is not a round. Its draft and any assessment on
+  // it stay in the database as the record of what happened, but the review
+  // panel must never show them as the work the teacher is marking now.
+  const liveDrafts = drafts.filter((draft) => !draft.withdrawn);
+  const liveDraftIds = new Set(liveDrafts.map((draft) => String(draft._id)));
+  const assessments = allAssessments.filter(
+    (row) => !row.draft || liveDraftIds.has(String(row.draft)),
+  );
+
   const studentName =
     `${project.student?.firstName || ""} ${project.student?.lastName || ""}`.trim();
+
+  // L5: the publish panel names every address the family email can reach, and
+  // the addresses that stopped it, so no recipient is added silently.
+  const contactable = resolveRecipients({
+    student: project.student,
+    channels: { students: true, parents: true },
+  });
+  const stopped = await optedOutEmails({
+    schoolId,
+    emails: [...contactable.studentEmails, ...contactable.parentEmails],
+  });
+  const emailRecipients = {
+    student: contactable.studentEmails.filter((email) => !stopped.has(email)),
+    parents: contactable.parentEmails.filter((email) => !stopped.has(email)),
+    suppressed: [...contactable.studentEmails, ...contactable.parentEmails].filter(
+      (email) => stopped.has(email),
+    ),
+  };
 
   return {
     project: {
       ...project,
       id: String(project._id),
       // The ledger is stored with a name slot, like every other AI sentence.
+      // D2: a stalled task carries the intervention the teacher should try next.
       revisionLedger: fillStudentTokensDeep(
-        project.revisionLedger || [],
+        (project.revisionLedger || []).map((row) =>
+          row?.status === "stalled"
+            ? { ...row, suggestion: stallSuggestion(row) }
+            : row,
+        ),
         studentName,
       ),
       student: {
@@ -1754,8 +1937,12 @@ export const getProjectHistory = async ({
       assessments: profileAssessments,
       spelling,
     }),
+    // What the child will see of the rubric, so the teacher preview is not a
+    // parallel rendering with different rules (F10, C4).
+    marksMode: await writingMarksMode(schoolId),
+    emailRecipients,
     assignment,
-    drafts,
+    drafts: liveDrafts,
     assessments,
     tracker: buildTracker({
       assignment,

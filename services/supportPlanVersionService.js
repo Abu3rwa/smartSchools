@@ -221,6 +221,8 @@ const draftFromSurveys = async ({ schoolId, caseDoc, period }) => {
         status: 'submitted',
     })
         .populate('subject', 'name')
+        .populate('review', 'month academicYear')
+        .populate('cycle', 'month academicYear')
         .sort({ submittedAt: -1 })
         .lean();
 
@@ -228,7 +230,13 @@ const draftFromSurveys = async ({ schoolId, caseDoc, period }) => {
         throw supportError(400, 'NO_SURVEYS', 'Wait for at least one survey before drafting the plan.');
     }
 
-    const scores = concernScores({ surveys, reviewPeriod: period });
+    // Student voice is recorded on the case either way, but it only feeds plan
+    // scoring when the owner asked to include student evidence (Q11).
+    const scoring = caseDoc.studentEvidenceInPlan === true
+        ? surveys
+        : surveys.filter((survey) => survey.audience !== 'student');
+
+    const scores = concernScores({ surveys: scoring, reviewPeriod: period });
     const focusKeys = pickFocusConcerns(scores, 3);
     if (!focusKeys.length) {
         throw supportError(400, 'NO_SCORED_ANSWERS', 'No scored answers are available yet. Draft the plan after the surveys are submitted.');
@@ -244,7 +252,7 @@ const draftFromSurveys = async ({ schoolId, caseDoc, period }) => {
         const goal = buildGoalFromTemplate(key);
         if (!goal) return null;
         const row = scores.find((entry) => entry.key === key);
-        const attribution = concernAttribution({ surveys, concern: key });
+        const attribution = concernAttribution({ surveys: scoring, concern: key });
         return {
             ...goal,
             ...attribution,
@@ -259,7 +267,7 @@ const draftFromSurveys = async ({ schoolId, caseDoc, period }) => {
     }
 
     return {
-        surveys,
+        surveys: scoring,
         goals: goalsWithTasks({ goals, caseDoc, dueDate }),
         focusKeys,
         strengthKeys,
@@ -435,42 +443,58 @@ export const updateDraftVersion = async ({ schoolId, versionId, revision, patch 
     if (!mongoose.isValidObjectId(versionId)) {
         throw supportError(400, 'VERSION_INVALID', 'Choose a plan draft.');
     }
-    const version = await SupportPlanVersion.findOne({ _id: versionId, school: schoolId });
-    if (!version) throw supportError(404, 'VERSION_NOT_FOUND', 'That plan draft was not found.');
-    if (version.status !== 'draft') {
-        throw supportError(409, 'VERSION_NOT_DRAFT', 'Only a draft can be edited. Start a new version instead.');
-    }
-    if (Number(revision) !== Number(version.revision)) {
+    const requestedRevision = Number(revision);
+    if (!Number.isInteger(requestedRevision) || requestedRevision < 1) {
         throw supportError(409, 'REVISION_CONFLICT', 'Someone changed this draft. Reload it before saving.', {
-            currentRevision: version.revision,
+            currentRevision: null,
         });
     }
 
-    if ('headline' in patch) version.headline = cleanText(patch.headline, 200);
-    if ('headlineAr' in patch) version.headlineAr = cleanText(patch.headlineAr, 200);
-    if ('summary' in patch) version.summary = cleanText(patch.summary, 1200);
-    if ('summaryAr' in patch) version.summaryAr = cleanText(patch.summaryAr, 1200);
-    if ('studentEvidenceIncluded' in patch) version.studentEvidenceIncluded = patch.studentEvidenceIncluded === true;
-    if ('staffOnly' in patch) version.staffOnly = patch.staffOnly === true;
+    const set = {};
+    if ('headline' in patch) set.headline = cleanText(patch.headline, 200);
+    if ('headlineAr' in patch) set.headlineAr = cleanText(patch.headlineAr, 200);
+    if ('summary' in patch) set.summary = cleanText(patch.summary, 1200);
+    if ('summaryAr' in patch) set.summaryAr = cleanText(patch.summaryAr, 1200);
+    if ('studentEvidenceIncluded' in patch) set.studentEvidenceIncluded = patch.studentEvidenceIncluded === true;
+    if ('staffOnly' in patch) set.staffOnly = patch.staffOnly === true;
     if ('focusKeys' in patch) {
-        version.focusKeys = Array.isArray(patch.focusKeys)
+        set.focusKeys = Array.isArray(patch.focusKeys)
             ? patch.focusKeys.map((row) => cleanText(row, 30)).filter(Boolean).slice(0, 6)
             : [];
     }
     if ('strengthKeys' in patch) {
-        version.strengthKeys = Array.isArray(patch.strengthKeys)
+        set.strengthKeys = Array.isArray(patch.strengthKeys)
             ? patch.strengthKeys.map((row) => cleanText(row, 30)).filter(Boolean).slice(0, 6)
             : [];
     }
     if ('goals' in patch) {
         const goals = (Array.isArray(patch.goals) ? patch.goals : []).map(sanitizeGoal);
         validateGoals(goals);
-        version.goals = goals;
+        set.goals = goals;
+    }
+    if (Object.keys(set).length === 0) {
+        throw supportError(400, 'PATCH_EMPTY', 'There is nothing to change in this draft.');
     }
 
-    version.revision = (version.revision || 1) + 1;
-    await version.save();
-    return version;
+    // Compare-and-set on (status, revision): a stale save cannot overwrite a
+    // draft someone else already bumped.
+    const version = await SupportPlanVersion.findOneAndUpdate(
+        { _id: versionId, school: schoolId, status: 'draft', revision: requestedRevision },
+        { $set: set, $inc: { revision: 1 } },
+        { new: true, runValidators: true },
+    );
+    if (version) return version;
+
+    const existing = await SupportPlanVersion.findOne({ _id: versionId, school: schoolId })
+        .select('status revision')
+        .lean();
+    if (!existing) throw supportError(404, 'VERSION_NOT_FOUND', 'That plan draft was not found.');
+    if (existing.status !== 'draft') {
+        throw supportError(409, 'VERSION_NOT_DRAFT', 'Only a draft can be edited. Start a new version instead.');
+    }
+    throw supportError(409, 'REVISION_CONFLICT', 'Someone changed this draft. Reload it before saving.', {
+        currentRevision: existing.revision,
+    });
 };
 
 /* ------------------------------- approval --------------------------------- */
@@ -493,16 +517,24 @@ const isAssignedCounselor = (caseDoc, user) => {
 };
 
 export const canApproveVersion = ({ caseDoc, user, settings }) => {
-    if (isSupportAdmin(user)) return true;
     if (!user?._id) return false;
+    if (isSupportAdmin(user)) return true;
     if (settings?.approvalMode === 'admin_approve') return false;
     if (settings?.approvalMode === 'counselor_approve') {
-        return isAssignedCounselor(caseDoc, user) || isCaseOwner(caseDoc, user);
+        return isAssignedCounselor(caseDoc, user);
     }
     return isCaseOwner(caseDoc, user);
 };
 
-export const approvePlanVersion = async ({ schoolId, caseDoc, versionId, user }) => {
+// An admin stepping in for the counselor must record why, so the approval
+// trail shows who decided and on what grounds.
+export const adminApprovalNeedsNote = ({ caseDoc, user, settings }) => (
+    settings?.approvalMode === 'counselor_approve'
+    && isSupportAdmin(user)
+    && !isAssignedCounselor(caseDoc, user)
+);
+
+export const approvePlanVersion = async ({ schoolId, caseDoc, versionId, user, note = '' }) => {
     const settings = await loadSettings(schoolId);
     if (!mongoose.isValidObjectId(versionId)) {
         throw supportError(400, 'VERSION_INVALID', 'Choose a plan draft.');
@@ -516,24 +548,44 @@ export const approvePlanVersion = async ({ schoolId, caseDoc, versionId, user })
     if (!canApproveVersion({ caseDoc, user, settings })) {
         throw supportError(403, 'APPROVAL_FORBIDDEN', 'Your role cannot approve this plan.');
     }
+    const approvalNote = String(note || '').trim().slice(0, 600);
+    if (adminApprovalNeedsNote({ caseDoc, user, settings }) && !approvalNote) {
+        throw supportError(400, 'APPROVAL_NOTE_REQUIRED', 'Add a short reason for approving in place of the counselor.');
+    }
     if (!version.goals?.length) {
         throw supportError(400, 'PLAN_EMPTY', 'Add at least one goal before approving.');
     }
 
-    version.status = 'approved';
-    version.approvedBy = user?._id || null;
-    version.approvedAt = new Date();
-    await version.save();
-
-    const plan = await SupportPlan.findOne({ _id: version.plan, school: schoolId });
-    if (plan && plan.status !== 'published') {
-        plan.status = 'approved';
-        plan.approvedBy = user?._id || null;
-        plan.approvedAt = new Date();
-        plan.updatedBy = user?._id || null;
-        await plan.save();
+    const now = new Date();
+    // Conditional so two approvals racing each other cannot double-write.
+    const approved = await SupportPlanVersion.findOneAndUpdate(
+        { _id: version._id, school: schoolId, status: { $in: ['draft', 'approved'] } },
+        {
+            $set: {
+                status: 'approved',
+                approvedBy: user?._id || null,
+                approvedAt: now,
+                approvalNote,
+            },
+        },
+        { new: true, runValidators: true },
+    );
+    if (!approved) {
+        throw supportError(409, 'VERSION_NOT_APPROVABLE', 'This version can no longer be approved.');
     }
-    return version;
+
+    await SupportPlan.updateOne(
+        { _id: version.plan, school: schoolId, status: { $ne: 'published' } },
+        {
+            $set: {
+                status: 'approved',
+                approvedBy: user?._id || null,
+                approvedAt: now,
+                updatedBy: user?._id || null,
+            },
+        },
+    );
+    return approved;
 };
 
 /* ------------------------------- publishing -------------------------------- */
@@ -551,12 +603,12 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
     }
     const version = await SupportPlanVersion.findOne({ _id: versionId, school: schoolId });
     if (!version) throw supportError(404, 'VERSION_NOT_FOUND', 'That plan draft was not found.');
-
-    if (version.status === 'published') {
-        return { version, alreadyPublished: true, notified: 0 };
+    if (version.status === 'superseded') {
+        throw supportError(409, 'VERSION_SUPERSEDED', 'A newer plan has replaced this version.');
     }
+
     const ownerRelease = settings.approvalMode === 'owner_release' && version.status === 'draft';
-    if (version.status !== 'approved' && !ownerRelease) {
+    if (!['approved', 'published'].includes(version.status) && !ownerRelease) {
         throw supportError(409, 'VERSION_NOT_APPROVED', 'Approve the plan before publishing it.');
     }
     if (!canApproveVersion({ caseDoc, user, settings })) {
@@ -569,7 +621,10 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
     const plan = await SupportPlan.findOne({ _id: version.plan, school: schoolId });
     if (!plan) throw supportError(404, 'PLAN_NOT_FOUND', 'The plan document was not found.');
     const now = new Date();
+    const alreadyPublished = version.status === 'published';
 
+    // Ordered, individually idempotent steps: a crashed publish resumes on the
+    // next attempt instead of reporting success with the copy half-applied.
     await SupportPlanVersion.updateMany(
         { school: schoolId, case: caseDoc._id, _id: { $ne: version._id }, status: 'published' },
         { $set: { status: 'superseded' } },
@@ -584,12 +639,14 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
         { $set: { status: 'closed' } },
     );
 
-    version.status = 'published';
-    version.approvedBy = version.approvedBy || user?._id || null;
-    version.approvedAt = version.approvedAt || now;
-    version.publishedBy = user?._id || null;
-    version.publishedAt = now;
-    await version.save();
+    if (!alreadyPublished) {
+        version.status = 'published';
+        version.approvedBy = version.approvedBy || user?._id || null;
+        version.approvedAt = version.approvedAt || now;
+        version.publishedBy = user?._id || null;
+        version.publishedAt = now;
+        await version.save();
+    }
 
     plan.set({
         status: 'published',
@@ -606,8 +663,8 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
         sourceSurveyIds: version.sourceSurveyIds,
         approvedBy: version.approvedBy,
         approvedAt: version.approvedAt,
-        publishedBy: user?._id || null,
-        publishedAt: now,
+        publishedBy: alreadyPublished ? plan.publishedBy : (user?._id || null),
+        publishedAt: alreadyPublished ? plan.publishedAt : now,
         updatedBy: user?._id || null,
     });
     await plan.save();
@@ -625,7 +682,7 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
     );
 
     let notified = 0;
-    if (settings.integrations?.parentUpdates && settings.notifications?.planPublished && !version.staffOnly) {
+    if (!alreadyPublished && settings.integrations?.parentUpdates && settings.notifications?.planPublished && !version.staffOnly) {
         const contacts = (caseDoc.familyContacts || [])
             .filter((row) => row.active !== false && row.email)
             .map((row) => String(row.email).trim().toLowerCase());
@@ -645,10 +702,23 @@ export const publishPlanVersion = async ({ schoolId, caseDoc, versionId, user })
         }
     }
 
-    return { version, plan, alreadyPublished: false, notified };
+    return { version, plan, alreadyPublished, notified };
 };
 
 /* ------------------------------ goal outcomes ------------------------------ */
+
+// "Met" is only claimable when the goal recorded where the student started,
+// a measurable target, and a written evidence note.
+export const metOutcomeReady = (goal, note = '') => {
+    const row = goal || {};
+    return Boolean(
+        String(row.baseline || '').trim()
+        && (row.targetDate
+            || String(row.successLook || '').trim()
+            || String(row.successLookAr || '').trim())
+        && String(note || '').trim(),
+    );
+};
 
 export const setGoalOutcome = async ({ schoolId, versionId, goalId, outcome, note = '', user }) => {
     const allowed = ['met', 'partially_met', 'not_met', 'insufficient_evidence'];
@@ -665,6 +735,9 @@ export const setGoalOutcome = async ({ schoolId, versionId, goalId, outcome, not
     }
     const goal = (version.goals || []).find((row) => row.id === goalId);
     if (!goal) throw supportError(404, 'GOAL_NOT_FOUND', 'That goal is not part of this plan.');
+    if (outcome === 'met' && !metOutcomeReady(goal, note)) {
+        throw supportError(400, 'EVIDENCE_MISSING', 'To mark met, add the starting point, a target date or success picture, and an evidence note.');
+    }
     goal.outcome = outcome;
     goal.outcomeNote = String(note || '').trim().slice(0, 800);
     goal.reviewedAt = new Date();

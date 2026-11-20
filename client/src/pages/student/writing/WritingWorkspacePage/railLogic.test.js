@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { usedWordSet, wordIsUsed, wordMatches } from './railLogic.js';
+import { nearMissFor, usedWordSet, wordIsUsed, wordMatches } from './railLogic.js';
 
 test('search matches the word, base form, meaning, and Arabic gloss', () => {
   const row = {
@@ -48,4 +48,13 @@ test('a draft with no text ticks nothing', () => {
   assert.equal(usedWordSet([]).size, 0);
   assert.equal(usedWordSet([{ text: '   ' }]).size, 0);
   assert.equal(usedWordSet(null).size, 0);
+});
+
+test('G5: a nearly typed word is shown instead of silently missing', () => {
+  const used = new Set(['becaus', 'beautifull', 'because']);
+  assert.equal(nearMissFor({ word: 'because', forms: ['because'] }, used), 'becaus');
+  assert.equal(nearMissFor({ word: 'beautiful', forms: ['beautiful'] }, used), 'beautifull');
+  // A different word is not a near miss, and short words never get one.
+  assert.equal(nearMissFor({ word: 'garden' }, used), '');
+  assert.equal(nearMissFor({ word: 'cat' }, new Set(['cut'])), '');
 });

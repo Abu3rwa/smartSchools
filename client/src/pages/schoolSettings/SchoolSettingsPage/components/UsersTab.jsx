@@ -2,20 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { HiOutlineUserGroup } from 'react-icons/hi';
+import { HiOutlineAdjustmentsHorizontal, HiOutlineExclamationTriangle } from 'react-icons/hi2';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import TablePagination from '../../../../components/common/TablePagination';
 import { impersonateUser, selectCanImpersonate, selectUser } from '../../../../store/slices/authSlice';
+import { getAssignedRoles } from '../../../userManagement/userManagementUtils';
 
 const DEFAULT_PAGE_SIZE = 10;
 const ALL_FILTER = 'all';
 const IMPERSONATABLE_ROLES = new Set(['teacher', 'student']);
-
-const getAssignedRoles = (user) => {
-  const fromArray = Array.isArray(user?.roles) ? user.roles : [];
-  const fallback = user?.role ? [user.role] : [];
-  return Array.from(new Set((fromArray.length > 0 ? fromArray : fallback).filter(Boolean)));
-};
 
 const getUserDisplayName = (user) => {
   const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
@@ -33,7 +29,7 @@ const canImpersonateTargetUser = (user) => {
     .some((role) => IMPERSONATABLE_ROLES.has(role));
 };
 
-const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = false }) => {
+const UsersTab = ({ users, loading, error = null, onRetry, onEdit, modal, showOpenFullPageAction = false }) => {
   const { t } = useTranslation(['schoolSettings']);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -49,6 +45,7 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
   const [roleFilter, setRoleFilter] = useState(ALL_FILTER);
   const [statusFilter, setStatusFilter] = useState(ALL_FILTER);
   const [departmentFilter, setDepartmentFilter] = useState(ALL_FILTER);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const getRoleLabel = (role = '') =>
     t(`schoolSettings:roles.${String(role).toLowerCase()}`, { defaultValue: role });
@@ -113,6 +110,11 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
     statusFilter !== ALL_FILTER ||
     departmentFilter !== ALL_FILTER;
 
+  const activeFilterCount =
+    (roleFilter !== ALL_FILTER ? 1 : 0) +
+    (statusFilter !== ALL_FILTER ? 1 : 0) +
+    (departmentFilter !== ALL_FILTER ? 1 : 0);
+
   const clearFilters = () => {
     setSearchQuery('');
     setRoleFilter(ALL_FILTER);
@@ -135,7 +137,11 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
     const displayName = getUserDisplayName(user);
     const confirmed = window.confirm(
       isReadOnlyPreview
-        ? `Start a 30-minute, read-only support preview of ${displayName} as ${user.role}? Changes will be blocked and the preview will be recorded in the audit log.`
+        ? t('schoolSettings:confirm.supportPreview', {
+          defaultValue: 'Start a 30-minute, read-only support preview of {{name}} as {{role}}? Changes will be blocked and the preview will be recorded in the audit log.',
+          name: displayName,
+          role: getRoleLabel(user.role)
+        })
         : t('schoolSettings:confirm.impersonateUser', {
           defaultValue: 'Are you sure you want to impersonate {{name}}?',
           name: displayName
@@ -177,6 +183,18 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
         <div className="loading-container">
           <div className="spinner"></div>
         </div>
+      ) : error ? (
+        <div className="users-table-wrap card">
+          <div className="empty-state users-load-error" role="alert">
+            <HiOutlineExclamationTriangle size={40} />
+            <p>{error.message || t('schoolSettings:toast.loadUsersFailed')}</p>
+            {onRetry && (
+              <button type="button" className="btn btn-primary" onClick={onRetry}>
+                {t('schoolSettings:users.errors.retry', { defaultValue: 'Try again' })}
+              </button>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="users-table-wrap card">
           {users.length > 0 && (
@@ -208,7 +226,24 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                   />
                 </div>
 
-                <div className="users-filters-grid">
+                <button
+                  type="button"
+                  className="btn btn-secondary users-filters-toggle"
+                  aria-expanded={filtersOpen}
+                  aria-controls="school-settings-users-filters"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                >
+                  <HiOutlineAdjustmentsHorizontal size={16} aria-hidden="true" />
+                  {t('schoolSettings:users.filters.toggle', { defaultValue: 'Filters' })}
+                  {activeFilterCount > 0 && (
+                    <span className="users-filters-count" aria-hidden="true">{activeFilterCount}</span>
+                  )}
+                </button>
+
+                <div
+                  id="school-settings-users-filters"
+                  className={`users-filters-grid${filtersOpen ? '' : ' is-collapsed'}`}
+                >
                   <div className="users-filter-field">
                     <label htmlFor="school-settings-users-role-filter">
                       {t('schoolSettings:users.filters.role', { defaultValue: 'Role' })}
@@ -300,11 +335,12 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                     <thead>
                       <tr>
                         <th>{t('schoolSettings:users.table.name')}</th>
-                        <th>{t('schoolSettings:users.table.email')}</th>
                         <th>{t('schoolSettings:users.table.role')}</th>
                         <th>{t('schoolSettings:users.table.department')}</th>
                         <th>{t('schoolSettings:users.table.status', { defaultValue: 'Status' })}</th>
-                        <th></th>
+                        <th className="users-actions-header">
+                          {t('schoolSettings:users.table.actions', { defaultValue: 'Actions' })}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -314,12 +350,22 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                         const canImpersonateThisUser = canImpersonate && canPreviewTarget(user);
                         return (
                           <tr key={user._id}>
-                            <td>{user.firstName} {user.lastName}</td>
-                            <td>{user.email}</td>
+                            <td>
+                              <div className="users-name-cell">
+                                <span className="users-name-primary">{user.firstName} {user.lastName}</span>
+                                <span className="users-email-sub">{user.email}</span>
+                              </div>
+                            </td>
                             <td>
                               <div className="users-role-cell">
                                 {assignedRoles.map((role) => (
-                                  <span key={`${user._id}-${role}`} className="badge badge-primary users-role-chip">
+                                  <span
+                                    key={`${user._id}-${role}`}
+                                    className={`badge users-role-chip ${role === user.role ? 'badge-primary users-role-chip--active' : 'users-role-chip--assigned'}`}
+                                    title={role === user.role
+                                      ? t('schoolSettings:users.table.activeRoleTitle', { defaultValue: 'Active role' })
+                                      : undefined}
+                                  >
                                     {getRoleLabel(role)}
                                   </span>
                                 ))}
@@ -335,19 +381,19 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                             </td>
                             <td>
                               <div className="users-actions-cell">
+                                <button className="btn btn-sm btn-secondary" onClick={() => onEdit(user)}>
+                                  {t('schoolSettings:users.actions.editRole')}
+                                </button>
                                 {canImpersonateThisUser && (
                                   <button
                                     className="btn btn-sm btn-secondary"
                                     onClick={() => handleImpersonate(user)}
                                   >
-                                    {isReadOnlyPreview ? 'Preview as' : t('schoolSettings:users.actions.impersonate', {
-                                      defaultValue: 'Impersonate'
-                                    })}
+                                    {isReadOnlyPreview
+                                      ? t('schoolSettings:users.actions.previewAs', { defaultValue: 'Preview as' })
+                                      : t('schoolSettings:users.actions.impersonate', { defaultValue: 'Impersonate' })}
                                   </button>
                                 )}
-                                <button className="btn btn-sm btn-secondary" onClick={() => onEdit(user)}>
-                                  {t('schoolSettings:users.actions.editRole')}
-                                </button>
                               </div>
                             </td>
                           </tr>
@@ -376,7 +422,10 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                             <strong>{t('schoolSettings:users.table.role')}:</strong>
                             <div className="users-role-cell">
                               {assignedRoles.map((role) => (
-                                <span key={`${user._id}-${role}-mobile`} className="badge badge-primary users-role-chip">
+                                <span
+                                  key={`${user._id}-${role}-mobile`}
+                                  className={`badge users-role-chip ${role === user.role ? 'badge-primary users-role-chip--active' : 'users-role-chip--assigned'}`}
+                                >
                                   {getRoleLabel(role)}
                                 </span>
                               ))}
@@ -387,16 +436,16 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                             <span>{user.department?.name ?? t('schoolSettings:common.dash')}</span>
                           </div>
                           <div className="users-mobile-actions">
-                            {canImpersonateThisUser && (
-                              <button className="btn btn-secondary" onClick={() => handleImpersonate(user)}>
-                                {isReadOnlyPreview ? 'Preview as' : t('schoolSettings:users.actions.impersonate', {
-                                  defaultValue: 'Impersonate'
-                                })}
-                              </button>
-                            )}
-                            <button className="btn btn-secondary" onClick={() => onEdit(user)}>
+                            <button className="btn btn-primary" onClick={() => onEdit(user)}>
                               {t('schoolSettings:users.actions.editRole')}
                             </button>
+                            {canImpersonateThisUser && (
+                              <button className="btn btn-secondary" onClick={() => handleImpersonate(user)}>
+                                {isReadOnlyPreview
+                                  ? t('schoolSettings:users.actions.previewAs', { defaultValue: 'Preview as' })
+                                  : t('schoolSettings:users.actions.impersonate', { defaultValue: 'Impersonate' })}
+                              </button>
+                            )}
                           </div>
                         </article>
                       );

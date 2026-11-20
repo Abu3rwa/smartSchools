@@ -26,7 +26,7 @@ const useSettingsPageData = () => {
 
     const handleLogout = () => {
         dispatch(logout());
-        navigate('/');
+        navigate('/login');
     };
 
     const navigateToSchoolSettings = () => {

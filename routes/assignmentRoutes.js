@@ -17,6 +17,7 @@ import {
   sendAssignmentReminder,
   setAssignmentStudentExcuse,
   updateAssignment,
+  updateDriveAttachmentVisibility,
   uploadDriveAttachments,
 } from "../controllers/assignmentController.js";
 import { authorize, protect, requirePermission } from "../middleware/auth.js";
@@ -171,6 +172,15 @@ router.post(
   validate,
   uploadAssignmentAttachments.array("files", 5),
   uploadDriveAttachments,
+);
+
+router.patch(
+  "/:id/drive-attachments/:fileId/visibility",
+  authorize("teacher", "admin"),
+  requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+  validationRules.mongoId,
+  validate,
+  updateDriveAttachmentVisibility,
 );
 
 router.delete(

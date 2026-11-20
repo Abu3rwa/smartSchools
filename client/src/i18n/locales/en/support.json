@@ -118,6 +118,7 @@
     "save": "Create case",
     "saving": "Creating...",
     "failed": "Could not create the case.",
+    "respondentDuplicate": "One of this student's family contacts already has a survey record. Reload the page and try again.",
     "loadFailed": "Could not load the classes and students.",
     "noTeacher": "No teacher on file",
     "role": {
@@ -281,6 +282,8 @@
     "printed": "Printed",
     "markHandedOver": "Mark as handed over",
     "handedOver": "Marked as handed over",
+    "reopenSurvey": "Reopen",
+    "reopened": "Survey reopened.",
     "assist": "Record answers",
     "assistTitle": "Record answers for {{name}}",
     "assistBody": "Read each question aloud and record the answer exactly as given.",
@@ -346,7 +349,19 @@
       "insufficient_evidence": "Not enough evidence"
     },
     "published": "Plan shared with {{n}} people",
-    "alreadyLive": "This version is already shared"
+    "alreadyLive": "This version is already shared",
+    "unsaved": "Unsaved changes",
+    "unsavedConfirm": "You have unsaved changes in this draft. Leave anyway?",
+    "discard": "Discard changes",
+    "conflictBanner": "Someone else saved this draft while you were editing.",
+    "conflictKeepMine": "Keep my changes",
+    "conflictLoadTheirs": "Load the saved version",
+    "baseline": "Starting point (baseline)",
+    "baselineHint": "Where the student is now",
+    "targetDate": "Target date",
+    "metNeedsEvidence": "To mark met: add the starting point, a target date or success picture, and an evidence note.",
+    "approvalNote": "Approval note",
+    "approvalNoteHint": "Required when an admin approves in place of the counselor"
   },
   "plan": {
     "title": "Shared plan",
@@ -489,6 +504,11 @@
     "cadence": "Review rhythm (days)",
     "reminderDays": "Reminder after (days)",
     "reminderCount": "Reminders per survey",
+    "acknowledgmentDays": "Acknowledge within (school days)",
+    "acknowledgmentDaysHint": "A case the right staff have not opened by then is escalated once.",
+    "escalationBackup": "Escalation goes to",
+    "escalationBackupHint": "Without a name here, school admins receive the escalation.",
+    "escalationBackupNone": "School admins (default)",
     "surveys": "Surveys",
     "defaultSurveyLength": "Default questions per survey",
     "maxSurveyLength": "Maximum questions per survey",
@@ -507,6 +527,7 @@
       "invitation": "Survey invitations",
       "reminder": "Survey reminders",
       "reminderEscalation": "Escalation to homeroom",
+      "acknowledgmentEscalation": "Unacknowledged case alerts",
       "planPublished": "Plan shared with family",
       "closure": "Case closed"
     },
@@ -598,6 +619,15 @@
       "unknown": "Suggestions are not available right now."
     }
   },
+  "attention": {
+    "title": "Needs attention",
+    "loadFailed": "Could not load the attention list.",
+    "kind": {
+      "surveyOverdue": "Survey answer overdue",
+      "acknowledge": "Open to acknowledge",
+      "reviewOverdue": "Monthly review overdue"
+    }
+  },
   "requests": {
     "pending": "Pending",
     "emptyTitle": "No family requests",
@@ -676,10 +706,12 @@
     "state": {
       "notStarted": "Not started",
       "inProgress": "In progress",
-      "done": "Done"
+      "done": "Done",
+      "skipped": "Skipped"
     },
     "answer": "Answer",
     "continue": "Continue",
+    "reopen": "Reopen",
     "allSurveys": "All surveys",
     "position": "Student {{index}} of {{total}}",
     "sentTitle": "Survey sent",
@@ -687,7 +719,11 @@
     "nextStudent": "Next: {{name}}",
     "allDoneTitle": "All surveys answered",
     "allDoneBody": "Thank you. Nothing is waiting for you right now.",
-    "noneDone": "No finished surveys yet."
+    "noneDone": "No finished surveys yet.",
+    "skippedTitle": "Survey skipped",
+    "skippedBody": "You skipped this survey. Reopen it to answer now.",
+    "skippedBodyDue": "You skipped this survey. You can reopen it until {{date}}.",
+    "skippedBodyPast": "You skipped this survey and the due date has passed. Ask the school to reopen it."
   },
   "parent": {
     "title": "My child's support",
@@ -782,6 +818,8 @@
     "noConcernsDoneBody": "You told the team there are no concerns right now.",
     "skip": "Skip this survey",
     "skipped": "Survey skipped",
+    "reopened": "Survey reopened — you can answer it now.",
+    "reopenFailed": "Could not reopen the survey. Try again.",
     "confirmTitle": "Before you continue",
     "confirmNoConcerns": "Send a note that there are no concerns? You will not be able to answer after this.",
     "confirmSkip": "Skip this survey? You can still answer it from the school's link."

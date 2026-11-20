@@ -38,7 +38,7 @@ import {
   validateQuestionPoolDefinitions,
   DEFAULT_PREGENERATED_QUESTION_COUNT,
 } from "../services/standardAssignmentService.js";
-import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
+import standardsPracticeAIService from "../services/standardsPracticeAiService.js";
 import {
   generateGrammarQuestion,
   hasGrammarLevelingEnabled,

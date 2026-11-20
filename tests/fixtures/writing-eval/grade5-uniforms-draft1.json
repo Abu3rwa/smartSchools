@@ -1,0 +1,78 @@
+{
+  "id": "grade5-uniforms-draft1-emerging",
+  "source": "synthetic",
+  "note": "Grade 5 persuasive first draft at the emerging tier: short sentences, one repeated phrase, one reason without an example.",
+  "language": "en",
+  "assignment": {
+    "title": "Should school uniforms be required?",
+    "writingType": "persuasive",
+    "topic": "School uniforms",
+    "instructions": "Write an opinion about school uniforms. Give two reasons and one example.",
+    "expectedLevel": "Grade 5",
+    "minWords": 80,
+    "maxWords": 300,
+    "sections": [
+      { "key": "introduction", "label": "Introduction", "kind": "introduction", "criteria": ["states an opinion"], "instructions": "" },
+      { "key": "body", "label": "Body", "kind": "body", "criteria": ["gives a reason", "gives an example"], "instructions": "" },
+      { "key": "conclusion", "label": "Conclusion", "kind": "conclusion", "criteria": ["restates the opinion"], "instructions": "" }
+    ],
+    "rubric": [
+      { "key": "ideas", "label": "Ideas", "description": "Opinion and reasons", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "organisation", "label": "Organisation", "description": "Order and linking", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "conventions", "label": "Conventions", "description": "Spelling and sentences", "maxScore": 5, "appliesToSections": ["*"] }
+    ]
+  },
+  "draft": {
+    "number": 1,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "I think that school uniforms are good. I think that school uniforms are fair." },
+      { "key": "body", "index": 0, "label": "Body", "text": "First, uniforms save time in the morning. I think that everyone looks the same. This is good because nobody is judged." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "I think that uniforms are good for our school." }
+    ]
+  },
+  "sampleReply": {
+    "sections": [
+      {
+        "key": "introduction",
+        "index": 0,
+        "strengths": ["The opinion is clear from the first sentence."],
+        "improvements": ["Add one reason after your opinion so the reader knows why."],
+        "evidence": "I think that school uniforms are good",
+        "why": "The task asks for an opinion and a reason.",
+        "nextStep": "Write one sentence that says why uniforms are good.",
+        "score": 3
+      },
+      {
+        "key": "body",
+        "index": 0,
+        "strengths": ["You used First to start the reason."],
+        "improvements": ["Say how uniforms save time with one small example."],
+        "evidence": "First, uniforms save time in the morning",
+        "why": "An example lets the reader see the reason.",
+        "nextStep": "Add one sentence that starts with For example.",
+        "score": 3
+      },
+      {
+        "key": "conclusion",
+        "index": 0,
+        "strengths": ["The last sentence repeats your main idea."],
+        "improvements": ["End with one new idea about the future, not only the same opinion."],
+        "evidence": "I think that uniforms are good for our school",
+        "why": "A closing idea helps the reader remember the point.",
+        "nextStep": "Write one sentence about how uniforms help next year.",
+        "score": 3
+      }
+    ],
+    "overall": {
+      "summary": "You have a clear opinion and you used First to order your reason. Next, add one example so the reader can see it.",
+      "nextPriorities": ["Add one example about time in the morning.", "Join two short sentences with because."]
+    },
+    "scores": [
+      { "key": "ideas", "score": 3, "explanation": "One opinion is stated and one reason is given.", "evidence": "I think that school uniforms are fair" },
+      { "key": "organisation", "score": 3, "explanation": "The reason starts with First and the end repeats the opinion.", "evidence": "First, uniforms save time in the morning" },
+      { "key": "conventions", "score": 3, "explanation": "Most words are spelled well and each sentence ends clearly.", "evidence": "I think that school uniforms are good" }
+    ],
+    "spellingTargets": [],
+    "recommendation": { "path": "revise", "reason": "One short draft with an example will show the reason clearly." }
+  }
+}

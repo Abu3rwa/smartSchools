@@ -2,13 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Class from "../models/Class.js";
 import LiveLesson from "../models/LiveLesson.js";
+import LiveLessonFolder from "../models/LiveLessonFolder.js";
 import Subject from "../models/Subject.js";
-import { listLiveLessons } from "../controllers/liveLessonController.js";
+import { listLiveLessonFolders, listLiveLessons } from "../controllers/liveLessonController.js";
 
-const queryChain = (value) => ({
-  select: () => ({ lean: async () => value }),
-  lean: async () => value,
-});
+const queryChain = (value) => {
+  const chain = {
+    select: () => chain,
+    sort: () => chain,
+    lean: async () => value,
+  };
+  return chain;
+};
 
 const callList = (req) => {
   const body = {};
@@ -156,4 +161,150 @@ test("a lesson whose class no longer resolves reads as unlinked", async (t) => {
 
   const body = await callList({ query: {}, user: teacher, schoolId });
   assert.equal(body.data.lessons[0].classId, null);
+});
+
+const folderId = "507f1f77bcf86cd799439015";
+const firstLessonId = "507f1f77bcf86cd7994390aa";
+const secondLessonId = "507f1f77bcf86cd7994390bb";
+
+const sortStagesOf = (pipeline) => pipeline.filter((stage) => stage.$sort);
+
+test("a folder view matches only its shortcuts and keeps teaching order", async (t) => {
+  let pipeline;
+  const lessonIds = [secondLessonId, firstLessonId];
+  t.mock.method(LiveLessonFolder, "findOne", () =>
+    queryChain({ _id: folderId, lessonIds }));
+  t.mock.method(LiveLesson, "aggregate", (stages) => {
+    pipeline = stages;
+    return Promise.resolve([]);
+  });
+  t.mock.method(LiveLesson, "countDocuments", async (filter) =>
+    (filter._id ? 2 : 40));
+  t.mock.method(Class, "find", () => queryChain([]));
+  t.mock.method(Subject, "find", () => queryChain([]));
+
+  const body = await callList({ query: { folderId }, user: teacher, schoolId });
+  assert.deepEqual(pipeline[0].$match._id, { $in: lessonIds });
+  assert.deepEqual(pipeline[1], {
+    $addFields: { __teachingOrder: { $indexOfArray: [lessonIds, "$_id"] } },
+  });
+  assert.deepEqual(sortStagesOf(pipeline), [{ $sort: { __teachingOrder: 1, _id: 1 } }]);
+  assert.equal(
+    pipeline.find((stage) => stage.$project).$project.__teachingOrder,
+    undefined,
+  );
+  assert.deepEqual(body.data.pagination, {
+    page: 1,
+    limit: 25,
+    total: 2,
+    pages: 1,
+    libraryTotal: 40,
+  });
+});
+
+test("an unknown folder is reported instead of listing the whole library", async (t) => {
+  let aggregated = false;
+  t.mock.method(LiveLessonFolder, "findOne", () => queryChain(null));
+  t.mock.method(LiveLesson, "aggregate", () => {
+    aggregated = true;
+    return Promise.resolve([]);
+  });
+
+  const body = await callList({ query: { folderId }, user: teacher, schoolId });
+  assert.equal(body.success, false);
+  assert.equal(body.message, "Folder not found.");
+  assert.equal(aggregated, false);
+});
+
+test("the unfiled view excludes every lesson a folder already holds", async (t) => {
+  let pipeline;
+  t.mock.method(LiveLessonFolder, "find", () => queryChain([
+    { lessonIds: [firstLessonId, secondLessonId] },
+    { lessonIds: [secondLessonId] },
+  ]));
+  t.mock.method(LiveLesson, "aggregate", (stages) => {
+    pipeline = stages;
+    return Promise.resolve([]);
+  });
+  t.mock.method(LiveLesson, "countDocuments", async () => 0);
+  t.mock.method(Class, "find", () => queryChain([]));
+  t.mock.method(Subject, "find", () => queryChain([]));
+
+  await callList({ query: { unfiled: "true" }, user: teacher, schoolId });
+  assert.deepEqual(pipeline[0].$match._id, {
+    $nin: [firstLessonId, secondLessonId, secondLessonId],
+  });
+  assert.deepEqual(sortStagesOf(pipeline), [{ $sort: { updatedAt: -1, _id: -1 } }]);
+});
+
+test("search terms are matched literally across title, description and subject", async (t) => {
+  let pipeline;
+  t.mock.method(LiveLesson, "aggregate", (stages) => {
+    pipeline = stages;
+    return Promise.resolve([]);
+  });
+  t.mock.method(LiveLesson, "countDocuments", async () => 0);
+  t.mock.method(Class, "find", () => queryChain([]));
+  t.mock.method(Subject, "find", () => queryChain([]));
+
+  await callList({ query: { search: "frac (5)" }, user: teacher, schoolId });
+  const or = pipeline[0].$match.$or;
+  assert.equal(or.length, 3);
+  assert.deepEqual(or.map((clause) => Object.keys(clause)[0]), [
+    "title",
+    "description",
+    "subject",
+  ]);
+  assert.equal(String(or[0].title), "/frac \\(5\\)/i");
+});
+
+test("A to Z ordering sorts by title with a stable tie-breaker", async (t) => {
+  let pipeline;
+  t.mock.method(LiveLesson, "aggregate", (stages) => {
+    pipeline = stages;
+    return Promise.resolve([]);
+  });
+  t.mock.method(LiveLesson, "countDocuments", async () => 0);
+  t.mock.method(Class, "find", () => queryChain([]));
+  t.mock.method(Subject, "find", () => queryChain([]));
+
+  await callList({ query: { order: "az" }, user: teacher, schoolId });
+  assert.deepEqual(sortStagesOf(pipeline), [{ $sort: { title: 1, _id: 1 } }]);
+});
+
+const callFolders = (req) => {
+  const body = {};
+  return new Promise((resolve, reject) => {
+    const collect = (payload) => {
+      Object.assign(body, payload);
+      resolve(body);
+      return undefined;
+    };
+    listLiveLessonFolders({ ...req }, {
+      json: collect,
+      status: () => ({ json: collect }),
+    }, reject);
+  });
+};
+
+test("the folder list reports library and unfiled counts without loading lessons", async (t) => {
+  let aggregated = false;
+  t.mock.method(LiveLessonFolder, "find", () => queryChain([
+    { _id: folderId, lessonIds: [firstLessonId] },
+  ]));
+  const countFilters = [];
+  t.mock.method(LiveLesson, "countDocuments", async (filter) => {
+    countFilters.push(filter);
+    return filter._id ? 7 : 30;
+  });
+  t.mock.method(LiveLesson, "aggregate", () => {
+    aggregated = true;
+    return Promise.resolve([]);
+  });
+
+  const body = await callFolders({ user: teacher, schoolId });
+  assert.equal(body.data.counts.totalLessons, 30);
+  assert.equal(body.data.counts.unfiled, 7);
+  assert.deepEqual(countFilters[1]._id, { $nin: [firstLessonId] });
+  assert.equal(aggregated, false);
 });

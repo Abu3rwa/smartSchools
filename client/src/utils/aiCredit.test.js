@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   applyMarkupCents,
   centsToDollarsInput,
+  creditDisplay,
   creditErrorMessage,
   creditState,
   dollarsToCents,
@@ -114,4 +115,38 @@ test('every metered feature has a label in both languages', () => {
   const ar = read('ar');
   assert.deepEqual(Object.keys(en).sort(), Object.keys(ar).sort());
   assert.ok(en.general && ar.general);
+});
+
+const headerT = (language) => {
+  const header = JSON.parse(readFileSync(new URL(`../i18n/locales/${language}/layout.header.json`, import.meta.url), 'utf8'));
+  const copy = JSON.parse(readFileSync(new URL(`../i18n/locales/${language}/aiCredit.json`, import.meta.url), 'utf8'));
+  return (key) => {
+    if (key === 'layout.header:menu.balanceLoading') return header.menu.balanceLoading;
+    if (key === 'layout.header:menu.balanceUnavailable') return header.menu.balanceUnavailable;
+    if (key === 'aiCredit:chip.paused') return copy.chip.paused;
+    if (key === 'aiCredit:chip.empty') return copy.chip.empty;
+    throw new Error(`unexpected key ${key}`);
+  };
+};
+
+test('credit display: loading never reads as zero, failure never reads as a balance', () => {
+  for (const language of ['en', 'ar']) {
+    const t = headerT(language);
+    assert.equal(creditDisplay({ status: 'loading', badge: null }, t, language).state, 'loading');
+    assert.equal(creditDisplay({ status: 'idle', badge: null }, t, language).state, 'loading');
+    const failed = creditDisplay({ status: 'error', badge: { balanceCents: 900 } }, t, language);
+    assert.equal(failed.state, 'unavailable');
+    assert.ok(failed.value.length > 0);
+    assert.equal(creditDisplay({ status: 'ready', badge: null }, t, language).state, 'unavailable');
+  }
+});
+
+test('credit display: ready badges map to paused, empty, low and formatted balances', () => {
+  const t = headerT('en');
+  assert.equal(creditDisplay({ status: 'ready', badge: { paused: true, balanceCents: 500 } }, t, 'en').state, 'paused');
+  assert.equal(creditDisplay({ status: 'ready', badge: { balanceCents: 0 } }, t, 'en').state, 'empty');
+  assert.equal(creditDisplay({ status: 'ready', badge: { balanceCents: 100, lowBalanceCents: 200 } }, t, 'en').state, 'low');
+  const ok = creditDisplay({ status: 'ready', badge: { balanceCents: 1234, lowBalanceCents: 200 } }, t, 'en');
+  assert.equal(ok.state, 'ok');
+  assert.equal(ok.value, formatBalance(1234, 'en'));
 });

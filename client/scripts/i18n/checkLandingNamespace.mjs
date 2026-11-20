@@ -8,6 +8,7 @@ const requiredFiles = [
 
 const requiredPaths = [
   'ui',
+  'publicPage',
 ];
 
 const getAtPath = (source, keyPath) => {

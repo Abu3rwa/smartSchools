@@ -12,6 +12,7 @@ import {
   getPlatformSpellingAudioSettings,
   savePlatformSpellingAudioSettings,
 } from "../services/spellingPronunciationService.js";
+import { getWritingAiReport } from "../services/writingAiReportService.js";
 
 export const getMyCredit = asyncHandler(async (req, res) => {
   const summary = await creditService.getCreditSummary({
@@ -144,6 +145,14 @@ export const decideCreditRequest = asyncHandler(async (req, res) => {
 export const getPlatformCredit = asyncHandler(async (req, res) => {
   const data = await creditService.getPlatformCreditOverview({
     page: req.query.page,
+  });
+  res.json({ success: true, data });
+});
+
+export const getWritingReport = asyncHandler(async (req, res) => {
+  const data = await getWritingAiReport({
+    schoolId: String(req.query.schoolId || ""),
+    months: req.query.months,
   });
   res.json({ success: true, data });
 });

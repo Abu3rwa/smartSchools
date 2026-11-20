@@ -7,7 +7,7 @@ import { errorText } from "./supportUi.js";
 const LABELS = ["support", "intervention", "wellbeing", "learning_support"];
 const APPROVAL_MODES = ["owner_release", "counselor_approve", "admin_approve"];
 const OWNER_FALLBACKS = ["homeroom", "nominator", "counselor", "admin"];
-const NOTIFICATIONS = ["invitation", "reminder", "reminderEscalation", "planPublished", "closure"];
+const NOTIFICATIONS = ["invitation", "reminder", "reminderEscalation", "acknowledgmentEscalation", "planPublished", "closure"];
 const INTEGRATIONS = ["parentUpdates", "newsletter", "observations"];
 
 const toForm = (settings) => ({
@@ -23,6 +23,8 @@ const toForm = (settings) => ({
   maxSurveyLength: settings.maxSurveyLength,
   reminderDays: settings.reminderDays,
   reminderCount: settings.reminderCount,
+  acknowledgmentDays: settings.acknowledgmentDays,
+  escalationBackup: settings.escalationBackup || "",
   autoSuggestions: settings.autoSuggestions === true,
   aiPlanDrafts: settings.aiPlanDrafts === true,
   suggestionWindowDays: settings.suggestionWindowDays,
@@ -271,6 +273,33 @@ const SettingsPanel = ({ onChange }) => {
             disabled={disabled}
             onChange={(value) => set("reminderCount", value)}
           />
+        </div>
+        <div className="support-field-row is-three">
+          <NumberField
+            label={t("settings.acknowledgmentDays")}
+            hint={t("settings.acknowledgmentDaysHint")}
+            value={form.acknowledgmentDays}
+            min={1}
+            max={10}
+            disabled={disabled}
+            onChange={(value) => set("acknowledgmentDays", value)}
+          />
+          {canManage && (
+            <label>
+              <span>{t("settings.escalationBackup")}</span>
+              <select
+                value={form.escalationBackup}
+                disabled={disabled}
+                onChange={(event) => set("escalationBackup", event.target.value)}
+              >
+                <option value="">{t("settings.escalationBackupNone")}</option>
+                {(data.staff || []).map((row) => (
+                  <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </select>
+              <em className="support-field-hint">{t("settings.escalationBackupHint")}</em>
+            </label>
+          )}
         </div>
       </section>
 

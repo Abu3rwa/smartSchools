@@ -11,6 +11,19 @@ const DOTS = 5;
 
 export const LEVELS = ["strong", "near", "needs"];
 
+/**
+ * How much of a mark a child, a family or a printout may read. The school picks
+ * one mode and every child-facing surface follows it (C4).
+ * "words" is the default because it is what the app has always shown.
+ */
+export const MARKS_MODES = ["words", "words_numbers", "numbers"];
+
+export const marksModeOf = (value) =>
+  MARKS_MODES.includes(String(value)) ? String(value) : "words";
+
+export const marksShowsNumbers = (mode) =>
+  mode === "words_numbers" || mode === "numbers";
+
 const isLevel = (value) => LEVELS.includes(value);
 
 export const rubricLevel = (score, maxScore) => {
@@ -74,14 +87,23 @@ const levelOf = (row) => {
   return { ratio: filled / dots, level: row.level, filled, dots };
 };
 
-export const rubricRows = (scores) => (Array.isArray(scores) ? scores : [])
-  .filter((row) => row && String(row.label || row.key || "").trim())
-  .map((row) => ({
-    key: String(row.key || row.label),
-    label: String(row.label || row.key).trim(),
-    evidence: String(row.evidence || "").trim(),
-    explanation: stripScoreTalk(row.explanation),
-    // The server sends the verdict already computed (no points in the payload);
-    // the teacher's screen still carries score and maxScore and derives it here.
-    ...(isLevel(row.level) ? levelOf(row) : rubricLevel(row.score, row.maxScore)),
-  }));
+export const rubricRows = (scores, { marks = "words" } = {}) =>
+  (Array.isArray(scores) ? scores : [])
+    .filter((row) => row && String(row.label || row.key || "").trim())
+    .map((row) => ({
+      key: String(row.key || row.label),
+      label: String(row.label || row.key).trim(),
+      evidence: String(row.evidence || "").trim(),
+      explanation: stripScoreTalk(row.explanation),
+      // The server sends the verdict already computed (no points in the payload);
+      // the teacher's screen still carries score and maxScore and derives it here.
+      ...(isLevel(row.level)
+        ? levelOf(row)
+        : rubricLevel(row.score, row.maxScore)),
+      // A school that shows numbers gets them on the row; the default never does.
+      ...(marksShowsNumbers(marksModeOf(marks)) &&
+      Number.isFinite(Number(row.score)) &&
+      Number(row.maxScore) > 0
+        ? { score: Number(row.score), maxScore: Number(row.maxScore) }
+        : {}),
+    }));

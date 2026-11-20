@@ -93,13 +93,13 @@ test('a teacher scope only matches students they actually teach', () => {
     assert.equal(matchedClassId(student, null), CLASS_ID);
 });
 
-test('follow-up advice is ordered: serious, bullying, repeats, severity', () => {
+test('routine follow-up advice never assigns formal consequences from repeat counts', () => {
     assert.equal(buildFollowUpSuggestion({ category: 'disruptive', severity: 'serious', recentCount: 1 }), 'admin_review');
-    assert.equal(buildFollowUpSuggestion({ category: 'bullying', severity: 'minor', recentCount: 1 }), 'counseling_referral');
-    assert.equal(buildFollowUpSuggestion({ category: 'disruptive', severity: 'minor', recentCount: 4 }), 'detention');
-    assert.equal(buildFollowUpSuggestion({ category: 'disruptive', severity: 'minor', recentCount: 2 }), 'parent_contact');
+    assert.equal(buildFollowUpSuggestion({ category: 'bullying', severity: 'minor', recentCount: 1 }), 'conversation');
+    assert.equal(buildFollowUpSuggestion({ category: 'disruptive', severity: 'minor', recentCount: 4 }), 'conversation');
+    assert.equal(buildFollowUpSuggestion({ category: 'disruptive', severity: 'minor', recentCount: 2 }), 'conversation');
     assert.equal(buildFollowUpSuggestion({ category: 'tardiness', severity: 'moderate', recentCount: 1 }), 'conversation');
-    assert.equal(buildFollowUpSuggestion({ category: 'tardiness', severity: 'minor', recentCount: 1 }), 'warning_reflection');
+    assert.equal(buildFollowUpSuggestion({ category: 'tardiness', severity: 'minor', recentCount: 1 }), 'conversation');
 });
 
 test('trend and alert read from counts without inventing precision', () => {
@@ -186,6 +186,20 @@ test('a future date is refused in plain language', () => {
     assert.equal(parsed.error.issues[0].message, 'The date cannot be in the future.');
 });
 
+test('any number of other students can be involved', () => {
+    const otherStudents = Array.from(
+        { length: 12 },
+        (_, index) => `5f${String(index).padStart(22, '0')}`
+    );
+    const parsed = teacherBehaviorEntryBodySchema.safeParse({
+        student: STUDENT_ID,
+        category: 'disruptive',
+        severity: 'minor',
+        otherStudents
+    });
+    assert.equal(parsed.success, true, 'the old 10-student cap is gone');
+});
+
 test('the validator middleware returns the first friendly message, not "Validation failed"', async () => {
     const middleware = validateTeacherBehavior({ bodySchema: teacherBehaviorEntryBodySchema });
     const result = await runValidator(middleware, { body: { student: STUDENT_ID } });
@@ -218,14 +232,17 @@ test('the teacher behavior routes are mounted under their own path with staff ro
         'GET /roster',
         'GET /students/:studentId/summary',
         'POST /entries',
-        'POST /entries/:id/follow-up'
+        'POST /entries/:id/follow-up',
+        'GET /catalog', 'GET /entries/:id', 'POST /entries/:id/review',
+        'POST /entries/:id/message-preview', 'POST /entries/:id/message-send',
+        'POST /entries/:id/contact', 'POST /entries/:id/formal-case', 'POST /refine'
     ].sort());
 
     const firstRouteIndex = teacherBehaviorRoutes.stack.findIndex((layer) => layer.route);
     const guards = teacherBehaviorRoutes.stack
         .slice(0, firstRouteIndex)
         .filter((layer) => typeof layer.handle === 'function');
-    assert.equal(guards.length, 3, 'authentication, school context and role checks run before any handler');
+    assert.equal(guards.length, 4, 'authentication, school context, roles and the shared school switch run before every handler');
 });
 
 test('the dashboard window starts today and on Monday', () => {

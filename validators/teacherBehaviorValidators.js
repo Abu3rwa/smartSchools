@@ -21,9 +21,13 @@ export const teacherBehaviorEntryBodySchema = z.object({
         errorMap: () => ({ message: 'Select a severity.' })
     }),
     notes: z.string().trim().max(1000, 'Keep the note to 1,000 characters or fewer.').optional(),
-    otherStudents: z.array(teacherBehaviorObjectId).max(10, 'Add up to 10 other students.').optional(),
+    otherStudents: z.array(teacherBehaviorObjectId).optional(),
     occurredAt: isoDate.optional(),
-    followUp: z.boolean().optional()
+    followUp: z.boolean().optional(),
+    requestKey: z.string().regex(/^[a-zA-Z0-9_-]{16,80}$/).optional(),
+    originalDescription: z.string().trim().max(1000).optional(),
+    followUpAction: z.string().trim().max(500).optional(),
+    followUpDate: z.string().datetime().optional()
 }).strict().superRefine((payload, context) => {
     if (payload.severity === 'serious' && !String(payload.notes || '').trim()) {
         context.addIssue({
@@ -61,7 +65,11 @@ export const teacherBehaviorEntriesQuerySchema = z.object({
     severity: z.enum(TEACHER_BEHAVIOR_SEVERITIES, {
         errorMap: () => ({ message: 'Choose minor, moderate or serious.' })
     }).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional()
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    offset: z.coerce.number().int().min(0).max(100000).optional(),
+    classId: teacherBehaviorObjectId.optional(),
+    followUp: z.enum(['true', 'false']).optional(),
+    review: z.enum(['true', 'false']).optional()
 }).strict();
 
 export const teacherBehaviorStudentParamSchema = z.object({

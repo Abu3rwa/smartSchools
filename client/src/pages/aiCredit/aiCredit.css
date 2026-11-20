@@ -1,6 +1,6 @@
 .wa-credit-page {
-  --wa-amber: #b45309;
-  --wa-green: #15803d;
+  --wa-amber: var(--wa-warning-ink);
+  --wa-green: var(--wa-success-ink);
 }
 
 .wa-credit-top {

@@ -1,16 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import {
-    HiOutlineDocumentText,
-    HiOutlineLightningBolt,
-    HiOutlineUpload,
-    HiOutlineX
-} from 'react-icons/hi';
+import { HiOutlineLightningBolt } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import assignmentService from '../../../../services/assignmentService';
+import {
+    buildSourceRequestFields,
+    resolveSourceOption
+} from '../utils/assignmentDrafting';
+import AssignmentSourceSelect from './AssignmentSourceSelect';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const TYPE_OPTIONS = [
     { value: 'multiple_choice', labelKey: 'assignments:googleForms.multipleChoice' },
     { value: 'true_false', labelKey: 'assignments:googleForms.trueFalse' },
@@ -28,39 +26,48 @@ const ERROR_KEYS = {
     DOCUMENT_PDF_UNREADABLE: 'assignments:googleForms.drafter.errors.pdfUnreadable',
     DOCUMENT_TYPE_UNSUPPORTED: 'assignments:googleForms.drafter.errors.unsupportedFile',
     DOCUMENT_TOO_LARGE: 'assignments:googleForms.drafter.errors.fileTooLarge',
-    DOCUMENT_EMPTY_FILE: 'assignments:googleForms.drafter.errors.emptyFile'
+    DOCUMENT_EMPTY_FILE: 'assignments:googleForms.drafter.errors.emptyFile',
+    DRIVE_FILE_NOT_CONNECTED: 'assignments:googleForms.drafter.errors.driveNotConnected',
+    DRIVE_FILE_NOT_FOUND: 'assignments:googleForms.drafter.errors.driveFileMissing',
+    DRIVE_FILE_API_FAILED: 'assignments:googleForms.drafter.errors.driveFailed'
 };
-
-const formatFileSize = (bytes) => `${(bytes / (1024 * 1024)).toFixed(bytes > 1024 * 1024 ? 1 : 2)} MB`;
 
 const AssignmentQuestionDrafter = ({
     classId,
     subjectId,
+    assignmentId = null,
     lessonPlanIds = [],
+    sourceOptions = [],
     disabled = false,
     hasExistingQuestions = false,
     onRequestLessonPlans,
+    onRequestSource,
     onDrafted
 }) => {
     const { t } = useTranslation(['assignments']);
-    const fileInputRef = useRef(null);
     const [source, setSource] = useState('lessons');
+    const [sourceValue, setSourceValue] = useState('');
     const [count, setCount] = useState('5');
     const [types, setTypes] = useState(['multiple_choice', 'true_false']);
-    const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        if (resolveSourceOption(sourceOptions, sourceValue)) return;
+        setSourceValue(sourceOptions[0]?.value || '');
+    }, [sourceOptions, sourceValue]);
+
+    const selectedSource = resolveSourceOption(sourceOptions, sourceValue);
     const lessonCount = Array.isArray(lessonPlanIds) ? lessonPlanIds.length : 0;
     const hasClassSubject = Boolean(classId && subjectId);
-    const hasSource = source === 'lessons' ? lessonCount > 0 : Boolean(file);
+    const hasSource = source === 'lessons' ? lessonCount > 0 : Boolean(selectedSource);
     const canGenerate = !disabled && !loading && hasClassSubject && hasSource && types.length > 0;
 
     const disabledReason = (() => {
         if (!hasClassSubject) return t('assignments:googleForms.drafter.needClassSubject');
         if (types.length === 0) return t('assignments:googleForms.drafter.needType');
         if (source === 'lessons' && lessonCount === 0) return t('assignments:googleForms.drafter.needLessons');
-        if (source === 'file' && !file) return t('assignments:googleForms.drafter.needFile');
+        if (source === 'source' && !selectedSource) return t('assignments:googleForms.drafter.needFile');
         return '';
     })();
 
@@ -68,24 +75,6 @@ const AssignmentQuestionDrafter = ({
         setTypes((current) => (
             current.includes(type) ? current.filter((value) => value !== type) : [...current, type]
         ));
-    };
-
-    const handleFileChange = (event) => {
-        const chosen = event.target.files?.[0];
-        event.target.value = '';
-        if (!chosen) return;
-        if (!ACCEPTED_TYPES.includes(chosen.type)) {
-            setError(t('assignments:googleForms.drafter.errors.unsupportedFile'));
-            setFile(null);
-            return;
-        }
-        if (chosen.size > MAX_FILE_BYTES) {
-            setError(t('assignments:googleForms.drafter.errors.fileTooLarge'));
-            setFile(null);
-            return;
-        }
-        setError('');
-        setFile(chosen);
     };
 
     const errorMessageFor = (requestError) => {
@@ -112,14 +101,15 @@ const AssignmentQuestionDrafter = ({
                 lessonPlanIds: source === 'lessons' ? lessonPlanIds : [],
                 count: Number(count) || 5,
                 types,
-                file: source === 'file' ? file : null
+                assignmentId,
+                ...(source === 'source' ? buildSourceRequestFields(selectedSource) : {})
             });
             const questions = response?.data?.questions || [];
             if (questions.length === 0) {
                 throw new Error(t('assignments:googleForms.drafter.errors.invalidDrafts'));
             }
             onDrafted(questions);
-            toast.success(t('assignments:googleForms.drafter.done', { count: questions.length }));
+            toast.success(t('assignments:googleForms.drafter.done', { number: questions.length }));
         } catch (requestError) {
             setError(errorMessageFor(requestError));
         } finally {
@@ -175,57 +165,23 @@ const AssignmentQuestionDrafter = ({
                         <input
                             type="radio"
                             name="drafter-source"
-                            value="file"
-                            checked={source === 'file'}
+                            value="source"
+                            checked={source === 'source'}
                             disabled={disabled || loading}
-                            onChange={() => setSource('file')}
+                            onChange={() => setSource('source')}
                         />
                         <span>{t('assignments:googleForms.drafter.fromFile')}</span>
                     </label>
 
-                    {source === 'file' && (
-                        <div className="question-drafter__file">
-                            <div className="question-drafter__file-actions">
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={disabled || loading}
-                                >
-                                    <HiOutlineUpload />
-                                    {t('assignments:googleForms.drafter.chooseFile')}
-                                </button>
-                                {file && (
-                                    <button
-                                        type="button"
-                                        className="question-drafter__clear"
-                                        onClick={() => setFile(null)}
-                                        disabled={disabled || loading}
-                                        aria-label={t('assignments:googleForms.drafter.removeFile')}
-                                    >
-                                        <HiOutlineX />
-                                    </button>
-                                )}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
-                                    hidden
-                                    onChange={handleFileChange}
-                                    aria-label={t('assignments:googleForms.drafter.chooseFile')}
-                                />
-                            </div>
-                            {file ? (
-                                <p className="question-drafter__file-name">
-                                    <HiOutlineDocumentText aria-hidden="true" />
-                                    <span>{file.name}</span>
-                                    <span className="question-drafter__file-size">{formatFileSize(file.size)}</span>
-                                </p>
-                            ) : (
-                                <p className="question-drafter__hint">{t('assignments:googleForms.drafter.fileTypes')}</p>
-                            )}
-                            <p className="question-drafter__hint">{t('assignments:googleForms.drafter.fileNotSaved')}</p>
-                        </div>
+                    {source === 'source' && (
+                        <AssignmentSourceSelect
+                            options={sourceOptions}
+                            value={sourceValue}
+                            onChange={setSourceValue}
+                            disabled={disabled || loading}
+                            compact
+                            onRequestSource={onRequestSource}
+                        />
                     )}
                 </fieldset>
 

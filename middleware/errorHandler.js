@@ -1,4 +1,5 @@
 import logger from '../utils/logger.js';
+import { isDbUnavailable, shouldLogDbOutage } from '../utils/dbHealth.js';
 
 // Indexes whose collision means "someone else just created this", so a refresh
 // and a retry is a real recovery path. Other duplicates keep the generic 400.
@@ -15,6 +16,20 @@ const isKnownDuplicate = (keyValue) => {
 };
 
 const mapKnownErrors = (err) => {
+    // A dropped database connection is neither a server bug nor the caller's
+    // fault. Answer 503 so clients retry instead of reporting "Internal server
+    // error", and keep the raw driver message out of the response.
+    if (isDbUnavailable(err)) {
+        return {
+            ...err,
+            statusCode: 503,
+            code: 'DB_UNAVAILABLE',
+            message: 'The database is temporarily unreachable. Try again in a moment.',
+            expose: true,
+            retryAfter: 15
+        };
+    }
+
     if (err.name === 'CastError') {
         return { ...err, message: 'Resource not found', statusCode: 404 };
     }
@@ -98,8 +113,18 @@ const errorHandler = (err, req, res, next) => {
 
     // BE-030: Include correlation ID in error logs.
     // Expected client errors (4xx) are a normal response, not a fault, so they
-    // must not raise ERROR-level stack traces in production logs.
-    if (statusCode >= 500) {
+    // must not raise ERROR-level stack traces in production logs. An outage is
+    // logged once per window: the client already gets a clear 503, and every
+    // request failing the same way adds nothing but noise.
+    if (error.code === 'DB_UNAVAILABLE') {
+        if (shouldLogDbOutage()) {
+            logger.warn('database_unreachable', {
+                correlationId: req.correlationId,
+                method: req.method,
+                path: req.originalUrl
+            });
+        }
+    } else if (statusCode >= 500) {
         logger.error(err.message, { correlationId: req.correlationId, stack: err.stack });
     } else {
         logger.warn(err.message, {
@@ -116,6 +141,9 @@ const errorHandler = (err, req, res, next) => {
     if (origin && !res.headersSent) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    if (error.retryAfter && !res.headersSent) {
+        res.setHeader('Retry-After', String(error.retryAfter));
     }
 
     const payload = buildErrorPayload(error, err, statusCode);

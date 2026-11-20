@@ -1,111 +1,84 @@
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
+import Link from '@mui/material/Link';
+import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import Grid from '@mui/material/Grid';
-import IconButton from '@mui/material/IconButton';
-import { HiOutlineGlobeAlt } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
+import { Link as RouterLink } from 'react-router-dom';
 
 /**
- * Footer with brand logo (SVG), product/company/legal links, social, and copyright.
+ * Public footer: a short description, the same section links as the header
+ * and the copyright line. No legal sitemap and no unverified destinations.
  */
-export default function LandingFooter({ content, copyrightText, handleAction }) {
+export default function LandingFooter({ copy, appName, year, navItems, onNavigateSection, onOpenFinder, onSignIn }) {
+    const { t } = useTranslation(['landing.page']);
+
+    const handleSectionLink = (event, sectionId) => {
+        if (event.defaultPrevented) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        onNavigateSection(sectionId);
+    };
+
     return (
-        <Box component="footer" sx={{ pt: 6, pb: 4, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-            <Container maxWidth="lg">
-                <Grid container spacing={4} sx={{ mb: 4 }}>
-                    <Grid item xs={12} md={4}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                            <Box sx={{ width: 44, height: 44, borderRadius: 2, overflow: 'hidden', flexShrink: 0 }}>
-                                <img src="/logo.svg" alt="Logo" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                            </Box>
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    fontWeight: 800,
-                                    background: 'var(--brand-gradient)',
-                                    backgroundClip: 'text',
-                                    color: 'transparent',
-                                }}
+        <Box
+            component="footer"
+            sx={{ borderTop: 1, borderColor: 'divider', py: { xs: 3, md: 4 }, mt: { xs: 2, md: 3 } }}
+        >
+            <Box className="landing-public-container">
+                <Typography sx={{ color: 'text.secondary', mb: 2 }}>{copy.footer?.description}</Typography>
+
+                <Box
+                    component="nav"
+                    aria-label={copy.a11y?.footerNavigation}
+                    sx={{ mb: 2.5 }}
+                >
+                    <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
+                        {navItems.map((item) => (
+                            <Link
+                                key={item.id}
+                                component="a"
+                                href={`#${item.sectionId}`}
+                                onClick={(event) => handleSectionLink(event, item.id)}
+                                underline="hover"
+                                sx={{ color: 'text.secondary', fontSize: 16 }}
                             >
-                                {content.brand.name}
-                            </Typography>
-                        </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 280, lineHeight: 1.7 }}>
-                            {content.brand.tagline}
-                        </Typography>
-                        {/* Social Links */}
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton size="small" aria-label="Website" sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
-                                <HiOutlineGlobeAlt size={18} />
-                            </IconButton>
-                        </Box>
-                    </Grid>
-                    <Grid item xs={12} md={8}>
-                        <Grid container spacing={4}>
-                            <Grid item xs={12} sm={4}>
-                                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.7rem' }}>
-                                    {content.footer.productTitle}
-                                </Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    {(content.footer.productLinks || []).map((link, index) => (
-                                        <Button
-                                            key={`product-link-${index}-${link.label}`}
-                                            size="small"
-                                            sx={{ justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}
-                                            onClick={() => handleAction(link.action)}
-                                        >
-                                            {link.label}
-                                        </Button>
-                                    ))}
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.7rem' }}>
-                                    {content.footer.companyTitle}
-                                </Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    {(content.footer.companyLinks || []).map((link, index) => (
-                                        <Button
-                                            key={`company-link-${index}-${link.label}`}
-                                            size="small"
-                                            sx={{ justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}
-                                            onClick={() => handleAction(link.action)}
-                                        >
-                                            {link.label}
-                                        </Button>
-                                    ))}
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.7rem' }}>
-                                    {content.footer.legalTitle}
-                                </Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    {(content.footer.legalLinks || []).map((link, index) => (
-                                        <Button
-                                            key={`legal-link-${index}-${link.label}`}
-                                            size="small"
-                                            sx={{ justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}
-                                            onClick={() => handleAction(link.action)}
-                                        >
-                                            {link.label}
-                                        </Button>
-                                    ))}
-                                </Box>
-                            </Grid>
-                        </Grid>
-                    </Grid>
-                </Grid>
-                <Box sx={{ pt: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                        {copyrightText}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                        Crafted with care for schools worldwide.
-                    </Typography>
+                                {item.label}
+                            </Link>
+                        ))}
+                        <Link
+                            component="a"
+                            href="#book-demo"
+                            onClick={(event) => handleSectionLink(event, 'demo')}
+                            underline="hover"
+                            sx={{ color: 'text.secondary', fontSize: 16 }}
+                        >
+                            {copy.actions?.demo}
+                        </Link>
+                        <Link
+                            component="button"
+                            type="button"
+                            onClick={onOpenFinder}
+                            underline="hover"
+                            sx={{ color: 'text.secondary', fontSize: 16, background: 'none', border: 0, p: 0, cursor: 'pointer', font: 'inherit' }}
+                        >
+                            {copy.actions?.findSchool}
+                        </Link>
+                        <Link
+                            component={RouterLink}
+                            to="/login"
+                            onClick={onSignIn}
+                            underline="hover"
+                            sx={{ color: 'text.secondary', fontSize: 16 }}
+                        >
+                            {copy.actions?.signIn}
+                        </Link>
+                    </Stack>
                 </Box>
-            </Container>
+
+                <Typography variant="body2" color="text.secondary">
+                    {t('publicPage.footer.copyright', { year, appName })}
+                </Typography>
+            </Box>
         </Box>
     );
 }

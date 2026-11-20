@@ -949,6 +949,47 @@
   gap: 14px;
 }
 
+.support-conflict-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--support-warn, #b45309);
+  border-radius: var(--radius-md, 10px);
+  background: var(--support-warn-soft, #fef3c7);
+}
+
+.support-conflict-banner p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--support-warn, #b45309);
+}
+
+.support-conflict-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.support-dirty-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--support-accent-soft, #ecfeff);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--support-accent);
+}
+
+.support-dirty-bar .support-link-btn {
+  font-size: 0.78rem;
+}
+
 .support-goal-editor {
   background: var(--bg-card, #fff);
 }

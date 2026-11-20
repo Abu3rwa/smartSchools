@@ -19,6 +19,7 @@ export default function WritingAssignmentBuilderPage() {
   const [step, setStep] = useState(0);
   const {
     assignmentId,
+    applyTemplate,
     classes,
     errors,
     failed,
@@ -29,7 +30,11 @@ export default function WritingAssignmentBuilderPage() {
     retry,
     roster,
     save,
+    saveTemplate,
     saving,
+    savingTemplate,
+    templates,
+    templatesLoading,
     update,
     vocabularyLists,
     wasActive,
@@ -88,6 +93,45 @@ export default function WritingAssignmentBuilderPage() {
 
       <div className="wa-import-row">
         <WritingCsvImportPanel onApplied={applyCsv} supports={form.supports} />
+      </div>
+
+      <div className="wa-template-row">
+        {!isEdit && (templatesLoading || templates.length > 0) && (
+          <label className="wa-template-pick">
+            <span>{t("writing:teacher.builder.template.apply")}</span>
+            <select
+              defaultValue=""
+              disabled={templatesLoading}
+              aria-label={t("writing:teacher.builder.template.choose")}
+              onChange={(event) => {
+                const templateId = event.target.value;
+                event.target.value = "";
+                if (templateId) applyTemplate(templateId);
+              }}
+            >
+              <option value="">{t("writing:teacher.builder.template.choose")}</option>
+              {templates.map((row) => (
+                <option key={row._id} value={row._id}>
+                  {row.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {isEdit && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={saving || savingTemplate}
+            onClick={saveTemplate}
+          >
+            {t(
+              savingTemplate
+                ? "writing:teacher.builder.template.saving"
+                : "writing:teacher.builder.template.save",
+            )}
+          </button>
+        )}
       </div>
 
       <ol className="wa-steps" aria-label={t("writing:teacher.builder.stepsAria")}>

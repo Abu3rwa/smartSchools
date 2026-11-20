@@ -29,6 +29,9 @@ export const surveyPeriod = (survey) => {
     if (survey?.review?.month) {
         return { month: survey.review.month, academicYear: survey.review.academicYear };
     }
+    if (survey?.cycle?.month) {
+        return { month: survey.cycle.month, academicYear: survey.cycle.academicYear };
+    }
     if (survey?.month && survey?.academicYear) {
         return { month: survey.month, academicYear: survey.academicYear };
     }
@@ -167,7 +170,6 @@ export const selectionConfig = ({ audience, settings, length }) => {
  */
 export const selectQuestions = async ({
     schoolId,
-    caseDoc = null,
     audience,
     subjectId = null,
     reviewPeriod,

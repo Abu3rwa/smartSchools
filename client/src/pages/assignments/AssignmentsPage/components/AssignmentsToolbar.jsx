@@ -19,16 +19,14 @@ const AssignmentsToolbar = ({
     onSubjectChange,
     availableSubjects,
     selectedMonth,
-    onMonthChange,
-    visibleCount,
-    totalCount
+    onMonthChange
 }) => {
     const { t } = useTranslation(['assignments']);
     const classes = uniqueById(availableClasses);
     const subjects = uniqueById(availableSubjects);
 
     return (
-        <div className="assignments-toolbar">
+        <>
             <div className="assignments-search">
                 <HiOutlineSearch aria-hidden="true" />
                 <input
@@ -75,11 +73,7 @@ const AssignmentsToolbar = ({
                     <option key={month} value={month}>{t(`assignments:months.${month}`)}</option>
                 ))}
             </select>
-
-            <span className="assignments-toolbar__hint">
-                {t('assignments:toolbar.showing', { visible: visibleCount, total: totalCount })}
-            </span>
-        </div>
+        </>
     );
 };
 

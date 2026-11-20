@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { HiOutlineChevronDown } from 'react-icons/hi';
 import api from '../../config/api';
 import './LessonPlanLinkSelector.css';
 
@@ -28,6 +29,8 @@ const LessonPlanLinkSelector = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [lessons, setLessons] = useState([]);
+    const [open, setOpen] = useState(false);
+    const bodyId = useId();
     const debounceRef = useRef(null);
 
     const selectedIds = useMemo(() => {
@@ -51,12 +54,15 @@ const LessonPlanLinkSelector = ({
         };
     }, [search]);
 
-    // Fetch lessons when class/subject/search change
+    // Fetch lessons only while the picker is expanded: it is optional chrome
+    // sitting above the grade table.
     useEffect(() => {
         let mounted = true;
-        if (!canFetch) {
-            setLessons([]);
-            setError('');
+        if (!canFetch || !open) {
+            if (!canFetch) {
+                setLessons([]);
+                setError('');
+            }
             return () => { mounted = false; };
         }
 
@@ -88,7 +94,7 @@ const LessonPlanLinkSelector = ({
 
         fetchLessons();
         return () => { mounted = false; };
-    }, [canFetch, classId, debouncedSearch, subjectId, t]);
+    }, [canFetch, open, classId, debouncedSearch, subjectId, t]);
 
     const handleToggleLesson = useCallback((lessonId, checked) => {
         if (disabled) return;
@@ -110,21 +116,28 @@ const LessonPlanLinkSelector = ({
 
     const disabledSelector = disabled || !classId || !subjectId;
 
-    // Build display list: merge fetched lessons with any selected lessons not in fetch results
-    const displayLessons = useMemo(() => {
-        const fetchedIds = new Set(lessons.map((l) => normalizeLessonId(l._id)));
-        // Selected lessons that aren't in the current fetched list remain as minimal stubs
-        // (they keep their selection state visible)
-        return lessons;
-    }, [lessons]);
-
     return (
-        <div className="lesson-plan-link-selector">
+        <div className={`lesson-plan-link-selector${open ? ' is-open' : ''}`}>
             <div className="lesson-plan-link-selector__header">
-                <div>
-                    <h4>{t('grades:lessonLinks.title', { defaultValue: 'Linked lesson plans (optional)' })}</h4>
-                    <p>{t('grades:lessonLinks.selectedCount', { defaultValue: '{{count}} selected', count: selectedIds.length })}</p>
-                </div>
+                <button
+                    type="button"
+                    className="lesson-plan-link-selector__toggle"
+                    aria-expanded={open}
+                    aria-controls={bodyId}
+                    onClick={() => setOpen((value) => !value)}
+                >
+                    <span className="lesson-plan-link-selector__heading">
+                        <span className="lesson-plan-link-selector__label">
+                            {t('grades:lessonLinks.title', { defaultValue: 'Linked lesson plans (optional)' })}
+                        </span>
+                        {(selectedIds.length > 0 || open) && (
+                            <span className="lesson-plan-link-selector__count">
+                                {t('grades:lessonLinks.selectedCount', { defaultValue: '{{count}} selected', count: selectedIds.length })}
+                            </span>
+                        )}
+                    </span>
+                    <HiOutlineChevronDown className="lesson-plan-link-selector__chevron" aria-hidden="true" />
+                </button>
                 {selectedIds.length > 0 && (
                     <button
                         type="button"
@@ -137,73 +150,77 @@ const LessonPlanLinkSelector = ({
                 )}
             </div>
 
-            {!disabledSelector && (
-                <div className="lesson-plan-link-selector__search">
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder={t('grades:lessonLinks.searchPlaceholder', { defaultValue: 'Search by title...' })}
-                        disabled={disabledSelector}
-                    />
-                </div>
-            )}
+            {open && (
+                <div id={bodyId} className="lesson-plan-link-selector__body">
+                    {!disabledSelector && (
+                        <div className="lesson-plan-link-selector__search">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={t('grades:lessonLinks.searchPlaceholder', { defaultValue: 'Search by title...' })}
+                                disabled={disabledSelector}
+                            />
+                        </div>
+                    )}
 
-            {disabledSelector && (
-                <p className="lesson-plan-link-selector__helper">
-                    {t('grades:lessonLinks.selectClassSubjectFirst', {
-                        defaultValue: 'Select class and subject first to load lesson plans.'
-                    })}
-                </p>
-            )}
+                    {disabledSelector && (
+                        <p className="lesson-plan-link-selector__helper">
+                            {t('grades:lessonLinks.selectClassSubjectFirst', {
+                                defaultValue: 'Select class and subject first to load lesson plans.'
+                            })}
+                        </p>
+                    )}
 
-            {!disabledSelector && loading && (
-                <p className="lesson-plan-link-selector__helper">
-                    {t('grades:lessonLinks.loading', { defaultValue: 'Loading lesson plans...' })}
-                </p>
-            )}
+                    {!disabledSelector && loading && (
+                        <p className="lesson-plan-link-selector__helper">
+                            {t('grades:lessonLinks.loading', { defaultValue: 'Loading lesson plans...' })}
+                        </p>
+                    )}
 
-            {!disabledSelector && error && (
-                <p className="lesson-plan-link-selector__error">{error}</p>
-            )}
+                    {!disabledSelector && error && (
+                        <p className="lesson-plan-link-selector__error">{error}</p>
+                    )}
 
-            {!disabledSelector && !loading && !error && displayLessons.length === 0 && canFetch && (
-                <p className="lesson-plan-link-selector__helper">
-                    {debouncedSearch
-                        ? t('grades:lessonLinks.noSearchResults', { defaultValue: 'No lesson plans match your search.' })
-                        : t('grades:lessonLinks.noLessons', { defaultValue: 'No lesson plans found for this filter.' })}
-                </p>
-            )}
+                    {!disabledSelector && !loading && !error && lessons.length === 0 && canFetch && (
+                        <p className="lesson-plan-link-selector__helper">
+                            {debouncedSearch
+                                ? t('grades:lessonLinks.noSearchResults', { defaultValue: 'No lesson plans match your search.' })
+                                : t('grades:lessonLinks.noLessons', { defaultValue: 'No lesson plans found for this filter.' })}
+                        </p>
+                    )}
 
-            {!disabledSelector && displayLessons.length > 0 && (
-                <div className="lesson-plan-link-selector__list">
-                    {displayLessons.map((lesson) => {
-                        const lessonId = normalizeLessonId(lesson?._id);
-                        if (!lessonId) return null;
-                        const standards = Array.isArray(lesson.standardIds)
-                            ? lesson.standardIds.map((standard) => standard?.code).filter(Boolean)
-                            : [];
-                        const lessonDate = getLessonDateLabel(lesson.date);
-                        const lessonLabel = lesson.title || lesson.topic || t('grades:lessonLinks.untitledLesson', { defaultValue: 'Untitled lesson' });
+                    {!disabledSelector && lessons.length > 0 && (
+                        <div className="lesson-plan-link-selector__list">
+                            {lessons.map((lesson) => {
+                                const lessonId = normalizeLessonId(lesson?._id);
+                                if (!lessonId) return null;
+                                const standards = Array.isArray(lesson.standardIds)
+                                    ? lesson.standardIds.map((standard) => standard?.code).filter(Boolean)
+                                    : [];
+                                const lessonDate = getLessonDateLabel(lesson.date);
+                                const lessonLabel = lesson.title || lesson.topic || t('grades:lessonLinks.untitledLesson', { defaultValue: 'Untitled lesson' });
 
-                        return (
-                            <label key={lessonId} className="lesson-plan-link-selector__item">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedIdSet.has(lessonId)}
-                                    onChange={(event) => handleToggleLesson(lessonId, event.target.checked)}
-                                    disabled={disabledSelector}
-                                />
-                                <span className="lesson-plan-link-selector__content">
-                                    <span className="lesson-plan-link-selector__title">{lessonLabel}</span>
-                                    <span className="lesson-plan-link-selector__meta">
-                                        {lessonDate || t('grades:common.notSet', { defaultValue: 'Date not set' })}
-                                        {standards.length > 0 ? ` · ${standards.join(', ')}` : ''}
-                                    </span>
-                                </span>
-                            </label>
-                        );
-                    })}
+                                return (
+                                    <label key={lessonId} className="lesson-plan-link-selector__item">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIdSet.has(lessonId)}
+                                            onChange={(event) => handleToggleLesson(lessonId, event.target.checked)}
+                                            disabled={disabledSelector}
+                                        />
+                                        <span className="lesson-plan-link-selector__content">
+                                            <span className="lesson-plan-link-selector__title">{lessonLabel}</span>
+                                            <span className="lesson-plan-link-selector__meta">
+                                                {lessonDate || t('grades:common.notSet', { defaultValue: 'Date not set' })}
+                                                {standards.length > 0 ? ` · ${standards.join(', ')}` : ''}
+                                            </span>
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

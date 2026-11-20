@@ -18,6 +18,7 @@ import assignmentRoutes from './assignmentRoutes.js';
 import assignmentTypeRoutes from './assignmentTypeRoutes.js';
 import mapPrepRoutes from './mapPrepRoutes.js';
 import mapPracticeRoutes from './mapPracticeRoutes.js';
+import languageGameRoutes from './languageGameRoutes.js';
 
 export {
     authRoutes,
@@ -39,5 +40,6 @@ export {
     assignmentRoutes,
     assignmentTypeRoutes,
     mapPrepRoutes,
-    mapPracticeRoutes
+    mapPracticeRoutes,
+    languageGameRoutes
 };

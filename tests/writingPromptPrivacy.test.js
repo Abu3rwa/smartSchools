@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
+import { setTimeout as delay } from "node:timers/promises";
+/* global process -- the harness starts and stops the provider key and flags */
 
 import WritingAssignment from "../models/WritingAssignment.js";
 import WritingProject from "../models/WritingProject.js";
 import WritingDraft from "../models/WritingDraft.js";
 import WritingAssessment from "../models/WritingAssessment.js";
+import WritingFailureAlert from "../models/WritingFailureAlert.js";
 import SpellingAnalysis from "../models/SpellingAnalysis.js";
 import SpellingRetestItem from "../models/SpellingRetestItem.js";
 import Student from "../models/Student.js";
@@ -32,6 +35,10 @@ import {
   cleanGeneratedString,
   sanitizeGeneratedFields,
 } from "../services/aiPromptSafety.js";
+import {
+  WRITING_PROMPT_VERSIONS,
+  WRITING_SCHEMA_VERSION,
+} from "../services/writingPromptVersions.js";
 
 /*
  * Phase 1 probes. The prompt assertions read the body actually posted to the
@@ -186,8 +193,19 @@ const goodReply = () => ({
  * Every model call the assess path makes, plus the credit gate. The provider is
  * a stubbed fetch, so the assertions read the real request body.
  */
-const withAssessStubs = async (t, { reply = goodReply(), number = 1, previousAssessment = null } = {}, run) => {
-  const calls = { prompts: [], entries: [], unusable: [] };
+const withAssessStubs = async (
+  t,
+  {
+    reply = goodReply(),
+    number = 1,
+    previousAssessment = null,
+    gate = null,
+    onCall = null,
+    fetchError = null,
+  } = {},
+  run,
+) => {
+  const calls = { prompts: [], entries: [], unusable: [], alerts: [] };
   const doc = assessmentDoc();
   const project = projectDoc();
   // A revision round reads the feedback of the draft before this one; the two
@@ -203,6 +221,10 @@ const withAssessStubs = async (t, { reply = goodReply(), number = 1, previousAss
 
   t.mock.method(globalThis, "fetch", async (url, init) => {
     calls.prompts.push(JSON.parse(init.body).messages[0].content);
+    // K6 tests hold the provider here to see what the request answers meanwhile.
+    if (onCall) onCall();
+    if (gate) await gate;
+    if (fetchError) throw fetchError;
     return { ok: true, status: 200, json: async () => replyBody(reply) };
   });
 
@@ -242,6 +264,19 @@ const withAssessStubs = async (t, { reply = goodReply(), number = 1, previousAss
       return chain(null);
     }),
     stub(WritingAssessment, "create", async () => doc),
+    stub(WritingFailureAlert, "updateOne", async () => ({ modifiedCount: 0 })),
+    stub(WritingFailureAlert, "findOneAndUpdate", async (filter) => {
+      calls.alerts.push({ code: filter.code });
+      return {
+        _id: oid(),
+        school: filter.school,
+        code: filter.code,
+        count: 1,
+        firstAt: new Date(),
+        lastAt: new Date(),
+        alertedAt: null,
+      };
+    }),
     stub(AiCreditEntry, "create", async (input) => {
       const row = Array.isArray(input) ? input[0] : input;
       calls.entries.push(row);
@@ -332,6 +367,52 @@ test("aiOriginal stays tokenised while the saved feedback is filled", async (t) 
   });
 });
 
+test("a finished assessment records which prompt made it and what it cost", async (t) => {
+  await withAssessStubs(t, {}, async ({ doc }) => {
+    await assess();
+    assert.equal(doc.promptVersion, WRITING_PROMPT_VERSIONS.feedback);
+    assert.equal(doc.schemaVersion, WRITING_SCHEMA_VERSION);
+    assert.equal(doc.usage.totalTokens, 1200);
+    assert.equal(typeof doc.usage.latencyMs, "number");
+    assert.ok(doc.usage.latencyMs >= 0);
+    // The facts stored alongside are counts of this draft, never model prose.
+    assert.equal(doc.metrics.totalWords > 0, true);
+    assert.equal("sections" in doc.metrics, false);
+  });
+});
+
+test("a stated word count that contradicts the draft is corrected before storage", async (t) => {
+  const reply = goodReply();
+  reply.overall.summary =
+    "{{student}} wrote 300 words and 12 sentences, with a clear opinion.";
+  await withAssessStubs(t, { reply }, async ({ doc }) => {
+    await assess();
+    assert.equal(doc.overall.summary.includes("300 words"), false);
+    assert.equal(doc.overall.summary.includes("12 sentences"), false);
+    assert.match(doc.overall.summary, /\d+ words/);
+    // The quote is the child's own words and stays as written.
+    assert.match(doc.sections[0].evidence, /I think uniforms are fair/);
+  });
+});
+
+test("the metrics kill switch drops the facts and scrub, not the stored record", async (t) => {
+  const saved = process.env.WRITING_METRICS;
+  process.env.WRITING_METRICS = "0";
+  t.after(() => {
+    if (saved === undefined) delete process.env.WRITING_METRICS;
+    else process.env.WRITING_METRICS = saved;
+  });
+  const reply = goodReply();
+  reply.overall.summary = "{{student}} wrote 300 words.";
+  await withAssessStubs(t, { reply }, async ({ doc, calls }) => {
+    await assess();
+    assert.doesNotMatch(calls.prompts[0], /Draft facts/);
+    assert.match(doc.overall.summary, /300 words/);
+    // The computed facts are still stored: the switch changes the prompt only.
+    assert.equal(doc.metrics.totalWords > 0, true);
+  });
+});
+
 test("a religious formula in the reply is removed before it is stored", async (t) => {
   const reply = goodReply();
   reply.overall.summary = "{{student}} has a clear opinion, God willing.";
@@ -352,6 +433,62 @@ test("a reply that cannot be made safe is refused, not stored", async (t) => {
     });
     assert.equal(doc.aiStatus, "failed");
     assert.equal(doc.overall, undefined);
+  });
+});
+
+test("a provider failure feeds the admin outage monitor", async (t) => {
+  await withAssessStubs(
+    t,
+    { fetchError: new Error("Provider gateway unreachable") },
+    async ({ calls, doc }) => {
+      await assert.rejects(assess(), (error) => {
+        assert.equal(error.statusCode, 422);
+        return true;
+      });
+      await delay(0);
+      assert.equal(doc.aiStatus, "failed");
+      assert.equal(calls.alerts.length, 1);
+      assert.equal(calls.alerts[0].code, "AI_PROVIDER_ERROR");
+    },
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* K6: a detached run outlives the request                             */
+/* ------------------------------------------------------------------ */
+
+test("a detached run answers with the claimed row before the provider replies", async (t) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  let providerReached;
+  const reached = new Promise((resolve) => {
+    providerReached = resolve;
+  });
+  await withAssessStubs(t, { gate, onCall: providerReached }, async ({ doc, project }) => {
+    const result = await assessDraft({
+      schoolId,
+      draftId,
+      userId: teacherId,
+      language: "en",
+      force: true,
+      detached: true,
+    });
+    // The request is answered while the provider is still holding the reply;
+    // the claimed row is what the review panel polls from here on.
+    assert.equal(result.pending, true);
+    assert.equal(doc.aiStatus, "running");
+    await reached;
+    assert.equal(doc.aiStatus, "running");
+    assert.equal(project.stage, "submitted");
+
+    release();
+    for (let i = 0; i < 100 && doc.aiStatus !== "done"; i += 1) {
+      await delay(5);
+    }
+    assert.equal(doc.aiStatus, "done");
+    assert.match(doc.overall.summary, /Sara Ahmed/);
   });
 });
 
@@ -538,8 +675,7 @@ const editableAssessment = () => ({
   },
 });
 
-const withEditStubs = (t, run) => {
-  const doc = editableAssessment();
+const withEditStubs = (t, run, doc = editableAssessment()) => {
   const restores = [
     stub(WritingAssessment, "findOne", async () => doc),
     stub(WritingProject, "findOne", async () => ({
@@ -584,6 +720,37 @@ test("a teacher edit that is safe is saved", async (t) => {
     });
     assert.equal(doc.overall.summary, "{{student}} states a clear opinion.");
   });
+});
+
+test("a teacher's own mark is recorded over the server's clamp", async (t) => {
+  const doc = editableAssessment();
+  doc.scoreAdjustments = [
+    { target: "section", key: "body", index: 0, from: 4, to: 1, reason: "empty_section" },
+    { target: "score", key: "ideas", from: 5, to: 2, reason: "empty_section" },
+  ];
+  doc.scores = [
+    { key: "ideas", label: "Ideas", score: 2, maxScore: 5, explanation: "", evidence: "" },
+  ];
+  await withEditStubs(
+    t,
+    async (saved) => {
+      await saveAssessmentEdits({
+        schoolId,
+        assessmentId: String(saved._id),
+        userId: teacherId,
+        payload: {
+          sections: [{ key: "body", index: 0, score: 4 }],
+          scores: [{ key: "ideas", score: 5 }],
+        },
+      });
+      assert.equal(saved.sections[0].score, 4);
+      assert.equal(saved.scores[0].score, 5);
+      assert.equal(saved.scoreAdjustments[0].overriddenByTeacher, true);
+      assert.equal(saved.scoreAdjustments[1].overriddenByTeacher, true);
+      assert.equal(saved.scoreAdjustments[0].from, 4);
+    },
+    doc,
+  );
 });
 
 /* ------------------------------------------------------------------ */

@@ -177,6 +177,8 @@ const CaseSurveys = ({ data, reload }) => {
 
   const markHandedOver = (surveyId) => act(`hand-${surveyId}`, () => supportService.markHandedOver(caseId, surveyId), t("reviews.handedOver"));
 
+  const reopenSurveyRow = (surveyId) => act(`reopen-${surveyId}`, () => supportService.reopenSurvey(caseId, surveyId), t("reviews.reopened"));
+
   const submitAssisted = async (answers) => {
     if (!assist) return;
     setBusy("assist");
@@ -481,6 +483,16 @@ const CaseSurveys = ({ data, reload }) => {
                               </button>
                             </>
                           )}
+                          {row.status === "skipped" && canManage && (
+                            <button
+                              type="button"
+                              className="support-link-btn"
+                              disabled={busy === `reopen-${row.id}`}
+                              onClick={() => reopenSurveyRow(row.id)}
+                            >
+                              {busy === `reopen-${row.id}` ? t("common.working") : t("reviews.reopenSurvey")}
+                            </button>
+                          )}
                           {row.answeredCount > 0 && (
                             <button
                               type="button"
@@ -495,13 +507,17 @@ const CaseSurveys = ({ data, reload }) => {
                           <ul className="support-answer-list">
                             {row.answers?.length ? row.answers.map((answer) => {
                               const question = (row.questions || []).find((entry) => entry.id === answer.questionId);
-                              const value = answer.scaleValue ?? answer.choiceValue
-                                ?? (Number.isInteger(answer.choiceIndex) ? (question?.options?.[answer.choiceIndex] || answer.choiceIndex) : "")
-                                ?? answer.textValue;
+                              // Null-ish chain stopped at choiceValue's "" default and
+                              // hid every free-text answer; each kind renders its own.
+                              const value = answer.scaleValue != null
+                                ? String(answer.scaleValue)
+                                : Number.isInteger(answer.choiceIndex)
+                                  ? (question?.options?.[answer.choiceIndex] || answer.choiceIndex)
+                                  : String(answer.choiceValue || "").trim() || String(answer.textValue || "");
                               return (
                                 <li key={answer.questionId}>
                                   <span>{promptOf(question, arabic)}</span>
-                                  <strong>{String(value ?? "")}</strong>
+                                  <strong>{value}</strong>
                                 </li>
                               );
                             }) : <li className="support-muted">{t("reviews.answersHidden")}</li>}

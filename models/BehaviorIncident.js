@@ -49,6 +49,7 @@ const emailDraftSchema = new mongoose.Schema({
 }, { _id: false });
 
 const behaviorIncidentSchema = new mongoose.Schema({
+    routineEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentBehavior' },
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
@@ -89,6 +90,9 @@ const behaviorIncidentSchema = new mongoose.Schema({
     studentSubmissionCount: { type: Number, default: 0 }
 }, { timestamps: true });
 
+behaviorIncidentSchema.index({ school: 1, routineEntry: 1 }, {
+    unique: true, partialFilterExpression: { routineEntry: { $type: 'objectId' } }
+});
 behaviorIncidentSchema.plugin(tenantIsolationPlugin);
 behaviorIncidentSchema.set('collection', 'behavior_incidents');
 

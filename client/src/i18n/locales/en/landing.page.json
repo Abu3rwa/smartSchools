@@ -10,7 +10,7 @@
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
     "dynamicFallbackNotice": "Showing default content because localized live updates are temporarily unavailable.",
-    "demoCta": "Book a demo",
+    "demoCta": "Request a demo",
     "demoForm": {
       "overline": "Book a demo",
       "title": "See the platform on your own school",
@@ -64,5 +64,239 @@
     "unlimitedStudents": "Unlimited students",
     "perMonth": "/ month",
     "perYear": "/ year"
+  },
+  "publicPage": {
+    "actions": {
+      "demo": "Request a demo",
+      "explore": "Explore the product",
+      "signIn": "Sign in",
+      "findSchool": "Find your school",
+      "register": "Register your school",
+      "retry": "Try again",
+      "close": "Close",
+      "viewLarger": "View larger"
+    },
+    "nav": {
+      "product": "Product",
+      "learning": "Learning tools",
+      "pricing": "Pricing",
+      "faq": "Common questions"
+    },
+    "header": {
+      "menu": "Menu",
+      "openMenu": "Open navigation menu",
+      "closeMenu": "Close navigation menu",
+      "language": "Language",
+      "english": "English",
+      "arabic": "العربية",
+      "switchLight": "Switch to light theme",
+      "switchDark": "Switch to dark theme"
+    },
+    "a11y": {
+      "skip": "Skip to main content",
+      "mainNavigation": "Main navigation",
+      "footerNavigation": "Footer navigation",
+      "restoringSession": "Restoring your session"
+    },
+    "seo": {
+      "title": "{{appName}} — Classroom tools for your school",
+      "description": "Explore grades, lesson-period attendance, and assignment workflows in {{appName}}. View current public plans or send a demo enquiry."
+    },
+    "hero": {
+      "eyebrow": "Classroom tools. School-wide clarity.",
+      "title": "Run the school day. Support the learning.",
+      "bodyFull": "Bring grades, attendance, and assignments together in {{appName}}, with reading, spelling, and writing tools for classroom learning.",
+      "bodyCore": "Bring grades, lesson-period attendance, and assignments together in {{appName}} so staff and students can follow their everyday schoolwork.",
+      "existingUser": "Already using {{appName}}?",
+      "availability": "Learning tools vary by plan and school settings."
+    },
+    "images": {
+      "demoCaption": "{{appName}} product view · demonstration data",
+      "englishCaption": "English interface example · demonstration data",
+      "closeViewer": "Close product image",
+      "gradebookAlt": "Class gradebook in {{appName}}, shown with demonstration students and marks.",
+      "attendanceAlt": "Lesson-period attendance in {{appName}}, shown with demonstration records.",
+      "assignmentsAlt": "Assignment workflow in {{appName}}, shown with demonstration work.",
+      "readingAlt": "Reading activity interface with demonstration content.",
+      "spellingAlt": "Student spelling assessment with demonstration words.",
+      "writingAlt": "Writing review interface with a demonstration draft."
+    },
+    "workflows": {
+      "title": "See the work, not just a feature list.",
+      "tabsLabel": "Classroom workflows",
+      "gradebook": {
+        "title": "Teach and assess",
+        "body": "Open the class gradebook, record marks and notes, and return to the class view to review the information you have saved for your students.",
+        "step1": "Open your class gradebook.",
+        "step2": "Record marks and notes.",
+        "step3": "Review the class view."
+      },
+      "attendance": {
+        "title": "Organize the school day",
+        "body": "Select the scheduled lesson period, record attendance for the class, and review the saved attendance records through the school's existing attendance workflow and timetable.",
+        "step1": "Select the scheduled period.",
+        "step2": "Record class attendance.",
+        "step3": "Review saved attendance.",
+        "note": "Attendance follows your school's timetable and assignments."
+      },
+      "assignments": {
+        "title": "Keep assignments moving",
+        "body": "Create and publish an assignment, let students find their assigned work, and use the supported review and grading steps for that type of assignment.",
+        "step1": "Create and publish work.",
+        "step2": "Students find assigned work.",
+        "step3": "Review work and record grades.",
+        "note": "Submission and review steps vary by assignment type."
+      },
+      "adminNote": "School administrators manage users, roles, and permissions."
+    },
+    "learning": {
+      "title": "Support practice beyond the gradebook.",
+      "reading": {
+        "title": "Reading",
+        "bullet1": "Assign supported reading versions.",
+        "bullet2": "Give comprehension practice and review responses."
+      },
+      "spelling": {
+        "title": "Spelling",
+        "bullet1": "Run student spelling assessments.",
+        "bullet2": "Revisit missed words through retests."
+      },
+      "writing": {
+        "title": "Writing",
+        "bullet1": "Follow drafts and revisions.",
+        "bullet2": "Review supported feedback before sharing it."
+      },
+      "availability": "Availability depends on your plan and school settings.",
+      "aiTitle": "AI support, with clear limits.",
+      "aiBody": "Some learning tools use AI. Availability depends on your plan and school settings, and some actions use credits. Review generated content before relying on it."
+    },
+    "setup": {
+      "title": "From school setup to daily classroom use.",
+      "account": {
+        "title": "Set up the school",
+        "body": "Create the school administrator account through school registration."
+      },
+      "access": {
+        "title": "Prepare classes and access",
+        "body": "Configure classes and authorized teacher and student access using the school tools."
+      },
+      "daily": {
+        "title": "Start everyday work",
+        "body": "Use grades, attendance, and assignments, with supported learning tools according to your plan and school settings."
+      },
+      "registerLead": "Ready to set up?",
+      "accountNote": "Registration creates a school administrator account, not a student or parent account."
+    },
+    "pricing": {
+      "title": "Plans based on your school's needs.",
+      "subtitle": "View the public plans currently listed for {{appName}}. Ask about a plan to discuss your school's requirements.",
+      "month": "per month",
+      "year": "per year",
+      "contactPrice": "Contact us for current pricing",
+      "students": "Students",
+      "teachers": "Teachers",
+      "classes": "Classes",
+      "capped": "Up to {{value}}",
+      "unlimited": "No plan cap",
+      "askPlan": "Ask about this plan",
+      "askPlanLabel": "Ask about this plan: {{name}}",
+      "demoSending": "Your demo request is being sent. Plan selection is temporarily unavailable.",
+      "demoReceived": "Your demo request has already been received.",
+      "availability": "Feature availability can also depend on school settings. AI usage may require credits.",
+      "loading": "Loading current plans…",
+      "empty": "No public plans are available right now. Request a demo to discuss options.",
+      "error": "Pricing is temporarily unavailable.",
+      "registerLead": "Prefer to start school setup?",
+      "features": {
+        "readingAssistant": "Reading activities",
+        "writingAssistant": "Writing activities"
+      }
+    },
+    "faq": {
+      "title": "A few things worth knowing.",
+      "audience": {
+        "question": "Who is {{appName}} for?",
+        "answer": "{{appName}} supports school staff and authorized students with everyday classroom workflows. School registration creates an administrator account; existing users should sign in through their school."
+      },
+      "signIn": {
+        "question": "How do I sign in to my school?",
+        "answer": "Choose Sign in, or use Find your school to open its sign-in page. Follow your school's account instructions and any configured Google sign-in requirements."
+      },
+      "tools": {
+        "question": "Which learning tools are included?",
+        "answer": "Availability depends on the school's plan and settings. Some AI actions also use credits. A school registration or demo request does not unlock every tool."
+      },
+      "ai": {
+        "question": "Does AI replace teacher review?",
+        "answer": "No. AI-generated content can be incorrect and should be checked before relying on it. Review and sharing controls differ between tools; not every response waits for teacher approval."
+      },
+      "demo": {
+        "question": "Does a demo request create an account or reserve a time?",
+        "answer": "No. It saves an enquiry for the team to review. It does not create a school account, reserve an appointment, or confirm an email delivery. School registration is separate."
+      },
+      "language": {
+        "question": "Does the interface support English and Arabic?",
+        "answer": "The interface supports English and Arabic, including right-to-left Arabic layouts. Language support for individual learning and audio tools can differ."
+      }
+    },
+    "demo": {
+      "title": "See how {{appName}} fits your school.",
+      "body": "Tell us about your school and the workflows you want to see. Send a demo request for the team to review.",
+      "requiredNote": "Name, school name, and email are required.",
+      "name": "Your name",
+      "schoolName": "School name",
+      "email": "Email address",
+      "phone": "Phone (optional)",
+      "role": "Your role (optional)",
+      "plan": "Plan interest (optional)",
+      "noPlan": "No plan selected",
+      "message": "What would you like to see? (optional)",
+      "messageHint": "Describe the workflows, not student or other private information.",
+      "planSummary": "Plan interest: {{name}} ({{key}})",
+      "counter": "{{used}} / {{max}} characters, including plan interest",
+      "planCleared": "That plan is no longer listed. Your message has been kept.",
+      "submit": "Send demo request",
+      "sending": "Sending request…",
+      "sendAgain": "Send again",
+      "successTitle": "Your demo request has been received.",
+      "successBody": "The request has been saved for the team to review. No appointment has been reserved.",
+      "error": "We could not complete the request. Check the details and try again.",
+      "uncertain": "We could not confirm whether your request was received. Your details are still here. Sending again may create another request.",
+      "rateLimit": "Too many requests. Please wait before sending again.",
+      "retryAfter": "Please wait {{seconds}} seconds before sending again.",
+      "existingUser": "Looking for your school account?"
+    },
+    "validation": {
+      "required": "Enter this information.",
+      "email": "Enter a valid email address, such as name@example.com.",
+      "tooLong": "Use {{max}} characters or fewer.",
+      "messageTooLong": "Keep the message and selected-plan summary within 2000 characters. Shorten the message or clear Plan interest.",
+      "serverField": "Check this field and try again."
+    },
+    "finder": {
+      "title": "Find your school's sign-in page",
+      "description": "Enter part of your school name or its sign-in identifier.",
+      "label": "School name or identifier",
+      "minimum": "Enter at least 2 characters to search.",
+      "tooLong": "Use 80 characters or fewer.",
+      "loading": "Searching schools…",
+      "empty": "No matching school found. Check the name or use your school's sign-in link.",
+      "error": "School search is unavailable. Try again or use Sign in.",
+      "more": "More matches are available. Enter more of the school name.",
+      "resultsLabel": "Matching schools",
+      "resultsStatus": "Results shown: {{count}}",
+      "openSchool": "Sign in to {{name}}",
+      "genericHelp": "Have your account details?"
+    },
+    "footer": {
+      "description": "Classroom tools for everyday schoolwork.",
+      "copyright": "© {{year}} {{appName}}"
+    },
+    "editor": {
+      "noticeTitle": "Public landing page ownership",
+      "noticeBody": "The public landing page layout and marketing text are maintained in the application. Legacy section edits do not change that page. Shared branding still uses the existing configuration.",
+      "activeBrand": "The application name remains connected to the existing brand-name setting.",
+      "legacySection": "Legacy section — not connected to the public landing page"
+    }
   }
 }

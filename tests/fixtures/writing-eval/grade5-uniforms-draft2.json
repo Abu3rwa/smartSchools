@@ -1,0 +1,98 @@
+{
+  "id": "grade5-uniforms-draft2-revised",
+  "source": "synthetic",
+  "note": "The same student's second draft: the earlier task is done, the example is added, one run-on remains.",
+  "language": "en",
+  "assignment": {
+    "title": "Should school uniforms be required?",
+    "writingType": "persuasive",
+    "topic": "School uniforms",
+    "instructions": "Write an opinion about school uniforms. Give two reasons and one example.",
+    "expectedLevel": "Grade 5",
+    "minWords": 80,
+    "maxWords": 300,
+    "sections": [
+      { "key": "introduction", "label": "Introduction", "kind": "introduction", "criteria": ["states an opinion"], "instructions": "" },
+      { "key": "body", "label": "Body", "kind": "body", "criteria": ["gives a reason", "gives an example"], "instructions": "" },
+      { "key": "conclusion", "label": "Conclusion", "kind": "conclusion", "criteria": ["restates the opinion"], "instructions": "" }
+    ],
+    "rubric": [
+      { "key": "ideas", "label": "Ideas", "description": "Opinion and reasons", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "organisation", "label": "Organisation", "description": "Order and linking", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "conventions", "label": "Conventions", "description": "Spelling and sentences", "maxScore": 5, "appliesToSections": ["*"] }
+    ]
+  },
+  "goal": "Add one example after each reason.",
+  "previousAssessment": {
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "nextStep": "Write one sentence that says why uniforms are good." },
+      { "key": "body", "index": 0, "label": "Body", "nextStep": "Add one sentence that starts with For example." }
+    ],
+    "tasks": [
+      { "id": "t1", "text": "Write one sentence that says why uniforms are good." },
+      { "id": "t2", "text": "Add one example about time in the morning." }
+    ],
+    "overall": { "nextPriorities": ["Add one example about time in the morning."] }
+  },
+  "previousDraft": {
+    "number": 1,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "I think that school uniforms are good. I think that school uniforms are fair." },
+      { "key": "body", "index": 0, "label": "Body", "text": "First, uniforms save time in the morning. I think that everyone looks the same. This is good because nobody is judged." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "I think that uniforms are good for our school." }
+    ]
+  },
+  "draft": {
+    "number": 2,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "I think that school uniforms are good because they make the school calm." },
+      { "key": "body", "index": 0, "label": "Body", "text": "First, uniforms save time in the morning because my mother does not have to pick my clothes and we leave the house fast. For example, last week we were not late." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "I think that uniforms are good for our school because they help us learn." }
+    ]
+  },
+  "sampleReply": {
+    "sections": [
+      {
+        "key": "introduction",
+        "index": 0,
+        "strengths": ["The opinion now carries a because reason."],
+        "improvements": ["Keep the reason short so the reader follows it easily."],
+        "evidence": "I think that school uniforms are good because they make the school calm",
+        "why": "A short reason is easier to check against the task.",
+        "nextStep": "Cut the second half of the sentence or start a new sentence.",
+        "score": 4
+      },
+      {
+        "key": "body",
+        "index": 0,
+        "strengths": ["The For example sentence is exactly what the task asked for."],
+        "improvements": ["Split the long first sentence after the word clothes."],
+        "evidence": "For example, last week we were not late",
+        "why": "A reader needs one idea at a time.",
+        "nextStep": "Put a full stop after clothes and start the next word with We.",
+        "score": 3
+      },
+      {
+        "key": "conclusion",
+        "index": 0,
+        "strengths": ["You linked the opinion to learning in the last sentence."],
+        "improvements": ["Say which lesson learning helps most."],
+        "evidence": "they help us learn",
+        "why": "One clear detail makes the closing stronger.",
+        "nextStep": "Name one lesson where you learn better in uniform.",
+        "score": 3
+      }
+    ],
+    "overall": {
+      "summary": "You added the example the task asked for and linked your opinion to reasons. Next, split the long sentence in the middle.",
+      "nextPriorities": ["Split the long middle sentence after clothes.", "Name one lesson learning helps."]
+    },
+    "scores": [
+      { "key": "ideas", "score": 3, "explanation": "The opinion is clear and one reason now has an example.", "evidence": "For example, last week we were not late" },
+      { "key": "organisation", "score": 3, "explanation": "First and For example order the ideas; one run-on hides them.", "evidence": "First, uniforms save time in the morning" },
+      { "key": "conventions", "score": 2, "explanation": "Words are spelled well but one sentence runs long.", "evidence": "my mother does not have to pick my clothes" }
+    ],
+    "spellingTargets": [],
+    "recommendation": { "path": "revise", "reason": "Splitting the run-on sentence will make the example easy to read." }
+  }
+}

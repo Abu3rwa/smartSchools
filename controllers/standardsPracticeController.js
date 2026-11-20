@@ -9,7 +9,7 @@ import PracticeIntegrityEvent from "../models/PracticeIntegrityEvent.js";
 import MasteryRecord from "../models/MasteryRecord.js";
 import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
 import StandardQuestionPool from "../models/StandardQuestionPool.js";
-import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
+import standardsPracticeAIService from "../services/standardsPracticeAiService.js";
 import {
   buildStandardsUpdateEmail,
   buildStandardsUpdateRow,

@@ -5,6 +5,7 @@ import SupportCheckIn from '../models/SupportCheckIn.js';
 import SupportPlan from '../models/SupportPlan.js';
 import SupportRespondent from '../models/SupportRespondent.js';
 import SupportSurvey from '../models/SupportSurvey.js';
+import logger from '../utils/logger.js';
 import {
     CODE_PATTERN,
     codeHint,
@@ -58,7 +59,27 @@ export const issueCode = async (respondent, { rotate = false } = {}) => {
         respondent.failedAttempts = 0;
         respondent.lockedUntil = null;
         if (rotate) respondent.lastAccessAt = respondent.lastAccessAt || null;
-        await respondent.save();
+        // Any outstanding session was granted under the previous credential.
+        respondent.tokenVersion = (respondent.tokenVersion || 0) + 1;
+        try {
+            await respondent.save();
+        } catch (error) {
+            // A duplicate on insert means this participant already has a row for
+            // the same natural key (another request won the race); the raw
+            // index message names schema fields and means nothing to the user.
+            if (error?.code === 11000) {
+                logger.warn('support_respondent_duplicate', {
+                    collection: 'supportrespondents',
+                    detail: String(error?.message || '').slice(0, 300),
+                });
+                throw supportError(
+                    409,
+                    'RESPONDENT_DUPLICATE',
+                    'A survey record for this participant already exists. Reload the page and try again.',
+                );
+            }
+            throw error;
+        }
         return code;
     }
     throw supportError(500, 'CODE_GENERATION_FAILED', 'Could not issue a code. Try again.');
@@ -161,14 +182,21 @@ export const rotateRespondentCode = async (respondent) => {
     return code;
 };
 
+/**
+ * Shared-device sessions stay short (30 minutes) and slide: the access
+ * middleware re-signs the token on every request, so an actively used session
+ * keeps working while an abandoned one dies quickly. tokenVersion ties every
+ * session to the current code; issuing a new code kills the old sessions.
+ */
 export const signAccessToken = (respondent) => jwt.sign(
     {
         supportRespondent: String(respondent._id),
         schoolId: String(respondent.school),
         kind: respondent.kind,
+        tokenVersion: Number(respondent.tokenVersion || 0),
     },
     process.env.JWT_SECRET,
-    { expiresIn: '12h' },
+    { expiresIn: '30m' },
 );
 
 export const verifyAccessToken = (token) => {
@@ -180,6 +208,10 @@ export const verifyAccessToken = (token) => {
         return null;
     }
 };
+
+export const sessionStillValid = (decoded, respondent) => (
+    Number(decoded?.tokenVersion || -1) === Number(respondent?.tokenVersion || 0)
+);
 
 export const findRespondentByCode = async (rawCode) => {
     const code = normalizeCode(rawCode);

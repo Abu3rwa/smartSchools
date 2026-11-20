@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { HiOutlineMail } from "react-icons/hi";
 import writingService from "../../../../services/writingService.js";
 import { publishedFeedbackForEmail } from "./assessmentPresentation.js";
+import EmailRecipients from "./EmailRecipients.jsx";
 
 const ERROR_KEYS = {
   WRITING_EMAIL_NOT_FOUND: "notFound",
@@ -12,6 +13,7 @@ const ERROR_KEYS = {
   WRITING_EMAIL_DISABLED: "disabled",
   WRITING_EMAIL_EMPTY: "empty",
   WRITING_EMAIL_NO_ADDRESSES: "noAddresses",
+  WRITING_EMAIL_SUPPRESSED: "suppressed",
 };
 
 export default function FeedbackEmailResend({ history, emailDelivery, disabled }) {
@@ -118,6 +120,11 @@ export default function FeedbackEmailResend({ history, emailDelivery, disabled }
               </label>
             ))}
             {(!emailDelivery?.students || !emailDelivery?.parents) && <p className="wa-review-notify-hint">{label("disabled")}</p>}
+            <EmailRecipients
+              recipients={history.emailRecipients}
+              allowed={emailDelivery}
+              selected={notify}
+            />
           </fieldset>
           {!notify.student && !notify.parents && <p className="wa-hint">{label("chooseRecipients")}</p>}
           {error && <p className="wa-email-error" role="alert">{error}</p>}
@@ -125,6 +132,8 @@ export default function FeedbackEmailResend({ history, emailDelivery, disabled }
             <div className={result.failed ? "wa-email-error" : "wa-email-result"} role="status">
               <p>{label("result", { sent: result.sent, failed: result.failed })}</p>
               {result.failed > 0 && <p>{label(result.sent > 0 ? "partial" : "allFailed")}</p>}
+              {result.skipped > 0 && <p>{label("resultAlreadySent", { n: result.skipped })}</p>}
+              {result.suppressed > 0 && <p>{label("resultSuppressed", { n: result.suppressed })}</p>}
             </div>
           )}
           {(preview?.missing || result?.missing || []).map((role) => (
@@ -142,6 +151,16 @@ export default function FeedbackEmailResend({ history, emailDelivery, disabled }
               <p className="wa-email-subject">{message.subject}</p>
               <iframe title={label("previewFor")} sandbox="" referrerPolicy="no-referrer" srcDoc={message.html} />
               <p className="wa-hint">{label("recipientTotal", { n: preview.previews.reduce((sum, row) => sum + row.recipients, 0) })}</p>
+              {preview.previews.some((row) => row.sent > 0) && (
+                <p className="wa-hint">
+                  {label("previewAlreadySent", {
+                    n: preview.previews.reduce((sum, row) => sum + (row.sent || 0), 0),
+                  })}
+                </p>
+              )}
+              {preview.suppressed > 0 && (
+                <p className="wa-hint">{label("resultSuppressed", { n: preview.suppressed })}</p>
+              )}
             </div>
           )}
           <div className="wa-review-actions">

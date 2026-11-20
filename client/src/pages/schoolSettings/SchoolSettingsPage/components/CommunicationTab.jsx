@@ -14,7 +14,10 @@ const CommunicationTab = ({
   onAttendanceReminderSettingsChange,
   onSaveAttendanceReminderSettings,
   onTeacherEmailDomainChange,
-  onSaveTeacherEmailDomain
+  onSaveTeacherEmailDomain,
+  writingFeedbackSettings,
+  onWritingFeedbackMarksModeChange,
+  onSaveWritingFeedbackSettings
 }) => {
   const { t } = useTranslation(['schoolSettings']);
 
@@ -141,6 +144,47 @@ const CommunicationTab = ({
             ? t('schoolSettings:common.saving')
             : t('schoolSettings:communication.saveTeacherEmailDomain')}
         </button>
+
+        {writingFeedbackSettings && (
+          <>
+            <hr style={{ margin: '1rem 0', borderColor: 'var(--border-color)' }} />
+
+            <h4 style={{ marginBottom: '0.5rem' }}>
+              {t('schoolSettings:communication.writingMarksTitle')}
+            </h4>
+            <p className="text-muted">
+              {t('schoolSettings:communication.writingMarksHelpText')}
+            </p>
+
+            {['words', 'words_numbers', 'numbers'].map((mode) => (
+              <label className="communication-toggle-row" key={mode}>
+                <input
+                  type="radio"
+                  name="writing-marks-mode"
+                  value={mode}
+                  checked={writingFeedbackSettings.marksMode === mode}
+                  onChange={() => onWritingFeedbackMarksModeChange(mode)}
+                  disabled={writingFeedbackSettings.saving}
+                />
+                <span>
+                  {t(`schoolSettings:communication.writingMarks_${mode}`)}
+                </span>
+              </label>
+            ))}
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: '0.75rem' }}
+              onClick={onSaveWritingFeedbackSettings}
+              disabled={writingFeedbackSettings.saving}
+            >
+              {writingFeedbackSettings.saving
+                ? t('schoolSettings:common.saving')
+                : t('schoolSettings:communication.saveWritingMarks')}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

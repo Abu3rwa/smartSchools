@@ -206,7 +206,7 @@
     }
   },
   "chip": {
-    "label": "AI credit",
+    "label": "AI balance",
     "empty": "None left",
     "paused": "Paused"
   },

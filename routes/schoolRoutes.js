@@ -34,6 +34,10 @@ import {
     resolveAcademicYearDateRange
 } from '../utils/academicYear.js';
 import {
+    resolveSchoolActivePeriod,
+    validateAcademicPeriodPayload
+} from '../utils/academicPeriod.js';
+import {
     createDefaultAdmissionsPromotionSettings,
     normalizeAdmissionsPromotionSettings,
     validateAdmissionsPromotionSettingsPayload
@@ -43,7 +47,9 @@ import {
     STUDENT_GROUPING_REPORT_SETTING_KEYS
 } from '../utils/studentGroupingReportSettings.js';
 import upload from '../middleware/upload.js';
+import { MARKS_MODES } from '../client/src/utils/writingRubric.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
+import { listSchoolUsers, updateSchoolUser } from '../services/userManagementService.js';
 import {
     getSchoolAcademicExcellenceAnalytics,
     getSchoolAcademicExcellenceAtRisk,
@@ -57,7 +63,6 @@ const userManagementAccess = authorizeWithPermission(
     ['admin'],
     [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SCHOOL_SETTINGS]
 );
-const validPermissionKeys = new Set(Object.values(PERMISSIONS));
 
 // All routes require authentication
 router.use(protect);
@@ -142,6 +147,60 @@ router.put('/me/current-academic-year', requireSchoolContext, authorize('admin')
         success: true,
         message: `Academic year updated to ${inputYear}`,
         data: { academicYear: school.settings?.currentAcademicYear || inputYear }
+    });
+}));
+
+/**
+ * @desc    Get the school's active academic period (year + semester)
+ * @route   GET /api/schools/me/active-academic-period
+ * @access  Private (Any school user)
+ */
+router.get('/me/active-academic-period', requireSchoolContext, asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId)
+        .select('settings.currentAcademicYear settings.currentSemester settings.academicYearStartMonth');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: resolveSchoolActivePeriod(school)
+    });
+}));
+
+/**
+ * @desc    Update the school's active academic period (year and/or semester)
+ * @route   PUT /api/schools/me/active-academic-period
+ * @access  Private (Admin)
+ */
+router.put('/me/active-academic-period', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const validation = validateAcademicPeriodPayload(req.body);
+    if (!validation.valid) {
+        return res.status(400).json({ success: false, message: validation.message });
+    }
+
+    const updates = {};
+    if (validation.data.academicYear !== undefined) {
+        updates['settings.currentAcademicYear'] = validation.data.academicYear;
+    }
+    if (validation.data.semester !== undefined) {
+        updates['settings.currentSemester'] = validation.data.semester;
+    }
+
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        { $set: updates },
+        { new: true, runValidators: true }
+    ).select('settings.currentAcademicYear settings.currentSemester settings.academicYearStartMonth');
+
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        message: 'Academic period updated',
+        data: resolveSchoolActivePeriod(school)
     });
 }));
 
@@ -499,6 +558,51 @@ router.patch('/me/communication-settings', requireSchoolContext, authorize('admi
             aiEmailDraftEnabled: school.settings.communication.aiEmailDraftEnabled !== false,
             featureAvailable
         }
+    });
+}));
+
+/**
+ * @desc    What a child and family may read of a writing rubric: words, words
+ *          and numbers, or numbers. One setting drives view, email and print.
+ * @route   GET /api/schools/me/writing-feedback-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/writing-feedback-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.writingFeedback').lean();
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+    const marksMode = MARKS_MODES.includes(school.settings?.writingFeedback?.marksMode)
+        ? school.settings.writingFeedback.marksMode
+        : 'words';
+    res.json({ success: true, data: { marksMode } });
+}));
+
+/**
+ * @desc    Update the school's writing feedback display settings
+ * @route   PATCH /api/schools/me/writing-feedback-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/writing-feedback-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const marksMode = req.body?.marksMode;
+    if (!MARKS_MODES.includes(marksMode)) {
+        return res.status(400).json({
+            success: false,
+            message: `marksMode must be one of: ${MARKS_MODES.join(', ')}`
+        });
+    }
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        { $set: { 'settings.writingFeedback.marksMode': marksMode } },
+        { new: true, runValidators: true }
+    ).select('settings.writingFeedback');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+    res.json({
+        success: true,
+        message: 'Writing feedback settings updated',
+        data: { marksMode: school.settings?.writingFeedback?.marksMode || 'words' }
     });
 }));
 
@@ -938,12 +1042,8 @@ router.delete('/me/logo', requireSchoolContext, authorize('admin'), asyncHandler
  * @access  Private (Admin)
  */
 router.get('/me/users', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
-    const users = await User.find({ school: req.schoolId })
-        .select('firstName lastName email role roles title titles isActive department permissions permissionScopes createdAt')
-        .populate('department', 'name type')
-        .sort({ role: 1, 'firstName': 1 });
-
-    res.json({ success: true, data: { users } });
+    const result = await listSchoolUsers(req.schoolId);
+    res.status(result.status).json(result.body);
 }));
 
 /**
@@ -952,120 +1052,14 @@ router.get('/me/users', requireSchoolContext, userManagementAccess, asyncHandler
  * @access  Private (Admin)
  */
 router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
-    const { userId } = req.params;
-    const { role, roles, department, permissions, permissionScopes, title, titles } = req.body;
-
-    const user = await User.findById(userId).setOptions({ skipTenantFilter: true });
-    if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    if (user.school?.toString() !== req.schoolId.toString()) {
-        return res.status(403).json({ success: false, message: 'User does not belong to your school' });
-    }
-    if (user.role === 'super_admin') {
-        return res.status(403).json({ success: false, message: 'Cannot change super admin role' });
-    }
-
-    const allowedRoles = [
-        'admin',
-        'staff',
-        'department_principal',
-        'teacher',
-        'parent',
-        'student',
-        // Legacy staff roles (kept for backward compatibility)
-        'attendance_manager',
-        'lesson_plan_reviewer',
-        'report_viewer',
-        'event_coordinator',
-        'behavior_manager',
-        'transportation_coordinator',
-        'cafeteria_manager',
-        'library_manager',
-        'it_support',
-        'counselor',
-        'nurse'
-    ];
-
-    if (role !== undefined) {
-        if (!allowedRoles.includes(role)) {
-            return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
-        }
-        user.role = role;
-    }
-
-    // Update roles array (multi-role support)
-    if (roles !== undefined) {
-        if (!Array.isArray(roles)) {
-            return res.status(400).json({ success: false, message: 'Roles must be an array' });
-        }
-        const invalidRoles = roles.filter((r) => !allowedRoles.includes(r));
-        if (invalidRoles.length > 0) {
-            return res.status(400).json({ success: false, message: `Invalid roles: ${invalidRoles.join(', ')}` });
-        }
-        user.roles = roles;
-        // If active role is not in the new roles array, switch to first role
-        if (roles.length > 0 && !roles.includes(user.role)) {
-            user.role = roles[0];
-        }
-    }
-
-    // Update titles array
-    if (titles !== undefined) {
-        if (!Array.isArray(titles)) {
-            return res.status(400).json({ success: false, message: 'Titles must be an array' });
-        }
-        user.titles = titles.map((t) => String(t).trim()).filter(Boolean);
-    }
-    if (title !== undefined) {
-        user.title = title;
-    }
-
-    if (department !== undefined) {
-        user.department = department || null;
-    }
-
-    // Update permissions array
-    if (permissions !== undefined) {
-        if (!Array.isArray(permissions) && typeof permissions !== 'string') {
-            return res.status(400).json({ success: false, message: 'Permissions must be an array or comma-separated string' });
-        }
-
-        const normalizedPermissions = Array.from(new Set(
-            (Array.isArray(permissions) ? permissions : permissions.split(','))
-                .map((permission) => String(permission || '').trim())
-                .filter(Boolean)
-        ));
-
-        const invalidPermissions = normalizedPermissions.filter((permission) => !validPermissionKeys.has(permission));
-        if (invalidPermissions.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid permissions: ${invalidPermissions.join(', ')}`
-            });
-        }
-
-        user.permissions = normalizedPermissions;
-    }
-
-    // Update permission scopes (optional)
-    if (permissionScopes !== undefined) {
-        user.permissionScopes = new Map(Object.entries(permissionScopes || {}));
-    }
-
-    // Department optional for department_principal: if empty, user is whole-school principal
-    await user.save();
-
-    const updated = await User.findById(user._id)
-        .select('firstName lastName email role roles title titles isActive department permissions permissionScopes')
-        .populate('department', 'name type')
-        .setOptions({ skipTenantFilter: true });
-
-    res.json({
-        success: true,
-        message: 'User updated successfully',
-        data: { user: updated }
+    const result = await updateSchoolUser({
+        actor: req.user,
+        schoolId: req.schoolId,
+        userId: req.params.userId,
+        payload: req.body,
+        expectedUpdatedAt: req.body?.expectedUpdatedAt ?? null
     });
+    res.status(result.status).json(result.body);
 }));
 
 /**

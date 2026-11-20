@@ -5,6 +5,15 @@
     <link rel="icon" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The stylesheet defaults to dark; apply the saved theme before first paint. -->
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("theme") === "dark" ? "dark" : "light";
+      } catch (error) {
+        document.documentElement.dataset.theme = "light";
+      }
+    </script>
     <meta
       name="description"
       content="ClassHope - The Platform that runs your school, not the other way around. Track daily grades, generate reports, and notify parents."

@@ -124,6 +124,28 @@ test('a student in the class gets the full detail card with every resource', asy
     );
 });
 
+test('private AI-only Drive files never reach the student detail card', async (t) => {
+    const response = await invoke({
+        assignmentRow: {
+            ...assignment,
+            driveAttachments: [
+                { fileId: 'f1', fileName: 'Slides', webViewLink: 'https://drive.google.com/file/d/f1/view' },
+                {
+                    fileId: 'f2',
+                    fileName: 'Teacher answer key',
+                    webViewLink: 'https://drive.google.com/file/d/f2/view',
+                    visibility: 'private'
+                }
+            ]
+        }
+    }, t);
+
+    assert.deepEqual(
+        response.body.data.driveAttachments.map((att) => att.fileId),
+        ['f1']
+    );
+});
+
 test('a student outside the assignment class cannot open the detail', async (t) => {
     const response = await invoke({
         studentRow: { ...student, currentClass: { _id: 'class-9', name: 'Grade 6 · B' } }

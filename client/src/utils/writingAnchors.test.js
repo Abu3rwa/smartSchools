@@ -126,6 +126,68 @@ test("a note for a part written once lands on it even when its index drifted", (
   assert.deepEqual(unplacedNotes(paragraphs, notes), []);
 });
 
+test("a straight quote anchors a draft written with curly punctuation", () => {
+  const text = "I don’t think uniforms are fair – page 10–12 says so.";
+  const segments = anchorSegments(text, "don't think uniforms are fair - page 10-12", 1);
+  assert.equal(segments.length, 3);
+  assert.equal(segments[1].mark, 1);
+  assert.equal(
+    segments[1].text,
+    "don’t think uniforms are fair – page 10–12",
+    "the highlight keeps the draft's own characters",
+  );
+  assert.equal(segments.map((row) => row.text).join(""), text);
+});
+
+test("a drifted quote finds its paragraph by its words, without a false highlight", () => {
+  const paragraphs = [
+    { key: "body", index: 0, text: "Recess gives students a break from lessons." },
+    {
+      key: "body",
+      index: 1,
+      text: "Inside, the bread sellers shouted loudly over the old diesel engines.",
+    },
+  ];
+  const notes = [
+    {
+      key: "body",
+      index: 1,
+      evidence: "the bread sellers shouted over the diesel engines",
+    },
+  ];
+  const rows = anchorEssay(paragraphs, notes);
+
+  assert.equal(rows[0].note, null);
+  assert.equal(rows[1].note, notes[0], "the note sits under the paragraph it quotes");
+  assert.equal(rows[1].number, 0, "a drifted quote is a general note, not a highlight");
+  assert.deepEqual(rows[1].segments, [{ text: paragraphs[1].text, mark: null }]);
+});
+
+test("two paragraphs with the same words never win a token match", () => {
+  const paragraphs = [
+    {
+      key: "body",
+      index: 0,
+      text: "Uniforms really save time in the morning for everyone.",
+    },
+    {
+      key: "body",
+      index: 1,
+      text: "Uniforms really save time in the morning for everyone.",
+    },
+  ];
+  const notes = [
+    {
+      key: "body",
+      index: 5,
+      evidence: "uniforms save time in the morning for everyone",
+    },
+  ];
+
+  assert.deepEqual(unplacedNotes(paragraphs, notes), notes);
+  assert.equal(anchorEssay(paragraphs, notes).some((row) => row.note), false);
+});
+
 test("unplacedNotes treats notes as leftovers only once, matching anchorEssay", () => {
   const paragraphs = [
     { key: "body", index: 0, text: "Recess gives students a break from lessons." },

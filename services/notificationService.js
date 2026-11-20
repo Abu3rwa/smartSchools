@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { NOTIFICATION_TYPES } from "../constants/notificationTypes.js";
+import Class from "../models/Class.js";
 import Notification from "../models/Notification.js";
 import ParentSetting from "../models/ParentSetting.js";
 import School from "../models/School.js";
@@ -9,7 +11,7 @@ import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
 import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
-import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
+import { buildPortalLink } from "../helpers/portalUrl.js";
 import { buildAssignmentReminderContent } from "../helpers/assignmentReminderLinks.js";
 import { buildAssignmentResourceLinks } from "../helpers/assignmentResourceLinks.js";
 import AssignmentClassroomLink from "../models/AssignmentClassroomLink.js";
@@ -197,8 +199,90 @@ const buildGradebookRemarksHtml = (grade, language = "en") => {
   ].join("");
 
   if (!groupMarkup) return "";
-  const title = language === "ar" ? "ملاحظات المعلم" : "Teacher's remarks";
+  const title = language === "ar" ? "ملاحظات المعلم" : "Teacher feedback";
   return `<div class="gbr-remarks"><p class="gbr-remarks-title">${title}</p>${groupMarkup}</div>`;
+};
+
+const splitLessonSummary = (summary) => {
+  const lines = String(summary || "").split("\n");
+  return {
+    paragraphs: lines.filter((line) => !line.trim().startsWith("- ")),
+    bullets: lines
+      .filter((line) => line.trim().startsWith("- "))
+      .map((line) => line.trim().slice(2)),
+  };
+};
+
+/**
+ * Shared family-facing lesson block for immediate and daily classwork emails.
+ * Inline styles only: no classes, flex/grid or variables, so email clients
+ * render it without the app stylesheet. Plain text is escaped by the caller's
+ * template pipeline; everything here is escaped at build time.
+ */
+export const buildLessonContextHtml = (
+  grade,
+  language = "en",
+  { includeTitle = true } = {},
+) => {
+  const title = String(grade?.title || "").trim();
+  const summary = String(grade?.lessonSummary || "").trim();
+  if (!title && !summary) return "";
+  // The caller's header already shows the title: never render an empty panel.
+  if (!includeTitle && !summary) return "";
+  const showTitle = includeTitle && Boolean(title);
+
+  const isArabic = language === "ar";
+  const kicker = isArabic ? "ما تعلمناه" : "What we learned";
+  const { paragraphs, bullets } = splitLessonSummary(summary);
+  const paragraphHtml = paragraphs
+    .filter((line) => line.trim())
+    .map(
+      (line) =>
+        `<p style="margin:0 0 8px;font-family:Arial,'Segoe UI',Tahoma,sans-serif;font-size:15px;line-height:1.6;color:#334155;">${escapeHtml(line)}</p>`,
+    )
+    .join("");
+  const bulletHtml = bullets.length
+    ? `<div style="margin:2px 0 0;">${bullets
+        .map(
+          (line) =>
+            `<p style="margin:0 0 5px;font-family:Arial,'Segoe UI',Tahoma,sans-serif;font-size:15px;line-height:1.6;color:#334155;">&bull;&nbsp;${escapeHtml(line)}</p>`,
+        )
+        .join("")}</div>`
+    : "";
+
+  return `<div${isArabic ? ' dir="rtl"' : ""} style="margin:0 0 20px;padding:16px 18px;background:#f8fafc;border-${isArabic ? "right" : "left"}:3px solid #fbbf24;border-radius:6px;text-align:${isArabic ? "right" : "left"};">
+  <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">${kicker}</p>
+  ${showTitle ? `<p style="margin:0 0 8px;font-family:Arial,'Segoe UI',Tahoma,sans-serif;font-size:20px;font-weight:700;line-height:1.35;color:#0f172a;">${escapeHtml(title)}</p>` : ""}
+  ${paragraphHtml}${bulletHtml}
+</div>`;
+};
+
+export const groupGradesByAssessmentGroup = (grades = []) => {
+  const subgroups = [];
+  const byId = new Map();
+  for (const grade of grades) {
+    const groupId = grade?.assessmentGroupId
+      ? String(grade.assessmentGroupId)
+      : "";
+    if (groupId && byId.has(groupId)) {
+      byId.get(groupId).grades.push(grade);
+      continue;
+    }
+    const subgroup = { groupId, grades: [grade] };
+    if (groupId) byId.set(groupId, subgroup);
+    subgroups.push(subgroup);
+  }
+  return subgroups;
+};
+
+export const buildLessonContextPlainText = (grade, language = "en") => {
+  const title = String(grade?.title || "").trim();
+  const summary = String(grade?.lessonSummary || "").trim();
+  if (!title && !summary) return "";
+  const lines = [language === "ar" ? "ما تعلمناه" : "What we learned"];
+  if (title) lines.push(title);
+  if (summary) lines.push(summary);
+  return lines.join("\n");
 };
 
 const buildSubjectNotesSummary = (grades = []) => {
@@ -495,16 +579,18 @@ const wrapEmailHtml = ({
   badge = null,
   bodyHtml,
   theme = EMAIL_THEMES.default,
+  lang = "en",
+  dir = "ltr",
 }) => {
   const badgeHtml = badge
     ? `<p style="margin:14px 0 0"><span style="display:inline-block;padding:5px 12px;border-radius:999px;background:${badge.color};font-size:12px;font-weight:700;color:#ffffff">${escapeHtml(badge.text)}</span></p>`
     : "";
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+  return `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:0;background:#f1f5f9;-webkit-text-size-adjust:100%">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background:#f1f5f9">
 <tr><td align="center" style="padding:32px 12px">
 ${preheader ? `<div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#f1f5f9">${escapeHtml(preheader)}</div>` : ""}
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:${EMAIL_FONT};color:#0f172a">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="${dir}" style="width:100%;max-width:600px;font-family:${EMAIL_FONT};color:#0f172a">
 <tr><td bgcolor="#0f172a" style="background:#0f172a;padding:28px 32px;border-radius:16px 16px 0 0">
 <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${theme.eyebrow}">{{SCHOOL_NAME}} &middot; ${escapeHtml(eyebrow)}</p>
 <h1 style="margin:0;font-size:24px;line-height:1.3;font-weight:700;color:#ffffff">${escapeHtml(title)}</h1>
@@ -686,6 +772,29 @@ class NotificationService {
   }
 
   /** Resolve school display name from schoolId. */
+  /**
+   * Class label for the family email. `grade.class` is the historical class
+   * the grade belongs to, not the student's current class.
+   */
+  async _resolveClassLabel(classRef, schoolId) {
+    if (!classRef) return "";
+    if (typeof classRef === "object" && classRef.name) {
+      return String(classRef.name).trim();
+    }
+    if (!mongoose.isValidObjectId(classRef)) return "";
+    try {
+      const doc = await Class.findById(classRef)
+        .select("name school")
+        .lean();
+      if (!doc) return "";
+      if (schoolId && doc.school && String(doc.school) !== String(schoolId))
+        return "";
+      return String(doc.name || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
   async _resolveSchoolName(schoolId) {
     if (!schoolId) return "School";
     try {
@@ -2973,13 +3082,14 @@ class NotificationService {
     const isArabic = language === "ar";
     const remarksText = buildRemarksPlainText(gradeData, language);
     const assignmentTitle = String(gradeData.title || "").trim();
+    const lessonText = buildLessonContextPlainText(gradeData, language);
     return `
-${isArabic ? `عزيزي ولي أمر ${student.firstName}،` : `Dear ${student.firstName}'s Parent,`}
+${isArabic ? `تحديث الحصة للطالب ${student.fullName}` : `Class update for ${student.fullName}`}
 
 ${isArabic ? `نود إعلامكم بأنه تم تسجيل درجة جديدة للطالب ${student.fullName}:` : `This is to inform you that ${student.fullName} received a grade update:`}
-
+${lessonText ? `\n${lessonText}\n` : ""}
 ${isArabic ? "المادة" : "Subject"}: ${localizeSubject({ name: gradeData.subjectName, nameAr: gradeData.subjectNameAr }, language)}
-${assignmentTitle ? `${isArabic ? "العنوان" : "Title"}: ${assignmentTitle}\n` : ""}${isArabic ? "الفئة" : "Type"}: ${localizeCategory(gradeData.gradeType, language)}
+${assignmentTitle && !lessonText ? `${isArabic ? "العنوان" : "Title"}: ${assignmentTitle}\n` : ""}${isArabic ? "الفئة" : "Type"}: ${localizeCategory(gradeData.gradeType, language)}
 ${isArabic ? "الدرجة" : "Marks"}: ${gradeData.marks}/${gradeData.maxMarks}
 ${isArabic ? "التاريخ" : "Date"}: ${new Date(gradeData.date).toLocaleDateString(isArabic ? "ar-EG" : undefined)}
 ${remarksText ? `${isArabic ? "ملاحظات المعلم" : "Teacher's Remarks"}:\n${remarksText}` : ""}
@@ -2988,49 +3098,108 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
     `.trim();
   }
 
+  /**
+   * Family grade update: the shared ClassHope shell with the lesson narrative
+   * above the score and the pupil's own feedback kept separate.
+   */
   async formatGradeUpdateHtml(
     student,
     gradeData,
     createdBy = null,
     language = "en",
   ) {
-    const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(
-      1,
-    );
+    const isArabic = language === "ar";
     const teacherName = await this._resolveTeacherName(createdBy);
     const schoolName = await this._resolveSchoolName(student?.school);
+    const className = await this._resolveClassLabel(
+      gradeData?.class,
+      student?.school,
+    );
+    const studentName = String(
+      student?.fullName ||
+        [student?.firstName, student?.lastName].filter(Boolean).join(" "),
+    ).trim();
 
-    const isArabic = language === "ar";
-    const remarksSection = buildGradebookRemarksHtml(
-      { remarks: gradeData?.remarks },
+    const subjectName = localizeSubject(
+      { name: gradeData.subjectName, nameAr: gradeData.subjectNameAr },
       language,
     );
-    const assignmentTitle = String(gradeData?.title || "").trim();
-    const assignmentTitleRow = assignmentTitle
-      ? `<div class="row-item"><div class="row-left"><div>${isArabic ? "العنوان" : "Title"}</div><div class="meta-line">${escapeHtml(assignmentTitle)}</div></div></div>`
-      : "";
+    const categoryName =
+      localizeCategory(gradeData.gradeType, language) ||
+      (isArabic ? "الواجب الصفي" : "Classwork");
+    const gradeDate = new Date(gradeData?.date);
+    const lessonDate = Number.isNaN(gradeDate.getTime())
+      ? ""
+      : gradeDate.toLocaleDateString(isArabic ? "ar-EG" : "en-GB", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
 
-    return renderTemplate(isArabic ? "gradeUpdate_ar" : "gradeUpdate", {
-      studentFullName: student.fullName,
-      studentFirstName: student.firstName,
-      teacherName,
-      schoolName,
-      subjectName: localizeSubject(
-        { name: gradeData.subjectName, nameAr: gradeData.subjectNameAr },
-        language,
-      ),
-      assignmentTitleRow,
-      gradeType: localizeCategory(gradeData.gradeType, language),
-      gradeDate: new Date(gradeData.date).toLocaleDateString(
-        isArabic ? "ar-EG" : undefined,
-      ),
-      marks: gradeData.marks,
-      maxMarks: gradeData.maxMarks,
-      percentage,
-      remarksSection,
-      clientUrl: getClientUrl(),
-      year: new Date().getFullYear(),
+    const theme = EMAIL_THEMES.default;
+    const contextLine = [className, subjectName].filter(Boolean).join(" · ");
+    const contextHtml =
+      contextLine || lessonDate
+        ? `<p style="margin:0 0 20px;font-size:13px;line-height:1.6;color:#475569">${
+            contextLine
+              ? `<strong style="color:#0f172a">${escapeHtml(contextLine)}</strong>`
+              : ""
+          }${contextLine && lessonDate ? "<br/>" : ""}${
+            lessonDate
+              ? `${isArabic ? "تاريخ الحصة" : "Lesson date"}: ${escapeHtml(lessonDate)}`
+              : ""
+          }</p>`
+        : "";
+
+    const resultLabel = isArabic
+      ? `نتيجة ${categoryName}`
+      : `${categoryName} result`;
+    const scoreRow = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f8fafc" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;margin:0 0 20px"><tr>
+<td style="padding:13px 16px;font-size:14px;font-weight:600;color:#0f172a">${escapeHtml(resultLabel)}</td>
+<td align="${isArabic ? "left" : "right"}" dir="ltr" style="padding:13px 16px;font-size:18px;font-weight:700;color:#0f172a;white-space:nowrap">${escapeHtml(gradeData.marks)} / ${escapeHtml(gradeData.maxMarks)}</td>
+</tr></table>`;
+
+    // The lesson title is the header h1 (same as assignment-graded emails),
+    // so the body block carries only the family-facing summary.
+    const lessonTitle = String(gradeData?.title || "").trim();
+    const lessonSection = buildLessonContextHtml(gradeData, language, {
+      includeTitle: false,
     });
+    const remarksSection = inlineRemarkStyles(
+      buildGradebookRemarksHtml({ remarks: gradeData?.remarks }, language),
+    );
+
+    const sharedBy = teacherName && teacherName !== "Unknown Teacher";
+    const footerLine = [
+      sharedBy ? `${isArabic ? "مشاركة من" : "Shared by"} ${escapeHtml(teacherName)}` : "",
+      escapeHtml(schoolName),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const footer = `<p style="margin:0;padding-top:14px;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.6;color:#64748b">${footerLine}<br/>&copy; ${new Date().getFullYear()} ${escapeHtml(schoolName)}</p>`;
+
+    const html = wrapEmailHtml({
+      preheader: isArabic
+        ? `تم تقييم ${categoryName} · للطالب ${studentName}`
+        : `${categoryName} graded · For ${studentName}`,
+      eyebrow: isArabic ? `تم تقييم ${categoryName}` : `${categoryName} graded`,
+      title:
+        lessonTitle ||
+        (isArabic ? "تحديث الحصة" : "Class update"),
+      subtitle: isArabic ? `للطالب ${studentName}` : `For ${studentName}`,
+      bodyHtml: [
+        contextHtml,
+        lessonSection,
+        scoreRow,
+        remarksSection,
+        footer,
+      ].join(""),
+      theme,
+      lang: isArabic ? "ar" : "en",
+      dir: isArabic ? "rtl" : "ltr",
+    });
+
+    return html.replace(/\{\{SCHOOL_NAME\}\}/g, escapeHtml(schoolName));
   }
 
   formatDailyReportMessage(student, grades, date, language = "en") {
@@ -3052,6 +3221,10 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
       const gradeTitle = String(grade.title || "").trim();
       const subjectLabel = localizeSubject(grade.subject, language);
       message += `${subjectLabel}${gradeTitle ? ` — ${gradeTitle}` : ""}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
+      const lessonSummary = String(grade.lessonSummary || "").trim();
+      if (lessonSummary) {
+        message += `  ${isArabic ? "ما تعلمناه" : "What we learned"}: ${lessonSummary.replace(/\n/g, " ")}\n`;
+      }
       const observation = getGradeObservation(grade);
       if (observation) {
         message += `  ${isArabic ? "ملاحظات" : "Notes"}: ${localizeRemarks(observation, language)}\n`;
@@ -3088,8 +3261,12 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
         const titleLabel = gradeTitle
           ? `<div class="meta-line">${isArabic ? "العنوان" : "Title"}: ${escapeHtml(gradeTitle)}</div>`
           : "";
+        const lessonSummary = String(grade.lessonSummary || "").trim();
+        const lessonLine = lessonSummary
+          ? `<div class="meta-line">${isArabic ? "ما تعلمناه" : "What we learned"}: ${escapeHtml(lessonSummary.replace(/\n/g, " "))}</div>`
+          : "";
         return `<div class="row-item">
-          <div class="row-left">${escapeHtml(localizeSubject(grade.subject, language))}${titleLabel}${notesLine}</div>
+          <div class="row-left">${escapeHtml(localizeSubject(grade.subject, language))}${titleLabel}${lessonLine}${notesLine}</div>
           <div class="row-right"><span class="badge">${grade.marks} / ${grade.maxMarks}</span></div>
         </div>`;
       })
@@ -3252,31 +3429,45 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
       message += `\n${subjectName}\n`;
       Object.entries(categories).forEach(([category, subjectGrades]) => {
         message += `  ${category}:\n`;
-        subjectGrades.forEach((grade) => {
-          const gradeDate = new Date(grade.date).toLocaleDateString(
-            isArabic ? "ar-EG" : "en-US",
-            {
-              month: "short",
-              day: "numeric",
-            },
-          );
-          const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
-          const gradeTitle = String(grade.title || "").trim();
-          message += `    ${gradeDate}${gradeTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
-          const observation = getGradeObservation(grade);
-          if (observation) {
-            const groupedRemarks = buildRemarksPlainText(
-              { remarks: observation },
-              language,
-            );
-            if (groupedRemarks) {
-              message += `\n${groupedRemarks
-                .split("\n")
-                .map((line) => `      ${line}`)
-                .join("\n")}`;
-            }
+        groupGradesByAssessmentGroup(subjectGrades).forEach((subgroup) => {
+          const lead = subgroup.grades[0];
+          const lessonText =
+            subgroup.groupId || String(lead.lessonSummary || "").trim()
+              ? buildLessonContextPlainText(lead, language)
+              : "";
+          if (lessonText) {
+            message += `${lessonText
+              .split("\n")
+              .map((line) => `    ${line}`)
+              .join("\n")}\n`;
           }
-          message += "\n";
+          subgroup.grades.forEach((grade) => {
+            const gradeDate = new Date(grade.date).toLocaleDateString(
+              isArabic ? "ar-EG" : "en-US",
+              {
+                month: "short",
+                day: "numeric",
+              },
+            );
+            const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
+            const gradeTitle = String(grade.title || "").trim();
+            const showTitle = gradeTitle && !lessonText;
+            message += `    ${gradeDate}${showTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
+            const observation = getGradeObservation(grade);
+            if (observation) {
+              const groupedRemarks = buildRemarksPlainText(
+                { remarks: observation },
+                language,
+              );
+              if (groupedRemarks) {
+                message += `\n${groupedRemarks
+                  .split("\n")
+                  .map((line) => `      ${line}`)
+                  .join("\n")}`;
+              }
+            }
+            message += "\n";
+          });
         });
       });
       message += "─".repeat(50) + "\n";
@@ -3347,35 +3538,49 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
             const categoryAverage =
               catMax > 0 ? ((catTotal / catMax) * 10).toFixed(1) : 0;
 
-            const gradeRows = subjectGrades
-              .map((grade) => {
-                const gradeDate = new Date(grade.date).toLocaleDateString(
-                  isArabic ? "ar-EG" : "en-US",
-                  {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                  },
-                );
+            const gradeRows = groupGradesByAssessmentGroup(subjectGrades)
+              .map((subgroup) => {
+                const lead = subgroup.grades[0];
+                const lessonBlock =
+                  subgroup.groupId || String(lead.lessonSummary || "").trim()
+                    ? buildLessonContextHtml(lead, language)
+                    : "";
+                const rows = subgroup.grades
+                  .map((grade) => {
+                    const gradeDate = new Date(grade.date).toLocaleDateString(
+                      isArabic ? "ar-EG" : "en-US",
+                      {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      },
+                    );
 
-                const notesLine = buildGradebookRemarksHtml(grade, language);
-                const gradeTitle = String(grade.title || "").trim();
-                const titleLine = gradeTitle
-                  ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
-                  : "";
+                    const notesLine = buildGradebookRemarksHtml(
+                      grade,
+                      language,
+                    );
+                    const gradeTitle = String(grade.title || "").trim();
+                    const titleLine =
+                      gradeTitle && !lessonBlock
+                        ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
+                        : "";
 
-                return renderTemplate(
-                  isArabic ? "classworkGradeRow_ar" : "classworkGradeRow",
-                  {
-                    gradeDate,
-                    scoreClass: "",
-                    marks: grade.marks,
-                    maxMarks: grade.maxMarks,
-                    titleLine,
-                    notesLine,
-                    dateLabel: isArabic ? "التاريخ" : "Date",
-                  },
-                );
+                    return renderTemplate(
+                      isArabic ? "classworkGradeRow_ar" : "classworkGradeRow",
+                      {
+                        gradeDate,
+                        scoreClass: "",
+                        marks: grade.marks,
+                        maxMarks: grade.maxMarks,
+                        titleLine,
+                        notesLine,
+                        dateLabel: isArabic ? "التاريخ" : "Date",
+                      },
+                    );
+                  })
+                  .join("");
+                return lessonBlock + rows;
               })
               .join("");
 
@@ -3480,31 +3685,45 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
       message += `\n${subjectName}\n`;
       Object.entries(categories).forEach(([category, subjectGrades]) => {
         message += `  ${category}:\n`;
-        subjectGrades.forEach((grade) => {
-          const gradeDate = new Date(grade.date).toLocaleDateString(
-            isArabic ? "ar-EG" : "en-US",
-            {
-              month: "short",
-              day: "numeric",
-            },
-          );
-          const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
-          const gradeTitle = String(grade.title || "").trim();
-          message += `    ${gradeDate}${gradeTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
-          const observation = getGradeObservation(grade);
-          if (observation) {
-            const groupedRemarks = buildRemarksPlainText(
-              { remarks: observation },
-              language,
-            );
-            if (groupedRemarks) {
-              message += `\n${groupedRemarks
-                .split("\n")
-                .map((line) => `      ${line}`)
-                .join("\n")}`;
-            }
+        groupGradesByAssessmentGroup(subjectGrades).forEach((subgroup) => {
+          const lead = subgroup.grades[0];
+          const lessonText =
+            subgroup.groupId || String(lead.lessonSummary || "").trim()
+              ? buildLessonContextPlainText(lead, language)
+              : "";
+          if (lessonText) {
+            message += `${lessonText
+              .split("\n")
+              .map((line) => `    ${line}`)
+              .join("\n")}\n`;
           }
-          message += "\n";
+          subgroup.grades.forEach((grade) => {
+            const gradeDate = new Date(grade.date).toLocaleDateString(
+              isArabic ? "ar-EG" : "en-US",
+              {
+                month: "short",
+                day: "numeric",
+              },
+            );
+            const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
+            const gradeTitle = String(grade.title || "").trim();
+            const showTitle = gradeTitle && !lessonText;
+            message += `    ${gradeDate}${showTitle ? ` | ${gradeTitle}` : ""} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
+            const observation = getGradeObservation(grade);
+            if (observation) {
+              const groupedRemarks = buildRemarksPlainText(
+                { remarks: observation },
+                language,
+              );
+              if (groupedRemarks) {
+                message += `\n${groupedRemarks
+                  .split("\n")
+                  .map((line) => `      ${line}`)
+                  .join("\n")}`;
+              }
+            }
+            message += "\n";
+          });
         });
       });
       message += "─".repeat(50) + "\n";
@@ -3576,37 +3795,48 @@ ${isArabic ? "مع خالص التحية،" : "Best regards,"}
             const categoryAverage =
               catMax > 0 ? ((catTotal / catMax) * 10).toFixed(1) : 0;
 
-            const gradeRows = subjectGrades
-              .map((grade) => {
-                const gradeDate = new Date(grade.date).toLocaleDateString(
-                  isArabic ? "ar-EG" : "en-US",
-                  {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                  },
-                );
+            const gradeRows = groupGradesByAssessmentGroup(subjectGrades)
+              .map((subgroup) => {
+                const lead = subgroup.grades[0];
+                const lessonBlock =
+                  subgroup.groupId || String(lead.lessonSummary || "").trim()
+                    ? buildLessonContextHtml(lead, language)
+                    : "";
+                const rows = subgroup.grades
+                  .map((grade) => {
+                    const gradeDate = new Date(grade.date).toLocaleDateString(
+                      isArabic ? "ar-EG" : "en-US",
+                      {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      },
+                    );
 
-                const notesLine = buildGradebookRemarksHtml(
-                  grade,
-                  isArabic ? "ar" : "en",
-                );
-                const gradeTitle = String(grade.title || "").trim();
-                const titleLine = gradeTitle
-                  ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
-                  : "";
+                    const notesLine = buildGradebookRemarksHtml(
+                      grade,
+                      isArabic ? "ar" : "en",
+                    );
+                    const gradeTitle = String(grade.title || "").trim();
+                    const titleLine =
+                      gradeTitle && !lessonBlock
+                        ? `<div class="meta-line">${escapeHtml(gradeTitle)}</div>`
+                        : "";
 
-                return renderTemplate(
-                  isArabic ? "gradebookGradeRow_ar" : "gradebookGradeRow",
-                  {
-                    gradeDate,
-                    scoreClass: "",
-                    marks: grade.marks,
-                    maxMarks: grade.maxMarks,
-                    titleLine,
-                    notesLine,
-                  },
-                );
+                    return renderTemplate(
+                      isArabic ? "gradebookGradeRow_ar" : "gradebookGradeRow",
+                      {
+                        gradeDate,
+                        scoreClass: "",
+                        marks: grade.marks,
+                        maxMarks: grade.maxMarks,
+                        titleLine,
+                        notesLine,
+                      },
+                    );
+                  })
+                  .join("");
+                return lessonBlock + rows;
               })
               .join("");
 

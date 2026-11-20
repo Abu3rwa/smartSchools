@@ -26,11 +26,78 @@
       },
       "optional": "Optional",
       "summary": "{{entered}} of {{total}} grades entered",
-      "save": "Save Grades"
+      "save": "Save Grades",
+      "sendEmails": "Email parents and students when saving"
     },
     "empty": {
       "noStudents": "No students found in this class",
       "selectClassSubject": "Select a class and subject to start entering grades"
+    },
+    "lesson": {
+      "stripLabel": "Lesson shared with families",
+      "optional": "Optional",
+      "emptyTitle": "Add a lesson title and summary",
+      "emptyHint": "Help parents and students understand what this class covered.",
+      "previewEmail": "Preview email",
+      "editLesson": "Edit lesson",
+      "addLesson": "Add lesson",
+      "editorTitle": "Lesson title & summary",
+      "editorHint": "Shared with every graded student and their family. Individual feedback stays in the grade table.",
+      "methods": {
+        "write": "Write my own",
+        "ai": "Draft with AI",
+        "file": "Upload material",
+        "linked": "Use lesson plan"
+      },
+      "manualHint": "Type the final title and summary on the right. No AI credit is used, and you can save grades without any lesson text.",
+      "factsLabel": "What actually happened in class?",
+      "factsPlaceholder": "Describe the lesson facts: what was learned, practiced and produced. Do not include student names or marks.",
+      "preferencesLabel": "Writing preferences (optional)",
+      "preferencesPlaceholder": "e.g. keep it under 80 words, use 3 bullets, write in Arabic",
+      "aiPrivacy": "Only your lesson description is sent to the AI. Student names, marks and remarks are never included.",
+      "drafting": "Drafting summary…",
+      "generate": "Generate draft",
+      "fileHint": "One PDF with selectable text, up to 10 MB. Scanned PDFs without selectable text cannot be read.",
+      "chooseFile": "Choose a PDF file",
+      "imageGate": "Photo transcription (JPG/PNG/WebP) is not enabled for grade entry yet: photos can contain student personal data. Use a text PDF or write the summary yourself.",
+      "preparing": "Preparing material…",
+      "removeFile": "Remove",
+      "truncated": "The material was long, so only the first 30,000 characters were read. Mention anything important that was cut in your note below.",
+      "extractedText": "Extracted text (private preview)",
+      "fileFactsLabel": "What did you actually cover from this material?",
+      "fileFactsPlaceholder": "e.g. we only did pages 12–13 and the pair discussion, not the homework section",
+      "linkedHint": "Copy the title and summary from one of your lesson plans for this class and subject. The copy is independent: later plan edits will not change saved grades.",
+      "plansLoading": "Loading lesson plans…",
+      "plansLoadFailed": "Failed to load lesson plans.",
+      "noPlans": "No lesson plans found for this class and subject.",
+      "linkedLabel": "Lesson plan",
+      "choosePlan": "Choose a lesson plan",
+      "planDateMismatch": "This plan has a different date than the grade entry. Check that it is the right lesson before using it.",
+      "usePlan": "Use this plan",
+      "candidateLabel": "Suggested draft — review before using",
+      "useDraft": "Use this draft",
+      "titleLabel": "Lesson title",
+      "summaryLabel": "Lesson summary for parents and students",
+      "summaryHint": "About 60–100 words or 2–4 short bullets works best. Plain text only. A summary needs a title; a title alone is fine.",
+      "cancel": "Cancel",
+      "apply": "Apply lesson",
+      "titleRequired": "Add a lesson title before saving a lesson summary.",
+      "requestFailed": "The request failed. Your grades and text are kept — try again or write the summary yourself.",
+      "factsRequired": "Describe what actually happened in class before drafting. A style request alone is not enough.",
+      "scopeConfirm": "Changing the class or subject clears the shared lesson title and summary. Continue?",
+      "dateConfirm": "The lesson date changed. Clear the shared lesson title and summary? Press Cancel to keep them for the new date."
+    },
+    "preview": {
+      "title": "Email preview",
+      "close": "Close preview",
+      "student": "Preview for",
+      "language": "Email language",
+      "noGrades": "Enter at least one valid mark to preview the email.",
+      "loading": "Rendering the real email…",
+      "loadFailed": "Could not render the email preview.",
+      "hint": "This is the exact email families receive, rendered by the server. Nothing is sent or saved from this preview.",
+      "needsMark": "Enter a valid mark to preview this email",
+      "rowLabel": "Preview email for {{name}}"
     }
   },
   "selfCheck": {
@@ -88,6 +155,7 @@
   "toasts": {
     "enterAtLeastOne": "Please enter at least one grade",
     "savedSuccess": "{{count}} grades saved successfully!",
-    "saveFailed": "Failed to save grades"
+    "saveFailed": "Failed to save grades",
+    "emailsFailed": "Grades saved, but {{count}} email(s) could not be sent. Check the notifications log."
   }
 }

@@ -14,8 +14,7 @@ import AssignmentQuestionDrafter from "./AssignmentQuestionDrafter";
 import AssignmentDraftAssistant from "./AssignmentDraftAssistant";
 import {
   applyDraftFields,
-  attachFileToForm,
-  detachFileFromForm,
+  buildSourceOptions,
 } from "../utils/assignmentDrafting";
 
 const uniqueById = (items = []) =>
@@ -105,6 +104,10 @@ const CreateAssignmentForm = ({
   const isLessonSummary = selectedType?.key === "lesson_summary";
   const classes = uniqueById(availableClasses);
   const subjects = uniqueById(availableSubjects);
+  const sourceOptions = buildSourceOptions({
+    pendingFiles: form.pendingDriveFiles || [],
+    driveAttachments: form.existingDriveAttachments || [],
+  });
 
   const closeIfAllowed = () => {
     if (!submitting) onClose();
@@ -278,24 +281,20 @@ const CreateAssignmentForm = ({
                   classId={selectedClass}
                   subjectId={selectedSubject}
                   assignmentTypeId={form.assignmentTypeId}
+                  assignmentId={editingAssignmentId}
+                  sourceOptions={sourceOptions}
                   isGoogleForm={isGoogleForm}
                   googleFormPublished={googleFormPublished}
                   googleFormQuestions={form.googleFormQuestions || []}
                   hasExistingQuestions={
                     (form.googleFormQuestions || []).length > 0
                   }
-                  attachedFiles={form.attachmentFiles || []}
+                  onRequestSource={() => scrollToSection(resourcesRef)}
                   onDrafted={(draft) =>
                     setForm((prev) => applyDraftFields(prev, draft))
                   }
                   onQuestionsDrafted={(googleFormQuestions) =>
                     setForm((prev) => ({ ...prev, googleFormQuestions }))
-                  }
-                  onAttachFile={(file) =>
-                    setForm((prev) => attachFileToForm(prev, file))
-                  }
-                  onDetachFile={(file) =>
-                    setForm((prev) => detachFileFromForm(prev, file))
                   }
                 />
               </div>
@@ -492,12 +491,15 @@ const CreateAssignmentForm = ({
                   <AssignmentQuestionDrafter
                     classId={selectedClass}
                     subjectId={selectedSubject}
+                    assignmentId={editingAssignmentId}
                     lessonPlanIds={form.lessonPlanIds || []}
+                    sourceOptions={sourceOptions}
                     disabled={submitting}
                     hasExistingQuestions={
                       (form.googleFormQuestions || []).length > 0
                     }
                     onRequestLessonPlans={() => scrollToSection(resourcesRef)}
+                    onRequestSource={() => scrollToSection(resourcesRef)}
                     onDrafted={(googleFormQuestions) =>
                       setForm((prev) => ({
                         ...prev,

@@ -103,7 +103,16 @@ const writingAssignmentSchema = new mongoose.Schema(
     supports: { type: supportsSchema, default: () => ({}) },
     rubric: { type: [rubricSchema], default: [] },
     workflow: { type: workflowSchema, default: () => ({}) },
-    aiConstraints: { type: String, trim: true, default: '' }
+    aiConstraints: { type: String, trim: true, default: '' },
+    // Skills the class was taught this week. Feedback and marks stay inside
+    // them when the V2 feedback flag is on (A7).
+    taughtFocus: [{ type: String, trim: true }],
+    // The school lesson-facts pack this assignment is judged against. A draft
+    // submitted while it is attached carries a snapshot of its facts.
+    sourcePack: { type: mongoose.Schema.Types.ObjectId, ref: 'WritingSourcePack' },
+    // Teacher-only example of strong work, for calibration in the builder. It
+    // never enters a prompt, so it can never reach a child's feedback (B5).
+    exemplarText: { type: String, trim: true, default: '' }
   },
   { timestamps: true }
 );

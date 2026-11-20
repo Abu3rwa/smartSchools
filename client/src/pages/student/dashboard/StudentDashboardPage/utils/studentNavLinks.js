@@ -8,6 +8,7 @@ import {
   HiOutlinePencil,
   HiOutlinePresentationChartBar,
   HiOutlineSparkles,
+  HiOutlineStar,
 } from "react-icons/hi";
 
 export const studentNavLinks = [
@@ -34,6 +35,12 @@ export const studentNavLinks = [
     path: "/portal/practice",
     icon: HiOutlineLightningBolt,
     labelKey: "practice",
+    section: "practice",
+  },
+  {
+    path: "/portal/skillpath",
+    icon: HiOutlineStar,
+    labelKey: "skillpath",
     section: "practice",
   },
   {

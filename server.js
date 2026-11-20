@@ -18,6 +18,7 @@ import aiTokenBudgetGuard from "./middleware/aiTokenBudgetGuard.js";
 import paginationMiddleware from "./middleware/pagination.js";
 import { connectAi } from "./utils/connectAi.js";
 import logger from "./utils/logger.js";
+import { reportJobError } from "./utils/jobError.js";
 
 import {
   authRoutes,
@@ -108,6 +109,7 @@ import googleFormsAuthRoutes from "./routes/googleFormsAuthRoutes.js";
 import googleFormsRoutes from "./routes/googleFormsRoutes.js";
 import liveLessonRoutes from "./routes/liveLessonRoutes.js";
 import classworkSelfCheckRoutes from "./routes/classworkSelfCheckRoutes.js";
+import languageGameRoutes from "./routes/languageGameRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import sessionBillingRoutes from "./routes/sessionBillingRoutes.js";
 import hrRoutes from "./routes/hrRoutes.js";
@@ -170,6 +172,10 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    // The public landing form reads the rate-limit delay to tell a visitor
+    // when sending again becomes eligible. Cross-origin scripts only see
+    // non-safelisted response headers when the server exposes them.
+    exposedHeaders: ["Retry-After", "X-Support-Token"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -235,9 +241,9 @@ const authLimiter = rateLimit({
 const isProduction = process.env.NODE_ENV === "production";
 
 // BE-034: Key generator for per-user rate limiting (falls back to IP for unauthenticated requests)
-const userKeyGenerator = (req, res) => {
+const userKeyGenerator = (req) => {
   if (req.user?._id) return `user_${req.user._id}`;
-  return ipKeyGenerator(req, res);
+  return ipKeyGenerator(req.ip);
 };
 
 const apiLimiter = rateLimit({
@@ -263,6 +269,9 @@ const aiLimiter = rateLimit({
 
 // Body parser — BE-032: reduced default limit
 app.use("/api/live", express.json({ limit: "3mb" }));
+// SkillPath CSV imports carry up to 5 MiB of text inside JSON; must parse
+// before the 1mb global parser below or the body is rejected early.
+app.use("/api/language-games/import", express.json({ limit: "8mb" }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
@@ -279,6 +288,7 @@ app.get("/api/health", (req, res) => {
     message: "Platform API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    commit: (process.env.RENDER_GIT_COMMIT || "").slice(0, 7) || null,
   });
 });
 
@@ -339,6 +349,7 @@ app.use("/api/attendance-requests", attendanceRequestRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/classwork-checks", classworkSelfCheckRoutes);
+app.use("/api/language-games", languageGameRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/auth/gmail", gmailAuthRoutes);
@@ -487,7 +498,7 @@ const server = httpServer.listen(PORT, () => {
         logger.info("attendance_reminder_scheduler_run", summary);
       }
     } catch (err) {
-      logger.error("attendance_reminder_scheduler_error", err?.message || err);
+      reportJobError("attendance_reminder_scheduler_error", err);
     } finally {
       attendanceReminderJobRunning = false;
     }
@@ -503,7 +514,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await expireStaleSubstitutionRequests();
       } catch (err) {
-        logger.error("Substitution expiry job error:", err?.message || err);
+        reportJobError("Substitution expiry job", err);
       }
     }, SUBSTITUTION_EXPIRY_INTERVAL_MS));
   }
@@ -513,14 +524,14 @@ const server = httpServer.listen(PORT, () => {
     // Delay first run until after MongoDB is reliably connected.
     setTimeout(() => {
       ensureCurrentWeekIssuesForAllClasses(new Date()).catch((err) => {
-        logger.error("Newsletter issue scheduler startup error:", err?.message || err);
+        reportJobError("Newsletter issue scheduler startup", err);
       });
     }, 30 * 1000);
     activeIntervals.push(setInterval(async () => {
       try {
         await ensureCurrentWeekIssuesForAllClasses(new Date());
       } catch (err) {
-        logger.error("Newsletter issue scheduler error:", err?.message || err);
+        reportJobError("Newsletter issue scheduler", err);
       }
     }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS));
   }
@@ -529,7 +540,7 @@ const server = httpServer.listen(PORT, () => {
     // Delay first run until after MongoDB is reliably connected.
     setTimeout(() => {
       runReviewSchedulerJob().catch((err) => {
-        logger.error("Review scheduler startup error:", err?.message || err);
+        reportJobError("Review scheduler startup", err);
       });
     }, 30 * 1000);
 
@@ -537,7 +548,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runReviewSchedulerJob();
       } catch (err) {
-        logger.error("Review scheduler job error:", err?.message || err);
+        reportJobError("Review scheduler job", err);
       }
       }, REVIEW_SCHEDULER_INTERVAL_MS));
   }
@@ -550,7 +561,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("subscription_lifecycle_job_run", summary);
         }
       } catch (err) {
-        logger.error("Subscription lifecycle job error:", err?.message || err);
+        reportJobError("Subscription lifecycle job", err);
       }
     };
 
@@ -570,7 +581,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("behavior_status_job_run", summary);
         }
       } catch (err) {
-        logger.error("Behavior status job error:", err?.message || err);
+        reportJobError("Behavior status job", err);
       }
     };
 
@@ -612,7 +623,7 @@ const server = httpServer.listen(PORT, () => {
         const summary = await runWritingFeedbackEmailRetry();
         if ((summary?.retried || 0) > 0) logger.info("writing_feedback_email_retry", summary);
       } catch (err) {
-        logger.error("Writing feedback email retry job error:", err?.message || err);
+        reportJobError("Writing feedback email retry job", err);
       } finally {
         writingEmailRetryRunning = false;
       }
@@ -629,7 +640,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("Communication email scheduler run", result);
         }
       } catch (err) {
-        logger.error("Communication email scheduler error:", err?.message || err);
+        reportJobError("Communication email scheduler", err);
       }
     };
     setTimeout(runCommunicationEmailScheduler, 30 * 1000);
@@ -647,7 +658,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("Spelling email scheduler run", result);
         }
       } catch (err) {
-        logger.error("Spelling email scheduler error:", err?.message || err);
+        reportJobError("Spelling email scheduler", err);
       } finally {
         spellingEmailJobRunning = false;
       }
@@ -667,7 +678,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("Spelling retest quiz scheduler run", result);
         }
       } catch (err) {
-        logger.error("Spelling retest quiz scheduler error:", err?.message || err);
+        reportJobError("Spelling retest quiz scheduler", err);
       } finally {
         spellingRetestJobRunning = false;
       }
@@ -687,7 +698,7 @@ const server = httpServer.listen(PORT, () => {
           logger.info("Scheduled spelling assessments activated", result);
         }
       } catch (err) {
-        logger.error("Scheduled spelling assessment activation error:", err?.message || err);
+        reportJobError("Scheduled spelling assessment activation", err);
       } finally {
         spellingSessionJobRunning = false;
       }
@@ -701,7 +712,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runCurriculumImportJobCycle();
       } catch (err) {
-        logger.error("Curriculum AI import scheduler error:", err?.message || err);
+        reportJobError("Curriculum AI import scheduler", err);
       }
     };
     setTimeout(runCurriculumImportScheduler, 15 * 1000);
@@ -713,7 +724,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runAcademicExcellenceNightlyJob();
       } catch (err) {
-        logger.error("Academic Excellence nightly job error:", err?.message || err);
+        reportJobError("Academic Excellence nightly job", err);
       }
     };
     // First run 2 minutes after startup, then every 24 hours
@@ -726,7 +737,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runReadingTranscriptPurgeJob();
       } catch (err) {
-        logger.error("Reading transcript purge job error:", err?.message || err);
+        reportJobError("Reading transcript purge job", err);
       }
     };
     // First run 5 minutes after startup, then every 24 hours.
@@ -739,7 +750,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runInboxAssistantJob({ env: process.env });
       } catch (err) {
-        logger.error("Inbox Assistant job error:", err?.message || err);
+        reportJobError("Inbox Assistant job", err);
       }
     };
     // First run 6 minutes after startup, then every hour.
@@ -756,7 +767,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runInboxNewsletterAutoReplyJob();
       } catch (err) {
-        logger.error("Inbox newsletter auto-reply job error:", err?.message || err);
+        reportJobError("Inbox newsletter auto-reply job", err);
       } finally {
         newsletterAutoReplyRunning = false;
       }
@@ -775,7 +786,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runInboxHomeworkAutoReplyJob();
       } catch (err) {
-        logger.error("Inbox homework auto-reply job error:", err?.message || err);
+        reportJobError("Inbox homework auto-reply job", err);
       } finally {
         homeworkAutoReplyRunning = false;
       }
@@ -794,7 +805,7 @@ const server = httpServer.listen(PORT, () => {
       try {
         await runInboxAutoScanJob();
       } catch (err) {
-        logger.error("Inbox auto-scan job error:", err?.message || err);
+        reportJobError("Inbox auto-scan job", err);
       } finally {
         autoScanRunning = false;
       }

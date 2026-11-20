@@ -1,53 +1,131 @@
 import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
 import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
+import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { HiOutlineSun, HiOutlineMoon } from 'react-icons/hi';
+import { Link as RouterLink } from 'react-router-dom';
+import { HiOutlineMoon, HiOutlineSun, HiOutlineX } from 'react-icons/hi';
 
 /**
- * Mobile navigation drawer. Uses same content as header nav.
+ * Controlled navigation drawer for viewports below the desktop navigation.
+ * It hands the next action over to the page hook so the drawer can finish its
+ * exit transition before a section is focused or the school finder opens.
  */
 export default function LandingMobileDrawer({
+    copy,
+    direction,
     open,
-    onClose,
-    content,
-    themeMode,
-    toggleTheme,
+    navItems,
     language,
-    isRtl,
+    themeMode,
+    onClose,
+    onExited,
+    onNavigateSection,
+    onOpenFinder,
     onLanguageChange,
-    uiText,
-    scrollTo,
-    handleAction,
+    onToggleTheme,
+    onSignIn,
 }) {
+    const isDark = themeMode === 'dark';
+
     return (
-        <Drawer anchor={isRtl ? 'left' : 'right'} open={open} onClose={onClose} PaperProps={{ sx: { width: 280, bgcolor: 'background.default' } }}>
-            <Box sx={{ p: 3, pt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">{uiText.themeLabel || 'Theme'}</Typography>
-                    <Button startIcon={themeMode === 'dark' ? <HiOutlineSun size={18} /> : <HiOutlineMoon size={18} />} onClick={() => { onClose(); toggleTheme(); }} sx={{ color: 'text.primary' }}>
-                        {themeMode === 'dark' ? (uiText.lightMode || 'Light mode') : (uiText.darkMode || 'Dark mode')}
-                    </Button>
+        <Drawer
+            anchor={direction === 'rtl' ? 'left' : 'right'}
+            open={open}
+            onClose={onClose}
+            ModalProps={{ disableRestoreFocus: true }}
+            SlideProps={{ onExited }}
+            PaperProps={{
+                className: 'landing-public-overlay',
+                sx: {
+                    width: { xs: 'min(360px, 100vw)' },
+                    maxHeight: '100dvh',
+                    overflowY: 'auto',
+                },
+            }}
+        >
+            <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%', p: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {copy.header?.menu}
+                    </Typography>
+                    <IconButton onClick={onClose} aria-label={copy.header?.closeMenu} sx={{ width: 44, height: 44 }}>
+                        <HiOutlineX size={22} />
+                    </IconButton>
+                </Stack>
+
+                <Box component="nav" aria-label={copy.a11y?.mainNavigation}>
+                    <Stack spacing={0.5}>
+                        {navItems.map((item) => (
+                            <Button
+                                key={item.id}
+                                onClick={() => onNavigateSection(item.id)}
+                                sx={{ justifyContent: 'flex-start', minHeight: 48, fontWeight: 500 }}
+                            >
+                                {item.label}
+                            </Button>
+                        ))}
+                    </Stack>
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="subtitle2" color="text.secondary">{uiText.languageLabel || 'Language'}</Typography>
-                    <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-                        <Button size="small" variant={language === 'en' ? 'contained' : 'text'} aria-pressed={language === 'en'} onClick={() => { onClose(); onLanguageChange('en'); }} sx={{ minWidth: 44, borderRadius: 0 }}>
-                            {uiText.languageEnglish || 'EN'}
+
+                <Divider sx={{ my: 2 }} />
+
+                <Stack spacing={1}>
+                    <Button variant="contained" onClick={() => onNavigateSection('demo')} sx={{ minHeight: 48, fontWeight: 600 }}>
+                        {copy.actions?.demo}
+                    </Button>
+                    <Button variant="outlined" onClick={onOpenFinder} sx={{ minHeight: 48 }}>
+                        {copy.actions?.findSchool}
+                    </Button>
+                </Stack>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Stack spacing={1}>
+                    <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                        <Button
+                            size="small"
+                            variant={language === 'en' ? 'contained' : 'text'}
+                            onClick={() => onLanguageChange('en')}
+                            aria-pressed={language === 'en'}
+                            sx={{ minWidth: 44, borderRadius: 0, px: 1 }}
+                        >
+                            {copy.header?.english}
                         </Button>
-                        <Button size="small" variant={language === 'ar' ? 'contained' : 'text'} aria-pressed={language === 'ar'} onClick={() => { onClose(); onLanguageChange('ar'); }} sx={{ minWidth: 44, borderRadius: 0 }}>
-                            {uiText.languageArabic || 'AR'}
+                        <Button
+                            size="small"
+                            variant={language === 'ar' ? 'contained' : 'text'}
+                            onClick={() => onLanguageChange('ar')}
+                            aria-pressed={language === 'ar'}
+                            sx={{ minWidth: 44, borderRadius: 0, px: 1 }}
+                        >
+                            {copy.header?.arabic}
                         </Button>
                     </Box>
-                </Box>
-                {(content.navigation || []).map(({ label, id }) => (
-                    <Button key={id} href={`#${id}`} fullWidth onClick={() => scrollTo(id)} sx={{ justifyContent: 'flex-start', color: 'text.primary' }}>
-                        {label}
+
+                    <Button
+                        onClick={onToggleTheme}
+                        startIcon={isDark ? <HiOutlineSun size={18} /> : <HiOutlineMoon size={18} />}
+                        sx={{ alignSelf: 'flex-start', minHeight: 44 }}
+                    >
+                        {isDark ? copy.header?.switchLight : copy.header?.switchDark}
                     </Button>
-                ))}
-                <Button fullWidth onClick={() => { onClose(); handleAction('login'); }} sx={{ color: 'text.secondary' }}>{content.header.loginLabel}</Button>
-                <Button variant="outlined" fullWidth onClick={() => { onClose(); handleAction('demo'); }}>{uiText.demoCta || 'Book a demo'}</Button>
-                <Button variant="contained" fullWidth onClick={() => { onClose(); handleAction('register'); }}>{content.header.startLabel}</Button>
+                </Stack>
+
+                <Box sx={{ flexGrow: 1 }} />
+
+                <Divider sx={{ my: 2 }} />
+
+                <Button
+                    component={RouterLink}
+                    to="/login"
+                    onClick={onSignIn}
+                    sx={{ justifyContent: 'flex-start', color: 'text.secondary', fontWeight: 600 }}
+                >
+                    {copy.actions?.signIn}
+                </Button>
             </Box>
         </Drawer>
     );

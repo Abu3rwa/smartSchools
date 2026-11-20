@@ -330,6 +330,19 @@ export default function SupportsStep({
       </div>
 
       <div className="wa-field">
+        <span>{t("writing:teacher.builder.exemplar")}</span>
+        <textarea
+          rows={5}
+          value={form.exemplarText || ""}
+          onChange={(event) => update({ exemplarText: event.target.value })}
+          placeholder={t("writing:teacher.builder.exemplarPlaceholder")}
+        />
+        <p className="wa-hint">
+          {t("writing:teacher.builder.exemplarHint")}
+        </p>
+      </div>
+
+      <div className="wa-field">
         <span>{t("writing:teacher.builder.aiGuardrails")}</span>
         <textarea
           rows={3}
@@ -338,6 +351,17 @@ export default function SupportsStep({
           placeholder={t("writing:teacher.builder.aiGuardrailsPlaceholder")}
         />
         <p className="wa-hint">{t("writing:teacher.builder.aiGuardrailsHint")}</p>
+      </div>
+
+      <div className="wa-field">
+        <span>{t("writing:teacher.builder.taughtFocus")}</span>
+        <textarea
+          rows={3}
+          value={form.taughtFocus || ""}
+          onChange={(event) => update({ taughtFocus: event.target.value })}
+          placeholder={t("writing:teacher.builder.taughtFocusPlaceholder")}
+        />
+        <p className="wa-hint">{t("writing:teacher.builder.taughtFocusHint")}</p>
       </div>
     </div>
   );

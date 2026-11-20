@@ -75,6 +75,13 @@ const gradeSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    // Shared family-facing lesson summary for the whole assessment group
+    lessonSummary: {
+        type: String,
+        trim: true,
+        maxlength: 5000,
+        default: ''
+    },
     description: {
         type: String,
         trim: true

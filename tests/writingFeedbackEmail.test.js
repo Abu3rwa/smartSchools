@@ -10,6 +10,7 @@ import WritingAssessment from '../models/WritingAssessment.js';
 import WritingAssignment from '../models/WritingAssignment.js';
 import WritingProject from '../models/WritingProject.js';
 import WritingDraft from '../models/WritingDraft.js';
+import WritingEmailOptOut from '../models/WritingEmailOptOut.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
 
 import {
@@ -235,16 +236,17 @@ test('the email carries the draft with each comment under the line it is about',
     assert.match(message.html, /Your writing, with the comments under each line/);
     assert.match(message.html, /Our school should have a longer recess\./);
     assert.match(message.html, /So I think recess should be longer\./);
-    // The quoted phrase is highlighted and numbered; the note sits under it.
-    assert.match(message.html, /background-color:#fde68a[^>]*>recess helps students focus<\/span><sup[^>]*>1<\/sup>/);
+    // The quoted phrase is highlighted; the note sits under it, so the text
+    // carries no comment number that could collide with a correction number.
+    assert.match(message.html, /background-color:#fde68a[^>]*>recess helps students focus<\/span>/);
     assert.match(message.html, /Add one example after this line\./);
     assert.match(message.html, /Your opinion is clear\./);
-    // Only paragraphs whose quote was found get a number, in reading order.
-    assert.equal((message.html.match(/<sup/g) || []).length, 1);
+    // Only correction numbers are printed in the draft, and this draft has none.
+    assert.equal((message.html.match(/<sup/g) || []).length, 0);
     // The per-part cards would repeat the same notes, so they are dropped.
     assert.equal(message.html.includes('Feedback by part'), false);
     assert.match(message.text, /A longer recess helps students focus\./);
-    assert.match(message.text, /\[1\] Body paragraph · Try this/);
+    assert.match(message.text, /^Body paragraph · Try this/m);
 });
 
 test('the rubric reads as words with one quote per criterion, never points', () => {
@@ -274,7 +276,7 @@ test('an arabic draft keeps its highlights and uses arabic quote marks', () => {
     assert.match(message.html, /جرّب هذا/);
     assert.match(message.html, /«a longer recess»/);
     assert.match(message.html, /كل ملاحظة في الأسفل تشير إلى سطر واحد بالضبط/);
-    assert.match(message.text, /\[1\] Body paragraph · جرّب هذا/);
+    assert.match(message.text, /^Body paragraph · جرّب هذا/m);
 });
 
 test('a very long draft is clipped and the note keeps its own quote', () => {
@@ -532,6 +534,10 @@ const stubDelivery = (t, overrides = {}) => {
     // The send is recorded on the assessment (status, attempts), but only in
     // publish.email: stage, publish state and drafts stay untouched.
     t.mock.method(WritingAssessment, 'updateOne', async () => ({ acknowledged: true }));
+    t.mock.method(WritingEmailOptOut, 'find', (filter) => {
+        assert.equal(filter.school, ids.schoolId);
+        return query(overrides.optedOut || []);
+    });
     t.mock.method(School, 'findOne', (filter) => {
         assert.equal(filter._id, ids.schoolId);
         return query({ name: 'Example School' });
@@ -564,7 +570,7 @@ for (const [name, notify, recipients] of [
         const { sent, records } = stubDelivery(t);
         const before = JSON.stringify(records);
         const result = await resendPublishedFeedbackEmail({ ...resendContext, notify });
-        assert.deepEqual(result, { sent: recipients.length, failed: 0, missing: [] });
+        assert.deepEqual(result, { sent: recipients.length, failed: 0, skipped: 0, suppressed: 0, missing: [] });
         assert.deepEqual(sent.map((message) => message.to), recipients);
         assert.ok(sent.every((message) => message.html.includes(assessment.overall.summary)));
         assert.equal(JSON.stringify(records), before);
@@ -680,13 +686,13 @@ test('missing addresses and empty feedback are not reported as successful sends'
 test('resend deduplicates shared addresses and reports transport failures accurately', async (t) => {
     const { sent, records } = stubDelivery(t, { fail: ['parent@example.test'] });
     const partial = await resendPublishedFeedbackEmail(resendContext);
-    assert.deepEqual(partial, { sent: 1, failed: 1, missing: [] });
+    assert.deepEqual(partial, { sent: 1, failed: 1, skipped: 0, suppressed: 0, missing: [] });
     assert.equal(sent.length, 1);
     const failed = await resendPublishedFeedbackEmail({ ...resendContext, notify: { student: false, parents: true } });
-    assert.deepEqual(failed, { sent: 0, failed: 1, missing: [] });
+    assert.deepEqual(failed, { sent: 0, failed: 1, skipped: 0, suppressed: 0, missing: [] });
     records.student.getAllContactEmailEntries = () => [{ type: 'guardian', email: 'student@example.test' }];
     const shared = await resendPublishedFeedbackEmail(resendContext);
-    assert.deepEqual(shared, { sent: 1, failed: 0, missing: [] });
+    assert.deepEqual(shared, { sent: 1, failed: 0, skipped: 0, suppressed: 0, missing: [] });
 });
 
 test('every send attempt leaves a record the review screen can read', async () => {
@@ -719,6 +725,16 @@ test('every send attempt leaves a record the review screen can read', async () =
 
         await recordEmailDelivery({ ...scope, result: { skipped: 'error' } });
         assert.equal(writes[4].update.$set['publish.email.status'], 'failed');
+
+        // L2: only addresses that already hold the feedback are reported as a
+        // success; a delivery where everyone stopped the emails is a skip.
+        await recordEmailDelivery({ ...scope, result: { results: [], alreadySent: [{ email: 'a@example.test' }] } });
+        assert.equal(writes[5].update.$set['publish.email.status'], 'sent');
+        assert.equal(writes[5].update.$set['publish.email.recipients'], 1);
+
+        await recordEmailDelivery({ ...scope, result: { results: [], suppressed: [{ email: 'b@example.test' }] } });
+        assert.equal(writes[6].update.$set['publish.email.status'], 'skipped');
+        assert.equal(writes[6].update.$set['publish.email.skippedReason'], 'suppressed');
     } finally {
         WritingAssessment.updateOne = original;
     }
@@ -733,6 +749,7 @@ test('automatic publish delivery retains its channel and skip behavior', async (
     assert.deepEqual(await notifyFeedbackPublished({ ...context, assessment: { kind: 'comparison' } }), { skipped: 'not-feedback' });
     const result = await notifyFeedbackPublished(context);
     assert.equal(result.results.length, 2);
+    assert.deepEqual(result.results[0], { email: 'student@example.test', role: 'student', status: 'sent' });
     assert.equal(sent.length, 2);
 });
 
@@ -741,7 +758,10 @@ test('automatic publish never falls back to the school mailbox when the teacher 
     gmailOAuthService.sendEmail.mock.mockImplementation(async () => { throw new Error('token revoked'); });
     const context = { schoolId: ids.schoolId, userId: ids.userId, ...records, env: resendContext.env };
     const result = await notifyFeedbackPublished(context);
-    assert.deepEqual(result.results, [{ email: 'student@example.test', status: 'failed' }, { email: 'parent@example.test', status: 'failed' }]);
+    assert.deepEqual(result.results, [
+        { email: 'student@example.test', role: 'student', status: 'failed' },
+        { email: 'parent@example.test', role: 'parent', status: 'failed' },
+    ]);
     assert.equal(sent.length, 0);
 });
 
@@ -812,8 +832,7 @@ test('resend routes require staff, rate-limit sends, and never reach AI or credi
     assert.doesNotMatch(source, /connectAi|assertCanSpend|chargeUsage|writingAssistantAssessmentService/);
 });
 
-test('a clipped parent email does not address the guardian as the writer', () => {
-    const long = 'word '.repeat(1600);
+test('a clipped parent email does not address the guardian as the writer', () => {    const long = 'word '.repeat(1600);
     const message = build({
         role: 'parent',
         assignment: { ...assignment, sections: [{ key: 'body' }] },
@@ -833,4 +852,74 @@ test('a clipped parent email does not address the guardian as the writer', () =>
     });
     assert.match(message.html, /The rest of the draft is in the app\./);
     assert.equal(message.html.includes('your draft'), false);
+});
+
+test('the footer carries the address own opt-out link in both languages', () => {
+    const message = build({ optOutUrl: 'https://api.example.com/api/public/writing-email-opt-out/token.sig' });
+    assert.match(message.html, /Stop these emails/);
+    assert.match(message.html, /href="https:\/\/api\.example\.com\/api\/public\/writing-email-opt-out\/token\.sig"/);
+    assert.match(message.text, /Stop these emails: https:\/\/api\.example\.com/);
+    const arabic = build({
+        language: 'ar',
+        assessment: { ...assessment, language: 'ar' },
+        optOutUrl: 'https://api.example.com/x'
+    });
+    assert.match(arabic.html, /إيقاف هذه الرسائل/);
+    // No link at all is a valid state: the footer then says nothing extra.
+    assert.equal(build().html.includes('Stop these emails'), false);
+});
+
+test('a family that stopped these emails is never emailed again', async (t) => {
+    const { sent } = stubDelivery(t, { optedOut: [{ email: 'parent@example.test', school: ids.schoolId }] });
+    const preview = await previewPublishedFeedbackEmail(resendContext);
+    assert.deepEqual(preview.previews.map((row) => row.role), ['student']);
+    assert.equal(preview.suppressed, 1);
+
+    const result = await resendPublishedFeedbackEmail(resendContext);
+    assert.deepEqual(result, { sent: 1, failed: 0, skipped: 0, suppressed: 1, missing: [] });
+    assert.deepEqual(sent.map((message) => message.to), ['student@example.test']);
+});
+
+test('when every address stopped the emails nothing is sent and the reason is named', async (t) => {
+    stubDelivery(t, {
+        optedOut: [
+            { email: 'student@example.test', school: ids.schoolId },
+            { email: 'parent@example.test', school: ids.schoolId }
+        ]
+    });
+    await assert.rejects(resendPublishedFeedbackEmail(resendContext), { code: 'WRITING_EMAIL_SUPPRESSED' });
+    await assert.rejects(previewPublishedFeedbackEmail(resendContext), { code: 'WRITING_EMAIL_SUPPRESSED' });
+});
+
+test('an address that already received this feedback is not emailed twice', async (t) => {
+    const { sent, records } = stubDelivery(t);
+    records.assessment.publish.email = {
+        status: 'partial',
+        deliveries: [
+            { email: 'student@example.test', role: 'student', status: 'sent' },
+            { email: 'parent@example.test', role: 'parent', status: 'failed' }
+        ]
+    };
+    const preview = await previewPublishedFeedbackEmail(resendContext);
+    assert.equal(preview.previews.find((row) => row.role === 'student').sent, 1);
+    assert.equal(preview.previews.find((row) => row.role === 'parents').sent, 0);
+
+    // A resend retries the failed address only; the copy already delivered stays.
+    const result = await resendPublishedFeedbackEmail(resendContext);
+    assert.deepEqual(result, { sent: 1, failed: 0, skipped: 1, suppressed: 0, missing: [] });
+    assert.deepEqual(sent.map((message) => message.to), ['parent@example.test']);
+});
+
+test('a resend with every address already reached sends nothing', async (t) => {
+    const { sent, records } = stubDelivery(t);
+    records.assessment.publish.email = {
+        status: 'sent',
+        deliveries: [
+            { email: 'student@example.test', role: 'student', status: 'sent' },
+            { email: 'parent@example.test', role: 'parent', status: 'sent' }
+        ]
+    };
+    const result = await resendPublishedFeedbackEmail(resendContext);
+    assert.deepEqual(result, { sent: 0, failed: 0, skipped: 2, suppressed: 0, missing: [] });
+    assert.equal(sent.length, 0);
 });

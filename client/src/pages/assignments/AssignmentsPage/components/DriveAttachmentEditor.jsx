@@ -3,6 +3,8 @@ import toast from "react-hot-toast";
 import {
   HiOutlineCloudUpload,
   HiOutlineExternalLink,
+  HiOutlineLockClosed,
+  HiOutlineLockOpen,
   HiOutlinePlus,
   HiOutlineX,
 } from "react-icons/hi";
@@ -41,6 +43,8 @@ const DriveAttachmentEditor = ({
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [privateUpload, setPrivateUpload] = useState(false);
+  const [visibilityBusy, setVisibilityBusy] = useState("");
 
   const loadConnection = useCallback(() => {
     let active = true;
@@ -82,6 +86,7 @@ const DriveAttachmentEditor = ({
       const response = await assignmentService.uploadDriveAttachments(
         assignmentId,
         files,
+        { visibility: privateUpload ? "private" : "students" },
       );
       onChange(response?.data?.driveAttachments || []);
       onPendingFilesChange?.([]);
@@ -204,6 +209,33 @@ const DriveAttachmentEditor = ({
       );
     } finally {
       setBusy(false);
+    }
+  };
+
+  const toggleVisibility = async (attachment) => {
+    if (!assignmentId || visibilityBusy) return;
+    const next =
+      attachment.visibility === "private" ? "students" : "private";
+    setVisibilityBusy(attachment.fileId);
+    try {
+      const response = await assignmentService.updateDriveAttachmentVisibility(
+        assignmentId,
+        attachment.fileId,
+        next,
+      );
+      onChange(response?.data?.driveAttachments || []);
+      if (response?.data?.warning) {
+        toast.error(t("assignments:driveAttachments.visibilityWarning"));
+      } else {
+        toast.success(t("assignments:driveAttachments.visibilityUpdated"));
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          t("assignments:driveAttachments.visibilityFailed"),
+      );
+    } finally {
+      setVisibilityBusy("");
     }
   };
 
@@ -336,41 +368,90 @@ const DriveAttachmentEditor = ({
 
           {driveAttachments.length > 0 && (
             <div className="attachment-chips">
-              {driveAttachments.map((att) => (
-                <div key={att.fileId} className="attachment-chip existing">
-                  <span className="attachment-chip-name">
-                    {att.fileName || att.fileId}
-                  </span>
-                  <span className="attachment-chip-size">
-                    {formatSize(att.size || 0)}
-                  </span>
-                  {att.webViewLink && (
-                    <a
-                      href={att.webViewLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={t("assignments:driveAttachments.openInDrive")}
-                      title={t("assignments:driveAttachments.openInDrive")}
-                    >
-                      <HiOutlineExternalLink />
-                    </a>
-                  )}
-                  {!controlsDisabled && (
-                    <button
-                      type="button"
-                      className="attachment-chip-remove"
-                      onClick={() => handleRemove(att.fileId)}
-                      aria-label={t("assignments:driveAttachments.remove", {
-                        name: att.fileName || att.fileId,
-                      })}
-                    >
-                      <HiOutlineX />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {driveAttachments.map((att) => {
+                const isPrivate = att.visibility === "private";
+                return (
+                  <div key={att.fileId} className="attachment-chip existing">
+                    <span className="attachment-chip-name">
+                      {att.fileName || att.fileId}
+                    </span>
+                    <span className="attachment-chip-size">
+                      {formatSize(att.size || 0)}
+                    </span>
+                    <span className="attachment-chip-badge">
+                      {isPrivate
+                        ? t("assignments:driveAttachments.privateBadge")
+                        : t("assignments:driveAttachments.sharedBadge")}
+                    </span>
+                    {!controlsDisabled && (
+                      <button
+                        type="button"
+                        className="attachment-chip-visibility"
+                        onClick={() => toggleVisibility(att)}
+                        disabled={Boolean(visibilityBusy)}
+                        aria-label={
+                          isPrivate
+                            ? t("assignments:driveAttachments.makeShared", {
+                                name: att.fileName || att.fileId,
+                              })
+                            : t("assignments:driveAttachments.makePrivate", {
+                                name: att.fileName || att.fileId,
+                              })
+                        }
+                        title={
+                          isPrivate
+                            ? t("assignments:driveAttachments.makeShared", {
+                                name: att.fileName || att.fileId,
+                              })
+                            : t("assignments:driveAttachments.makePrivate", {
+                                name: att.fileName || att.fileId,
+                              })
+                        }
+                      >
+                        {isPrivate ? <HiOutlineLockClosed /> : <HiOutlineLockOpen />}
+                      </button>
+                    )}
+                    {att.webViewLink && !isPrivate && (
+                      <a
+                        href={att.webViewLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={t("assignments:driveAttachments.openInDrive")}
+                        title={t("assignments:driveAttachments.openInDrive")}
+                      >
+                        <HiOutlineExternalLink />
+                      </a>
+                    )}
+                    {!controlsDisabled && (
+                      <button
+                        type="button"
+                        className="attachment-chip-remove"
+                        onClick={() => handleRemove(att.fileId)}
+                        aria-label={t("assignments:driveAttachments.remove", {
+                          name: att.fileName || att.fileId,
+                        })}
+                      >
+                        <HiOutlineX />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
+
+          <label className="question-drafter__radio">
+            <input
+              type="checkbox"
+              checked={privateUpload}
+              disabled={controlsDisabled}
+              onChange={(event) => setPrivateUpload(event.target.checked)}
+            />
+            <span>
+              {t("assignments:driveAttachments.privateUpload")}
+              <small>{t("assignments:driveAttachments.privateUploadHelp")}</small>
+            </span>
+          </label>
 
           <input
             ref={fileInputRef}

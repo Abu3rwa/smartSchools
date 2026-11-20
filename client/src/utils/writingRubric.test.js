@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { rubricLevel, rubricRows } from "./writingRubric.js";
+import {
+  MARKS_MODES,
+  marksModeOf,
+  marksShowsNumbers,
+  rubricLevel,
+  rubricRows,
+} from "./writingRubric.js";
 
 test("rubricLevel reads the same on different point scales", () => {
   assert.deepEqual(rubricLevel(4, 5), rubricLevel(8, 10));
@@ -47,6 +53,40 @@ test("rubricRows keeps the verdict the server already worked out", () => {
   assert.equal(rows[0].filled, 3);
   assert.equal(rows[0].dots, 5);
   assert.equal(rows[0].ratio, 3 / 5);
+});
+
+test("the school's marks mode is one of three, with words as the safe default", () => {
+  assert.deepEqual(MARKS_MODES, ["words", "words_numbers", "numbers"]);
+  assert.equal(marksModeOf("numbers"), "numbers");
+  assert.equal(marksModeOf("words_numbers"), "words_numbers");
+  assert.equal(marksModeOf(undefined), "words");
+  assert.equal(marksModeOf("points"), "words");
+  assert.equal(marksShowsNumbers("words"), false);
+  assert.equal(marksShowsNumbers("words_numbers"), true);
+  assert.equal(marksShowsNumbers("numbers"), true);
+});
+
+test("rubricRows shows points only when the school asks for them", () => {
+  const score = { key: "ideas", label: "Ideas", score: 4, maxScore: 5 };
+  const words = rubricRows([score])[0];
+  assert.equal("score" in words, false);
+  assert.equal("maxScore" in words, false);
+  assert.equal(words.level, "strong");
+
+  const both = rubricRows([score], { marks: "words_numbers" })[0];
+  assert.equal(both.score, 4);
+  assert.equal(both.maxScore, 5);
+  assert.equal(both.level, "strong");
+
+  const numbers = rubricRows([score], { marks: "numbers" })[0];
+  assert.equal(numbers.score, 4);
+
+  // A server row without points (the child payload) never gains a fake one.
+  const serverRow = rubricRows(
+    [{ key: "ideas", label: "Ideas", level: "near", filled: 3, dots: 5 }],
+    { marks: "numbers" },
+  )[0];
+  assert.equal("score" in serverRow, false);
 });
 
 test("a rubric explanation never carries marks to the child", () => {

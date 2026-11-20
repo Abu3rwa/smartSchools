@@ -1,199 +1,167 @@
+import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
-import { useLandingPageData } from './hooks/useLandingPageData.js';
-import {
-    getHeroBadge,
-    getTrustItems,
-    getNoMatchMessage,
-    getMatchingLabel,
-    getShowingLimitText,
-    getCopyrightText,
-} from './utils/landingPagePresentation.js';
+import { LANDING_SECTION_TARGETS, useLandingPageData } from './hooks/useLandingPageData.js';
 import LandingPageHeader from './components/LandingPageHeader.jsx';
 import LandingMobileDrawer from './components/LandingMobileDrawer.jsx';
-import LandingLoadingState from './components/LandingLoadingState.jsx';
 import LandingHero from './components/LandingHero.jsx';
-import LandingDynamicBlocks from './components/LandingDynamicBlocks.jsx';
-import LandingTrustStrip from './components/LandingTrustStrip.jsx';
-import LandingBenefits from './components/LandingBenefits.jsx';
+import LandingPlatformStory from './components/LandingPlatformStory.jsx';
 import LandingFeatures from './components/LandingFeatures.jsx';
-import LandingScreenshots from './components/LandingScreenshots.jsx';
 import LandingHowItWorks from './components/LandingHowItWorks.jsx';
 import LandingPricing from './components/LandingPricing.jsx';
-import LandingTestimonials from './components/LandingTestimonials.jsx';
 import LandingFaq from './components/LandingFaq.jsx';
-import LandingCta from './components/LandingCta.jsx';
-import LandingFindSchool from './components/LandingFindSchool.jsx';
-import LandingPlatformStory from './components/LandingPlatformStory.jsx';
 import LandingBookDemo from './components/LandingBookDemo.jsx';
+import LandingFindSchool from './components/LandingFindSchool.jsx';
 import LandingFooter from './components/LandingFooter.jsx';
-import RevealOnScroll from './components/RevealOnScroll.jsx';
 import './LandingPage.css';
 
 /**
- * Public landing page — modern SaaS layout.
- * Section order:
- *   Hero → Trust → Benefits → Features → Screenshots → How it Works →
- *   Pricing → Testimonials → FAQ → CTA → Find School → Footer
+ * Public landing page.
+ *
+ * Hero → Product workflows → Learning tools → School setup → Pricing → FAQ →
+ * Demo enquiry → Footer. The page renders its static sections immediately and
+ * loads only the public plan list in the background.
  */
 export default function LandingPage() {
-    const {
-        content,
-        contentError,
-        contentLoading,
-        loading,
-        plans,
-        schools,
-        schoolsToShow,
-        filtered,
-        hasSearchFilter,
-        searchTerm,
-        setSearchTerm,
-        mobileOpen,
-        setMobileOpen,
-        themeMode,
-        toggleTheme,
-        switchLanguage,
-        language,
-        direction,
-        uiText,
-        dynamicBlocks,
-        dynamicLoading,
-        scrollTo,
-        handleAction,
-        navigate,
-        totalSchoolCountLabel,
-        filteredSchoolCountLabel,
-    } = useLandingPageData();
+    const { t } = useTranslation(['landing.page']);
+    const data = useLandingPageData();
+    const { copy, appName } = data;
 
-    if (loading || contentLoading) {
-        return <LandingLoadingState content={content} />;
-    }
+    useEffect(() => {
+        const previousTitle = document.title;
+        const existingDescription = document.querySelector('meta[name="description"]');
+        const previousDescription = existingDescription ? existingDescription.getAttribute('content') : null;
 
-    const heroBadge = getHeroBadge(content, schools.length);
-    const trustItems = getTrustItems(content, schools.length);
-    const noMatchMessage = getNoMatchMessage(content, searchTerm);
-    const matchingLabel = getMatchingLabel(content, searchTerm);
-    const showingLimitText = getShowingLimitText(content, schoolsToShow.length, filtered.length);
-    const copyrightText = getCopyrightText(content);
+        const descriptionTag = existingDescription || document.createElement('meta');
+        if (!existingDescription) {
+            descriptionTag.setAttribute('name', 'description');
+            document.head.appendChild(descriptionTag);
+        }
+
+        document.title = t('publicPage.seo.title', { appName });
+        descriptionTag.setAttribute('content', t('publicPage.seo.description', { appName }));
+
+        return () => {
+            document.title = previousTitle;
+            if (existingDescription) {
+                if (previousDescription !== null) {
+                    descriptionTag.setAttribute('content', previousDescription);
+                }
+                return;
+            }
+            descriptionTag.remove();
+        };
+    }, [t, appName]);
+
+    useEffect(() => {
+        const hash = window.location.hash.replace(/^#/, '');
+        if (!hash) return;
+        const entry = Object.values(LANDING_SECTION_TARGETS).find((item) => item.sectionId === hash);
+        if (!entry) return;
+        const element = document.getElementById(entry.sectionId);
+        if (!element) return;
+        element.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, []);
+
+    const planOptions = data.plansState.plans.map((plan) => ({ key: plan.key, name: plan.name }));
 
     return (
-        <Box sx={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }} data-testid="landing-page" data-lang={language} data-dir={direction}>
-            <div className="landing-bg-gradient" aria-hidden="true" />
-            <div className="bg-grid" aria-hidden="true" />
+        <Box
+            className="landing-public"
+            data-testid="landing-page"
+            data-lang={data.language}
+            data-dir={data.direction}
+        >
+            <a className="landing-public-skip-link" href="#landing-main">
+                {copy.a11y?.skip}
+            </a>
 
             <LandingPageHeader
-                content={content}
-                themeMode={themeMode}
-                toggleTheme={toggleTheme}
-                language={language}
-                onLanguageChange={switchLanguage}
-                uiText={uiText}
-                scrollTo={scrollTo}
-                handleAction={handleAction}
-                onOpenMobileMenu={() => setMobileOpen(true)}
-            />
-            <LandingMobileDrawer
-                open={mobileOpen}
-                onClose={() => setMobileOpen(false)}
-                content={content}
-                themeMode={themeMode}
-                toggleTheme={toggleTheme}
-                language={language}
-                isRtl={direction === 'rtl'}
-                onLanguageChange={switchLanguage}
-                uiText={uiText}
-                scrollTo={scrollTo}
-                handleAction={handleAction}
+                copy={copy}
+                appName={appName}
+                navItems={data.navItems}
+                language={data.language}
+                themeMode={data.themeMode}
+                onOpenMenu={data.openMenu}
+                onLanguageChange={data.switchLanguage}
+                onToggleTheme={data.toggleTheme}
+                onNavigateSection={data.navigateSection}
+                onRequestDemo={() => data.navigateSection('demo')}
+                onSignIn={data.navigateToSignIn}
             />
 
-            {/* 1. Hero */}
-            <LandingHero content={content} contentError={contentError} heroBadge={heroBadge} handleAction={handleAction} />
-
-            {/* 2. Dynamic CMS Blocks (if any) */}
-            <LandingDynamicBlocks
-                blocks={dynamicBlocks}
-                loading={dynamicLoading}
-                fallbackUsed={Boolean(dynamicBlocks?.fallbackUsed)}
-                fallbackNotice={uiText.dynamicFallbackNotice}
-                onAction={handleAction}
-            />
-
-            {/* 3. Trust Strip */}
-            <RevealOnScroll delay={0.1} duration={0.6}>
-                <LandingTrustStrip trustItems={trustItems} />
-            </RevealOnScroll>
-
-            {/* 4. Benefits — WHY use us */}
-            <RevealOnScroll>
-                <LandingBenefits />
-            </RevealOnScroll>
-
-            {/* 5. Features — WHAT we offer (from CMS) */}
-            <RevealOnScroll>
-                <LandingFeatures content={content} />
-            </RevealOnScroll>
-
-            {/* 5b. Platform story — admin, teacher, student and the AI layer */}
-            <RevealOnScroll>
-                <LandingPlatformStory uiText={uiText} />
-            </RevealOnScroll>
-
-            {/* 6. Screenshots — SEE the product */}
-            <RevealOnScroll>
-                <LandingScreenshots />
-            </RevealOnScroll>
-
-            {/* 7. How It Works — simple 3 steps */}
-            <RevealOnScroll>
-                <LandingHowItWorks content={content} />
-            </RevealOnScroll>
-
-            {/* 8. Pricing */}
-            <RevealOnScroll>
-                <LandingPricing content={content} plans={plans} uiText={uiText} handleAction={handleAction} />
-            </RevealOnScroll>
-
-            {/* 9. Testimonials */}
-            <RevealOnScroll>
-                <LandingTestimonials content={content} />
-            </RevealOnScroll>
-
-            {/* 10. FAQ */}
-            <RevealOnScroll>
-                <LandingFaq content={content} />
-            </RevealOnScroll>
-
-            {/* 11. Final CTA */}
-            <RevealOnScroll>
-                <LandingCta content={content} uiText={uiText} handleAction={handleAction} />
-            </RevealOnScroll>
-
-            {/* 11b. Book a Demo */}
-            <RevealOnScroll>
-                <LandingBookDemo uiText={uiText} language={language} />
-            </RevealOnScroll>
-
-            {/* 12. Find School */}
-            <RevealOnScroll>
-                <LandingFindSchool
-                    content={content}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                    hasSearchFilter={hasSearchFilter}
-                    filtered={filtered}
-                    schoolsToShow={schoolsToShow}
-                    noMatchMessage={noMatchMessage}
-                    matchingLabel={matchingLabel}
-                    showingLimitText={showingLimitText}
-                    totalSchoolCountLabel={totalSchoolCountLabel}
-                    filteredSchoolCountLabel={filteredSchoolCountLabel}
-                    handleAction={handleAction}
-                    navigate={navigate}
+            <Box component="main" id="landing-main" tabIndex={-1} sx={{ outline: 'none' }}>
+                <LandingHero
+                    copy={copy}
+                    onNavigateSection={data.navigateSection}
+                    onSignIn={data.navigateToSignIn}
                 />
-            </RevealOnScroll>
 
-            {/* 13. Footer */}
-            <LandingFooter content={content} copyrightText={copyrightText} handleAction={handleAction} />
+                <LandingPlatformStory copy={copy} />
+
+                <LandingFeatures copy={copy} />
+
+                <LandingHowItWorks copy={copy} onRegister={data.navigateToRegister} />
+
+                <LandingPricing
+                    copy={copy}
+                    plansState={data.plansState}
+                    language={data.language}
+                    demoStatus={data.demoStatus}
+                    onRetry={data.retryPlans}
+                    onSelectPlan={data.requestPlan}
+                />
+
+                <LandingFaq copy={copy} />
+
+                <LandingBookDemo
+                    copy={copy}
+                    language={data.language}
+                    planOptions={planOptions}
+                    selectedPlanKey={data.selectedPlanKey}
+                    planNotice={data.planNotice}
+                    onPlanChange={data.selectPlan}
+                    onClearPlan={data.clearPlan}
+                    onStatusChange={data.setDemoStatus}
+                    onOpenFinder={(event) => data.openFinder(event.currentTarget)}
+                />
+            </Box>
+
+            <LandingFooter
+                copy={copy}
+                appName={appName}
+                year={new Date().getFullYear()}
+                navItems={data.navItems}
+                onNavigateSection={data.navigateSection}
+                onOpenFinder={(event) => data.openFinder(event.currentTarget)}
+                onSignIn={data.navigateToSignIn}
+            />
+
+            <LandingMobileDrawer
+                copy={copy}
+                direction={data.direction}
+                open={data.mobileOpen}
+                navItems={data.navItems}
+                language={data.language}
+                themeMode={data.themeMode}
+                onClose={() => data.closeMobileDrawer()}
+                onExited={data.handleDrawerClosed}
+                onNavigateSection={data.navigateFromDrawer}
+                onOpenFinder={data.openFinderFromDrawer}
+                onLanguageChange={data.switchLanguage}
+                onToggleTheme={data.toggleTheme}
+                onSignIn={data.navigateToSignIn}
+            />
+
+            <LandingFindSchool
+                copy={copy}
+                open={data.finderOpen}
+                query={data.finderQuery}
+                state={data.finderState}
+                onQueryChange={data.setFinderQuery}
+                onRetry={data.retryFinder}
+                onClose={data.closeFinder}
+            />
         </Box>
     );
 }

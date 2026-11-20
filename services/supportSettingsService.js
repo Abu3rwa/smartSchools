@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+import User from '../models/User.js';
 import SupportSettings, {
     SUPPORT_SETTINGS_DEFAULTS,
     SUPPORT_SETTINGS_ROLES,
@@ -59,7 +61,7 @@ const boolean = (value, label) => {
     return value;
 };
 
-const pickPatch = (patch = {}) => {
+const pickPatch = async (patch = {}, { schoolId } = {}) => {
     const next = {};
     if ('enabled' in patch) next.enabled = boolean(patch.enabled, 'Enabled');
     if ('label' in patch) {
@@ -110,6 +112,28 @@ const pickPatch = (patch = {}) => {
     }
     if ('reminderCount' in patch) {
         next.reminderCount = boundedInt(patch.reminderCount, { min: 0, max: 5, label: 'Reminder count' });
+    }
+    if ('acknowledgmentDays' in patch) {
+        next.acknowledgmentDays = boundedInt(patch.acknowledgmentDays, { min: 1, max: 10, label: 'Acknowledgment window' });
+    }
+    if ('escalationBackup' in patch) {
+        const raw = patch.escalationBackup;
+        if (raw === null || raw === '') {
+            next.escalationBackup = null;
+        } else {
+            if (!mongoose.isValidObjectId(raw)) {
+                throw supportError(400, 'SETTINGS_ENUM', 'Choose a staff member to receive escalations.');
+            }
+            const member = await User.findOne({
+                _id: raw,
+                school: schoolId,
+                isActive: true,
+            }).select('_id').setOptions({ skipTenantFilter: true });
+            if (!member) {
+                throw supportError(400, 'SETTINGS_ENUM', 'Choose a staff member to receive escalations.');
+            }
+            next.escalationBackup = member._id;
+        }
     }
     if ('autoSuggestions' in patch) next.autoSuggestions = boolean(patch.autoSuggestions, 'Automatic suggestions');
     if ('aiPlanDrafts' in patch) next.aiPlanDrafts = boolean(patch.aiPlanDrafts, 'AI plan drafts');
@@ -164,7 +188,7 @@ export const saveSettings = async ({ schoolId, user, patch }) => {
     if (!isSupportAdmin(user)) {
         throw supportError(403, 'SETTINGS_FORBIDDEN', 'Only a school admin can change support settings.');
     }
-    const next = pickPatch(patch);
+    const next = await pickPatch(patch, { schoolId });
     const current = await SupportSettings.findOne({ school: schoolId });
     const minAge = next.studentAgeMin ?? current?.studentAgeMin ?? SUPPORT_SETTINGS_DEFAULTS.studentAgeMin;
     const maxAge = next.studentAgeMax ?? current?.studentAgeMax ?? SUPPORT_SETTINGS_DEFAULTS.studentAgeMax;
@@ -194,13 +218,38 @@ export const saveSettings = async ({ schoolId, user, patch }) => {
     return effectiveSettings(doc);
 };
 
+/** Staff directory for the escalation-backup select; only admins see it. */
+const staffForBackup = async (schoolId) => {
+    const rows = await User.find({
+        school: schoolId,
+        isActive: true,
+        email: { $nin: [null, ''] },
+        $or: [
+            { role: { $in: ['admin', 'super_admin', 'teacher', 'counselor', 'nurse'] } },
+            { roles: { $in: ['admin', 'super_admin', 'teacher', 'counselor', 'nurse'] } },
+        ],
+    })
+        .select('firstName lastName role')
+        .setOptions({ skipTenantFilter: true })
+        .sort({ firstName: 1, lastName: 1 })
+        .limit(300)
+        .lean();
+    return rows.map((row) => ({
+        id: String(row._id),
+        name: `${row.firstName || ''} ${row.lastName || ''}`.trim() || row.role,
+        role: row.role,
+    }));
+};
+
 export const settingsResponse = async (schoolId, user) => {
     const settings = await loadSettings(schoolId);
+    const canManage = isSupportAdmin(user);
     return {
         settings,
         defaults: clone(SUPPORT_SETTINGS_DEFAULTS),
-        canManage: isSupportAdmin(user),
+        canManage,
         availableRoles: [...SUPPORT_SETTINGS_ROLES],
+        ...(canManage ? { staff: await staffForBackup(schoolId) } : {}),
     };
 };
 
@@ -211,6 +260,23 @@ export const assertSupportEnabled = async ({ schoolId, user, settings = null }) 
     }
     return effective;
 };
+
+/**
+ * Hard pause (owner decision: Support OFF = read-only history for staff, a
+ * paused notice for families, no deletions). Unlike assertSupportEnabled there
+ * is no admin bypass: only the settings switch itself stays writable, which the
+ * staff router exempts before this check runs.
+ */
+export const ensureSupportActive = (effective) => {
+    if (!effective?.enabled) {
+        throw supportError(403, 'SUPPORT_PAUSED', 'Student support is paused for this school. Staff can still view records until it is switched back on.');
+    }
+    return effective;
+};
+
+export const assertSupportActive = async ({ schoolId }) => (
+    ensureSupportActive(await loadSettings(schoolId))
+);
 
 export const canParticipate = (settings, user) => {
     if (isSupportAdmin(user)) return true;

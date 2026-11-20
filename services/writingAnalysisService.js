@@ -50,6 +50,10 @@ import {
   buildPieceEvidencePrompt,
   normalizePieceEvidence,
 } from "./writingAnalysisPrompts.js";
+import {
+  WRITING_PROMPT_VERSIONS,
+  WRITING_SCHEMA_VERSION,
+} from "./writingPromptVersions.js";
 
 const MAX_CONCURRENT_PIECES = 3;
 const STALE_RUN_MS = 10 * 60 * 1000;
@@ -61,6 +65,17 @@ const WRITING_AI = {
     ? { modelName: process.env.WRITING_AI_MODEL }
     : {}),
 };
+
+/** One line per finished piece run, so a prompt regression is visible in logs. */
+const logRun = ({ draft, outcome, tokens = 0, latencyMs = 0 }) =>
+  logger.info("writing_ai_run", {
+    feature: "writing_analysis",
+    promptVersion: WRITING_PROMPT_VERSIONS.analysis,
+    outcome,
+    draft: String(draft),
+    totalTokens: Math.max(0, Number(tokens) || 0),
+    latencyMs: Math.max(0, Number(latencyMs) || 0),
+  });
 
 const badRequest = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
@@ -229,6 +244,8 @@ const loadPieces = async ({
         $match: {
           school: new mongoose.Types.ObjectId(String(schoolId)),
           project: { $in: projectIds },
+          // A returned submission is never the student's final draft (F13).
+          withdrawn: { $ne: true },
         },
       },
       { $sort: { number: -1 } },
@@ -813,13 +830,17 @@ const analysePiece = async ({
   await setRunFields(analysis._id, piece.draft, {
     aiStatus: "running",
     error: "",
+    promptVersion: WRITING_PROMPT_VERSIONS.analysis,
+    schemaVersion: WRITING_SCHEMA_VERSION,
   });
 
   try {
+    const startedAt = Date.now();
     const reply = await connectAi(
       prompt,
       aiOptionsFor({ analysis, piece, userId }),
     );
+    const latencyMs = Date.now() - startedAt;
     const parsed = extractJsonObject(reply.text);
     const tokens = tokenCounts(reply).totalTokens;
     const cost = roundCents(reply.usage?.providerCostCents || 0);
@@ -835,6 +856,7 @@ const analysePiece = async ({
         tokens,
         costCents: cost,
       });
+      logRun({ draft: piece.draft, outcome: "failed", tokens, latencyMs });
       return;
     }
 
@@ -864,6 +886,7 @@ const analysePiece = async ({
         costCents: cost,
         evidence: { standards: [], patterns: [] },
       });
+      logRun({ draft: piece.draft, outcome: "unusable", tokens, latencyMs });
       return;
     }
 
@@ -881,11 +904,13 @@ const analysePiece = async ({
         patterns: normalized.patterns,
       },
     });
+    logRun({ draft: piece.draft, outcome: "done", tokens, latencyMs });
   } catch (error) {
     await setRunFields(analysis._id, piece.draft, {
       aiStatus: "failed",
       error: String(error?.message || "The analysis call failed.").slice(0, 500),
     });
+    logRun({ draft: piece.draft, outcome: "failed" });
   }
 };
 

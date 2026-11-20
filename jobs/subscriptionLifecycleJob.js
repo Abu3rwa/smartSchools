@@ -5,7 +5,7 @@ import Notification from '../models/Notification.js';
 import { syncSchoolSubscriptionState } from '../controllers/subscriptionController.js';
 import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 import { sendSubscriptionEventEmail } from '../services/subscriptionEmailService.js';
-import logger from '../utils/logger.js';
+import { reportJobError } from '../utils/jobError.js';
 
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 const WARNING_WINDOWS_DAYS = [7, 1];
@@ -291,10 +291,7 @@ export const runSubscriptionLifecycleJob = async ({ now = new Date() } = {}) => 
                 subscriptionId: String(subscription._id),
                 message: error?.message || 'Lifecycle job error'
             });
-            logger.error('subscription_lifecycle_job_error', {
-                subscriptionId: String(subscription._id),
-                message: error?.message || error
-            });
+            reportJobError('subscription_lifecycle_job_error', error);
         }
     }
 

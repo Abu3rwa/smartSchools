@@ -3,6 +3,12 @@ import User from '../models/User.js';
 import { runInTenantContext } from './tenantIsolation.js';
 import { runInAiUsageContext, featureFromPath } from '../utils/aiUsageContext.js';
 import logger from '../utils/logger.js';
+import {
+    isDbUnavailable,
+    shouldLogDbOutage,
+    DB_UNAVAILABLE_MESSAGE,
+    DB_RETRY_AFTER_SECONDS
+} from '../utils/dbHealth.js';
 import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
 import { isValidAcademicYear, resolveSchoolAcademicYear } from '../utils/academicYear.js';
 import SchoolAdminPreviewAudit from '../models/SchoolAdminPreviewAudit.js';
@@ -143,6 +149,20 @@ export const protect = async (req, res, next) => {
         }
         next();
     } catch (error) {
+        // The user lookup runs on every protected request. When Atlas cannot be
+        // reached the failure is temporary, so answering 401 would sign the
+        // teacher out for a network problem outside their control.
+        if (isDbUnavailable(error)) {
+            if (shouldLogDbOutage()) {
+                logger.warn('Auth middleware: database unreachable', { path: req.originalUrl });
+            }
+            res.setHeader('Retry-After', String(DB_RETRY_AFTER_SECONDS));
+            return res.status(503).json({
+                success: false,
+                code: 'DB_UNAVAILABLE',
+                message: DB_UNAVAILABLE_MESSAGE
+            });
+        }
         logger.error('Auth middleware error:', error);
         return res.status(401).json({
             success: false,

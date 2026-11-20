@@ -29,6 +29,21 @@ const validId = (value) => mongoose.isValidObjectId(value);
 
 const uniqueIds = (values = []) => [...new Set(values.filter((value) => validId(value)).map(String))];
 
+const SUPPORT_PARTICIPANT_ROLES = ['teacher', 'counselor', 'nurse'];
+
+const staffHasRole = (profile, role) => (
+    Boolean(profile) && (profile.role === role || (Array.isArray(profile.roles) && profile.roles.includes(role)))
+);
+
+/** Same-school staff profiles for the given user ids, keyed by id. */
+const staffProfileMap = async (schoolId, userIds = []) => {
+    const User = mongoose.model('User');
+    const rows = await User.find({ school: schoolId, _id: { $in: userIds.map((id) => String(id)) } })
+        .select('role roles')
+        .lean();
+    return new Map(rows.map((row) => [String(row._id), row]));
+};
+
 /**
  * The active-case check before an insert is only advisory: two nominations can
  * pass it together. The unique index is the real guard, so a racing collision
@@ -51,17 +66,22 @@ const saveNewCase = async (caseDoc) => {
     }
 };
 
+// loadCase() populates owner/homeroom/counselor/participants with user docs;
+// comparisons must read the _id off whichever shape arrives, or every populated
+// path denies access to the very staff assigned to the case.
+const refId = (value) => (value && typeof value === 'object' ? String(value._id || '') : String(value || ''));
+
 export const caseAccessContext = ({ caseDoc, user }) => {
     const userId = String(user?._id || '');
     const admin = isSupportAdmin(user);
-    const owner = String(caseDoc.owner || '') === userId;
-    const homeroom = String(caseDoc.homeroomTeacher || '') === userId;
-    const counselorAssigned = String(caseDoc.counselor || '') === userId
+    const owner = refId(caseDoc.owner) === userId;
+    const homeroom = refId(caseDoc.homeroomTeacher) === userId;
+    const counselorAssigned = refId(caseDoc.counselor) === userId
         || (isCounselor(user) && (caseDoc.participants || []).some((row) => (
-            String(row.user) === userId && row.role === 'counselor' && row.active !== false
+            refId(row.user) === userId && row.role === 'counselor' && row.active !== false
         )));
     const participant = (caseDoc.participants || []).some((row) => (
-        String(row.user) === userId && row.active !== false
+        refId(row.user) === userId && row.active !== false
     ));
     return {
         isAdmin: admin,
@@ -330,21 +350,30 @@ export const ensureFamilyContacts = async ({ schoolId, caseDoc, student, contact
 };
 
 export const ensureStudentRespondent = async ({ schoolId, student, actorId = null }) => {
-    let respondent = await SupportRespondent.findOne({
+    const findRespondent = () => SupportRespondent.findOne({
         school: schoolId,
         kind: 'student',
         student: student._id,
     });
+    let respondent = await findRespondent();
     if (respondent) return respondent;
-    respondent = await SupportRespondent.create({
-        school: schoolId,
-        kind: 'student',
-        student: student._id,
-        name: nameOf(student),
-        deliveryMethod: 'portal',
-        codeHint: 'st',
-        invitedBy: actorId,
-    });
+    try {
+        respondent = await SupportRespondent.create({
+            school: schoolId,
+            kind: 'student',
+            student: student._id,
+            name: nameOf(student),
+            deliveryMethod: 'portal',
+            codeHint: 'st',
+            invitedBy: actorId,
+        });
+    } catch (error) {
+        // Two review runs can pass the lookup together; the unique index picks a
+        // winner and the loser reuses it.
+        if (error?.code !== 11000) throw error;
+        respondent = await findRespondent();
+        if (!respondent) throw error;
+    }
     return respondent;
 };
 
@@ -498,8 +527,12 @@ export const updateCase = async ({ schoolId, user, caseDoc, patch = {} }) => {
     }
     if ('owner' in patch) {
         if (!validId(patch.owner)) throw supportError(400, 'CASE_OWNER', 'Choose a case owner.');
+        const ownerProfiles = await staffProfileMap(caseDoc.school, [patch.owner]);
+        if (!ownerProfiles.has(String(patch.owner))) {
+            throw supportError(400, 'CASE_OWNER', 'The case owner must be a staff member of this school.');
+        }
         const isParticipant = (caseDoc.participants || []).some((row) => String(row.user) === String(patch.owner));
-        if (!isParticipant && String(caseDoc.homeroomTeacher || '') !== String(patch.owner) && !context.isAdmin) {
+        if (!isParticipant && refId(caseDoc.homeroomTeacher) !== String(patch.owner) && !context.isAdmin) {
             throw supportError(400, 'CASE_OWNER', 'The owner must already participate in this case.');
         }
         caseDoc.owner = patch.owner;
@@ -507,6 +540,13 @@ export const updateCase = async ({ schoolId, user, caseDoc, patch = {} }) => {
     if ('counselor' in patch) {
         if (patch.counselor && !validId(patch.counselor)) {
             throw supportError(400, 'CASE_COUNSELOR', 'Choose a counselor.');
+        }
+        if (patch.counselor) {
+            const counselorProfiles = await staffProfileMap(caseDoc.school, [patch.counselor]);
+            const counselorProfile = counselorProfiles.get(String(patch.counselor));
+            if (!counselorProfile || !staffHasRole(counselorProfile, 'counselor')) {
+                throw supportError(400, 'CASE_COUNSELOR', 'Choose a counselor from this school\'s staff.');
+            }
         }
         caseDoc.counselor = patch.counselor || null;
     }
@@ -528,14 +568,23 @@ export const updateCase = async ({ schoolId, user, caseDoc, patch = {} }) => {
         if (!Array.isArray(patch.participants)) {
             throw supportError(400, 'CASE_PARTICIPANTS', 'Participants must be a list.');
         }
+        const requested = patch.participants.filter((raw) => validId(raw?.user));
+        const profiles = await staffProfileMap(caseDoc.school, requested.map((raw) => raw.user));
         const current = new Map((caseDoc.participants || []).map((row) => [String(row.user), row]));
         const next = [];
-        for (const raw of patch.participants) {
-            if (!validId(raw.user)) continue;
+        for (const raw of requested) {
+            const profile = profiles.get(String(raw.user));
+            if (!profile) {
+                throw supportError(400, 'CASE_PARTICIPANTS', 'Every participant must be a staff member of this school.');
+            }
+            const role = SUPPORT_PARTICIPANT_ROLES.includes(raw.role) ? raw.role : 'teacher';
             const existing = current.get(String(raw.user));
+            if (!existing && !staffHasRole(profile, role)) {
+                throw supportError(400, 'CASE_PARTICIPANT_ROLE', `That staff member does not hold the ${role} role.`);
+            }
             next.push(existing
                 ? { ...existing.toObject(), active: raw.active !== false }
-                : participantDoc({ user: raw.user, role: raw.role || 'teacher', subject: raw.subject || null }));
+                : participantDoc({ user: raw.user, role, subject: raw.subject || null }));
         }
         caseDoc.participants = next;
     }
@@ -691,6 +740,94 @@ export const buildCaseFilter = async ({ schoolId, user, academicYear = null, fil
     return { query, admin };
 };
 
+/**
+ * Compact "needs attention" rows for the staff hub. Read-only by design:
+ * nothing sends from this list, each row links straight into the case.
+ */
+export const listAttention = async ({ schoolId, user, academicYear = null }) => {
+    const settings = await loadSettings(schoolId);
+    if (!settings.enabled && !isSupportAdmin(user)) {
+        throw supportError(403, 'SUPPORT_DISABLED', 'Student support is not enabled for this school.');
+    }
+    const { query } = await buildCaseFilter({ schoolId, user, academicYear, filters: {} });
+
+    const cases = await SupportCase.find(query)
+        .select('student owner nextReviewAt acknowledgedAt openedAt')
+        .populate('student', 'firstName lastName currentClass')
+        .populate({ path: 'student', populate: { path: 'currentClass', select: 'name grade section' } })
+        .populate('owner', 'firstName lastName')
+        .sort({ nextReviewAt: 1, openedAt: 1 })
+        .limit(400)
+        .lean();
+
+    const now = new Date();
+    const caseIds = cases.map((row) => row._id);
+    const overdueSurveys = caseIds.length
+        ? await SupportSurvey.aggregate([
+            { $match: { school: schoolId, case: { $in: caseIds }, status: { $in: ['sent', 'opened'] }, dueDate: { $ne: null, $lt: now } } },
+            { $group: { _id: '$case', dueAt: { $min: '$dueDate' }, count: { $sum: 1 } } },
+        ])
+        : [];
+    const surveyByCase = new Map(overdueSurveys.map((row) => [String(row._id), row]));
+
+    const rows = [];
+    let unacknowledged = 0;
+    let reviewsOverdue = 0;
+    for (const caseDoc of cases) {
+        const key = String(caseDoc._id);
+        const studentName = `${caseDoc.student?.firstName || ''} ${caseDoc.student?.lastName || ''}`.trim();
+        const ownerName = caseDoc.owner
+            ? `${caseDoc.owner.firstName || ''} ${caseDoc.owner.lastName || ''}`.trim()
+            : '';
+        const surveyDue = surveyByCase.get(key);
+        if (surveyDue) {
+            rows.push({
+                id: `survey:${key}`,
+                kind: 'surveyOverdue',
+                caseId: key,
+                student: studentName,
+                owner: ownerName,
+                dueAt: surveyDue.dueAt,
+                detail: surveyDue.count > 1 ? surveyDue.count : null,
+            });
+        }
+        if (!caseDoc.acknowledgedAt) {
+            unacknowledged += 1;
+            rows.push({
+                id: `ack:${key}`,
+                kind: 'acknowledge',
+                caseId: key,
+                student: studentName,
+                owner: ownerName,
+                dueAt: caseDoc.openedAt,
+                detail: null,
+            });
+        }
+        if (caseDoc.nextReviewAt && new Date(caseDoc.nextReviewAt) < now) {
+            reviewsOverdue += 1;
+            rows.push({
+                id: `review:${key}`,
+                kind: 'reviewOverdue',
+                caseId: key,
+                student: studentName,
+                owner: ownerName,
+                dueAt: caseDoc.nextReviewAt,
+                detail: null,
+            });
+        }
+    }
+
+    rows.sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
+    return {
+        rows: rows.slice(0, 12),
+        counts: {
+            surveys: overdueSurveys.length,
+            unacknowledged,
+            reviews: reviewsOverdue,
+        },
+    };
+};
+
 export const listCases = async ({ schoolId, user, academicYear = null, filters = {}, page = 1, limit = 20 }) => {
     const settings = await loadSettings(schoolId);
     if (!settings.enabled && !isSupportAdmin(user)) {
@@ -747,6 +884,16 @@ export const caseSurveyAnswersVisible = ({ survey, viewerContext, user }) => {
 
 export const caseDetail = async ({ schoolId, caseDoc, context, user }) => {
     const caseId = caseDoc._id;
+    // First managing-staff view is the acknowledgment the SLA measures.
+    if (context.canManage && !caseDoc.acknowledgedAt && caseDoc.status === 'active') {
+        const now = new Date();
+        await SupportCase.updateOne(
+            { _id: caseId, school: schoolId, acknowledgedAt: null },
+            { $set: { acknowledgedAt: now, acknowledgedBy: user?._id || null } },
+        );
+        caseDoc.acknowledgedAt = now;
+        caseDoc.acknowledgedBy = user?._id || null;
+    }
     const [surveys, reviews, versions, plan, checkIns] = await Promise.all([
         SupportSurvey.find({ school: schoolId, case: caseId })
             .populate('subject', 'name')
@@ -778,6 +925,8 @@ export const caseDetail = async ({ schoolId, caseDoc, context, user }) => {
             studentEvidenceInPlan: caseDoc.studentEvidenceInPlan,
             cadenceDays: caseDoc.cadenceDays,
             openedAt: caseDoc.openedAt,
+            acknowledgedAt: caseDoc.acknowledgedAt || null,
+            assignmentEscalatedAt: context.canManage ? caseDoc.assignmentEscalatedAt || null : null,
             closedAt: caseDoc.closedAt,
             closeReason: caseDoc.closeReason || '',
             closeSummary: caseDoc.closeSummary || '',
@@ -941,6 +1090,7 @@ export const serializePlanVersion = (version, { family = false } = {}) => {
         })),
         publishedAt: version.publishedAt,
         approvedAt: version.approvedAt,
+        approvalNote: family ? undefined : version.approvalNote || '',
         createdAt: version.createdAt,
     };
 };
@@ -1024,22 +1174,24 @@ export const respondToParentRequest = async ({ schoolId, user, caseDoc, status, 
     if (caseDoc.source !== 'parent_request' || caseDoc.parentRequest?.status !== 'pending') {
         throw supportError(409, 'REQUEST_NOT_PENDING', 'This request is no longer waiting for a decision.');
     }
-    if (isSupportAdmin(user)) {
-        caseDoc.parentRequest.status = status;
-        caseDoc.parentRequest.response = String(response || '').trim().slice(0, 600);
-        caseDoc.parentRequest.respondedAt = new Date();
-        caseDoc.parentRequest.respondedBy = user._id;
-        caseDoc.updatedBy = user._id;
-        if (status === 'declined') {
-            caseDoc.status = 'closed';
-            caseDoc.closedAt = new Date();
-            caseDoc.closedBy = user._id;
-            caseDoc.closeReason = 'other';
-            caseDoc.closeSummary = 'Parent request reviewed and declined.';
-        }
-        caseDoc.openRequests = 0;
+    caseDoc.parentRequest.status = status;
+    caseDoc.parentRequest.response = String(response || '').trim().slice(0, 600);
+    caseDoc.parentRequest.respondedAt = new Date();
+    caseDoc.parentRequest.respondedBy = user._id;
+    caseDoc.openRequests = 0;
+    caseDoc.updatedBy = user._id;
+    if (status === 'declined') {
+        caseDoc.status = 'closed';
+        caseDoc.closedAt = new Date();
+        caseDoc.closedBy = user._id;
+        caseDoc.closeReason = 'other';
+        caseDoc.closeSummary = 'Parent request reviewed and declined.';
         await caseDoc.save();
-        return caseDoc;
+        return { caseDoc, issued: [] };
+    }
+    if (isSupportAdmin(user)) {
+        await caseDoc.save();
+        return { caseDoc, issued: [] };
     }
 
     const student = await Student.findById(caseDoc.student).populate('currentClass', 'name grade section');
@@ -1068,12 +1220,6 @@ export const respondToParentRequest = async ({ schoolId, user, caseDoc, status, 
         return { subject: subjectId, name: row?.name || '', teachers: [row?.teacherUserId].filter(Boolean) };
     });
     caseDoc.participants = participants;
-    caseDoc.parentRequest.status = 'accepted';
-    caseDoc.parentRequest.response = String(response || '').trim().slice(0, 600);
-    caseDoc.parentRequest.respondedAt = new Date();
-    caseDoc.parentRequest.respondedBy = user._id;
-    caseDoc.openRequests = 0;
-    caseDoc.updatedBy = user._id;
     const issued = await ensureFamilyContacts({
         schoolId,
         caseDoc,

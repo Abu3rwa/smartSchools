@@ -150,7 +150,8 @@ const CreateCaseDialog = ({ classes, onClose, onCreated }) => {
       onCreated(result.case);
     } catch (error) {
       const existing = error?.response?.data?.data?.caseId;
-      toast.error(errorText(error, t("create.failed")));
+      const duplicate = error?.response?.data?.code === "RESPONDENT_DUPLICATE";
+      toast.error(duplicate ? t("create.respondentDuplicate") : errorText(error, t("create.failed")));
       if (existing) onCreated({ id: existing }, { existing: true });
     } finally {
       setBusy(false);

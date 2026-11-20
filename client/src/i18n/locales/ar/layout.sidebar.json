@@ -35,6 +35,8 @@
     "promotionCenter": "مركز الترفيع",
     "lessonPlans": "خطط الدروس",
     "assignments": "الواجبات",
+    "skillpath": "مسار المهارات",
+    "skillpathStudio": "استوديو مسار المهارات",
     "gradeEntry": "إدخال الدرجات",
     "gradebook": "سجل الدرجات",
     "mapTestPrep": "تمرين MAP",
@@ -114,7 +116,17 @@
     "settings": "الإعدادات",
     "studentSupport": "دعم الطلاب",
     "parentUpdates": "التحديثات",
-    "parentTimetable": "الجدول الدراسي"
+    "parentTimetable": "الجدول الدراسي",
+    "reportCards": "الشهادات المدرسية",
+    "gradeAnalytics": "تحليلات الدرجات",
+    "studentGradeReport": "تقرير الدرجات",
+    "weeklyReports": "التقارير الأسبوعية",
+    "reportGenerator": "منشئ التقارير",
+    "reportAnalytics": "تحليلات التقارير",
+    "reportTemplates": "قوالب التقارير",
+    "reportHistory": "سجل التقارير",
+    "standardsPool": "بنك الأسئلة",
+    "attendanceRequestTypes": "أنواع طلبات الحضور"
   },
   "studentDashboard": {
     "groups": {
@@ -136,7 +148,8 @@
       "aiTutor": "اسأل عن أي مادة مستخدمًا دروس صفّك.",
       "plp": "أهداف الشخصية والعادات والتركيز الشهري.",
       "plpMyTasks": "مهام الشخصية المعيّنة لك.",
-      "liveLessons": "انضم إلى الحصة المباشرة عند بدئها."
+      "liveLessons": "انضم إلى الحصة المباشرة عند بدئها.",
+      "skillpath": "تدريب سريع مع تغذية راجعة فورية وتقدم واضح."
     }
   },
   "actions": {
@@ -145,8 +158,10 @@
     "upgrade": "ترقية",
     "featureLocked": "الميزة مقفلة",
     "search": "ابحث في الصفحات",
+    "searchHint": "/",
     "clearSearch": "مسح البحث",
     "noResults": "لا توجد صفحات مطابقة",
+    "noResultsHint": "جرّب كلمة أخرى",
     "collapseSection": "طي {{section}}",
     "expandSection": "توسيع {{section}}"
   }

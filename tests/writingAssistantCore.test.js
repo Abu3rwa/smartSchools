@@ -40,6 +40,11 @@ import {
   renderDraftForPrompt,
 } from "../services/writingAssistantPrompts.js";
 import { sanitizeGeneratedFields } from "../services/aiPromptSafety.js";
+import { computeDraftMetrics } from "../services/writingDraftMetrics.js";
+import {
+  WRITING_PROMPT_VERSIONS,
+  WRITING_SCHEMA_VERSION,
+} from "../services/writingPromptVersions.js";
 import { presetRubric, presetSections } from "../constants/writingPresets.js";
 
 const essay = () => ({
@@ -481,6 +486,7 @@ test("summarizeBoard groups students by what the teacher must do", () => {
   assert.equal(summary.notStarted, 2);
   assert.equal(summary.awaitingAssessment, 2);
   assert.equal(summary.awaitingPublish, 1);
+  assert.equal(summary.needsTeacher, 4);
   assert.equal(summary.revising, 1);
   assert.equal(summary.completed, 1);
 });
@@ -753,6 +759,52 @@ test("a first draft prompt carries no comparison fields", () => {
   });
   assert.doesNotMatch(prompt, /"taskResults"/);
   assert.doesNotMatch(prompt, /earlier, for comparison only/);
+});
+
+test("the prompt states the draft's own counts as facts", () => {
+  const draft = { number: 1, sections: filled() };
+  const metrics = computeDraftMetrics({ draft });
+  const prompt = buildFeedbackPrompt({
+    snapshot: configSnapshotFor(essay()),
+    draft,
+    language: "en",
+    metrics,
+  });
+  assert.match(prompt, /Draft facts \(computed by the server/);
+  assert.match(prompt, new RegExp(`- Total words: ${metrics.totalWords}`));
+  assert.match(prompt, new RegExp(`- Sentences: ${metrics.sentenceCount}`));
+  const bare = buildFeedbackPrompt({
+    snapshot: configSnapshotFor(essay()),
+    draft,
+    language: "en",
+  });
+  assert.doesNotMatch(bare, /Draft facts/);
+});
+
+test("the comparison prompt quotes the facts before the newest draft", () => {
+  const currentDraft = { number: 2, sections: filled() };
+  const metrics = computeDraftMetrics({ draft: currentDraft });
+  const prompt = buildComparisonPrompt({
+    snapshot: configSnapshotFor(essay()),
+    previousDraft: { number: 1, sections: filled() },
+    currentDraft,
+    previousAssessment: { tasks: [{ id: "t1", text: "Add a reason." }] },
+    language: "en",
+    metrics,
+  });
+  const factsAt = prompt.indexOf("Draft facts");
+  assert.ok(factsAt > -1);
+  assert.ok(factsAt < prompt.indexOf("Draft 2:"));
+  assert.match(prompt, new RegExp(`- Total words: ${metrics.totalWords}`));
+});
+
+test("each feature has its own dated prompt and schema version", () => {
+  const versions = Object.values(WRITING_PROMPT_VERSIONS);
+  assert.equal(new Set(versions).size, versions.length);
+  for (const version of versions) {
+    assert.match(version, /-\d{4}-\d{2}-\d{2}\.\d+$/);
+  }
+  assert.match(WRITING_SCHEMA_VERSION, /-\d{4}-\d{2}-\d{2}\.\d+$/);
 });
 
 /* ------------------------------------------------------------------ */
@@ -1164,8 +1216,10 @@ for (const language of ["en", "ar"]) {
       if (kind === "feedback") {
         assert.match(
           prompt,
-          /Put spelling corrections or clarification requests in the relevant section's "improvements"/,
+          /Report spelling corrections only in "mechanics" with category "spelling"; never inside "improvements", "strengths" or "nextStep"/,
         );
+        assert.match(prompt, /"mechanicsReview": \{ "reviewed"/);
+        assert.match(prompt, /grammar, verb_tense, punctuation, or spelling/);
       } else {
         assert.match(
           prompt,
@@ -1735,9 +1789,27 @@ test("spelling targets keep only words the student actually missed", () => {
     assignment: essay(),
     draftText: "I think uniforms are fair.",
   });
+  // G3: every missed word is ranked; an on-topic word beats the model's order,
+  // and the model's list only orders the rest.
   assert.deepEqual(picked, [
-    { word: "because", grade: "G4", week: 3 },
-    { word: "judged", grade: "G4", week: 4 },
+    {
+      word: "uniform",
+      grade: "G3",
+      week: 2,
+      reason: "Fits the topic (uniforms).",
+    },
+    {
+      word: "because",
+      grade: "G4",
+      week: 3,
+      reason: "On the student's missed-word list.",
+    },
+    {
+      word: "judged",
+      grade: "G4",
+      week: 4,
+      reason: "On the student's missed-word list.",
+    },
   ]);
 });
 
@@ -1755,11 +1827,29 @@ test("a word the draft already uses, or the assignment already gave, is never su
     draftText: "School uniforms are fair.",
   });
   // The three words the assignment and the draft already contain are gone.
-  assert.deepEqual(picked, [{ word: "because", grade: "G4", week: 3 }]);
+  assert.deepEqual(picked, [
+    {
+      word: "because",
+      grade: "G4",
+      week: 3,
+      reason: "On the student's missed-word list.",
+    },
+    {
+      word: "judged",
+      grade: "G4",
+      week: 4,
+      reason: "On the student's missed-word list.",
+    },
+  ]);
 });
 
 test("no suggestion at all is a normal result, and three is the ceiling", () => {
-  assert.deepEqual(selectSpellingTargets({ candidates }), []);
+  // G3: the model's list is a hint, not a gate — a missed word can be offered
+  // even when the reply named none.
+  assert.deepEqual(
+    selectSpellingTargets({ candidates }).map((row) => row.word),
+    ["because", "concentrate", "judged"],
+  );
   const picked = selectSpellingTargets({
     suggestions: candidates.map((row) => row.word),
     candidates,
@@ -1767,6 +1857,33 @@ test("no suggestion at all is a normal result, and three is the ceiling", () => 
     draftText: "",
   });
   assert.equal(picked.length, 3);
+});
+
+test("an on-topic missed word outranks a model pick that does not fit", () => {
+  const picked = selectSpellingTargets({
+    suggestions: ["because"],
+    candidates: [
+      { word: "playgrounds", grade: "G5", week: 2 },
+      { word: "because", grade: "G4", week: 3 },
+    ],
+    assignment: { ...essay(), title: "Playground rules", topic: "playground" },
+    draftText: "",
+  });
+  // The plural is not the assignment's exact word, but it still fits the topic.
+  assert.equal(picked[0].word, "playgrounds");
+  assert.match(picked[0].reason, /Fits the topic/);
+  const fitting = selectSpellingTargets({
+    suggestions: ["because"],
+    candidates: [
+      { word: "uniforms", grade: "G5", week: 2 },
+      { word: "playground", grade: "G5", week: 2 },
+    ],
+    assignment: { ...essay(), title: "Playground rules", topic: "playground" },
+    draftText: "",
+  });
+  // "uniforms" and "playground" are the assignment's own words, so they are
+  // never targets at all.
+  assert.deepEqual(fitting, []);
 });
 
 test("a win is the whole word in the draft, never a longer word that contains it", () => {
@@ -1841,7 +1958,24 @@ test("feedback keeps the approved targets the server chose, not the reply text",
     },
   });
   assert.deepEqual(result.spellingTargets, [
-    { word: "because", grade: "G4", week: 3 },
+    {
+      word: "uniform",
+      grade: "G3",
+      week: 2,
+      reason: "Fits the topic (uniforms).",
+    },
+    {
+      word: "because",
+      grade: "G4",
+      week: 3,
+      reason: "On the student's missed-word list.",
+    },
+    {
+      word: "concentrate",
+      grade: "G4",
+      week: 5,
+      reason: "On the student's missed-word list.",
+    },
   ]);
 });
 

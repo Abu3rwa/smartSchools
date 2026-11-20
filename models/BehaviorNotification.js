@@ -13,7 +13,12 @@ import {
  */
 const behaviorNotificationSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
-    incident: { type: mongoose.Schema.Types.ObjectId, ref: 'BehaviorIncident', required: true },
+    incident: { type: mongoose.Schema.Types.ObjectId, ref: 'BehaviorIncident', required() { return !this.behaviorEntry; } },
+    behaviorEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentBehavior' },
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: Date,
+    previewHash: String,
     stepOrder: { type: Number, default: null },
     channel: { type: String, enum: BEHAVIOR_NOTIFICATION_CHANNELS, required: true },
     status: { type: String, enum: BEHAVIOR_NOTIFICATION_STATUSES, default: 'draft' },

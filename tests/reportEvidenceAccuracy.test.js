@@ -14,6 +14,7 @@ import LiveSession from '../models/LiveSession.js';
 import LiveResponse from '../models/LiveResponse.js';
 import Attendance from '../models/Attendance.js';
 import BehaviorIncident from '../models/BehaviorIncident.js';
+import StudentBehavior from '../models/StudentBehavior.js';
 import MasteryRecord from '../models/MasteryRecord.js';
 import StandardsGradebookEntry from '../models/StandardsGradebookEntry.js';
 import Standard from '../models/Standard.js';
@@ -43,6 +44,7 @@ const emptyAllCollectors = () => {
     HomeworkAssignment.find = () => chain([]);
     HomeworkSubmission.find = () => chain([]);
     BehaviorIncident.find = () => chain([]);
+    StudentBehavior.aggregate = async () => [];
     MasteryRecord.find = () => chain([]);
     StandardsGradebookEntry.find = () => chain([]);
     Standard.find = () => chain([]);
@@ -102,7 +104,7 @@ test('homework due in the future is not overdue', async () => {
 });
 
 test('selected-student assignments that exclude this student are not counted', async () => {
-    HomeworkAssignment.find = (query) => {
+    HomeworkAssignment.find = () => {
         // The collector must push the audience filter into the query or filter rows.
         const rows = [{
             _id: '333333333333333333333333',

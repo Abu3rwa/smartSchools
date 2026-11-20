@@ -62,6 +62,10 @@ const pieceRunSchema = new mongoose.Schema(
         notesDropped: { type: Number, default: 0 },
         tokens: { type: Number, default: 0 },
         costCents: { type: Number, default: 0 },
+        // Which prompt and storage shape produced this run, so a later report
+        // can compare outcomes without guessing from the date.
+        promptVersion: { type: String, trim: true, default: '' },
+        schemaVersion: { type: String, trim: true, default: '' },
         // Normalised evidence for this piece, kept so a retry and the review
         // screen never have to call the model again for a successful piece.
         evidence: {

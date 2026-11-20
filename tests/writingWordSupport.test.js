@@ -88,15 +88,19 @@ test("spelling support includes recovered history, dedupes and stays student-sco
   };
   const result = await resolveWritingWordSupport({ schoolId: "school", studentId: "student", assignment });
   assert.equal(result.spelling.status, "available");
-  assert.deepEqual(result.spelling.words.map((row) => row.word), ["because", "garden", "morning", "beautiful"]);
+  // G1: with no topic or draft to rank against, the rail order is stable and
+  // alphabetical, and the default view is capped.
+  assert.deepEqual(result.spelling.words.map((row) => row.word), ["beautiful", "because", "garden", "morning"]);
   assert.ok(result.spelling.words.every((row) => row.source === "spelling"));
+  assert.equal(result.defaultShown, 8);
 
   assignment.supports.wordSupport.spelling.maxWords = 2;
   const capped = await resolveWritingWordSupport({
     schoolId: "school", studentId: "student", assignment,
     priorTargets: [{ word: "because", grade: "G4", week: 2 }],
   });
-  assert.deepEqual(capped.spelling.words.map((row) => row.word), ["because", "garden"]);
+  // A word already published on an earlier round outranks the rest (G1).
+  assert.deepEqual(capped.spelling.words.map((row) => row.word), ["because", "beautiful"]);
   assert.equal(capped.spelling.words[0].source, "feedback");
   assert.equal(find.mock.callCount(), 2);
 });

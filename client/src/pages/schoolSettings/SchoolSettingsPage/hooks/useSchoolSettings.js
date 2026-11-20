@@ -18,9 +18,12 @@ import { selectUser } from '../../../../store/slices/authSlice';
 import {
   selectCurrentAcademicYear,
   updateSchoolAcademicYear,
+  updateSchoolAcademicPeriod,
   selectAcademicYearLoading
 } from '../../../../store/slices/uiSlice';
-import { isConsecutiveAcademicYear, normalizePermissions } from '../utils/schoolSettingsUtils';
+import { isConsecutiveAcademicYear } from '../utils/schoolSettingsUtils';
+import useUserManagement from '../../../userManagement/useUserManagement';
+import { canViewUserManagement } from '../../../userManagement/userManagementUtils';
 
 const DEFAULT_WEEK_WORKING_DAYS = [1, 2, 3, 4, 5];
 const ALL_WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -148,7 +151,7 @@ const useSchoolSettings = () => {
   const { t } = useTranslation(['schoolSettings']);
   const user = useSelector(selectUser);
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
-  const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
+  const canManageUsers = canViewUserManagement(user);
   const canViewSupportPreviewAudits = user?.role === 'admin';
   const canManageSchoolSettings =
     user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_SCHOOL_SETTINGS);
@@ -173,12 +176,10 @@ const useSchoolSettings = () => {
   });
   const [submittingDept, setSubmittingDept] = useState(false);
 
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [userFormData, setUserFormData] = useState({ role: '', roles: [], department: '', permissions: [], titles: [] });
-  const [submittingUser, setSubmittingUser] = useState(false);
+  const userManagement = useUserManagement({
+    active: canManageUsers && activeTab === 'users',
+    manageDepartments: false
+  });
 
   const [academicYears, setAcademicYears] = useState([]);
   const [fromYear, setFromYear] = useState('');
@@ -219,6 +220,13 @@ const useSchoolSettings = () => {
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [schoolYearDatesAcademicYear, setSchoolYearDatesAcademicYear] = useState('');
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
+  const [schoolActivePeriod, setSchoolActivePeriod] = useState(null);
+  const [periodDraft, setPeriodDraft] = useState({ year: '', semester: '' });
+  const [periodSemesters, setPeriodSemesters] = useState([]);
+  const [periodLoading, setPeriodLoading] = useState(false);
+  const [periodSaving, setPeriodSaving] = useState(false);
+  const [periodError, setPeriodError] = useState('');
+  const [periodConfirmOpen, setPeriodConfirmOpen] = useState(false);
   const [schoolWeekConfigLoading, setSchoolWeekConfigLoading] = useState(false);
   const [schoolWeekConfigSaving, setSchoolWeekConfigSaving] = useState(false);
   const [weekWorkingDays, setWeekWorkingDays] = useState(DEFAULT_WEEK_WORKING_DAYS);
@@ -233,6 +241,12 @@ const useSchoolSettings = () => {
     attendanceReminderDelayMinutes: 60,
     teacherEmailDomain: '',
     savingTeacherEmailDomain: false
+  });
+  // C4: what a child and family may read of a writing rubric — words, both, or numbers.
+  const [writingFeedbackSettings, setWritingFeedbackSettings] = useState({
+    loading: false,
+    saving: false,
+    marksMode: 'words'
   });
   const [admissionsPromotionSettings, setAdmissionsPromotionSettings] = useState({
     loading: false,
@@ -313,26 +327,6 @@ const useSchoolSettings = () => {
     }
   }, [activeTab, canManageCommunicationSettings, canManageGradeScaling, canViewSupportPreviewAudits, canManageSchoolSettings, canManageUsers]);
 
-  const fetchSchoolUsers = useCallback(async () => {
-    setUsersLoading(true);
-    try {
-      const response = await api.get('/schools/me/users');
-      if (response.data.success) {
-        setUsers(response.data.data.users);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadUsersFailed'));
-    } finally {
-      setUsersLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (canManageUsers && activeTab === 'users') {
-      fetchSchoolUsers();
-    }
-  }, [activeTab, canManageUsers, fetchSchoolUsers]);
-
   const loadSchoolProfile = useCallback(async () => {
     try {
       const response = await api.get('/schools/me');
@@ -380,11 +374,13 @@ const useSchoolSettings = () => {
   const fetchCommunicationSettings = useCallback(async () => {
     if (!canManageCommunicationSettings) return;
     setCommunicationSettings((prev) => ({ ...prev, loading: true }));
+    setWritingFeedbackSettings((prev) => ({ ...prev, loading: true }));
     try {
-      const [communicationResponse, attendanceReminderResponse, timetableImportResponse] = await Promise.all([
+      const [communicationResponse, attendanceReminderResponse, timetableImportResponse, writingFeedbackResponse] = await Promise.all([
         api.get('/schools/me/communication-settings'),
         api.get('/schools/me/attendance-reminder-settings'),
-        api.get('/schools/me/timetable-import-settings')
+        api.get('/schools/me/timetable-import-settings'),
+        api.get('/schools/me/writing-feedback-settings')
       ]);
 
       if (communicationResponse.data?.success && attendanceReminderResponse.data?.success) {
@@ -397,8 +393,14 @@ const useSchoolSettings = () => {
           attendanceReminderDelayMinutes: Number(attendanceReminderResponse.data.data?.delayMinutes || 60),
           teacherEmailDomain: timetableImportResponse.data?.data?.teacherEmailDomain || ''
         }));
+        setWritingFeedbackSettings((prev) => ({
+          ...prev,
+          loading: false,
+          marksMode: writingFeedbackResponse.data?.data?.marksMode || 'words'
+        }));
       } else {
         setCommunicationSettings((prev) => ({ ...prev, loading: false }));
+        setWritingFeedbackSettings((prev) => ({ ...prev, loading: false }));
         toast.error(
           communicationResponse.data?.message ||
           attendanceReminderResponse.data?.message ||
@@ -407,6 +409,7 @@ const useSchoolSettings = () => {
       }
     } catch (error) {
       setCommunicationSettings((prev) => ({ ...prev, loading: false }));
+      setWritingFeedbackSettings((prev) => ({ ...prev, loading: false }));
       toast.error(error.response?.data?.message || t('schoolSettings:toast.loadCommunicationSettingsFailed'));
     }
   }, [canManageCommunicationSettings, t]);
@@ -778,6 +781,34 @@ const useSchoolSettings = () => {
     }
   }, [canManageCommunicationSettings, t]);
 
+  const handleWritingFeedbackMarksModeChange = useCallback((marksMode) => {
+    setWritingFeedbackSettings((prev) => ({ ...prev, marksMode }));
+  }, []);
+
+  const handleSaveWritingFeedbackSettings = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+    setWritingFeedbackSettings((prev) => ({ ...prev, saving: true }));
+    try {
+      const response = await api.patch('/schools/me/writing-feedback-settings', {
+        marksMode: writingFeedbackSettings.marksMode
+      });
+      if (response.data?.success) {
+        setWritingFeedbackSettings((prev) => ({
+          ...prev,
+          saving: false,
+          marksMode: response.data.data?.marksMode || prev.marksMode
+        }));
+        toast.success(t('schoolSettings:toast.writingFeedbackSettingsUpdated'));
+      } else {
+        setWritingFeedbackSettings((prev) => ({ ...prev, saving: false }));
+        toast.error(response.data?.message || t('schoolSettings:toast.writingFeedbackSettingsUpdateFailed'));
+      }
+    } catch (error) {
+      setWritingFeedbackSettings((prev) => ({ ...prev, saving: false }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.writingFeedbackSettingsUpdateFailed'));
+    }
+  }, [canManageCommunicationSettings, t, writingFeedbackSettings.marksMode]);
+
   const handleAttendanceReminderSettingsChange = useCallback((patch) => {
     setCommunicationSettings((prev) => ({
       ...prev,
@@ -917,6 +948,60 @@ const useSchoolSettings = () => {
       loadSchoolYearDates(schoolYearDatesAcademicYear);
     }
   }, [activeTab, canManageSchoolSettings, loadSchoolYearDates, schoolYearDatesAcademicYear]);
+
+  const loadActivePeriod = useCallback(async () => {
+    setPeriodLoading(true);
+    setPeriodError('');
+    try {
+      const res = await api.get('/schools/me/active-academic-period');
+      const period = res.data?.data;
+      if (period?.academicYear) {
+        setSchoolActivePeriod(period);
+        setPeriodDraft({ year: period.academicYear, semester: period.semester });
+      } else {
+        setPeriodError(t('schoolSettings:academicPeriod.loadFailed'));
+      }
+    } catch {
+      setPeriodError(t('schoolSettings:academicPeriod.loadFailed'));
+    } finally {
+      setPeriodLoading(false);
+    }
+  }, [t]);
+
+  const loadPeriodSemesters = useCallback(async (year) => {
+    if (!year) {
+      setPeriodSemesters([]);
+      return;
+    }
+    try {
+      const res = await api.get('/gradebook-config', { params: { academicYear: year } });
+      setPeriodSemesters(Array.isArray(res.data?.data?.semesters) ? res.data.data.semesters : []);
+    } catch {
+      setPeriodSemesters([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (canManageSchoolSettings && activeTab === 'schoolyear') {
+      loadActivePeriod();
+    }
+  }, [activeTab, canManageSchoolSettings, loadActivePeriod]);
+
+  useEffect(() => {
+    if (canManageSchoolSettings && activeTab === 'schoolyear' && periodDraft.year) {
+      loadPeriodSemesters(periodDraft.year);
+    }
+  }, [activeTab, canManageSchoolSettings, loadPeriodSemesters, periodDraft.year]);
+
+  // A year change can invalidate the drafted semester; snap to the first configured one.
+  useEffect(() => {
+    if (periodSemesters.length === 0) return;
+    setPeriodDraft((draft) => (
+      periodSemesters.some((semester) => semester.number === Number(draft.semester))
+        ? draft
+        : { ...draft, semester: periodSemesters[0].number }
+    ));
+  }, [periodSemesters]);
 
   useEffect(() => {
     if (!canManageSchoolSettings || activeTab !== 'schoolyear' || !fromYear) {
@@ -1061,6 +1146,53 @@ const useSchoolSettings = () => {
     }
   }, [dispatch, t, toYear]);
 
+  const handlePeriodYearChange = useCallback((year) => {
+    setPeriodError('');
+    setPeriodDraft((draft) => ({ ...draft, year }));
+  }, []);
+
+  const handlePeriodSemesterChange = useCallback((semester) => {
+    setPeriodError('');
+    setPeriodDraft((draft) => ({ ...draft, semester: Number(semester) }));
+  }, []);
+
+  const handlePeriodCancel = useCallback(() => {
+    if (schoolActivePeriod) {
+      setPeriodDraft({ year: schoolActivePeriod.academicYear, semester: schoolActivePeriod.semester });
+    }
+    setPeriodConfirmOpen(false);
+    setPeriodError('');
+  }, [schoolActivePeriod]);
+
+  const handlePeriodSave = useCallback(() => {
+    if (!periodSaving) setPeriodConfirmOpen(true);
+  }, [periodSaving]);
+
+  const handlePeriodConfirm = useCallback(async () => {
+    if (periodSaving || !schoolActivePeriod) return;
+    const year = periodDraft.year;
+    const semester = Number(periodDraft.semester);
+    if (!year || (semester !== 1 && semester !== 2)) return;
+
+    setPeriodSaving(true);
+    setPeriodError('');
+    const result = await dispatch(updateSchoolAcademicPeriod({ academicYear: year, semester }));
+    setPeriodSaving(false);
+
+    if (updateSchoolAcademicPeriod.fulfilled.match(result) && result.payload) {
+      setSchoolActivePeriod(result.payload);
+      setPeriodDraft({ year: result.payload.academicYear, semester: result.payload.semester });
+      setPeriodConfirmOpen(false);
+      setAcademicYears((prev) => (
+        prev.includes(result.payload.academicYear) ? prev : [...prev, result.payload.academicYear].sort()
+      ));
+      toast.success(t('schoolSettings:academicPeriod.saved'));
+    } else {
+      setPeriodConfirmOpen(false);
+      setPeriodError(result.payload || t('schoolSettings:academicPeriod.saveFailed'));
+    }
+  }, [dispatch, periodDraft, periodSaving, schoolActivePeriod, t]);
+
   const handleSaveSchoolYearDates = useCallback(async () => {
     if (!schoolYearDatesAcademicYear) {
       toast.error(t('schoolSettings:toast.invalidAcademicYear'));
@@ -1186,67 +1318,6 @@ const useSchoolSettings = () => {
     setEditingDeptId(null);
     setDeptFormData({ name: '', type: 'academic', description: '' });
     setShowDeptModal(true);
-  }, []);
-
-  const handleEditUser = useCallback((targetUser) => {
-    setEditingUser(targetUser);
-    setUserFormData({
-      role: targetUser.role,
-      roles: targetUser.roles?.length ? targetUser.roles : [targetUser.role],
-      department: targetUser.department?._id || targetUser.department || '',
-      permissions: normalizePermissions(targetUser.permissions),
-      titles: targetUser.titles || []
-    });
-    setShowUserModal(true);
-  }, []);
-
-  const handleUserSubmit = useCallback(
-    async (event) => {
-      event.preventDefault();
-      if (!canManageUsers) {
-        toast.error(t('schoolSettings:toast.noPermissionManageUsers'));
-        return;
-      }
-      setSubmittingUser(true);
-      const normalizedPermissions = Array.from(new Set(normalizePermissions(userFormData.permissions)));
-      try {
-        const response = await api.patch(`/schools/me/users/${editingUser._id}`, {
-          role: userFormData.role,
-          roles: userFormData.roles || [userFormData.role],
-          department: userFormData.department || null,
-          permissions: normalizedPermissions,
-          titles: userFormData.titles || []
-        });
-        if (response.data.success) {
-          toast.success(t('schoolSettings:toast.userUpdated'));
-          setShowUserModal(false);
-          setEditingUser(null);
-          fetchSchoolUsers();
-        } else {
-          toast.error(response.data.message || t('schoolSettings:toast.updateUserFailed'));
-        }
-      } catch (error) {
-        toast.error(error.response?.data?.message || t('schoolSettings:toast.updateUserFailed'));
-      } finally {
-        setSubmittingUser(false);
-      }
-    },
-    [canManageUsers, editingUser?._id, fetchSchoolUsers, t, userFormData.department, userFormData.permissions, userFormData.role, userFormData.roles, userFormData.titles]
-  );
-
-  const handleCloseUserModal = useCallback(() => {
-    setShowUserModal(false);
-    setEditingUser(null);
-    setUserFormData({ role: '', roles: [], department: '', permissions: [], titles: [] });
-  }, []);
-
-  const handlePermissionToggle = useCallback((permission) => {
-    setUserFormData((prev) => ({
-      ...prev,
-      permissions: normalizePermissions(prev.permissions).includes(permission)
-        ? normalizePermissions(prev.permissions).filter((p) => p !== permission)
-        : [...normalizePermissions(prev.permissions), permission]
-    }));
   }, []);
 
   const getDefaultGradingScaleForm = useCallback(() => ({
@@ -1434,13 +1505,6 @@ const useSchoolSettings = () => {
     submittingDept
   }), [showDeptModal, editingDeptId, deptFormData, submittingDept]);
 
-  const userModalState = useMemo(() => ({
-    open: showUserModal,
-    editingUser,
-    userFormData,
-    submittingUser
-  }), [showUserModal, editingUser, userFormData, submittingUser]);
-
   const weekendDays = useMemo(
     () => ALL_WEEK_DAYS.filter((day) => !weekWorkingDays.includes(day)),
     [weekWorkingDays]
@@ -1467,17 +1531,30 @@ const useSchoolSettings = () => {
     handleCloseDeptModal,
     openDeptModal,
     setDeptFormData,
-    users,
-    usersLoading,
-    userModalState,
-    handleEditUser,
-    handleUserSubmit,
-    handleCloseUserModal,
-    handlePermissionToggle,
-    setUserFormData,
+    users: userManagement.users,
+    usersLoading: userManagement.usersLoading,
+    usersError: userManagement.usersError,
+    reloadUsers: userManagement.reloadUsers,
+    userModalState: userManagement.modal,
+    handleEditUser: userManagement.openEditor,
     currentAcademicYear,
     academicYearSaving,
     academicYears,
+    academicPeriod: {
+      active: schoolActivePeriod,
+      draft: periodDraft,
+      semesters: periodSemesters,
+      loading: periodLoading,
+      saving: periodSaving,
+      error: periodError,
+      confirmOpen: periodConfirmOpen,
+      onYearChange: handlePeriodYearChange,
+      onSemesterChange: handlePeriodSemesterChange,
+      onSave: handlePeriodSave,
+      onConfirm: handlePeriodConfirm,
+      onCancel: handlePeriodCancel,
+      onRetry: loadActivePeriod
+    },
     fromYear,
     setFromYear,
     toYear,
@@ -1508,6 +1585,9 @@ const useSchoolSettings = () => {
     schoolInfo,
     brandingLoading,
     communicationSettings,
+    writingFeedbackSettings,
+    handleWritingFeedbackMarksModeChange,
+    handleSaveWritingFeedbackSettings,
     admissionsPromotionSettings,
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,

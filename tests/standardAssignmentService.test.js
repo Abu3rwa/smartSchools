@@ -6,7 +6,7 @@ import {
     resolveQuestionPoolQuestions,
     sanitizeImportedQuestions
 } from '../services/standardAssignmentService.js';
-import standardsPracticeAIService from '../services/standardsPracticeAIService.js';
+import standardsPracticeAIService from '../services/standardsPracticeAiService.js';
 import AssessmentPassage from '../models/AssessmentPassage.js';
 
 test('imported questions bypass the question generator entirely', async () => {

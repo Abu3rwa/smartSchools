@@ -1,66 +1,87 @@
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import Chip from '@mui/material/Chip';
-import { featureIconMap, featureMetaMap } from '../constants.js';
-import { HiOutlineSparkles, HiOutlineArrowRight } from 'react-icons/hi';
+
+const LEARNING_CARDS = ['reading', 'spelling', 'writing'];
 
 /**
- * Features grid from CMS content.
- * Uses .landing-card-grid (CSS Grid) for perfectly equal-width cards.
+ * The learning tools that exist today. Each card states what the school can
+ * actually do; nothing here is inferred from a visitor's plan.
  */
-export default function LandingFeatures({ content }) {
+export default function LandingFeatures({ copy }) {
     return (
-        <Box id="features" component="section" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: 80 }}>
-            <Container maxWidth="lg">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1, letterSpacing: 2, fontWeight: 700 }}>
-                    PLATFORM FEATURES
-                </Typography>
-                <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 1, fontSize: { xs: '1.75rem', md: '2.25rem' } }}>
-                    {content.features.title}
-                </Typography>
-                <Typography color="text.secondary" align="center" sx={{ maxWidth: 600, mx: 'auto', mb: 5, fontSize: '1.05rem', lineHeight: 1.7 }}>
-                    {content.features.subtitle}
+        <Box component="section" id="learning-tools" className="landing-public-section">
+            <Box className="landing-public-container">
+                <Typography
+                    component="h2"
+                    id="learning-tools-heading"
+                    tabIndex={-1}
+                    sx={{
+                        fontWeight: 800,
+                        fontSize: { xs: 28, sm: 30, md: 32, lg: 36 },
+                        lineHeight: { xs: 1.3, lg: 1.2 },
+                        mb: { xs: 2, md: 2.5 },
+                        outline: 'none',
+                    }}
+                >
+                    {copy.learning?.title}
                 </Typography>
 
-                <div className="landing-card-grid">
-                    {(content.features.items || []).map(({ iconKey, title, description }, index) => {
-                        const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
-                        const featureMeta = featureMetaMap[iconKey] || { audience: 'For schools', highlight: `Feature ${index + 1}`, tint: 'rgba(var(--accent-primary-rgb),0.2)' };
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                        gap: { xs: 2, md: 3 },
+                    }}
+                >
+                    {LEARNING_CARDS.map((cardId) => {
+                        const card = copy.learning?.[cardId] || {};
                         return (
-                            <Paper
-                                key={title || index}
-                                className="landing-feature-card landing-lift-card"
-                                variant="outlined"
+                            <Box
+                                key={cardId}
                                 sx={{
-                                    p: 3,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    height: '100%',
-                                    '--feature-tint': featureMeta.tint,
+                                    border: 1,
+                                    borderColor: 'divider',
+                                    borderRadius: { xs: '16px', md: '18px' },
+                                    bgcolor: 'background.paper',
+                                    p: { xs: 2, md: 3 },
+                                    minWidth: 0,
                                 }}
                             >
-                                <Box className="landing-feature-card-accent" aria-hidden="true" />
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
-                                    <Box className="landing-feature-card-icon" sx={{ width: 52, height: 52, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', flexShrink: 0 }}>
-                                        <Icon size={26} />
-                                    </Box>
-                                    <Chip size="small" label={featureMeta.audience} className="landing-feature-chip" sx={{ alignSelf: 'center' }} />
-                                </Box>
-                                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700, lineHeight: 1.3 }}>{title}</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7, flex: 1 }}>
-                                    {description}
+                                <Typography variant="h3" sx={{ fontWeight: 700, fontSize: '1.125rem', mb: 1.5 }}>
+                                    {card.title}
                                 </Typography>
-                                <Box className="landing-feature-card-footer" sx={{ mt: 2 }}>
-                                    <Typography variant="caption" color="text.secondary">{featureMeta.highlight}</Typography>
-                                    <HiOutlineArrowRight size={14} aria-hidden />
+                                <Box component="ul" sx={{ m: 0, pl: 2.5, display: 'grid', gap: 1, lineHeight: 1.6 }}>
+                                    {[card.bullet1, card.bullet2].map((bullet) => (
+                                        <Box component="li" key={bullet} sx={{ fontSize: 16 }}>
+                                            {bullet}
+                                        </Box>
+                                    ))}
                                 </Box>
-                            </Paper>
+                            </Box>
                         );
                     })}
-                </div>
-            </Container>
+                </Box>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mt: { xs: 2, md: 2.5 } }}>
+                    {copy.learning?.availability}
+                </Typography>
+
+                <Box
+                    sx={{
+                        mt: { xs: 2, md: 2.5 },
+                        border: 1,
+                        borderColor: 'divider',
+                        borderRadius: { xs: '16px', md: '18px' },
+                        p: { xs: 2, md: 3 },
+                        bgcolor: 'background.paper',
+                    }}
+                >
+                    <Typography sx={{ fontWeight: 700, mb: 0.75 }}>{copy.learning?.aiTitle}</Typography>
+                    <Typography sx={{ fontSize: 16, lineHeight: 1.65, color: 'text.secondary' }}>
+                        {copy.learning?.aiBody}
+                    </Typography>
+                </Box>
+            </Box>
         </Box>
     );
 }

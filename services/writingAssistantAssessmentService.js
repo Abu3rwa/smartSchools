@@ -26,7 +26,9 @@ import {
   correctivePrompt,
   fillStudentTokensDeep,
   sanitizeGeneratedFields,
+  toPlain,
 } from "./aiPromptSafety.js";
+import { plainJsonIssue } from "../utils/plainJson.js";
 import {
   analyzeWordUse,
   applyWordUseDecisions,
@@ -34,6 +36,7 @@ import {
 import {
   buildComparisonPrompt,
   buildFeedbackPrompt,
+  buildNoteRewritePrompt,
   decideRecommendation,
   extractJsonObject,
   normalizeComparison,
@@ -41,6 +44,7 @@ import {
 } from "./writingAssistantPrompts.js";
 import {
   PUBLISHABLE_FROM,
+  applyFocusBudget,
   buildWritingProfile,
   canMoveTo,
   configSnapshotFor,
@@ -58,10 +62,47 @@ import {
   recordEmailDelivery,
 } from "./writingFeedbackEmailService.js";
 import {
-  assertCanSpend,
+  costCents,
   isCreditError,
   markUsageOutcome,
+  tokenCounts,
 } from "./aiCreditService.js";
+import {
+  assertWritingCredit,
+  noteWritingFailure,
+} from "./writingFailureAlertService.js";
+import { graduatedWords } from "./writingRevisionIntelligence.js";
+import {
+  AI_FAILURE_MESSAGES,
+  aiFailureCodeOf,
+} from "./aiFailureCodes.js";
+import {
+  computeDraftMetrics,
+  metricsSummaryForStorage,
+  scrubCountClaimsDeep,
+} from "./writingDraftMetrics.js";
+import { draftPrecheck } from "./writingDraftPrecheck.js";
+import { guardScores } from "./writingScoreGuards.js";
+import { isRepeatedInstruction } from "../client/src/utils/writingTextMatch.js";
+import { publishBlockers } from "../client/src/utils/writingPublishCheck.js";
+import {
+  canonicalSectionText,
+  validateCorrection,
+  validateMechanicsEdit,
+} from "../client/src/utils/writingMechanics.js";
+import {
+  readabilityVerdict,
+  simplifyFeedbackFields,
+} from "./writingFeedbackReadability.js";
+import {
+  packCoverage,
+  packSnapshotForAssignment,
+  sourcePacksEnabled,
+} from "./writingSourcePackService.js";
+import {
+  WRITING_PROMPT_VERSIONS,
+  WRITING_SCHEMA_VERSION,
+} from "./writingPromptVersions.js";
 
 const badRequest = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
@@ -74,6 +115,10 @@ const conflict = (message) =>
 // 422 keeps the actionable message visible: the error handler masks every 5xx detail.
 const upstream = (message) =>
   Object.assign(new Error(message), { statusCode: 422 });
+
+// A failed run stores a code plus a teacher-facing sentence. The exception text
+// itself is logged, never stored or rendered: it can name a model, a library or
+// a file path, and aiError reaches the review panel verbatim.
 
 const objectId = (value) => {
   if (!mongoose.isValidObjectId(String(value || ""))) return null;
@@ -111,6 +156,73 @@ const editedList = (value, maxItems, maxLength) =>
     .map((item) => editedText(item, maxLength))
     .filter(Boolean)
     .slice(0, maxItems);
+const MECHANICS_EDIT_MESSAGES = {
+  WRITING_MECHANICS_INVALID:
+    "A language correction is incomplete. Choose a category, the exact words from the draft, a fix and a short reason.",
+  WRITING_MECHANICS_ANCHOR_MISMATCH:
+    "A language correction no longer matches the submitted draft. Select the exact words again.",
+  WRITING_MECHANICS_LIMIT:
+    "A part can hold at most 12 language corrections. Remove some before saving.",
+};
+
+const mechanicsError = (code, path, index = -1) =>
+  Object.assign(
+    new Error(
+      MECHANICS_EDIT_MESSAGES[code] ||
+        MECHANICS_EDIT_MESSAGES.WRITING_MECHANICS_INVALID,
+    ),
+    {
+      statusCode: 400,
+      code,
+      details: [{ path: index >= 0 ? `${path}[${index}]` : path, code }],
+    },
+  );
+
+const REWORD_MESSAGE =
+  "This wording cannot be sent to a child. Please reword it and save again.";
+
+/** Teacher wording reaches a child too; flagged phrases refuse the whole save. */
+const safeMechanicsValue = (value) => {
+  const { text: cleaned, problems } = cleanGeneratedString(String(value ?? ""));
+  if (!problems.length) return cleaned;
+  const terms = problems
+    .map((problem) => problem.split(":").slice(1).join(":"))
+    .filter(Boolean);
+  throw badRequest(
+    terms.length
+      ? `This wording cannot be sent to a child. Please remove: ${terms.join(", ")}.`
+      : REWORD_MESSAGE,
+  );
+};
+
+/**
+ * One part's submitted corrections, validated against the assessed draft text
+ * before anything mutates. Typed rows carry the full contract; legacy pairs
+ * survive unchanged. Cleaning may shorten a fix, so typed rows are re-checked
+ * and a stripped-to-empty replacement is refused, never turned into a delete.
+ */
+const mechanicsEditRows = (rows, sectionText, path) => {
+  const checked = validateMechanicsEdit(rows, sectionText);
+  if (!checked.ok) throw mechanicsError(checked.code, path, checked.index);
+  return checked.rows.map((row, index) => {
+    if (!row.category) {
+      const original = safeMechanicsValue(row.original);
+      const correction = safeMechanicsValue(row.correction);
+      if (!original || !correction) throw badRequest(REWORD_MESSAGE);
+      return { original, correction };
+    }
+    const correction = safeMechanicsValue(row.correction);
+    const explanation = safeMechanicsValue(row.explanation);
+    if (row.correction && !correction) throw badRequest(REWORD_MESSAGE);
+    const rechecked = validateCorrection(sectionText, {
+      ...row,
+      correction,
+      explanation,
+    });
+    if (!rechecked.ok) throw mechanicsError(rechecked.code, path, index);
+    return rechecked.value;
+  });
+};
 const score = (value, maxScore) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
@@ -158,6 +270,7 @@ const loadPriorSpellingTargets = async ({ schoolId, draft }) => {
     school: schoolId,
     project: draft.project,
     number: Number(draft.number) - 1,
+    withdrawn: { $ne: true },
   })
     .select("_id")
     .lean();
@@ -227,7 +340,8 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
     Student.findOne({ school: schoolId, _id: draft.student })
       .select("firstName lastName")
       .lean(),
-    // Enough marked drafts to see the student's current need, not the whole history.
+    // Enough marked drafts to see the student's current need, not the whole
+    // history. Wins and publish state let recovered spellings graduate (G6).
     WritingAssessment.find({
       school: schoolId,
       student: draft.student,
@@ -235,7 +349,7 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
     })
       .sort({ createdAt: -1 })
       .limit(5)
-      .select("draft scores")
+      .select("draft scores spellingWins publish")
       .lean(),
     SpellingAnalysis.findOne({
       school: schoolId,
@@ -283,6 +397,9 @@ const loadDraftContext = async ({ schoolId, draftId }) => {
       (assignment.goals || []).find((row) => sameId(row.student, draft.student))
         ?.text || "",
     profile: buildWritingProfile({ assessments: recentAssessments, spelling }),
+    // A missed word used correctly in the last two published drafts is no
+    // longer fragile, so it is never offered as a target again (G6).
+    graduatedSpellingWords: graduatedWords(recentAssessments),
     spellingCandidates: spellingItems.map((row) => ({
       word: row.wordSnapshot,
       grade: row.grade,
@@ -301,8 +418,17 @@ const loadPreviousRound = async ({ schoolId, project, draft }) => {
     school: schoolId,
     project: project._id,
     number: Number(draft.number) - 1,
+    withdrawn: { $ne: true },
   });
-  if (!previousDraft) return { previousDraft: null, previousAssessment: null };
+  // D10: a comparison is only meaningful inside one project, which is one
+  // assignment for one student in one academic year. Anything else is a gap
+  // the panel must not bridge.
+  if (
+    !previousDraft ||
+    !sameId(previousDraft.assignment, draft.assignment) ||
+    !sameId(previousDraft.project, draft.project)
+  )
+    return { previousDraft: null, previousAssessment: null };
   const previousAssessment = await WritingAssessment.findOne({
     school: schoolId,
     draft: previousDraft._id,
@@ -322,6 +448,58 @@ const snapshotFor = (draft, assignment) =>
   draft?.configSnapshot && Object.keys(draft.configSnapshot).length
     ? draft.configSnapshot
     : configSnapshotFor(assignment);
+
+/**
+ * The lesson facts this run is judged against, with the draft's own coverage of
+ * them (B1/B2). The submitted draft's snapshot wins so the feedback matches what
+ * the student saw; a draft from before snapshots existed falls back to the pack
+ * as it stands today. Flag off means no facts enter a prompt or a guard.
+ */
+const packFor = async ({ schoolId, snapshot, assignment, draft }) => {
+  if (!sourcePacksEnabled()) return null;
+  const stored = snapshot?.sourcePack;
+  const pack = (stored?.facts || []).length
+    ? stored
+    : await packSnapshotForAssignment({ schoolId, assignment });
+  if (!pack?.facts?.length) return null;
+  return {
+    title: pack.title,
+    version: pack.version,
+    coverage: packCoverage({ facts: pack.facts, draft }),
+  };
+};
+
+/** C3/A9: mechanical clamps on the model's marks, recorded on the assessment. */
+const applyScoreGuards = (normalized, { snapshot, metrics, pack }) => {
+  const guarded = guardScores({
+    sections: normalized.sections,
+    scores: normalized.scores,
+    snapshot,
+    metrics,
+    packCoverage: pack?.coverage || null,
+  });
+  normalized.sections = guarded.sections;
+  normalized.scores = guarded.scores;
+  normalized.totalScore = guarded.scores.reduce(
+    (sum, row) => sum + (row.focusExcluded ? 0 : Number(row.score) || 0),
+    0,
+  );
+  return guarded.adjustments;
+};
+
+/**
+ * A10: a draft the text itself disqualifies is answered without a run. No
+ * assessment is claimed, no credit is spent, and the teacher gets guidance.
+ */
+const precheckOf = (context) =>
+  draftPrecheck({
+    assignment: context.assignment,
+    draft: context.draft,
+    metrics: computeDraftMetrics({
+      draft: context.draft,
+      spellingCandidates: context.spellingCandidates,
+    }),
+  });
 
 /* ------------------------------------------------------------------ */
 /* Claim / retry                                                       */
@@ -420,6 +598,7 @@ const releaseStaleRuns = async ({ schoolId, draft, kind }) => {
     {
       $set: {
         aiStatus: "failed",
+        aiErrorCode: "INTERNAL",
         aiError: "The previous run did not finish. Try again.",
         ranAt: new Date(),
       },
@@ -431,6 +610,11 @@ const releaseStaleRuns = async ({ schoolId, draft, kind }) => {
  * One assessment per draft per kind may be in flight. A failed attempt is reused
  * so a retry never leaves two competing rows; a finished one is never overwritten.
  */
+const promptVersionForKind = (kind) =>
+  kind === "comparison"
+    ? WRITING_PROMPT_VERSIONS.comparison
+    : WRITING_PROMPT_VERSIONS.feedback;
+
 const claimAssessment = async ({
   schoolId,
   project,
@@ -488,9 +672,14 @@ const claimAssessment = async ({
       {
         $set: {
           aiStatus: "running",
+          aiErrorCode: "",
           aiError: "",
           language,
           requestedBy: userId,
+          // A failed row keeps the version it ran under, so failures are
+          // countable by prompt version in the report.
+          promptVersion: promptVersionForKind(kind),
+          schemaVersion: WRITING_SCHEMA_VERSION,
           ...(previousDraft?._id ? { previousDraft: previousDraft._id } : {}),
         },
         $inc: { attempts: 1 },
@@ -518,6 +707,8 @@ const claimAssessment = async ({
       aiStatus: "running",
       attempts: 1,
       requestedBy: userId,
+      promptVersion: promptVersionForKind(kind),
+      schemaVersion: WRITING_SCHEMA_VERSION,
     });
   } catch (error) {
     if (isDuplicateKey(error)) {
@@ -530,23 +721,38 @@ const claimAssessment = async ({
 };
 
 const failAssessment = async (assessment, error) => {
-  const message = text(
-    error?.message || "The assessment could not be completed.",
-    500,
-  );
+  const aiErrorCode = aiFailureCodeOf(error);
+  const message = AI_FAILURE_MESSAGES[aiErrorCode];
+  const detail = text(error?.message || "", 500);
   assessment.aiStatus = "failed";
   assessment.aiError = message;
+  assessment.aiErrorCode = aiErrorCode;
   assessment.ranAt = new Date();
   // Never mark a row that another run has since claimed.
   await WritingAssessment.updateOne(runFilter(assessment), {
-    $set: { aiStatus: "failed", aiError: message, ranAt: assessment.ranAt },
+    $set: {
+      aiStatus: "failed",
+      aiError: message,
+      aiErrorCode,
+      ranAt: assessment.ranAt,
+    },
   });
   logger.warn("Writing assessment failed", {
     assessmentId: String(assessment._id),
     draft: String(assessment.draft),
     kind: assessment.kind,
-    message,
+    promptVersion: assessment.promptVersion || "",
+    code: aiErrorCode,
+    message: detail,
   });
+  logRun({
+    feature: `writing_${assessment.kind || "feedback"}`,
+    promptVersion: assessment.promptVersion || "",
+    outcome: "failed",
+    code: aiErrorCode,
+  });
+  // K8: repeated provider or credit failures alert the school admins once.
+  void noteWritingFailure({ schoolId: assessment.school, errorCode: aiErrorCode });
 };
 
 /* ------------------------------------------------------------------ */
@@ -656,7 +862,7 @@ const shouldAutoPublish = (assignment) =>
  * read from the environment: a mis-set variable must never move this feature to
  * another model family without a code review.
  */
-const WRITING_AI = {
+export const WRITING_AI = {
   provider: "openai",
   ...(process.env.WRITING_AI_MODEL
     ? { modelName: process.env.WRITING_AI_MODEL }
@@ -698,7 +904,14 @@ const aiOptions = ({ billing, context, feature }) => ({
  */
 const inspectReply = async (payload, entryId) => {
   const { value, problems } = sanitizeGeneratedFields(payload, {
-    skipKeys: ["evidence", "wordUseEvidence", "spellingWins"],
+    // Evidence quotes, server-resolved lesson facts and server-derived word
+    // evidence are teacher or server text, not model prose. `original` is the
+    // verified source slice of a language correction: normalization already
+    // proved it equals the draft's own words, so prose rewriting must not
+    // touch it. The correction and explanation stay fully inspected.
+    skipKeys: ["evidence", "evidenceFact", "wordUseEvidence", "spellingWins", "original"],
+    // Phase 3: a field that is nothing but a compliment is dropped (A14).
+    strictPraise: feedbackV2Enabled(),
   });
   if (problems.length) {
     logger.warn("writing_reply_rejected_by_content_inspection", { problems });
@@ -708,6 +921,66 @@ const inspectReply = async (payload, entryId) => {
     );
   }
   return value;
+};
+
+/**
+ * Source slices are verified once more after content inspection: a safety
+ * transformation may have altered a replacement or explanation, and the row
+ * that gets stored must satisfy the same anchor invariant the student page
+ * and the emails check. A row that no longer passes is dropped and its section
+ * downgraded to partial — never the whole assessment, and never silently.
+ * Legacy pairs carry no category or anchor and are left untouched.
+ */
+const reverifyMechanics = (fields, draft) => {
+  const textBySlot = new Map(
+    (draft?.sections || []).map((row) => [
+      `${row.key}:${Number(row.index) || 0}`,
+      canonicalSectionText(row.text),
+    ]),
+  );
+  for (const section of fields?.sections || []) {
+    const rows = section.mechanics || [];
+    if (!rows.length) continue;
+    const text =
+      textBySlot.get(`${section.key}:${Number(section.index) || 0}`) || "";
+    const kept = rows.filter(
+      (row) => !row.category || validateCorrection(text, row).ok,
+    );
+    if (kept.length === rows.length) continue;
+    section.mechanics = kept;
+    if (section.mechanicsReview) {
+      section.mechanicsReview = {
+        ...section.mechanicsReview,
+        status:
+          section.mechanicsReview.status === "checked"
+            ? "partial"
+            : section.mechanicsReview.status,
+        reasons: [
+          ...new Set([
+            ...(section.mechanicsReview.reasons || []),
+            "invalid_candidate",
+          ]),
+        ].slice(0, 8),
+      };
+    }
+  }
+};
+
+/**
+ * The tokenised reply is the baseline the edit trail diffs against, and the
+ * next round is prompted from it. It has to be plain, bounded JSON: an ORM
+ * object or an over-deep payload would fail to load later, so it is refused
+ * here while the run can still be reported as a read failure.
+ */
+const tokenisedOriginal = (fields) => {
+  const original = toPlain(fields);
+  const issue = plainJsonIssue(original);
+  if (issue) {
+    throw Object.assign(new Error(`The reply cannot be stored (${issue}).`), {
+      aiCode: "AI_INVALID_REPLY",
+    });
+  }
+  return original;
 };
 
 /**
@@ -733,6 +1006,62 @@ const askForJson = async ({ prompt, call, feature }) => {
   return { reply: second, parsed: extractJsonObject(second.text) };
 };
 
+/** What one run cost and how long it took; stored on the assessment it wrote. */
+const runUsage = (reply, latencyMs) => {
+  const tokens = tokenCounts(reply);
+  const entryId = reply?.usage?.entryId;
+  // The ledger priced a metered reply; only an unmetered call is costed here.
+  const ledgerCost = Number(reply?.usage?.providerCostCents);
+  return {
+    ...tokens,
+    costCents: Number.isFinite(ledgerCost) ? ledgerCost : costCents(tokens),
+    latencyMs: Math.max(0, Number(latencyMs) || 0),
+    ...(entryId ? { entryId } : {}),
+  };
+};
+
+/**
+ * Kill switch for the prompt half of the metrics layer (the facts block and the
+ * count scrub). The computed metrics are still stored and the run is still
+ * versioned: they describe the draft, and a switch must not make the record lie.
+ */
+const metricsEnabled = () => process.env.WRITING_METRICS !== "0";
+
+/**
+ * Phase 3 child-facing feedback. Off by default: prompt shape, budgets,
+ * mechanics, repeat guard and reading-level control all key off this one flag
+ * so a rollout is a redeploy, and stored Phase 2 rows keep reading the same.
+ */
+export const feedbackV2Enabled = () => process.env.WRITING_FEEDBACK_V2 === "1";
+
+/**
+ * Phase 4 revision intelligence. Off by default: computed improvement claims,
+ * evidence-gated new issues, verified task quotes, the change story, ranked
+ * spelling targets and rotation of repeated scaffolds all key off this flag.
+ */
+export const revisionV2Enabled = () => process.env.WRITING_REVISION_V2 === "1";
+
+/** A task the student has not done yet, which the repeat guard protects. */
+const hasUnresolvedTask = (ledger = []) =>
+  (ledger || []).some(
+    (row) => row?.status === "open" || row?.status === "stalled",
+  );
+
+/**
+ * One line per finished run. The admin report reads stored rows, but a log
+ * search must answer "did this prompt version start failing?" immediately.
+ */
+const logRun = ({ feature, promptVersion, outcome, usage = {}, code = "" }) => {
+  logger.info("writing_ai_run", {
+    feature,
+    promptVersion,
+    outcome,
+    code,
+    totalTokens: usage.totalTokens || 0,
+    latencyMs: usage.latencyMs || 0,
+  });
+};
+
 const runFeedback = async ({
   context,
   language,
@@ -750,14 +1079,42 @@ const runFeedback = async ({
     profile,
     spellingCandidates,
     priorSpellingTargets,
+    graduatedSpellingWords,
     wordSupport,
   } = context;
   const snapshot = snapshotFor(draft, assignment);
+  const revisionV2 = revisionV2Enabled();
   const stalledTasks = stalledTasksFrom(project?.revisionLedger || []);
   const wordUse = analyzeWordUse({
     draftText: draftTextOf(draft),
     wordSupport,
   });
+  // The numbers the prompt quotes come from the text itself, never the model.
+  const metrics = computeDraftMetrics({
+    draft,
+    wordUseEvidence: wordUse,
+    spellingCandidates,
+  });
+  const pack = await packFor({
+    schoolId: billing.schoolId,
+    snapshot,
+    assignment,
+    draft,
+  });
+  const v2 = feedbackV2Enabled();
+  const taughtFocus = v2
+    ? (assignment.taughtFocus || []).map((row) => String(row || "").trim()).filter(Boolean)
+    : [];
+  // Only a task the student has not done yet triggers the repeat guard.
+  const repeatGuard = v2 && hasUnresolvedTask(project?.revisionLedger);
+  const previousNextSteps = (previousAssessment?.sections || []).map((row) => ({
+    key: row.key,
+    index: Number(row.index) || 0,
+    label: row.label || row.key,
+    nextStep: row.nextStep || "",
+    // The scaffold form already tried, so the next round must rotate down (A5).
+    kind: row.intervention?.kind || "",
+  }));
   const prompt = buildFeedbackPrompt({
     snapshot,
     draft,
@@ -771,9 +1128,17 @@ const runFeedback = async ({
     language,
     previousDraft,
     previousAssessment,
+    metrics: metricsEnabled() ? metrics : null,
+    pack,
+    feedbackV2: v2,
+    repeatGuard,
+    previousNextSteps,
+    taughtFocus,
+    revisionV2,
   });
 
-  const { reply, parsed } = await askForJson({
+  const startedAt = Date.now();
+  const { reply, parsed: rawParsed } = await askForJson({
     prompt,
     feature: "writing_feedback",
     call: (body) =>
@@ -782,6 +1147,12 @@ const runFeedback = async ({
         aiOptions({ billing, context, feature: "writing_feedback" }),
       ),
   });
+  const latencyMs = Date.now() - startedAt;
+  // A count in the prose that contradicts the draft is corrected before
+  // anything reads it. Quotes are the child's own words and are kept.
+  const parsed = metricsEnabled()
+    ? scrubCountClaimsDeep(rawParsed, metrics)
+    : rawParsed;
   const normalized = normalizeFeedback({
     parsed,
     draft,
@@ -790,6 +1161,14 @@ const runFeedback = async ({
     spellingCandidates,
     studentName,
     roster,
+    packFacts: pack?.coverage.facts || [],
+    feedbackV2: v2,
+    repeatGuard,
+    previousNextSteps,
+    taughtFocus,
+    tier: profile?.tier || "developing",
+    publishedTargets: priorSpellingTargets,
+    graduatedWords: graduatedSpellingWords || [],
   });
   if (!normalized.ok) {
     await markUsageOutcome({
@@ -797,6 +1176,43 @@ const runFeedback = async ({
       outcome: "unusable",
     });
     throw upstream(normalized.error);
+  }
+  const scoreAdjustments = applyScoreGuards(normalized, {
+    snapshot,
+    metrics,
+    pack,
+  });
+
+  // Focus budget and reading level are server decisions, never prompt hopes.
+  let focusFields = {};
+  if (v2) {
+    const tier = profile?.tier || "developing";
+    const budgeted = applyFocusBudget({
+      sections: normalized.sections,
+      priorities: normalized.overall.nextPriorities,
+      tier,
+    });
+    const simplified = simplifyFeedbackFields(
+      { sections: budgeted.sections, overall: { ...normalized.overall, nextPriorities: budgeted.priorities } },
+      tier,
+    );
+    normalized.sections = simplified.sections;
+    normalized.overall = simplified.overall;
+    normalized.tasks = tasksFromPriorities(normalized.overall.nextPriorities);
+    focusFields = {
+      focus: budgeted.focus,
+      teacherOnly: {
+        notes: budgeted.dropped.all,
+        priorities: budgeted.dropped.priorities,
+      },
+      readability: readabilityVerdict({
+        fields: {
+          sections: normalized.sections,
+          overall: normalized.overall,
+        },
+        tier,
+      }),
+    };
   }
 
   // A revision is checked against the earlier round in the same reply.
@@ -813,6 +1229,10 @@ const runFeedback = async ({
         priorSpellingTargets,
         studentName,
         roster,
+        revisionV2,
+        tier: profile?.tier || "developing",
+        publishedTargets: priorSpellingTargets,
+        graduatedWords: graduatedSpellingWords || [],
       })
     : null;
 
@@ -821,6 +1241,15 @@ const runFeedback = async ({
     normalized.comparison = {
       criteriaUnresolved: checked.criteriaUnresolved,
       newIssues: checked.newIssues,
+      ...(revisionV2
+        ? {
+            criteriaImproved: checked.criteriaImproved,
+            improvedFacts: checked.improvedFacts,
+            newIssueChecks: checked.newIssueChecks,
+            changes: checked.changes || [],
+            mostlyReworded: checked.mostlyReworded === true,
+          }
+        : {}),
     };
   }
   const decision = decideRecommendation({ normalized });
@@ -848,6 +1277,8 @@ const runFeedback = async ({
     }),
     ...(wordUse ? { wordUseEvidence: wordUse } : {}),
     totalScore: normalized.totalScore,
+    scoreAdjustments,
+    ...focusFields,
     recommendation: { path: decision.path, reason: decision.reason },
     ...(checked
       ? {
@@ -860,6 +1291,14 @@ const runFeedback = async ({
             newIssues: checked.newIssues,
             wordDelta: checked.wordDelta,
             encouragement: checked.encouragement,
+            ...(revisionV2
+              ? {
+                  improvedFacts: checked.improvedFacts,
+                  newIssueChecks: checked.newIssueChecks,
+                  changes: checked.changes || [],
+                  mostlyReworded: checked.mostlyReworded === true,
+                }
+              : {}),
           },
         }
       : {}),
@@ -868,15 +1307,20 @@ const runFeedback = async ({
     { fields, revisionLedger },
     reply.usage?.entryId,
   );
+  reverifyMechanics(inspected.fields, draft);
   // The stored original stays tokenised: it is what a later round is prompted
   // from, and the name is filled in only when a person reads or receives it.
-  const filled = fillStudentTokensDeep(inspected.fields, studentName);
+  const original = tokenisedOriginal(inspected.fields);
+  const filled = fillStudentTokensDeep(original, studentName);
 
   return {
     modelName: reply.modelName,
     fields: filled,
-    original: inspected.fields,
+    original,
     revisionLedger: inspected.revisionLedger,
+    promptVersion: WRITING_PROMPT_VERSIONS.feedback,
+    usage: runUsage(reply, latencyMs),
+    metrics,
   };
 };
 
@@ -897,12 +1341,25 @@ const runComparison = async ({
     profile,
     spellingCandidates,
     priorSpellingTargets,
+    graduatedSpellingWords,
     wordSupport,
   } = context;
   const snapshot = snapshotFor(draft, assignment);
+  const revisionV2 = revisionV2Enabled();
   const wordUse = analyzeWordUse({
     draftText: draftTextOf(draft),
     wordSupport,
+  });
+  const metrics = computeDraftMetrics({
+    draft,
+    wordUseEvidence: wordUse,
+    spellingCandidates,
+  });
+  const pack = await packFor({
+    schoolId: billing.schoolId,
+    snapshot,
+    assignment,
+    draft,
   });
   const prompt = buildComparisonPrompt({
     snapshot,
@@ -916,9 +1373,13 @@ const runComparison = async ({
     profile,
     spellingCandidates,
     language,
+    metrics: metricsEnabled() ? metrics : null,
+    pack,
+    revisionV2,
   });
 
-  const { reply, parsed } = await askForJson({
+  const startedAt = Date.now();
+  const { reply, parsed: rawParsed } = await askForJson({
     prompt,
     feature: "writing_comparison",
     call: (body) =>
@@ -927,6 +1388,10 @@ const runComparison = async ({
         aiOptions({ billing, context, feature: "writing_comparison" }),
       ),
   });
+  const latencyMs = Date.now() - startedAt;
+  const parsed = metricsEnabled()
+    ? scrubCountClaimsDeep(rawParsed, metrics)
+    : rawParsed;
   const normalized = normalizeComparison({
     parsed,
     previousDraft,
@@ -939,6 +1404,10 @@ const runComparison = async ({
     priorSpellingTargets,
     studentName,
     roster,
+    revisionV2,
+    tier: profile?.tier || "developing",
+    publishedTargets: priorSpellingTargets,
+    graduatedWords: graduatedSpellingWords || [],
   });
   if (!normalized.ok) {
     await markUsageOutcome({
@@ -948,6 +1417,11 @@ const runComparison = async ({
     throw upstream(normalized.error);
   }
 
+  const scoreAdjustments = applyScoreGuards(normalized, {
+    snapshot,
+    metrics,
+    pack,
+  });
   const decision = decideRecommendation({ normalized });
 
   const fields = {
@@ -960,6 +1434,14 @@ const runComparison = async ({
       newIssues: normalized.newIssues,
       wordDelta: normalized.wordDelta,
       encouragement: normalized.encouragement,
+      ...(revisionV2
+        ? {
+            improvedFacts: normalized.improvedFacts,
+            newIssueChecks: normalized.newIssueChecks,
+            changes: normalized.changes || [],
+            mostlyReworded: normalized.mostlyReworded === true,
+          }
+        : {}),
     },
     // The tasks this revision was checked against, so the student view is
     // self-contained even if the earlier feedback is never published.
@@ -969,10 +1451,8 @@ const runComparison = async ({
     spellingTargets: normalized.spellingTargets,
     spellingWins: normalized.spellingWins,
     ...(wordUse ? { wordUseEvidence: wordUse } : {}),
-    totalScore: normalized.scores.reduce(
-      (sum, row) => sum + (Number(row.score) || 0),
-      0,
-    ),
+    totalScore: normalized.totalScore,
+    scoreAdjustments,
     recommendation: { path: decision.path, reason: decision.reason },
   };
 
@@ -980,12 +1460,16 @@ const runComparison = async ({
     { fields, revisionLedger: normalized.revisionLedger },
     reply.usage?.entryId,
   );
-  const filled = fillStudentTokensDeep(inspected.fields, studentName);
+  const original = tokenisedOriginal(inspected.fields);
+  const filled = fillStudentTokensDeep(original, studentName);
   return {
     modelName: reply.modelName,
     fields: filled,
-    original: inspected.fields,
+    original,
     revisionLedger: inspected.revisionLedger,
+    promptVersion: WRITING_PROMPT_VERSIONS.comparison,
+    usage: runUsage(reply, latencyMs),
+    metrics,
   };
 };
 
@@ -1018,62 +1502,50 @@ const projectSummary = (project) => ({
 /* Assess one draft                                                    */
 /* ------------------------------------------------------------------ */
 
-export const assessDraft = async ({
-  schoolId,
-  draftId,
+/**
+ * K6: everything after a run is claimed. The plain call awaits it; a detached
+ * call starts it and answers at once, so a long provider timeout never has to
+ * outlive a proxy timeout. The row itself is the run record the panel polls.
+ */
+const finishClaimedAssessment = async ({
+  context,
+  project,
+  assignment,
+  draft,
+  assessment,
+  language,
+  previousDraft,
+  previousAssessment,
+  billing,
   userId,
-  isAdmin = false,
-  language = "",
-  force = false,
-  // A batch checks credit once for the whole run; single calls check here.
-  creditChecked = false,
 }) => {
-  const context = await loadDraftContext({ schoolId, draftId });
-  const { draft, project, assignment } = context;
-  assertOwner(assignment, userId, isAdmin);
-
-  if (!sameId(project.latestDraft, draft._id)) {
-    throw badRequest("Only the newest submitted draft can be assessed.");
-  }
-
-  if (!creditChecked) await assertCanSpend({ schoolId, userId });
-  const resolvedLanguage = await resolveLanguage({
-    schoolId,
-    requestedLanguage: language,
-  });
-  // From draft 2 on, one reply gives the feedback and what the revision changed.
-  const { previousDraft, previousAssessment } = await loadPreviousRound({
-    schoolId,
-    project,
-    draft,
-  });
-  const assessment = await claimAssessment({
-    schoolId,
-    project,
-    draft,
-    kind: "feedback",
-    previousDraft,
-    userId,
-    language: resolvedLanguage,
-    force,
-  });
-
   const stopHeartbeat = startRunHeartbeat(assessment);
   try {
     const result = await runFeedback({
       context,
-      language: resolvedLanguage,
-      billing: { schoolId, userId },
+      language,
+      billing,
       previousDraft,
       previousAssessment,
     });
     assessment.set({
       ...result.fields,
       aiStatus: "done",
+      aiErrorCode: "",
       aiError: "",
       ranAt: new Date(),
       modelUsed: result.modelName || "",
       aiOriginal: result.original,
+      promptVersion: result.promptVersion,
+      schemaVersion: WRITING_SCHEMA_VERSION,
+      usage: result.usage,
+      metrics: metricsSummaryForStorage(result.metrics),
+    });
+    logRun({
+      feature: "writing_feedback",
+      promptVersion: result.promptVersion,
+      outcome: "done",
+      usage: result.usage,
     });
     project.revisionLedger = result.revisionLedger || project.revisionLedger;
   } catch (error) {
@@ -1099,7 +1571,7 @@ export const assessDraft = async ({
   });
   if (autoPublished) {
     dispatchFeedbackEmail({
-      schoolId,
+      schoolId: billing.schoolId,
       userId,
       project,
       assignment,
@@ -1113,6 +1585,97 @@ export const assessDraft = async ({
     project: projectSummary(project),
     autoPublished,
   };
+};
+
+export const assessDraft = async ({
+  schoolId,
+  draftId,
+  userId,
+  isAdmin = false,
+  language = "",
+  force = false,
+  // A batch checks credit once for the whole run; single calls check here.
+  creditChecked = false,
+  // K6: answer after the claim and let the stored row report the outcome.
+  detached = false,
+}) => {
+  const context = await loadDraftContext({ schoolId, draftId });
+  const { draft, project, assignment } = context;
+  assertOwner(assignment, userId, isAdmin);
+
+  if (draft.withdrawn) {
+    throw badRequest("This submission was returned to the student.");
+  }
+
+  if (!sameId(project.latestDraft, draft._id)) {
+    throw badRequest("Only the newest submitted draft can be assessed.");
+  }
+
+  // Checked before the credit gate: a draft that cannot be assessed must cost
+  // nothing at all, not even a credit check.
+  const precheck = precheckOf(context);
+  if (precheck) {
+    return {
+      assessment: null,
+      precheck,
+      project: projectSummary(project),
+      autoPublished: false,
+    };
+  }
+
+  if (!creditChecked) await assertWritingCredit({ schoolId, userId });
+  const resolvedLanguage = await resolveLanguage({
+    schoolId,
+    requestedLanguage: language,
+  });
+  // From draft 2 on, one reply gives the feedback and what the revision changed.
+  const { previousDraft, previousAssessment } = await loadPreviousRound({
+    schoolId,
+    project,
+    draft,
+  });
+  const assessment = await claimAssessment({
+    schoolId,
+    project,
+    draft,
+    kind: "feedback",
+    previousDraft,
+    userId,
+    language: resolvedLanguage,
+    force,
+  });
+
+  const runInput = {
+    context,
+    project,
+    assignment,
+    draft,
+    assessment,
+    language: resolvedLanguage,
+    previousDraft,
+    previousAssessment,
+    billing: { schoolId, userId },
+    userId,
+  };
+  // K6: a detached run answers at once; the row it already claimed is what the
+  // review panel polls, so the outcome still lands after the request is gone.
+  if (detached) {
+    finishClaimedAssessment(runInput).catch((error) => {
+      // failAssessment already recorded the reason on the row; this is the log trail.
+      logger.warn("writing_detached_assessment_failed", {
+        draftId: String(draft._id),
+        errorCode: aiFailureCodeOf(error),
+        message: error?.message,
+      });
+    });
+    return {
+      assessment: summarizeAssessment(assessment),
+      project: projectSummary(project),
+      autoPublished: false,
+      pending: true,
+    };
+  }
+  return finishClaimedAssessment(runInput);
 };
 
 /* ------------------------------------------------------------------ */
@@ -1132,11 +1695,25 @@ export const compareDrafts = async ({
   const { draft, project, assignment } = context;
   assertOwner(assignment, userId, isAdmin);
 
+  if (draft.withdrawn) {
+    throw badRequest("This submission was returned to the student.");
+  }
+
   if (!sameId(project.latestDraft, draft._id)) {
     throw badRequest("Only the newest submitted draft can be compared.");
   }
   if (Number(draft.number) < 2) {
     throw badRequest("There is only one draft so far. A comparison needs two.");
+  }
+
+  const precheck = precheckOf(context);
+  if (precheck) {
+    return {
+      assessment: null,
+      precheck,
+      project: projectSummary(project),
+      autoPublished: false,
+    };
   }
 
   const { previousDraft, previousAssessment } = await loadPreviousRound({
@@ -1148,7 +1725,7 @@ export const compareDrafts = async ({
     throw notFound("The previous draft could not be found.");
   }
 
-  if (!creditChecked) await assertCanSpend({ schoolId, userId });
+  if (!creditChecked) await assertWritingCredit({ schoolId, userId });
   const resolvedLanguage = await resolveLanguage({
     schoolId,
     requestedLanguage: language,
@@ -1176,10 +1753,21 @@ export const compareDrafts = async ({
     assessment.set({
       ...result.fields,
       aiStatus: "done",
+      aiErrorCode: "",
       aiError: "",
       ranAt: new Date(),
       modelUsed: result.modelName || "",
       aiOriginal: result.original,
+      promptVersion: result.promptVersion,
+      schemaVersion: WRITING_SCHEMA_VERSION,
+      usage: result.usage,
+      metrics: metricsSummaryForStorage(result.metrics),
+    });
+    logRun({
+      feature: "writing_comparison",
+      promptVersion: result.promptVersion,
+      outcome: "done",
+      usage: result.usage,
     });
     project.revisionLedger = result.revisionLedger || project.revisionLedger;
   } catch (error) {
@@ -1241,7 +1829,7 @@ export const assessPendingBatch = async ({
   }).lean();
   if (!assignment) throw notFound("Writing task not found.");
   assertOwner(assignment, userId, isAdmin);
-  await assertCanSpend({ schoolId, userId });
+  await assertWritingCredit({ schoolId, userId });
 
   const cap = Math.min(Math.max(Number(limit) || 5, 1), 10);
   const filter = {
@@ -1262,7 +1850,7 @@ export const assessPendingBatch = async ({
     requestedLanguage: language,
   });
   // Credit and language are batch-invariant: one check covers every item.
-  await assertCanSpend({ schoolId, userId });
+  await assertWritingCredit({ schoolId, userId });
   const budgetMs = Number(process.env.WRITING_BATCH_BUDGET_MS) || 90_000;
   const startedAt = Date.now();
   const outcomes = [];
@@ -1295,6 +1883,18 @@ export const assessPendingBatch = async ({
         language: resolvedLanguage,
         creditChecked: true,
       });
+      if (result.precheck) {
+        // A precheck draft stays in the queue for the teacher to fix; it is
+        // reported as skipped rather than counted as assessed.
+        outcomes.push({
+          projectId: String(project._id),
+          studentId: String(project.student),
+          ok: false,
+          precheck: result.precheck.code,
+          error: result.precheck.guidance,
+        });
+        continue;
+      }
       outcomes.push({
         projectId: String(project._id),
         studentId: String(project.student),
@@ -1336,9 +1936,51 @@ export const assessPendingBatch = async ({
 /* Teacher edits                                                       */
 /* ------------------------------------------------------------------ */
 
-const applyEdits = ({ assessment, payload = {}, userId }) => {
+/**
+ * A teacher's mark beats the server's mechanical clamp; keep the clamp row as
+ * history but stop it from describing the current score.
+ */
+const noteTeacherScoreOverride = (assessment, target, key, index = 0) => {
+  const row = (assessment.scoreAdjustments || []).find(
+    (item) =>
+      item.target === target &&
+      item.key === key &&
+      (target === "score" || Number(item.index) === Number(index)),
+  );
+  if (row) row.overriddenByTeacher = true;
+};
+
+const applyEdits = ({ assessment, payload = {}, userId, draftSections = [] }) => {
   const changed = new Set();
   const mark = (path) => changed.add(path);
+
+  // Every submitted mechanics array is validated against the assessed draft
+  // before any field mutates: one bad row must not partially save the rest.
+  const mechanicsBySlot = new Map();
+  if (Array.isArray(payload.sections)) {
+    for (const incoming of payload.sections) {
+      if (!incoming || !incoming.key || incoming.mechanics === undefined)
+        continue;
+      const index = Number.isFinite(Number(incoming.index))
+        ? Number(incoming.index)
+        : 0;
+      const target = assessment.sections.find(
+        (row) => row.key === incoming.key && Number(row.index) === index,
+      );
+      if (!target) continue;
+      const draftSection = (draftSections || []).find(
+        (row) => row.key === incoming.key && Number(row.index) === index,
+      );
+      mechanicsBySlot.set(
+        `${incoming.key}:${index}`,
+        mechanicsEditRows(
+          incoming.mechanics,
+          canonicalSectionText(draftSection?.text),
+          `sections.${incoming.key}:${index}.mechanics`,
+        ),
+      );
+    }
+  }
 
   if (!assessment.aiOriginal) {
     const plain = (row) =>
@@ -1384,11 +2026,16 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
           incoming.nextStep === undefined
             ? target.nextStep
             : editedText(incoming.nextStep, 400),
+        mechanics:
+          incoming.mechanics === undefined
+            ? target.mechanics
+            : mechanicsBySlot.get(`${incoming.key}:${index}`),
         score:
           incoming.score === undefined
             ? target.score
             : score(incoming.score, target.maxScore),
       };
+      const hadNextStep = target.nextStep;
       for (const [field, value] of Object.entries(next)) {
         const before = Array.isArray(target[field])
           ? JSON.stringify(target[field])
@@ -1397,7 +2044,25 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
         if (before !== after) {
           target[field] = value;
           mark(`sections.${incoming.key}:${index}.${field}`);
+          if (field === "score") {
+            noteTeacherScoreOverride(assessment, "section", incoming.key, index);
+          }
         }
+      }
+      // A blocked instruction unblocks only when the teacher writes a
+      // genuinely different one; otherwise the same repeat would be sent again.
+      if (
+        target.nextStep !== hadNextStep &&
+        target.intervention?.needsRewrite &&
+        !isRepeatedInstruction(target.intervention.previous, target.nextStep)
+      ) {
+        target.intervention = {
+          ...(typeof target.intervention.toObject === "function"
+            ? target.intervention.toObject()
+            : target.intervention),
+          needsRewrite: false,
+        };
+        mark(`sections.${incoming.key}:${index}.intervention`);
       }
     }
   }
@@ -1446,6 +2111,7 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
         if (value !== target.score) {
           target.score = value;
           mark(`scores.${incoming.key}.score`);
+          noteTeacherScoreOverride(assessment, "score", incoming.key);
         }
       }
       if (incoming.explanation !== undefined) {
@@ -1464,7 +2130,7 @@ const applyEdits = ({ assessment, payload = {}, userId }) => {
       }
     }
     assessment.totalScore = assessment.scores.reduce(
-      (sum, row) => sum + (Number(row.score) || 0),
+      (sum, row) => sum + (row.focusExcluded ? 0 : Number(row.score) || 0),
       0,
     );
   }
@@ -1645,12 +2311,150 @@ export const saveAssessmentEdits = async ({
     throw badRequest("There is no finished assessment to edit yet.");
   }
 
-  applyEdits({ assessment, payload, userId });
+  // The draft is needed only to verify submitted corrections; a summary-only
+  // save must not pay for a read it does not use.
+  const editsMechanics =
+    Array.isArray(payload.sections) &&
+    payload.sections.some((row) => row && row.mechanics !== undefined);
+  const draftRow = editsMechanics
+    ? await WritingDraft.findOne({
+        school: schoolId,
+        _id: assessment.draft,
+      })
+        .select("sections")
+        .lean()
+    : null;
+
+  applyEdits({
+    assessment,
+    payload,
+    userId,
+    draftSections: draftRow?.sections || [],
+  });
   await assessment.save();
 
   return {
     assessment: summarizeAssessment(assessment),
     project: projectSummary(project),
+  };
+};
+
+/**
+ * F1: rewrite one note the teacher is looking at. The rest of the assessment is
+ * never sent to the model and never returned, so a regeneration cannot rewrite
+ * other sections, scores or priorities. Nothing is stored: the teacher's own
+ * save remains the only write.
+ */
+export const regenerateNote = async ({
+  schoolId,
+  assessmentId,
+  userId,
+  isAdmin = false,
+  payload = {},
+}) => {
+  const id = objectId(assessmentId);
+  if (!id) throw notFound("Assessment not found.");
+
+  const assessment = await WritingAssessment.findOne({
+    school: schoolId,
+    _id: id,
+  });
+  if (!assessment) throw notFound("Assessment not found.");
+  const [project, assignment] = await Promise.all([
+    WritingProject.findOne({ school: schoolId, _id: assessment.project }),
+    WritingAssignment.findOne({
+      school: schoolId,
+      _id: assessment.assignment,
+    }).lean(),
+  ]);
+  if (!project) throw notFound("Writing project not found.");
+  assertOwner(assignment, userId, isAdmin);
+
+  if (assessment.publish?.state === "published") {
+    throw conflict(
+      "Published feedback cannot be rewritten. Reassess the draft to make changes.",
+    );
+  }
+  if (assessment.aiStatus !== "done") {
+    throw badRequest("There is no finished assessment to edit yet.");
+  }
+
+  const draft = await WritingDraft.findOne({
+    school: schoolId,
+    _id: assessment.draft,
+  }).lean();
+  if (!draft || draft.withdrawn) {
+    throw badRequest("This submission was returned to the student.");
+  }
+
+  const mode = ["shorter", "specific", "simpler"].includes(String(payload.mode))
+    ? String(payload.mode)
+    : "";
+  if (!mode) throw badRequest("Choose how the note should change.");
+  const field = ["strength", "improvement", "nextStep"].includes(
+    String(payload.field),
+  )
+    ? String(payload.field)
+    : "";
+  if (!field) throw badRequest("Choose which note to rewrite.");
+
+  const key = String(payload.key || "").trim();
+  const index = Number(payload.index) || 0;
+  const section =
+    (draft.sections || []).find(
+      (row) => row.key === key && Number(row.index) === index,
+    ) || (draft.sections || []).find((row) => row.key === key);
+  if (!section) throw notFound("That section is not part of this draft.");
+
+  const current = text(payload.text, 400);
+  if (!current) throw badRequest("There is no note to rewrite.");
+
+  await assertWritingCredit({ schoolId, userId });
+  const startedAt = Date.now();
+  const { reply, parsed } = await askForJson({
+    prompt: buildNoteRewritePrompt({
+      mode,
+      field,
+      sectionLabel: section.label || section.key,
+      sectionText: section.text || "",
+      note: current,
+      language: assessment.language === "ar" ? "ar" : "en",
+    }),
+    feature: "writing_note_rewrite",
+    call: (body) =>
+      connectAi(
+        body,
+        aiOptions({
+          billing: { schoolId, userId },
+          context: { assignment, project, draft },
+          feature: "writing_note_rewrite",
+        }),
+      ),
+  });
+  const latencyMs = Date.now() - startedAt;
+
+  const cleaned = cleanGeneratedString(String(parsed?.note || "").slice(0, 600));
+  const note = text(cleaned.text, 300);
+  if (cleaned.problems.length || !note) {
+    await markUsageOutcome({
+      entryId: reply.usage?.entryId,
+      outcome: "unusable",
+    });
+    throw upstream(
+      "The rewritten note was not suitable to show a child. Try again.",
+    );
+  }
+
+  const usage = runUsage(reply, latencyMs);
+  logRun({
+    feature: "writing_note_rewrite",
+    promptVersion: WRITING_PROMPT_VERSIONS.note,
+    outcome: "done",
+    usage,
+  });
+  return {
+    note,
+    usage: { totalTokens: usage.totalTokens, costCents: usage.costCents },
   };
 };
 
@@ -1684,6 +2488,18 @@ export const publishAssessment = async ({
   if (!project) throw notFound("Writing project not found.");
   assertOwner(assignment, userId, isAdmin);
 
+  const draftRow = await WritingDraft.findOne({
+    school: schoolId,
+    _id: assessment.draft,
+  })
+    .select("withdrawn sections")
+    .lean();
+  if (draftRow?.withdrawn) {
+    throw badRequest(
+      "This submission was returned to the student and cannot be published.",
+    );
+  }
+
   if (assessment.publish?.state === "published") {
     return {
       assessment: summarizeAssessment(assessment),
@@ -1701,7 +2517,40 @@ export const publishAssessment = async ({
   }
 
   if (payload && Object.keys(payload).length) {
-    applyEdits({ assessment, payload, userId });
+    applyEdits({
+      assessment,
+      payload,
+      userId,
+      draftSections: draftRow?.sections || [],
+    });
+  }
+
+  // F6: what the child will read must be final. An unfilled {{token}} would
+  // reach the child raw, and a quote that is not in the draft cannot be
+  // highlighted. The review checklist runs the same checks before this call.
+  const publishFixes = publishBlockers({
+    assessment: toPlain(assessment),
+    draft: draftRow,
+  });
+  const tokenBlocker = publishFixes.find((row) => row.kind === "tokens");
+  if (tokenBlocker) {
+    throw badRequest(
+      `The feedback still contains ${tokenBlocker.items.join(", ")}. Replace it with the student's name before publishing.`,
+    );
+  }
+  const anchorBlocker = publishFixes.find((row) => row.kind === "anchors");
+  if (anchorBlocker) {
+    throw conflict(
+      `A quote in ${anchorBlocker.items.join(", ")} is not in this draft. Fix it or clear it, then publish.`,
+    );
+  }
+  const mechanicsBlocker = publishFixes.find(
+    (row) => row.kind === "mechanics",
+  );
+  if (mechanicsBlocker) {
+    throw badRequest(
+      `A language correction in ${mechanicsBlocker.items.join(", ")} no longer matches the draft. Fix it or remove it, then publish.`,
+    );
   }
 
   const allowedFrom = PUBLISHABLE_FROM[roundKind(assessment)] || [];
@@ -1717,6 +2566,19 @@ export const publishAssessment = async ({
   if (!canMoveTo(project, target)) {
     throw conflict(
       "This project is locked to a different stage. Remove the lock before publishing.",
+    );
+  }
+  // A next step the child already ignored would read as the same instruction
+  // again. Publishing stays blocked until the teacher writes a different one.
+  const blocked = (assessment.sections || []).filter(
+    (section) => section.intervention?.needsRewrite,
+  );
+  if (blocked.length) {
+    const names = blocked
+      .map((section) => section.label || section.key)
+      .join(", ");
+    throw conflict(
+      `The next step for ${names} repeats what the student already did not act on. Rewrite it in the draft's feedback before publishing.`,
     );
   }
 
@@ -1792,6 +2654,18 @@ const statusForStage = (stage) => {
   return "in_progress";
 };
 
+/** D8: every teacher-made stage move is recorded, newest last, bounded. */
+const recordStageMove = (project, { from, to, userId, reason = "" }) => {
+  if (!from || !to || from === to) return;
+  project.stageHistory = [
+    ...(project.stageHistory || []),
+    { from, to, at: new Date(), by: userId, reason: text(reason, 400) },
+  ].slice(-20);
+};
+
+const movesBackwards = (from, to) =>
+  WRITING_STAGES.indexOf(to) < WRITING_STAGES.indexOf(from);
+
 export const overrideStage = async ({
   schoolId,
   projectId,
@@ -1831,6 +2705,19 @@ export const overrideStage = async ({
       "Use the notebook check to move a student through the final two stages.",
     );
   }
+
+  // D8: publishing closes a round. Re-opening one is a deliberate teacher
+  // choice, and it has to say why before the student sees the round reopened.
+  const fromStage = project.stage;
+  if (movesBackwards(fromStage, stage) && !text(payload.reason, 400)) {
+    throw badRequest("Give a reason for moving this student back a stage.");
+  }
+  recordStageMove(project, {
+    from: fromStage,
+    to: stage,
+    userId,
+    reason: payload.reason,
+  });
 
   project.stage = stage;
   project.status = statusForStage(stage);
@@ -1911,7 +2798,20 @@ export const recordNotebookReview = async ({
         : project.notebook?.checkedBy,
     finalScore,
   });
-  project.stage = NOTEBOOK_STAGE[state];
+  // D8: "needs more work" sends the student back, so it is a backward move and
+  // the teacher has to say why before the student is sent back to revise.
+  const fromStage = project.stage;
+  const toStage = NOTEBOOK_STAGE[state];
+  if (state === "revision_required" && movesBackwards(fromStage, toStage) && !text(payload.note, 1000)) {
+    throw badRequest("Add a note telling the student what to revise.");
+  }
+  recordStageMove(project, {
+    from: fromStage,
+    to: toStage,
+    userId,
+    reason: payload.note,
+  });
+  project.stage = toStage;
   project.status =
     state === "checked"
       ? "completed"
@@ -1923,5 +2823,152 @@ export const recordNotebookReview = async ({
   return {
     project: projectSummary(project),
     notebook: project.notebook?.state || "not_requested",
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/* F13. Return a submission sent by mistake                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Pull back a submission that was not meant to happen. Only a draft that is
+ * waiting on the teacher and has nothing published can be returned: the draft
+ * is marked withdrawn (never a revision, never a comparison, never published),
+ * the editor is restored to exactly what the student sent, the stage goes back
+ * to drafting and the next submit reuses the number. The reason is required
+ * because the record outlives the click.
+ */
+export const returnDraftToStudent = async ({
+  schoolId,
+  projectId,
+  userId,
+  isAdmin = false,
+  payload = {},
+}) => {
+  const id = objectId(projectId);
+  if (!id) throw notFound("Writing project not found.");
+
+  const reason = text(payload.reason, 400);
+  if (!reason) throw badRequest("Say why this submission is going back.");
+
+  const project = await WritingProject.findOne({ school: schoolId, _id: id });
+  if (!project) throw notFound("Writing project not found.");
+  const assignment = await WritingAssignment.findOne({
+    school: schoolId,
+    _id: project.assignment,
+  }).lean();
+  if (!assignment)
+    throw notFound("The writing task this belongs to no longer exists.");
+  assertOwner(assignment, userId, isAdmin);
+
+  if (!["submitted", "feedback_ready"].includes(project.stage)) {
+    throw badRequest(
+      "Only a submission that is still waiting on you can be returned.",
+    );
+  }
+  const draft = project.latestDraft
+    ? await WritingDraft.findOne({
+        school: schoolId,
+        _id: project.latestDraft,
+        project: project._id,
+      })
+    : null;
+  if (!draft) throw notFound("There is no submitted draft to return.");
+  if (draft.withdrawn) {
+    throw badRequest("This submission has already been returned.");
+  }
+
+  const published = await WritingAssessment.findOne({
+    school: schoolId,
+    draft: draft._id,
+    "publish.state": "published",
+  })
+    .select("_id")
+    .lean();
+  if (published) {
+    throw badRequest(
+      "This feedback is already published. Returning the submission is no longer possible.",
+    );
+  }
+
+  // An in-flight run has nothing the student can see yet; it is cancelled
+  // before it can land on a draft that no longer exists. A finished run is
+  // kept on the withdrawn draft (and charged, as the model's work was done),
+  // but it can never be published or shown.
+  const cancelled = await WritingAssessment.updateMany(
+    {
+      school: schoolId,
+      draft: draft._id,
+      aiStatus: { $in: ["pending", "running"] },
+    },
+    {
+      $set: {
+        aiStatus: "failed",
+        aiErrorCode: "RETURNED_TO_STUDENT",
+        aiError: "Returned to the student before the feedback was finished.",
+      },
+    },
+  );
+  const kept = await WritingAssessment.countDocuments({
+    school: schoolId,
+    draft: draft._id,
+    aiStatus: "done",
+  });
+
+  draft.withdrawn = true;
+  draft.withdrawal = { at: new Date(), by: userId, reason };
+  await draft.save();
+
+  // The number is free again, and the student's next submit takes it back.
+  const previous = await WritingDraft.findOne({
+    school: schoolId,
+    project: project._id,
+    number: { $lt: draft.number },
+    withdrawn: { $ne: true },
+  })
+    .sort({ number: -1 })
+    .select("_id number")
+    .lean();
+
+  // Restore exactly what was sent, including edits made inside the submit sheet.
+  project.autosave = {
+    title: draft.title || "",
+    sections: (draft.sections || []).map(({ key, index, text: body }) => ({
+      key,
+      index,
+      text: body,
+    })),
+    updatedAt: new Date(),
+  };
+  project.draftCount = Number(previous?.number) || 0;
+  project.latestDraft = previous?._id || null;
+  project.wordCount = draft.totalWords || 0;
+  project.lastEditedAt = new Date();
+  const latest = project.latestAssessment
+    ? await WritingAssessment.findOne({
+        school: schoolId,
+        _id: project.latestAssessment,
+      })
+        .select("draft")
+        .lean()
+    : null;
+  if (!latest || sameId(latest.draft, draft._id)) {
+    project.latestAssessment = null;
+  }
+  recordStageMove(project, {
+    from: project.stage,
+    to: "drafting",
+    userId,
+    reason,
+  });
+  project.stage = "drafting";
+  project.status = "in_progress";
+  await project.save();
+
+  return {
+    project: projectSummary(project),
+    draft: { id: String(draft._id), number: draft.number, withdrawn: true },
+    cancelledAssessments: cancelled.modifiedCount || 0,
+    keptAssessments: kept,
   };
 };

@@ -286,3 +286,78 @@
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ==========================================
+   Public landing page (code-owned page tree)
+   Every rule below is scoped to the public
+   landing page and its portal surfaces.
+   ========================================== */
+
+.landing-public {
+    --landing-gutter: 32px;
+    --landing-max-width: 1160px;
+    --landing-radius: 18px;
+    width: 100%;
+}
+
+.landing-public-container {
+    width: min(calc(100% - 2 * var(--landing-gutter)), var(--landing-max-width));
+    margin-inline: auto;
+}
+
+.landing-public-section {
+    padding-block: 36px;
+    scroll-margin-top: 96px;
+}
+
+.landing-public-skip-link {
+    position: absolute;
+    inset-inline-start: 8px;
+    top: -96px;
+    z-index: 1400;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    text-decoration: none;
+}
+
+.landing-public-skip-link:focus {
+    top: 8px;
+}
+
+/* Portal surfaces (navigation drawer, school finder) live outside the page
+   root, so they carry their own class instead of a descendant selector. */
+.landing-public-overlay {
+    max-width: 100vw;
+}
+
+@media (max-width: 1199px) {
+    .landing-public {
+        --landing-gutter: 24px;
+    }
+
+    .landing-public-section {
+        padding-block: 24px;
+        scroll-margin-top: 80px;
+    }
+}
+
+@media (max-width: 599px) {
+    .landing-public {
+        --landing-gutter: 16px;
+    }
+
+    .landing-public-section {
+        padding-block: 20px;
+        scroll-margin-top: 72px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-public-skip-link {
+        transition: none;
+    }
+}
+

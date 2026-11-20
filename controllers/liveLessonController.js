@@ -530,6 +530,13 @@ export const exportLiveLessonCsv = asyncHandler(async (req, res) => {
   return res.send(`\uFEFF${csv}`);
 });
 
+const liveLessonSearchFilter = (search) => {
+  const term = typeof search === "string" ? search.trim().slice(0, 100) : "";
+  if (!term) return null;
+  const pattern = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  return [{ title: pattern }, { description: pattern }, { subject: pattern }];
+};
+
 const liveLessonLibraryMatch = (req, { applyFilters = true } = {}) => {
   const match = {
     school: new mongoose.Types.ObjectId(String(req.schoolId)),
@@ -543,13 +550,48 @@ const liveLessonLibraryMatch = (req, { applyFilters = true } = {}) => {
     match.subjectId = new mongoose.Types.ObjectId(String(req.query.subjectId));
   }
   if (req.query.includeDone === "false") match.isDone = { $ne: true };
+  const search = liveLessonSearchFilter(req.query.search);
+  if (search) match.$or = search;
   return match;
+};
+
+// Folder and unfiled views read folder membership only; the lessons themselves
+// stay paginated, so opening a view never downloads the whole library.
+const liveLessonScope = async (req) => {
+  if (req.query.folderId) {
+    if (!validId(req.query.folderId)) return { error: "Folder not found." };
+    const folder = await LiveLessonFolder.findOne({
+      _id: req.query.folderId,
+      school: req.schoolId,
+      ownerId: req.user._id,
+    }).select("lessonIds").lean();
+    return folder ? { kind: "folder", folder } : { error: "Folder not found." };
+  }
+  if (req.query.unfiled === "true") {
+    const folders = await LiveLessonFolder.find({
+      school: req.schoolId,
+      ownerId: req.user._id,
+    }).select("lessonIds").lean();
+    return { kind: "unfiled", scoped: folders.flatMap((folder) => folder.lessonIds) };
+  }
+  return { kind: "all" };
 };
 
 export const listLiveLessons = asyncHandler(async (req, res) => {
   // The library is paged in the database. A teacher with hundreds of lessons should
   // never download the whole library just to look at the first page of it.
+  const scope = await liveLessonScope(req);
+  if (scope.error) {
+    return res.status(404).json({ success: false, message: scope.error });
+  }
   const match = liveLessonLibraryMatch(req);
+  if (scope.kind === "folder") match._id = { $in: scope.folder.lessonIds };
+  if (scope.kind === "unfiled") match._id = { $nin: scope.scoped };
+  const order = ["teaching", "az"].includes(req.query.order)
+    ? req.query.order
+    : scope.kind === "folder"
+      ? "teaching"
+      : "recent";
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(500, Math.max(1, requestedLimit))
@@ -559,11 +601,19 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
   const total = await LiveLesson.countDocuments(match);
   const pages = Math.max(1, Math.ceil(total / limit));
   const page = Math.min(requestedPage, pages);
-  const filtered = Boolean(match.classId || match.subjectId || match.isDone);
+  const filtered = Boolean(match.classId || match.subjectId || match.isDone || match.$or) ||
+    scope.kind !== "all";
+  const sortStages = order === "teaching" && scope.kind === "folder"
+    ? [
+        // Teaching order is the order the teacher arranged inside the folder.
+        { $addFields: { __teachingOrder: { $indexOfArray: [scope.folder.lessonIds, "$_id"] } } },
+        { $sort: { __teachingOrder: 1, _id: 1 } },
+      ]
+    : [{ $sort: order === "az" ? { title: 1, _id: 1 } : { updatedAt: -1, _id: -1 } }];
   const [rows, libraryTotal] = await Promise.all([
     LiveLesson.aggregate([
       { $match: match },
-      { $sort: { updatedAt: -1 } },
+      ...sortStages,
       { $skip: (page - 1) * limit },
       { $limit: limit },
       {
@@ -625,7 +675,14 @@ export const listLiveLessons = asyncHandler(async (req, res) => {
 export const listLiveLessonSelection = asyncHandler(async (req, res) => {
   // "Select all filtered lessons" and bulk actions only need ids and titles. Fetching
   // them stays an explicit teacher action, so opening the library never does this.
-  const rows = await LiveLesson.find(liveLessonLibraryMatch(req))
+  const scope = await liveLessonScope(req);
+  if (scope.error) {
+    return res.status(404).json({ success: false, message: scope.error });
+  }
+  const match = liveLessonLibraryMatch(req);
+  if (scope.kind === "folder") match._id = { $in: scope.folder.lessonIds };
+  if (scope.kind === "unfiled") match._id = { $nin: scope.scoped };
+  const rows = await LiveLesson.find(match)
     .select("title")
     .sort({ updatedAt: -1 })
     .lean();
@@ -644,7 +701,21 @@ export const listLiveLessonFolders = asyncHandler(async (req, res) => {
   })
     .sort({ parentId: 1, sortOrder: 1, name: 1 })
     .lean();
-  return res.json({ success: true, data: { folders } });
+  // Counts let the folder grid show how much sits inside each folder without
+  // loading a single lesson document.
+  const scopedIds = folders.flatMap((folder) => folder.lessonIds);
+  const [totalLessons, unfiled] = await Promise.all([
+    LiveLesson.countDocuments({ school: req.schoolId, ownerId: req.user._id }),
+    LiveLesson.countDocuments({
+      school: req.schoolId,
+      ownerId: req.user._id,
+      _id: { $nin: scopedIds },
+    }),
+  ]);
+  return res.json({
+    success: true,
+    data: { folders, counts: { totalLessons, unfiled } },
+  });
 });
 
 export const createLiveLessonFolder = asyncHandler(async (req, res) => {
@@ -682,13 +753,22 @@ export const updateLiveLessonFolder = asyncHandler(async (req, res) => {
   if (!validId(req.params.folderId)) {
     return res.status(400).json({ success: false, message: "Invalid folder ID." });
   }
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  if (!name || name.length > 100) {
+  const hasName = typeof req.body?.name === "string";
+  const hasPinned = typeof req.body?.pinned === "boolean";
+  const name = hasName ? req.body.name.trim() : "";
+  if (!hasName && !hasPinned) {
+    return res.status(400).json({ success: false, message: "Send a new folder name or a pin change." });
+  }
+  if (hasName && (!name || name.length > 100)) {
     return res.status(400).json({ success: false, message: "Folder names must be between 1 and 100 characters." });
   }
+  const update = {
+    ...(hasName ? { name } : {}),
+    ...(hasPinned ? { pinned: req.body.pinned } : {}),
+  };
   const folder = await LiveLessonFolder.findOneAndUpdate(
     { _id: req.params.folderId, school: req.schoolId, ownerId: req.user._id },
-    { $set: { name } },
+    { $set: update },
     { new: true, runValidators: true },
   );
   if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
@@ -761,6 +841,56 @@ export const removeLiveLessonFolderShortcut = asyncHandler(async (req, res) => {
   ).select("_id");
   if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
   return res.json({ success: true, message: "Lesson shortcut removed. The lesson itself was not changed." });
+});
+
+const bulkLessonIds = (value) =>
+  Array.isArray(value) && value.length > 0 && value.length <= 200 &&
+  value.every((id) => typeof id === "string" && validId(id));
+
+export const addLiveLessonFolderShortcuts = asyncHandler(async (req, res) => {
+  // Moving a page of lessons used to cost one request per lesson. The same
+  // ownership checks apply, just once for the whole selection.
+  const { folderId } = req.params;
+  const lessonIds = [...new Set(req.body?.lessonIds || [])];
+  if (!validId(folderId) || !bulkLessonIds(lessonIds)) {
+    return res.status(400).json({ success: false, message: "Choose a folder and up to 200 lessons." });
+  }
+  const [folder, owned] = await Promise.all([
+    LiveLessonFolder.findOne({ _id: folderId, school: req.schoolId, ownerId: req.user._id }).select("_id"),
+    LiveLesson.find({
+      _id: { $in: lessonIds },
+      school: req.schoolId,
+      ownerId: req.user._id,
+    }).select("_id").lean(),
+  ]);
+  if (!folder) return res.status(404).json({ success: false, message: "Folder not found." });
+  if (owned.length !== lessonIds.length) {
+    return res.status(404).json({ success: false, message: "Some lessons were not found in your library." });
+  }
+  await LiveLessonFolder.updateOne(
+    { _id: folder._id, school: req.schoolId, ownerId: req.user._id },
+    { $addToSet: { lessonIds: { $each: owned.map((row) => row._id) } } },
+  );
+  return res.json({ success: true, message: "Lesson shortcuts added." });
+});
+
+export const removeLiveLessonFolderShortcuts = asyncHandler(async (req, res) => {
+  const lessonIds = [...new Set(req.body?.lessonIds || [])];
+  const folderIds = [...new Set(req.body?.folderIds || [])];
+  if (!bulkLessonIds(lessonIds)) {
+    return res.status(400).json({ success: false, message: "Choose up to 200 lessons." });
+  }
+  if (!folderIds.length || folderIds.some((id) => typeof id !== "string" || !validId(id))) {
+    return res.status(400).json({ success: false, message: "Choose valid folders." });
+  }
+  const result = await LiveLessonFolder.updateMany(
+    { _id: { $in: folderIds }, school: req.schoolId, ownerId: req.user._id },
+    { $pull: { lessonIds: { $in: lessonIds } } },
+  );
+  return res.json({
+    success: true,
+    message: `Lesson shortcuts removed from ${result.modifiedCount} folder${result.modifiedCount === 1 ? "" : "s"}. The lessons themselves were not changed.`,
+  });
 });
 
 export const reorderLiveLessonFolderShortcuts = asyncHandler(async (req, res) => {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
   HiOutlinePlus,
@@ -75,6 +76,7 @@ const createEmptyTestimonial = () => ({
 });
 
 const SuperAdminLandingPageEditor = () => {
+  const { t } = useTranslation(['landing.page']);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -188,6 +190,11 @@ const SuperAdminLandingPageEditor = () => {
       </div>
 
       <div className="admin-section">
+        <div className="landing-cms-notice" role="note">
+          <h2 className="landing-cms-notice-title">{t('publicPage.editor.noticeTitle')}</h2>
+          <p className="landing-cms-notice-body">{t('publicPage.editor.noticeBody')}</p>
+        </div>
+
         <div className="admin-section-header">
           <h2>
             Form Editor
@@ -215,6 +222,7 @@ const SuperAdminLandingPageEditor = () => {
                 <div className="landing-cms-field">
                   <label>Brand Name</label>
                   <input value={contentDraft.brand?.name || ''} onChange={(event) => updatePath(['brand', 'name'], event.target.value)} />
+                  <p className="landing-cms-active-note">{t('publicPage.editor.activeBrand')}</p>
                 </div>
                 <div className="landing-cms-field">
                   <label>Tagline</label>
@@ -248,6 +256,7 @@ const SuperAdminLandingPageEditor = () => {
 
               <section className="landing-cms-card">
                 <h3>Hero Section</h3>
+                <p className="landing-cms-legacy-note">{t('publicPage.editor.legacySection')}</p>
                 <div className="landing-cms-field">
                   <label>Hero Title</label>
                   <input value={contentDraft.hero?.title || ''} onChange={(event) => updatePath(['hero', 'title'], event.target.value)} />
@@ -287,6 +296,7 @@ const SuperAdminLandingPageEditor = () => {
 
               <section className="landing-cms-card">
                 <h3>Features Section</h3>
+                <p className="landing-cms-legacy-note">{t('publicPage.editor.legacySection')}</p>
                 <div className="landing-cms-field">
                   <label>Section Title</label>
                   <input value={contentDraft.features?.title || ''} onChange={(event) => updatePath(['features', 'title'], event.target.value)} />
@@ -339,6 +349,7 @@ const SuperAdminLandingPageEditor = () => {
 
               <section className="landing-cms-card">
                 <h3>Pricing Section</h3>
+                <p className="landing-cms-legacy-note">{t('publicPage.editor.legacySection')}</p>
                 <div className="landing-cms-field">
                   <label>Section Title</label>
                   <input value={contentDraft.pricing?.title || ''} onChange={(event) => updatePath(['pricing', 'title'], event.target.value)} />
@@ -408,6 +419,7 @@ const SuperAdminLandingPageEditor = () => {
 
               <section className="landing-cms-card">
                 <h3>Testimonials and FAQ</h3>
+                <p className="landing-cms-legacy-note">{t('publicPage.editor.legacySection')}</p>
                 <div className="landing-cms-sublist">
                   {(contentDraft.testimonials?.items || []).map((item, index) => (
                     <div key={`testimonial-${index}`} className="landing-cms-subcard">
@@ -477,6 +489,7 @@ const SuperAdminLandingPageEditor = () => {
 
               <section className="landing-cms-card">
                 <h3>Final CTA and Find School</h3>
+                <p className="landing-cms-legacy-note">{t('publicPage.editor.legacySection')}</p>
                 <div className="landing-cms-field">
                   <label>Final CTA Title</label>
                   <input value={contentDraft.finalCta?.title || ''} onChange={(event) => updatePath(['finalCta', 'title'], event.target.value)} />

@@ -6,7 +6,7 @@ import {
   HiOutlineChevronUp,
   HiOutlinePlus,
 } from "react-icons/hi";
-import { wordIsUsed, wordMatches } from "./railLogic.js";
+import { wordIsUsed, nearMissFor, wordMatches } from "./railLogic.js";
 
 function Block({ children, defaultOpen = false, forceOpen = false, title }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -55,10 +55,12 @@ const matches = (row, query) => wordMatches(row, query);
 function WordButton({
   row,
   used,
+  nearMiss,
   onInsert,
   canInsert,
   insertLabel,
   meaningLabel,
+  nearMissLabel,
 }) {
   const [open, setOpen] = useState(false);
   const detailId = useId();
@@ -99,6 +101,7 @@ function WordButton({
       >
         <HiOutlinePlus size={14} aria-hidden="true" />
       </button>
+      {nearMiss && <p className="ws-word-near">{nearMissLabel(nearMiss)}</p>}
       {open && (
         <p className="ws-word-detail" id={detailId}>
           {row.partOfSpeech && <em>{row.partOfSpeech}</em>}
@@ -126,21 +129,44 @@ function SupportsRail({
   const { t } = useTranslation(["writing"]);
   const [hidden, setHidden] = useState(false);
   const [query, setQuery] = useState("");
+  const [showAllSpelling, setShowAllSpelling] = useState(false);
+  const [showAllVocabulary, setShowAllVocabulary] = useState(false);
   const supports = assignment?.supports || {};
   const wordSupport = assignment?.wordSupport || null;
   const used = usedWords || new Set();
   const needle = query.trim().toLowerCase();
   const insertLabel = (word) => t("writing:student.insertWord", { word });
   const meaningLabel = (word) => t("writing:student.wordMeaning", { word });
+  const nearMissLabel = (found) =>
+    t("writing:student.nearMissHint", { found });
   // The server counts a word, its base form, and common inflections, so the
   // tick has to use the same rule.
   const isUsed = (row) => wordIsUsed(row, used);
-  const spellingWords = (wordSupport?.spelling?.words || []).filter((row) =>
-    matches(row, needle),
+  // G1: words the draft already uses come first, and the default view stops at
+  // eight rows; the rest stay one click away.
+  const defaultShown = Number(wordSupport?.defaultShown) || 8;
+  const forRail = (rows) => [
+    ...rows.filter((row) => isUsed(row)),
+    ...rows.filter((row) => !isUsed(row)),
+  ];
+  const spellingAll = forRail(
+    (wordSupport?.spelling?.words || []).filter((row) =>
+      matches(row, needle),
+    ),
   );
-  const vocabularyWords = (wordSupport?.vocabulary?.words || []).filter(
-    (row) => matches(row, needle),
+  const vocabularyAll = forRail(
+    (wordSupport?.vocabulary?.words || []).filter((row) =>
+      matches(row, needle),
+    ),
   );
+  const spellingWords =
+    needle || showAllSpelling
+      ? spellingAll
+      : spellingAll.slice(0, defaultShown);
+  const vocabularyWords =
+    needle || showAllVocabulary
+      ? vocabularyAll
+      : vocabularyAll.slice(0, defaultShown);
   const wordBank = (supports.wordBank || []).filter((word) =>
     matches(word, needle),
   );
@@ -216,13 +242,26 @@ function SupportsRail({
                     key={`spelling:${row.word}`}
                     row={row}
                     used={isUsed(row)}
+                    nearMiss={isUsed(row) ? "" : nearMissFor(row, used)}
                     onInsert={onInsertWord}
                     canInsert={canInsert}
                     insertLabel={insertLabel(row.word)}
                     meaningLabel={meaningLabel(row.word)}
+                    nearMissLabel={nearMissLabel}
                   />
                 ))}
               </div>
+              {!needle && !showAllSpelling && spellingAll.length > defaultShown && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm ws-show-all"
+                  onClick={() => setShowAllSpelling(true)}
+                >
+                  {t("writing:student.showAllWords", {
+                    count: spellingAll.length,
+                  })}
+                </button>
+              )}
               <p className="ws-rail-hint">
                 {t("writing:student.spellingWordsHint")}
               </p>
@@ -260,16 +299,31 @@ function SupportsRail({
                           key={`vocab:${list.listId}:${row.word}`}
                           row={row}
                           used={isUsed(row)}
+                          nearMiss={isUsed(row) ? "" : nearMissFor(row, used)}
                           onInsert={onInsertWord}
                           canInsert={canInsert}
                           insertLabel={insertLabel(row.word)}
                           meaningLabel={meaningLabel(row.word)}
+                          nearMissLabel={nearMissLabel}
                         />
                       ))}
                     </div>
                   </div>
                 );
               })}
+              {!needle &&
+                !showAllVocabulary &&
+                vocabularyAll.length > defaultShown && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm ws-show-all"
+                    onClick={() => setShowAllVocabulary(true)}
+                  >
+                    {t("writing:student.showAllWords", {
+                      count: vocabularyAll.length,
+                    })}
+                  </button>
+                )}
               {!needle && wordSupport.vocabulary.truncated && (
                 <p className="ws-rail-hint">
                   {t("writing:student.vocabularyWordsTruncated", {
@@ -302,10 +356,12 @@ function SupportsRail({
                 key={`bank:${word}`}
                 row={{ word }}
                 used={isUsed({ word })}
+                nearMiss={isUsed({ word }) ? "" : nearMissFor({ word }, used)}
                 onInsert={onInsertWord}
                 canInsert={canInsert}
                 insertLabel={insertLabel(word)}
                 meaningLabel={meaningLabel(word)}
+                nearMissLabel={nearMissLabel}
               />
             ))}
           </div>

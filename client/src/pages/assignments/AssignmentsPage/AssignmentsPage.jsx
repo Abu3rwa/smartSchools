@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { HiOutlineChevronLeft } from "react-icons/hi";
 import assignmentService from "../../../services/assignmentService";
 import { selectClasses } from "../../../store/slices/classSlice";
 import { selectSubjects } from "../../../store/slices/subjectSlice";
@@ -17,7 +18,6 @@ import {
 import { selectCurrentAcademicYear } from "../../../store/slices/uiSlice";
 import { selectUser } from "../../../store/slices/authSlice";
 import AssignmentsHeader from "./components/AssignmentsHeader";
-import AssignmentsOverview from "./components/AssignmentsOverview";
 import AssignmentsPanel from "./components/AssignmentsPanel";
 import CreateAssignmentForm from "./components/CreateAssignmentForm";
 import AssignmentGradePanel from "./components/AssignmentGradePanel";
@@ -142,14 +142,6 @@ const AssignmentsPage = () => {
     academicYear,
     assignments,
   });
-
-  const classLabel = useMemo(
-    () =>
-      availableClasses.find(
-        (item) => String(item._id) === String(selectedClass),
-      )?.name || "",
-    [availableClasses, selectedClass],
-  );
 
   const metrics = useMemo(
     () => getAssignmentMetrics(assignments),
@@ -1178,25 +1170,6 @@ const AssignmentsPage = () => {
     setGradeStudents,
   ]);
 
-  const handleTabKeyDown = (event) => {
-    const tabs = canCreateAssignments
-      ? ["assignments", "integrations"]
-      : ["assignments"];
-    const currentIndex = tabs.indexOf(activeTab);
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowRight")
-      nextIndex = (currentIndex + 1) % tabs.length;
-    else if (event.key === "ArrowLeft")
-      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = tabs.length - 1;
-    else return;
-    event.preventDefault();
-    const nextTab = tabs[nextIndex];
-    setActiveTab(nextTab);
-    document.getElementById(`${nextTab}-tab`)?.focus();
-  };
-
   const rowActions = {
     canCreateAssignments,
     onPublishAssignment,
@@ -1213,57 +1186,31 @@ const AssignmentsPage = () => {
   return (
     <div className="assignments-page">
       <AssignmentsHeader
+        metrics={metrics}
         canCreateAssignments={canCreateAssignments}
+        integrationsOpen={activeTab === "integrations"}
         onCreateAssignment={onStartCreateAssignment}
+        onToggleIntegrations={() =>
+          setActiveTab((tab) =>
+            tab === "integrations" ? "assignments" : "integrations",
+          )
+        }
+        onSortNeedsGrading={() => {
+          setActiveTab("assignments");
+          setSelectedStatus("all");
+          setSortKey("needsGrading");
+        }}
+        onSortDueDate={() => {
+          setActiveTab("assignments");
+          setSortKey("dueDate");
+        }}
       />
-
-      <div
-        className="assignments-page__tabs"
-        role="tablist"
-        aria-label={t("assignments:tabs.label")}
-      >
-        <button
-          type="button"
-          role="tab"
-          id="assignments-tab"
-          aria-controls="assignments-panel"
-          aria-selected={activeTab === "assignments"}
-          tabIndex={activeTab === "assignments" ? 0 : -1}
-          className={activeTab === "assignments" ? "is-active" : ""}
-          onClick={() => setActiveTab("assignments")}
-          onKeyDown={handleTabKeyDown}
-        >
-          {t("assignments:tabs.history")}
-        </button>
-        {canCreateAssignments && (
-          <button
-            type="button"
-            role="tab"
-            id="integrations-tab"
-            aria-controls="integrations-panel"
-            aria-selected={activeTab === "integrations"}
-            tabIndex={activeTab === "integrations" ? 0 : -1}
-            className={activeTab === "integrations" ? "is-active" : ""}
-            onClick={() => setActiveTab("integrations")}
-            onKeyDown={handleTabKeyDown}
-          >
-            {t("assignments:tabs.integrations")}
-          </button>
-        )}
-      </div>
 
       <section
         id="assignments-panel"
-        role="tabpanel"
-        aria-labelledby="assignments-tab"
         hidden={activeTab !== "assignments"}
         className="assignments-page__tab-panel"
       >
-        <AssignmentsOverview
-          metrics={metrics}
-          classLabel={classLabel}
-        />
-
         <AssignmentsPanel
           assignments={assignments}
           rows={pagedAssignments}
@@ -1284,7 +1231,6 @@ const AssignmentsPage = () => {
           selectedMonth={selectedMonth}
           onMonthChange={handleMonthChange}
           filteredCount={filteredAssignments.length}
-          totalCount={assignments.length}
           page={safePage}
           pageCount={pageCount}
           pageSize={PAGE_SIZE}
@@ -1360,11 +1306,20 @@ const AssignmentsPage = () => {
       {canCreateAssignments && (
         <section
           id="integrations-panel"
-          role="tabpanel"
-          aria-labelledby="integrations-tab"
           hidden={activeTab !== "integrations"}
           className="assignments-page__tab-panel"
         >
+          <button
+            type="button"
+            className="assignments-integrations-back"
+            onClick={() => setActiveTab("assignments")}
+          >
+            <HiOutlineChevronLeft aria-hidden="true" />
+            {t("assignments:header.backToAssignments")}
+          </button>
+          <h2 className="assignments-integrations-title">
+            {t("assignments:integrations.title")}
+          </h2>
           <p className="text-muted">{t("assignments:integrations.help")}</p>
           <ClassroomPanel
             classroom={classroom}

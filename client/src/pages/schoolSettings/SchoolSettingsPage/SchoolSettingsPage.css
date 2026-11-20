@@ -221,7 +221,7 @@
 .school-settings-page .users-table th,
 .school-settings-page .users-table td {
     padding: var(--spacing-md) var(--spacing-lg);
-    text-align: left;
+    text-align: start;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -365,6 +365,68 @@
 
 .school-settings-page .users-filter-empty-state {
     margin: var(--spacing-md);
+}
+
+.school-settings-page .users-filters-toggle {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.school-settings-page .users-filters-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--primary-700, var(--primary-600));
+    background: color-mix(in srgb, var(--primary-500) 22%, transparent);
+}
+
+.school-settings-page .users-name-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.school-settings-page .users-name-primary {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.school-settings-page .users-email-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    word-break: break-word;
+}
+
+.school-settings-page .users-role-chip--assigned {
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
+
+.school-settings-page .users-actions-header {
+    text-align: end;
+}
+
+.school-settings-page .users-load-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+.school-settings-page .users-load-error svg {
+    color: var(--warning-600, #d97706);
 }
 
 .school-settings-modal-overlay {
@@ -1035,8 +1097,17 @@
         padding: var(--spacing-sm);
     }
 
+    .school-settings-page .users-filters-toggle {
+        display: inline-flex;
+        min-height: 44px;
+    }
+
     .school-settings-page .users-filters-grid {
         grid-template-columns: 1fr;
+    }
+
+    .school-settings-page .users-filters-grid.is-collapsed {
+        display: none;
     }
 
     .school-settings-page .users-table {
@@ -1093,6 +1164,7 @@
 
         .school-settings-page .users-mobile-actions .btn {
             width: 100%;
+            min-height: 44px;
         }
 
     .school-settings-modal-overlay {
@@ -1138,4 +1210,513 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ---- User editor modal ---- */
+
+.school-settings-modal--user-editor {
+    width: min(900px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+}
+
+.user-editor-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.user-editor-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.user-editor-body,
+.user-editor-role-list,
+.user-editor-permission-list {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--primary-500) 45%, transparent) transparent;
+}
+
+.user-editor-body::-webkit-scrollbar,
+.user-editor-role-list::-webkit-scrollbar,
+.user-editor-permission-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+.user-editor-body::-webkit-scrollbar-thumb,
+.user-editor-role-list::-webkit-scrollbar-thumb,
+.user-editor-permission-list::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    background-color: color-mix(in srgb, var(--primary-500) 45%, transparent);
+}
+
+.user-editor-body::-webkit-scrollbar-thumb:hover,
+.user-editor-role-list::-webkit-scrollbar-thumb:hover,
+.user-editor-permission-list::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--primary-500) 70%, transparent);
+}
+
+.user-editor-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.user-editor-header-email {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    word-break: break-word;
+}
+
+.school-settings-modal--user-editor .school-settings-modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.user-editor-section {
+    display: grid;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-secondary) 24%, transparent);
+}
+
+.user-editor-section-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.user-editor-fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.user-editor-fieldset:disabled {
+    opacity: 0.62;
+}
+
+.user-editor-fieldset:disabled input,
+.user-editor-fieldset:disabled select,
+.user-editor-fieldset:disabled label {
+    cursor: not-allowed;
+}
+
+.user-editor-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.user-editor-role-list {
+    max-height: 264px;
+}
+
+.user-editor-role-item {
+    align-items: flex-start;
+    padding: 0.45rem 0.25rem;
+    border-radius: var(--radius-sm);
+}
+
+.user-editor-role-item:hover {
+    background: color-mix(in srgb, var(--primary-500) 8%, transparent);
+}
+
+.user-editor-role-item input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--primary-600);
+}
+
+.user-editor-role-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+}
+
+.user-editor-role-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+}
+
+.user-editor-role-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.user-editor-active-tag {
+    flex-shrink: 0;
+    align-self: center;
+    padding: 0.14rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--primary-700, var(--primary-600));
+    background: color-mix(in srgb, var(--primary-500) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-500) 40%, transparent);
+}
+
+.user-editor-legacy {
+    margin-top: var(--spacing-sm);
+}
+
+.user-editor-legacy summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.user-editor-legacy .user-editor-role-list {
+    margin-top: var(--spacing-xs);
+}
+
+.user-editor-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--danger-500, #ef4444) 45%, transparent);
+    background: color-mix(in srgb, var(--danger-500, #ef4444) 12%, transparent);
+    color: var(--text-primary);
+    font-size: 0.86rem;
+}
+
+.user-editor-alert svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--error-text);
+}
+
+.user-editor-alert-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.user-editor-notice {
+    margin: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--warning-500, #f59e0b) 45%, transparent);
+    background: color-mix(in srgb, var(--warning-500, #f59e0b) 12%, transparent);
+    font-size: 0.84rem;
+    color: var(--text-primary);
+}
+
+.user-editor-field-error {
+    display: block;
+    margin-top: var(--spacing-xs);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--error-text);
+}
+
+.user-editor-inline-action {
+    border: none;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    font-weight: 700;
+    color: var(--primary-600);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.user-editor-permission-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.user-editor-permission-search {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    align-items: center;
+}
+
+.user-editor-permission-search svg {
+    position: absolute;
+    inset-inline-start: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.user-editor-permission-search input {
+    width: 100%;
+    min-height: 38px;
+    margin: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-inline-start: 34px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.user-editor-permission-search input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--primary-500) 45%, var(--border-color));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 18%, transparent);
+}
+
+.user-editor-selected-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.user-editor-selected-toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-600);
+}
+
+.user-editor-hidden-selected {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.user-editor-permission-list {
+    max-height: 340px;
+}
+
+.user-editor-permission-empty {
+    margin: 0;
+    padding: var(--spacing-sm);
+}
+
+.user-editor-permission-list .school-settings-permission-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--primary-600);
+}
+
+.user-editor-granted-tag {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: 8px;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-full);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--success-700, #166534);
+    background: color-mix(in srgb, var(--success-500, #22c55e) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--success-500, #22c55e) 38%, transparent);
+    vertical-align: middle;
+}
+
+.user-editor-scope-meta {
+    margin-top: 3px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--warning-700, #92400e);
+}
+
+.user-editor-footer {
+    justify-content: space-between;
+    align-items: center;
+}
+
+.user-editor-dirty-hint {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--warning-700, #92400e);
+}
+
+.user-editor-footer-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+@media (max-width: 680px) {
+    .school-settings-modal-overlay:has(.school-settings-modal--user-editor) {
+        padding: 0;
+    }
+
+    .school-settings-modal--user-editor {
+        width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border: none;
+    }
+
+    .school-settings-modal--user-editor .user-editor-header {
+        padding-top: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px));
+        padding-inline-start: calc(var(--spacing-sm) + env(safe-area-inset-left, 0px));
+        padding-inline-end: calc(var(--spacing-sm) + env(safe-area-inset-right, 0px));
+    }
+
+    .school-settings-modal--user-editor .user-editor-body {
+        padding: var(--spacing-sm);
+        padding-inline-start: calc(var(--spacing-sm) + env(safe-area-inset-left, 0px));
+        padding-inline-end: calc(var(--spacing-sm) + env(safe-area-inset-right, 0px));
+    }
+
+    .school-settings-modal--user-editor .user-editor-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
+        padding-inline-start: calc(var(--spacing-sm) + env(safe-area-inset-left, 0px));
+        padding-inline-end: calc(var(--spacing-sm) + env(safe-area-inset-right, 0px));
+    }
+
+    .user-editor-footer-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .user-editor-footer-actions .btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .school-settings-modal--user-editor .school-settings-modal-close {
+        width: 44px;
+        height: 44px;
+    }
+
+    .user-editor-section {
+        padding: var(--spacing-sm);
+    }
+
+    .user-editor-role-item {
+        min-height: 44px;
+        align-items: center;
+    }
+
+    .user-editor-legacy summary {
+        min-height: 44px;
+    }
+
+    .user-editor-permission-list .school-settings-permission-item {
+        min-height: 44px;
+        padding: 0.5rem 0;
+    }
+
+    .user-editor-selected-toggle {
+        min-height: 44px;
+    }
+
+    .user-editor-permission-search input {
+        min-height: 44px;
+    }
+
+    .school-settings-modal--user-editor select,
+    .school-settings-modal--user-editor .school-settings-title-input-row input {
+        min-height: 44px;
+    }
+
+    .school-settings-modal--user-editor .school-settings-title-add-btn {
+        min-height: 44px;
+    }
+
+    .school-settings-modal--user-editor .school-settings-title-chip button {
+        min-width: 28px;
+        min-height: 28px;
+    }
+}
+
+.school-settings-page .academic-period-card {
+    margin-bottom: var(--spacing-lg);
+    padding: clamp(1rem, 1.2vw + 0.8rem, 1.5rem);
+    max-width: 860px;
+    border: 1px solid color-mix(in srgb, var(--primary-400) 35%, var(--border-color));
+}
+
+.school-settings-page .academic-period-head h4 {
+    font-size: 1rem;
+    margin: 0 0 var(--spacing-xs) 0;
+}
+
+.school-settings-page .academic-period-head p {
+    margin: 0 0 var(--spacing-md) 0;
+}
+
+.school-settings-page .academic-period-dates {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: 0.8125rem;
+}
+
+.school-settings-page .academic-period-error {
+    color: var(--error-text);
+    font-size: 0.8125rem;
+    margin: 0 0 var(--spacing-sm) 0;
+}
+
+.school-settings-page .academic-period-error-block {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.school-settings-page .academic-period-error-block p {
+    margin: 0;
+    color: var(--error-text);
+}
+
+.school-settings-page .academic-period-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+
+.school-settings-page .academic-period-confirm {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    border: 1px solid color-mix(in srgb, var(--warning-500, #f59e0b) 45%, var(--border-color));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--warning-500, #f59e0b) 7%, var(--bg-card));
+}
+
+.school-settings-page .academic-period-confirm h5 {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: 0.9375rem;
+}
+
+.school-settings-page .academic-period-confirm p {
+    margin: 0 0 var(--spacing-xs) 0;
+    font-size: 0.875rem;
 }

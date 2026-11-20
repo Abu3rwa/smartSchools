@@ -407,12 +407,13 @@ test('owner release lets the case owner or homeroom teacher approve only', () =>
     assert.equal(canApproveVersion({ caseDoc, user: {}, settings }), false);
 });
 
-test('counselor approval adds the assigned counselor, admin approval removes everyone else', () => {
+test('counselor approval is for the assigned counselor or a designated admin only', () => {
     const counselorMode = { ...SUPPORT_SETTINGS_DEFAULTS, approvalMode: 'counselor_approve' };
     const canWith = (user) => canApproveVersion({ caseDoc, user, settings: counselorMode });
-    assert.equal(canWith(approvalUser('OWNER', 'teacher')), true);
+    assert.equal(canWith(approvalUser('OWNER', 'teacher')), false);
     assert.equal(canWith(approvalUser('COUNSELOR', 'counselor')), true);
     assert.equal(canWith(approvalUser('ASSISTANT', 'counselor')), true);
+    assert.equal(canWith(approvalUser('ADMIN', 'teacher', ['admin'])), true);
     assert.equal(canWith(approvalUser('STRANGER', 'teacher')), false);
 
     const adminMode = { ...SUPPORT_SETTINGS_DEFAULTS, approvalMode: 'admin_approve' };

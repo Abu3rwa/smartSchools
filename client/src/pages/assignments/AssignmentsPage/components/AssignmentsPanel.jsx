@@ -26,7 +26,6 @@ const AssignmentsPanel = ({
     selectedMonth,
     onMonthChange,
     filteredCount,
-    totalCount,
     page,
     pageCount,
     pageSize,
@@ -77,8 +76,20 @@ const AssignmentsPanel = ({
                     ))}
                 </div>
 
+                <AssignmentsToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={onSearchChange}
+                    selectedClass={selectedClass}
+                    onClassChange={onClassChange}
+                    availableClasses={availableClasses}
+                    selectedSubject={selectedSubject}
+                    onSubjectChange={onSubjectChange}
+                    availableSubjects={availableSubjects}
+                    selectedMonth={selectedMonth}
+                    onMonthChange={onMonthChange}
+                />
+
                 <label className="assignments-sort">
-                    <span>{t('assignments:toolbar.sortBy')}</span>
                     <select
                         value={sortKey}
                         onChange={(event) => onSortChange(event.target.value)}
@@ -91,21 +102,6 @@ const AssignmentsPanel = ({
                     </select>
                 </label>
             </div>
-
-            <AssignmentsToolbar
-                searchTerm={searchTerm}
-                onSearchChange={onSearchChange}
-                selectedClass={selectedClass}
-                onClassChange={onClassChange}
-                availableClasses={availableClasses}
-                selectedSubject={selectedSubject}
-                onSubjectChange={onSubjectChange}
-                availableSubjects={availableSubjects}
-                selectedMonth={selectedMonth}
-                onMonthChange={onMonthChange}
-                visibleCount={filteredCount}
-                totalCount={totalCount}
-            />
 
             {selectedIds.size > 0 && (
                 <div className="assignments-bulkbar">

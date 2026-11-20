@@ -1,4 +1,9 @@
 import mongoose from 'mongoose';
+import { createHash } from 'node:crypto';
+import { behaviorRoles, canManageBehaviorAdmin, canApproveBehaviorIncident } from './accessService.js';
+import { queryBehaviorEvents, behaviorEventPipeline } from './eventQueryService.js';
+import { getBehaviorSettings } from './settingsService.js';
+import { recordBehaviorAudit } from './auditService.js';
 import Student from '../../models/Student.js';
 import Class from '../../models/Class.js';
 import StudentBehavior from '../../models/StudentBehavior.js';
@@ -52,18 +57,9 @@ export const matchedClassId = (student, classIds) => {
 
 export const isStudentInClasses = (student, classIds) => Boolean(matchedClassId(student, classIds));
 
-/**
- * Recommendation shown right after saving. Repeat counts are same-category
- * occurrences in the last 14 days, including the record being saved.
- */
-export const buildFollowUpSuggestion = ({ category, severity, recentCount = 1 }) => {
-    if (severity === 'serious') return 'admin_review';
-    if (category === 'bullying') return 'counseling_referral';
-    if (recentCount >= 4) return 'detention';
-    if (recentCount >= 2) return 'parent_contact';
-    if (severity === 'moderate') return 'conversation';
-    return 'warning_reflection';
-};
+export const buildFollowUpSuggestion = ({ severity }) => (
+    severity === 'serious' ? 'admin_review' : 'conversation'
+);
 
 export const buildTrend = ({ recent = 0, previous = 0 }) => ({
     recent,
@@ -101,7 +97,19 @@ export const toEntryDto = (row = {}) => {
     const severity = mapStoredSeverity(row.severity);
     const description = String(row.description || '').trim();
     return {
-        id: String(row._id || ''),
+        id: row.source === 'formal' ? `formal:${row._id}` : String(row._id || ''),
+        eventId: `${row.source === 'formal' ? 'formal' : 'record'}:${row._id}`,
+        source: row.source || 'record',
+        formalCase: row.formalCase ? {
+            id: String(row.formalCase._id),
+            status: row.formalCase.status,
+            approverRoles: row.formalCase.approval?.approverRoles || []
+        } : null,
+        consequenceCounted: Boolean(row.formalCase && !['voided', 'merged'].includes(row.formalCase.status)),
+        review: { status: row.review?.status || 'not_required' },
+        communication: row.communication || { status: row.parentNotified ? 'recorded' : 'not_sent', method: row.parentNotificationMethod || null },
+        followUpAction: row.followUpAction || '',
+        followUpDate: row.followUpDate || null,
         student: studentDto(row.student),
         category: row.category || 'other',
         severity,
@@ -120,15 +128,16 @@ const entryPopulate = (query) => query
     .populate('student', 'firstName lastName studentId currentClass')
     .populate('class', 'name grade section');
 
-const teacherClassIdsFor = async (req) => {
-    if (req.user.role !== 'teacher') return null;
+export const teacherClassIdsFor = async (req) => {
+    if (canManageBehaviorAdmin(req.user)) return null;
+    if (!behaviorRoles(req.user).includes('teacher')) throw forbidden('You cannot access the behavior log.');
     const teacher = await resolveTeacherProfile(req);
     if (!teacher) return [];
     return getTeacherClassIds(teacher._id);
 };
 
 const resolveScope = async (req) => {
-    const filter = { school: req.schoolId };
+    const filter = { school: req.schoolId, ...(canManageBehaviorAdmin(req.user) ? {} : { isConfidential: { $ne: true } }) };
     const classIds = await teacherClassIdsFor(req);
     if (classIds) {
         if (classIds.length === 0) return { filter: null, classIds };
@@ -143,7 +152,7 @@ const resumeScope = async (req) => {
     return scope;
 };
 
-const studentAccess = async (req, studentId) => {
+export const studentAccess = async (req, studentId) => {
     if (!mongoose.isValidObjectId(studentId)) throw badRequest('That student could not be found.');
 
     const student = await Student.findOne({ _id: studentId, school: req.schoolId })
@@ -233,74 +242,51 @@ export const listRoster = async ({ req }) => {
     return { students };
 };
 
-export const getOverview = async ({ req }) => {
-    const scope = await resolveScope(req);
-    if (!scope.filter) {
-        return {
-            counts: { today: 0, week: 0, needsFollowUp: 0, serious: 0 },
-            recent: [],
-            studentCount: 0
-        };
-    }
+const eventScope = async (req, studentId = null) => ({
+    schoolId: req.schoolId,
+    studentId,
+    classIds: await teacherClassIdsFor(req),
+    includeConfidential: canManageBehaviorAdmin(req.user)
+});
 
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const weekStart = startOfWeek(now);
-
-    const studentFilter = { school: req.schoolId, status: 'active' };
-    if (scope.classIds) {
-        studentFilter.$or = [
-            { currentClass: { $in: scope.classIds } },
-            { enrolledClasses: { $in: scope.classIds } }
-        ];
-    }
-
-    const [today, week, needsFollowUp, serious, recentRows, studentCount] = await Promise.all([
-        StudentBehavior.countDocuments({ ...scope.filter, incidentDate: { $gte: todayStart } }),
-        StudentBehavior.countDocuments({ ...scope.filter, incidentDate: { $gte: weekStart } }),
-        StudentBehavior.countDocuments({ ...scope.filter, followUpRequired: true, followUpCompletedAt: null }),
-        StudentBehavior.countDocuments({
-            ...scope.filter,
-            incidentDate: { $gte: weekStart },
-            severity: { $in: ['high', 'critical'] }
-        }),
-        entryPopulate(StudentBehavior.find({ ...scope.filter, incidentDate: { $gte: todayStart } }))
-            .sort({ incidentDate: -1 })
-            .limit(20)
-            .lean(),
-        Student.countDocuments(studentFilter)
+const eventCounts = async (scope, windows) => {
+    const [counts] = await StudentBehavior.aggregate([
+        ...behaviorEventPipeline(scope),
+        { $facet: Object.fromEntries(Object.entries(windows).map(([key, match]) => [key, [{ $match: match }, { $count: 'value' }]])) }
     ]);
-
-    return {
-        counts: { today, week, needsFollowUp, serious },
-        recent: recentRows.map(toEntryDto),
-        studentCount
-    };
+    return Object.fromEntries(Object.keys(windows).map((key) => [key, counts?.[key]?.[0]?.value || 0]));
 };
 
-export const listEntries = async ({ req, range = 'all', studentId = null, severity = null, limit = 50 }) => {
-    const scope = await resolveScope(req);
-    if (!scope.filter) return { items: [], total: 0 };
-
-    const filter = { ...scope.filter };
-    if (studentId) {
-        if (!mongoose.isValidObjectId(studentId)) throw badRequest('That student could not be found.');
-        filter.student = studentId;
-    }
-    if (severity) filter.severity = { $in: STORED_SEVERITIES_FOR_FILTER[severity] || [] };
-    if (range === 'today') filter.incidentDate = { $gte: startOfDay() };
-    if (range === 'week') filter.incidentDate = { $gte: startOfWeek() };
-
-    const pageSize = Math.min(Math.max(Number(limit) || 50, 1), 100);
-    const [rows, total] = await Promise.all([
-        entryPopulate(StudentBehavior.find(filter))
-            .sort({ incidentDate: -1 })
-            .limit(pageSize)
-            .lean(),
-        StudentBehavior.countDocuments(filter)
+export const getOverview = async ({ req }) => {
+    const scope = await eventScope(req);
+    const [counts, recent, roster] = await Promise.all([
+        eventCounts(scope, {
+            today: { incidentDate: { $gte: startOfDay() } },
+            week: { incidentDate: { $gte: startOfWeek() } },
+            needsFollowUp: { followUpRequired: true, followUpCompletedAt: null },
+            serious: { incidentDate: { $gte: startOfWeek() }, severity: { $in: ['high', 'critical'] } }
+        }),
+        listEntries({ req, limit: 20 }),
+        listRoster({ req })
     ]);
+    return { counts, recent: recent.items, studentCount: roster.students.length };
+};
 
-    return { items: rows.map(toEntryDto), total };
+export const listEntries = async ({ req, range = 'all', studentId = null, severity = null, limit = 50, offset = 0, followUp = false, review = false, classId = null }) => {
+    const scope = await eventScope(req, studentId);
+    if (studentId) await studentAccess(req, studentId);
+    if (classId) {
+        if (scope.classIds && !scope.classIds.some((id) => String(id) === classId)) throw forbidden('This class is not assigned to you.');
+        scope.classIds = [classId];
+    }
+    const match = {};
+    if (severity) match.severity = { $in: STORED_SEVERITIES_FOR_FILTER[severity] || [] };
+    if (range === 'today') match.incidentDate = { $gte: startOfDay() };
+    if (range === 'week') match.incidentDate = { $gte: startOfWeek() };
+    if (followUp) Object.assign(match, { followUpRequired: true, followUpCompletedAt: null });
+    if (review) match.$or = [{ 'review.status': 'pending' }, { 'formalCase.status': 'pending_approval' }, { 'communication.status': 'awaiting_review' }];
+    const result = await queryBehaviorEvents({ ...scope, match, offset, limit: Math.min(Math.max(Number(limit) || 50, 1), 100) });
+    return { items: result.items.map(toEntryDto), total: result.total };
 };
 
 export const createEntry = async ({ req, payload }) => {
@@ -317,14 +303,21 @@ export const createEntry = async ({ req, payload }) => {
         .filter((id) => id !== String(student._id));
     const otherStudents = await assertOtherStudents({ req, studentIds: otherIds, classIds });
 
-    const recentSameCategory = await StudentBehavior.countDocuments({
-        school: req.schoolId,
-        student: student._id,
-        category: category.key,
-        incidentDate: { $gte: new Date(occurredAt.getTime() - 14 * DAY_MS) }
-    });
+    const requestFingerprint = createHash('sha256').update(JSON.stringify([
+        payload.student, payload.category, payload.severity, notes, payload.occurredAt || null,
+        otherIds.sort(), followUpRequired, payload.followUpAction || '', payload.followUpDate || null,
+        payload.originalDescription || ''
+    ])).digest('hex');
+    const requestScope = { school: req.schoolId, reportedBy: req.user._id, requestKey: payload.requestKey };
+    if (payload.requestKey) {
+        const previous = await entryPopulate(StudentBehavior.findOne(requestScope).select('+requestFingerprint')).lean();
+        if (previous) {
+            if (previous.requestFingerprint !== requestFingerprint) throw Object.assign(new Error('This save was already used for different details. Start a new record.'), { statusCode: 409, code: 'SAVE_CONFLICT' });
+            return { entry: toEntryDto(previous), followUp: { key: buildFollowUpSuggestion({ severity: payload.severity }) } };
+        }
+    }
 
-    const created = await StudentBehavior.create({
+    const fields = {
         student: student._id,
         school: req.schoolId,
         class: classId || undefined,
@@ -338,21 +331,25 @@ export const createEntry = async ({ req, payload }) => {
         reportedBy: req.user._id,
         otherStudentsInvolved: otherStudents,
         followUpRequired,
-        followUpDate: followUpRequired ? occurredAt : undefined
-    });
-
-    const saved = await entryPopulate(StudentBehavior.findById(created._id)).lean();
-
-    return {
-        entry: toEntryDto(saved),
-        followUp: {
-            key: buildFollowUpSuggestion({
-                category: category.key,
-                severity: payload.severity,
-                recentCount: recentSameCategory + 1
-            })
-        }
+        followUpDate: followUpRequired ? (payload.followUpDate ? new Date(payload.followUpDate) : occurredAt) : undefined,
+        followUpAction: payload.followUpAction || '',
+        followUpOwner: followUpRequired ? req.user._id : undefined,
+        originalDescription: payload.originalDescription || undefined,
+        review: { required: serious, status: serious ? 'pending' : 'not_required' },
+        ...(payload.requestKey ? { requestKey: payload.requestKey, requestFingerprint } : {})
     };
+    let created;
+    try {
+        created = await StudentBehavior.create(fields);
+    } catch (error) {
+        if (error.code !== 11000 || !payload.requestKey) throw error;
+        const previous = await entryPopulate(StudentBehavior.findOne(requestScope).select('+requestFingerprint')).lean();
+        if (!previous || previous.requestFingerprint !== requestFingerprint) throw Object.assign(new Error('This save was already used for different details.'), { statusCode: 409, code: 'SAVE_CONFLICT' });
+        return { entry: toEntryDto(previous), followUp: { key: buildFollowUpSuggestion({ severity: payload.severity }) } };
+    }
+    await recordBehaviorAudit({ schoolId: req.schoolId, actor: req.user, action: 'routine_record_created', targetType: 'StudentBehavior', targetId: created._id });
+    const saved = await entryPopulate(StudentBehavior.findOne({ _id: created._id, school: req.schoolId })).lean();
+    return { entry: toEntryDto(saved), followUp: { key: buildFollowUpSuggestion({ severity: payload.severity }) } };
 };
 
 export const getStudentSummary = async ({ req, studentId }) => {
@@ -361,72 +358,56 @@ export const getStudentSummary = async ({ req, studentId }) => {
     const recentStart = new Date(now.getTime() - 14 * DAY_MS);
     const previousStart = new Date(now.getTime() - 28 * DAY_MS);
 
-    const [rows, recentCount, previousCount, pendingFollowUps, seriousRecent] = await Promise.all([
-        entryPopulate(StudentBehavior.find({
-            school: req.schoolId,
-            student: student._id
-        }))
-            .sort({ incidentDate: -1 })
-            .limit(20)
-            .lean(),
-        StudentBehavior.countDocuments({ school: req.schoolId, student: student._id, incidentDate: { $gte: recentStart } }),
-        StudentBehavior.countDocuments({
-            school: req.schoolId,
-            student: student._id,
-            incidentDate: { $gte: previousStart, $lt: recentStart }
-        }),
-        StudentBehavior.countDocuments({ school: req.schoolId, student: student._id, followUpRequired: true, followUpCompletedAt: null }),
-        StudentBehavior.countDocuments({
-            school: req.schoolId,
-            student: student._id,
-            incidentDate: { $gte: recentStart },
-            severity: { $in: ['high', 'critical'] }
+    const scope = await eventScope(req, studentId);
+    const [history, counts] = await Promise.all([
+        listEntries({ req, studentId, limit: 20 }),
+        eventCounts(scope, {
+            recent: { incidentDate: { $gte: recentStart } },
+            previous: { incidentDate: { $gte: previousStart, $lt: recentStart } },
+            pendingFollowUps: { followUpRequired: true, followUpCompletedAt: null },
+            seriousRecent: { incidentDate: { $gte: recentStart }, severity: { $in: ['high', 'critical'] } }
         })
     ]);
-
-    const latest = rows[0] || null;
-    let suggestedFollowUp = null;
-    if (latest) {
-        const recentSameCategory = await StudentBehavior.countDocuments({
-            school: req.schoolId,
-            student: student._id,
-            category: latest.category,
-            incidentDate: { $gte: recentStart }
-        });
-        suggestedFollowUp = {
-            key: buildFollowUpSuggestion({
-                category: latest.category,
-                severity: mapStoredSeverity(latest.severity),
-                recentCount: recentSameCategory
-            })
-        };
-    }
-
     return {
         student: studentDto(student),
-        entries: rows.map(toEntryDto),
-        trend: buildTrend({ recent: recentCount, previous: previousCount }),
-        alert: { key: buildAlert({ seriousRecent, pendingFollowUps, recent: recentCount }) },
-        pendingFollowUps,
-        suggestedFollowUp
+        entries: history.items,
+        trend: buildTrend(counts),
+        alert: { key: buildAlert(counts) },
+        pendingFollowUps: counts.pendingFollowUps,
+        suggestedFollowUp: history.items.length ? { key: buildFollowUpSuggestion(history.items[0]) } : null
     };
 };
 
-export const completeFollowUp = async ({ req, entryId, note }) => {
+export const requireEntry = async (req, entryId) => {
     if (!mongoose.isValidObjectId(entryId)) throw notFound('That entry could not be found.');
     const scope = await resumeScope(req);
-
     const entry = await StudentBehavior.findOne({ ...scope.filter, _id: entryId });
     if (!entry) throw notFound('That entry could not be found.');
+    await studentAccess(req, entry.student);
+    return entry;
+};
+
+export const completeFollowUp = async ({ req, entryId, note }) => {
+    const entry = await requireEntry(req, entryId);
     if (!entry.followUpRequired) throw badRequest('This entry does not need a follow-up.');
-
-    if (!entry.followUpCompletedAt) {
-        entry.followUpCompletedAt = new Date();
-        entry.followUpCompletedBy = req.user._id;
-        entry.followUpNotes = String(note || '').trim();
-        await entry.save();
-    }
-
-    const saved = await entryPopulate(StudentBehavior.findById(entry._id)).lean();
+    if (entry.review?.status === 'pending') throw badRequest('An authorized reviewer must review this serious record first.', 'REVIEW_REQUIRED');
+    const changed = await StudentBehavior.updateOne(
+        { _id: entry._id, school: req.schoolId, followUpCompletedAt: null, 'review.status': { $ne: 'pending' } },
+        { $set: { followUpCompletedAt: new Date(), followUpCompletedBy: req.user._id, followUpNotes: String(note || '').trim() } }
+    );
+    if (changed.modifiedCount) await recordBehaviorAudit({ schoolId: req.schoolId, actor: req.user, action: 'routine_follow_up_completed', targetType: 'StudentBehavior', targetId: entry._id });
+    const saved = await entryPopulate(StudentBehavior.findOne({ _id: entry._id, school: req.schoolId })).lean();
     return { entry: toEntryDto(saved) };
+};
+
+export const reviewEntry = async ({ req, entryId, note }) => {
+    const entry = await requireEntry(req, entryId);
+    const settings = await getBehaviorSettings(req.schoolId);
+    if (!canApproveBehaviorIncident(req.user, settings)) throw forbidden('Your role cannot review this record.');
+    await StudentBehavior.updateOne(
+        { _id: entry._id, school: req.schoolId, 'review.status': 'pending' },
+        { $set: { 'review.status': 'reviewed', 'review.reviewedBy': req.user._id, 'review.reviewedAt': new Date(), 'review.note': note || '' } }
+    );
+    await recordBehaviorAudit({ schoolId: req.schoolId, actor: req.user, action: 'routine_record_reviewed', targetType: 'StudentBehavior', targetId: entry._id });
+    return { reviewed: true };
 };

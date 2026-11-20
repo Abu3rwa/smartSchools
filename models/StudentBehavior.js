@@ -2,6 +2,18 @@ import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
 const studentBehaviorSchema = new mongoose.Schema({
+    requestKey: { type: String, maxlength: 80 },
+    requestFingerprint: { type: String, select: false },
+    originalDescription: { type: String, maxlength: 1000, select: false },
+    followUpAction: { type: String, maxlength: 500, default: '' },
+    followUpOwner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    review: {
+        required: { type: Boolean, default: false },
+        status: { type: String, enum: ['not_required', 'pending', 'reviewed'], default: 'not_required' },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        reviewedAt: Date,
+        note: { type: String, maxlength: 500 }
+    },
     student: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Student',
@@ -264,6 +276,10 @@ const studentBehaviorSchema = new mongoose.Schema({
 
 // Apply tenant isolation
 studentBehaviorSchema.plugin(tenantIsolationPlugin);
+
+studentBehaviorSchema.index({ school: 1, reportedBy: 1, requestKey: 1 }, {
+    unique: true, partialFilterExpression: { requestKey: { $type: 'string' } }
+});
 
 // Indexes
 studentBehaviorSchema.index({ student: 1, incidentDate: -1 });

@@ -14,12 +14,12 @@ const taskSchema = new mongoose.Schema({
 const goalSchema = new mongoose.Schema({
     id: { type: String, required: true, trim: true, maxlength: 24 },
     concern: { type: String, trim: true, maxlength: 30, default: '' },
-    domain: { type: String, enum: ['academic', 'character'], default: 'academic' },
+    domain: { type: String, enum: ['academic', 'character', 'general'], default: 'academic' },
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     subjectName: { type: String, trim: true, maxlength: 120, default: '' },
     sourceRole: {
         type: String,
-        enum: ['homeroom', 'teacher', 'counselor', 'parent', 'student', 'mixed', ''],
+        enum: ['teacher', 'parent', 'student', 'staff', 'homeroom', 'counselor', 'mixed', ''],
         default: '',
     },
     title: { type: String, required: true, trim: true, maxlength: 200 },
@@ -28,6 +28,21 @@ const goalSchema = new mongoose.Schema({
     descriptionAr: { type: String, trim: true, maxlength: 600, default: '' },
     successLook: { type: String, trim: true, maxlength: 400, default: '' },
     successLookAr: { type: String, trim: true, maxlength: 400, default: '' },
+    baseline: { type: String, trim: true, maxlength: 400, default: '' },
+    targetDate: { type: Date, default: null },
+    responsibleRole: {
+        type: String,
+        enum: ['teacher', 'counselor', 'family', 'student', 'school', ''],
+        default: '',
+    },
+    responsibleUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    outcome: {
+        type: String,
+        enum: ['', 'met', 'partially_met', 'not_met', 'insufficient_evidence'],
+        default: '',
+    },
+    outcomeNote: { type: String, trim: true, maxlength: 800, default: '' },
+    reviewedAt: { type: Date, default: null },
     homeTasks: { type: [taskSchema], default: [] },
     classTasks: { type: [taskSchema], default: [] },
 }, { _id: false });

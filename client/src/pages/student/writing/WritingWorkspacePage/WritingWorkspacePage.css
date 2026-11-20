@@ -1,18 +1,48 @@
 .ws-page {
-  --ws-teal: var(--primary);
+  /* Same rules as the teacher board: accent text is the bright amber, the
+     primary brown stays on buttons; status colours are theme pairs. */
+  --ws-teal: var(--text-accent, var(--primary));
   --ws-ink: var(--text-primary, #0f172a);
-  --ws-muted: var(--text-muted, #64748b);
+  --ws-muted: #94a3b8;
   --ws-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --ws-surface: var(--bg-card, #ffffff);
-  --ws-surface-2: var(--bg-secondary, #f8fafc);
+  --ws-surface-2: var(--bg-primary, #f8fafc);
   --ws-soft: color-mix(in srgb, var(--primary) 10%, transparent);
-  --ws-amber: #d97706;
-  --ws-rose: #dc2626;
+  --ws-amber: var(--ws-warning-ink);
+  --ws-rose: var(--status-error, #dc2626);
+  --ws-success-ink: #34d399;
+  --ws-success-wash: color-mix(in srgb, #10b981 16%, transparent);
+  --ws-success-line: color-mix(in srgb, #34d399 40%, transparent);
+  --ws-warning-ink: #fb923c;
+  --ws-warning-wash: color-mix(in srgb, #fb923c 15%, transparent);
+  --ws-warning-line: color-mix(in srgb, #fb923c 45%, transparent);
+  /* Language corrections: one red meaning, tuned per theme below. */
+  --ws-language-ink: #991b1b;
+  --ws-language-rule: #b91c1c;
+  --ws-language-strong: #b91c1c;
+  --ws-language-wash: color-mix(in srgb, #dc2626 14%, transparent);
 
   display: flex;
   flex-direction: column;
   gap: 14px;
   color: var(--ws-ink);
+}
+[data-theme="light"] .ws-page {
+  --ws-muted: #667085;
+  --ws-surface-2: #f2f4f7;
+  --ws-soft: color-mix(in srgb, var(--primary) 6%, transparent);
+  --ws-success-ink: #166534;
+  --ws-success-wash: color-mix(in srgb, #16a34a 12%, transparent);
+  --ws-success-line: color-mix(in srgb, #16a34a 40%, transparent);
+  --ws-warning-ink: #9a3412;
+  --ws-warning-wash: color-mix(in srgb, #ea580c 12%, transparent);
+  --ws-warning-line: color-mix(in srgb, #ea580c 40%, transparent);
+}
+[data-theme="dark"] .ws-page {
+  --ws-language-ink: #fecaca;
+  --ws-language-rule: #f87171;
+  --ws-language-strong: #fca5a5;
+  --ws-language-wash: color-mix(in srgb, #b91c1c 55%, transparent);
 }
 
 /* The page is a column, so the main axis is vertical: centre on both axes. */
@@ -83,7 +113,7 @@
   background: var(--ws-muted);
 }
 .ws-saved.is-saved .ws-dot {
-  background: #16a34a;
+  background: var(--ws-success-ink);
 }
 .ws-saved.is-saving .ws-dot,
 .ws-saved.is-pending .ws-dot {
@@ -126,7 +156,7 @@
   color: var(--ws-muted);
 }
 .ws-tracker-step.is-done {
-  background: color-mix(in srgb, #16a34a 12%, transparent);
+  background: var(--ws-success-wash);
   color: var(--ws-ink);
 }
 .ws-tracker-step.is-current {
@@ -187,7 +217,7 @@
   gap: 10px;
 }
 .ws-notice.is-done {
-  background: color-mix(in srgb, #16a34a 12%, transparent);
+  background: var(--ws-success-wash);
 }
 .ws-notice.is-action {
   justify-content: space-between;
@@ -268,15 +298,7 @@
   padding: 1px 2px;
   color: var(--ws-ink);
 }
-.ws-essay-mark-n {
-  font-size: 0.62rem;
-  font-weight: 800;
-  color: #fff;
-  background: var(--ws-teal);
-  border-radius: 999px;
-  padding: 0 4px;
-  margin-inline-start: 3px;
-}
+/* A marker is a button so its correction can be reached from the keyboard. */
 .ws-essay-mark.is-action {
   background: color-mix(
     in srgb,
@@ -284,9 +306,6 @@
     var(--ws-surface)
   );
   border-bottom-color: var(--ws-amber);
-}
-.ws-essay-mark.is-action .ws-essay-mark-n {
-  background: var(--ws-amber);
 }
 /* Notes that could not be tied to one paragraph, kept visible rather than dropped. */
 .ws-essay-loose {
@@ -446,19 +465,6 @@
 .ws-feedback-block.is-anchored {
   background: color-mix(in srgb, var(--ws-teal) 11%, var(--ws-surface));
 }
-.ws-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--ws-teal);
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 800;
-}
 .ws-feedback-line {
   display: flex;
   align-items: flex-start;
@@ -474,16 +480,14 @@
   margin-top: 2px;
 }
 .ws-feedback-line.is-good {
-  color: var(--success-700, #047857);
-  background: color-mix(in srgb, var(--success-500, #10b981) 12%, transparent);
-  border: 1px solid
-    color-mix(in srgb, var(--success-500, #10b981) 32%, transparent);
+  color: var(--ws-success-ink);
+  background: var(--ws-success-wash);
+  border: 1px solid var(--ws-success-line);
 }
 .ws-feedback-line.is-action {
-  color: var(--warning-700, #b45309);
-  background: color-mix(in srgb, var(--warning-500, #f59e0b) 14%, transparent);
-  border: 1px solid
-    color-mix(in srgb, var(--warning-500, #f59e0b) 36%, transparent);
+  color: var(--ws-warning-ink);
+  background: var(--ws-warning-wash);
+  border: 1px solid var(--ws-warning-line);
   font-weight: 600;
 }
 .ws-feedback-quote {
@@ -505,6 +509,186 @@
   font-size: 0.8rem;
   line-height: 1.5;
   color: var(--ws-muted);
+}
+/* Language corrections sit under the coaching block, never mixed into it. */
+.ws-language-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ws-line);
+}
+.ws-language-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Historical two-field pairs stay one compact line each; no invented reason. */
+.ws-language-list.is-legacy {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ws-language-pair {
+  padding: 3px 10px;
+  border: 1px solid var(--ws-line);
+  border-radius: 999px;
+  background: var(--ws-surface);
+  font-size: 0.82rem;
+}
+.ws-language-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ws-line);
+  border-inline-start: 3px solid var(--ws-language-rule);
+  border-radius: 10px;
+  background: var(--ws-surface);
+}
+.ws-language-row:focus-visible {
+  outline: 2px solid var(--ws-language-rule);
+  outline-offset: 2px;
+}
+.ws-language-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ws-language-category {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ws-language-strong);
+}
+.ws-language-count {
+  font-size: 0.72rem;
+  color: var(--ws-muted);
+}
+.ws-language-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.ws-language-label {
+  font-size: 0.76rem;
+  color: var(--ws-muted);
+}
+.ws-language-error {
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--ws-language-ink);
+  background: var(--ws-language-wash);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ws-language-correction {
+  color: var(--ws-success-ink);
+  font-weight: 700;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ws-language-remove {
+  color: var(--ws-language-strong);
+  font-weight: 700;
+}
+.ws-language-why {
+  color: var(--ws-ink);
+  overflow-wrap: anywhere;
+}
+.ws-language-status {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ws-muted);
+}
+.ws-language-status.is-partial {
+  color: var(--ws-amber);
+}
+/* The exact source words in the submitted draft. */
+.ws-language-mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  border-bottom: 2px solid var(--ws-language-rule);
+  background: var(--ws-language-wash);
+  color: var(--ws-language-ink);
+}
+/* A small reference number with a 44px touch area around it. */
+.ws-language-marker {
+  position: relative;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: var(--ws-language-rule);
+  border: none;
+  border-radius: 999px;
+  padding: 1px 5px;
+  margin-inline-start: 3px;
+  vertical-align: super;
+  cursor: pointer;
+}
+/* The dark rule is a light red, so the number inside it goes dark. */
+[data-theme="dark"] .ws-language-marker {
+  color: #1e293b;
+}
+.ws-language-marker::after {
+  content: "";
+  position: absolute;
+  inset: -15px -12px;
+  border-radius: 999px;
+}
+.ws-language-marker:focus-visible {
+  outline: 2px solid var(--ws-ink);
+  outline-offset: 2px;
+}
+.ws-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.ws-feedback-block:focus-visible {
+  outline: 2px solid var(--ws-teal);
+  outline-offset: 2px;
+}
+.ws-feedback-card-next {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ws-warning-line);
+  background: var(--ws-warning-wash);
+}
+.ws-feedback-card-next p {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.ws-feedback-card-more summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--ws-teal);
+}
+.ws-feedback-card-more > * + * {
+  margin-top: 10px;
 }
 
 /* The feedback for the draft just sent, read before the next draft is written. */
@@ -608,13 +792,17 @@
   height: 22px;
   border-radius: 50%;
   background: var(--ws-teal);
-  color: #fff;
+  color: var(--on-accent, #101828);
   font-size: 0.75rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-top: 1px;
+}
+/* Light theme accent text is a dark brown; the number on it goes white. */
+[data-theme="light"] .ws-feedback-card-list li::before {
+  color: #fff;
 }
 /* One card per class criterion: a word verdict, five dots, and the student's own
    words as evidence. No points — those stay on the teacher's side. */
@@ -648,12 +836,17 @@
   background: var(--ws-surface-2);
 }
 .ws-rubric-row.is-strong .ws-rubric-verdict {
-  color: var(--success-700, #047857);
-  background: color-mix(in srgb, var(--success-500, #10b981) 14%, transparent);
+  color: var(--ws-success-ink);
+  background: var(--ws-success-wash);
 }
 .ws-rubric-row.is-near .ws-rubric-verdict {
-  color: var(--warning-700, #b45309);
-  background: color-mix(in srgb, var(--warning-500, #f59e0b) 15%, transparent);
+  color: var(--ws-warning-ink);
+  background: var(--ws-warning-wash);
+}
+/* Only schools that chose to show numbers ever render this. */
+.ws-rubric-score {
+  margin-inline-start: 6px;
+  font-variant-numeric: tabular-nums;
 }
 .ws-rubric-dots {
   display: flex;
@@ -891,7 +1084,7 @@
   gap: 5px;
 }
 .ws-word.is-used .ws-word-text {
-  color: #15803d;
+  color: var(--ws-success-ink);
   font-weight: 600;
 }
 .ws-word-detail {
@@ -910,6 +1103,16 @@
 .ws-word-detail em {
   font-style: italic;
   color: var(--ws-teal);
+}
+.ws-word-near {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ws-muted);
+}
+.ws-show-all {
+  align-self: flex-start;
 }
 .ws-word-arabic {
   color: var(--ws-ink);
@@ -966,7 +1169,7 @@
   color: var(--ws-muted);
 }
 .ws-bar-required {
-  color: #15803d;
+  color: var(--ws-success-ink);
 }
 .ws-bar-required.is-missing {
   color: var(--ws-rose);
@@ -1012,7 +1215,7 @@
 .ws-sheet-ready {
   margin: 0;
   font-size: 0.88rem;
-  color: #15803d;
+  color: var(--ws-success-ink);
 }
 .ws-sheet-actions {
   display: flex;
@@ -1052,8 +1255,8 @@
   gap: 4px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: #15803d;
-  background: color-mix(in srgb, #16a34a 12%, transparent);
+  color: var(--ws-success-ink);
+  background: var(--ws-success-wash);
   border-radius: 999px;
   padding: 3px 10px;
 }
@@ -1087,7 +1290,7 @@
   padding: 10px 12px;
 }
 .ws-compare-block.is-good {
-  background: color-mix(in srgb, #16a34a 8%, transparent);
+  background: var(--ws-success-wash);
 }
 .ws-compare-block.is-warn {
   background: color-mix(in srgb, var(--ws-amber) 10%, transparent);
@@ -1158,7 +1361,7 @@
   line-height: 1.5;
 }
 .ws-compare-applied .is-applied {
-  color: #15803d;
+  color: var(--ws-success-ink);
 }
 .ws-compare-applied .is-open {
   color: var(--ws-muted);
@@ -1206,7 +1409,7 @@
   font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.5;
-  color: #15803d;
+  color: var(--ws-success-ink);
 }
 .ws-task-check svg {
   flex: 0 0 auto;
@@ -1241,9 +1444,9 @@
   font-weight: 600;
 }
 .ws-spelling-chip.is-win {
-  border-color: color-mix(in srgb, #16a34a 35%, transparent);
-  background: color-mix(in srgb, #16a34a 10%, transparent);
-  color: #15803d;
+  border-color: var(--ws-success-line);
+  background: var(--ws-success-wash);
+  color: var(--ws-success-ink);
 }
 .ws-compare-wins {
   display: flex;

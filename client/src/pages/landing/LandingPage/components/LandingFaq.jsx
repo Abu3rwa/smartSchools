@@ -1,31 +1,73 @@
-import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
-import Typography from '@mui/material/Typography';
+import { useState } from 'react';
 import Accordion from '@mui/material/Accordion';
-import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
-import { HiOutlineChevronDown } from 'react-icons/hi';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+
+const FAQ_IDS = ['audience', 'signIn', 'tools', 'ai', 'demo', 'language'];
 
 /**
- * FAQ accordion section. Uses landing-lift-card.
+ * The six questions a school asks before getting in touch. One answer is open
+ * at a time and nothing here is fetched from the CMS.
  */
-export default function LandingFaq({ content }) {
+export default function LandingFaq({ copy }) {
+    const [expandedId, setExpandedId] = useState(null);
+
     return (
-        <Box id="faq" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
-            <Container maxWidth="md">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1, letterSpacing: 2, fontWeight: 700 }}>{content.faq.overline}</Typography>
-                <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 5, fontSize: { xs: '1.75rem', md: '2.25rem' } }}>{content.faq.title}</Typography>
-                {(content.faq.items || []).map((item, i) => (
-                    <Accordion className="landing-lift-card" key={`${item.question || 'faq'}-${i}`} sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', '&:before': { display: 'none' }, mb: 1 }}>
-                        <AccordionSummary expandIcon={<HiOutlineChevronDown size={20} />}>
-                            <Typography fontWeight={500}>{item.question}</Typography>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                            <Typography color="text.secondary">{item.answer}</Typography>
-                        </AccordionDetails>
-                    </Accordion>
-                ))}
-            </Container>
+        <Box component="section" id="faq" className="landing-public-section">
+            <Box className="landing-public-container">
+                <Box sx={{ maxWidth: 840, mx: 'auto' }}>
+                    <Typography
+                        component="h2"
+                        id="faq-heading"
+                        tabIndex={-1}
+                        sx={{
+                            fontWeight: 800,
+                            fontSize: { xs: 28, sm: 30, md: 32, lg: 36 },
+                            lineHeight: { xs: 1.3, lg: 1.2 },
+                            mb: { xs: 2, md: 3 },
+                            outline: 'none',
+                        }}
+                    >
+                        {copy.faq?.title}
+                    </Typography>
+
+                    <Box sx={{ display: 'grid', gap: 1 }}>
+                        {FAQ_IDS.map((faqId) => {
+                            const entry = copy.faq?.[faqId] || {};
+                            const isOpen = expandedId === faqId;
+                            return (
+                                <Accordion
+                                    key={faqId}
+                                    expanded={isOpen}
+                                    onChange={() => setExpandedId(isOpen ? null : faqId)}
+                                    disableGutters
+                                    elevation={0}
+                                    sx={{
+                                        border: 1,
+                                        borderColor: 'divider',
+                                        borderRadius: '16px',
+                                        '&::before': { display: 'none' },
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    <AccordionSummary sx={{ minHeight: 56, px: 2 }}>
+                                        <Typography sx={{ fontWeight: 600, fontSize: '1rem', pr: 1 }}>
+                                            {entry.question}
+                                        </Typography>
+                                    </AccordionSummary>
+                                    <AccordionDetails sx={{ px: 2, pb: 2.5 }}>
+                                        <Typography sx={{ fontSize: 16, lineHeight: 1.7, color: 'text.secondary' }}>
+                                            {entry.answer}
+                                        </Typography>
+                                    </AccordionDetails>
+                                </Accordion>
+                            );
+                        })}
+                    </Box>
+                </Box>
+            </Box>
         </Box>
     );
 }

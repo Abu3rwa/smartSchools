@@ -16,6 +16,7 @@ import {
     getTeacherAssignments
 } from '../helpers/teacherScoping.js';
 import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
+import { normalizeLessonContext } from '../helpers/gradeLessonContext.js';
 import { generateAssessmentGroupId } from '../helpers/assessmentGrouping.js';
 import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
@@ -224,6 +225,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         maxMarks,
         date,
         title,
+        lessonSummary,
         description,
         remarks,
         sendNotification,
@@ -232,6 +234,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         assessmentGroupId
     } = req.body;
     const resolvedClassId = classIdFromBody || classFromBody;
+    const lessonContext = normalizeLessonContext({ title, lessonSummary });
     let teacherProfile = null;
 
     // Access Control: Verify teacher is assigned to this class+subject
@@ -272,7 +275,8 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         date: date || new Date(),
         marks,
         maxMarks: maxMarks ?? subjectData?.dailyMaxMarks ?? resolveCategoryMaxMarks('classwork', categoryMaxMarks),
-        title,
+        title: lessonContext.title,
+        lessonSummary: lessonContext.lessonSummary,
         description,
         remarks,
         assessmentGroupId: assessmentGroupId || generateAssessmentGroupId('asg'),
@@ -327,11 +331,13 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         sendNotifications,
         gradeType,
         title,
+        lessonSummary,
         category,
         lessonPlanIds,
         language
     } = req.body;
     // grades: [{ student: id, marks, remarks, notes }]
+    const lessonContext = normalizeLessonContext({ title, lessonSummary });
     let teacherProfile = null;
 
     if (req.user.role === 'teacher') {
@@ -391,7 +397,8 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         semester,
         marks: g.marks,
         maxMarks: maxMarks ?? resolveCategoryMaxMarks(effectiveCategory, categoryMaxMarks),
-        title: title || '',
+        title: lessonContext.title,
+        lessonSummary: lessonContext.lessonSummary,
         notes: g.notes || '',
         remarks: g.remarks || '',
         assessmentGroupId: resolvedAssessmentGroupId,
@@ -401,6 +408,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
     const savedGrades = await Grade.insertMany(gradeDocuments);
 
     // Send notifications if requested
+    let emailFailures = 0;
     if (sendNotifications) {
         for (const grade of savedGrades) {
             await notificationService.sendGradeUpdateNotification(
@@ -412,7 +420,10 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
                     language
                 },
                 req.user._id
-            ).catch(err => logger.error('Grade notification error', { error: err.message }));
+            ).catch(err => {
+                emailFailures += 1;
+                logger.error('Grade notification error', { error: err.message });
+            });
         }
     }
 
@@ -435,7 +446,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: `${savedGrades.length} grades added successfully`,
-        data: { count: savedGrades.length }
+        data: { count: savedGrades.length, emailFailures }
     });
 });
 
@@ -472,6 +483,10 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
     const hasCategoryUpdate = metadata.category !== undefined;
     const hasDateUpdate = Boolean(metadata.date);
     const hasMetadataMaxMarksUpdate = metadata.maxMarks !== undefined;
+    const hasLessonUpdate = metadata.title !== undefined || metadata.lessonSummary !== undefined;
+    const lessonContext = hasLessonUpdate
+        ? normalizeLessonContext({ title: metadata.title, lessonSummary: metadata.lessonSummary })
+        : null;
 
     let resolvedDate = null;
     let resolvedMonth = null;
@@ -560,6 +575,10 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
             setFields.maxMarks = numMax;
         }
         if (update.remarks !== undefined) setFields.remarks = update.remarks;
+        if (lessonContext) {
+            setFields.title = lessonContext.title;
+            setFields.lessonSummary = lessonContext.lessonSummary;
+        }
         if (hasMetadataMaxMarksUpdate) setFields.maxMarks = Number(metadata.maxMarks);
         if (hasClassUpdate) setFields.class = metadata.classId;
         if (hasSubjectUpdate) setFields.subject = metadata.subject;
@@ -663,7 +682,8 @@ export const getGradesByAssessmentGroup = asyncHandler(async (req, res) => {
                 date: first.date,
                 maxMarks: first.maxMarks,
                 assessmentGroupId: first.assessmentGroupId,
-                title: first.title
+                title: first.title,
+                lessonSummary: first.lessonSummary || ''
             }
         }
     });

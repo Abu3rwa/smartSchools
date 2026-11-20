@@ -1,19 +1,18 @@
 {
   "actions": {
     "openMenu": "فتح القائمة",
-    "toggleTheme": "تبديل النمط",
-    "toggleLanguage": "تغيير اللغة",
-    "toggleLanguageTo": "التبديل إلى {{language}}",
-    "pinCurrentPage": "تثبيت هذه الصفحة",
-    "unpinCurrentPage": "إلغاء تثبيت هذه الصفحة",
-    "manageShortcuts": "إدارة الاختصارات",
-    "userMenu": "قائمة المستخدم"
+    "userMenu": "قائمة الحساب"
   },
   "shortcuts": {
-    "title": "اختصارات الشريط العلوي",
+    "title": "الاختصارات",
     "hint": "اختر حتى {{max}} روابط.",
-    "pinCurrentPage": "تثبيت الصفحة الحالية",
     "pinCurrentPageDisabled": "افتح صفحة قابلة للتثبيت أولاً",
+    "addThisPage": "إضافة هذه الصفحة",
+    "removeThisPage": "إزالة هذه الصفحة",
+    "editShortcuts": "تعديل الاختصارات",
+    "doneEditing": "تم",
+    "emptyHint": "أضف الصفحات التي تستخدمها كثيراً.",
+    "atLimitHint": "أزل اختصاراً قبل إضافة اختصار آخر.",
     "orderTitle": "ترتيب الاختصارات",
     "orderHint": "اسحب أو استخدم الأسهم.",
     "none": "لا توجد اختصارات محددة",
@@ -22,16 +21,21 @@
     "noResults": "لا توجد صفحة مطابقة",
     "moveUp": "تحريك للأعلى",
     "moveDown": "تحريك للأسفل",
-    "remove": "إزالة من الاختصارات",
-    "more": "{{total}} إضافية"
+    "remove": "إزالة من الاختصارات"
   },
   "menu": {
+    "shortcuts": "الاختصارات",
     "settings": "الإعدادات",
-    "logout": "تسجيل الخروج"
-  },
-  "roleSwitcher": {
+    "appearance": "المظهر",
+    "light": "فاتح",
+    "dark": "داكن",
+    "language": "اللغة",
     "switchRole": "تبديل الدور",
-    "title": "تبديل الدور النشط"
+    "switchingRole": "جارٍ تبديل الدور…",
+    "switchRoleFailed": "تعذّر تبديل الدور. ما زلت مسجلاً بدورك الحالي.",
+    "balanceLoading": "جارٍ التحميل…",
+    "balanceUnavailable": "غير متاح",
+    "logout": "تسجيل الخروج"
   },
   "impersonation": {
     "viewing": "عرض كـ {{name}} ({{role}})",

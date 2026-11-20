@@ -68,7 +68,7 @@ export const buildCourseWorkMaterials = (assignment) => {
       ? assignment.driveAttachments
       : []
   )
-    .filter((att) => att?.fileId)
+    .filter((att) => att?.fileId && att.visibility !== "private")
     .map((att) => ({
       driveFile: { driveFile: { id: String(att.fileId) }, shareMode: "VIEW" },
     }))

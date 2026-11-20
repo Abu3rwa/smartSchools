@@ -5,14 +5,16 @@ import {
 } from '../../constants/behavior.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../../helpers/teacherScoping.js';
 
+export const behaviorRoles = (user) => [user?.role, ...(user?.roles || [])].filter(Boolean);
+
 export const isBehaviorStaff = (user) => Boolean(user)
-    && (BEHAVIOR_STAFF_ROLES.includes(user.role)
+    && (behaviorRoles(user).some((role) => BEHAVIOR_STAFF_ROLES.includes(role))
         || (Array.isArray(user.permissions) && user.permissions.includes('manage_behavior')));
 
 export const canLogBehaviorIncident = (user) => isBehaviorStaff(user);
 
 export const canManageBehaviorAdmin = (user) => Boolean(user)
-    && ['super_admin', 'admin', 'department_principal', 'behavior_manager'].includes(user.role);
+    && behaviorRoles(user).some((role) => ['super_admin', 'admin', 'department_principal', 'behavior_manager'].includes(role));
 
 const schoolAdminRoles = (settings) => [
     ...(settings?.approval?.approverRoles || BEHAVIOR_APPROVER_ROLES),
@@ -21,10 +23,10 @@ const schoolAdminRoles = (settings) => [
 
 export const canApproveBehaviorIncident = (user, settings, incident = null) => {
     if (!isBehaviorStaff(user)) return false;
-    if (incident && !schoolAdminRoles(settings).includes(user.role) && user.role !== 'super_admin') {
-        return false;
-    }
-    return schoolAdminRoles(settings).includes(user.role) || user.role === 'super_admin';
+    const allowed = incident?.approval?.approverRoles?.length
+        ? incident.approval.approverRoles
+        : schoolAdminRoles(settings);
+    return behaviorRoles(user).some((role) => allowed.includes(role) || role === 'super_admin');
 };
 
 /**
@@ -36,11 +38,11 @@ export const canVerifyBehaviorTask = (user, task, { incident = null, settings = 
     if (!isBehaviorStaff(user)) return false;
 
     const rule = task?.verifier?.rule || settings?.verifier?.defaultRule || 'logging-staff';
-    if (rule === 'admin-only') return ['super_admin', 'admin'].includes(user.role);
+    if (rule === 'admin-only') return behaviorRoles(user).some((role) => ['super_admin', 'admin'].includes(role));
     if (rule === 'admin-or-counselor') {
-        return ['super_admin', 'admin', 'staff', 'behavior_manager'].includes(user.role);
+        return behaviorRoles(user).some((role) => ['super_admin', 'admin', 'staff', 'behavior_manager'].includes(role));
     }
-    if (rule === 'specific-role') return Boolean(task?.verifier?.role) && user.role === task.verifier.role;
+    if (rule === 'specific-role') return Boolean(task?.verifier?.role) && behaviorRoles(user).includes(task.verifier.role);
 
     const loggingStaffId = incident?.reportedBy || task?.verifier?.user;
     return Boolean(loggingStaffId) && String(loggingStaffId) === String(user._id);
@@ -90,7 +92,7 @@ export const assertStaffCanAccessStudent = async (req, studentId) => {
         .lean();
     if (!student) return { error: { status: 404, message: 'Student not found in your school.' } };
 
-    if (req.user.role === 'teacher') {
+    if (behaviorRoles(req.user).includes('teacher') && !canManageBehaviorAdmin(req.user)) {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) return { error: { status: 403, message: 'Teacher profile not found.' } };
         const classIds = (await getTeacherClassIds(teacher._id)).map((id) => String(id));

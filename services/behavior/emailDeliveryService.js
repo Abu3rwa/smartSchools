@@ -53,11 +53,12 @@ const nextAttemptAt = ({ now, minutes }) => new Date(now.getTime() + minutes * 6
  * Claims one due row and marks it as being worked on. Re-claiming an expired
  * lease means a crashed worker cannot strand a message forever.
  */
-const claimDueRow = async ({ schoolId, now }) => {
+const claimDueRow = async ({ schoolId, now, notificationId = null }) => {
     const leaseExpired = { nextAttemptAt: { $lte: now } };
     const row = await BehaviorNotification.findOneAndUpdate(
         {
             school: schoolId,
+            ...(notificationId ? { _id: notificationId } : {}),
             channel: 'email',
             recipients: { $not: { $size: 0 } },
             $or: [
@@ -99,7 +100,8 @@ export const deliverBehaviorEmails = async ({
     school = null,
     now = new Date(),
     limit = 20,
-    deliver = null
+    deliver = null,
+    notificationId = null
 } = {}) => {
     const schoolWantsEmail = settings?.emailDelivery?.enabled === true;
     const deploymentAllows = deliver ?? liveEmailDeliveryEnabled();
@@ -110,6 +112,7 @@ export const deliverBehaviorEmails = async ({
 
     const due = await BehaviorNotification.countDocuments({
         school: schoolId,
+        ...(notificationId ? { _id: notificationId } : {}),
         channel: 'email',
         recipients: { $not: { $size: 0 } },
         $or: [
@@ -127,7 +130,7 @@ export const deliverBehaviorEmails = async ({
     const max = Math.min(Math.max(Number(limit) || 1, 1), 100);
 
     for (let index = 0; index < max; index += 1) {
-        const row = await claimDueRow({ schoolId, now });
+        const row = await claimDueRow({ schoolId, now, notificationId });
         if (!row) break;
 
         try {

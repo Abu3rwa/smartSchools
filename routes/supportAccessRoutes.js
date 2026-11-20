@@ -8,6 +8,7 @@ import {
     getSurvey,
     hub,
     noConcerns,
+    reopen,
     requireSupportAccess,
     resolveCode,
     saveSurvey,
@@ -28,6 +29,7 @@ router.put('/surveys/:surveyId/answers', saveSurvey);
 router.post('/surveys/:surveyId/submit', submitSurvey);
 router.post('/surveys/:surveyId/no-concerns', noConcerns);
 router.post('/surveys/:surveyId/skip', skip);
+router.post('/surveys/:surveyId/reopen', reopen);
 router.post('/plans/:planId/checkins', checkIn);
 
 export default router;

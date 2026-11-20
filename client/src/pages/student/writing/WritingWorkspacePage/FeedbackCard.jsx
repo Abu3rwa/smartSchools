@@ -2,10 +2,15 @@ import { useTranslation } from "react-i18next";
 import RubricStrip from "./RubricStrip.jsx";
 import { formatPasteTime } from "./pasteGuard.js";
 
-/** The feedback for the draft just sent, in the order a student should act on it. */
+/**
+ * The feedback for the draft just sent, in the order a student should act on
+ * it: the one thing to do first stays open, everything else waits behind
+ * "see more" so the card fits a phone screen (E1).
+ */
 export default function FeedbackCard({
   draftNumber,
   feedback,
+  marks = "words",
   onReadDraft,
   pasteAttempts = [],
   revising,
@@ -13,6 +18,11 @@ export default function FeedbackCard({
   const { t, i18n } = useTranslation(["writing"]);
   const summary = feedback?.overall?.summary;
   const priorities = (feedback?.overall?.nextPriorities || []).slice(0, 3);
+  const [first, ...rest] = priorities;
+  const more =
+    rest.length > 0 ||
+    (feedback?.scores || []).length > 0 ||
+    (feedback?.spellingTargets || []).length > 0;
   if (!feedback || (!summary && priorities.length === 0)) return null;
 
   return (
@@ -49,42 +59,55 @@ export default function FeedbackCard({
         </div>
       )}
       {summary && <p className="ws-feedback-card-summary">{summary}</p>}
-      {(feedback.scores || []).length > 0 && (
-        <>
+      {first && (
+        <div className="ws-feedback-card-next">
           <h3 className="ws-feedback-card-sub">
-            {t("writing:student.rubricTitle")}
+            {t("writing:student.doThisFirst")}
           </h3>
-          <RubricStrip scores={feedback.scores} />
-        </>
+          <p>{first}</p>
+        </div>
       )}
-      {priorities.length > 0 && (
-        <>
-          <h3 className="ws-feedback-card-sub">
-            {t("writing:student.doTheseNext")}
-          </h3>
-          <ol className="ws-feedback-card-list">
-            {priorities.map((item, index) => (
-              <li key={`${index}:${item}`}>{item}</li>
-            ))}
-          </ol>
-        </>
-      )}
-      {(feedback.spellingTargets || []).length > 0 && (
-        <>
-          <h3 className="ws-feedback-card-sub">
-            {t("writing:student.spellingTargetsTitle")}
-          </h3>
-          <p className="ws-feedback-card-note">
-            {t("writing:student.spellingTargetsHint")}
-          </p>
-          <div className="ws-spelling-chips">
-            {feedback.spellingTargets.map((row) => (
-              <span className="ws-spelling-chip" key={row.word}>
-                {row.word}
-              </span>
-            ))}
-          </div>
-        </>
+      {more && (
+        <details className="ws-feedback-card-more">
+          <summary>{t("writing:student.seeMore")}</summary>
+          {rest.length > 0 && (
+            <>
+              <h3 className="ws-feedback-card-sub">
+                {t("writing:student.doTheseNext")}
+              </h3>
+              <ol className="ws-feedback-card-list">
+                {rest.map((item, index) => (
+                  <li key={`${index}:${item}`}>{item}</li>
+                ))}
+              </ol>
+            </>
+          )}
+          {(feedback.scores || []).length > 0 && (
+            <>
+              <h3 className="ws-feedback-card-sub">
+                {t("writing:student.rubricTitle")}
+              </h3>
+              <RubricStrip scores={feedback.scores} marks={marks} />
+            </>
+          )}
+          {(feedback.spellingTargets || []).length > 0 && (
+            <>
+              <h3 className="ws-feedback-card-sub">
+                {t("writing:student.spellingTargetsTitle")}
+              </h3>
+              <p className="ws-feedback-card-note">
+                {t("writing:student.spellingTargetsHint")}
+              </p>
+              <div className="ws-spelling-chips">
+                {feedback.spellingTargets.map((row) => (
+                  <span className="ws-spelling-chip" key={row.word}>
+                    {row.word}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </details>
       )}
       {revising && onReadDraft && (
         <div className="ws-feedback-card-foot">

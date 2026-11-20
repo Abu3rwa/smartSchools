@@ -14,6 +14,8 @@ import GradeEntryHeader from './components/GradeEntryHeader';
 import GradeEntrySelectionForm from './components/GradeEntrySelectionForm';
 import GradeEntryTable from './components/GradeEntryTable';
 import GradeEntryEmptyState from './components/GradeEntryEmptyState';
+import GradeEntryLessonPanel from './components/GradeEntryLessonPanel';
+import GradeEntryEmailPreviewModal from './components/GradeEntryEmailPreviewModal';
 import ClassworkSelfCheckPanel from './components/ClassworkSelfCheckPanel';
 import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
 import EmailLanguageControl from '../../../components/shared/EmailLanguageControl';
@@ -45,6 +47,7 @@ const GradeEntryPage = () => {
     const myClasses = useSelector(selectMyClasses);
     const [behaviorStudent, setBehaviorStudent] = useState(null);
     const [selfCheckRows, setSelfCheckRows] = useState([]);
+    const [previewRequest, setPreviewRequest] = useState(null);
     const [emailLanguage, setEmailLanguage] = useState(() => (
         getEmailLanguagePreference(user?._id || user?.id)
     ));
@@ -68,6 +71,10 @@ const GradeEntryPage = () => {
         setSendNotifications,
         selectedLessonPlanIds,
         setSelectedLessonPlanIds,
+        lessonTitle,
+        setLessonTitle,
+        lessonSummary,
+        setLessonSummary,
         handleGradeChange,
         resetGradesForStudents,
         setGrades,
@@ -139,12 +146,49 @@ const GradeEntryPage = () => {
         if (!stillAvailable) {
             setSelectedClass('');
             setSelectedSubject('');
+            setLessonTitle('');
+            setLessonSummary('');
         }
-    }, [availableClasses, editMode, selectedClass, setSelectedClass, setSelectedSubject]);
+    }, [availableClasses, editMode, selectedClass, setSelectedClass, setSelectedSubject, setLessonTitle, setLessonSummary]);
 
     const enteredCount = useMemo(() => {
         return countEnteredGrades(grades);
     }, [grades]);
+
+    const clearLessonContext = useCallback(() => {
+        setLessonTitle('');
+        setLessonSummary('');
+    }, [setLessonTitle, setLessonSummary]);
+
+    const handleLessonApply = useCallback(({ title, summary }) => {
+        setLessonTitle(title);
+        setLessonSummary(summary);
+    }, [setLessonTitle, setLessonSummary]);
+
+    // A scope change must never silently carry the previous lesson's text.
+    const handleClassChange = (nextClass) => {
+        if (nextClass === selectedClass) return;
+        if ((lessonTitle || lessonSummary) && !window.confirm(t('grades:entry.lesson.scopeConfirm'))) return;
+        clearLessonContext();
+        setSelectedClass(nextClass);
+    };
+
+    const handleSubjectChange = (nextSubject) => {
+        if (nextSubject === selectedSubject) return;
+        if ((lessonTitle || lessonSummary) && !window.confirm(t('grades:entry.lesson.scopeConfirm'))) return;
+        clearLessonContext();
+        setSelectedSubject(nextSubject);
+    };
+
+    const handleDateChange = (nextDate) => {
+        if (nextDate !== selectedDate && (lessonTitle || lessonSummary)
+            && window.confirm(t('grades:entry.lesson.dateConfirm'))) {
+            clearLessonContext();
+        }
+        setSelectedDate(nextDate);
+    };
+
+    const openEmailPreview = (student) => setPreviewRequest({ studentId: student?._id || null });
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -172,7 +216,9 @@ const GradeEntryPage = () => {
                     subject: selectedSubject,
                     category: (selectedCategory === 'Custom' ? customCategory : selectedCategory || '').toLowerCase(),
                     date: selectedDate,
-                    maxMarks
+                    maxMarks,
+                    title: lessonTitle,
+                    lessonSummary
                 }
             }));
             if (bulkUpdateGrades.fulfilled.match(result)) {
@@ -196,6 +242,8 @@ const GradeEntryPage = () => {
             category: selectedCategory === 'Custom' ? customCategory : selectedCategory,
             date: selectedDate,
             maxMarks,
+            title: lessonTitle,
+            lessonSummary,
             lessonPlanIds: selectedLessonPlanIds,
             academicYear,
             grades: gradesToSubmit,
@@ -208,6 +256,13 @@ const GradeEntryPage = () => {
                 saveEmailLanguagePreference(user?._id || user?.id, emailLanguage);
             }
             toast.success(t('grades:toasts.savedSuccess', { count: gradesToSubmit.length }));
+            const emailFailures = Number(result.payload?.emailFailures || 0);
+            if (sendNotifications && emailFailures > 0) {
+                toast.error(t('grades:toasts.emailsFailed', {
+                    defaultValue: 'Grades saved, but {{count}} email(s) could not be sent. Check the notifications log.',
+                    count: emailFailures
+                }));
+            }
             resetGradesForStudents(classStudents);
         } else {
             toast.error(result.payload || t('grades:toasts.saveFailed'));
@@ -264,15 +319,15 @@ const GradeEntryPage = () => {
 
             <GradeEntrySelectionForm
                 selectedClass={selectedClass}
-                onClassChange={setSelectedClass}
+                onClassChange={handleClassChange}
                 selectedSubject={selectedSubject}
-                onSubjectChange={setSelectedSubject}
+                onSubjectChange={handleSubjectChange}
                 selectedCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
                 customCategory={customCategory}
                 onCustomCategoryChange={setCustomCategory}
                 selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
+                onDateChange={handleDateChange}
                 maxMarks={maxMarks}
                 onMaxMarksChange={setMaxMarks}
                 availableClasses={availableClasses}
@@ -281,6 +336,18 @@ const GradeEntryPage = () => {
                 onSelectedLessonPlanIdsChange={setSelectedLessonPlanIds}
                 disabled={false}
             />
+
+            {selectedClass && selectedSubject && (
+                <GradeEntryLessonPanel
+                    classId={selectedClass}
+                    subjectId={selectedSubject}
+                    gradeDate={selectedDate}
+                    lessonTitle={lessonTitle}
+                    lessonSummary={lessonSummary}
+                    onApply={handleLessonApply}
+                    onPreviewEmail={() => openEmailPreview(null)}
+                />
+            )}
 
             {selectedClass && selectedSubject && classStudents.length > 0 && (
                 <GradeEntryTable
@@ -306,6 +373,8 @@ const GradeEntryPage = () => {
                     onCancelEdit={handleCancelEdit}
                     showBehaviorAction={selectedCategory?.toLowerCase() === 'classwork'}
                     onOpenBehavior={openBehaviorModal}
+                    onPreviewStudent={openEmailPreview}
+                    onPreviewEmail={() => openEmailPreview(null)}
                 />
             )}
 
@@ -329,6 +398,22 @@ const GradeEntryPage = () => {
 
             {(!selectedClass || !selectedSubject) && (
                 <GradeEntryEmptyState message={t('grades:entry.empty.selectClassSubject')} />
+            )}
+
+            {previewRequest && selectedClass && selectedSubject && (
+                <GradeEntryEmailPreviewModal
+                    classStudents={classStudents}
+                    grades={grades}
+                    maxMarks={maxMarks}
+                    classId={selectedClass}
+                    subjectId={selectedSubject}
+                    date={selectedDate}
+                    lessonTitle={lessonTitle}
+                    lessonSummary={lessonSummary}
+                    initialStudentId={previewRequest.studentId}
+                    defaultLanguage={emailLanguage}
+                    onClose={() => setPreviewRequest(null)}
+                />
             )}
 
             {behaviorStudent && selectedCategory?.toLowerCase() === 'classwork' && (

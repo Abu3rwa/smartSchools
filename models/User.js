@@ -143,7 +143,16 @@ const userSchema = new mongoose.Schema({
             'view_academic_excellence_school_analytics',
             'view_academic_excellence_class_analytics',
             'export_academic_excellence_reports',
-            'view_academic_excellence_at_risk_report'
+            'view_academic_excellence_at_risk_report',
+            'manage_grade_scaling',
+            'manage_assignment_config',
+            'create_assignments',
+            'publish_assignments',
+            'grade_assignments',
+            'view_assessment_pool',
+            'create_assessment_from_pool',
+            'manage_assessment_pool_settings',
+            'manage_assessment_comms_settings'
         ],
         default: []
     },

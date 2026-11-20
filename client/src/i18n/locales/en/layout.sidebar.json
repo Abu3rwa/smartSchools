@@ -35,6 +35,8 @@
     "promotionCenter": "Promotion Center",
     "lessonPlans": "Lesson Plans",
     "assignments": "Assignments",
+    "skillpath": "SkillPath",
+    "skillpathStudio": "SkillPath Studio",
     "gradeEntry": "Grade Entry",
     "gradebook": "Gradebook",
     "mapTestPrep": "MAP Prep",
@@ -114,7 +116,17 @@
     "settings": "Settings",
     "studentSupport": "Student support",
     "parentUpdates": "Updates",
-    "parentTimetable": "Timetable"
+    "parentTimetable": "Timetable",
+    "reportCards": "Report Cards",
+    "gradeAnalytics": "Grade Analytics",
+    "studentGradeReport": "Grade Report",
+    "weeklyReports": "Weekly Reports",
+    "reportGenerator": "Report Generator",
+    "reportAnalytics": "Report Analytics",
+    "reportTemplates": "Report Templates",
+    "reportHistory": "Report History",
+    "standardsPool": "Question Pool",
+    "attendanceRequestTypes": "Attendance Request Types"
   },
   "studentDashboard": {
     "groups": {
@@ -136,7 +148,8 @@
       "aiTutor": "Ask about any subject using your class's lessons.",
       "plp": "Character goals, habits, and monthly focus.",
       "plpMyTasks": "The character tasks assigned to you.",
-      "liveLessons": "Join a live class session when it starts."
+      "liveLessons": "Join a live class session when it starts.",
+      "skillpath": "Quick practice with instant feedback and progress."
     }
   },
   "actions": {
@@ -145,8 +158,10 @@
     "upgrade": "Upgrade",
     "featureLocked": "Feature locked",
     "search": "Search pages",
+    "searchHint": "/",
     "clearSearch": "Clear search",
     "noResults": "No matching pages",
+    "noResultsHint": "Try a different word",
     "collapseSection": "Collapse {{section}}",
     "expandSection": "Expand {{section}}"
   }

@@ -40,6 +40,13 @@ export const writingService = {
       .then(unwrap),
   getProgress: (assignmentId) =>
     api.get(`/writing/assignments/${assignmentId}/progress`).then(unwrap),
+  getAssignmentInsight: (assignmentId, params) =>
+    api
+      .get(`/writing/assignments/${assignmentId}/insight`, { params })
+      .then(unwrap),
+  getAssignmentWorkload: (assignmentId) =>
+    api.get(`/writing/assignments/${assignmentId}/workload`).then(unwrap),
+  testWritingAi: () => api.post("/writing/ai-self-test").then(unwrap),
   getProjectHistory: (projectId) =>
     api.get(`/writing/projects/${projectId}/history`).then(unwrap),
   printProject: (projectId, draftId) =>
@@ -61,11 +68,52 @@ export const writingService = {
     api
       .post(`/writing/assignments/${assignmentId}/assess`, body || {}, { timeout: 180000 })
       .then(unwrap),
+  // F3: the queued batch. A run returns at once and is polled for progress.
+  previewBatchAssessment: (assignmentId, body) =>
+    api
+      .post(`/writing/assignments/${assignmentId}/batch-assess`, {
+        ...(body || {}),
+        confirm: false,
+      })
+      .then(unwrap),
+  startBatchAssessment: (assignmentId, body) =>
+    api
+      .post(`/writing/assignments/${assignmentId}/batch-assess`, {
+        ...(body || {}),
+        confirm: true,
+      })
+      .then(unwrap),
+  getBatchRun: (batchRunId) =>
+    api.get(`/writing/batch-runs/${batchRunId}`).then(unwrap),
+  cancelBatchRun: (batchRunId) =>
+    api.post(`/writing/batch-runs/${batchRunId}/cancel`).then(unwrap),
+  retryBatchRun: (batchRunId) =>
+    api.post(`/writing/batch-runs/${batchRunId}/retry`).then(unwrap),
   saveAssessmentEdits: (assessmentId, body) =>
     api.patch(`/writing/assessments/${assessmentId}`, body || {}).then(unwrap),
+  // F1: one note, rewritten; the reply never touches the rest of the form.
+  regenerateNote: (assessmentId, body) =>
+    api
+      .post(
+        `/writing/assessments/${assessmentId}/notes/rewrite`,
+        body || {},
+        { timeout: 120000 },
+      )
+      .then(unwrap),
   publishAssessment: (assessmentId, body) =>
     api
       .post(`/writing/assessments/${assessmentId}/publish`, body || {})
+      .then(unwrap),
+  // F7: the dry run writes nothing; the publish walks the same rows.
+  previewBulkPublish: (assignmentId, body) =>
+    api
+      .post(`/writing/assignments/${assignmentId}/bulk-publish/preview`, body || {})
+      .then(unwrap),
+  bulkPublish: (assignmentId, body) =>
+    api
+      .post(`/writing/assignments/${assignmentId}/bulk-publish`, body || {}, {
+        timeout: 180000,
+      })
       .then(unwrap),
   previewFeedbackEmail: (assessmentId, notify) =>
     api
@@ -81,6 +129,20 @@ export const writingService = {
     api
       .post(`/writing/projects/${projectId}/notebook`, body || {})
       .then(unwrap),
+  // F13: pulls a submission back to the student's editor untouched.
+  returnDraftToStudent: (projectId, reason) =>
+    api
+      .post(`/writing/projects/${projectId}/return`, { reason })
+      .then(unwrap),
+  // F2: the teacher's reusable notes, ranked for the section being edited.
+  listCommentBank: (params) =>
+    api.get("/writing/comment-bank", { params }).then(unwrap),
+  saveCommentBankNote: (body) =>
+    api.post("/writing/comment-bank", body || {}).then(unwrap),
+  markCommentBankUsed: (commentId) =>
+    api.post(`/writing/comment-bank/${commentId}/used`).then(unwrap),
+  deleteCommentBankNote: (commentId) =>
+    api.delete(`/writing/comment-bank/${commentId}`).then(unwrap),
 
   // Teacher: analysis across a student's writing (AI runs are rate limited server-side)
   getAnalysisScope: (params) =>

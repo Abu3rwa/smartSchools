@@ -11,6 +11,11 @@ import SpellingRetestItem from "../models/SpellingRetestItem.js";
 import VocabWord from "../models/VocabWord.js";
 import { getAssignedLists, resolveSelection } from "./vocabularyService.js";
 import { textTokens } from "./writingAssistantLogic.js";
+import {
+  rankSupportWords,
+  supportDefaultShown,
+} from "./writingRevisionIntelligence.js";
+import { nearMissTokens } from "../client/src/utils/writingTextMatch.js";
 
 export const SPELLING_MAX_DEFAULT = 5;
 export const SPELLING_MAX_LIMIT = 10;
@@ -101,6 +106,7 @@ export const normalizeWordSupport = (input = {}) => {
 
 const disabled = (config) => ({
   enabled: false,
+  defaultShown: supportDefaultShown(),
   spelling: {
     ...config.spelling,
     status: "disabled",
@@ -144,22 +150,19 @@ const spellingWords = async ({
   // student is being asked to apply them.
   for (const row of priorTargets || []) push(row, "feedback");
 
-  if (rows.length < maxWords) {
-    const items = await SpellingRetestItem.find({
-      school: schoolId,
-      student: studentId,
-    })
-      .sort({ flaggedAt: -1 })
-      .limit(Math.min(maxWords * 4, 40))
-      .select("wordSnapshot grade week")
-      .lean();
-    for (const row of items) {
-      if (rows.length >= maxWords) break;
-      push(row, "spelling");
-    }
-  }
+  // The rail ranks the whole fetched set before it is capped (G1), so the
+  // history order only decides ties.
+  const items = await SpellingRetestItem.find({
+    school: schoolId,
+    student: studentId,
+  })
+    .sort({ flaggedAt: -1 })
+    .limit(Math.min(maxWords * 4, 40))
+    .select("wordSnapshot grade week")
+    .lean();
+  for (const row of items) push(row, "spelling");
 
-  return rows.slice(0, maxWords);
+  return rows;
 };
 
 /** Round-robin across lists, deduped by word, so no list is crowded out. */
@@ -263,12 +266,18 @@ const vocabularyWords = async ({ schoolId, studentId, config }) => {
 /**
  * Resolve every enabled source for one student. A source with no eligible words
  * reports `unavailable`, which the rail explains instead of hiding silently.
+ *
+ * G1/G8: rows are ranked for this student, this assignment and this draft, and
+ * words the teacher set aside sink to the end. Only the default view is capped;
+ * the full list stays in the payload behind "show all".
  */
 export const resolveWritingWordSupport = async ({
   schoolId,
   studentId,
   assignment,
   priorTargets = [],
+  draftText = "",
+  setAside = [],
 }) => {
   const config = normalizeWordSupport(assignment?.supports?.wordSupport);
   if (!config.spelling.enabled && !config.vocabulary.enabled) {
@@ -290,16 +299,29 @@ export const resolveWritingWordSupport = async ({
 
   return {
     enabled: true,
+    defaultShown: supportDefaultShown(),
     spelling: {
       ...config.spelling,
       status: spelling.length ? "available" : "unavailable",
-      words: spelling,
+      // Rank first, then cap: the teacher's maxWords decides how many words
+      // the rail may offer, not which of the fetched words it sees (G1).
+      words: rankSupportWords({
+        rows: spelling,
+        assignment,
+        draftText,
+        setAside,
+      }).slice(0, config.spelling.maxWords),
     },
     vocabulary: {
       ...config.vocabulary,
       status: vocabulary.words.length ? "available" : "unavailable",
       lists: vocabulary.lists,
-      words: vocabulary.words,
+      words: rankSupportWords({
+        rows: vocabulary.words,
+        assignment,
+        draftText,
+        setAside,
+      }),
       total: vocabulary.total,
       shown: vocabulary.shown,
       truncated: vocabulary.truncated,
@@ -311,54 +333,13 @@ export const resolveWritingWordSupport = async ({
 /* Deterministic word-use evidence                                     */
 /* ------------------------------------------------------------------ */
 
-const editDistance = (a, b, limit) => {
-  if (Math.abs(a.length - b.length) > limit) return limit + 1;
-  const previous = new Array(b.length + 1);
-  const current = new Array(b.length + 1);
-  for (let j = 0; j <= b.length; j += 1) previous[j] = j;
-  for (let i = 1; i <= a.length; i += 1) {
-    current[0] = i;
-    let best = current[0];
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      current[j] = Math.min(
-        previous[j] + 1,
-        current[j - 1] + 1,
-        previous[j - 1] + cost,
-      );
-      if (current[j] < best) best = current[j];
-    }
-    if (best > limit) return limit + 1;
-    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j];
-  }
-  return previous[b.length];
-};
-
 /**
- * Near misses are evidence, never a correction: a longer word must be one edit
- * away, a very long word may be two. Short words are skipped so `the`/`she`
- * does not surface as a misspelling.
+ * Near misses are evidence, never a correction. The thresholds and edit
+ * distance live in the shared text module, so the rail and the feedback agree
+ * on what counts as an attempt at a word.
  */
-const nearMissLimit = (word) => {
-  if (word.length >= 8) return 2;
-  if (word.length >= 5) return 1;
-  return 0;
-};
-
-const nearMissesFor = (word, tokens, known) => {
-  const limit = nearMissLimit(word);
-  if (!limit) return [];
-  const found = [];
-  for (const token of tokens) {
-    // Another offered word, or a form of one, is not a misspelling of this.
-    if (token === word || known.has(token)) continue;
-    if (editDistance(token, word, limit) <= limit) {
-      found.push(token);
-      if (found.length === 2) break;
-    }
-  }
-  return found;
-};
+const nearMissesFor = (word, tokens, known) =>
+  nearMissTokens({ word, tokens, known });
 
 const wordParts = (row) => {
   const word = normal(row?.word);

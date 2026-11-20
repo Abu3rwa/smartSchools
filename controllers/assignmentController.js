@@ -51,7 +51,10 @@ import {
   validateGoogleFormQuestions,
 } from "../services/googleFormsAssignmentService.js";
 import { isGoogleFormsEnabledForSchool } from "../config/googleFormsConfig.js";
-import { extractDocumentText } from "../services/documentTextExtraction.js";
+import {
+  extractDocumentText,
+  isSupportedDocumentMime,
+} from "../services/documentTextExtraction.js";
 import {
   clampDraftCount,
   draftQuestionsFromLessonPlans,
@@ -243,6 +246,7 @@ const mapAssignmentSummary = (
           size: att.size || 0,
           webViewLink: att.webViewLink || "",
           iconLink: att.iconLink || "",
+          visibility: att.visibility === "private" ? "private" : "students",
           uploadedAt: att.uploadedAt || null,
         }))
       : [],
@@ -305,9 +309,14 @@ const mapAssignmentSummary = (
 // Students and parents must never receive the targeting/excusal lists of an
 // assignment; they only learn whether they themselves are excused.
 const toStudentFacingSummary = (summary, { studentId = null } = {}) => {
-  const { studentIds, excusedStudentIds, scope, ...rest } = summary;
+  const { excusedStudentIds, ...rest } = summary;
+  delete rest.studentIds;
+  delete rest.scope;
   return {
     ...rest,
+    driveAttachments: (summary.driveAttachments || []).filter(
+      (att) => att.visibility !== "private",
+    ),
     isExcused: Boolean(
       studentId && (excusedStudentIds || []).includes(toId(studentId)),
     ),
@@ -622,6 +631,108 @@ const uploadAttachmentFiles = async (files, schoolId, assignmentId) => {
     });
   }
   return results;
+};
+
+const draftSourceError = (message, code, statusCode = 400) => {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+};
+
+/**
+ * One source, two ways in: the file the teacher just picked, or a Drive file
+ * already attached to this assignment. The Drive path reuses the stored file
+ * instead of making the teacher upload it a second time.
+ */
+const resolveDraftSourceText = async (req, usage) => {
+  if (req.file) {
+    return extractDocumentText({
+      buffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      usage,
+    });
+  }
+
+  const sourceFileId = String(req.body?.sourceFileId || "").trim();
+  if (!sourceFileId) return null;
+
+  const assignmentId = toId(req.body?.assignmentId);
+  if (!assignmentId) {
+    throw draftSourceError(
+      "Save the assignment before drafting from a Drive file.",
+      "DRAFT_SOURCE_REQUIRED",
+    );
+  }
+  const assignment = await Assignment.findOne({
+    _id: assignmentId,
+    school: req.schoolId,
+  }).lean();
+  if (!assignment) {
+    throw draftSourceError(
+      "This assignment was not found. Refresh and try again.",
+      "DRAFT_ASSIGNMENT_NOT_FOUND",
+      404,
+    );
+  }
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess) {
+    throw draftSourceError(
+      "You are not authorized to use this assignment's files.",
+      "DRAFT_NOT_AUTHORIZED",
+      403,
+    );
+  }
+
+  const source = (assignment.driveAttachments || []).find(
+    (entry) => String(entry.fileId) === sourceFileId,
+  );
+  if (!source) {
+    throw draftSourceError(
+      "That file is not attached to this assignment. Choose it from the list or add it again.",
+      "DRAFT_SOURCE_REQUIRED",
+    );
+  }
+  if (!isSupportedDocumentMime(source.mimeType)) {
+    throw draftSourceError(
+      "AI can read PDF, JPG, PNG or WebP files. Choose a different source file.",
+      "DOCUMENT_TYPE_UNSUPPORTED",
+    );
+  }
+
+  let buffer;
+  try {
+    buffer = await googleDriveFileService.downloadFile(
+      req.user._id,
+      String(source.fileId),
+    );
+  } catch (error) {
+    if (error?.code === "DRIVE_FILE_NOT_CONNECTED") {
+      throw draftSourceError(
+        "Connect Google Drive for attachments before drafting from this file.",
+        "DRIVE_FILE_NOT_CONNECTED",
+        403,
+      );
+    }
+    if (error?.code === "DRIVE_FILE_NOT_FOUND" || error?.statusCode === 404) {
+      throw draftSourceError(
+        "The Drive file is no longer available. Upload it again or choose another source.",
+        "DRIVE_FILE_NOT_FOUND",
+        404,
+      );
+    }
+    throw draftSourceError(
+      "Google Drive could not open this file. Upload it again, or choose another source.",
+      "DRIVE_FILE_API_FAILED",
+      502,
+    );
+  }
+
+  return extractDocumentText({
+    buffer,
+    mimeType: source.mimeType,
+    usage,
+  });
 };
 
 const deleteAttachmentFiles = async (attachments) => {
@@ -3334,12 +3445,22 @@ export const uploadDriveAttachments = asyncHandler(async (req, res) => {
     });
   }
 
+  // Private sources stay in the teacher's Drive; student-facing ones also get a
+  // view link so families and Classroom can open them.
+  const visibility =
+    String(req.body?.visibility || "").trim().toLowerCase() === "private"
+      ? "private"
+      : "students";
+
   const uploaded = [];
   try {
     for (const file of files) {
-      uploaded.push(
-        await googleDriveFileService.uploadAttachmentFile(req.user._id, file),
+      const entry = await googleDriveFileService.uploadAttachmentFile(
+        req.user._id,
+        file,
+        { share: visibility === "students" },
       );
+      uploaded.push({ ...entry, visibility });
     }
   } catch (error) {
     // A half-finished batch must not leave shared files the app never lists.
@@ -3398,6 +3519,70 @@ export const deleteDriveAttachment = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: { driveAttachments: assignment.driveAttachments },
+  });
+});
+
+export const updateDriveAttachmentVisibility = asyncHandler(async (req, res) => {
+  const assignment = await Assignment.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+  if (!canAccess)
+    return res.status(403).json({
+      success: false,
+      message: "Not authorized to modify this assignment",
+    });
+
+  const visibility = String(req.body?.visibility || "")
+    .trim()
+    .toLowerCase();
+  if (!["students", "private"].includes(visibility)) {
+    return res.status(400).json({
+      success: false,
+      message: "visibility must be students or private",
+    });
+  }
+
+  const fileId = String(req.params.fileId || "");
+  const entry = (assignment.driveAttachments || []).find(
+    (att) => att.fileId === fileId,
+  );
+  if (!entry)
+    return res
+      .status(404)
+      .json({ success: false, message: "Attachment not found" });
+
+  // App-side visibility changes even when Drive cannot be reached; the link
+  // permission is the part that depends on the teacher's Google connection.
+  const warnings = [];
+  try {
+    if (visibility === "students") {
+      await googleDriveFileService.shareFile(req.user._id, fileId);
+    } else {
+      await googleDriveFileService.restrictFile(req.user._id, fileId);
+    }
+  } catch (error) {
+    if (error?.code === "DRIVE_FILE_NOT_CONNECTED") {
+      warnings.push("DRIVE_FILE_NOT_CONNECTED");
+    } else {
+      warnings.push("DRIVE_FILE_API_FAILED");
+    }
+  }
+
+  entry.visibility = visibility;
+  await assignment.save();
+
+  res.json({
+    success: true,
+    data: {
+      driveAttachments: assignment.driveAttachments,
+      warning: warnings[0] || "",
+    },
   });
 });
 
@@ -3471,12 +3656,15 @@ export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
   }
 
   const lessonPlanIds = toArray(body.lessonPlanIds).filter(Boolean);
-  if (!req.file && lessonPlanIds.length === 0) {
+  const hasSourceFile = Boolean(
+    req.file || String(body.sourceFileId || "").trim(),
+  );
+  if (!hasSourceFile && lessonPlanIds.length === 0) {
     return res.status(400).json({
       success: false,
       code: "DRAFT_SOURCE_REQUIRED",
       message:
-        "Choose lesson plans for this class and subject, or upload a PDF or photo.",
+        "Choose lesson plans for this class and subject, or add a PDF or photo source.",
     });
   }
 
@@ -3484,12 +3672,8 @@ export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
   const types = normalizeDraftTypes(toArray(body.types));
   const usage = { feature: "assignment_question_draft" };
 
-  if (req.file) {
-    const extracted = await extractDocumentText({
-      buffer: req.file.buffer,
-      mimeType: req.file.mimetype,
-      usage,
-    });
+  const extracted = await resolveDraftSourceText(req, usage);
+  if (extracted) {
     const result = await draftQuestionsFromText({
       sourceText: extracted.text,
       count,
@@ -3547,20 +3731,15 @@ export const draftAssignmentQuestions = asyncHandler(async (req, res) => {
  * form before creating the assignment.
  */
 export const draftAssignmentSummary = asyncHandler(async (req, res) => {
-  if (!req.file) {
+  const usage = { feature: "assignment_lesson_summary_draft" };
+  const extracted = await resolveDraftSourceText(req, usage);
+  if (!extracted) {
     return res.status(400).json({
       success: false,
       code: "DRAFT_SOURCE_REQUIRED",
-      message: "Upload a PDF or photo of the lesson.",
+      message: "Add a PDF or photo source before drafting the lesson summary.",
     });
   }
-
-  const usage = { feature: "assignment_lesson_summary_draft" };
-  const extracted = await extractDocumentText({
-    buffer: req.file.buffer,
-    mimeType: req.file.mimetype,
-    usage,
-  });
   const result = await draftLessonSummaryFromText({
     sourceText: extracted.text,
     usage,
@@ -3655,20 +3834,15 @@ export const draftAssignmentBrief = asyncHandler(async (req, res) => {
     });
   }
 
-  if (!req.file) {
+  const usage = { feature: "assignment_brief_draft" };
+  const extracted = await resolveDraftSourceText(req, usage);
+  if (!extracted) {
     return res.status(400).json({
       success: false,
       code: "DRAFT_SOURCE_REQUIRED",
-      message: "Upload a PDF or photo of the source material.",
+      message: "Add a PDF or photo source before drafting the assignment.",
     });
   }
-
-  const usage = { feature: "assignment_brief_draft" };
-  const extracted = await extractDocumentText({
-    buffer: req.file.buffer,
-    mimeType: req.file.mimetype,
-    usage,
-  });
   const sourceUsage = normalizeBriefSourceUsage(body.sourceUsage);
   const formContext = toArray(body.formContext).filter(Boolean);
   const result = await draftAssignmentBriefFromText({

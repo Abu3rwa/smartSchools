@@ -62,6 +62,10 @@ export const emptyForm = () => ({
   rubric: presetRubric(),
   workflow: { ...DEFAULT_WORKFLOW },
   aiConstraints: "",
+  // Raw textarea text; buildPayload turns it into the skill list the API takes.
+  taughtFocus: "",
+  sourcePackId: "",
+  exemplarText: "",
 });
 
 const num = (value, fallback = 0) => {
@@ -114,6 +118,27 @@ export const formFromAssignment = (assignment) => {
     })),
     workflow: { ...DEFAULT_WORKFLOW, ...(assignment.workflow || {}) },
     aiConstraints: assignment.aiConstraints || "",
+    taughtFocus: (assignment.taughtFocus || []).join("\n"),
+    sourcePackId: String(assignment.sourcePack?._id || assignment.sourcePack || ""),
+    exemplarText: assignment.exemplarText || "",
+  };
+};
+
+/**
+ * F8: a template fills the lesson — structure, supports, rubric, taught focus,
+ * pack, guardrails — and leaves the audience, schedule and per-student goals to
+ * the task being created.
+ */
+export const formFromTemplate = (form, template) => {
+  const next = formFromAssignment(template);
+  return {
+    ...next,
+    title: next.title.replace(/\s*\(template\)\s*$/i, "").trim() || form.title,
+    classId: form.classId,
+    audienceMode: form.audienceMode,
+    studentIds: form.studentIds,
+    dueDate: form.dueDate,
+    goals: form.goals,
   };
 };
 
@@ -273,4 +298,12 @@ export const buildPayload = (form) => ({
   })),
   workflow: { ...DEFAULT_WORKFLOW, ...(form.workflow || {}) },
   aiConstraints: String(form.aiConstraints || "").trim() || undefined,
+  taughtFocus: String(form.taughtFocus || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 8),
+  // Empty detaches the pack and clears the exemplar; both are explicit intents.
+  sourcePackId: form.sourcePackId || "",
+  exemplarText: String(form.exemplarText || "").trim(),
 });

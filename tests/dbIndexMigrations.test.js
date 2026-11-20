@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { migrateSubjectCodeIndex, migrateTeacherEmployeeIdIndex } from '../config/db.js';
+import {
+    migrateSubjectCodeIndex,
+    migrateSupportPlanIndexes,
+    migrateSupportRespondentIndexes,
+    migrateTeacherEmployeeIdIndex,
+    migrateWritingDraftNumberIndex
+} from '../config/db.js';
 
 const createDatabase = (initialIndexes = []) => {
     const indexes = [...initialIndexes];
@@ -91,6 +97,161 @@ test('subject code migration leaves a non-unique code index alone', async () => 
     ]);
 
     await migrateSubjectCodeIndex(state.db);
+
+    assert.deepEqual(state.dropped, []);
+    assert.deepEqual(state.created, []);
+});
+
+test('writing draft number migration rebuilds the unique index for live drafts only', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'school_1_project_1_number_1', key: { school: 1, project: 1, number: 1 }, unique: true }
+    ]);
+
+    await migrateWritingDraftNumberIndex(state.db);
+
+    assert.deepEqual(state.dropped, ['school_1_project_1_number_1']);
+    assert.deepEqual(state.created, [{
+        key: { school: 1, project: 1, number: 1 },
+        options: {
+            unique: true,
+            name: 'school_1_project_1_number_1',
+            partialFilterExpression: { withdrawn: false }
+        }
+    }]);
+});
+
+test('writing draft number migration keeps an index that already skips withdrawn drafts', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        {
+            name: 'school_1_project_1_number_1',
+            key: { school: 1, project: 1, number: 1 },
+            unique: true,
+            partialFilterExpression: { withdrawn: false }
+        }
+    ]);
+
+    await migrateWritingDraftNumberIndex(state.db);
+
+    assert.deepEqual(state.dropped, []);
+    assert.deepEqual(state.created, []);
+});
+
+test('support respondent migration drops the legacy one-row-per-student unique index', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'school_1_student_1', key: { school: 1, student: 1 }, unique: true },
+        {
+            name: 'one_parent_slot_per_student',
+            key: { school: 1, student: 1, parentSlot: 1 },
+            unique: true,
+            partialFilterExpression: { kind: 'parent' }
+        },
+        {
+            name: 'one_student_respondent',
+            key: { school: 1, student: 1 },
+            unique: true,
+            partialFilterExpression: { kind: 'student' }
+        }
+    ]);
+
+    await migrateSupportRespondentIndexes(state.db);
+
+    assert.deepEqual(state.dropped, ['school_1_student_1']);
+    assert.deepEqual(state.created, []);
+    assert.ok(state.indexes.some((index) => index.name === 'one_parent_slot_per_student'));
+    assert.ok(state.indexes.some((index) => index.name === 'one_student_respondent'));
+});
+
+test('support respondent migration drops a legacy-named index even when it is partial', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        {
+            name: 'school_1_student_1',
+            key: { school: 1, student: 1 },
+            unique: true,
+            partialFilterExpression: { kind: { $exists: true } }
+        }
+    ]);
+
+    await migrateSupportRespondentIndexes(state.db);
+
+    assert.deepEqual(state.dropped, ['school_1_student_1']);
+});
+
+test('support respondent migration leaves partial and non-unique indexes alone', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'school_1_student_1', key: { school: 1, student: 1 } },
+        {
+            name: 'one_student_respondent',
+            key: { school: 1, student: 1 },
+            unique: true,
+            partialFilterExpression: { kind: 'student' }
+        }
+    ]);
+
+    await migrateSupportRespondentIndexes(state.db);
+
+    assert.deepEqual(state.dropped, []);
+    assert.deepEqual(state.created, []);
+});
+
+test('support respondent migration skips a database without the collection', async () => {
+    const state = createDatabase([]);
+    state.db.listCollections = () => ({ hasNext: async () => false });
+
+    await migrateSupportRespondentIndexes(state.db);
+
+    assert.deepEqual(state.dropped, []);
+    assert.deepEqual(state.created, []);
+});
+
+test('support plan migration rebuilds the legacy cycle index for dated cycles only', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'school_1_cycle_1', key: { school: 1, cycle: 1 }, unique: true }
+    ]);
+
+    await migrateSupportPlanIndexes(state.db);
+
+    assert.deepEqual(state.dropped, ['school_1_cycle_1']);
+    assert.deepEqual(state.created, [{
+        key: { school: 1, cycle: 1 },
+        options: {
+            unique: true,
+            name: 'school_1_cycle_1',
+            partialFilterExpression: { cycle: { $type: 'objectId' } }
+        }
+    }]);
+});
+
+test('support plan migration replaces a non-unique legacy cycle index too', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'school_1_cycle_1', key: { school: 1, cycle: 1 } }
+    ]);
+
+    await migrateSupportPlanIndexes(state.db);
+
+    assert.deepEqual(state.dropped, ['school_1_cycle_1']);
+    assert.equal(state.created.length, 1);
+    assert.equal(state.created[0].options.name, 'school_1_cycle_1');
+});
+
+test('support plan migration keeps a cycle index that already skips null cycles', async () => {
+    const state = createDatabase([
+        { name: '_id_', key: { _id: 1 } },
+        {
+            name: 'school_1_cycle_1',
+            key: { school: 1, cycle: 1 },
+            unique: true,
+            partialFilterExpression: { cycle: { $type: 'objectId' } }
+        }
+    ]);
+
+    await migrateSupportPlanIndexes(state.db);
 
     assert.deepEqual(state.dropped, []);
     assert.deepEqual(state.created, []);

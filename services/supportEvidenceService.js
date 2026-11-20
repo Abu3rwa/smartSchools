@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Attendance from '../models/Attendance.js';
 import Grade from '../models/Grade.js';
 import Student from '../models/Student.js';
-import StudentBehavior from '../models/StudentBehavior.js';
+import { behaviorEvidenceRows } from './behavior/eventQueryService.js';
 import { scrubForPrompt } from './aiPromptSafety.js';
 import { studentAge } from './supportSettingsService.js';
 
@@ -183,19 +183,15 @@ const attendanceEvidence = async ({ schoolId, caseDoc, since }) => {
 };
 
 const behaviorEvidence = async ({ schoolId, caseDoc, since }) => {
-    const mongoose = (await import('mongoose')).default;
-    const rows = await StudentBehavior.aggregate([
-        {
-            $match: {
-                school: new mongoose.Types.ObjectId(String(schoolId)),
-                student: new mongoose.Types.ObjectId(String(caseDoc.student?._id || caseDoc.student)),
-                incidentDate: { $gte: since },
-            },
-        },
-        { $group: { _id: '$incidentType', count: { $sum: 1 }, latestAt: { $max: '$incidentDate' } } },
-        { $sort: { count: -1 } },
-        { $limit: 20 },
-    ]);
+    const events = await behaviorEvidenceRows({ schoolId, studentId: caseDoc.student?._id || caseDoc.student, startDate: since });
+    const grouped = new Map();
+    for (const event of events) {
+        const type = event.incidentType || 'formal_case';
+        const row = grouped.get(type) || { _id: type, count: 0, latestAt: event.incidentDate };
+        row.count += 1;
+        grouped.set(type, row);
+    }
+    const rows = [...grouped.values()].sort((a, b) => b.count - a.count);
     if (rows.length === 0) {
         return source({ available: true, reason: 'no_record', windowDays: Math.round((Date.now() - since) / DAY) });
     }

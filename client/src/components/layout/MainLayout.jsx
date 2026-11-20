@@ -87,7 +87,9 @@ const MainLayout = () => {
 
             <div className="main-content">
                 <div className="bg-grid-inset" aria-hidden="true" />
-                <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                {/* No z-index here: it would make a stacking context that traps
+                    page-level fixed overlays (modals) under the sidebar. */}
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                     {!hideHeader && <Header />}
                     <main id="main-content" className="page-content">
                         {shouldShowBanner && <SubscriptionExpiredBanner />}

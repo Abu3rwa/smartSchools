@@ -61,6 +61,15 @@ const writingDraftSchema = new mongoose.Schema(
       default: "student",
     },
     pasteAttempts: { type: [pasteAttemptSchema], default: [] },
+    // F13: a submission the teacher pulled back before anything was published.
+    // A withdrawn draft keeps its number so the next submit reuses it, but it
+    // is not a revision: it never counts, compares or publishes.
+    withdrawn: { type: Boolean, default: false },
+    withdrawal: {
+      at: { type: Date },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reason: { type: String, trim: true, default: "" },
+    },
     configSnapshot: {
       type: mongoose.Schema.Types.Mixed,
       default: () => ({}),
@@ -69,9 +78,11 @@ const writingDraftSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Numbering is unique among live drafts only: a returned submission keeps its
+// number for the audit trail while the next submit takes that number back (F13).
 writingDraftSchema.index(
   { school: 1, project: 1, number: 1 },
-  { unique: true },
+  { unique: true, partialFilterExpression: { withdrawn: false } },
 );
 writingDraftSchema.index({ school: 1, student: 1, submittedAt: -1 });
 writingDraftSchema.plugin(tenantIsolationPlugin);

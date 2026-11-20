@@ -182,6 +182,23 @@ test("buildCourseWorkMaterials appends Drive attachments as read-only driveFile 
   ]);
 });
 
+test("buildCourseWorkMaterials never posts an AI-only Drive file to Classroom", () => {
+  const assignment = baseAssignment({
+    driveAttachments: [
+      { fileId: "drive-1", fileName: "Worksheet.pdf" },
+      {
+        fileId: "drive-2",
+        fileName: "Teacher key.pdf",
+        visibility: "private",
+      },
+    ],
+  });
+
+  assert.deepEqual(buildCourseWorkMaterials(assignment), [
+    { driveFile: { driveFile: { id: "drive-1" }, shareMode: "VIEW" } },
+  ]);
+});
+
 test("buildCourseWorkPatch never carries materials, even with Drive attachments present", () => {
   const { requestBody, updateMask } = buildCourseWorkPatch({
     assignment: baseAssignment({

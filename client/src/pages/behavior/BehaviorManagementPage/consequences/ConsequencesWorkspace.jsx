@@ -20,16 +20,16 @@ import './consequences.css';
 
 const ADMIN_ROLES = ['super_admin', 'admin', 'department_principal', 'behavior_manager'];
 
-const ConsequencesWorkspace = ({ students = [], user = null, initialSettings = null }) => {
+const ConsequencesWorkspace = ({ students = [], user = null, initialSettings = null, initialTab = 'log' }) => {
     const { t } = useTranslation(['behaviorConsequences']);
     const [savedSettings, setSavedSettings] = useState(null);
     const [fetchedSettings, setFetchedSettings] = useState(null);
-    const [tab, setTab] = useState('log');
+    const [tab, setTab] = useState(initialTab);
     const [approvalCount, setApprovalCount] = useState(0);
     const [taskCount, setTaskCount] = useState(0);
     const [catalogReload, setCatalogReload] = useState(0);
 
-    const isAdmin = useMemo(() => ADMIN_ROLES.includes(user?.role), [user?.role]);
+    const isAdmin = useMemo(() => [user?.role, ...(user?.roles || [])].some((role) => ADMIN_ROLES.includes(role)), [user]);
 
     // The page already reads the flag to decide whether this workspace exists,
     // so the full settings row is only fetched when it was not handed over.

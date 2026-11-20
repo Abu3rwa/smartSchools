@@ -1,4 +1,5 @@
 /** Pure helpers for the student word rail. No React, no requests. */
+import { nearMissTokens } from "../../../../utils/writingTextMatch.js";
 
 const needleOf = (query) =>
   String(query || "")
@@ -45,4 +46,28 @@ export const wordIsUsed = (row, used) => {
     )
     .filter(Boolean);
   return candidates.some((candidate) => tokens.has(candidate));
+};
+
+/**
+ * G5: the word the student already typed instead of this one. Same edit
+ * thresholds the server uses for evidence, so the rail never hints at a word
+ * the feedback would not also treat as an attempt.
+ */
+export const nearMissFor = (row, used) => {
+  const known = new Set(
+    [row?.word, row?.baseWord, ...(Array.isArray(row?.forms) ? row.forms : [])]
+      .map((value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean),
+  );
+  const [found] = nearMissTokens({
+    word: row?.word,
+    tokens: used instanceof Set ? [...used] : used || [],
+    known,
+    max: 1,
+  });
+  return found || "";
 };

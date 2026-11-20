@@ -41,7 +41,7 @@ export const analyzeSurveys = (surveys = []) => {
     for (const survey of surveys) {
         if (!survey || survey.status !== 'submitted') continue;
         if (survey.audience === 'parent') parentCount += 1;
-        else teacherCount += 1;
+        else if (survey.audience === 'teacher') teacherCount += 1;
 
         for (const question of survey.questions || []) {
             const answer = answerFor(survey, question.id);

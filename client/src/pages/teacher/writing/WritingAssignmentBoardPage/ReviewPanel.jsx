@@ -16,21 +16,53 @@ import {
   isCreditError,
 } from "../../../../utils/aiCredit.js";
 import {
+  WORD_USE_DEFAULT_SHOWN,
   formFromAssessment,
-  isStaleAssessment,
   latestForDraft,
   payloadFromForm,
+  publishCheck,
+  reviewStateOf,
+  splitLines,
   splitWordUse,
 } from "./assessmentPresentation.js";
-import { formatDateTime } from "./boardPresentation.js";
+import { canReturnSubmission, formatDateTime } from "./boardPresentation.js";
+import { WRITING_STAGES } from "../../../../constants/writingPresets.js";
+import { isRepeatedInstruction } from "../../../../utils/writingTextMatch.js";
 import FeedbackEmailResend from "./FeedbackEmailResend.jsx";
+import EmailRecipients from "./EmailRecipients.jsx";
+import CommentBank from "./CommentBank.jsx";
+import DraftDiff from "./DraftDiff.jsx";
+import LanguageCorrectionsEditor from "./LanguageCorrectionsEditor.jsx";
+import NoteRewrite from "./NoteRewrite.jsx";
+import PublishChecklist from "./PublishChecklist.jsx";
 import DraftEssayView from "../../../student/writing/WritingWorkspacePage/DraftEssayView.jsx";
-import RubricStrip from "../../../student/writing/WritingWorkspacePage/RubricStrip.jsx";
+import FeedbackCard from "../../../student/writing/WritingWorkspacePage/FeedbackCard.jsx";
+import { rubricRows } from "../../../../utils/writingRubric.js";
 import "../../../student/writing/WritingWorkspacePage/WritingWorkspacePage.css";
 
 const pendingLabel = (pending, key) => pending === key;
 
-export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDelivery }) {
+const PRECHECK_KEYS = {
+  empty: "writing:teacher.review.precheck.empty",
+  below_minimum: "writing:teacher.review.precheck.belowMinimum",
+  pasted: "writing:teacher.review.precheck.pasted",
+  single_sentence: "writing:teacher.review.precheck.singleSentence",
+};
+
+const MECHANICS_ERROR_KEYS = {
+  WRITING_MECHANICS_INVALID: "writing:languageCorrections.teacher.saveInvalid",
+  WRITING_MECHANICS_ANCHOR_MISMATCH:
+    "writing:languageCorrections.teacher.saveAnchor",
+  WRITING_MECHANICS_LIMIT: "writing:languageCorrections.teacher.saveLimit",
+};
+
+const ADJUSTMENT_REASONS = new Set([
+  "empty_section",
+  "rebuttal_without_pack_evidence",
+  "missing_required_section",
+]);
+
+export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDelivery, teacherTools = false }) {
   const { t, i18n } = useTranslation(["writing"]);
   const project = history?.project || null;
   const drafts = history?.drafts || [];
@@ -60,11 +92,30 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
   const [pending, setPending] = useState("");
   const [exporting, setExporting] = useState(false);
   const [notify, setNotify] = useState({ student: true, parents: true });
-  const runningRun = feedback?.aiStatus === "running";
+  // G1: the evidence list shows eight rows until the teacher asks for the rest.
+  const [showAllWordUse, setShowAllWordUse] = useState(false);
+  // A claimed run is pending before it is running; both mean "leave it alone".
+  const runningRun = ["pending", "running"].includes(feedback?.aiStatus);
   const emailRecipients = {
     student: Boolean(emailDelivery?.students && notify.student),
     parents: Boolean(emailDelivery?.parents && notify.parents),
   };
+  // F6: what publishing sends the child and what would stop it. Derived from the
+  // live form so the block always describes the text on screen.
+  const feedbackCheck = publishCheck({
+    form,
+    assessment: feedback,
+    latestDraft,
+    email: emailRecipients,
+  });
+  const comparisonCheck = embedded
+    ? feedbackCheck
+    : publishCheck({
+        form: comparisonForm,
+        assessment: comparison,
+        latestDraft,
+        email: emailRecipients,
+      });
 
   const feedbackStamp = feedback
     ? `${feedback._id}:${feedback.aiStatus}:${feedback.teacherEdits?.at || ""}`
@@ -128,9 +179,43 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
     [form],
   );
 
-  if (!project || !latestDraft) return null;
+  // F10: the preview is the child's own card, fed from the text on this form, so
+  // a note the teacher checks here appears to the child in the same words.
+  const previewFeedback = useMemo(() => {
+    const payload = payloadFromForm(form);
+    return {
+      overall: payload.overall,
+      scores: rubricRows(form?.scores, { marks: history?.marksMode }),
+      spellingTargets: payload.spellingTargets || [],
+    };
+  }, [form, history?.marksMode]);
+
+  if (!project) return null;
+  // No draft means nothing to assess; say so instead of leaving the panel blank.
+  if (!latestDraft) {
+    return (
+      <section className="wa-review">
+        <header className="wa-review-head">
+          <h3>{t("writing:teacher.review.title")}</h3>
+        </header>
+        <div className="wa-review-empty">
+          <h4>{t("writing:teacher.review.noDraftTitle")}</h4>
+          <p>{t("writing:teacher.review.noDraftBody")}</p>
+        </div>
+      </section>
+    );
+  }
 
   const wordUse = splitWordUse(form?.wordUse);
+  const wordUseCapped =
+    !showAllWordUse &&
+    wordUse.active.length + wordUse.unused.length > WORD_USE_DEFAULT_SHOWN;
+  const wordUseActive = wordUseCapped
+    ? wordUse.active.slice(0, WORD_USE_DEFAULT_SHOWN)
+    : wordUse.active;
+  const wordUseUnused = wordUseCapped
+    ? wordUse.unused.slice(0, Math.max(0, WORD_USE_DEFAULT_SHOWN - wordUseActive.length))
+    : wordUse.unused;
 
   const run = async (key, action, successMessage) => {
     setPending(key);
@@ -138,13 +223,17 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
       const result = await action();
       await onChanged();
       if (successMessage) {
-        toast.success(
-          typeof successMessage === "function" ? successMessage(result) : successMessage,
-        );
+        const message =
+          typeof successMessage === "function"
+            ? successMessage(result)
+            : successMessage;
+        if (message) toast.success(message);
       }
     } catch (error) {
+      const mechanicsKey = MECHANICS_ERROR_KEYS[error?.response?.data?.code];
       toast.error(
         creditErrorMessage(error, t) ||
+          (mechanicsKey && t(mechanicsKey)) ||
           error?.response?.data?.message ||
           t("writing:teacher.review.failed"),
       );
@@ -163,6 +252,15 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         rowIndex === index ? { ...row, ...patch } : row,
       ),
     }));
+  // The assessed draft's own words, so a selection is checked against the text
+  // the correction will be drawn on.
+  const draftTextFor = (row) => {
+    const source = (latestDraft?.sections || []).find(
+      (item) =>
+        item.key === row.key && Number(item.index) === Number(row.index),
+    );
+    return String(source?.text || "").trim();
+  };
   const updateScore = (index, patch) =>
     setForm((current) => ({
       ...current,
@@ -192,13 +290,55 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
       ),
     }));
 
+  const adjustments = feedback?.scoreAdjustments || [];
+  const adjustmentLabel = (row) => {
+    if (row.target === "section") {
+      const match = (form?.sections || []).find(
+        (item) =>
+          item.key === row.key && Number(item.index) === Number(row.index),
+      );
+      return match?.label || `${row.key} ${Number(row.index) + 1}`;
+    }
+    const match = (form?.scores || []).find((item) => item.key === row.key);
+    return match?.label || row.key;
+  };
+
   // The teacher's tap is the confirmation: re-running a finished draft is what
   // the Assess / Re-assess button is for, so it says so to the server.
   const assess = () =>
     run(
       "assess",
-      () => writingService.assessDraft(latestDraft._id, { force: true }),
-      t("writing:teacher.review.assessedToast"),
+      async () => {
+        const result = await writingService.assessDraft(latestDraft._id, {
+          force: true,
+          // K6: a slow provider can outlive the request; the server answers with
+          // the claimed run and this panel polls it, so the teacher can leave.
+          async: true,
+        });
+        // A draft the server refused before any AI call: say why, cost nothing.
+        if (result?.precheck) {
+          const precheck = result.precheck;
+          toast.error(
+            PRECHECK_KEYS[precheck.code]
+              ? t(PRECHECK_KEYS[precheck.code], {
+                  words: precheck.words,
+                  minWords: precheck.minWords,
+                })
+              : precheck.guidance,
+            { duration: 8000 },
+          );
+          return null;
+        }
+        return result;
+      },
+      (result) => {
+        if (result === null) return null;
+        return t(
+          result?.pending
+            ? "writing:teacher.review.assessStarted"
+            : "writing:teacher.review.assessedToast",
+        );
+      },
     );
   // A fresh run replaces the editable text, so ask before dropping unsaved edits.
   const reassess = () => {
@@ -273,15 +413,33 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
       publishedMessage,
     );
 
-  const moveStage = (stage) =>
-    run(
+  // D8: publishing closes a round, so moving a student back needs a reason. The
+  // server refuses the move without one; ask here so the teacher is not bounced.
+  const moveStage = (stage) => {
+    const backwards =
+      WRITING_STAGES.indexOf(stage) < WRITING_STAGES.indexOf(project.stage);
+    let reason = "";
+    if (backwards) {
+      const answer = window.prompt(
+        t("writing:teacher.review.stageReasonPrompt"),
+      );
+      if (answer === null) return undefined;
+      reason = answer.trim();
+      if (!reason) {
+        toast.error(t("writing:teacher.review.stageReasonRequired"));
+        return undefined;
+      }
+    }
+    return run(
       "stage",
       () =>
         writingService.overrideProjectStage(project.id || project._id, {
           stage,
+          reason,
         }),
       t("writing:teacher.review.stageMoved"),
     );
+  };
   const unlockStage = () =>
     run(
       "unlock",
@@ -309,8 +467,34 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
     }
   };
 
-  const notebook = (state) =>
-    run(
+  // F13: the child pressed submit too early. The text goes back untouched and
+  // the reason is kept with the stage move, so an empty answer sends nothing.
+  const returnSubmission = () => {
+    const answer = window.prompt(
+      t("writing:teacher.review.returnPrompt"),
+    );
+    if (answer === null) return undefined;
+    const reason = answer.trim();
+    if (!reason) {
+      toast.error(t("writing:teacher.review.returnReasonRequired"));
+      return undefined;
+    }
+    return run(
+      "return",
+      () =>
+        writingService.returnDraftToStudent(project.id || project._id, reason),
+      t("writing:teacher.review.returned"),
+    );
+  };
+
+  // D8: "needs more work" sends the student back a stage, so the note explaining
+  // what to revise is required before the move is sent.
+  const notebook = (state) => {
+    if (state === "revision_required" && !note.trim()) {
+      toast.error(t("writing:teacher.review.notebookNoteRequired"));
+      return undefined;
+    }
+    return run(
       "notebook",
       () =>
         writingService.recordNotebookReview(project.id || project._id, {
@@ -320,8 +504,9 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         }),
       t("writing:teacher.review.notebookSaved"),
     );
+  };
 
-  const feedbackStale = isStaleAssessment(feedback, now);
+  const reviewState = reviewStateOf(feedback, now);
   const lockedTo = project.teacherOverride?.stageLockedTo || "";
   const totalPoints = (history?.assignment?.rubric || []).reduce(
     (sum, row) => sum + (Number(row.maxScore) || 0),
@@ -341,6 +526,19 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
           <HiOutlinePrinter size={15} aria-hidden="true" />
           {t("writing:teacher.review.exportPdf")}
         </button>
+        {canReturnSubmission({
+          stage: project.stage,
+          published: feedback?.publish?.state === "published",
+        }) && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={Boolean(pending)}
+            onClick={returnSubmission}
+          >
+            {t("writing:teacher.review.returnAction")}
+          </button>
+        )}
         {feedback?.publish?.state === "published" && (
           <span className="wa-badge is-published">
             <HiOutlineBadgeCheck size={15} aria-hidden="true" />
@@ -358,8 +556,9 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         disabled={Boolean(pending)}
       />
 
-      {!feedback && (
+      {reviewState === "none" && (
         <div className="wa-review-empty">
+          <h4>{t("writing:teacher.review.noFeedbackTitle")}</h4>
           <p>{t("writing:teacher.review.noFeedbackYet")}</p>
           <button
             type="button"
@@ -375,14 +574,29 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         </div>
       )}
 
-      {feedback?.aiStatus === "running" && (
-        <div className="wa-review-empty">
-          <p className="wa-hint" aria-live="polite">
-            {feedbackStale
-              ? t("writing:teacher.review.stalled")
-              : t("writing:teacher.review.assessing")}
-          </p>
-          {feedbackStale && (
+      {(reviewState === "running" || reviewState === "stalled") && (
+        <div
+          className={`wa-review-running${reviewState === "stalled" ? " is-stalled" : ""}`}
+          aria-live="polite"
+        >
+          {reviewState === "stalled" ? (
+            <HiOutlineRefresh size={18} aria-hidden="true" />
+          ) : (
+            <div className="spinner" aria-hidden="true" />
+          )}
+          <div className="wa-review-running-body">
+            <h4>
+              {reviewState === "stalled"
+                ? t("writing:teacher.review.stalledTitle")
+                : t("writing:teacher.review.runningTitle")}
+            </h4>
+            <p>
+              {reviewState === "stalled"
+                ? t("writing:teacher.review.stalled")
+                : t("writing:teacher.review.assessingHint")}
+            </p>
+          </div>
+          {reviewState === "stalled" && (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -396,12 +610,11 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         </div>
       )}
 
-      {feedback?.aiStatus === "failed" && (
-        <div className="wa-review-failed">
+      {reviewState === "failed" && (
+        <div className="wa-review-failed" role="alert">
+          <h4>{t("writing:teacher.review.failedTitle")}</h4>
           <p>
-            {t("writing:teacher.review.aiFailed", {
-              error: feedback.aiError || "",
-            })}
+            {feedback.aiError || t("writing:teacher.review.failedNoReason")}
           </p>
           <button
             type="button"
@@ -440,7 +653,7 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
         </p>
       )}
 
-      {feedback?.aiStatus === "done" && form && (
+      {reviewState === "done" && form && (
         <div className="wa-review-block">
           <div className="wa-review-block-head">
             <h4>
@@ -458,23 +671,51 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
             </button>
           </div>
 
-          {/* The point of the preview is the highlighted quote: a note pinned to
-              the wrong words is the child's problem to discover otherwise. */}
+          {/* F10: the child's own card and the child's own draft view, both built
+              from this form. A note is read here in the words the child will get. */}
           <details className="wa-preview">
             <summary>{t("writing:teacher.review.previewAsStudent")}</summary>
             <p className="wa-hint">
               {t("writing:teacher.review.previewHint")}
             </p>
             <div className="ws-page wa-preview-body">
+              <FeedbackCard
+                draftNumber={latestDraft.number}
+                feedback={previewFeedback}
+                marks={history?.marksMode}
+              />
               <DraftEssayView
                 assessment={{ sections: previewSections }}
                 assignment={history?.assignment}
                 draft={latestDraft}
                 locale={i18n.language}
               />
-              <RubricStrip scores={form.scores} />
             </div>
           </details>
+
+          {/* F12: what the AI never sees and what only the teacher decides.
+              Run metadata (model, prompt version, timestamp) stays internal. */}
+          <details className="wa-how">
+            <summary>{t("writing:teacher.review.howTitle")}</summary>
+            <ul className="wa-how-list">
+              <li>{t("writing:teacher.review.howSees")}</li>
+              <li>{t("writing:teacher.review.howNever")}</li>
+              <li>{t("writing:teacher.review.howTeacher")}</li>
+              <li>{t("writing:teacher.review.howChild")}</li>
+            </ul>
+          </details>
+
+          {history?.assignment?.exemplarText && (
+            <details className="wa-preview">
+              <summary>{t("writing:teacher.review.exemplar")}</summary>
+              <p className="wa-hint">
+                {t("writing:teacher.review.exemplarHint")}
+              </p>
+              <div className="wa-review-exemplar">
+                {history.assignment.exemplarText}
+              </div>
+            </details>
+          )}
 
           <label className="wa-field">
             <span>{t("writing:teacher.review.summary")}</span>
@@ -517,7 +758,11 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
               </span>
               <div className="wa-spelling-chips">
                 {form.spellingTargets.map((row) => (
-                  <span className="wa-spelling-chip" key={row.word}>
+                  <span
+                    className="wa-spelling-chip"
+                    key={row.word}
+                    title={row.reason || undefined}
+                  >
                     {row.word}
                     {row.grade ? <em>{row.grade}</em> : null}
                     {feedbackEditable && (
@@ -546,9 +791,9 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
               <span className="wa-field-label">
                 {t("writing:teacher.review.wordUseTitle")}
               </span>
-              {wordUse.active.length > 0 && (
+              {wordUseActive.length > 0 && (
                 <ul className="wa-word-use">
-                  {wordUse.active.map((row) => (
+                  {wordUseActive.map((row) => (
                     <li
                       key={`${row.source}:${row.word}`}
                       className={`wa-word-use-row is-${row.decision || "open"}`}
@@ -596,10 +841,10 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                   ))}
                 </ul>
               )}
-              {wordUse.unused.length > 0 && (
+              {wordUseUnused.length > 0 && (
                 <p className="wa-word-use-unused">
                   <span>{t("writing:teacher.review.wordUseMissing")}</span>
-                  {wordUse.unused.map((row) => (
+                  {wordUseUnused.map((row) => (
                     <span
                       key={`${row.source}:${row.word}`}
                       className="wa-word-use-chip"
@@ -608,6 +853,17 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     </span>
                   ))}
                 </p>
+              )}
+              {wordUseCapped && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowAllWordUse(true)}
+                >
+                  {t("writing:teacher.review.wordUseShowAll", {
+                    n: wordUse.active.length + wordUse.unused.length,
+                  })}
+                </button>
               )}
               <p className="wa-hint">
                 {t("writing:teacher.review.wordUseHint")}
@@ -656,11 +912,53 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
             ))}
           </div>
 
+          {adjustments.length > 0 && (
+            <div className="wa-review-adjustments">
+              <span className="wa-field-label">
+                {t("writing:teacher.review.scoreAdjustments")}
+              </span>
+              {adjustments.map((row, index) => (
+                <p
+                  className={`wa-adjustment${row.overriddenByTeacher ? " is-overridden" : ""}`}
+                  key={`${row.target}:${row.key}:${row.index}:${index}`}
+                >
+                  <span>{adjustmentLabel(row)}</span>
+                  <em>
+                    {t("writing:teacher.review.adjustmentFromTo", {
+                      from: row.from,
+                      to: row.to,
+                    })}
+                  </em>
+                  <span>
+                    {ADJUSTMENT_REASONS.has(row.reason)
+                      ? t(
+                          `writing:teacher.review.adjustmentReason.${row.reason}`,
+                        )
+                      : row.reason}
+                    {row.detail
+                      ? ` · ${t("writing:teacher.review.adjustmentMissingSection", {
+                          detail: row.detail,
+                        })}`
+                      : ""}
+                  </span>
+                  {row.overriddenByTeacher && (
+                    <em>{t("writing:teacher.review.adjustmentOverride")}</em>
+                  )}
+                </p>
+              ))}
+            </div>
+          )}
+
           <div className="wa-review-sections">
             <span className="wa-field-label">
               {t("writing:teacher.review.sectionsTitle")}
             </span>
-            {form.sections.map((row, index) => (
+            {form.sections.map((row, index) => {
+              const sectionCriteria =
+                (history?.assignment?.sections || []).find(
+                  (section) => section.key === row.key,
+                )?.criteria || [];
+              return (
               <details
                 className="wa-review-section"
                 key={`${row.key}:${row.index}`}
@@ -687,6 +985,19 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     }
                   />
                 </label>
+                {teacherTools && (
+                  <CommentBank
+                    sectionKey={row.key}
+                    criteria={sectionCriteria}
+                    notes={splitLines(row.strengthsText)}
+                    disabled={!feedbackEditable}
+                    onReplace={(noteIndex, text) => {
+                      const lines = splitLines(row.strengthsText);
+                      lines[noteIndex] = text;
+                      updateSection(index, { strengthsText: lines.join("\n") });
+                    }}
+                  />
+                )}
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.improvements")}</span>
                   <textarea
@@ -700,6 +1011,38 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     }
                   />
                 </label>
+                {teacherTools && (
+                  <>
+                    <CommentBank
+                      sectionKey={row.key}
+                      criteria={sectionCriteria}
+                      notes={splitLines(row.improvementsText)}
+                      disabled={!feedbackEditable}
+                      onReplace={(noteIndex, text) => {
+                        const lines = splitLines(row.improvementsText);
+                        lines[noteIndex] = text;
+                        updateSection(index, {
+                          improvementsText: lines.join("\n"),
+                        });
+                      }}
+                    />
+                    <NoteRewrite
+                      assessmentId={feedback._id}
+                      sectionKey={row.key}
+                      sectionIndex={row.index}
+                      field="improvement"
+                      notes={splitLines(row.improvementsText)}
+                      disabled={!feedbackEditable}
+                      onReplace={(noteIndex, text) => {
+                        const lines = splitLines(row.improvementsText);
+                        lines[noteIndex] = text;
+                        updateSection(index, {
+                          improvementsText: lines.join("\n"),
+                        });
+                      }}
+                    />
+                  </>
+                )}
                 <div className="wa-review-pair">
                   <label className="wa-field">
                     <span>{t("writing:teacher.review.evidence")}</span>
@@ -724,6 +1067,41 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     />
                   </label>
                 </div>
+                {teacherTools && (
+                  <>
+                    <CommentBank
+                      sectionKey={row.key}
+                      criteria={sectionCriteria}
+                      notes={[row.nextStep || ""]}
+                      disabled={!feedbackEditable}
+                      onReplace={(_noteIndex, text) =>
+                        updateSection(index, { nextStep: text })
+                      }
+                    />
+                    <NoteRewrite
+                      assessmentId={feedback._id}
+                      sectionKey={row.key}
+                      sectionIndex={row.index}
+                      field="nextStep"
+                      notes={[row.nextStep || ""]}
+                      disabled={!feedbackEditable}
+                      onReplace={(_noteIndex, text) =>
+                        updateSection(index, { nextStep: text })
+                      }
+                    />
+                  </>
+                )}
+                {row.intervention?.repeat &&
+                  isRepeatedInstruction(row.intervention.previous, row.nextStep) && (
+                    <div className="wa-review-repeat" role="alert">
+                      <p>{t("writing:teacher.review.repeatBlocked")}</p>
+                      <p className="wa-hint">
+                        {t("writing:teacher.review.repeatPrevious", {
+                          text: row.intervention.previous,
+                        })}
+                      </p>
+                    </div>
+                  )}
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.why")}</span>
                   <textarea
@@ -735,9 +1113,61 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     }
                   />
                 </label>
+                <LanguageCorrectionsEditor
+                  rows={row.mechanics || []}
+                  sectionText={draftTextFor(row)}
+                  disabled={!feedbackEditable}
+                  onChange={(mechanics) => updateSection(index, { mechanics })}
+                />
               </details>
-            ))}
+              );
+            })}
           </div>
+
+          {/* What the child does not get: over-budget notes and priorities. Kept
+              visible so a teacher can promote one instead of losing it (A3). */}
+          {(form.focus ||
+            (form.teacherOnly?.notes || []).length > 0 ||
+            (form.teacherOnly?.priorities || []).length > 0) && (
+            <div className="wa-review-teacher-only">
+              <span className="wa-field-label">
+                {t("writing:teacher.review.teacherOnlyTitle")}
+              </span>
+              {form.focus && (
+                <p className="wa-hint">
+                  {t("writing:teacher.review.focusBudget", {
+                    tier: t(`writing:teacher.review.tier.${form.focus.tier}`),
+                    improvements: form.focus.totalImprovements,
+                    sections:
+                      form.focus.childSections.length > 0
+                        ? form.focus.childSections.length
+                        : form.focus.sectionsWithImprovements,
+                    priorities: form.focus.priorities,
+                  })}
+                </p>
+              )}
+              {(form.teacherOnly?.notes || []).length > 0 && (
+                <ul className="wa-word-use">
+                  {form.teacherOnly.notes.map((item, index) => (
+                    <li className="wa-word-use-row" key={`${item.label}:${index}`}>
+                      <span className="wa-word-use-word">{item.label}</span>
+                      <span className="wa-word-use-fact">{item.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(form.teacherOnly?.priorities || []).length > 0 && (
+                <ul className="wa-lines">
+                  {form.teacherOnly.priorities.map((item, index) => (
+                    <li key={`${index}:${item}`}>{item}</li>
+                  ))}
+                </ul>
+              )}
+              <p className="wa-hint">
+                {t("writing:teacher.review.teacherOnlyHint")}
+              </p>
+            </div>
+          )}
 
           <div className="wa-review-pair">
             <label className="wa-field">
@@ -816,34 +1246,42 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                   {t("writing:teacher.review.emailHint")}
                 </p>
               )}
+              <EmailRecipients
+                recipients={history.emailRecipients}
+                allowed={emailDelivery}
+                selected={emailRecipients}
+              />
             </div>
           )}
 
           {feedbackEditable && (
-            <div className="wa-review-actions">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={Boolean(pending)}
-                onClick={() => saveFeedback(feedback)}
-              >
-                {pendingLabel(pending, "save")
-                  ? t("writing:teacher.review.saving")
-                  : t("writing:teacher.review.save")}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={Boolean(pending)}
-                onClick={() => {
-                  if (confirmPublish()) publishFeedback(feedback);
-                }}
-              >
-                {pendingLabel(pending, "publish")
-                  ? t("writing:teacher.review.publishing")
-                  : t("writing:teacher.review.publish")}
-              </button>
-            </div>
+            <>
+              <PublishChecklist check={feedbackCheck} />
+              <div className="wa-review-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={Boolean(pending)}
+                  onClick={() => saveFeedback(feedback)}
+                >
+                  {pendingLabel(pending, "save")
+                    ? t("writing:teacher.review.saving")
+                    : t("writing:teacher.review.save")}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={Boolean(pending) || feedbackCheck.blocked}
+                  onClick={() => {
+                    if (confirmPublish()) publishFeedback(feedback);
+                  }}
+                >
+                  {pendingLabel(pending, "publish")
+                    ? t("writing:teacher.review.publishing")
+                    : t("writing:teacher.review.publish")}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -869,11 +1307,47 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                   )}
                 </div>
 
+                {/* D6: a length change alone is not progress, so the panel leads
+                    with what actually changed and keeps the word count beneath. */}
+                {comparisonForm.comparison.changes.length > 0 && (
+                  <div className="wa-change-story">
+                    <span className="wa-field-label">
+                      {t("writing:teacher.review.changeStory")}
+                    </span>
+                    <ul>
+                      {comparisonForm.comparison.changes.map((row) => (
+                        <li
+                          key={`${row.key}:${row.index}:${row.kind}`}
+                          className={`is-${row.kind}`}
+                        >
+                          <span>{row.label}</span>
+                          <em>
+                            {t(
+                              `writing:teacher.review.changeKind.${row.kind}`,
+                              { n: row.wordDelta },
+                            )}
+                          </em>
+                        </li>
+                      ))}
+                    </ul>
+                    {comparisonForm.comparison.mostlyReworded && (
+                      <p className="wa-hint">
+                        {t("writing:teacher.review.mostlyReworded")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <p className="wa-hint">
                   {t("writing:teacher.review.wordChange", {
                     n: comparisonForm.comparison.wordDelta,
                   })}
                 </p>
+
+                <DraftDiff
+                  previousDraft={drafts[drafts.length - 2] || null}
+                  currentDraft={latestDraft}
+                />
 
                 <label className="wa-field">
                   <span>
@@ -900,6 +1374,17 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     }
                   />
                 </label>
+                {/* D3: each "got stronger" claim is backed by one computed fact. */}
+                {comparisonForm.comparison.improvedFacts.length > 0 && (
+                  <ul className="wa-fact-list">
+                    {comparisonForm.comparison.improvedFacts.map((row, index) => (
+                      <li key={`${row.kind}:${row.label}:${index}`}>
+                        <strong>{row.label}</strong>
+                        <span>{row.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <label className="wa-field">
                   <span>{t("writing:teacher.review.unresolved")}</span>
                   <textarea
@@ -922,6 +1407,26 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                     }
                   />
                 </label>
+                {/* D4: an issue without a quote from this draft stays marked. */}
+                {comparisonForm.comparison.newIssueChecks.length > 0 && (
+                  <ul className="wa-fact-list wa-fact-list--issues">
+                    {comparisonForm.comparison.newIssueChecks.map(
+                      (row, index) => (
+                        <li
+                          key={`${row.text}:${index}`}
+                          className={row.verified ? "is-verified" : "is-unverified"}
+                        >
+                          <strong>{row.text}</strong>
+                          <span>
+                            {row.verified
+                              ? row.evidence
+                              : t("writing:teacher.review.newIssueUnverified")}
+                          </span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
 
                 <div className="wa-review-sections">
                   <span className="wa-field-label">
@@ -985,6 +1490,15 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                         <span>
                           {row.note ? `${row.text} — ${row.note}` : row.text}
                         </span>
+                        {/* D5: a tick the server could not find in the draft is shown as a claim. */}
+                        {row.claimed && !row.verified && (
+                          <em className="wa-review-unverified">
+                            {t("writing:teacher.review.taskNotVerified")}
+                          </em>
+                        )}
+                        {row.verified && row.quote && (
+                          <em className="wa-review-quote">“{row.quote}”</em>
+                        )}
                       </label>
                     ))}
                   </div>
@@ -1027,6 +1541,14 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                                 { n: row.unresolvedStreak || 0 },
                               )}
                             </span>
+                            {/* D2: a task that survives two revisions gets a named next move. */}
+                            {row.status === "stalled" && row.suggestion && (
+                              <span className="wa-ledger-hint">
+                                {t(
+                                  `writing:teacher.review.stallSuggestion.${row.suggestion}`,
+                                )}
+                              </span>
+                            )}
                           </div>
                         ))}
                     </div>
@@ -1070,40 +1592,52 @@ export default function ReviewPanel({ history, onChanged, onDirtyChange, emailDe
                 )}
 
                 {comparisonEditable && (
-                  <div className="wa-review-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={Boolean(pending)}
-                      onClick={() =>
-                        embedded
-                          ? saveFeedback(feedback)
-                          : saveComparison(comparison)
-                      }
-                    >
-                      {pendingLabel(pending, embedded ? "save" : "saveCompare")
-                        ? t("writing:teacher.review.saving")
-                        : t("writing:teacher.review.save")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      disabled={Boolean(pending)}
-                      onClick={() => {
-                        if (!confirmPublish()) return;
-                        embedded
-                          ? publishFeedback(feedback)
-                          : publishComparison(comparison);
-                      }}
-                    >
-                      {pendingLabel(
-                        pending,
-                        embedded ? "publish" : "publishCompare",
-                      )
-                        ? t("writing:teacher.review.publishing")
-                        : t("writing:teacher.review.publish")}
-                    </button>
-                  </div>
+                  <>
+                    {/* The feedback block already shows the shared checklist. */}
+                    {!embedded && comparisonCheck.blocked && (
+                      <PublishChecklist
+                        check={comparisonCheck}
+                        showSummary={false}
+                      />
+                    )}
+                    <div className="wa-review-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={Boolean(pending)}
+                        onClick={() =>
+                          embedded
+                            ? saveFeedback(feedback)
+                            : saveComparison(comparison)
+                        }
+                      >
+                        {pendingLabel(
+                          pending,
+                          embedded ? "save" : "saveCompare",
+                        )
+                          ? t("writing:teacher.review.saving")
+                          : t("writing:teacher.review.save")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={Boolean(pending) || comparisonCheck.blocked}
+                        onClick={() => {
+                          if (!confirmPublish()) return;
+                          embedded
+                            ? publishFeedback(feedback)
+                            : publishComparison(comparison);
+                        }}
+                      >
+                        {pendingLabel(
+                          pending,
+                          embedded ? "publish" : "publishCompare",
+                        )
+                          ? t("writing:teacher.review.publishing")
+                          : t("writing:teacher.review.publish")}
+                      </button>
+                    </div>
+                  </>
                 )}
               </>
             )}

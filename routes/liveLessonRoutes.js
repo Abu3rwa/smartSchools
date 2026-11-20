@@ -41,7 +41,9 @@ import {
   setLiveSessionReplayAvailability,
   updateLiveSessionQuestionMarks,
   addLiveLessonFolderShortcut,
+  addLiveLessonFolderShortcuts,
   removeLiveLessonFolderShortcut,
+  removeLiveLessonFolderShortcuts,
   reorderLiveLessonFolderShortcuts,
   reorderLiveLessonFolders,
   updateLiveLessonFolder,
@@ -94,6 +96,8 @@ router.get("/lessons/folders", authorize("teacher", "admin", "department_princip
 router.post("/lessons/folders", authorize("teacher", "admin", "department_principal"), createLiveLessonFolder);
 router.patch("/lessons/folders/order", authorize("teacher", "admin", "department_principal"), reorderLiveLessonFolders);
 router.patch("/lessons/folders/:folderId/lessons/order", authorize("teacher", "admin", "department_principal"), reorderLiveLessonFolderShortcuts);
+router.post("/lessons/folders/:folderId/lessons/bulk", authorize("teacher", "admin", "department_principal"), addLiveLessonFolderShortcuts);
+router.post("/lessons/folders/remove-shortcuts", authorize("teacher", "admin", "department_principal"), removeLiveLessonFolderShortcuts);
 router.post("/lessons/folders/:folderId/lessons/:lessonId", authorize("teacher", "admin", "department_principal"), addLiveLessonFolderShortcut);
 router.delete("/lessons/folders/:folderId/lessons/:lessonId", authorize("teacher", "admin", "department_principal"), removeLiveLessonFolderShortcut);
 router.patch("/lessons/folders/:folderId", authorize("teacher", "admin", "department_principal"), updateLiveLessonFolder);

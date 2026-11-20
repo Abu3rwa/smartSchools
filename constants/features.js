@@ -199,6 +199,12 @@ export const FEATURES = {
         label: 'Spelling Analysis',
         description: 'AI spelling diagnostics, grade-level rankings and parent-support drafts. Enabled per school by the platform team; every run is metered against AI credit.',
         plans: []
+    },
+    skillpathLeaderboard: {
+        key: 'skillpathLeaderboard',
+        label: 'SkillPath Leaderboards',
+        description: 'Class and school practice leaderboards with weekly, monthly and all-time boards, plus teacher reward notes.',
+        plans: ['professional', 'enterprise']
     }
 };
 

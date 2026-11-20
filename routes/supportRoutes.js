@@ -2,7 +2,9 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { requireFeature } from '../middleware/featureGate.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import { emailSendRateLimiter } from '../middleware/rateLimiters.js';
+import { assertSupportActive } from '../services/supportSettingsService.js';
 import {
     addExternal,
     approve,
@@ -39,6 +41,7 @@ import {
     getClassScope,
     getEvidence,
     getIntegration,
+    getAttention,
     getReport,
     getRequests,
     getReview,
@@ -54,6 +57,7 @@ import {
     printReport,
     printSlips,
     publishVersion,
+    reopenSurvey,
     respondToRequest,
     retireQuestionEndpoint,
     retryPlanning,
@@ -69,6 +73,16 @@ router.use(protect);
 router.use(requireSchoolContext);
 router.use(authorize('teacher', 'admin', 'super_admin', 'counselor', 'nurse'));
 router.use(requireFeature('studentSupport'));
+
+/* Switching support off pauses work: staff keep read-only history, and only
+   the settings switch itself stays writable so the school can turn it back on. */
+const pauseWrites = asyncHandler(async (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    if (req.method === 'PUT' && req.path === '/settings') return next();
+    await assertSupportActive({ schoolId: req.schoolId });
+    return next();
+});
+router.use(pauseWrites);
 
 /* Settings and the approved question bank. */
 router.get('/settings', getSettings);
@@ -89,6 +103,7 @@ router.post('/cases/:caseId/notes', addNote);
 router.post('/cases/:caseId/close', closeCaseEndpoint);
 router.post('/cases/:caseId/contacts', addContactEndpoint);
 router.get('/cases/:caseId/evidence', getEvidence);
+router.get('/attention', getAttention);
 router.get('/requests', getRequests);
 router.post('/requests/:caseId/respond', respondToRequest);
 router.get('/suggestions', getSuggestions);
@@ -105,6 +120,7 @@ router.post('/cases/:caseId/reviews/:reviewId/cancel', cancelPlanning);
 router.get('/cases/:caseId/reviews/:reviewId/slips', printSlips);
 router.post('/cases/:caseId/surveys/:surveyId/handed-over', markHandedOver);
 router.post('/cases/:caseId/surveys/:surveyId/assisted', assistedResponse);
+router.post('/cases/:caseId/surveys/:surveyId/reopen', reopenSurvey);
 
 /* Coordinated plan versions and check-ins. */
 router.get('/cases/:caseId/plan/versions', getVersions);

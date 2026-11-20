@@ -13,6 +13,7 @@ test("live lesson folders default to an empty ordered lesson list", () => {
   assert.equal(folder.name, "Unit 1");
   assert.deepEqual(folder.lessonIds, []);
   assert.equal(folder.parentId, null);
+  assert.equal(folder.pinned, false);
   assert.equal(folder.validateSync(), undefined);
 });
 

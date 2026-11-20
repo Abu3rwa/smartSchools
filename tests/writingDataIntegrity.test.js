@@ -13,7 +13,10 @@ import {
   deactivateAssignment,
   markNotebookWritten,
 } from "../services/writingAssistantService.js";
-import { overrideStage } from "../services/writingAssistantAssessmentService.js";
+import {
+  overrideStage,
+  recordNotebookReview,
+} from "../services/writingAssistantAssessmentService.js";
 
 const oid = () => new mongoose.Types.ObjectId().toString();
 
@@ -247,6 +250,130 @@ test("forcing a stage clears the stale notebook mark", async () => {
       assert.equal(project.stage, "revising");
       assert.equal(project.notebook.state, "not_requested");
       assert.equal(project.teacherOverride.stageLockedTo, "revising");
+    },
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* D8: stage moves are recorded, backward moves need a reason          */
+/* ------------------------------------------------------------------ */
+
+const stageProject = (stage, overrides = {}) =>
+  studentProject({ stage, assignment: oid(), ...overrides });
+
+test("a forward stage move is recorded without asking for a reason", async () => {
+  const project = stageProject("drafting");
+  await withStubs(
+    [
+      [WritingProject, "findOne", async () => project],
+      [WritingAssignment, "findOne", () => ({ lean: async () => assignmentDoc() })],
+    ],
+    async () => {
+      await overrideStage({
+        schoolId,
+        projectId: project._id,
+        userId,
+        payload: { stage: "submitted" },
+      });
+      assert.deepEqual(
+        project.stageHistory.map((row) => ({ from: row.from, to: row.to })),
+        [{ from: "drafting", to: "submitted" }],
+      );
+      assert.equal(project.stageHistory[0].by, userId);
+      assert.equal(project.stageHistory[0].reason, "");
+    },
+  );
+});
+
+test("a backward stage move without a reason is refused", async () => {
+  const project = stageProject("compared");
+  await withStubs(
+    [
+      [WritingProject, "findOne", async () => project],
+      [WritingAssignment, "findOne", () => ({ lean: async () => assignmentDoc() })],
+    ],
+    async () => {
+      await assert.rejects(
+        overrideStage({
+          schoolId,
+          projectId: project._id,
+          userId,
+          payload: { stage: "revising" },
+        }),
+        (error) => {
+          assert.equal(error.statusCode, 400);
+          assert.match(error.message, /reason/i);
+          return true;
+        },
+      );
+      assert.equal(project.stage, "compared");
+      assert.equal(project.stageHistory, undefined);
+    },
+  );
+});
+
+test("the backward move's reason is kept with the stage history", async () => {
+  const project = stageProject("compared");
+  await withStubs(
+    [
+      [WritingProject, "findOne", async () => project],
+      [WritingAssignment, "findOne", () => ({ lean: async () => assignmentDoc() })],
+    ],
+    async () => {
+      await overrideStage({
+        schoolId,
+        projectId: project._id,
+        userId,
+        payload: { stage: "revising", reason: "Second paragraph lost its evidence" },
+      });
+      assert.equal(project.stage, "revising");
+      assert.equal(project.stageHistory.length, 1);
+      assert.equal(project.stageHistory[0].from, "compared");
+      assert.equal(project.stageHistory[0].to, "revising");
+      assert.equal(
+        project.stageHistory[0].reason,
+        "Second paragraph lost its evidence",
+      );
+    },
+  );
+});
+
+test("sending a notebook back for revision needs a note and is recorded", async () => {
+  const project = stageProject("awaiting_notebook_check", {
+    notebook: { state: "requested" },
+  });
+  await withStubs(
+    [
+      [WritingProject, "findOne", async () => project],
+      [WritingAssignment, "findOne", () => ({ lean: async () => assignmentDoc() })],
+    ],
+    async () => {
+      await assert.rejects(
+        recordNotebookReview({
+          schoolId,
+          projectId: project._id,
+          userId,
+          payload: { state: "revision_required" },
+        }),
+        (error) => {
+          assert.equal(error.statusCode, 400);
+          assert.match(error.message, /note/i);
+          return true;
+        },
+      );
+      assert.equal(project.stage, "awaiting_notebook_check");
+
+      const result = await recordNotebookReview({
+        schoolId,
+        projectId: project._id,
+        userId,
+        payload: { state: "revision_required", note: "Add the missing example." },
+      });
+      assert.equal(result.project.stage, "revising");
+      assert.equal(project.notebook.state, "revision_required");
+      assert.equal(project.stageHistory.length, 1);
+      assert.equal(project.stageHistory[0].to, "revising");
+      assert.equal(project.stageHistory[0].reason, "Add the missing example.");
     },
   );
 });

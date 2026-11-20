@@ -21,6 +21,14 @@ import {
 const OUTCOMES = ["met", "partially_met", "not_met", "insufficient_evidence"];
 const CHECKIN_OPTIONS = ["done", "didnt_fit", "need_help"];
 
+// Mirrors metOutcomeReady in supportPlanVersionService.js: "met" needs a
+// baseline, a measurable target, and an evidence note.
+const metReady = (goal = {}, note = "") => Boolean(
+  String(goal.baseline || "").trim()
+  && (goal.targetDate || String(goal.successLook || "").trim() || String(goal.successLookAr || "").trim())
+  && String(note || "").trim(),
+);
+
 const toEditor = (version) => ({
   headline: version.headline || "",
   headlineAr: version.headlineAr || "",
@@ -43,6 +51,7 @@ const toEditor = (version) => ({
     baseline: goal.baseline,
     targetDate: goal.targetDate,
     responsibleRole: goal.responsibleRole,
+    responsibleUser: goal.responsibleUser,
     homeTasks: goal.homeTasks,
     classTasks: goal.classTasks,
   })),
@@ -107,6 +116,25 @@ const GoalEditor = ({ goal, index, arabic, onChange, onRemove, canRemove, t }) =
           </select>
         </label>
       </div>
+      <div className="support-field-row is-two">
+        <label>
+          <span>{t("planEditor.baseline")}</span>
+          <input
+            value={goal.baseline || ""}
+            maxLength={400}
+            placeholder={t("planEditor.baselineHint")}
+            onChange={(event) => set("baseline", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>{t("planEditor.targetDate")}</span>
+          <input
+            type="date"
+            value={goal.targetDate ? String(goal.targetDate).slice(0, 10) : ""}
+            onChange={(event) => set("targetDate", event.target.value || null)}
+          />
+        </label>
+      </div>
       {goal.homeTasks.length > 0 && (
         <div className="support-goal-preview">
           <span>{t("plan.atHome")}</span>
@@ -137,8 +165,16 @@ const CasePlan = ({ data, reload }) => {
   const [canApprove, setCanApprove] = useState(false);
   const [selectedId, setSelectedId] = useState(data.plan?.id || data.planVersions?.[0]?.id || "");
   const [editor, setEditor] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const [conflict, setConflict] = useState(null);
+  const [approvalNote, setApprovalNote] = useState("");
   const [outcomeNote, setOutcomeNote] = useState({});
   const [busy, setBusy] = useState("");
+
+  const editEditor = (updater) => {
+    setEditor(updater);
+    setDirty(true);
+  };
 
   const loadVersions = useCallback(async () => {
     try {
@@ -164,7 +200,16 @@ const CasePlan = ({ data, reload }) => {
 
   useEffect(() => {
     setEditor(selected?.status === "draft" ? toEditor(selected) : null);
+    setDirty(false);
+    setConflict(null);
+    setApprovalNote("");
   }, [selected]);
+
+  const selectVersion = (id) => {
+    if (id === selectedId) return;
+    if (dirty && !window.confirm(t("planEditor.unsavedConfirm"))) return;
+    setSelectedId(id);
+  };
 
   const startDraft = async (useAi) => {
     setBusy(useAi ? "draft-ai" : "draft-manual");
@@ -184,35 +229,54 @@ const CasePlan = ({ data, reload }) => {
     }
   };
 
-  const saveEditor = async () => {
-    if (!editor || !selected) return;
+  const editorPatch = () => ({
+    headline: editor.headline,
+    headlineAr: editor.headlineAr,
+    summary: editor.summary,
+    summaryAr: editor.summaryAr,
+    studentEvidenceIncluded: editor.studentEvidenceIncluded,
+    goals: editor.goals,
+  });
+
+  const saveWithRevision = async (revision) => {
     setBusy("save");
     try {
-      const patch = {
-        headline: editor.headline,
-        headlineAr: editor.headlineAr,
-        summary: editor.summary,
-        summaryAr: editor.summaryAr,
-        studentEvidenceIncluded: editor.studentEvidenceIncluded,
-        goals: editor.goals,
-      };
-      const saved = await supportService.updateVersion(caseId, selected.id, selected.revision, patch);
+      const saved = await supportService.updateVersion(caseId, selected.id, revision, editorPatch());
       setVersions((current) => current.map((row) => (row.id === saved.id ? saved : row)));
+      setDirty(false);
+      setConflict(null);
       toast.success(t("planEditor.saved"));
+      return saved;
     } catch (error) {
       if (revisionConflict(error)) {
-        toast.error(t("planEditor.conflict"));
-        await loadVersions();
+        setConflict({ currentRevision: error.response?.data?.data?.currentRevision ?? null });
       } else {
         toast.error(errorText(error, t("errors.savePlan")));
       }
+      return null;
     } finally {
       setBusy("");
     }
   };
 
+  const saveEditor = async () => {
+    if (!editor || !selected) return null;
+    return saveWithRevision(selected.revision);
+  };
+
+  const keepMyChanges = () => {
+    if (!editor || !selected || !conflict?.currentRevision) return;
+    return saveWithRevision(conflict.currentRevision);
+  };
+
+  const loadTheirVersion = async () => {
+    setConflict(null);
+    setDirty(false);
+    await loadVersions();
+  };
+
   const updateGoal = (index, key, value) => {
-    setEditor((current) => {
+    editEditor((current) => {
       if (!current) return current;
       const goals = current.goals.map((goal, position) => (
         position === index ? { ...goal, [key]: value } : goal
@@ -222,7 +286,7 @@ const CasePlan = ({ data, reload }) => {
   };
 
   const removeGoal = (index) => {
-    setEditor((current) => {
+    editEditor((current) => {
       if (!current) return current;
       const goals = current.goals.filter((_, position) => position !== index);
       return { ...current, goals };
@@ -235,9 +299,13 @@ const CasePlan = ({ data, reload }) => {
 
   const approve = async () => {
     if (!selected) return;
+    if (dirty) {
+      const saved = await saveEditor();
+      if (!saved) return;
+    }
     setBusy("approve");
     try {
-      applyVersion(await supportService.approveVersion(caseId, selected.id));
+      applyVersion(await supportService.approveVersion(caseId, selected.id, approvalNote.trim()));
       toast.success(t("planEditor.approved"));
       await loadVersions();
     } catch (error) {
@@ -249,6 +317,10 @@ const CasePlan = ({ data, reload }) => {
 
   const publish = async () => {
     if (!selected) return;
+    if (dirty) {
+      const saved = await saveEditor();
+      if (!saved) return;
+    }
     setBusy("publish");
     try {
       const result = await supportService.publishVersion(caseId, selected.id);
@@ -327,7 +399,7 @@ const CasePlan = ({ data, reload }) => {
                 key={row.id}
                 type="button"
                 className={`support-version-row ${selectedId === row.id ? "is-active" : ""}`}
-                onClick={() => setSelectedId(row.id)}
+                onClick={() => selectVersion(row.id)}
               >
                 <span className="support-version-number">{t("planEditor.version", { n: row.version })}</span>
                 <span className="support-version-meta">
@@ -385,6 +457,46 @@ const CasePlan = ({ data, reload }) => {
             </div>
           )}
 
+          {selected.status === "draft" && canApprove && (
+            <label className="support-field-row">
+              <span>{t("planEditor.approvalNote")}</span>
+              <input
+                value={approvalNote}
+                maxLength={600}
+                placeholder={t("planEditor.approvalNoteHint")}
+                onChange={(event) => setApprovalNote(event.target.value)}
+              />
+            </label>
+          )}
+
+          {editingDraft && conflict && (
+            <div className="support-conflict-banner" role="alert">
+              <p>{t("planEditor.conflictBanner")}</p>
+              <div className="support-conflict-actions">
+                <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(busy)} onClick={keepMyChanges}>
+                  {busy === "save" ? t("common.saving") : t("planEditor.conflictKeepMine")}
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={Boolean(busy)} onClick={loadTheirVersion}>
+                  {t("planEditor.conflictLoadTheirs")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {editingDraft && dirty && !conflict && (
+            <div className="support-dirty-bar">
+              <span>{t("planEditor.unsaved")}</span>
+              <button
+                type="button"
+                className="support-link-btn"
+                disabled={Boolean(busy)}
+                onClick={() => { setEditor(toEditor(selected)); setDirty(false); }}
+              >
+                {t("planEditor.discard")}
+              </button>
+            </div>
+          )}
+
           {editingDraft ? (
             <div className="support-plan-editor">
               <div className="support-field-row is-two">
@@ -393,7 +505,7 @@ const CasePlan = ({ data, reload }) => {
                   <input
                     value={editor.headline}
                     maxLength={200}
-                    onChange={(event) => setEditor((current) => ({ ...current, headline: event.target.value }))}
+                    onChange={(event) => editEditor((current) => ({ ...current, headline: event.target.value }))}
                   />
                 </label>
                 <label>
@@ -402,7 +514,7 @@ const CasePlan = ({ data, reload }) => {
                     dir="rtl"
                     value={editor.headlineAr}
                     maxLength={200}
-                    onChange={(event) => setEditor((current) => ({ ...current, headlineAr: event.target.value }))}
+                    onChange={(event) => editEditor((current) => ({ ...current, headlineAr: event.target.value }))}
                   />
                 </label>
               </div>
@@ -412,7 +524,7 @@ const CasePlan = ({ data, reload }) => {
                   rows={3}
                   maxLength={1200}
                   value={editor.summary}
-                  onChange={(event) => setEditor((current) => ({ ...current, summary: event.target.value }))}
+                  onChange={(event) => editEditor((current) => ({ ...current, summary: event.target.value }))}
                 />
               </label>
               <label className="support-field-row">
@@ -422,14 +534,14 @@ const CasePlan = ({ data, reload }) => {
                   rows={3}
                   maxLength={1200}
                   value={editor.summaryAr}
-                  onChange={(event) => setEditor((current) => ({ ...current, summaryAr: event.target.value }))}
+                  onChange={(event) => editEditor((current) => ({ ...current, summaryAr: event.target.value }))}
                 />
               </label>
               <label className="support-check is-inline">
                 <input
                   type="checkbox"
                   checked={editor.studentEvidenceIncluded}
-                  onChange={(event) => setEditor((current) => ({ ...current, studentEvidenceIncluded: event.target.checked }))}
+                  onChange={(event) => editEditor((current) => ({ ...current, studentEvidenceIncluded: event.target.checked }))}
                 />
                 <span>{t("planEditor.studentEvidence")}</span>
               </label>
@@ -518,16 +630,29 @@ const CasePlan = ({ data, reload }) => {
                         >
                           <option value="">{t("planEditor.outcomeNone")}</option>
                           {OUTCOMES.map((option) => (
-                            <option key={option} value={option}>{t(`planEditor.outcomes.${option}`)}</option>
+                            <option
+                              key={option}
+                              value={option}
+                              disabled={option === "met" && !metReady(goal, outcomeNote[goal.id] ?? goal.outcomeNote ?? "")}
+                            >
+                              {t(`planEditor.outcomes.${option}`)}
+                            </option>
                           ))}
                         </select>
                       </label>
+                      {goal.outcome !== "met" && !metReady(goal, outcomeNote[goal.id] ?? goal.outcomeNote ?? "") && (
+                        <p className="support-field-hint">{t("planEditor.metNeedsEvidence")}</p>
+                      )}
                       <input
                         value={outcomeNote[goal.id] ?? goal.outcomeNote ?? ""}
                         maxLength={800}
                         placeholder={t("planEditor.outcomeNote")}
                         onChange={(event) => setOutcomeNote((current) => ({ ...current, [goal.id]: event.target.value }))}
-                        onBlur={() => goal.outcome && setOutcome(goal, goal.outcome)}
+                        onBlur={() => {
+                          if (goal.outcome && (goal.outcome !== "met" || metReady(goal, outcomeNote[goal.id] ?? ""))) {
+                            setOutcome(goal, goal.outcome);
+                          }
+                        }}
                       />
                     </div>
                   )}

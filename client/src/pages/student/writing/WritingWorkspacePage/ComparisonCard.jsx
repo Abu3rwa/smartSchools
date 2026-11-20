@@ -80,6 +80,25 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
         </div>
       )}
 
+      {/* D6: part-by-part change leads, because a longer draft is not progress by itself. */}
+      {(detail.changedBySection || []).length > 0 && (
+        <div className="ws-compare-changes">
+          <h4>{t("writing:student.comparisonSections")}</h4>
+          {detail.changedBySection.map((row) => (
+            <div
+              className="ws-compare-change"
+              key={`${row.kind}-${row.key}-${row.index}`}
+            >
+              <span className="ws-compare-label">{row.label || row.key}</span>
+              <p>{row.summary}</p>
+              <em>
+                {t(`writing:student.comparisonKind.${row.kind || "changed"}`)}
+              </em>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="ws-compare-grid">
         {(detail.criteriaImproved || []).length > 0 && (
           <div className="ws-compare-block is-good">
@@ -118,24 +137,6 @@ export default function ComparisonCard({ comparison, fromNumber, toNumber }) {
           </div>
         )}
       </div>
-
-      {(detail.changedBySection || []).length > 0 && (
-        <div className="ws-compare-changes">
-          <h4>{t("writing:student.comparisonSections")}</h4>
-          {detail.changedBySection.map((row) => (
-            <div
-              className="ws-compare-change"
-              key={`${row.kind}-${row.key}-${row.index}`}
-            >
-              <span className="ws-compare-label">{row.label || row.key}</span>
-              <p>{row.summary}</p>
-              <em>
-                {t(`writing:student.comparisonKind.${row.kind || "changed"}`)}
-              </em>
-            </div>
-          ))}
-        </div>
-      )}
 
       {(comparison.spellingWins || []).length > 0 && (
         <div className="ws-compare-wins">

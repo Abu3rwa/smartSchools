@@ -72,6 +72,11 @@ const schoolSchema = new mongoose.Schema({
                 message: 'Academic year must be in YYYY-YYYY format (consecutive years)'
             }
         },
+        currentSemester: {
+            type: Number,
+            enum: [1, 2],
+            default: null
+        },
         academicYearStartMonth: {
             type: Number,
             min: 1,
@@ -123,6 +128,16 @@ const schoolSchema = new mongoose.Schema({
             aiReviewEnabled: {
                 type: Boolean,
                 default: false
+            }
+        },
+        // What a child, a family and a printed sheet may read of a writing
+        // rubric: verdict words only, words plus the number, or numbers only.
+        // One setting drives the student view, the email and the print sheet.
+        writingFeedback: {
+            marksMode: {
+                type: String,
+                enum: ['words', 'words_numbers', 'numbers'],
+                default: 'words'
             }
         },
         // An admin turns suggested live-lesson marks on or off for the whole school; a teacher can

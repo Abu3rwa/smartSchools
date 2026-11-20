@@ -4,7 +4,7 @@ import Student from '../models/Student.js';
 import SupportSurvey from '../models/SupportSurvey.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { supportError } from '../services/supportAccessService.js';
-import { assertSupportEnabled } from '../services/supportSettingsService.js';
+import { assertSupportActive, assertSupportEnabled } from '../services/supportSettingsService.js';
 import { refreshReviewStatus } from '../services/supportReviewService.js';
 import {
     markNoConcerns,
@@ -83,6 +83,7 @@ export const getSurvey = asyncHandler(async (req, res) => {
 });
 
 export const saveSurvey = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: req.schoolId });
     const { survey } = await surveyForStudent(req);
     const saved = await saveAnswers({
         survey,
@@ -101,6 +102,7 @@ export const saveSurvey = asyncHandler(async (req, res) => {
 });
 
 export const submitSurvey = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: req.schoolId });
     const { survey } = await surveyForStudent(req);
     const submitted = await submitAnswers({
         survey,
@@ -120,6 +122,7 @@ export const submitSurvey = asyncHandler(async (req, res) => {
 });
 
 export const noConcerns = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: req.schoolId });
     const { survey } = await surveyForStudent(req);
     const saved = await markNoConcerns({ survey });
     await refreshReviewStatus({ schoolId: req.schoolId, reviewId: survey.review });
@@ -130,6 +133,7 @@ export const noConcerns = asyncHandler(async (req, res) => {
 });
 
 export const skip = asyncHandler(async (req, res) => {
+    await assertSupportActive({ schoolId: req.schoolId });
     const { survey } = await surveyForStudent(req);
     const saved = await skipSurvey({ survey, reason: req.body?.reason });
     await refreshReviewStatus({ schoolId: req.schoolId, reviewId: survey.review });

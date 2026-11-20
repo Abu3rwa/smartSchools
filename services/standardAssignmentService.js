@@ -10,7 +10,7 @@ import {
 } from '../constants/practiceQuestionTypes.js';
 import { readTypeDefinition } from './assessment/answerFormat.js';
 import { findAssessmentPassage, resolveAssessmentPassage } from './assessment/passageService.js';
-import standardsPracticeAIService from './standardsPracticeAIService.js';
+import standardsPracticeAIService from './standardsPracticeAiService.js';
 import {
     generateGrammarQuestionPool,
     hasGrammarLevelingEnabled,

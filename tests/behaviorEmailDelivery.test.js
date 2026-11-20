@@ -89,6 +89,17 @@ const wiring = ({ row = queuedRow(), claim = true } = {}) => {
     return { counts, sent, writes };
 };
 
+test('explicit dispatch cannot claim or count another notification', async () => {
+    const { counts } = wiring({ claim: false });
+    let claimedFilter;
+    BehaviorNotification.findOneAndUpdate = async (filter) => { claimedFilter = filter; return null; };
+    try {
+        await deliverBehaviorEmails({ schoolId: 'school-1', settings: SETTINGS_ON, notificationId: 'note-only', deliver: true, limit: 1 });
+        assert.equal(counts[0]._id, 'note-only');
+        assert.equal(claimedFilter._id, 'note-only');
+    } finally { restore(); }
+});
+
 test('the dispatcher leaves the queue untouched while the deployment gate is off', async () => {
     const { sent, writes } = wiring();
     let claims = 0;

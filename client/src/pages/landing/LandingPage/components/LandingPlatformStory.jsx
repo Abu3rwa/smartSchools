@@ -1,90 +1,163 @@
+import { useState } from 'react';
+import Accordion from '@mui/material/Accordion';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import AccordionSummary from '@mui/material/AccordionSummary';
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import {
-    HiOutlineOfficeBuilding,
-    HiOutlineAcademicCap,
-    HiOutlineUserGroup,
-    HiOutlineSparkles,
-    HiOutlineCheckCircle
-} from 'react-icons/hi';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
-const PORTAL_ICONS = [HiOutlineOfficeBuilding, HiOutlineAcademicCap, HiOutlineUserGroup];
-const PORTAL_KEYS = ['admin', 'teacher', 'student'];
+const WORKFLOW_IDS = ['gradebook', 'attendance', 'assignments'];
 
-export default function LandingPlatformStory({ uiText }) {
-    const copy = uiText?.platformStory || {};
+/**
+ * The three classroom workflows. Desktop uses controlled tabs, smaller screens
+ * use one accordion group; both share a single active selection so only the
+ * visible tree is mounted and the ids stay unique.
+ */
+export default function LandingPlatformStory({ copy }) {
+    const isDesktop = useMediaQuery('(min-width:960px)');
+    const [activeWorkflowId, setActiveWorkflowId] = useState('gradebook');
+    const desktopValue = activeWorkflowId || 'gradebook';
 
-    return (
-        <Box component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper' }}>
-            <Container maxWidth="lg">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1, letterSpacing: 2, fontWeight: 700 }}>
-                    {copy.overline || 'Built for every role'}
-                </Typography>
-                <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 1.5, fontSize: { xs: '1.75rem', md: '2.25rem' } }}>
-                    {copy.title || 'One platform, three focused portals'}
-                </Typography>
-                <Typography color="text.secondary" align="center" sx={{ maxWidth: 620, mx: 'auto', mb: 5, fontSize: '1.05rem', lineHeight: 1.7 }}>
-                    {copy.subtitle || 'Everyone sees the work that matters to them — and nothing else.'}
-                </Typography>
+    const renderPanel = (workflowId) => {
+        const workflow = copy.workflows?.[workflowId] || {};
+        const steps = [workflow.step1, workflow.step2, workflow.step3];
 
-                <div className="landing-card-grid">
-                    {PORTAL_KEYS.map((key, index) => {
-                        const Icon = PORTAL_ICONS[index];
-                        const points = [copy[`${key}Point1`], copy[`${key}Point2`], copy[`${key}Point3`]].filter(Boolean);
-                        return (
-                            <Paper key={key} className="landing-lift-card" variant="outlined" sx={{ p: 3.5, borderRadius: 3, height: '100%' }}>
-                                <Box sx={{ display: 'inline-flex', p: 1.5, mb: 2, borderRadius: 2, bgcolor: 'rgba(var(--accent-primary-rgb), 0.1)', color: 'var(--primary)' }}>
-                                    <Icon size={26} />
-                                </Box>
-                                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                                    {copy[`${key}Title`] || key}
-                                </Typography>
-                                <Typography color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.7 }}>
-                                    {copy[`${key}Body`] || ''}
-                                </Typography>
-                                <Box sx={{ display: 'grid', gap: 1 }}>
-                                    {points.map((point) => (
-                                        <Box key={point} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, color: 'text.secondary', typography: 'body2' }}>
-                                            <HiOutlineCheckCircle size={17} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
-                                            <span>{point}</span>
-                                        </Box>
-                                    ))}
-                                </Box>
-                            </Paper>
-                        );
-                    })}
-                </div>
-
-                <Paper
-                    elevation={0}
+        return (
+            <Box
+                id={`workflow-panel-${workflowId}`}
+                role="tabpanel"
+                aria-labelledby={`workflow-tab-${workflowId}`}
+                tabIndex={0}
+                sx={{ pt: { xs: 2, md: 3 }, outline: 'none' }}
+            >
+                <Typography
+                    variant="h3"
                     sx={{
-                        mt: 3,
-                        p: { xs: 3, md: 4 },
-                        borderRadius: 3,
-                        border: 1,
-                        borderColor: 'divider',
-                        background: 'linear-gradient(135deg, rgba(var(--accent-primary-rgb), 0.08), rgba(var(--accent-primary-rgb), 0.02))',
-                        display: 'flex',
-                        gap: 2.5,
-                        alignItems: 'flex-start',
-                        flexWrap: 'wrap',
+                        fontWeight: 700,
+                        fontSize: { xs: '1.25rem', md: '1.5rem' },
+                        mb: 1.5,
                     }}
                 >
-                    <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, bgcolor: 'background.paper', color: 'var(--primary)' }}>
-                        <HiOutlineSparkles size={26} />
+                    {workflow.title}
+                </Typography>
+
+                <Typography sx={{ fontSize: { xs: 16, md: 17 }, lineHeight: 1.65, color: 'text.secondary', mb: 2.5 }}>
+                    {workflow.body}
+                </Typography>
+
+                <Box
+                    component="ol"
+                    sx={{
+                        m: 0,
+                        pl: 2.5,
+                        display: 'grid',
+                        gap: 1,
+                        fontSize: { xs: 16, md: 17 },
+                        lineHeight: 1.6,
+                    }}
+                >
+                    {steps.map((step) => (
+                        <Box component="li" key={step}>
+                            {step}
+                        </Box>
+                    ))}
+                </Box>
+
+                {workflow.note ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5 }}>
+                        {workflow.note}
+                    </Typography>
+                ) : null}
+            </Box>
+        );
+    };
+
+    return (
+        <Box component="section" id="product" className="landing-public-section">
+            <Box className="landing-public-container">
+                <Typography
+                    component="h2"
+                    id="product-heading"
+                    tabIndex={-1}
+                    sx={{
+                        fontWeight: 800,
+                        fontSize: { xs: 28, sm: 30, md: 32, lg: 36 },
+                        lineHeight: { xs: 1.3, lg: 1.2 },
+                        mb: 1,
+                        outline: 'none',
+                    }}
+                >
+                    {copy.workflows?.title}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mb: { xs: 2.5, md: 3 } }}>
+                    {copy.workflows?.adminNote}
+                </Typography>
+
+                {isDesktop ? (
+                    <Box>
+                        <Tabs
+                            value={desktopValue}
+                            onChange={(_event, value) => setActiveWorkflowId(value)}
+                            variant="fullWidth"
+                            aria-label={copy.workflows?.tabsLabel}
+                            sx={{
+                                minHeight: 48,
+                                '& .MuiTab-root': { minHeight: 48, fontWeight: 600, textTransform: 'none' },
+                            }}
+                        >
+                            {WORKFLOW_IDS.map((workflowId) => (
+                                <Tab
+                                    key={workflowId}
+                                    value={workflowId}
+                                    id={`workflow-tab-${workflowId}`}
+                                    aria-controls={`workflow-panel-${workflowId}`}
+                                    label={copy.workflows?.[workflowId]?.title}
+                                    sx={{
+                                        borderBottom: 2,
+                                        borderColor: 'divider',
+                                        '&.Mui-selected': {
+                                            borderColor: 'primary.main',
+                                            fontWeight: 700,
+                                        },
+                                    }}
+                                />
+                            ))}
+                        </Tabs>
+
+                        {renderPanel(desktopValue)}
                     </Box>
-                    <Box sx={{ flex: '1 1 280px', minWidth: 0 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.75 }}>
-                            {copy.aiTitle || 'AI that stays on the curriculum'}
-                        </Typography>
-                        <Typography color="text.secondary" sx={{ lineHeight: 1.7, maxWidth: 760 }}>
-                            {copy.aiBody || 'The AI tutor and voice tutor answer only from imported lessons. Writing and reading feedback follow your rubric. Spelling analysis reports and class insights are built from the data already in your gradebook, and lesson plans, newsletters and parent messages get AI drafts. Every AI call is metered against a school credit pool.'}
-                        </Typography>
+                ) : (
+                    <Box>
+                        {WORKFLOW_IDS.map((workflowId) => {
+                            const isOpen = activeWorkflowId === workflowId;
+                            return (
+                                <Accordion
+                                    key={workflowId}
+                                    expanded={isOpen}
+                                    onChange={() => setActiveWorkflowId(isOpen ? null : workflowId)}
+                                    disableGutters
+                                    elevation={0}
+                                    sx={{ borderBottom: 1, borderColor: 'divider', '&::before': { display: 'none' } }}
+                                >
+                                    <AccordionSummary
+                                        id={`workflow-tab-${workflowId}`}
+                                        aria-controls={`workflow-panel-${workflowId}`}
+                                        sx={{ minHeight: 56, px: 0 }}
+                                    >
+                                        <Typography sx={{ fontWeight: 600, fontSize: '1rem' }}>
+                                            {copy.workflows?.[workflowId]?.title}
+                                        </Typography>
+                                    </AccordionSummary>
+                                    <AccordionDetails sx={{ px: 0, pb: 2 }}>{renderPanel(workflowId)}</AccordionDetails>
+                                </Accordion>
+                            );
+                        })}
                     </Box>
-                </Paper>
-            </Container>
+                )}
+            </Box>
         </Box>
     );
 }

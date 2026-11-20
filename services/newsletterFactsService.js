@@ -177,7 +177,11 @@ export async function collectStudentFacts({
 
     if (selected.includes("writing")) {
         tasks.push(
-            WritingDraft.find({ student: studentId, submittedAt: range })
+            WritingDraft.find({
+                student: studentId,
+                submittedAt: range,
+                withdrawn: { $ne: true },
+            })
                 .select("number totalWords project")
                 .sort({ submittedAt: -1 })
                 .limit(10)

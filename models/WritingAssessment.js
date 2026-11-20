@@ -1,5 +1,93 @@
 import mongoose from "mongoose";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
+import { plainJsonIssue } from "../utils/plainJson.js";
+import {
+  MECHANICS_CATEGORIES,
+  MECHANICS_REVIEW_STATUSES,
+} from "../client/src/utils/writingMechanics.js";
+
+/** One lesson fact the server resolved from the AI's fact id. */
+const evidenceFactSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    text: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
+/** A verified position in the canonical displayed section text (UTF-16 units). */
+const mechanicAnchorSchema = new mongoose.Schema(
+  {
+    start: { type: Number, min: 0 },
+    end: { type: Number, min: 0 },
+  },
+  { _id: false },
+);
+
+/**
+ * A word-level fix the child sees apart from the coaching sentence (A2).
+ * Legacy pairs carry only original/correction and stay legal; typed language
+ * corrections add category, explanation and a server-verified source anchor.
+ * The new fields default to absent so an unrelated save never materialises
+ * them onto historical rows.
+ */
+const mechanicSchema = new mongoose.Schema(
+  {
+    original: { type: String, trim: true, default: "" },
+    correction: { type: String, trim: true, default: "" },
+    category: {
+      type: String,
+      enum: [...MECHANICS_CATEGORIES, ""],
+      default: undefined,
+    },
+    explanation: { type: String, trim: true, default: undefined },
+    anchor: { type: mechanicAnchorSchema, default: undefined },
+  },
+  { _id: false },
+);
+
+/**
+ * The honest state of one section's language check. Absent on historical
+ * records; only the server writes it. `reasons` holds bounded teacher-only
+ * codes and is never projected to the child or the family email.
+ */
+const mechanicsReviewSchema = new mongoose.Schema(
+  {
+    version: { type: Number, default: 1 },
+    status: { type: String, enum: MECHANICS_REVIEW_STATUSES },
+    reasons: [{ type: String, trim: true }],
+  },
+  { _id: false },
+);
+
+/** The same next step in another form, used when an earlier one was ignored. */
+const scaffoldSchema = new mongoose.Schema(
+  {
+    kind: {
+      type: String,
+      enum: ["question", "frame", "pointer", "smaller_step"],
+      default: "question",
+    },
+    text: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
+/** Why this next step changed shape, and whether it still repeats the old one. */
+const interventionSchema = new mongoose.Schema(
+  {
+    previous: { type: String, trim: true, default: "" },
+    kind: {
+      type: String,
+      enum: ["question", "frame", "pointer", "smaller_step", ""],
+      default: "",
+    },
+    repeat: { type: Boolean, default: false },
+    // Publish is blocked while true: the reply reissued an ignored instruction.
+    needsRewrite: { type: Boolean, default: false },
+  },
+  { _id: false },
+);
 
 const sectionFeedbackSchema = new mongoose.Schema(
   {
@@ -11,8 +99,37 @@ const sectionFeedbackSchema = new mongoose.Schema(
     evidence: { type: String, trim: true, default: "" },
     why: { type: String, trim: true, default: "" },
     nextStep: { type: String, trim: true, default: "" },
+    // Phase 3 child-facing shape.
+    mechanics: [mechanicSchema],
+    mechanicsReview: { type: mechanicsReviewSchema, default: undefined },
+    scaffold: { type: scaffoldSchema, default: undefined },
+    intervention: { type: interventionSchema, default: undefined },
+    // The lesson fact the AI named for this section, by server id. Stored with
+    // its text so the hint survives a later edit of the pack.
+    evidenceFact: { type: evidenceFactSchema, default: undefined },
     score: { type: Number, min: 0, max: 1000 },
     maxScore: { type: Number, min: 0, max: 1000 },
+  },
+  { _id: false },
+);
+
+/** A mechanical clamp applied after the model's own scores (C3/A9). */
+const scoreAdjustmentSchema = new mongoose.Schema(
+  {
+    target: {
+      type: String,
+      enum: ["section", "score"],
+      default: "score",
+    },
+    key: { type: String, trim: true, default: "" },
+    index: { type: Number, default: 0 },
+    from: { type: Number, default: 0 },
+    to: { type: Number, default: 0 },
+    reason: { type: String, trim: true, default: "" },
+    detail: { type: String, trim: true, default: "" },
+    // True once a teacher changed this exact mark themselves; the clamp is
+    // kept as history, but it no longer describes the current score.
+    overriddenByTeacher: { type: Boolean, default: false },
   },
   { _id: false },
 );
@@ -82,6 +199,36 @@ const wordUseRowSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/** What one AI reply cost and how long it took; the credit ledger keeps the money. */
+const usageSchema = new mongoose.Schema(
+  {
+    inputTokens: { type: Number, default: 0, min: 0 },
+    cachedInputTokens: { type: Number, default: 0, min: 0 },
+    outputTokens: { type: Number, default: 0, min: 0 },
+    totalTokens: { type: Number, default: 0, min: 0 },
+    // Provider cost in the same unit as the credit ledger's costCents.
+    costCents: { type: Number, default: 0, min: 0 },
+    latencyMs: { type: Number, default: 0, min: 0 },
+    entryId: { type: mongoose.Schema.Types.ObjectId, ref: "AiCreditEntry" },
+  },
+  { _id: false },
+);
+
+/** Server-computed facts about the draft the reply was written from. */
+const metricsSchema = new mongoose.Schema(
+  {
+    totalWords: { type: Number, default: 0, min: 0 },
+    sentenceCount: { type: Number, default: 0, min: 0 },
+    paragraphCount: { type: Number, default: 0, min: 0 },
+    averageSentenceWords: { type: Number, default: 0, min: 0 },
+    longestSentenceWords: { type: Number, default: 0, min: 0 },
+    repeatedPhraseCount: { type: Number, default: 0, min: 0 },
+    repeatedPhrases: [{ type: String, trim: true }],
+    readingMinutes: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+);
+
 /** A missed spelling word the AI suggested reusing, filtered to this topic. */
 const spellingTargetSchema = new mongoose.Schema(
   {
@@ -141,11 +288,18 @@ const writingAssessmentSchema = new mongoose.Schema(
       enum: ["pending", "running", "done", "failed"],
       default: "pending",
     },
+    // Machine signal for a failed run; aiError is the sentence a teacher reads.
+    aiErrorCode: { type: String, trim: true, default: "" },
     aiError: { type: String, trim: true, default: "" },
     attempts: { type: Number, default: 0, min: 0 },
     requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     ranAt: { type: Date },
     modelUsed: { type: String, trim: true, default: "" },
+    // Which prompt and reply shape produced this row; see writingPromptVersions.
+    promptVersion: { type: String, trim: true, default: "" },
+    schemaVersion: { type: String, trim: true, default: "" },
+    usage: { type: usageSchema, default: undefined },
+    metrics: { type: metricsSchema, default: undefined },
     sections: { type: [sectionFeedbackSchema], default: [] },
     overall: {
       summary: { type: String, trim: true, default: "" },
@@ -165,9 +319,46 @@ const writingAssessmentSchema = new mongoose.Schema(
         explanation: { type: String, trim: true, default: "" },
         // One quote from the draft this criterion was judged on.
         evidence: { type: String, trim: true, default: "" },
+        // A criterion outside the class's taught focus: kept for the teacher,
+        // never shown to the child and never counted in the total (A7).
+        focusExcluded: { type: Boolean, default: false },
       },
     ],
     totalScore: { type: Number, default: 0 },
+    // The child-facing budget the server applied, so every view can prove the
+    // same cap without recomputing it (A1/A3).
+    focus: {
+      tier: { type: String, trim: true, default: "" },
+      strengthsPerSection: { type: Number, default: 0 },
+      improvementsPerSection: { type: Number, default: 0 },
+      sectionsWithImprovements: { type: Number, default: 0 },
+      totalImprovements: { type: Number, default: 0 },
+      priorities: { type: Number, default: 0 },
+      childSections: [{ type: String, trim: true }],
+    },
+    // Analysis the teacher keeps but the child does not see: notes trimmed by
+    // the focus budget, waiting to be promoted by hand (A3).
+    teacherOnly: {
+      notes: [
+        {
+          key: { type: String, trim: true },
+          index: { type: Number, default: 0 },
+          label: { type: String, trim: true, default: "" },
+          text: { type: String, trim: true, default: "" },
+        },
+      ],
+      priorities: [{ type: String, trim: true }],
+    },
+    // Measured reading level of the child-facing prose, kept with its ceiling
+    // so a prompt change that raises it is visible in the eval (A4).
+    readability: {
+      score: { type: Number, default: 0 },
+      ceiling: { type: Number, default: 0 },
+      ok: { type: Boolean, default: true },
+    },
+    // Marks the server lowered because the draft's own shape contradicted the
+    // model. Recorded so a teacher sees why a mark differs from the reply.
+    scoreAdjustments: { type: [scoreAdjustmentSchema], default: [] },
     // The priorities as keyed tasks, so a comparison can report each one.
     tasks: { type: [revisionTaskSchema], default: [] },
     // Missed words from the student's spelling list that fit this topic. The
@@ -225,6 +416,31 @@ const writingAssessmentSchema = new mongoose.Schema(
           student: { type: Boolean, default: false },
           parents: { type: Boolean, default: false },
         },
+        // L2: one row per address. The aggregate above answers "did it leave?";
+        // these rows answer "who has it?", which a resend needs to stay
+        // idempotent and a partial failure needs to retry without a duplicate.
+        deliveries: {
+          type: [
+            new mongoose.Schema(
+              {
+                email: { type: String, required: true, trim: true, lowercase: true },
+                role: { type: String, enum: ["student", "parent"], required: true },
+                status: {
+                  type: String,
+                  enum: ["queued", "sent", "failed", "suppressed"],
+                  default: "queued",
+                },
+                attempts: { type: Number, default: 0, min: 0 },
+                lastAttemptAt: Date,
+                sentAt: Date,
+                lastError: { type: String, trim: true, default: "" },
+                suppressedReason: { type: String, trim: true, default: "" },
+              },
+              { _id: false },
+            ),
+          ],
+          default: [],
+        },
       },
     },
     teacherEdits: {
@@ -233,7 +449,15 @@ const writingAssessmentSchema = new mongoose.Schema(
       changedPaths: [{ type: String, trim: true }],
       note: { type: String, trim: true, default: "" },
     },
-    aiOriginal: { type: mongoose.Schema.Types.Mixed },
+    // The tokenised reply the edit trail diffs against. It is written by the
+    // service as plain JSON; the validator keeps any other writer honest.
+    aiOriginal: {
+      type: mongoose.Schema.Types.Mixed,
+      validate: {
+        validator: (value) => plainJsonIssue(value) === null,
+        message: "aiOriginal must be bounded plain JSON",
+      },
+    },
   },
   { timestamps: true },
 );

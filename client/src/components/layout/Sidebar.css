@@ -37,7 +37,7 @@
 
 .MuiDrawer-paper .sidebar.collapsed .nav-item {
   justify-content: flex-start;
-  padding: 0.75rem var(--spacing-md);
+  padding: 0 16px;
 }
 
 .MuiDrawer-paper .sidebar .toggle-btn {
@@ -231,8 +231,11 @@
 }
 
 .sidebar-nav-section {
-  margin-bottom: var(--spacing-md);
   min-width: 0;
+}
+
+.sidebar-nav-section + .sidebar-nav-section {
+  margin-top: 24px;
 }
 
 .sidebar-nav-section:last-child {
@@ -255,18 +258,19 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: 6px;
   width: 100%;
   background: var(--bg-secondary);
   border: none;
   font: inherit;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  line-height: 1;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-xs);
+  color: color-mix(in srgb, var(--text-secondary) 78%, var(--text-muted));
+  padding: 10px 8px 6px;
+  margin-bottom: 2px;
   cursor: pointer;
   text-align: start;
   border-radius: var(--radius-sm);
@@ -278,8 +282,8 @@
 }
 
 .sidebar-section-title:focus-visible {
-  outline: 2px solid var(--primary-400);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .sidebar-section-chevron {
@@ -309,13 +313,15 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  padding: 0.45rem 0.7rem;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
   margin-bottom: 2px;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
+  line-height: 1;
   text-decoration: none;
   transition:
     background-color var(--transition-fast),
@@ -324,6 +330,7 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   white-space: nowrap;
   position: relative;
   min-width: 0;
+  animation: nav-item-enter 140ms ease-out;
 }
 
 .nav-label {
@@ -338,16 +345,12 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 }
 
 .nav-item:focus-visible {
-  outline: 2px solid var(--primary-400);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .nav-item.active {
-  background: color-mix(
-    in srgb,
-    var(--nav-tone, var(--primary-500)) 15%,
-    var(--bg-tertiary)
-  );
+  background: color-mix(in srgb, var(--primary-500) 15%, var(--bg-tertiary));
   color: var(--text-primary);
 }
 
@@ -360,7 +363,7 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   width: 3px;
   height: 55%;
   border-radius: var(--radius-full);
-  background: var(--nav-tone, var(--primary-500));
+  background: var(--primary-500);
 }
 
 .nav-item.active .nav-label {
@@ -369,11 +372,18 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 
 .nav-badge {
   margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
   background: var(--accent-amber);
   color: var(--bg-primary);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  padding: 2px 8px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   border-radius: var(--radius-full);
 }
 
@@ -450,76 +460,33 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 
 .nav-icon {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   display: block;
   transition: color var(--transition-fast);
 }
 
-/* Icon tones follow the section an item belongs to (see SECTION_TONES in Sidebar.jsx).
-   AdminSidebar keeps the legacy href rules below, scoped so they cannot leak here. */
-.sidebar-nav-section.tone-blue {
-  --nav-tone: var(--icon-blue);
-}
-.sidebar-nav-section.tone-cyan {
-  --nav-tone: var(--icon-cyan);
-}
-.sidebar-nav-section.tone-purple {
-  --nav-tone: var(--icon-purple);
-}
-.sidebar-nav-section.tone-pink {
-  --nav-tone: var(--icon-pink);
-}
-.sidebar-nav-section.tone-red {
-  --nav-tone: var(--icon-red);
-}
-.sidebar-nav-section.tone-teal {
-  --nav-tone: var(--icon-teal);
-}
-.sidebar-nav-section.tone-orange {
-  --nav-tone: var(--icon-orange);
-}
-.sidebar-nav-section.tone-green {
-  --nav-tone: var(--icon-green);
-}
-.sidebar-nav-section.tone-indigo {
-  --nav-tone: var(--icon-indigo);
-}
-.sidebar-nav-section.tone-amber {
-  --nav-tone: var(--icon-amber);
-}
-
+/* One accent: nav icons stay neutral and only the active row turns amber. */
 .sidebar-nav-section .nav-icon {
-  color: var(--nav-tone, var(--text-secondary));
-  opacity: 0.82;
+  color: var(--text-secondary);
 }
 
-.sidebar-nav-section .nav-item:hover .nav-icon,
+.sidebar-nav-section .nav-item:hover .nav-icon {
+  color: var(--text-primary);
+}
+
 .sidebar-nav-section .nav-item.active .nav-icon {
-  opacity: 1;
+  color: var(--primary-300);
 }
 
-/* AdminSidebar (super admin) */
-.admin-layout .nav-item[href*="dashboard"] .nav-icon {
-  color: var(--icon-blue);
-}
-
-.admin-layout .nav-item[href*="subscriptions"] .nav-icon {
-  color: var(--icon-amber);
-}
-
-.admin-layout .nav-item[href*="settings"] .nav-icon {
-  color: var(--icon-cyan);
-}
-
-.admin-layout .nav-item:hover .nav-icon {
-  filter: brightness(1.2);
+[data-theme="light"] .sidebar-nav-section .nav-item.active .nav-icon {
+  color: var(--primary-600);
 }
 
 .sidebar.collapsed .nav-item {
   justify-content: center;
   gap: 0;
-  padding: 0.55rem 0.25rem;
+  padding: 0 8px;
 }
 
 .sidebar.collapsed .nav-label {
@@ -590,8 +557,9 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  height: 32px;
   margin: var(--spacing-sm) var(--spacing-sm) 0.15rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0 8px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--bg-input);
@@ -614,12 +582,20 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
 .sidebar-search-input {
   flex: 1;
   min-width: 0;
-  border: none;
+  border: 0;
+  padding: 0;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: 0.8125rem;
   outline: none;
+  box-shadow: none;
+}
+
+.sidebar-search-input:focus,
+.sidebar-search-input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .sidebar-search-input::placeholder {
@@ -647,9 +623,71 @@ html[dir="rtl"] .sidebar-section-collapsed .sidebar-section-chevron {
   color: var(--text-primary);
 }
 
+.sidebar-search-hint {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sidebar-search:focus-within .sidebar-search-hint {
+  opacity: 0;
+}
+
+@media (hover: none) {
+  .sidebar-search-hint {
+    display: none;
+  }
+}
+
 .sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   padding: var(--spacing-lg) var(--spacing-md);
   text-align: center;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.sidebar-empty-title {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.sidebar-empty-hint {
+  font-size: 0.75rem;
+}
+
+@keyframes nav-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item {
+    animation: none;
+  }
+
+  .sidebar,
+  .nav-icon,
+  .sidebar-section-chevron,
+  .toggle-btn,
+  .sidebar-search,
+  .sidebar-section-title {
+    transition: none;
+  }
 }

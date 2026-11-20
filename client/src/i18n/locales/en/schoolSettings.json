@@ -61,11 +61,15 @@
       "email": "Email",
       "role": "Role",
       "department": "Department",
-      "status": "Status"
+      "status": "Status",
+      "actions": "Actions",
+      "activeRoleTitle": "Active role"
     },
     "actions": {
       "editRole": "Edit role",
-      "impersonate": "Impersonate"
+      "impersonate": "Impersonate",
+      "previewAs": "Preview as",
+      "openFullPage": "Open full page"
     },
     "empty": "No users in this school.",
     "filters": {
@@ -82,10 +86,11 @@
       "inactive": "Inactive",
       "clear": "Clear filters",
       "resultCount": "Showing {{shown}} of {{total}} users",
-      "noMatches": "No users match the selected filters."
+      "noMatches": "No users match the selected filters.",
+      "toggle": "Filters"
     },
     "modal": {
-      "editRoleTitle": "Edit role — {{name}}",
+      "editRoleTitle": "Edit roles & permissions — {{name}}",
       "roleLabel": "Role",
       "activeRoleLabel": "Active role",
       "rolesLabel": "Assigned roles",
@@ -103,7 +108,76 @@
       "permissionsLabel": "Permissions",
       "permissionsHint": "Select specific permissions for this user. Admins have all permissions by default.",
       "permissionsSelected_one": "{{count}} permission selected",
-      "permissionsSelected_other": "{{count}} permissions selected"
+      "permissionsSelected_other": "{{count}} permissions selected",
+      "discardConfirm": "Discard unsaved changes to this user?",
+      "confirmAuthorizationTitle": "Apply these access changes to {{name}}?",
+      "confirmActiveRole": "Active role: {{from}} → {{to}}",
+      "confirmRolesAdded": "Roles added: {{roles}}",
+      "confirmRolesRemoved": "Roles removed: {{roles}}",
+      "confirmDepartment": "Department: {{from}} → {{to}}",
+      "confirmPermissionsAdded": "Permissions granted: {{permissions}}",
+      "confirmPermissionsRemoved": "Permissions revoked: {{permissions}}",
+      "staleRefreshed": "This user was changed elsewhere. Showing the latest version — reapply your edits.",
+      "activeTag": "Active",
+      "closeAria": "Close dialog",
+      "loadLatest": "Load latest version",
+      "adminOnlyNotice": "Roles, department and permissions can only be changed by a school administrator. You can edit titles.",
+      "sectionRoles": "Roles and profile",
+      "sectionPermissions": "Additional permissions",
+      "legacyRoles": "Legacy roles",
+      "legacyHint": "Older single-purpose roles. Prefer Staff with specific permissions for new assignments.",
+      "activeRoleHint": "The role this user signs in with. It must be one of the assigned roles.",
+      "departmentsLoading": "Loading departments…",
+      "departmentsError": "Could not load departments.",
+      "departmentRequiresPrincipal": "Assign the Department Principal role to scope this user to a department.",
+      "permissionSearchPlaceholder": "Search permissions",
+      "permissionSearchLabel": "Search permissions",
+      "selectedOnly": "Selected only",
+      "hiddenSelected_one": "{{count}} selected permission hidden by the current filter.",
+      "hiddenSelected_other": "{{count}} selected permissions hidden by the current filter.",
+      "showAllPermissions": "Show all",
+      "noPermissionMatches": "No permissions match your search.",
+      "grantedTag": "Granted",
+      "scopeExpires": "Expires {{date}}",
+      "scopeDepartments_one": "Limited to {{count}} department",
+      "scopeDepartments_other": "Limited to {{count}} departments",
+      "scopeClasses_one": "Limited to {{count}} class",
+      "scopeClasses_other": "Limited to {{count}} classes",
+      "unsavedChanges": "Unsaved changes",
+      "errors": {
+        "AUTH_FIELDS_ADMIN_ONLY": "Only school administrators can change roles, permissions or department. You can edit titles.",
+        "USER_NOT_IN_SCHOOL": "This user does not belong to your school.",
+        "SUPER_ADMIN_PROTECTED": "Super admin accounts cannot be changed here.",
+        "STALE_USER": "This user was changed by someone else. Load the latest version and try again.",
+        "ROLES_REQUIRED": "Keep at least one assigned role.",
+        "INVALID_ROLES": "One of the selected roles is not valid.",
+        "INVALID_ROLE": "The active role is not valid.",
+        "ROLE_NOT_ASSIGNED": "The active role must be one of the assigned roles.",
+        "SELF_DEMOTION": "You cannot remove your own administrator role.",
+        "LAST_ADMIN": "This is the last active administrator in the school. Assign another administrator first.",
+        "TITLE_TOO_LONG": "Each title must be 100 characters or fewer.",
+        "INVALID_TITLES": "Titles could not be saved. Check the list and try again.",
+        "INVALID_DEPARTMENT": "The selected department is not valid.",
+        "DEPARTMENT_NOT_IN_SCHOOL": "The selected department does not belong to your school.",
+        "INVALID_PERMISSIONS": "One of the selected permissions is not valid.",
+        "INVALID_SCOPES": "Permission scopes are not valid.",
+        "INVALID_SCOPE_KEY": "Permission scopes reference an unknown permission.",
+        "SCOPE_NOT_IN_SCHOOL": "Permission scopes must reference departments and classes in your school.",
+        "USER_NOT_FOUND": "This user no longer exists."
+      }
+    },
+    "page": {
+      "title": "User Management",
+      "subtitle": "Manage school users, assign roles, and configure granular permissions.",
+      "denied": "You do not have permission to manage school users.",
+      "totalUsers": "Total users",
+      "activeUsers": "Active",
+      "inactiveUsers": "Inactive",
+      "customPermissions": "Custom permission profiles",
+      "summaryAria": "User summary"
+    },
+    "errors": {
+      "retry": "Try again"
     }
   },
   "roles": {
@@ -131,7 +205,10 @@
     "operations": "Operations",
     "reports": "Reports",
     "student_services": "Student Services",
-    "admin": "Administration"
+    "admin": "Administration",
+    "standards_assessment": "Standards Assessment",
+    "communication": "Communication",
+    "content": "Content"
   },
   "branding": {
     "title": "School Branding",
@@ -153,7 +230,13 @@
     "teacherEmailDomainTitle": "Teacher timetable import",
     "teacherEmailDomainHelpText": "When importing teacher timetables via CSV without an email column, teacher emails are auto-derived as firstname.lastname@domain using this domain.",
     "teacherEmailDomainLabel": "Teacher email domain",
-    "saveTeacherEmailDomain": "Save teacher email domain"
+    "saveTeacherEmailDomain": "Save teacher email domain",
+    "writingMarksTitle": "Writing feedback marks",
+    "writingMarksHelpText": "Choose how marks appear in writing feedback that children and families see: on the student page, in the feedback email, and on the printed report. Teachers always see numbers.",
+    "writingMarks_words": "Words only — for example, Strong",
+    "writingMarks_words_numbers": "Words and numbers — for example, Strong · 8/10",
+    "writingMarks_numbers": "Numbers only — for example, 8/10",
+    "saveWritingMarks": "Save writing feedback marks"
   },
   "admissionsPromotion": {
     "title": "Admissions and Promotion Policy",
@@ -325,7 +408,8 @@
     "deleteDepartment": "Are you sure you want to delete this department?",
     "promoteStudents": "Promote students from {{fromYear}} to {{toYear}}? This will update all active students.",
     "deleteGradingScale": "Delete grading scale \"{{name}}\"?",
-    "impersonateUser": "Are you sure you want to impersonate {{name}}?"
+    "impersonateUser": "Are you sure you want to impersonate {{name}}?",
+    "supportPreview": "Start a 30-minute, read-only support preview of {{name}} as {{role}}? Changes will be blocked and the preview will be recorded in the audit log."
   },
   "toast": {
     "loadUsersFailed": "Failed to load users",
@@ -343,6 +427,8 @@
     "attendanceReminderSettingsUpdateFailed": "Failed to update attendance reminder settings",
     "teacherEmailDomainUpdated": "Teacher email domain updated",
     "teacherEmailDomainUpdateFailed": "Failed to update teacher email domain",
+    "writingFeedbackSettingsUpdated": "Writing feedback marks updated",
+    "writingFeedbackSettingsUpdateFailed": "Failed to update writing feedback marks",
     "loadAdmissionsPromotionSettingsFailed": "Failed to load admissions and promotion settings",
     "admissionsPromotionSettingsUpdated": "Admissions and promotion settings updated",
     "admissionsPromotionSettingsUpdateFailed": "Failed to update admissions and promotion settings",
@@ -391,5 +477,384 @@
     "impersonationStarting": "Starting impersonation...",
     "impersonationStarted": "Impersonation started. Redirecting...",
     "impersonationFailed": "Failed to impersonate user"
+  },
+  "roleDescriptions": {
+    "admin": "Full school access",
+    "staff": "School employee (assign specific permissions)",
+    "teacher": "Teaching staff",
+    "department_principal": "Department head",
+    "parent": "Parent/Guardian",
+    "student": "Enrolled student",
+    "attendance_manager": "Use Staff + Permissions instead",
+    "lesson_plan_reviewer": "Use Staff + Permissions instead",
+    "report_viewer": "Use Staff + Permissions instead",
+    "event_coordinator": "Use Staff + Permissions instead",
+    "behavior_manager": "Use Staff + Permissions instead",
+    "transportation_coordinator": "Use Staff + Permissions instead",
+    "cafeteria_manager": "Use Staff + Permissions instead",
+    "library_manager": "Use Staff + Permissions instead",
+    "it_support": "Use Staff + Permissions instead",
+    "counselor": "Use Staff + Permissions instead",
+    "nurse": "Use Staff + Permissions instead"
+  },
+  "permissionDefs": {
+    "manage_attendance_reminders": {
+      "label": "Manage Attendance Reminders",
+      "description": "Create, edit, and send attendance reminders"
+    },
+    "view_attendance_reports": {
+      "label": "View Attendance Reports",
+      "description": "View attendance reports and statistics"
+    },
+    "manage_school_settings": {
+      "label": "Manage School Settings",
+      "description": "Configure school-wide settings including lesson plan criteria"
+    },
+    "review_lesson_plans": {
+      "label": "Review Lesson Plans",
+      "description": "View and review lesson plans from other teachers"
+    },
+    "edit_lesson_plans": {
+      "label": "Edit Lesson Plans",
+      "description": "Create and edit lesson plans"
+    },
+    "view_curriculum_maps": {
+      "label": "View Curriculum Maps",
+      "description": "View published curriculum maps and related coverage details"
+    },
+    "edit_curriculum_maps": {
+      "label": "Edit Curriculum Maps",
+      "description": "Create and update curriculum maps"
+    },
+    "review_curriculum_maps": {
+      "label": "Review Curriculum Maps",
+      "description": "Review submitted curriculum maps"
+    },
+    "publish_curriculum_maps": {
+      "label": "Publish Curriculum Maps",
+      "description": "Publish approved curriculum map versions"
+    },
+    "create_curriculum_map": {
+      "label": "Create Curriculum Map",
+      "description": "Create curriculum maps"
+    },
+    "edit_own_curriculum_map": {
+      "label": "Edit Own Curriculum Map",
+      "description": "Edit curriculum maps created by the user"
+    },
+    "edit_any_curriculum_map": {
+      "label": "Edit Any Curriculum Map",
+      "description": "Edit curriculum maps created by any teacher"
+    },
+    "review_curriculum_map": {
+      "label": "Review Curriculum Map",
+      "description": "Review submitted curriculum maps"
+    },
+    "approve_curriculum_map": {
+      "label": "Approve Curriculum Map",
+      "description": "Approve curriculum maps during review workflow"
+    },
+    "reject_curriculum_map": {
+      "label": "Reject Curriculum Map",
+      "description": "Reject curriculum maps during review workflow"
+    },
+    "export_curriculum_map": {
+      "label": "Export Curriculum Map",
+      "description": "Export curriculum maps to CSV or PDF"
+    },
+    "print_curriculum_map": {
+      "label": "Print Curriculum Map",
+      "description": "Print curriculum maps using document-friendly layout"
+    },
+    "configure_curriculum_map_templates": {
+      "label": "Configure Curriculum Templates",
+      "description": "Configure school curriculum templates and workflow settings"
+    },
+    "manage_substitutions": {
+      "label": "Manage Substitutions",
+      "description": "Manage teacher absences and substitute assignments"
+    },
+    "manage_events": {
+      "label": "Manage Events",
+      "description": "Create and manage school events"
+    },
+    "view_all_reports": {
+      "label": "View All Reports",
+      "description": "View all school reports and analytics"
+    },
+    "edit_reports": {
+      "label": "Edit Reports",
+      "description": "Create and edit reports"
+    },
+    "sbr:manage_scales": {
+      "label": "Manage SBR Scales",
+      "description": "Create, update, delete, and set default standards-based report scales"
+    },
+    "sbr:generate_reports": {
+      "label": "Generate SBR Reports",
+      "description": "Generate and publish standards-based report cards"
+    },
+    "sbr:view_reports": {
+      "label": "View SBR Reports",
+      "description": "View and download standards-based report cards"
+    },
+    "manage_behavior": {
+      "label": "Manage Behavior Records",
+      "description": "Manage student behavior tracking and discipline"
+    },
+    "view_behavior": {
+      "label": "View Behavior Records",
+      "description": "View student behavior records"
+    },
+    "manage_transportation": {
+      "label": "Manage Transportation",
+      "description": "Manage bus routes and transportation"
+    },
+    "view_transportation": {
+      "label": "View Transportation",
+      "description": "View transportation schedules"
+    },
+    "manage_cafeteria": {
+      "label": "Manage Cafeteria",
+      "description": "Manage meal planning and cafeteria operations"
+    },
+    "view_cafeteria": {
+      "label": "View Cafeteria",
+      "description": "View cafeteria information"
+    },
+    "manage_library": {
+      "label": "Manage Library",
+      "description": "Manage library resources and checkouts"
+    },
+    "view_library": {
+      "label": "View Library",
+      "description": "View library resources"
+    },
+    "provide_it_support": {
+      "label": "Provide IT Support",
+      "description": "Access system for technical support"
+    },
+    "access_counseling_records": {
+      "label": "Access Counseling Records",
+      "description": "View student counseling records"
+    },
+    "edit_counseling_records": {
+      "label": "Edit Counseling Records",
+      "description": "Create and edit counseling records"
+    },
+    "access_health_records": {
+      "label": "Access Health Records",
+      "description": "View student health records"
+    },
+    "edit_health_records": {
+      "label": "Edit Health Records",
+      "description": "Create and edit health records"
+    },
+    "manage_users": {
+      "label": "Manage Users",
+      "description": "Manage user accounts and roles"
+    },
+    "manage_departments": {
+      "label": "Manage Departments",
+      "description": "Create and manage departments"
+    },
+    "view_grades": {
+      "label": "View Grades",
+      "description": "View student grades"
+    },
+    "edit_grades": {
+      "label": "Edit Grades",
+      "description": "Create and edit student grades"
+    },
+    "manage_grade_scaling": {
+      "label": "Manage Grade Scaling",
+      "description": "Create, update, and manage grading scales and defaults"
+    },
+    "manage_assignment_config": {
+      "label": "Manage Assignment Config",
+      "description": "Create and maintain assignment types and defaults"
+    },
+    "create_assignments": {
+      "label": "Create Assignments",
+      "description": "Create and update assignments"
+    },
+    "publish_assignments": {
+      "label": "Publish Assignments",
+      "description": "Publish assignments to students and parents"
+    },
+    "grade_assignments": {
+      "label": "Grade Assignments",
+      "description": "Enter and update assignment-linked grades"
+    },
+    "send_notifications": {
+      "label": "Send Notifications",
+      "description": "Send notifications to users"
+    },
+    "send_communication_emails": {
+      "label": "Send Communication Emails",
+      "description": "Access the scoped email composer for school communication"
+    },
+    "message_own_students": {
+      "label": "Message Own Students",
+      "description": "Send emails to students in your assigned classes/subjects"
+    },
+    "message_own_student_parents": {
+      "label": "Message Own Student Parents",
+      "description": "Send emails to parents of students in your assigned classes/subjects"
+    },
+    "message_department_students": {
+      "label": "Message Department Students",
+      "description": "Send emails to students in assigned department scope"
+    },
+    "message_department_parents": {
+      "label": "Message Department Parents",
+      "description": "Send emails to parents in assigned department scope"
+    },
+    "message_department_teachers": {
+      "label": "Message Department Teachers",
+      "description": "Send emails to teachers in assigned department scope"
+    },
+    "message_department_everyone": {
+      "label": "Message Department Everyone",
+      "description": "Send emails to everyone in assigned department scope"
+    },
+    "message_school_students": {
+      "label": "Message School Students",
+      "description": "Send emails to all students in the school"
+    },
+    "message_school_parents": {
+      "label": "Message School Parents",
+      "description": "Send emails to all parents in the school"
+    },
+    "message_school_teachers": {
+      "label": "Message School Teachers",
+      "description": "Send emails to all teachers in the school"
+    },
+    "message_school_everyone": {
+      "label": "Message School Everyone",
+      "description": "Send emails to everyone in the school"
+    },
+    "message_assigned_subordinates": {
+      "label": "Message Assigned Subordinates",
+      "description": "Send emails to assigned subordinate staff"
+    },
+    "delegated_communication_scope": {
+      "label": "Delegated Communication Scope",
+      "description": "Use delegated communication scope metadata"
+    },
+    "view_academic_excellence_student": {
+      "label": "View Academic Excellence Student",
+      "description": "View student-level Academic Excellence insights"
+    },
+    "view_academic_excellence_class": {
+      "label": "View Academic Excellence Class",
+      "description": "View class-level Academic Excellence insights"
+    },
+    "view_academic_excellence_school": {
+      "label": "View Academic Excellence School",
+      "description": "View school-wide Academic Excellence insights"
+    },
+    "view_academic_excellence_department": {
+      "label": "View Academic Excellence Department",
+      "description": "View department-level Academic Excellence insights"
+    },
+    "assign_academic_excellence_tasks": {
+      "label": "Assign AE Tasks",
+      "description": "Assign Academic Excellence tasks to students"
+    },
+    "review_academic_excellence_tasks": {
+      "label": "Review AE Tasks",
+      "description": "Review completed Academic Excellence tasks"
+    },
+    "bulk_assign_academic_excellence_tasks": {
+      "label": "Bulk Assign AE Tasks",
+      "description": "Bulk assign Academic Excellence tasks by class or group"
+    },
+    "disable_academic_excellence_for_student": {
+      "label": "Disable AE For Student",
+      "description": "Disable Academic Excellence tracking for a student"
+    },
+    "disable_academic_excellence_for_class": {
+      "label": "Disable AE For Class",
+      "description": "Disable Academic Excellence tracking for a class"
+    },
+    "exclude_academic_excellence_lesson": {
+      "label": "Exclude AE Lesson",
+      "description": "Exclude lessons or objectives from Academic Excellence"
+    },
+    "manage_academic_excellence_exclusions": {
+      "label": "Manage AE Exclusions",
+      "description": "Manage Academic Excellence exclusions and rules"
+    },
+    "manage_academic_excellence_notifications": {
+      "label": "Manage AE Notifications",
+      "description": "Manage Academic Excellence notification preferences"
+    },
+    "override_academic_excellence_notifications": {
+      "label": "Override AE Notifications",
+      "description": "Override Academic Excellence notification settings school-wide"
+    },
+    "manage_academic_excellence_settings": {
+      "label": "Manage AE Settings",
+      "description": "Manage Academic Excellence settings and thresholds"
+    },
+    "view_academic_excellence_settings": {
+      "label": "View AE Settings",
+      "description": "View Academic Excellence settings"
+    },
+    "view_academic_excellence_school_analytics": {
+      "label": "View AE School Analytics",
+      "description": "View school-level Academic Excellence analytics"
+    },
+    "view_academic_excellence_class_analytics": {
+      "label": "View AE Class Analytics",
+      "description": "View class-level Academic Excellence analytics"
+    },
+    "export_academic_excellence_reports": {
+      "label": "Export AE Reports",
+      "description": "Export Academic Excellence reports"
+    },
+    "view_academic_excellence_at_risk_report": {
+      "label": "View AE At Risk Report",
+      "description": "View at-risk student Academic Excellence reports"
+    },
+    "view_assessment_pool": {
+      "label": "View Assessment Pool",
+      "description": "Browse and search the pre-generated question pool library"
+    },
+    "create_assessment_from_pool": {
+      "label": "Create Assessment From Pool",
+      "description": "Select pool questions and create a new assessment draft"
+    },
+    "manage_assessment_pool_settings": {
+      "label": "Manage Assessment Pool Settings",
+      "description": "Configure pool library restrictions (visibility scope, browsing rules, limits)"
+    },
+    "manage_assessment_comms_settings": {
+      "label": "Manage Assessment Comms Settings",
+      "description": "Configure communication preferences (email branding, quiet hours, channels)"
+    }
+  },
+  "academicPeriod": {
+    "title": "Current academic period",
+    "subtitle": "Used by default across the school.",
+    "yearLabel": "Academic year",
+    "semesterLabel": "Semester",
+    "semester1": "Semester 1",
+    "semester2": "Semester 2",
+    "dates": "{{start}} – {{end}}",
+    "save": "Save changes",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "loading": "Loading the current academic period...",
+    "loadFailed": "Could not load the school's academic period.",
+    "retry": "Retry",
+    "confirmTitle": "Change the school's active academic period?",
+    "confirmFrom": "From:",
+    "confirmTo": "To:",
+    "confirmWarning": "This changes the default period used across the school. Existing records will not be moved, and students will not be promoted.",
+    "confirmAction": "Change academic period",
+    "saved": "Academic period updated",
+    "saveFailed": "Failed to update the academic period"
   }
 }

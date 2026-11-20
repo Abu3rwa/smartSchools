@@ -9,6 +9,7 @@ const liveLessonFolderSchema = new Schema(
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     parentId: { type: Schema.Types.ObjectId, ref: "LiveLessonFolder", default: null },
+    pinned: { type: Boolean, default: false },
     sortOrder: { type: Number, default: 0 },
     lessonIds: { type: [{ type: Schema.Types.ObjectId, ref: "LiveLesson" }], default: [] },
   },

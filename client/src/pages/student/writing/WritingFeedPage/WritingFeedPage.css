@@ -1,14 +1,13 @@
 .wf-page {
-  --wf-teal: var(--primary);
+  --wf-teal: var(--text-accent, var(--primary));
   --wf-ink: var(--text-primary, #0f172a);
-  --wf-muted: var(--text-muted, #64748b);
+  --wf-muted: #94a3b8;
   --wf-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --wf-surface: var(--bg-card, #ffffff);
-  --wf-surface-2: var(--bg-secondary, #f8fafc);
-  --wf-soft: color-mix(in srgb, var(--primary) 10%, transparent);
-  --wf-amber: #b45309;
-  --wf-indigo: #4338ca;
-  --wf-green: #15803d;
+  --wf-surface-2: var(--bg-primary, #f8fafc);
+  --wf-amber: #fb923c;
+  --wf-indigo: #818cf8;
+  --wf-green: #34d399;
 
   display: flex;
   flex-direction: column;
@@ -17,6 +16,14 @@
   max-width: 1080px;
   margin-inline: auto;
   width: 100%;
+}
+
+[data-theme="light"] .wf-page {
+  --wf-muted: #667085;
+  --wf-surface-2: #f2f4f7;
+  --wf-amber: #9a3412;
+  --wf-indigo: #4338ca;
+  --wf-green: #166534;
 }
 
 .wf-head h1 { margin: 0; font-size: 1.4rem; }
@@ -178,7 +185,7 @@
   font-style: normal;
   font-weight: 600;
   color: var(--wf-green);
-  background: color-mix(in srgb, #16a34a 12%, transparent);
+  background: color-mix(in srgb, var(--wf-green) 14%, transparent);
   border-radius: 999px;
   padding: 3px 10px;
 }

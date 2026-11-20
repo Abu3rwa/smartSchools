@@ -29,6 +29,7 @@ const supportService = {
 
   getRequests: async () => unwrap(api.get("/support/requests")),
   respondToRequest: async (caseId, body) => unwrap(api.post(`/support/requests/${caseId}/respond`, body)),
+  getAttention: async () => unwrap(api.get("/support/attention")),
 
   getSuggestions: async () => unwrap(api.get("/support/suggestions")),
   dismissSuggestion: async (body) => unwrap(api.post("/support/suggestions/dismiss", body)),
@@ -46,13 +47,15 @@ const supportService = {
     unwrap(api.post(`/support/cases/${caseId}/surveys/${surveyId}/handed-over`)),
   assistedResponse: async (caseId, surveyId, answers) =>
     unwrap(api.post(`/support/cases/${caseId}/surveys/${surveyId}/assisted`, { answers })),
+  reopenSurvey: async (caseId, surveyId) =>
+    unwrap(api.post(`/support/cases/${caseId}/surveys/${surveyId}/reopen`)),
 
   getVersions: async (caseId) => unwrap(api.get(`/support/cases/${caseId}/plan/versions`)),
   draftPlan: async (caseId, body = {}) => unwrap(api.post(`/support/cases/${caseId}/plan/draft`, body)),
   updateVersion: async (caseId, versionId, revision, patch) =>
     unwrap(api.patch(`/support/cases/${caseId}/plan/versions/${versionId}`, { revision, patch })),
-  approveVersion: async (caseId, versionId) =>
-    unwrap(api.post(`/support/cases/${caseId}/plan/versions/${versionId}/approve`)),
+  approveVersion: async (caseId, versionId, note = "") =>
+    unwrap(api.post(`/support/cases/${caseId}/plan/versions/${versionId}/approve`, { note })),
   publishVersion: async (caseId, versionId) =>
     unwrap(api.post(`/support/cases/${caseId}/plan/versions/${versionId}/publish`)),
   setGoalOutcome: async (caseId, versionId, goalId, body) =>

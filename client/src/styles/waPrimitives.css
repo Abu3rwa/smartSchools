@@ -5,22 +5,49 @@
  */
 
 .wa-page {
-  --wa-teal: var(--primary);
+  /* Accent text is a brighter amber than the primary action brown: the
+     primary itself only reads 2.9:1 on a dark card. */
+  --wa-teal: var(--text-accent, var(--primary));
   --wa-ink: var(--text-primary, #0f172a);
-  --wa-muted: var(--text-muted, #64748b);
-  --wa-rose: #dc2626;
+  --wa-muted: #94a3b8;
+  --wa-rose: var(--status-error, #dc2626);
   --wa-line: var(--border-color, rgba(0, 0, 0, 0.08));
   --wa-surface: var(--bg-card, #ffffff);
-  --wa-surface-2: var(--bg-secondary, #f8fafc);
+  /* Recessed panel: the page colour, one step below the card. */
+  --wa-surface-2: var(--bg-primary, #f8fafc);
   --wa-soft: color-mix(in srgb, var(--primary) 10%, transparent);
+  /* Status triplets, one meaning each: green success, orange warning,
+     red error. Ink is the text colour, wash fills, line outlines. */
+  --wa-success-ink: #34d399;
+  --wa-success-wash: color-mix(in srgb, #10b981 16%, transparent);
+  --wa-success-line: color-mix(in srgb, #34d399 40%, transparent);
+  --wa-warning-ink: #fb923c;
+  --wa-warning-wash: color-mix(in srgb, #fb923c 15%, transparent);
+  --wa-warning-line: color-mix(in srgb, #fb923c 45%, transparent);
+  --wa-overlay: var(--overlay-bg, rgba(15, 23, 42, 0.6));
   --wa-radius: 14px;
   --wa-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -18px rgba(15, 23, 42, 0.35);
+  --wa-modal-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.65);
 
   display: flex;
   flex-direction: column;
   gap: 18px;
   color: var(--wa-ink);
+}
+
+[data-theme="light"] .wa-page {
+  --wa-muted: #667085;
+  --wa-surface-2: #f2f4f7;
+  /* 6% keeps accent text above 4.5:1 on active chips; 10% drops to 4.39. */
+  --wa-soft: color-mix(in srgb, var(--primary) 6%, transparent);
+  --wa-success-ink: #166534;
+  --wa-success-wash: color-mix(in srgb, #16a34a 12%, transparent);
+  --wa-success-line: color-mix(in srgb, #16a34a 40%, transparent);
+  --wa-warning-ink: #9a3412;
+  --wa-warning-wash: color-mix(in srgb, #ea580c 12%, transparent);
+  --wa-warning-line: color-mix(in srgb, #ea580c 40%, transparent);
+  --wa-modal-shadow: 0 28px 70px -24px rgba(16, 24, 40, 0.35);
 }
 
 .wa-head {
@@ -310,12 +337,226 @@
   font-size: 0.74rem;
   color: var(--wa-muted);
 }
+.wa-return-action {
+  display: inline-flex;
+  margin-top: 6px;
+  white-space: nowrap;
+}
+.wa-note-rewrite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+}
+.wa-note-rewrite select {
+  padding: 4px 8px;
+  border: 1px solid var(--wa-line);
+  border-radius: 8px;
+  background: var(--wa-surface);
+  color: var(--wa-ink);
+  font: inherit;
+}
+
+/* F2: the reusable note bank, opened beside the note it feeds. */
+.wa-comment-bank {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+}
+.wa-bank-panel {
+  flex-basis: 100%;
+  padding: 10px;
+  border: 1px solid var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+}
+.wa-bank-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wa-bank-save select {
+  padding: 4px 8px;
+  border: 1px solid var(--wa-line);
+  border-radius: 8px;
+  background: var(--wa-surface);
+  color: var(--wa-ink);
+  font: inherit;
+}
+.wa-bank-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--wa-muted);
+}
+.wa-bank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wa-bank-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--wa-surface);
+}
+.wa-bank-list li span {
+  flex: 1 1 240px;
+  font-size: 0.86rem;
+}
+.wa-bank-list li em {
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--wa-muted);
+}
+
+/* F3: one compact card for the batch confirmation and its live progress. */
+.wa-batch-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+}
+.wa-batch-card.is-stopped,
+.wa-batch-card.is-interrupted {
+  border-color: var(--wa-rose);
+}
+.wa-batch-text {
+  flex: 1 1 320px;
+}
+.wa-batch-text p {
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+}
+.wa-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wa-batch-items {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: var(--wa-muted);
+}
+.wa-batch-items summary {
+  cursor: pointer;
+}
+.wa-batch-items ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wa-batch-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.wa-batch-items li em {
+  font-style: normal;
+}
+/* F7: the class-wide publish confirmation. */
+.wa-bulk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--wa-line);
+  border-radius: 10px;
+  background: var(--wa-surface-2);
+}
+.wa-bulk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wa-bulk-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.wa-bulk-count {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.wa-bulk-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+.wa-bulk-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.wa-bulk-rows li.is-blocked .wa-bulk-name,
+.wa-bulk-rows li.is-failed .wa-bulk-status {
+  color: var(--wa-rose);
+}
+.wa-bulk-name {
+  font-weight: 600;
+}
+.wa-bulk-status {
+  font-size: 0.75rem;
+  color: var(--wa-muted);
+}
+.wa-bulk-reason {
+  color: var(--wa-muted);
+}
+.wa-bulk-sample summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.wa-bulk-sample iframe {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--wa-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.wa-cell-check {
+  width: 34px;
+  text-align: center;
+}
+.wa-cell-check input {
+  width: auto;
+}
 
 .wa-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 70;
-  background: rgba(15, 23, 42, 0.5);
+  /* Must stay above the fixed sidebar and header chrome (z-index 100). */
+  z-index: 1100;
+  background: var(--wa-overlay, var(--overlay-bg, rgba(15, 23, 42, 0.6)));
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -327,7 +568,7 @@
   margin: auto;
   background: var(--wa-surface);
   border-radius: 18px;
-  box-shadow: 0 28px 70px -24px rgba(15, 23, 42, 0.55);
+  box-shadow: var(--wa-modal-shadow);
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 48px);

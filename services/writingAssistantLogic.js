@@ -3,6 +3,13 @@
  * Everything the workflow decides lives here so it can be tested directly.
  */
 import { normalizeWritingType } from '../constants/writingPresets.js';
+import { tokensForMatch } from '../client/src/utils/writingTextMatch.js';
+import {
+    atomicTasks,
+    rankSpellingCandidates,
+    sanitizeLedgerRows,
+    stallSuggestion
+} from './writingRevisionIntelligence.js';
 
 export const countWords = (text) => {
     const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
@@ -270,7 +277,7 @@ export const canMoveTo = (project, nextStage) => {
     return nextStage === lockedTo;
 };
 
-export const canStudentSubmit = ({ project, assignment }) => {
+export const canStudentSubmit = ({ project }) => {
     if (!project) return { allowed: false, reason: 'This writing task has not been opened yet.' };
     if (project.stage === 'completed') {
         return { allowed: false, reason: 'This assignment is finished.' };
@@ -352,13 +359,12 @@ export const draftDiffSummary = (alignment) => ({
 /**
  * The priorities a student was given, keyed so the next draft can be checked
  * against them one by one. Ids are positional: rewording a task keeps its
- * identity, and feedback saved before tasks existed keys the same way.
+ * identity, and feedback saved before tasks existed keys the same way. A
+ * two-part instruction is split here, before it can enter the ledger, because
+ * one ledger row has to be checkable on its own.
  */
-export const tasksFromPriorities = (priorities = []) => (priorities || [])
-    .map((text) => String(text || '').trim())
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((text, index) => ({ id: `t${index + 1}`, text }));
+export const tasksFromPriorities = (priorities = []) =>
+    atomicTasks(priorities).map((text, index) => ({ id: `t${index + 1}`, text }));
 
 /**
  * Tasks and ledger rows are read straight from Mongoose documents. A document
@@ -415,6 +421,9 @@ export const mergeRevisionLedger = ({
 
     for (const task of tasks || []) {
         if (!task?.id || !task?.text) continue;
+        // Ids are positional, so a duplicate id would overwrite one truth with
+        // another and make the ledger unauditable (D7).
+        if (asked.has(task.id)) continue;
         asked.add(task.id);
         const before = known.get(task.id);
         const result = results.get(task.id);
@@ -455,12 +464,16 @@ export const mergeRevisionLedger = ({
         next.push(row.status === 'resolved' ? row : { ...row, status: 'dropped' });
     }
 
-    return next;
+    return sanitizeLedgerRows(next);
 };
 
-export const stalledTasksFrom = (ledger = []) => (ledger || []).filter(
-    (row) => row?.status === 'stalled'
-);
+/**
+ * Stalled rows carry the teacher's next move: after two ignored checks the
+ * label alone is not actionable (D2). The suggestion escalates with the streak.
+ */
+export const stalledTasksFrom = (ledger = []) => (ledger || [])
+    .filter((row) => row?.status === 'stalled')
+    .map((row) => ({ ...row, suggestion: stallSuggestion(row) }));
 
 export const ledgerSummary = (ledger = []) => (ledger || []).reduce(
     (sum, row) => {
@@ -493,41 +506,29 @@ export const assignmentOwnedTokens = (assignment = {}) => new Set(textTokens([
 ].join(' ')));
 
 /**
- * Turn the AI's choices into at most three usable targets. Anything that is not
- * on the student's own missed-word list is dropped, as is a word already used in
- * the draft or one the assignment itself supplied. An empty list is a fine result.
+ * Turn the missed-word list into the small set of targets a child can act on.
+ * The server ranks every candidate by topic fit first; the AI's list only breaks
+ * ties, so a weak-fit word cannot win over a better candidate (G3). Each target
+ * carries the reason it was chosen so the teacher can check it (G4), and words
+ * the student has already recovered twice are no longer offered (G6).
  */
 export const selectSpellingTargets = ({
     suggestions = [],
     candidates = [],
     assignment = {},
-    draftText = ''
-} = {}) => {
-    const allowed = new Map(
-        (candidates || [])
-            .map((row) => [String(row?.word || '').trim().toLowerCase(), row])
-            .filter(([word]) => word)
-    );
-    const owned = assignmentOwnedTokens(assignment);
-    const used = new Set(textTokens(draftText));
-    const seen = new Set();
-    const picked = [];
-
-    for (const raw of suggestions || []) {
-        const key = String(raw?.word ?? raw ?? '').trim().toLowerCase();
-        if (!key || seen.has(key) || used.has(key) || owned.has(key)) continue;
-        const candidate = allowed.get(key);
-        if (!candidate) continue;
-        seen.add(key);
-        picked.push({
-            word: candidate.word,
-            grade: candidate.grade || '',
-            week: Number(candidate.week) || 0
-        });
-        if (picked.length === 3) break;
-    }
-    return picked;
-};
+    draftText = '',
+    tier = 'developing',
+    publishedTargets = [],
+    graduatedWords: graduated = []
+} = {}) => rankSpellingCandidates({
+    candidates,
+    suggestions,
+    assignment,
+    draftText,
+    tier,
+    publishedTargets,
+    graduatedWords: graduated
+});
 
 /**
  * A win is a fact, not a model claim: a target appears in the draft as the same
@@ -545,9 +546,12 @@ export const verifiedSpellingWins = ({ targets = [], draftText = '' } = {}) => {
 /* ------------------------------------------------------------------ */
 
 export const rubricRatio = ({ scores = [] }) => {
-    const max = scores.reduce((sum, row) => sum + (Number(row?.maxScore) || 0), 0);
+    // A criterion the class has not been taught yet is not evidence of a gap;
+    // it is left out of the ratio everywhere the ratio steers a decision.
+    const counted = (scores || []).filter((row) => !row?.focusExcluded);
+    const max = counted.reduce((sum, row) => sum + (Number(row?.maxScore) || 0), 0);
     if (max <= 0) return null;
-    const earned = scores.reduce((sum, row) => sum + (Number(row?.score) || 0), 0);
+    const earned = counted.reduce((sum, row) => sum + (Number(row?.score) || 0), 0);
     return earned / max;
 };
 
@@ -600,6 +604,134 @@ export const buildWritingProfile = ({ assessments = [], spelling = null } = {}) 
         spellingGrade: grade,
         spellingAccuracy: accuracy
     };
+};
+
+/* ------------------------------------------------------------------ */
+/* Focus budget                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How much feedback one child is asked to act on. A weaker writer gets one
+ * improvement per section from at most two sections and one whole-piece
+ * priority; a strong writer can take the full analysis. `sectionsWithImprovements`
+ * and `totalImprovements` use 99 for "no effective cap" so the numbers stay
+ * finite in JSON and in the database.
+ */
+export const FOCUS_BUDGETS = {
+    emerging: {
+        strengthsPerSection: 1,
+        improvementsPerSection: 1,
+        sectionsWithImprovements: 2,
+        totalImprovements: 3,
+        priorities: 1
+    },
+    developing: {
+        strengthsPerSection: 2,
+        improvementsPerSection: 2,
+        sectionsWithImprovements: 3,
+        totalImprovements: 6,
+        priorities: 2
+    },
+    secure: {
+        strengthsPerSection: 2,
+        improvementsPerSection: 3,
+        sectionsWithImprovements: 99,
+        totalImprovements: 99,
+        priorities: 3
+    }
+};
+
+/** An unknown tier is treated as developing: never the widest budget by accident. */
+export const budgetForTier = (tier) => FOCUS_BUDGETS[tier] || FOCUS_BUDGETS.developing;
+
+/**
+ * Server-enforced child-facing budget. The reply keeps its full analysis; this
+ * returns the trimmed sections the child reads plus the removed rows so the
+ * teacher can still see them and promote one back. Sections whose quote was
+ * really found in the draft keep their improvements before sections without
+ * one, because a note number always has to point at real words.
+ */
+export const applyFocusBudget = ({ sections = [], priorities = [], tier = 'developing' } = {}) => {
+    const budget = budgetForTier(tier);
+    const perSectionLeft = new Map();
+    for (const section of sections || []) {
+        perSectionLeft.set(slotId(section), budget.improvementsPerSection);
+    }
+
+    // Rank once: verified evidence first, then the draft's own order.
+    const ranked = (sections || [])
+        .map((section, position) => ({ position, section, anchored: Boolean(section?.evidence) }))
+        .sort((a, b) => Number(b.anchored) - Number(a.anchored) || a.position - b.position);
+
+    const allowed = new Set();
+    let totalLeft = budget.totalImprovements;
+    for (const { section } of ranked) {
+        if (allowed.size >= budget.sectionsWithImprovements || totalLeft <= 0) break;
+        if (!(section?.improvements || []).length) continue;
+        allowed.add(slotId(section));
+        const take = Math.min(
+            perSectionLeft.get(slotId(section)),
+            totalLeft
+        );
+        perSectionLeft.set(slotId(section), take);
+        totalLeft -= take;
+    }
+
+    const kept = [];
+    const dropped = { strengths: [], improvements: [], priorities: [] };
+    const nextSections = (sections || []).map((section) => {
+        const id = slotId(section);
+        const strengths = (section.strengths || []).slice(0, budget.strengthsPerSection);
+        const improvements = allowed.has(id)
+            ? (section.improvements || []).slice(0, perSectionLeft.get(id) || 0)
+            : [];
+        for (const text of (section.strengths || []).slice(strengths.length)) {
+            dropped.strengths.push({ key: section.key, index: Number(section.index) || 0, label: section.label || section.key, text });
+        }
+        for (const text of (section.improvements || []).slice(improvements.length)) {
+            dropped.improvements.push({ key: section.key, index: Number(section.index) || 0, label: section.label || section.key, text });
+        }
+        if (improvements.length) kept.push(id);
+        return { ...section, strengths, improvements };
+    });
+
+    const nextPriorities = (priorities || []).slice(0, budget.priorities);
+    for (const text of (priorities || []).slice(nextPriorities.length)) {
+        dropped.priorities.push(text);
+    }
+
+    return {
+        sections: nextSections,
+        priorities: nextPriorities,
+        focus: {
+            tier: FOCUS_BUDGETS[tier] ? tier : 'developing',
+            strengthsPerSection: budget.strengthsPerSection,
+            improvementsPerSection: budget.improvementsPerSection,
+            sectionsWithImprovements: budget.sectionsWithImprovements,
+            totalImprovements: budget.totalImprovements,
+            priorities: budget.priorities,
+            childSections: kept
+        },
+        dropped: {
+            ...dropped,
+            // Kept together for the board's "also noticed" list.
+            all: [...dropped.strengths, ...dropped.improvements]
+        }
+    };
+};
+
+/**
+ * Does a rubric criterion fall inside what this class was actually taught?
+ * Token overlap on content words, so "Use evidence" matches "Evidence and
+ * support" but an unrelated criterion does not.
+ */
+export const matchesTaughtFocus = (label, taughtFocus = []) => {
+    const skills = (taughtFocus || []).map((row) => String(row || '').trim()).filter(Boolean);
+    if (!skills.length) return true;
+    const words = new Set(tokensForMatch(label));
+    return skills.some((skill) =>
+        tokensForMatch(skill).some((token) => token.length >= 4 && words.has(token))
+    );
 };
 
 /**
@@ -672,6 +804,9 @@ export const summarizeBoard = (projects = []) => {
         notStarted: counts.not_started + counts.drafting,
         awaitingAssessment: unassessed,
         awaitingPublish: unpublished,
+        // F5: one number for the first line of the board — every student whose
+        // next move is the teacher's, in one place.
+        needsTeacher: unassessed + unpublished + counts.awaiting_notebook_check,
         revising: counts.revising + counts.compared + counts.feedback_published,
         readyForNotebook: counts.ready_for_notebook,
         notebookToCheck: counts.awaiting_notebook_check,
@@ -720,7 +855,7 @@ export const buildTracker = ({ assignment, project, hasComparison }) => {
 };
 
 /** The one thing the student should do next, in language a student can act on. */
-export const studentNextAction = ({ project, assignment, publishedAssessment }) => {
+export const studentNextAction = ({ project, publishedAssessment }) => {
     const stage = project?.stage || 'not_started';
     const draftNumber = Number(project?.draftCount) || 0;
     const label = (verb) => `${verb} draft ${draftNumber + 1}`;

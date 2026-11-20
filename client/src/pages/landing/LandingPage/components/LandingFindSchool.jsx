@@ -1,118 +1,193 @@
+import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
-import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
-import Paper from '@mui/material/Paper';
-import Grid from '@mui/material/Grid';
-import Chip from '@mui/material/Chip';
-import { HiOutlineSearch, HiOutlineX, HiOutlineOfficeBuilding, HiOutlineAcademicCap, HiOutlinePlus } from 'react-icons/hi';
-import { resolveLandingTemplate } from '../../../../config/landingPageDefaults.js';
+import Link from '@mui/material/Link';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { Link as RouterLink } from 'react-router-dom';
+import { HiOutlineX } from 'react-icons/hi';
 
 /**
- * Find school section with search and school list. Uses landing-school-item.
+ * Bounded school finder. The page hook owns the request state; this dialog
+ * only renders it and returns focus to whatever opened the dialog.
  */
-export default function LandingFindSchool({
-    content,
-    searchTerm,
-    setSearchTerm,
-    hasSearchFilter,
-    filtered,
-    schoolsToShow,
-    noMatchMessage,
-    matchingLabel,
-    showingLimitText,
-    totalSchoolCountLabel,
-    filteredSchoolCountLabel,
-    handleAction,
-    navigate,
-}) {
+export default function LandingFindSchool({ copy, open, query, state, onQueryChange, onRetry, onClose }) {
+    const { t } = useTranslation(['landing.page']);
+    const isSmall = useMediaQuery('(max-width:599px)');
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (!open) return undefined;
+        // The dialog must own focus as soon as it opens, so the search input is
+        // focused instead of the dialog shell.
+        const frame = window.requestAnimationFrame(() => {
+            if (inputRef.current) inputRef.current.focus();
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [open]);
+
+    const status = state.status;
+    const showMinimumHint = status === 'idle' && query.trim().length > 0 && query.trim().length < 2;
+    const showMinimumIdleHint = status === 'idle' && query.trim().length === 0;
+
     return (
-        <Box id="find-school" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
-            <Container maxWidth="md">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.findSchool.overline}</Typography>
-                <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.findSchool.title}</Typography>
-                <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>{content.findSchool.subtitle}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                    <Chip size="small" label={totalSchoolCountLabel} sx={{ bgcolor: 'action.selected', color: 'primary.main' }} />
-                    {hasSearchFilter ? <Chip size="small" label={filteredSchoolCountLabel} variant="outlined" /> : null}
-                </Box>
-                <TextField
-                    fullWidth
-                    placeholder={content.findSchool.searchPlaceholder}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <HiOutlineSearch size={20} />
-                            </InputAdornment>
-                        ),
-                        endAdornment: hasSearchFilter ? (
-                            <InputAdornment position="end">
-                                <IconButton size="small" aria-label={content.findSchool.clearSearchAriaLabel || 'Clear search'} onClick={() => setSearchTerm('')}>
-                                    <HiOutlineX size={16} />
-                                </IconButton>
-                            </InputAdornment>
-                        ) : null,
-                    }}
-                    sx={{ mb: 1.5 }}
-                />
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
-                    {content.findSchool.searchHint || 'Type at least 2 letters to quickly find your school.'}
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullScreen={isSmall}
+            maxWidth="xs"
+            ModalProps={{ disableRestoreFocus: true, disableAutoFocus: true }}
+            PaperProps={{
+                className: 'landing-public-overlay',
+                sx: { maxWidth: 560, height: { xs: '100%', sm: 'auto' } },
+            }}
+            aria-labelledby="finder-title"
+        >
+            <DialogTitle
+                id="finder-title"
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    position: { xs: 'sticky', sm: 'static' },
+                    top: 0,
+                    bgcolor: 'background.paper',
+                    zIndex: 1,
+                }}
+            >
+                <Typography component="h2" sx={{ fontWeight: 700, fontSize: '1.125rem' }}>
+                    {copy.finder?.title}
                 </Typography>
-                <Box sx={{ mb: 3 }}>
-                    {hasSearchFilter && filtered.length === 0 ? (
-                        <Paper variant="outlined" sx={{ py: 6, textAlign: 'center', borderStyle: 'dashed' }}>
-                            <HiOutlineSearch size={48} style={{ opacity: 0.5, marginBottom: 8 }} aria-hidden />
-                            <Typography color="text.secondary">{noMatchMessage}</Typography>
-                        </Paper>
-                    ) : schoolsToShow.length > 0 ? (
-                        <>
-                            {!hasSearchFilter ? (
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{content.findSchool.schoolsLabel}</Typography>
-                            ) : (
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{matchingLabel}</Typography>
-                            )}
-                            <Grid container spacing={2}>
-                                {schoolsToShow.map((school) => (
-                                    <Grid item xs={12} sm={6} key={school._id}>
-                                        <Button className="landing-school-item" fullWidth variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'start', py: 2, px: 2 }} onClick={() => navigate(`/login/${school.slug}`)}>
-                                            <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'primary.main', opacity: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
-                                                <HiOutlineOfficeBuilding size={22} style={{ color: 'var(--mui-palette-primary-main)' }} />
-                                            </Box>
-                                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                <Typography variant="body1" fontWeight={600} noWrap>{school.name}</Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {resolveLandingTemplate(content.findSchool.maxStudentsTemplate || 'Up to {{maxStudents}} students', {
-                                                        maxStudents: school.settings?.maxStudents || 50,
-                                                    })}
-                                                </Typography>
-                                            </Box>
-                                        </Button>
-                                    </Grid>
-                                ))}
-                            </Grid>
-                            {filtered.length > 8 && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>{showingLimitText}</Typography>
-                            )}
-                        </>
-                    ) : (
-                        <Paper variant="outlined" sx={{ py: 6, textAlign: 'center', borderStyle: 'dashed' }}>
-                            <HiOutlineAcademicCap size={48} style={{ opacity: 0.5, marginBottom: 8 }} aria-hidden />
-                            <Typography color="text.secondary">{content.findSchool.noSchoolsMessage}</Typography>
-                        </Paper>
-                    )}
+                <IconButton onClick={onClose} aria-label={copy.actions?.close} sx={{ width: 44, height: 44 }}>
+                    <HiOutlineX size={22} />
+                </IconButton>
+            </DialogTitle>
+
+            <DialogContent
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    overflowY: 'auto',
+                    flex: 1,
+                    pb: 3,
+                }}
+            >
+                <Typography variant="body2" color="text.secondary">
+                    {copy.finder?.description}
+                </Typography>
+
+                <TextField
+                    id="school-search"
+                    label={copy.finder?.label}
+                    value={query}
+                    onChange={(event) => onQueryChange(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.preventDefault();
+                    }}
+                    inputRef={inputRef}
+                    fullWidth
+                    autoComplete="off"
+                    slotProps={{ htmlInput: { maxLength: 80 } }}
+                    helperText={
+                        state.status === 'invalid'
+                            ? copy.finder?.tooLong
+                            : showMinimumHint || showMinimumIdleHint
+                                ? copy.finder?.minimum
+                                : ' '
+                    }
+                    error={state.status === 'invalid'}
+                />
+
+                {status === 'debouncing' || status === 'loading' ? (
+                    <Typography role="status" aria-live="polite" color="text.secondary">
+                        {copy.finder?.loading}
+                    </Typography>
+                ) : null}
+
+                {status === 'error' ? (
+                    <Box
+                        sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            borderStyle: 'dashed',
+                            borderRadius: '16px',
+                            p: 2.5,
+                            textAlign: 'center',
+                        }}
+                    >
+                        <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>{copy.finder?.error}</Typography>
+                        <Button variant="outlined" onClick={onRetry} sx={{ minHeight: 44 }}>
+                            {copy.actions?.retry}
+                        </Button>
+                    </Box>
+                ) : null}
+
+                {status === 'empty' ? (
+                    <Typography sx={{ color: 'text.secondary' }}>{copy.finder?.empty}</Typography>
+                ) : null}
+
+                {status === 'success' ? (
+                    <Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {t('publicPage.finder.resultsStatus', { count: state.schools.length })}
+                        </Typography>
+
+                        <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', gap: 1 }}>
+                            {state.schools.map((school) => (
+                                <Box component="li" key={school.slug}>
+                                    <Link
+                                        component={RouterLink}
+                                        to={`/login/${encodeURIComponent(school.slug)}`}
+                                        underline="none"
+                                        sx={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'center',
+                                            gap: 0.25,
+                                            minHeight: 64,
+                                            p: 1.5,
+                                            border: 1,
+                                            borderColor: 'divider',
+                                            borderRadius: '12px',
+                                            color: 'text.primary',
+                                            textDecoration: 'none',
+                                            '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+                                        }}
+                                    >
+                                        <Typography sx={{ fontWeight: 600 }}>{school.name}</Typography>
+                                        <Typography component="span" variant="caption" color="text.secondary">
+                                            <bdi>{school.slug}</bdi>
+                                        </Typography>
+                                    </Link>
+                                </Box>
+                            ))}
+                        </Box>
+
+                        {state.hasMore ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                                {copy.finder?.more}
+                            </Typography>
+                        ) : null}
+                    </Box>
+                ) : null}
+
+                <Box sx={{ mt: 'auto', pt: 1 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {copy.finder?.genericHelp}
+                    </Typography>
+                    <Link component={RouterLink} to="/login" underline="hover" sx={{ fontWeight: 600 }}>
+                        {copy.actions?.signIn}
+                    </Link>
                 </Box>
-                <Typography color="text.secondary" align="center" sx={{ mb: 1.5 }}>{content.findSchool.registerPrompt}</Typography>
-                <Box sx={{ textAlign: 'center' }}>
-                    <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => handleAction('register')}>
-                        {content.findSchool.registerCtaLabel}
-                    </Button>
-                </Box>
-            </Container>
-        </Box>
+            </DialogContent>
+        </Dialog>
     );
 }

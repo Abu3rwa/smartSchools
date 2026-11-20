@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
+import standardsPracticeAIService from "../services/standardsPracticeAiService.js";
 
 test("marks punctuation question correct when only wording is off-target", () => {
   const result = standardsPracticeAIService._applyTargetSkillRelevanceGuard({

@@ -777,7 +777,7 @@ const SpellingStudentPage = () => {
                                                 value={input}
                                                 name="spelling-answer"
                                                 autoComplete="off"
-                                                spellCheck={false}
+                                                inputProps={{ autoCorrect: 'off', autoCapitalize: 'none', spellCheck: false }}
                                                 helperText={t('pasteBlockedHint')}
                                                 InputProps={{ sx: { fontSize: '1.15rem' } }}
                                                 onChange={(event) => setInput(event.target.value)}

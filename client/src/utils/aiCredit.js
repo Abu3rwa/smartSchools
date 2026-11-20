@@ -53,3 +53,20 @@ export const creditErrorMessage = (error, t) => {
   if (code === "AI_CREDIT_PRICING_REQUIRED") return t("aiCredit:errors.pricing");
   return "";
 };
+
+/** Loading never reads as zero; a failed refresh never reads as a current balance. */
+export const creditDisplay = ({ status, badge }, t, language) => {
+  if (status === "loading" || status === "idle") {
+    return { value: t("layout.header:menu.balanceLoading"), state: "loading" };
+  }
+  if (status === "error" || !badge) {
+    return { value: t("layout.header:menu.balanceUnavailable"), state: "unavailable" };
+  }
+  const state = creditState(badge);
+  const value = state === "paused"
+    ? t("aiCredit:chip.paused")
+    : state === "empty"
+      ? t("aiCredit:chip.empty")
+      : formatBalance(badge.balanceCents, language);
+  return { value, state };
+};

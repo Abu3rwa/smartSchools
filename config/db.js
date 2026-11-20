@@ -230,6 +230,131 @@ export const migrateSubjectCodeIndex = async (db = mongoose.connection.db) => {
   }
 };
 
+// F13: a returned submission keeps its row and number, so the draft number is
+// unique among live drafts only. Mongoose will not replace an index whose
+// options changed, so the old plain unique index is dropped here and rebuilt.
+export const migrateWritingDraftNumberIndex = async (db = mongoose.connection.db) => {
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the writing draft number index.');
+  }
+
+  const key = { school: 1, project: 1, number: 1 };
+  const name = 'school_1_project_1_number_1';
+  const isLiveOnly = (index) =>
+    index.unique === true &&
+    index.key?.school === 1 &&
+    index.key?.project === 1 &&
+    index.key?.number === 1 &&
+    index.partialFilterExpression?.withdrawn === false;
+
+  const collection = db.collection('writingdrafts');
+  const collectionExists = await db.listCollections({ name: 'writingdrafts' }).hasNext();
+  if (!collectionExists) {
+    await collection.createIndex(key, { unique: true, name, partialFilterExpression: { withdrawn: false } });
+    logger.success('Created live-drafts-only unique writing draft number index');
+    return;
+  }
+
+  const indexes = await collection.indexes();
+  const staleIndex = indexes.find((index) =>
+    index.key?.school === 1 &&
+    index.key?.project === 1 &&
+    index.key?.number === 1 &&
+    !isLiveOnly(index)
+  );
+
+  if (staleIndex) {
+    await collection.dropIndex(staleIndex.name);
+    logger.success(`Dropped writing draft number index ${staleIndex.name}`);
+  }
+
+  const currentIndexes = await collection.indexes();
+  if (!currentIndexes.some(isLiveOnly)) {
+    await collection.createIndex(key, { unique: true, name, partialFilterExpression: { withdrawn: false } });
+    logger.success('Created live-drafts-only unique writing draft number index');
+  }
+};
+
+// Support respondents moved from one row per student to one row per parent
+// slot plus a portal row for the student. Older databases still carry the
+// original unique index on { school, student }, which blocks the second
+// parent's record with a duplicate-key error the UI cannot explain. Mongoose
+// will not replace an index whose options changed, so the stale one is dropped
+// here; the current partial indexes stay untouched. A unique index kept the
+// auto-generated name even after it was made partial by hand, so the name is
+// matched too; a non-unique index blocks nothing and is left alone.
+const LEGACY_RESPONDENT_INDEX_NAMES = ['school_1_student_1'];
+
+const isLegacyRespondentStudentIndex = (index) => (
+  index.unique === true
+  && index.key?.school === 1
+  && index.key?.student === 1
+  && Object.keys(index.key).length === 2
+  && (LEGACY_RESPONDENT_INDEX_NAMES.includes(index.name) || !index.partialFilterExpression)
+);
+
+export const migrateSupportRespondentIndexes = async (db = mongoose.connection.db) => {
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the support respondent indexes.');
+  }
+
+  const collectionExists = await db.listCollections({ name: 'supportrespondents' }).hasNext();
+  if (!collectionExists) return;
+
+  const collection = db.collection('supportrespondents');
+  const indexes = await collection.indexes();
+  const legacyIndexes = indexes.filter(isLegacyRespondentStudentIndex);
+  for (const legacyIndex of legacyIndexes) {
+    await collection.dropIndex(legacyIndex.name);
+    logger.success(`Dropped legacy support respondent index ${legacyIndex.name}`);
+  }
+};
+
+// Same story for support plans: plans are now unique per case, and the old
+// unique { school, cycle } index made every case plan after the first collide
+// on a null cycle. The index is rebuilt to match the current schema.
+const isSupportPlanCycleIndex = (index) => (
+  index.key?.school === 1
+  && index.key?.cycle === 1
+  && Object.keys(index.key).length === 2
+);
+
+const isCaseScopedPlanCycleIndex = (index) => (
+  isSupportPlanCycleIndex(index)
+  && index.unique === true
+  && index.partialFilterExpression?.cycle?.$type === 'objectId'
+);
+
+export const migrateSupportPlanIndexes = async (db = mongoose.connection.db) => {
+  if (!db) {
+    throw new Error('MongoDB is not connected; cannot verify the support plan indexes.');
+  }
+
+  const collectionExists = await db.listCollections({ name: 'supportplans' }).hasNext();
+  if (!collectionExists) return;
+
+  const collection = db.collection('supportplans');
+  const indexes = await collection.indexes();
+  const staleIndex = indexes.find((index) => isSupportPlanCycleIndex(index) && !isCaseScopedPlanCycleIndex(index));
+  if (staleIndex) {
+    await collection.dropIndex(staleIndex.name);
+    logger.success(`Dropped stale support plan cycle index ${staleIndex.name}`);
+  }
+
+  const currentIndexes = await collection.indexes();
+  if (!currentIndexes.some(isCaseScopedPlanCycleIndex)) {
+    await collection.createIndex(
+      { school: 1, cycle: 1 },
+      {
+        unique: true,
+        name: 'school_1_cycle_1',
+        partialFilterExpression: { cycle: { $type: 'objectId' } }
+      }
+    );
+    logger.success('Created support plan cycle index');
+  }
+};
+
 const migrateClassUniqueIndex = async () => {
   const db = mongoose.connection.db;
   if (!db) {
@@ -292,7 +417,10 @@ const connectDB = async () => {
     await migrateSpellingRetestQuizIndexes();
     await migrateTeacherEmployeeIdIndex();
     await migrateSubjectCodeIndex();
+    await migrateWritingDraftNumberIndex();
     await migrateClassUniqueIndex();
+    await migrateSupportRespondentIndexes();
+    await migrateSupportPlanIndexes();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);

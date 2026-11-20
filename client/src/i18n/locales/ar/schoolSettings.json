@@ -61,11 +61,15 @@
       "email": "البريد الإلكتروني",
       "role": "الدور",
       "department": "القسم",
-      "status": "الحالة"
+      "status": "الحالة",
+      "actions": "إجراءات",
+      "activeRoleTitle": "الدور النشط"
     },
     "actions": {
       "editRole": "تعديل الدور",
-      "impersonate": "تسجيل الدخول كمستخدم"
+      "impersonate": "تسجيل الدخول كمستخدم",
+      "previewAs": "معاينة باسم",
+      "openFullPage": "فتح الصفحة الكاملة"
     },
     "empty": "لا يوجد مستخدمون في هذه المدرسة.",
     "filters": {
@@ -82,10 +86,11 @@
       "inactive": "غير نشط",
       "clear": "مسح الفلاتر",
       "resultCount": "عرض {{shown}} من أصل {{total}} مستخدم",
-      "noMatches": "لا يوجد مستخدمون مطابقون للفلاتر المحددة."
+      "noMatches": "لا يوجد مستخدمون مطابقون للفلاتر المحددة.",
+      "toggle": "عوامل التصفية"
     },
     "modal": {
-      "editRoleTitle": "تعديل الدور — {{name}}",
+      "editRoleTitle": "تعديل الأدوار والصلاحيات — {{name}}",
       "roleLabel": "الدور",
       "activeRoleLabel": "الدور النشط",
       "rolesLabel": "الأدوار المعينة",
@@ -103,7 +108,76 @@
       "permissionsLabel": "الصلاحيات",
       "permissionsHint": "اختر صلاحيات محددة لهذا المستخدم. يمتلك المسؤولون جميع الصلاحيات افتراضيًا.",
       "permissionsSelected_one": "تم اختيار صلاحية واحدة",
-      "permissionsSelected_other": "تم اختيار {{count}} صلاحية"
+      "permissionsSelected_other": "تم اختيار {{count}} صلاحية",
+      "discardConfirm": "تجاهل التغييرات غير المحفوظة على هذا المستخدم؟",
+      "confirmAuthorizationTitle": "تطبيق تغييرات الصلاحيات هذه على {{name}}؟",
+      "confirmActiveRole": "الدور النشط: من {{from}} إلى {{to}}",
+      "confirmRolesAdded": "أدوار مضافة: {{roles}}",
+      "confirmRolesRemoved": "أدوار محذوفة: {{roles}}",
+      "confirmDepartment": "القسم: من {{from}} إلى {{to}}",
+      "confirmPermissionsAdded": "صلاحيات ممنوحة: {{permissions}}",
+      "confirmPermissionsRemoved": "صلاحيات مسحوبة: {{permissions}}",
+      "staleRefreshed": "تم تعديل هذا المستخدم من مكان آخر. تُعرض أحدث نسخة — أعد تطبيق تعديلاتك.",
+      "activeTag": "نشط",
+      "closeAria": "إغلاق النافذة",
+      "loadLatest": "تحميل أحدث نسخة",
+      "adminOnlyNotice": "يمكن لمسؤول المدرسة فقط تغيير الأدوار والقسم والصلاحيات. يمكنك تعديل المسميات.",
+      "sectionRoles": "الأدوار والملف",
+      "sectionPermissions": "صلاحيات إضافية",
+      "legacyRoles": "الأدوار القديمة",
+      "legacyHint": "أدوار قديمة أحادية الغرض. يُفضَّل استخدام موظف مع صلاحيات محددة للإسنادات الجديدة.",
+      "activeRoleHint": "الدور الذي يسجل به المستخدم الدخول. يجب أن يكون أحد الأدوار المسندة.",
+      "departmentsLoading": "جارٍ تحميل الأقسام…",
+      "departmentsError": "تعذر تحميل الأقسام.",
+      "departmentRequiresPrincipal": "أسند دور رئيس القسم لتحديد نطاق هذا المستخدم بقسم.",
+      "permissionSearchPlaceholder": "ابحث في الصلاحيات",
+      "permissionSearchLabel": "البحث في الصلاحيات",
+      "selectedOnly": "المحددة فقط",
+      "hiddenSelected_one": "صلاحية محددة واحدة تخفيها التصفية الحالية.",
+      "hiddenSelected_other": "{{count}} من الصلاحيات المحددة تخفيها التصفية الحالية.",
+      "showAllPermissions": "عرض الكل",
+      "noPermissionMatches": "لا توجد صلاحيات تطابق بحثك.",
+      "grantedTag": "ممنوحة",
+      "scopeExpires": "تنتهي في {{date}}",
+      "scopeDepartments_one": "مقصورة على قسم واحد",
+      "scopeDepartments_other": "مقصورة على {{count}} قسم",
+      "scopeClasses_one": "مقصورة على صف واحد",
+      "scopeClasses_other": "مقصورة على {{count}} صف",
+      "unsavedChanges": "تغييرات غير محفوظة",
+      "errors": {
+        "AUTH_FIELDS_ADMIN_ONLY": "يمكن لمسؤولي المدرسة فقط تغيير الأدوار والصلاحيات والقسم. يمكنك تعديل المسميات.",
+        "USER_NOT_IN_SCHOOL": "هذا المستخدم لا ينتمي إلى مدرستك.",
+        "SUPER_ADMIN_PROTECTED": "لا يمكن تعديل حساب المسؤول العام هنا.",
+        "STALE_USER": "قام شخص آخر بتعديل هذا المستخدم. حمّل أحدث نسخة وحاول مجدداً.",
+        "ROLES_REQUIRED": "أبقِ دوراً مسنداً واحداً على الأقل.",
+        "INVALID_ROLES": "أحد الأدوار المحددة غير صالح.",
+        "INVALID_ROLE": "الدور النشط غير صالح.",
+        "ROLE_NOT_ASSIGNED": "يجب أن يكون الدور النشط أحد الأدوار المسندة.",
+        "SELF_DEMOTION": "لا يمكنك إزالة دور المسؤول عن نفسك.",
+        "LAST_ADMIN": "هذا آخر مسؤول نشط في المدرسة. أسند مسؤولاً آخر أولاً.",
+        "TITLE_TOO_LONG": "يجب ألا يتجاوز كل مسمى 100 حرف.",
+        "INVALID_TITLES": "تعذر حفظ المسميات. راجع القائمة وحاول مجدداً.",
+        "INVALID_DEPARTMENT": "القسم المحدد غير صالح.",
+        "DEPARTMENT_NOT_IN_SCHOOL": "القسم المحدد لا ينتمي إلى مدرستك.",
+        "INVALID_PERMISSIONS": "إحدى الصلاحيات المحددة غير صالحة.",
+        "INVALID_SCOPES": "نطاقات الصلاحيات غير صالحة.",
+        "INVALID_SCOPE_KEY": "تشير نطاقات الصلاحيات إلى صلاحية غير معروفة.",
+        "SCOPE_NOT_IN_SCHOOL": "يجب أن تشير نطاقات الصلاحيات إلى أقسام وصفوف في مدرستك.",
+        "USER_NOT_FOUND": "لم يعد هذا المستخدم موجوداً."
+      }
+    },
+    "page": {
+      "title": "إدارة المستخدمين",
+      "subtitle": "إدارة مستخدمي المدرسة وإسناد الأدوار وضبط الصلاحيات التفصيلية.",
+      "denied": "ليست لديك صلاحية إدارة مستخدمي المدرسة.",
+      "totalUsers": "إجمالي المستخدمين",
+      "activeUsers": "نشط",
+      "inactiveUsers": "غير نشط",
+      "customPermissions": "ملفات صلاحيات مخصصة",
+      "summaryAria": "ملخص المستخدمين"
+    },
+    "errors": {
+      "retry": "إعادة المحاولة"
     }
   },
   "roles": {
@@ -131,7 +205,10 @@
     "operations": "العمليات",
     "reports": "التقارير",
     "student_services": "خدمات الطلاب",
-    "admin": "الإدارة"
+    "admin": "الإدارة",
+    "standards_assessment": "تقييم المعايير",
+    "communication": "التواصل",
+    "content": "المحتوى"
   },
   "branding": {
     "title": "هوية المدرسة",
@@ -153,7 +230,13 @@
     "teacherEmailDomainTitle": "استيراد جدول المعلمين",
     "teacherEmailDomainHelpText": "عند استيراد جداول المعلمين عبر CSV بدون عمود بريد إلكتروني، يتم اشتقاق بريد المعلم تلقائيًا بصيغة الاسم.اللقب@النطاق باستخدام هذا النطاق.",
     "teacherEmailDomainLabel": "نطاق بريد المعلمين",
-    "saveTeacherEmailDomain": "حفظ نطاق بريد المعلمين"
+    "saveTeacherEmailDomain": "حفظ نطاق بريد المعلمين",
+    "writingMarksTitle": "درجات التغذية المراجعة للكتابة",
+    "writingMarksHelpText": "اختر كيف تظهر الدرجات في التغذية المراجعة التي يراها الطلاب وأولياء الأمور: في صفحة الطالب، وفي البريد الإلكتروني، وفي التقرير المطبوع. يرى المعلمون الأرقام دائما.",
+    "writingMarks_words": "كلمات فقط — مثال: قوي",
+    "writingMarks_words_numbers": "كلمات وأرقام — مثال: قوي · 8/10",
+    "writingMarks_numbers": "أرقام فقط — مثال: 8/10",
+    "saveWritingMarks": "حفظ درجات التغذية المراجعة"
   },
   "admissionsPromotion": {
     "title": "سياسة القبول والترفيع",
@@ -325,7 +408,8 @@
     "deleteDepartment": "هل أنت متأكد من حذف هذا القسم؟",
     "promoteStudents": "هل تريد ترفيع الطلاب من {{fromYear}} إلى {{toYear}}؟ سيؤدي ذلك إلى تحديث جميع الطلاب النشطين.",
     "deleteGradingScale": "حذف سلم التقدير \"{{name}}\"؟",
-    "impersonateUser": "هل أنت متأكد من تسجيل الدخول كمستخدم {{name}}؟"
+    "impersonateUser": "هل أنت متأكد من تسجيل الدخول كمستخدم {{name}}؟",
+    "supportPreview": "بدء معاينة دعم للقراءة فقط لمدة 30 دقيقة لـ {{name}} بصفته {{role}}؟ سيتم منع التغييرات وتسجيل المعاينة في سجل التدقيق."
   },
   "toast": {
     "loadUsersFailed": "فشل تحميل المستخدمين",
@@ -343,6 +427,8 @@
     "attendanceReminderSettingsUpdateFailed": "فشل تحديث إعدادات تذكير الحضور",
     "teacherEmailDomainUpdated": "تم تحديث نطاق بريد المعلمين",
     "teacherEmailDomainUpdateFailed": "فشل تحديث نطاق بريد المعلمين",
+    "writingFeedbackSettingsUpdated": "تم تحديث درجات التغذية المراجعة للكتابة",
+    "writingFeedbackSettingsUpdateFailed": "فشل تحديث درجات التغذية المراجعة للكتابة",
     "loadAdmissionsPromotionSettingsFailed": "فشل تحميل إعدادات القبول والترفيع",
     "admissionsPromotionSettingsUpdated": "تم تحديث إعدادات القبول والترفيع",
     "admissionsPromotionSettingsUpdateFailed": "فشل تحديث إعدادات القبول والترفيع",
@@ -391,5 +477,384 @@
     "impersonationStarting": "جارٍ بدء وضع انتحال المستخدم...",
     "impersonationStarted": "تم بدء انتحال المستخدم. جارٍ إعادة التوجيه...",
     "impersonationFailed": "فشل انتحال المستخدم"
+  },
+  "roleDescriptions": {
+    "admin": "صلاحيات كاملة على المدرسة",
+    "staff": "موظف في المدرسة (أسند صلاحيات محددة)",
+    "teacher": "معلم",
+    "department_principal": "رئيس قسم",
+    "parent": "ولي أمر",
+    "student": "طالب مسجل",
+    "attendance_manager": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "lesson_plan_reviewer": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "report_viewer": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "event_coordinator": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "behavior_manager": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "transportation_coordinator": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "cafeteria_manager": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "library_manager": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "it_support": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "counselor": "استخدم موظف مع صلاحيات محددة بدلاً منه",
+    "nurse": "استخدم موظف مع صلاحيات محددة بدلاً منه"
+  },
+  "permissionDefs": {
+    "manage_attendance_reminders": {
+      "label": "إدارة تذكيرات الحضور",
+      "description": "إنشاء تذكيرات الحضور وتعديلها وإرسالها"
+    },
+    "view_attendance_reports": {
+      "label": "عرض تقارير الحضور",
+      "description": "عرض تقارير الحضور والإحصاءات"
+    },
+    "manage_school_settings": {
+      "label": "إدارة إعدادات المدرسة",
+      "description": "ضبط إعدادات المدرسة بما فيها معايير خطط الدروس"
+    },
+    "review_lesson_plans": {
+      "label": "مراجعة خطط الدروس",
+      "description": "عرض ومراجعة خطط الدروس للمعلمين الآخرين"
+    },
+    "edit_lesson_plans": {
+      "label": "تعديل خطط الدروس",
+      "description": "إنشاء خطط الدروس وتعديلها"
+    },
+    "view_curriculum_maps": {
+      "label": "عرض خرائط المنهج",
+      "description": "عرض خرائط المنهج المنشورة وتفاصيل التغطية"
+    },
+    "edit_curriculum_maps": {
+      "label": "تعديل خرائط المنهج",
+      "description": "إنشاء خرائط المنهج وتحديثها"
+    },
+    "review_curriculum_maps": {
+      "label": "مراجعة خرائط المنهج",
+      "description": "مراجعة خرائط المنهج المقدَّمة"
+    },
+    "publish_curriculum_maps": {
+      "label": "نشر خرائط المنهج",
+      "description": "نشر النسخ المعتمدة من خرائط المنهج"
+    },
+    "create_curriculum_map": {
+      "label": "إنشاء خريطة منهج",
+      "description": "إنشاء خرائط المنهج"
+    },
+    "edit_own_curriculum_map": {
+      "label": "تعديل خرائط المنهج الخاصة",
+      "description": "تعديل خرائط المنهج التي أنشأها المستخدم"
+    },
+    "edit_any_curriculum_map": {
+      "label": "تعديل أي خريطة منهج",
+      "description": "تعديل خرائط المنهج التي أنشأها أي معلم"
+    },
+    "review_curriculum_map": {
+      "label": "مراجعة خريطة المنهج",
+      "description": "مراجعة خرائط المنهج المقدَّمة"
+    },
+    "approve_curriculum_map": {
+      "label": "اعتماد خريطة المنهج",
+      "description": "اعتماد خرائط المنهج ضمن سير المراجعة"
+    },
+    "reject_curriculum_map": {
+      "label": "رفض خريطة المنهج",
+      "description": "رفض خرائط المنهج ضمن سير المراجعة"
+    },
+    "export_curriculum_map": {
+      "label": "تصدير خريطة المنهج",
+      "description": "تصدير خرائط المنهج إلى CSV أو PDF"
+    },
+    "print_curriculum_map": {
+      "label": "طباعة خريطة المنهج",
+      "description": "طباعة خرائط المنهج بتنسيق مناسب للمستندات"
+    },
+    "configure_curriculum_map_templates": {
+      "label": "إعداد قوالب المنهج",
+      "description": "ضبط قوالب منهج المدرسة وإعدادات سير العمل"
+    },
+    "manage_substitutions": {
+      "label": "إدارة الحصص الاحتياطية",
+      "description": "إدارة غياب المعلمين وتكليفات المعلمين البدلاء"
+    },
+    "manage_events": {
+      "label": "إدارة الفعاليات",
+      "description": "إنشاء فعاليات المدرسة وإدارتها"
+    },
+    "view_all_reports": {
+      "label": "عرض جميع التقارير",
+      "description": "عرض جميع تقارير المدرسة والتحليلات"
+    },
+    "edit_reports": {
+      "label": "تعديل التقارير",
+      "description": "إنشاء التقارير وتعديلها"
+    },
+    "sbr:manage_scales": {
+      "label": "إدارة سلالم التقارير المعيارية",
+      "description": "إنشاء سلالم التقارير القائمة على المعايير وتحديثها وحذفها وتعيين الافتراضي"
+    },
+    "sbr:generate_reports": {
+      "label": "إنشاء التقارير المعيارية",
+      "description": "إنشاء بطاقات التقارير القائمة على المعايير ونشرها"
+    },
+    "sbr:view_reports": {
+      "label": "عرض التقارير المعيارية",
+      "description": "عرض بطاقات التقارير القائمة على المعايير وتنزيلها"
+    },
+    "manage_behavior": {
+      "label": "إدارة سجلات السلوك",
+      "description": "إدارة متابعة سلوك الطلاب والانضباط"
+    },
+    "view_behavior": {
+      "label": "عرض سجلات السلوك",
+      "description": "عرض سجلات سلوك الطلاب"
+    },
+    "manage_transportation": {
+      "label": "إدارة النقل",
+      "description": "إدارة خطوط الحافلات والنقل"
+    },
+    "view_transportation": {
+      "label": "عرض النقل",
+      "description": "عرض جداول النقل"
+    },
+    "manage_cafeteria": {
+      "label": "إدارة المقصف",
+      "description": "إدارة تخطيط الوجبات وعمليات المقصف"
+    },
+    "view_cafeteria": {
+      "label": "عرض المقصف",
+      "description": "عرض معلومات المقصف"
+    },
+    "manage_library": {
+      "label": "إدارة المكتبة",
+      "description": "إدارة موارد المكتبة والإعارات"
+    },
+    "view_library": {
+      "label": "عرض المكتبة",
+      "description": "عرض موارد المكتبة"
+    },
+    "provide_it_support": {
+      "label": "تقديم الدعم التقني",
+      "description": "الدخول إلى النظام لتقديم الدعم الفني"
+    },
+    "access_counseling_records": {
+      "label": "الاطلاع على سجلات الإرشاد",
+      "description": "عرض سجلات الإرشاد الطلابي"
+    },
+    "edit_counseling_records": {
+      "label": "تعديل سجلات الإرشاد",
+      "description": "إنشاء سجلات الإرشاد وتعديلها"
+    },
+    "access_health_records": {
+      "label": "الاطلاع على السجلات الصحية",
+      "description": "عرض السجلات الصحية للطلاب"
+    },
+    "edit_health_records": {
+      "label": "تعديل السجلات الصحية",
+      "description": "إنشاء السجلات الصحية وتعديلها"
+    },
+    "manage_users": {
+      "label": "إدارة المستخدمين",
+      "description": "إدارة حسابات المستخدمين والأدوار"
+    },
+    "manage_departments": {
+      "label": "إدارة الأقسام",
+      "description": "إنشاء الأقسام وإدارتها"
+    },
+    "view_grades": {
+      "label": "عرض الدرجات",
+      "description": "عرض درجات الطلاب"
+    },
+    "edit_grades": {
+      "label": "تعديل الدرجات",
+      "description": "إدخال درجات الطلاب وتعديلها"
+    },
+    "manage_grade_scaling": {
+      "label": "إدارة سلالم الدرجات",
+      "description": "إنشاء سلالم الدرجات وتحديثها وإدارتها وتعيين الافتراضي"
+    },
+    "manage_assignment_config": {
+      "label": "إدارة إعدادات الواجبات",
+      "description": "إنشاء أنواع الواجبات والقيم الافتراضية وصيانتها"
+    },
+    "create_assignments": {
+      "label": "إنشاء الواجبات",
+      "description": "إنشاء الواجبات وتحديثها"
+    },
+    "publish_assignments": {
+      "label": "نشر الواجبات",
+      "description": "نشر الواجبات للطلاب وأولياء الأمور"
+    },
+    "grade_assignments": {
+      "label": "رصد درجات الواجبات",
+      "description": "إدخال الدرجات المرتبطة بالواجبات وتحديثها"
+    },
+    "send_notifications": {
+      "label": "إرسال الإشعارات",
+      "description": "إرسال الإشعارات إلى المستخدمين"
+    },
+    "send_communication_emails": {
+      "label": "إرسال رسائل التواصل",
+      "description": "استخدام محرر البريد المخصص لتواصل المدرسة"
+    },
+    "message_own_students": {
+      "label": "مراسلة طلابي",
+      "description": "إرسال رسائل إلى طلاب الصفوف والمواد المسندة إليك"
+    },
+    "message_own_student_parents": {
+      "label": "مراسلة أولياء أمور طلابي",
+      "description": "إرسال رسائل إلى أولياء أمور طلاب الصفوف والمواد المسندة إليك"
+    },
+    "message_department_students": {
+      "label": "مراسلة طلاب القسم",
+      "description": "إرسال رسائل إلى الطلاب ضمن نطاق القسم المسند"
+    },
+    "message_department_parents": {
+      "label": "مراسلة أولياء أمور القسم",
+      "description": "إرسال رسائل إلى أولياء الأمور ضمن نطاق القسم المسند"
+    },
+    "message_department_teachers": {
+      "label": "مراسلة معلمي القسم",
+      "description": "إرسال رسائل إلى المعلمين ضمن نطاق القسم المسند"
+    },
+    "message_department_everyone": {
+      "label": "مراسلة الجميع في القسم",
+      "description": "إرسال رسائل إلى الجميع ضمن نطاق القسم المسند"
+    },
+    "message_school_students": {
+      "label": "مراسلة طلاب المدرسة",
+      "description": "إرسال رسائل إلى جميع طلاب المدرسة"
+    },
+    "message_school_parents": {
+      "label": "مراسلة أولياء أمور المدرسة",
+      "description": "إرسال رسائل إلى جميع أولياء الأمور في المدرسة"
+    },
+    "message_school_teachers": {
+      "label": "مراسلة معلمي المدرسة",
+      "description": "إرسال رسائل إلى جميع معلمي المدرسة"
+    },
+    "message_school_everyone": {
+      "label": "مراسلة الجميع في المدرسة",
+      "description": "إرسال رسائل إلى الجميع في المدرسة"
+    },
+    "message_assigned_subordinates": {
+      "label": "مراسلة الموظفين المرؤوسين",
+      "description": "إرسال رسائل إلى الموظفين المرؤوسين المسندين"
+    },
+    "delegated_communication_scope": {
+      "label": "نطاق التواصل المفوَّض",
+      "description": "استخدام بيانات نطاق التواصل المفوَّض"
+    },
+    "view_academic_excellence_student": {
+      "label": "عرض التميز الأكاديمي للطالب",
+      "description": "عرض مؤشرات التميز الأكاديمي على مستوى الطالب"
+    },
+    "view_academic_excellence_class": {
+      "label": "عرض التميز الأكاديمي للصف",
+      "description": "عرض مؤشرات التميز الأكاديمي على مستوى الصف"
+    },
+    "view_academic_excellence_school": {
+      "label": "عرض التميز الأكاديمي للمدرسة",
+      "description": "عرض مؤشرات التميز الأكاديمي على مستوى المدرسة"
+    },
+    "view_academic_excellence_department": {
+      "label": "عرض التميز الأكاديمي للقسم",
+      "description": "عرض مؤشرات التميز الأكاديمي على مستوى القسم"
+    },
+    "assign_academic_excellence_tasks": {
+      "label": "إسناد مهام التميز الأكاديمي",
+      "description": "إسناد مهام التميز الأكاديمي إلى الطلاب"
+    },
+    "review_academic_excellence_tasks": {
+      "label": "مراجعة مهام التميز الأكاديمي",
+      "description": "مراجعة مهام التميز الأكاديمي المكتملة"
+    },
+    "bulk_assign_academic_excellence_tasks": {
+      "label": "إسناد مهام التميز الأكاديمي جماعياً",
+      "description": "إسناد مهام التميز الأكاديمي دفعة واحدة حسب الصف أو المجموعة"
+    },
+    "disable_academic_excellence_for_student": {
+      "label": "إيقاف التميز الأكاديمي لطالب",
+      "description": "إيقاف متابعة التميز الأكاديمي لطالب"
+    },
+    "disable_academic_excellence_for_class": {
+      "label": "إيقاف التميز الأكاديمي لصف",
+      "description": "إيقاف متابعة التميز الأكاديمي لصف"
+    },
+    "exclude_academic_excellence_lesson": {
+      "label": "استبعاد درس من التميز الأكاديمي",
+      "description": "استبعاد الدروس أو الأهداف من التميز الأكاديمي"
+    },
+    "manage_academic_excellence_exclusions": {
+      "label": "إدارة استثناءات التميز الأكاديمي",
+      "description": "إدارة استثناءات التميز الأكاديمي وقواعده"
+    },
+    "manage_academic_excellence_notifications": {
+      "label": "إدارة إشعارات التميز الأكاديمي",
+      "description": "إدارة تفضيلات إشعارات التميز الأكاديمي"
+    },
+    "override_academic_excellence_notifications": {
+      "label": "تجاوز إشعارات التميز الأكاديمي",
+      "description": "تجاوز إعدادات إشعارات التميز الأكاديمي على مستوى المدرسة"
+    },
+    "manage_academic_excellence_settings": {
+      "label": "إدارة إعدادات التميز الأكاديمي",
+      "description": "إدارة إعدادات التميز الأكاديمي وحدوده"
+    },
+    "view_academic_excellence_settings": {
+      "label": "عرض إعدادات التميز الأكاديمي",
+      "description": "عرض إعدادات التميز الأكاديمي"
+    },
+    "view_academic_excellence_school_analytics": {
+      "label": "عرض تحليلات التميز الأكاديمي للمدرسة",
+      "description": "عرض تحليلات التميز الأكاديمي على مستوى المدرسة"
+    },
+    "view_academic_excellence_class_analytics": {
+      "label": "عرض تحليلات التميز الأكاديمي للصف",
+      "description": "عرض تحليلات التميز الأكاديمي على مستوى الصف"
+    },
+    "export_academic_excellence_reports": {
+      "label": "تصدير تقارير التميز الأكاديمي",
+      "description": "تصدير تقارير التميز الأكاديمي"
+    },
+    "view_academic_excellence_at_risk_report": {
+      "label": "عرض تقرير التميز الأكاديمي للطلاب المتعثرين",
+      "description": "عرض تقارير التميز الأكاديمي للطلاب المعرضين للتعثر"
+    },
+    "view_assessment_pool": {
+      "label": "عرض بنك التقييمات",
+      "description": "تصفح مكتبة الأسئلة المولَّدة مسبقاً والبحث فيها"
+    },
+    "create_assessment_from_pool": {
+      "label": "إنشاء تقييم من البنك",
+      "description": "اختيار أسئلة من البنك وإنشاء مسودة تقييم جديدة"
+    },
+    "manage_assessment_pool_settings": {
+      "label": "إدارة إعدادات بنك التقييمات",
+      "description": "ضبط قيود مكتبة البنك (نطاق الظهور وقواعد التصفح والحدود)"
+    },
+    "manage_assessment_comms_settings": {
+      "label": "إدارة إعدادات تواصل التقييمات",
+      "description": "ضبط تفضيلات التواصل (هوية البريد وساعات الهدوء والقنوات)"
+    }
+  },
+  "academicPeriod": {
+    "title": "الفترة الدراسية الحالية",
+    "subtitle": "تُستخدم افتراضيًا في جميع أنحاء المدرسة.",
+    "yearLabel": "العام الدراسي",
+    "semesterLabel": "الفصل الدراسي",
+    "semester1": "الفصل الدراسي الأول",
+    "semester2": "الفصل الدراسي الثاني",
+    "dates": "{{start}} – {{end}}",
+    "save": "حفظ التغييرات",
+    "cancel": "إلغاء",
+    "saving": "جارٍ الحفظ...",
+    "loading": "جارٍ تحميل الفترة الدراسية الحالية...",
+    "loadFailed": "تعذر تحميل الفترة الدراسية للمدرسة.",
+    "retry": "إعادة المحاولة",
+    "confirmTitle": "تغيير الفترة الدراسية النشطة للمدرسة؟",
+    "confirmFrom": "من:",
+    "confirmTo": "إلى:",
+    "confirmWarning": "سيؤدي هذا إلى تغيير الفترة الافتراضية المستخدمة في جميع أنحاء المدرسة. لن يتم نقل السجلات الحالية، ولن تتم ترقية الطلاب.",
+    "confirmAction": "تغيير الفترة الدراسية",
+    "saved": "تم تحديث الفترة الدراسية",
+    "saveFailed": "فشل تحديث الفترة الدراسية"
   }
 }

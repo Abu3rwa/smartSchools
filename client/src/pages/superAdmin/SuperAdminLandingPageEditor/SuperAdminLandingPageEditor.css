@@ -1,3 +1,37 @@
+.landing-cms-notice {
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border-color));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg-secondary));
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.landing-cms-notice-title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.landing-cms-notice-body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.landing-cms-legacy-note,
+.landing-cms-active-note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.landing-cms-active-note {
+  color: var(--primary);
+}
+
 .landing-cms-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

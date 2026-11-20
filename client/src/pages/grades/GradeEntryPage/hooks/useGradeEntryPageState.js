@@ -13,6 +13,8 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
     const [grades, setGrades] = useState({});
     const [sendNotifications, setSendNotifications] = useState(false);
     const [selectedLessonPlanIds, setSelectedLessonPlanIds] = useState([]);
+    const [lessonTitle, setLessonTitle] = useState('');
+    const [lessonSummary, setLessonSummary] = useState('');
 
     // Edit mode state
     const [editMode, setEditMode] = useState(false);
@@ -58,12 +60,16 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
         }
         const cat = (metadata.category || '').charAt(0).toUpperCase() + (metadata.category || '').slice(1);
         setSelectedCategory(cat || DEFAULT_CATEGORY);
+        setLessonTitle(metadata.title || '');
+        setLessonSummary(metadata.lessonSummary || '');
     }, []);
 
     const exitEditMode = useCallback(() => {
         setEditMode(false);
         setEditAssessmentGroupId(null);
         setEditGradeMap({});
+        setLessonTitle('');
+        setLessonSummary('');
     }, []);
 
     return {
@@ -85,6 +91,10 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
         setSendNotifications,
         selectedLessonPlanIds,
         setSelectedLessonPlanIds,
+        lessonTitle,
+        setLessonTitle,
+        lessonSummary,
+        setLessonSummary,
         handleGradeChange,
         resetGradesForStudents,
         editMode,

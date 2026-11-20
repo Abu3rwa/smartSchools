@@ -152,9 +152,14 @@ const assignmentService = {
     return response.data;
   },
 
-  uploadDriveAttachments: async (assignmentId, files) => {
+  uploadDriveAttachments: async (
+    assignmentId,
+    files,
+    { visibility = "students" } = {},
+  ) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    if (visibility === "private") formData.append("visibility", "private");
     const response = await api.post(
       `/assignments/${assignmentId}/drive-attachments`,
       formData,
@@ -163,6 +168,19 @@ const assignmentService = {
         // The editor reports the failure itself; two toasts say it twice.
         skipErrorToast: true,
       },
+    );
+    return response.data;
+  },
+
+  updateDriveAttachmentVisibility: async (
+    assignmentId,
+    fileId,
+    visibility,
+  ) => {
+    const response = await api.patch(
+      `/assignments/${assignmentId}/drive-attachments/${fileId}/visibility`,
+      { visibility },
+      { skipErrorToast: true },
     );
     return response.data;
   },
@@ -194,8 +212,10 @@ const assignmentService = {
     count = 5,
     types = [],
     file = null,
+    sourceFileId = null,
+    assignmentId = null,
   }) => {
-    if (file) {
+    if (file || sourceFileId) {
       const formData = new FormData();
       formData.append("classId", classId);
       formData.append("subjectId", subjectId);
@@ -203,7 +223,12 @@ const assignmentService = {
       formData.append("types", JSON.stringify(types));
       if (lessonPlanIds.length > 0)
         formData.append("lessonPlanIds", JSON.stringify(lessonPlanIds));
-      formData.append("materialFile", file);
+      if (file) {
+        formData.append("materialFile", file);
+      } else {
+        formData.append("sourceFileId", sourceFileId);
+        if (assignmentId) formData.append("assignmentId", assignmentId);
+      }
       const response = await api.post(
         "/assignments/ai/draft-questions",
         formData,
@@ -229,7 +254,9 @@ const assignmentService = {
     assignmentTypeId,
     sourceUsage = [],
     formContext = [],
-    file,
+    file = null,
+    sourceFileId = null,
+    assignmentId = null,
   }) => {
     const formData = new FormData();
     formData.append("classId", classId);
@@ -237,7 +264,12 @@ const assignmentService = {
     formData.append("assignmentTypeId", assignmentTypeId);
     formData.append("sourceUsage", JSON.stringify(sourceUsage));
     formData.append("formContext", JSON.stringify(formContext));
-    formData.append("materialFile", file);
+    if (file) {
+      formData.append("materialFile", file);
+    } else if (sourceFileId) {
+      formData.append("sourceFileId", sourceFileId);
+      if (assignmentId) formData.append("assignmentId", assignmentId);
+    }
     const response = await api.post("/assignments/ai/draft-brief", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });

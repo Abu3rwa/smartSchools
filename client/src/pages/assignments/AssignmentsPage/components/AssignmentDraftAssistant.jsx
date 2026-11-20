@@ -1,25 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import {
-  HiOutlineDocumentText,
-  HiOutlineLightningBolt,
-  HiOutlineUpload,
-  HiOutlineX,
-} from "react-icons/hi";
+import { HiOutlineLightningBolt } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
 import assignmentService from "../../../../services/assignmentService";
 import {
   buildBriefRequestMeta,
+  buildSourceRequestFields,
   formContextFromQuestions,
+  resolveSourceOption,
 } from "../utils/assignmentDrafting";
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ACCEPTED_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
+import AssignmentSourceSelect from "./AssignmentSourceSelect";
 
 const ERROR_KEYS = {
   DRAFT_CLASS_SUBJECT_REQUIRED: "assignments:draftAssistant.errors.needClassSubject",
@@ -28,6 +18,7 @@ const ERROR_KEYS = {
   DRAFT_SUBJECT_INVALID: "assignments:draftAssistant.errors.subjectInvalid",
   DRAFT_NOT_AUTHORIZED: "assignments:draftAssistant.errors.notAuthorized",
   DRAFT_SOURCE_REQUIRED: "assignments:draftAssistant.errors.sourceRequired",
+  DRAFT_ASSIGNMENT_NOT_FOUND: "assignments:draftAssistant.errors.assignmentMissing",
   DRAFT_BRIEF_SOURCE_TOO_SHORT: "assignments:draftAssistant.errors.sourceTooShort",
   DRAFT_BRIEF_RESPONSE_INVALID: "assignments:draftAssistant.errors.invalidDraft",
   DRAFT_QUESTIONS_INVALID: "assignments:draftAssistant.errors.invalidQuestions",
@@ -38,98 +29,56 @@ const ERROR_KEYS = {
   DOCUMENT_TYPE_UNSUPPORTED: "assignments:draftAssistant.errors.unsupportedFile",
   DOCUMENT_TOO_LARGE: "assignments:draftAssistant.errors.fileTooLarge",
   DOCUMENT_EMPTY_FILE: "assignments:draftAssistant.errors.emptyFile",
+  DRIVE_FILE_NOT_CONNECTED: "assignments:draftAssistant.errors.driveNotConnected",
+  DRIVE_FILE_NOT_FOUND: "assignments:draftAssistant.errors.driveFileMissing",
+  DRIVE_FILE_API_FAILED: "assignments:draftAssistant.errors.driveFailed",
 };
-
-const formatFileSize = (bytes) =>
-  `${(bytes / (1024 * 1024)).toFixed(bytes > 1024 * 1024 ? 1 : 2)} MB`;
 
 const AssignmentDraftAssistant = ({
   disabled = false,
   classId,
   subjectId,
   assignmentTypeId,
+  assignmentId = null,
+  sourceOptions = [],
   isGoogleForm = false,
   googleFormPublished = false,
   googleFormQuestions = [],
   hasExistingQuestions = false,
-  attachedFiles = [],
+  onRequestSource,
   onDrafted,
   onQuestionsDrafted,
-  onAttachFile,
-  onDetachFile,
 }) => {
   const { t } = useTranslation(["assignments"]);
-  const fileInputRef = useRef(null);
-  const [file, setFile] = useState(null);
-  const [useForForm, setUseForForm] = useState(false);
+  const [sourceValue, setSourceValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const attached = Boolean(
-    file && (attachedFiles || []).includes(file),
-  );
+  useEffect(() => {
+    if (resolveSourceOption(sourceOptions, sourceValue)) return;
+    setSourceValue(sourceOptions[0]?.value || "");
+  }, [sourceOptions, sourceValue]);
+
+  const source = resolveSourceOption(sourceOptions, sourceValue);
   const hasClassSubject = Boolean(classId && subjectId);
-  const canUseForm = isGoogleForm && !googleFormPublished;
-  const formMode = useForForm && canUseForm;
+  // Questions the teacher already has are never overwritten from here; the
+  // question drafter below is the explicit way to replace them.
+  const formMode =
+    isGoogleForm && !googleFormPublished && !hasExistingQuestions;
   // An already-linked form stays part of the assignment even when its
   // questions cannot be replaced, so the draft should still describe it.
   const formExists =
     isGoogleForm && (googleFormPublished || hasExistingQuestions);
   const canGenerate =
-    !disabled && !loading && hasClassSubject && Boolean(file);
+    !disabled && !loading && hasClassSubject && Boolean(source);
 
   const disabledReason = (() => {
     if (!hasClassSubject)
       return t("assignments:draftAssistant.needClassSubject");
-    if (!file) return t("assignments:draftAssistant.needFile");
+    if (!source) return t("assignments:draftAssistant.needFile");
     return "";
   })();
-
-  const formOptionHint = (() => {
-    if (!isGoogleForm) return t("assignments:draftAssistant.formNeedsForm");
-    if (googleFormPublished)
-      return t("assignments:draftAssistant.formPublished");
-    return t("assignments:draftAssistant.useForFormHelp");
-  })();
-
-  const replaceFile = (nextFile) => {
-    if (attached && file) onDetachFile?.(file);
-    setFile(nextFile);
-    if (attached && nextFile) onAttachFile?.(nextFile);
-  };
-
-  const handleFileChange = (event) => {
-    const chosen = event.target.files?.[0];
-    event.target.value = "";
-    if (!chosen) return;
-    if (!ACCEPTED_TYPES.includes(chosen.type)) {
-      setError(t("assignments:draftAssistant.errors.unsupportedFile"));
-      replaceFile(null);
-      return;
-    }
-    if (chosen.size > MAX_FILE_BYTES) {
-      setError(t("assignments:draftAssistant.errors.fileTooLarge"));
-      replaceFile(null);
-      return;
-    }
-    setError("");
-    setNotice("");
-    replaceFile(chosen);
-  };
-
-  const clearFile = () => {
-    if (attached && file) onDetachFile?.(file);
-    setFile(null);
-    setError("");
-    setNotice("");
-  };
-
-  const toggleAttach = () => {
-    if (!file) return;
-    if (attached) onDetachFile?.(file);
-    else onAttachFile?.(file);
-  };
 
   const errorMessageFor = (requestError) => {
     const code = requestError?.response?.data?.code || requestError?.code;
@@ -145,26 +94,20 @@ const AssignmentDraftAssistant = ({
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
-    if (
-      formMode &&
-      hasExistingQuestions &&
-      !window.confirm(t("assignments:draftAssistant.replaceQuestionsConfirm"))
-    ) {
-      return;
-    }
 
     setLoading(true);
     setError("");
     setNotice("");
+    const sourceFields = buildSourceRequestFields(source);
     try {
       const briefResponse = await assignmentService.draftBrief({
         classId,
         subjectId,
         assignmentTypeId,
-        file,
+        assignmentId,
+        ...sourceFields,
         ...buildBriefRequestMeta({
           useForForm: formMode || formExists,
-          attachFile: attached,
         }),
         formContext: formContextFromQuestions(googleFormQuestions),
       });
@@ -187,7 +130,8 @@ const AssignmentDraftAssistant = ({
             lessonPlanIds: [],
             count: 5,
             types: ["multiple_choice", "true_false"],
-            file,
+            assignmentId,
+            ...sourceFields,
           });
           const questions = response?.data?.questions || [];
           if (questions.length === 0) {
@@ -226,82 +170,19 @@ const AssignmentDraftAssistant = ({
         </div>
       </div>
 
-      <div className="question-drafter__file">
-        <div className="question-drafter__file-actions">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || loading}
-          >
-            <HiOutlineUpload />
-            {t("assignments:draftAssistant.chooseFile")}
-          </button>
-          {file && (
-            <button
-              type="button"
-              className="question-drafter__clear"
-              onClick={clearFile}
-              disabled={disabled || loading}
-              aria-label={t("assignments:draftAssistant.removeFile")}
-            >
-              <HiOutlineX />
-            </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
-            hidden
-            onChange={handleFileChange}
-            aria-label={t("assignments:draftAssistant.chooseFile")}
-          />
-        </div>
-        {file ? (
-          <p className="question-drafter__file-name">
-            <HiOutlineDocumentText aria-hidden="true" />
-            <span>{file.name}</span>
-            <span className="question-drafter__file-size">
-              {formatFileSize(file.size)}
-            </span>
-          </p>
-        ) : (
-          <p className="question-drafter__hint">
-            {t("assignments:draftAssistant.fileTypes")}
-          </p>
-        )}
-        <p className="question-drafter__hint">
-          {t("assignments:draftAssistant.fileNotSaved")}
-        </p>
-      </div>
+      <AssignmentSourceSelect
+        options={sourceOptions}
+        value={sourceValue}
+        onChange={setSourceValue}
+        disabled={disabled || loading}
+        onRequestSource={onRequestSource}
+      />
 
-      <fieldset className="question-drafter__source">
-        <legend>{t("assignments:draftAssistant.useFor")}</legend>
-        <label className="question-drafter__radio">
-          <input
-            type="checkbox"
-            checked={attached}
-            disabled={disabled || loading || !file}
-            onChange={toggleAttach}
-          />
-          <span>
-            {t("assignments:draftAssistant.attachFile")}
-            <small>{t("assignments:draftAssistant.attachFileHelp")}</small>
-          </span>
-        </label>
-        <label className="question-drafter__radio">
-          <input
-            type="checkbox"
-            checked={formMode}
-            disabled={disabled || loading || !canUseForm}
-            onChange={(event) => setUseForForm(event.target.checked)}
-          />
-          <span>
-            {t("assignments:draftAssistant.useForForm")}
-            <small>{formOptionHint}</small>
-          </span>
-        </label>
-      </fieldset>
+      {formMode && (
+        <p className="question-drafter__hint">
+          {t("assignments:draftAssistant.alsoFormQuestions")}
+        </p>
+      )}
 
       {error && (
         <p className="question-drafter__error" role="alert">

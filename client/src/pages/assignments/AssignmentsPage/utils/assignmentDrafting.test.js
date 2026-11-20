@@ -2,24 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyDraftFields,
-  attachFileToForm,
   buildBriefRequestMeta,
-  detachFileFromForm,
+  buildSourceOptions,
+  buildSourceRequestFields,
   formContextFromQuestions,
+  resolveSourceOption,
 } from "./assignmentDrafting.js";
 
-test("source usage reflects the selected form and attachment options", () => {
+test("source usage reflects the selected form option", () => {
   assert.deepEqual(buildBriefRequestMeta({}), { sourceUsage: [] });
   assert.deepEqual(buildBriefRequestMeta({ useForForm: true }), {
     sourceUsage: ["form"],
   });
-  assert.deepEqual(buildBriefRequestMeta({ attachFile: true }), {
-    sourceUsage: ["attachment"],
-  });
-  assert.deepEqual(
-    buildBriefRequestMeta({ useForForm: true, attachFile: true }),
-    { sourceUsage: ["form", "attachment"] },
-  );
 });
 
 test("form context only carries non-empty question titles", () => {
@@ -79,29 +73,40 @@ test("non-string draft values leave the existing field untouched", () => {
   assert.deepEqual(next, form);
 });
 
-test("attaching the source file adds it once and keeps other attachments", () => {
-  const existing = new File(["a"], "worksheet.pdf", {
+test("source options list pending files first, then saved Drive files", () => {
+  const pending = new File(["a"], "worksheet.pdf", {
     type: "application/pdf",
   });
-  const source = new File(["b"], "lesson.pdf", { type: "application/pdf" });
-  const form = { attachmentFiles: [existing] };
+  const options = buildSourceOptions({
+    pendingFiles: [pending],
+    driveAttachments: [
+      { fileId: "drive-1", fileName: "lesson.pdf" },
+      { fileId: "", fileName: "orphan.pdf" },
+    ],
+  });
 
-  const attached = attachFileToForm(form, source);
-  assert.deepEqual(attached.attachmentFiles, [existing, source]);
-
-  const again = attachFileToForm(attached, source);
-  assert.equal(again, attached);
-  assert.deepEqual(attachFileToForm({}, source).attachmentFiles, [source]);
+  assert.deepEqual(
+    options.map((option) => option.value),
+    ["pending:0", "drive:drive-1"],
+  );
+  assert.equal(options[0].label, "worksheet.pdf");
+  assert.equal(options[1].label, "lesson.pdf");
 });
 
-test("detaching the source file removes only that file", () => {
-  const existing = new File(["a"], "worksheet.pdf", {
+test("a pending file is sent as bytes and a saved file is sent by id", () => {
+  const pending = new File(["a"], "worksheet.pdf", {
     type: "application/pdf",
   });
-  const source = new File(["b"], "lesson.pdf", { type: "application/pdf" });
-  const form = { attachmentFiles: [existing, source] };
+  const options = buildSourceOptions({
+    pendingFiles: [pending],
+    driveAttachments: [{ fileId: "drive-1", fileName: "lesson.pdf" }],
+  });
 
-  assert.deepEqual(detachFileFromForm(form, source).attachmentFiles, [existing]);
-  assert.equal(detachFileFromForm(form, new File(["c"], "other.pdf")), form);
-  assert.equal(detachFileFromForm(form, null), form);
+  assert.deepEqual(buildSourceRequestFields(options[0]), { file: pending });
+  assert.deepEqual(buildSourceRequestFields(options[1]), {
+    sourceFileId: "drive-1",
+  });
+  assert.deepEqual(buildSourceRequestFields(null), {});
+  assert.equal(resolveSourceOption(options, "drive:drive-1").label, "lesson.pdf");
+  assert.equal(resolveSourceOption(options, "missing"), null);
 });

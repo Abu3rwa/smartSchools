@@ -10,7 +10,7 @@ import {
     getParentLinkedStudents,
 } from './parentDashboardService.js';
 import { supportError } from './supportAccessService.js';
-import { assertSupportEnabled, loadSettings } from './supportSettingsService.js';
+import { assertSupportActive, assertSupportEnabled, loadSettings } from './supportSettingsService.js';
 import { createParentRequest } from './supportCaseService.js';
 import { recordCheckIn } from './supportPlanService.js';
 import { refreshReviewStatus } from './supportReviewService.js';
@@ -20,11 +20,29 @@ const linkedChild = async ({ schoolId, parentUser, childId, academicYear }) => (
     getParentLinkedStudentById({ schoolId, parentUser, academicYear, childId })
 );
 
-const parentRespondentFor = async ({ schoolId, studentId }) => SupportRespondent.findOne({
-    school: schoolId,
-    kind: 'parent',
-    student: studentId,
-});
+/**
+ * A household may hold several parent respondents with separate surveys.
+ * Portal authorization must bind to THIS parent's respondent — matching by
+ * linked user first, then by the account email — never by picking the first
+ * household row, or one parent could read and write the other's answers.
+ */
+export const matchParentRespondent = (respondents, parentUser) => {
+    const userId = String(parentUser?._id || '');
+    const email = String(parentUser?.email || '').trim().toLowerCase();
+    return respondents.find((row) => row.parentUser && String(row.parentUser) === userId)
+        || respondents.find((row) => email && String(row.email || '').trim().toLowerCase() === email)
+        || null;
+};
+
+const parentRespondentFor = async ({ schoolId, parentUser, studentId }) => {
+    const candidates = await SupportRespondent.find({
+        school: schoolId,
+        kind: 'parent',
+        student: studentId,
+        active: { $ne: false },
+    }).lean();
+    return matchParentRespondent(candidates, parentUser);
+};
 
 export const parentSupportOverview = async ({ schoolId, parentUser, academicYear }) => {
     const settings = await loadSettings(schoolId);
@@ -43,7 +61,7 @@ export const parentSupportOverview = async ({ schoolId, parentUser, academicYear
             .limit(12)
             .lean(),
         SupportRespondent.find({ school: schoolId, kind: 'parent', student: { $in: childIds } })
-            .select('student name email codeHint lastAccessAt')
+            .select('student parentUser name email codeHint lastAccessAt')
             .lean(),
         SupportSurvey.find({
             school: schoolId,
@@ -67,8 +85,15 @@ export const parentSupportOverview = async ({ schoolId, parentUser, academicYear
         enabled: true,
         children: children.map((child) => {
             const childPlans = plans.filter((plan) => String(plan.student) === String(child._id));
-            const respondent = respondents.find((row) => String(row.student) === String(child._id));
-            const survey = surveys.find((row) => String(row.student) === String(child._id));
+            const respondent = matchParentRespondent(
+                respondents.filter((row) => String(row.student) === String(child._id)),
+                parentUser,
+            );
+            const respondentId = respondent ? String(respondent._id) : '';
+            const survey = surveys.find((row) => (
+                String(row.student) === String(child._id)
+                && String(row.respondent || '') === respondentId
+            ));
             const ownHomeCheckIns = (planId) => checkIns.filter((checkIn) => (
                 String(checkIn.plan) === String(planId)
                 && (checkIn.scope !== 'home'
@@ -122,8 +147,9 @@ const planForParent = async ({ schoolId, parentUser, planId, academicYear }) => 
 };
 
 export const parentCheckIn = async ({ schoolId, parentUser, planId, taskId, status, note, academicYear }) => {
+    await assertSupportActive({ schoolId });
     const { plan, student } = await planForParent({ schoolId, parentUser, planId, academicYear });
-    const respondent = await parentRespondentFor({ schoolId, studentId: student._id });
+    const respondent = await parentRespondentFor({ schoolId, parentUser, studentId: student._id });
     const checkIn = await recordCheckIn({
         plan,
         cycleId: plan.cycle,
@@ -156,16 +182,22 @@ const surveyForParent = async ({ schoolId, parentUser, surveyId }) => {
         academicYear: survey.cycle?.academicYear,
     });
     if (!student) throw supportError(403, 'SURVEY_FORBIDDEN', 'This survey is not linked to your account.');
+    const respondent = await parentRespondentFor({ schoolId, parentUser, studentId: student._id });
+    if (!respondent || String(survey.respondent || '') !== String(respondent._id)) {
+        throw supportError(403, 'SURVEY_FORBIDDEN', 'This survey was issued to a different family contact.');
+    }
     return survey;
 };
 
 export const parentSurveyAnswers = async ({ schoolId, parentUser, surveyId, answers, expectedRevision = null }) => {
+    await assertSupportActive({ schoolId });
     const survey = await surveyForParent({ schoolId, parentUser, surveyId });
     const { saveAnswers } = await import('./supportSurveyService.js');
     return saveAnswers({ survey, incomingAnswers: answers, expectedRevision });
 };
 
 export const parentSubmitSurvey = async ({ schoolId, parentUser, surveyId, answers, expectedRevision = null }) => {
+    await assertSupportActive({ schoolId });
     const survey = await surveyForParent({ schoolId, parentUser, surveyId });
     const { submitAnswers } = await import('./supportSurveyService.js');
     const submitted = await submitAnswers({ survey, incomingAnswers: answers, expectedRevision });
@@ -174,6 +206,7 @@ export const parentSubmitSurvey = async ({ schoolId, parentUser, surveyId, answe
 };
 
 export const parentNoConcerns = async ({ schoolId, parentUser, surveyId }) => {
+    await assertSupportActive({ schoolId });
     const survey = await surveyForParent({ schoolId, parentUser, surveyId });
     const { markNoConcerns } = await import('./supportSurveyService.js');
     const saved = await markNoConcerns({ survey });
@@ -182,6 +215,7 @@ export const parentNoConcerns = async ({ schoolId, parentUser, surveyId }) => {
 };
 
 export const parentSkipSurvey = async ({ schoolId, parentUser, surveyId, reason = '' }) => {
+    await assertSupportActive({ schoolId });
     const survey = await surveyForParent({ schoolId, parentUser, surveyId });
     const { skipSurvey } = await import('./supportSurveyService.js');
     const saved = await skipSurvey({ survey, reason });
@@ -214,7 +248,7 @@ export const parentFamilyPlan = async ({ schoolId, parentUser, childId, academic
     }).sort({ publishedAt: -1 }).lean();
     if (!plan) return { student: studentSummary(student), plan: null };
 
-    const respondent = await parentRespondentFor({ schoolId, studentId: student._id });
+    const respondent = await parentRespondentFor({ schoolId, parentUser, studentId: student._id });
     const checkIns = await SupportCheckIn.find({
         school: schoolId,
         plan: plan._id,
@@ -249,7 +283,7 @@ export const parentFamilyPlan = async ({ schoolId, parentUser, childId, academic
 export const parentPlanHistory = async ({ schoolId, parentUser, studentId, academicYear }) => {
     const student = await linkedChild({ schoolId, parentUser, childId: studentId, academicYear });
     if (!student) throw supportError(403, 'CHILD_FORBIDDEN', 'This child is not linked to your account.');
-    const respondent = await parentRespondentFor({ schoolId, studentId: student._id });
+    const respondent = await parentRespondentFor({ schoolId, parentUser, studentId: student._id });
     const cycles = await SupportCycle.find({ school: schoolId, student: studentId })
         .sort({ academicYear: -1, createdAt: -1 })
         .limit(12)

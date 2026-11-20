@@ -912,6 +912,89 @@
   gap: 8px;
 }
 
+.support-attention {
+  padding: 14px 18px;
+}
+
+.support-attention-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--support-ink);
+}
+
+.support-attention-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.support-attention-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--support-line);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card, #fff);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.support-attention-row:hover {
+  border-color: var(--support-accent);
+  background: var(--support-accent-soft);
+}
+
+.support-attention-row svg {
+  margin-inline-start: auto;
+  flex: none;
+  color: var(--support-muted);
+}
+
+.support-attention-student {
+  font-weight: 700;
+  color: var(--support-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.support-attention-owner,
+.support-attention-due {
+  font-size: 0.76rem;
+  color: var(--support-muted);
+  white-space: nowrap;
+}
+
+.support-attention-failed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--support-muted);
+}
+
+@media (max-width: 760px) {
+  .support-attention-row {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .support-attention-student {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .support-attention-row svg {
+    display: none;
+  }
+}
+
 @media (max-width: 1020px) {
   .support-detail-grid {
     grid-template-columns: 1fr;

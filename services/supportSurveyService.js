@@ -66,6 +66,28 @@ export const findSurveyForRespondent = async ({ schoolId, respondentId, surveyId
     return survey;
 };
 
+/*
+ * One allowed-transition policy for every survey mutation, staff or public.
+ * submitted is terminal; cancelled surveys only come back through a deliberate
+ * re-prepare of their review (revive); skipped surveys reopen (Q7).
+ */
+export const SURVEY_TRANSITIONS = {
+    draft: ['sent', 'opened', 'submitted', 'skipped', 'cancelled'],
+    sent: ['opened', 'submitted', 'skipped', 'cancelled'],
+    opened: ['submitted', 'skipped', 'cancelled'],
+    submitted: [],
+    skipped: ['opened', 'cancelled'],
+    cancelled: ['draft'],
+};
+
+export const surveyTransitionAllowed = (from, to) => (SURVEY_TRANSITIONS[from] || []).includes(to);
+
+const assertTransition = (survey, to, message) => {
+    if (!surveyTransitionAllowed(survey.status, to)) {
+        throw supportError(409, 'SURVEY_CLOSED', message);
+    }
+};
+
 export const respondentSurveys = async ({ schoolId, respondentId, limit = 24 }) => SupportSurvey.find({
     school: schoolId,
     respondent: respondentId,
@@ -86,10 +108,24 @@ const assertRevision = (survey, expectedRevision) => {
     }
 };
 
-export const saveAnswers = async ({ survey, incomingAnswers = [], expectedRevision = null }) => {
+/*
+ * Answering stays inside draft/sent/opened. A skipped survey must go through
+ * the explicit reopen first (Q7), and a cancelled one only comes back via the
+ * review being re-prepared.
+ */
+const assertCanAnswer = (survey) => {
+    if (['draft', 'sent', 'opened'].includes(survey.status)) return;
+    if (survey.status === 'skipped') {
+        throw supportError(409, 'SURVEY_SKIPPED', 'Reopen this survey before answering it. Your saved answers are kept.');
+    }
     if (survey.status === 'submitted') {
         throw supportError(409, 'SURVEY_SUBMITTED', 'This survey was already submitted.');
     }
+    throw supportError(409, 'SURVEY_CLOSED', 'This survey was cancelled. Ask the school to re-prepare the review.');
+};
+
+export const saveAnswers = async ({ survey, incomingAnswers = [], expectedRevision = null }) => {
+    assertCanAnswer(survey);
     assertRevision(survey, expectedRevision);
     const byId = new Map((survey.questions || []).map((question) => [question.id, question]));
     const existing = new Map((survey.answers || []).map((answer) => [answer.questionId, answer]));
@@ -115,8 +151,11 @@ export const saveAnswers = async ({ survey, incomingAnswers = [], expectedRevisi
 export const submitAnswers = async ({ survey, incomingAnswers, expectedRevision = null }) => {
     if (incomingAnswers) {
         await saveAnswers({ survey, incomingAnswers, expectedRevision });
+    } else {
+        assertCanAnswer(survey);
     }
     const fresh = await SupportSurvey.findById(survey._id);
+    assertTransition(fresh, 'submitted', 'This survey can no longer be submitted. Reopen a skipped survey first.');
     const missing = missingRequiredQuestions(fresh);
     if (missing.length > 0) {
         throw supportError(400, 'SURVEY_INCOMPLETE', 'Answer every required question before submitting.');
@@ -130,9 +169,7 @@ export const submitAnswers = async ({ survey, incomingAnswers, expectedRevision 
 
 /** Explicit "nothing to add this month". It is not an empty survey. */
 export const markNoConcerns = async ({ survey }) => {
-    if (['submitted', 'cancelled'].includes(survey.status)) {
-        throw supportError(409, 'SURVEY_CLOSED', 'This survey is already closed.');
-    }
+    assertTransition(survey, 'submitted', 'This survey is closed. Reopen a skipped survey before recording "no concerns".');
     survey.noConcerns = true;
     survey.noConcernsAt = new Date();
     survey.status = 'submitted';
@@ -142,13 +179,36 @@ export const markNoConcerns = async ({ survey }) => {
     return survey;
 };
 
-export const skipSurvey = async ({ survey, reason = '' }) => {
+export const skipSurvey = async ({ survey }) => {
     if (survey.status === 'submitted') {
         throw supportError(409, 'SURVEY_SUBMITTED', 'This survey was already submitted.');
     }
+    assertTransition(survey, 'skipped', 'This survey can no longer be skipped.');
     survey.status = 'skipped';
     survey.noConcerns = false;
     survey.updatedBy = survey.updatedBy || null;
+    survey.revision = (survey.revision || 1) + 1;
+    await survey.save();
+    return survey;
+};
+
+/**
+ * Q7: a respondent can bring back their own skipped survey while the due date
+ * still allows it; staff can reopen one at any time. Saved answers survive.
+ */
+export const reopenSurvey = async ({ survey, actorKind = 'respondent' }) => {
+    if (survey.status !== 'skipped') {
+        throw supportError(409, 'SURVEY_NOT_SKIPPED', 'Only a skipped survey can be reopened.');
+    }
+    if (actorKind === 'respondent' && survey.dueDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (new Date(survey.dueDate) < today) {
+            throw supportError(403, 'SURVEY_DUE_PASSED', 'The due date has passed. Ask the school to reopen this survey.');
+        }
+    }
+    survey.status = 'opened';
+    survey.openedAt = survey.openedAt || new Date();
     survey.revision = (survey.revision || 1) + 1;
     await survey.save();
     return survey;
@@ -174,6 +234,11 @@ export const recordAssistedResponse = async ({ survey, incomingAnswers = [], use
         existing.set(question.id, normalizeAnswer(incoming, question));
     }
     survey.answers = [...existing.values()];
+    // Assisted entry follows the same completeness rule as the family's own submit.
+    const missing = missingRequiredQuestions(survey);
+    if (missing.length > 0) {
+        throw supportError(400, 'SURVEY_INCOMPLETE', 'Record an answer for every required question before saving this response.');
+    }
     survey.status = 'submitted';
     survey.submittedAt = new Date();
     survey.deliveryState = 'recorded';

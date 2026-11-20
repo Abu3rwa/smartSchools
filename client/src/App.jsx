@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+import { useTranslation } from "react-i18next";
 import { CacheProvider } from "@emotion/react";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -16,11 +17,12 @@ import {
   fetchCurrentUser,
 } from "./store/slices/authSlice";
 import {
-  fetchSchoolAcademicYear,
+  fetchSchoolAcademicPeriod,
   fetchAppName,
   selectLanguage,
   selectTheme,
   setCurrentAcademicYear,
+  setSelectedSemester,
 } from "./store/slices/uiSlice";
 import { fetchSchoolFeatures } from "./store/slices/schoolFeaturesSlice";
 
@@ -32,7 +34,7 @@ import FeatureGate from "./components/FeatureGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GoogleReauthPrompt from "./components/GoogleReauthPrompt";
 
-// const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
+const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
 const RegisterSchoolPage = lazy(() => import("./pages/auth/RegisterSchoolPage"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));const AuthCallbackPage = lazy(() => import("./pages/auth/AuthCallbackPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
@@ -109,6 +111,13 @@ const PracticeDashboardPage = lazy(() => import("./pages/student/practice/Practi
 const PracticeSessionPage = lazy(() => import("./pages/student/practice/PracticeSessionPage"));
 const PracticeHistoryPage = lazy(() => import("./pages/student/practice/PracticeHistoryPage"));
 const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practice/PracticeAssessmentResultsPage"));
+const StudentSkillPathPage = lazy(() => import("./pages/student/skillpath/StudentSkillPathPage"));
+const SkillPathPlayPage = lazy(() => import("./pages/student/skillpath/SkillPathPlayPage"));
+const SkillPathProgressPage = lazy(() => import("./pages/student/skillpath/SkillPathProgressPage"));
+const SkillPathLeaderboardPage = lazy(() => import("./pages/student/skillpath/SkillPathLeaderboardPage"));
+const SkillPathStudioPage = lazy(() => import("./pages/teacher/skillpath/SkillPathStudioPage"));
+const SkillPathEditorPage = lazy(() => import("./pages/teacher/skillpath/SkillPathEditorPage"));
+const SkillPathBoardPage = lazy(() => import("./pages/teacher/skillpath/SkillPathBoardPage"));
 const StudentMyAssignmentsPage = lazy(() => import("./pages/student/assignments/StudentMyAssignmentsPage"));
 const StudentAssessmentResultsPage = lazy(() => import("./pages/student/assignments/StudentAssessmentResultsPage"));
 const AssignmentDetailPage = lazy(() => import("./pages/assignments/AssignmentDetailPage"));
@@ -223,8 +232,25 @@ const StudentSocialStudiesLessonPage = lazy(() => import("./pages/socialStudies/
 const StudentSocialStudiesAssessmentPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesAssessmentPage"));
 const StudentSocialStudiesResultsPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesResultsPage"));
 
-const RouteLoadingFallback = () => (
+const RouteLoadingFallback = ({ label }) => (
   <div className="loading-overlay" role="status" aria-live="polite">
+    {label ? (
+      <span
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          padding: 0,
+          margin: "-1px",
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      >
+        {label}
+      </span>
+    ) : null}
     <div className="spinner"></div>
   </div>
 );
@@ -239,10 +265,39 @@ const MapTestPrepRoute = () => {
   );
 };
 
-// First-time visitors meet the landing page; anyone who has signed in before
-// goes straight to the login screen.
-// const RootRoute = () => (isReturning() ? <LoginPage /> : <LandingPage />);
-const RootRoute = () => <LoginPage />;
+// The root resolves an existing session to the right workspace and sends
+// signed-out visitors to sign in. The marketing page lives on its own
+// unlinked route, so it is never the default front door.
+const RootRoute = () => {
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectUser);
+  const { loading, error, token } = useSelector(selectAuth);
+  const { t } = useTranslation(["landing.page"]);
+
+  const sessionUnusable = Boolean(token) && !user && !loading && Boolean(error);
+  if (sessionUnusable) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const restorationPending = loading || (Boolean(token) && !user);
+  if (restorationPending) {
+    return <RouteLoadingFallback label={t("publicPage.a11y.restoringSession")} />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.mustChangePassword) {
+    return <Navigate to="/force-password-change" replace />;
+  }
+
+  if (user?.role === "super_admin") {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  return <Navigate to="/portal" replace />;
+};
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {  const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -257,7 +312,7 @@ const ProtectedRoute = ({ children }) => {  const isAuthenticated = useSelector(
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return children;
@@ -298,7 +353,7 @@ const PasswordChangeRoute = ({ children }) => {
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const isForcePasswordRoute = location.pathname === "/force-password-change";
@@ -326,7 +381,7 @@ const RoleRoute = ({ roles = [], permissions = [], children }) => {
     );
   }
 
-  if (!user) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   // super_admin should only access routes that explicitly allow it
   if (user.role === "super_admin") {
     return roles.includes("super_admin") ? (
@@ -336,7 +391,9 @@ const RoleRoute = ({ roles = [], permissions = [], children }) => {
     );
   }
 
-  const hasRoleAccess = roles.includes(user.role);
+  const assignedRoles = Array.isArray(user.roles) ? user.roles : [];
+  const hasRoleAccess =
+    roles.includes(user.role) || assignedRoles.some((role) => roles.includes(role));
   const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
   const hasPermissionAccess =
     permissions.length > 0 && permissions.some((permission) => userPermissions.includes(permission));
@@ -396,10 +453,14 @@ function App() {
     if (configuredYear) {
       dispatch(setCurrentAcademicYear(configuredYear));
     }
+    const configuredSemester = user?.school?.settings?.currentSemester;
+    if (configuredSemester === 1 || configuredSemester === 2) {
+      dispatch(setSelectedSemester(configuredSemester));
+    }
 
-    dispatch(fetchSchoolAcademicYear());
+    dispatch(fetchSchoolAcademicPeriod());
     dispatch(fetchSchoolFeatures());
-  }, [dispatch, isAuthenticated, user, user?.id, user?.role, user?.school?.settings?.currentAcademicYear]);
+  }, [dispatch, isAuthenticated, user, user?.id, user?.role, user?.school?.settings?.currentAcademicYear, user?.school?.settings?.currentSemester]);
 
   return (
     <CacheProvider value={emotionCache}>
@@ -414,6 +475,9 @@ function App() {
           <Route path="/register-school" element={<RegisterSchoolPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<RootRoute />} />
+          {/* Marketing page — kept off the root and unlinked so it is only
+              reachable when its route is typed or shared. */}
+          <Route path="/welcome" element={<LandingPage />} />
 
           <Route path="/login/:schoolSlug" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -471,7 +535,7 @@ function App() {
             <Route
               path="user-management"
               element={
-                <RoleRoute roles={["admin"]}>
+                <RoleRoute roles={["admin"]} permissions={["manage_users", "manage_school_settings"]}>
                   <SchoolUserManagementPage />
                 </RoleRoute>
               }
@@ -1231,6 +1295,62 @@ function App() {
               element={
                 <RoleRoute roles={["student"]}>
                   <PracticeAssessmentResultsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <StudentSkillPathPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath/play/:sessionId"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <SkillPathPlayPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath/progress"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <SkillPathProgressPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath/leaderboard"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <SkillPathLeaderboardPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath-studio"
+              element={
+                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                  <SkillPathStudioPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath-studio/packs/:packId"
+              element={
+                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                  <SkillPathEditorPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="skillpath-studio/board"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <SkillPathBoardPage />
                 </RoleRoute>
               }
             />

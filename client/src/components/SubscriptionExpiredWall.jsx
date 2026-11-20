@@ -25,7 +25,7 @@ const SubscriptionExpiredWall = () => {
 
     const handleLogout = async () => {
         await dispatch(logout());
-        navigate('/', { replace: true });
+        navigate('/login', { replace: true });
     };
 
     return (

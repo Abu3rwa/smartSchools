@@ -82,6 +82,11 @@ const supportCaseSchema = new mongoose.Schema({
     cadenceDays: { type: Number, default: 30, min: 1, max: 180 },
     nextReviewAt: { type: Date, default: null },
     lastReviewAt: { type: Date, default: null },
+    // Q12 acknowledgment SLA: stamped the first time managing staff open the
+    // case; assignmentEscalatedAt records the one-time overdue escalation.
+    acknowledgedAt: { type: Date, default: null },
+    acknowledgedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignmentEscalatedAt: { type: Date, default: null },
     studentVoice: { type: String, enum: SUPPORT_VOICE_MODES, default: 'inherit' },
     studentEvidenceInPlan: { type: Boolean, default: false },
     parentRequest: { type: parentRequestSchema, default: null },

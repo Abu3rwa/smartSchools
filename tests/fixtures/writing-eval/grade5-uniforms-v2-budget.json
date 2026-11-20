@@ -1,0 +1,112 @@
+{
+  "id": "grade5-uniforms-v2-budget",
+  "source": "synthetic",
+  "note": "Phase 3 contract fixture, not a recorded model reply. It exercises the V2 reply shape (typed mechanics with category/explanation/sourceQuote and mechanicsReview, scaffold, intervention, taught focus) so the offline gate proves the server trims an over-long reply to the emerging budget, keeps word fixes out of coaching, anchors only word fixes present in the draft, and reports an honest check status per section.",
+  "language": "en",
+  "feedbackV2": true,
+  "repeatGuard": true,
+  "taughtFocus": ["Ideas", "Organisation"],
+  "profile": { "tier": "emerging" },
+  "assignment": {
+    "title": "Should school uniforms be required?",
+    "writingType": "persuasive",
+    "topic": "School uniforms",
+    "instructions": "Write an opinion about school uniforms. Give two reasons and one example.",
+    "expectedLevel": "Grade 5",
+    "minWords": 80,
+    "maxWords": 300,
+    "sections": [
+      { "key": "introduction", "label": "Introduction", "kind": "introduction", "criteria": ["states an opinion"], "instructions": "" },
+      { "key": "body", "label": "Body", "kind": "body", "criteria": ["gives a reason", "gives an example"], "instructions": "" },
+      { "key": "conclusion", "label": "Conclusion", "kind": "conclusion", "criteria": ["restates the opinion"], "instructions": "" }
+    ],
+    "rubric": [
+      { "key": "ideas", "label": "Ideas", "description": "Opinion and reasons", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "organisation", "label": "Organisation", "description": "Order and linking", "maxScore": 5, "appliesToSections": ["*"] },
+      { "key": "conventions", "label": "Conventions", "description": "Spelling and sentences", "maxScore": 5, "appliesToSections": ["*"] }
+    ]
+  },
+  "draft": {
+    "number": 1,
+    "sections": [
+      { "key": "introduction", "index": 0, "label": "Introduction", "text": "I think school uniforms are good becaus they are fair." },
+      { "key": "body", "index": 0, "label": "Body", "text": "First, uniforms save time in the morning becase everyone wears the same clothes." },
+      { "key": "conclusion", "index": 0, "label": "Conclusion", "text": "I think uniforms are good for our school." }
+    ]
+  },
+  "previousNextSteps": [
+    {
+      "key": "introduction",
+      "index": 0,
+      "label": "Introduction",
+      "nextStep": "Write one sentence that says why uniforms are good."
+    }
+  ],
+  "sampleReply": {
+    "sections": [
+      {
+        "key": "introduction",
+        "index": 0,
+        "strengths": [
+          { "text": "You said what you think in the first line.", "evidence": "I think school uniforms are good" },
+          { "text": "You gave a reason straight away.", "evidence": "they are fair" }
+        ],
+        "improvements": ["Add one more reason so the reader sees why it is fair."],
+        "evidence": "I think school uniforms are good becaus they are fair",
+        "why": "A second reason helps your reader.",
+        "nextStep": "Write one sentence that says why uniforms are good.",
+        "scaffold": { "kind": "frame", "text": "Try: Uniforms are good because ____." },
+        "mechanicsReview": { "reviewed": true, "hasMore": false },
+        "mechanics": [
+          { "category": "spelling", "original": "becaus", "correction": "because", "explanation": "Because ends with the letter e.", "sourceQuote": "good becaus they are fair" },
+          { "category": "spelling", "original": "zzznotinthedraft", "correction": "nothing", "explanation": "This word is not in the draft.", "sourceQuote": "zzznotinthedraft" }
+        ],
+        "score": 3
+      },
+      {
+        "key": "body",
+        "index": 0,
+        "strengths": ["You started the reason with First."],
+        "improvements": [
+          "Use → to show the correct spelling of becase.",
+          "Add one example about time in the morning.",
+          "Say what the reader should think next."
+        ],
+        "evidence": "First, uniforms save time in the morning",
+        "why": "An example lets the reader see the reason.",
+        "nextStep": "Add one sentence that starts with For example.",
+        "mechanicsReview": { "reviewed": true, "hasMore": false },
+        "mechanics": [
+          { "category": "spelling", "original": "becase", "correction": "because", "explanation": "Because ends with the letter e.", "sourceQuote": "morning becase everyone" },
+          { "category": "spelling", "original": "uniformz", "correction": "uniforms", "explanation": "Uniforms ends with the letter s.", "sourceQuote": "uniformz" }
+        ],
+        "score": 3
+      },
+      {
+        "key": "conclusion",
+        "index": 0,
+        "strengths": ["The last sentence repeats your main idea."],
+        "improvements": ["End with a new idea. Do not only say the same thing again."],
+        "evidence": "I think uniforms are good for our school",
+        "why": "A closing idea helps the reader remember the point.",
+        "nextStep": "Write one sentence about how uniforms help next year.",
+        "score": 3
+      }
+    ],
+    "overall": {
+      "summary": "You said what you think and gave one reason. Next, add one example.",
+      "nextPriorities": [
+        "Add one example about time in the morning.",
+        "Join two short sentences with because.",
+        "Write one more reason in the introduction."
+      ]
+    },
+    "scores": [
+      { "key": "ideas", "score": 3, "explanation": "One opinion is stated and one reason is given.", "evidence": "I think that school uniforms are fair" },
+      { "key": "organisation", "score": 3, "explanation": "The reason starts with First and the end repeats the opinion.", "evidence": "First, uniforms save time in the morning" },
+      { "key": "conventions", "score": 2, "explanation": "Two common words are misspelled.", "evidence": "school uniforms are good becaus" }
+    ],
+    "spellingTargets": [],
+    "recommendation": { "path": "revise", "reason": "One short draft with an example will show the reason clearly." }
+  }
+}

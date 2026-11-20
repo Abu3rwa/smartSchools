@@ -61,6 +61,36 @@ const PROFANITY = [
     "حقير", "غبي", "تافه"
 ];
 
+// Praise with nothing behind it (A14). Only a string made *entirely* of these
+// words is dropped: a real sentence that happens to use "great" says what the
+// child did, and that sentence survives.
+const PRAISE_CORE = new Set([
+    "great", "good", "amazing", "awesome", "fantastic", "wonderful", "superb",
+    "brilliant", "excellent", "outstanding", "perfect", "super", "star", "proud",
+    "nice", "lovely", "رائع", "مذهل", "ممتاز", "أحسنت", "مبدع"
+]);
+const PRAISE_FILLER = new Set([
+    "job", "work", "well", "done", "keep", "it", "up", "the", "you", "your",
+    "are", "a", "an", "so", "of", "this", "that", "writing", "effort", "very",
+    "and", "i", "am", "we", "too", "what", "writer", "piece", "great", "little",
+    "one", "big", "such", "as", "on", "in", "to", "with", "is", "was", "were",
+    "have", "has", "made", "did", "do", "way", "go", "keep", "up"
+]);
+
+const praiseTokens = (text) => String(text || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+/** True when the whole string is praise cliché: "Great job!", "Amazing work". */
+export function isPraiseOnly(text) {
+    const tokens = praiseTokens(text);
+    if (!tokens.length || tokens.length > 10) return false;
+    if (!tokens.some((token) => PRAISE_CORE.has(token))) return false;
+    return tokens.every((token) => PRAISE_CORE.has(token) || PRAISE_FILLER.has(token));
+}
+
 const normalize = (text) => String(text || "").replace(/\s+/g, " ").toLowerCase();
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -192,6 +222,54 @@ export function scrubForPrompt(value, {
     return text;
 }
 
+/**
+ * Deepest nesting any walker will follow. Prompts, replies and stored feedback
+ * are shallow by design; anything past this is malformed data, not content.
+ */
+export const MAX_WALK_DEPTH = 64;
+
+/** Keys that carry ORM internals rather than data. */
+const INTERNAL_KEYS = new Set(["_parent", "_doc", "_pres", "_posts", "$__", "$isNew", "__v"]);
+
+/**
+ * Copy a value into plain JSON. Mongoose documents, subdocuments and ObjectIds
+ * never leave this function, so no later walker can follow a parent
+ * back-reference into a cycle. Cyclic and over-deep branches become empty
+ * strings: unreachable data must not be passed along as if it were content.
+ */
+export function toPlain(value, { maxDepth = MAX_WALK_DEPTH } = {}) {
+    const seen = new WeakSet();
+
+    const walk = (entry, depth) => {
+        if (entry === null || entry === undefined) return entry;
+        const kind = typeof entry;
+        if (kind === "string" || kind === "number" || kind === "boolean") return entry;
+        if (kind === "bigint") return String(entry);
+        if (kind === "function" || kind === "symbol") return "";
+        if (kind !== "object") return entry;
+        if (entry instanceof Date) return entry.toISOString();
+        if (typeof entry.toHexString === "function") return String(entry);
+        if (depth >= maxDepth || seen.has(entry)) return "";
+        seen.add(entry);
+
+        const source =
+            !Array.isArray(entry) && typeof entry.toObject === "function"
+                ? entry.toObject({ virtuals: false, getters: false })
+                : entry;
+
+        if (Array.isArray(source)) return source.map((row) => walk(row, depth + 1));
+
+        const output = {};
+        for (const [key, row] of Object.entries(source)) {
+            if (!key || INTERNAL_KEYS.has(key)) continue;
+            output[key] = walk(row, depth + 1);
+        }
+        return output;
+    };
+
+    return walk(value, 0);
+}
+
 /** Server-side name insertion for a single string. */
 export function fillStudentTokens(content, name) {
     const value = String(name || "").trim() || "your child";
@@ -202,15 +280,20 @@ export function fillStudentTokens(content, name) {
  * Server-side name insertion for a nested JSON reply. Assessment replies quote
  * the student's own words, so the name token can appear inside any string.
  */
-export function fillStudentTokensDeep(value, name) {
+export function fillStudentTokensDeep(value, name, depth = 0, seen = new WeakSet()) {
     if (typeof value === "string") return fillStudentTokens(value, name);
-    if (Array.isArray(value)) return value.map((entry) => fillStudentTokensDeep(entry, name));
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value).map(([key, entry]) => [key, fillStudentTokensDeep(entry, name)])
-        );
+    if (value === null || typeof value !== "object") return value;
+    if (depth >= MAX_WALK_DEPTH || seen.has(value)) return "";
+    seen.add(value);
+    if (Array.isArray(value)) {
+        return value.map((entry) => fillStudentTokensDeep(entry, name, depth + 1, seen));
     }
-    return value;
+    const output = {};
+    for (const [key, entry] of Object.entries(value)) {
+        if (!key || INTERNAL_KEYS.has(key)) continue;
+        output[key] = fillStudentTokensDeep(entry, name, depth + 1, seen);
+    }
+    return output;
 }
 
 /**
@@ -250,14 +333,21 @@ export function createStudentRefs(rows = [], {
         scrubText,
         restore,
         restoreDeep(value) {
-            if (typeof value === "string") return restore(value);
-            if (Array.isArray(value)) return value.map((entry) => this.restoreDeep(entry));
-            if (value && typeof value === "object") {
-                return Object.fromEntries(
-                    Object.entries(value).map(([key, entry]) => [key, this.restoreDeep(entry)])
-                );
-            }
-            return value;
+            const seen = new WeakSet();
+            const walk = (entry, depth) => {
+                if (typeof entry === "string") return restore(entry);
+                if (entry === null || typeof entry !== "object") return entry;
+                if (depth >= MAX_WALK_DEPTH || seen.has(entry)) return "";
+                seen.add(entry);
+                if (Array.isArray(entry)) return entry.map((row) => walk(row, depth + 1));
+                const output = {};
+                for (const [key, row] of Object.entries(entry)) {
+                    if (!key || INTERNAL_KEYS.has(key)) continue;
+                    output[key] = walk(row, depth + 1);
+                }
+                return output;
+            };
+            return walk(value, 0);
         }
     };
 }
@@ -266,7 +356,7 @@ export function createStudentRefs(rows = [], {
  * Inspects prose that will reach a family or a child. Returns the problem codes
  * so the caller can retry with a corrective prompt instead of shipping the text.
  */
-export function inspectGeneratedText(content, { ignore = [], allowToken = false } = {}) {
+export function inspectGeneratedText(content, { ignore = [], allowToken = false, strictPraise = false } = {}) {
     const text = String(content || "").trim();
     if (!text) return { ok: false, problems: ["empty"] };
 
@@ -285,6 +375,9 @@ export function inspectGeneratedText(content, { ignore = [], allowToken = false 
 
     const profanity = hitsAny(haystack, PROFANITY, ignored);
     if (profanity) problems.push(`inappropriate-language:${profanity}`);
+
+    // A hollow compliment teaches nothing; the field is dropped, not shipped.
+    if (strictPraise && isPraiseOnly(text)) problems.push("empty-praise");
 
     if (!allowToken && /\{\{\s*student\s*\}\}/i.test(text)) problems.push("unfilled-name-token");
 
@@ -330,9 +423,12 @@ export function canonicalizeNameTokens(value) {
  * removed, anything left is reported so the caller can refuse the reply.
  * An empty string is not a problem here — callers inspect fields, not replies.
  */
-export function cleanGeneratedString(value) {
+export function cleanGeneratedString(value, { strictPraise = false } = {}) {
     const text = String(value ?? "");
     if (!text.trim()) return { text, problems: [] };
+    // Praise-only prose is removed whole; stripping single words would leave a
+    // broken sentence ("This is an piece").
+    if (strictPraise && isPraiseOnly(text)) return { text: "", problems: [] };
     if (inspectGeneratedText(text, { allowToken: true }).ok) return { text, problems: [] };
     const stripped = stripFlaggedFormulas(text);
     return { text: stripped, problems: inspectGeneratedText(stripped, { allowToken: true }).problems };
@@ -343,33 +439,38 @@ export function cleanGeneratedString(value) {
  * left untouched: a verbatim quote of the child's own writing is evidence, not
  * advice, and rewording it would break the anchor it exists for.
  */
-export function sanitizeGeneratedFields(value, { skipKeys = ["evidence"], path = "" } = {}) {
+export function sanitizeGeneratedFields(value, { skipKeys = ["evidence"], strictPraise = false, path = "", depth = 0, seen = new WeakSet() } = {}) {
     if (typeof value === "string") {
-        const { text, problems } = cleanGeneratedString(value);
+        const { text, problems } = cleanGeneratedString(value, { strictPraise });
         return { value: text, problems: problems.map((problem) => ({ path, problem })) };
     }
+    if (value === null || typeof value !== "object") return { value, problems: [] };
+    if (depth >= MAX_WALK_DEPTH || seen.has(value)) {
+        return { value: "", problems: [{ path, problem: "AI_DEPTH_GUARD" }] };
+    }
+    seen.add(value);
+
     if (Array.isArray(value)) {
         const problems = [];
         const rows = value.map((entry, index) => {
-            const result = sanitizeGeneratedFields(entry, { skipKeys, path: `${path}[${index}]` });
+            const result = sanitizeGeneratedFields(entry, { skipKeys, strictPraise, path: `${path}[${index}]`, depth: depth + 1, seen });
             problems.push(...result.problems);
             return result.value;
         });
         return { value: rows, problems };
     }
-    if (value && typeof value === "object") {
-        const problems = [];
-        const output = {};
-        for (const [key, entry] of Object.entries(value)) {
-            if (skipKeys.includes(key)) {
-                output[key] = entry;
-                continue;
-            }
-            const result = sanitizeGeneratedFields(entry, { skipKeys, path: path ? `${path}.${key}` : key });
-            problems.push(...result.problems);
-            output[key] = result.value;
+
+    const problems = [];
+    const output = {};
+    for (const [key, entry] of Object.entries(value)) {
+        if (INTERNAL_KEYS.has(key)) continue;
+        if (skipKeys.includes(key)) {
+            output[key] = entry;
+            continue;
         }
-        return { value: output, problems };
+        const result = sanitizeGeneratedFields(entry, { skipKeys, strictPraise, path: path ? `${path}.${key}` : key, depth: depth + 1, seen });
+        problems.push(...result.problems);
+        output[key] = result.value;
     }
-    return { value, problems: [] };
+    return { value: output, problems };
 }
