@@ -174,7 +174,13 @@ export const protect = async (req, res, next) => {
 // Authorize specific roles
 export const authorize = (...roles) => {
     return (req, res, next) => {
-        const userRoles = [req.user.role, ...(req.user.roles || [])];
+        // Administration routes follow the role the account is acting as.
+        // `roles` on the user powers role switching, so it must not let a
+        // teacher account reach admin-only endpoints without switching back.
+        const adminOnly = roles.length > 0 && roles.every(role => role === 'admin' || role === 'super_admin');
+        const userRoles = adminOnly
+            ? [req.user.role]
+            : [req.user.role, ...(req.user.roles || [])];
         const hasRole = roles.some(role => userRoles.includes(role));
         if (!hasRole) {
             return res.status(403).json({

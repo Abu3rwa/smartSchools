@@ -118,6 +118,71 @@ test('a retryable failure moves to the fallback model when one is configured', a
     assert.equal(reply.modelName, 'gpt-test-nano');
 });
 
+test('a requested reasoning effort travels with the advanced body', async (t) => {
+    withOpenAiEnv(t);
+    const calls = [];
+    t.mock.method(globalThis, 'fetch', async (url, init) => {
+        calls.push(init);
+        return jsonResponse(openAiReply());
+    });
+
+    await connectAi('Design a slide.', { provider: 'openai', json: true, maxTokens: 900, reasoningEffort: 'Medium' });
+
+    const body = JSON.parse(calls[0].body);
+    assert.equal(body.reasoning_effort, 'medium');
+    assert.equal(body.max_completion_tokens, 900);
+    assert.deepEqual(body.response_format, { type: 'json_object' });
+});
+
+test('an endpoint that refuses reasoning_effort gets the plain request instead of failing', async (t) => {
+    withOpenAiEnv(t);
+    const bodies = [];
+    t.mock.method(globalThis, 'fetch', async (url, init) => {
+        bodies.push(JSON.parse(init.body));
+        if (bodies.length === 1) {
+            return jsonResponse({ error: { message: "Unsupported parameter: 'reasoning_effort'" } }, 400);
+        }
+        return jsonResponse(openAiReply());
+    });
+
+    const reply = await connectAi('Design a slide.', { provider: 'openai', json: true, reasoningEffort: 'medium' });
+
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].reasoning_effort, 'medium');
+    assert.equal('reasoning_effort' in bodies[1], false);
+    assert.equal(reply.text, '{"ok":true}');
+});
+
+test('an unknown reasoning effort is rejected before any provider call', async (t) => {
+    withOpenAiEnv(t);
+    let called = false;
+    t.mock.method(globalThis, 'fetch', async () => {
+        called = true;
+        return jsonResponse(openAiReply());
+    });
+
+    await assert.rejects(
+        () => connectAi('Design a slide.', { provider: 'openai', reasoningEffort: 'extreme' }),
+        (error) => error.status === 400 && /reasoningEffort/.test(error.message)
+    );
+    assert.equal(called, false);
+});
+
+test('deferCharge skips the credit gate and returns token counts to the caller', async (t) => {
+    withOpenAiEnv(t);
+    t.mock.method(globalThis, 'fetch', async () => jsonResponse(openAiReply()));
+
+    const reply = await connectAi('Design a slide.', {
+        provider: 'openai',
+        deferCharge: true,
+        usage: { schoolId: '665f1f77bcf86cd799439011', userId: '665f1f77bcf86cd799439012', billable: true }
+    });
+
+    assert.equal(reply.inputtokenCount, 120);
+    assert.equal(reply.outputtokenCount, 40);
+    assert.equal(reply.usage, undefined);
+});
+
 test('an unknown provider is rejected instead of falling back silently', async () => {
     await assert.rejects(
         () => connectAi('Write JSON.', { provider: 'nonsense' }),

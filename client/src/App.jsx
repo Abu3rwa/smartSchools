@@ -10,6 +10,7 @@ import i18n from "./i18n";
 import { isRtlLanguage, normalizeLanguage } from "./i18n/config";
 import { ltrCache, rtlCache } from "./i18n/rtlCache";
 import { markReturning } from "./utils/returningVisitor";
+import { isAdminOnly } from "./utils/adminAccess.js";
 import {
   selectIsAuthenticated,
   selectAuth,
@@ -181,6 +182,7 @@ const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperA
 const SuperAdminDemoRequestsPage = lazy(() => import("./pages/superAdmin/SuperAdminDemoRequestsPage"));
 const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 const LiveLessonsPage = lazy(() => import("./pages/liveLessons/LiveLessonsPage"));
+const LiveLessonBuilderPage = lazy(() => import("./pages/liveLessons/builder/LiveLessonBuilderPage"));
 const LiveLessonSessionPage = lazy(() => import("./pages/liveLessons/LiveLessonSessionPage"));
 const LiveLessonJoinPage = lazy(() => import("./pages/liveLessons/LiveLessonJoinPage"));
 const LiveLessonReviewPage = lazy(() => import("./pages/liveLessons/LiveLessonReviewPage"));
@@ -392,8 +394,10 @@ const RoleRoute = ({ roles = [], permissions = [], children }) => {
   }
 
   const assignedRoles = Array.isArray(user.roles) ? user.roles : [];
-  const hasRoleAccess =
-    roles.includes(user.role) || assignedRoles.some((role) => roles.includes(role));
+  // Administration routes follow the role the account is acting as; an admin
+  // role it switched away from must not open them.
+  const hasRoleAccess = roles.includes(user.role)
+    || (!isAdminOnly(roles) && assignedRoles.some((role) => roles.includes(role)));
   const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
   const hasPermissionAccess =
     permissions.length > 0 && permissions.some((permission) => userPermissions.includes(permission));
@@ -1475,6 +1479,22 @@ function App() {
                   element={
                     <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                       <LiveLessonsPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/ai-builder"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonBuilderPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/ai-builder/:draftId"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonBuilderPage />
                     </RoleRoute>
                   }
                 />

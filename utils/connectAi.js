@@ -3,7 +3,9 @@ import { getAiUsageContext } from "./aiUsageContext.js";
 
 /** True when this call belongs to a user request that must be billed. */
 const isMetered = (options) =>
-  options.usage !== false && (Boolean(options.usage) || Boolean(getAiUsageContext()));
+  options.deferCharge !== true
+  && options.usage !== false
+  && (Boolean(options.usage) || Boolean(getAiUsageContext()));
 
 /** Block a billable call with no credit before any provider is contacted. */
 const gateAiCredit = async (options) => {
@@ -29,6 +31,17 @@ const DEFAULT_MODEL_NAME = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const OPENAI_TIMEOUT_MS = () => Number(process.env.OPENAI_TIMEOUT_MS) || 120000;
 
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+const REASONING_EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+const normalizeReasoningEffort = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  const effort = String(value).trim().toLowerCase();
+  if (!REASONING_EFFORTS.has(effort)) {
+    throw invalidInput(`reasoningEffort must be one of: ${[...REASONING_EFFORTS].join(", ")}.`);
+  }
+  return effort;
+};
 
 const invalidInput = (message) => {
   const error = new Error(message);
@@ -96,6 +109,7 @@ async function connectOpenAi(prompt, options = {}) {
     .filter((model, index, all) => model && all.indexOf(model) === index);
 
   const maxTokens = Number(options.maxTokens);
+  const reasoningEffort = normalizeReasoningEffort(options.reasoningEffort);
   const requestBody = (candidateModel, advanced) => ({
     model: candidateModel,
     service_tier: "default",
@@ -104,18 +118,19 @@ async function connectOpenAi(prompt, options = {}) {
     ...(advanced && Number.isFinite(maxTokens) && maxTokens > 0
       ? { max_completion_tokens: maxTokens }
       : {}),
+    ...(advanced && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
   });
-  // An endpoint that rejects JSON mode or the token cap still gets a plain
-  // request rather than failing the whole call.
+  // An endpoint that rejects JSON mode, the token cap or reasoning effort still
+  // gets a plain request rather than failing the whole call.
   const rejectsAdvancedOptions = (message) =>
-    /response_format|max_completion_tokens|max_tokens|json_object/i.test(String(message || ""));
+    /response_format|max_completion_tokens|max_tokens|json_object|reasoning_effort/i.test(String(message || ""));
 
   let lastError = null;
 
   for (const candidateModel of modelsToTry) {
     let response;
     let payload = {};
-    let advanced = Boolean(options.json || (Number.isFinite(maxTokens) && maxTokens > 0));
+    let advanced = Boolean(options.json || reasoningEffort || (Number.isFinite(maxTokens) && maxTokens > 0));
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         response = await fetch(`${baseUrl}/chat/completions`, {

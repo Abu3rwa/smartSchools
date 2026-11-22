@@ -17,6 +17,8 @@ import { useSelector } from "react-redux";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
 import LiveStudentAnswer from "../../components/liveLessons/LiveStudentAnswer";
 import useLiveLessonSocket from "../../hooks/useLiveLessonSocket";
+import { useFeatureNamespaces } from "../../i18n/useFeatureNamespaces";
+import { sourceChips } from "./liveLessonSourceChip.js";
 import "./LiveLessonSessionPage.css";
 
 const LivePresentationToolbar = ({
@@ -31,6 +33,7 @@ const LivePresentationToolbar = ({
   isTeacher,
   sessionStatus,
   sessionJoined,
+  sourceLabel,
   cursorSpotlightEnabled,
   onBack,
   onToggleFullscreen,
@@ -54,6 +57,11 @@ const LivePresentationToolbar = ({
           .join(" · ")}
       </span>
     </div>
+    {!observer && sourceLabel && (
+      <span className="live-source-chip" title={sourceLabel}>
+        {sourceLabel}
+      </span>
+    )}
     <span className={`live-connection-pill ${connection}`}>
       {observer
         ? "Observer"
@@ -115,6 +123,8 @@ const LiveLessonSessionPage = () => {
       : user?.role === "teacher"
         ? "teacher"
         : "observer";
+  const { t: tBuilder, i18n } = useFeatureNamespaces("liveLessonBuilder");
+  const locale = i18n.language || "en";
   const [session, setSession] = useState(null);
   const socketRole = session?.isOwner ? "teacher" : role;
   const {
@@ -162,6 +172,9 @@ const LiveLessonSessionPage = () => {
   }, [sessionId]);
 
   const state = socketState || session?.state;
+  const sourceLabel = state?.sourceMeta
+    ? sourceChips(state.sourceMeta, tBuilder, locale).join(" · ")
+    : "";
   const slide = state?.slide;
   const sessionStatus = state?.status || session?.status;
   const isTeacher = Boolean(session?.isOwner);
@@ -667,6 +680,7 @@ const LiveLessonSessionPage = () => {
                   isTeacher={isTeacher}
                   sessionStatus={sessionStatus}
                   sessionJoined={sessionJoined}
+                  sourceLabel={sourceLabel}
                   cursorSpotlightEnabled={cursorSpotlight.enabled}
                   isFullscreen={isFullscreen}
                   timerText={sessionStatus === "live" ? timerText : ""}
@@ -708,6 +722,7 @@ const LiveLessonSessionPage = () => {
                 isTeacher={isTeacher}
                 sessionStatus={sessionStatus}
                 sessionJoined={sessionJoined}
+                sourceLabel={sourceLabel}
                 cursorSpotlightEnabled={cursorSpotlight.enabled}
                 isFullscreen={isFullscreen}
                 timerText={sessionStatus === "live" ? timerText : ""}
@@ -751,7 +766,14 @@ const LiveLessonSessionPage = () => {
                               : "Waiting for teacher"}
                         </span>
                       </div>
-                      <h2>{slide.question.prompt}</h2>
+                      <h2>
+                        {slide.question.kind === "fill_in_blank"
+                          ? String(slide.question.prompt || "").replace(
+                              /\{\{\s*(?:blank:)?\s*[A-Za-z0-9_-]+\s*\}\}/g,
+                              "____",
+                            )
+                          : slide.question.prompt}
+                      </h2>
                       <LiveStudentAnswer
                         key={String(slide._id)}
                         question={slide.question}

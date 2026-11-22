@@ -110,6 +110,13 @@ export default function LiveLessonSlide({
   const items =
     slide.type === "examples" ? slide.examples || [] : splitItems(slide.body);
   const imageSrc = renderableImageUrl(slide.imageUrl);
+  const displayTitle =
+    slide.type === "question"
+      ? String(slide.title || "").replace(
+          /\{\{\s*(?:blank:)?\s*[A-Za-z0-9_-]+\s*\}\}/g,
+          "____",
+        )
+      : slide.title;
   return (
     <article className={`live-slide live-slide-${slide.type}`}>
       <header className="live-slide-header">
@@ -124,7 +131,7 @@ export default function LiveLessonSlide({
         </span>
       </header>
       <div className="live-slide-content">
-        {slide.title && <h1>{slide.title}</h1>}
+        {displayTitle && <h1>{displayTitle}</h1>}
         {slide.type === "goals" && items.length > 1 ? (
           <div className="live-goal-grid">
             {items.map((item, itemIndex) => (

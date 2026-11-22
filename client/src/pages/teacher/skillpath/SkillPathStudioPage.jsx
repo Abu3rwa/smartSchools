@@ -146,8 +146,8 @@ const SkillPathStudioPage = () => {
   const removePack = async (pack) => {
     if (!window.confirm(t("studio.confirmDeletePack", { title: pack.title }))) return;
     try {
-      await skillpathService.deletePack(pack._id);
-      toast.success(t("studio.packDeleted"));
+      const result = await skillpathService.deletePack(pack._id);
+      toast.success(result?.archived ? t("studio.packDeletedArchived") : t("studio.packDeleted"));
       loadAll();
     } catch (error) {
       toast.error(error?.response?.data?.message || t("errors.generic"));
@@ -210,10 +210,6 @@ const SkillPathStudioPage = () => {
   };
 
   const archiveSkill = async (skill) => {
-    if ((skill.itemCount || 0) > 0) {
-      toast.error(t("studio.skillInUse"));
-      return;
-    }
     if (!window.confirm(t("studio.confirmArchiveSkill", { name: skill.name }))) return;
     try {
       await skillpathService.updateSkill(skill._id, { status: "archived" });
@@ -226,14 +222,10 @@ const SkillPathStudioPage = () => {
   };
 
   const removeSkill = async (skill) => {
-    if ((skill.packCount || 0) > 0 || (skill.itemCount || 0) > 0) {
-      toast.error(t("studio.skillInUse"));
-      return;
-    }
     if (!window.confirm(t("studio.confirmDeleteSkill", { name: skill.name }))) return;
     try {
-      await skillpathService.deleteSkill(skill._id);
-      toast.success(t("studio.skillDeleted"));
+      const result = await skillpathService.deleteSkill(skill._id);
+      toast.success(result?.archived ? t("studio.skillArchivedHistory") : t("studio.skillDeleted"));
       if (String(skill._id) === skillFilter) setSkillFilter("");
       loadAll();
     } catch (error) {
@@ -525,7 +517,6 @@ const SkillPathStudioPage = () => {
               <div className="sp-card sp-rail-list">
                 {visibleSkills.map((skill) => {
                   const selected = String(skill._id) === skillFilter;
-                  const inUse = (skill.itemCount || 0) > 0;
                   return (
                     <div key={skill._id} className={`sp-skill-row${selected ? " is-active" : ""}`}>
                       <div className="sp-skill-row__name">
@@ -550,18 +541,15 @@ const SkillPathStudioPage = () => {
                       </button>
                       <button
                         type="button"
-                        className={`sp-btn sp-btn--sm${inUse ? " sp-btn--muted" : ""}`}
+                        className="sp-btn sp-btn--sm"
                         onClick={() => archiveSkill(skill)}
-                        aria-disabled={inUse}
                       >
                         {t("studio.archiveSkill")}
                       </button>
                       <button
                         type="button"
-                        className={`sp-btn sp-btn--danger sp-btn--sm${inUse ? " sp-btn--muted" : ""}`}
+                        className="sp-btn sp-btn--danger sp-btn--sm"
                         onClick={() => removeSkill(skill)}
-                        aria-disabled={inUse}
-                        title={inUse ? t("studio.skillInUse") : undefined}
                       >
                         {t("studio.deleteSkill")}
                       </button>

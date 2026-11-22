@@ -11,8 +11,17 @@ export const OPENAI_MINI_RATES = {
     outputPerMillionCents: 450
 };
 
+// GPT-6 Luna standard tier: $0.10 input / $0.01 cached input / $0.50 output per
+// million tokens, verified 2026-11-21 at https://developers.openai.com/api/docs/pricing.
+export const GPT6_LUNA_RATES = {
+    inputPerMillionCents: 10,
+    cachedInputPerMillionCents: 1,
+    outputPerMillionCents: 50
+};
+
 const MODEL_RATES = {
-    'gpt-5.4-mini': OPENAI_MINI_RATES
+    'gpt-5.4-mini': OPENAI_MINI_RATES,
+    'gpt-6-luna': GPT6_LUNA_RATES
 };
 
 const RATE_FIELDS = ['inputPerMillionCents', 'cachedInputPerMillionCents', 'outputPerMillionCents'];

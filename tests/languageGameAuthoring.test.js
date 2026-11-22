@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import mongoose from 'mongoose';
 
+import GamePack from '../models/GamePack.js';
 import GameSkill from '../models/GameSkill.js';
 import {
+    archiveWithRevision,
     ImportConflictError,
     revisionValue,
     saveWithRevision,
@@ -13,49 +14,112 @@ import {
 } from '../services/languageGameAuthoring.js';
 
 const SCHOOL = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+const PACK_ID = 'bbbbbbbbbbbbbbbbbbbbbbbb';
 const SKILL = 'cccccccccccccccccccccccc';
 const SKILL_2 = 'cccccccccccccccccccccccd';
 
-const doc = (overrides = {}) => ({
-    authoringRevision: 3,
-    revision: 2,
-    saves: [],
-    save(options) { this.saves.push({ options, where: { ...this.$where } }); return Promise.resolve(this); },
-    ...overrides
+const packDoc = ({ revision, modified = { status: 'archived' } } = {}) => ({
+    constructor: GamePack,
+    _id: PACK_ID,
+    authoringRevision: revision,
+    modifiedPaths: () => Object.keys(modified),
+    get: (path) => modified[path]
 });
+
+const mockUpdate = (t, result) => {
+    const calls = [];
+    t.mock.method(GamePack, 'findOneAndUpdate', async (filter, update, options) => {
+        calls.push({ filter, update, options });
+        return result;
+    });
+    return calls;
+};
 
 /* ------------------------------------------------------------------ */
 /* Revision compare-and-set                                            */
 /* ------------------------------------------------------------------ */
 
-test('saveWithRevision bumps the counter and pins the loaded revision in $where', async () => {
-    const pack = doc();
-    await saveWithRevision(pack, { field: 'authoringRevision', schoolId: SCHOOL });
-    assert.equal(pack.authoringRevision, 4);
-    assert.deepEqual(pack.$where, { school: SCHOOL, authoringRevision: 3 });
+test('saveWithRevision writes only the changed paths and bumps the counter', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID, authoringRevision: 4 });
+    const saved = await saveWithRevision(packDoc({ revision: 3 }), { field: 'authoringRevision', schoolId: SCHOOL });
+    assert.deepEqual(calls[0].filter, { _id: PACK_ID, school: SCHOOL, authoringRevision: 3 });
+    assert.deepEqual(calls[0].update.$set, { status: 'archived', authoringRevision: 4 });
+    assert.equal(calls[0].options.new, true);
+    assert.equal(calls[0].options.runValidators, true);
+    assert.equal(saved.authoringRevision, 4);
 });
 
-test('an explicit expected revision overrides the loaded value', async () => {
-    const pack = doc({ authoringRevision: 9 });
-    await saveWithRevision(pack, { field: 'authoringRevision', expected: 4, schoolId: SCHOOL });
-    assert.deepEqual(pack.$where, { school: SCHOOL, authoringRevision: 4 });
+test('schema defaults on a legacy row are never written', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    await saveWithRevision(packDoc({ revision: 0 }), { field: 'authoringRevision', schoolId: SCHOOL });
+    assert.deepEqual(Object.keys(calls[0].update.$set).sort(), ['authoringRevision', 'status']);
+    assert.equal(calls[0].update.$inc, undefined);
 });
 
-test('legacy documents without a counter match 0 or null', async () => {
-    const pack = doc({ authoringRevision: undefined });
+test('an explicit expected revision overrides the loaded value', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    await saveWithRevision(packDoc({ revision: 9 }), { field: 'authoringRevision', expected: 4, schoolId: SCHOOL });
+    assert.equal(calls[0].filter.authoringRevision, 4);
+    assert.equal(calls[0].update.$set.authoringRevision, 10);
+});
+
+test('legacy documents without a counter match 0 or null', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    const pack = packDoc({ revision: undefined });
     assert.equal(revisionValue(pack, 'authoringRevision'), null);
     await saveWithRevision(pack, { field: 'authoringRevision', schoolId: SCHOOL });
-    assert.equal(pack.authoringRevision, 1);
-    assert.deepEqual(pack.$where.authoringRevision, { $in: [0, null] });
+    assert.deepEqual(calls[0].filter.authoringRevision, { $in: [0, null] });
+    assert.equal(calls[0].update.$set.authoringRevision, 1);
 });
 
-test('a lost compare-and-set becomes a 409 conflict, not a silent overwrite', async () => {
-    const pack = doc({
-        save: async () => { throw new mongoose.Error.DocumentNotFoundError({}); }
-    });
+test('a schema-defaulted counter of 0 also matches rows stored without one', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    await saveWithRevision(packDoc({ revision: 0 }), { field: 'authoringRevision', schoolId: SCHOOL });
+    assert.deepEqual(calls[0].filter.authoringRevision, { $in: [0, null] });
+    assert.equal(calls[0].update.$set.authoringRevision, 1);
+});
+
+test('the transaction session is passed to the write', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    const session = { id: 'session' };
+    await saveWithRevision(packDoc({ revision: 1 }), { field: 'authoringRevision', schoolId: SCHOOL, session });
+    assert.equal(calls[0].options.session, session);
+});
+
+test('a lost compare-and-set becomes a 409 conflict, not a silent overwrite', async (t) => {
+    mockUpdate(t, null);
     await assert.rejects(
-        saveWithRevision(pack, { field: 'authoringRevision', schoolId: SCHOOL }),
+        saveWithRevision(packDoc({ revision: 2 }), { field: 'authoringRevision', schoolId: SCHOOL }),
         (error) => error instanceof ImportConflictError && error.status === 409 && error.code === 'REVISION_CONFLICT'
+    );
+});
+
+/* ------------------------------------------------------------------ */
+/* Archiving never depends on the loaded counter                      */
+/* ------------------------------------------------------------------ */
+
+test('archiveWithRevision archives a legacy row a stale counter would have blocked', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID, status: 'archived', authoringRevision: 1 });
+    const saved = await archiveWithRevision(packDoc({ revision: 0 }), { field: 'authoringRevision', schoolId: SCHOOL });
+    assert.deepEqual(calls[0].filter, { _id: PACK_ID, school: SCHOOL });
+    assert.deepEqual(calls[0].update.$set, { status: 'archived', authoringRevision: 1 });
+    assert.equal(calls[0].options.new, true);
+    assert.equal(saved.status, 'archived');
+});
+
+test('archiveWithRevision moves the counter forward and keeps the session', async (t) => {
+    const calls = mockUpdate(t, { _id: PACK_ID });
+    const session = { id: 'session' };
+    await archiveWithRevision(packDoc({ revision: 5 }), { field: 'authoringRevision', schoolId: SCHOOL, session });
+    assert.equal(calls[0].update.$set.authoringRevision, 6);
+    assert.equal(calls[0].options.session, session);
+});
+
+test('archiveWithRevision reports a record that disappeared', async (t) => {
+    mockUpdate(t, null);
+    await assert.rejects(
+        archiveWithRevision(packDoc({ revision: 0 }), { field: 'authoringRevision', schoolId: SCHOOL }),
+        (error) => error instanceof ImportConflictError && error.status === 409
     );
 });
 

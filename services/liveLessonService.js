@@ -212,6 +212,8 @@ export const buildSharedState = (session, viewer = null) => {
       slideHidden: session.slideHidden,
       studentsFullscreen: Boolean(session.studentsFullscreen),
       questionOpen: session.questionOpen,
+      // Read-only source chip data; the lesson text never travels with it.
+      sourceMeta: session.lessonSnapshot?.sourceMeta || null,
       slide: safeSlide(viewSlide),
       myAnswer: null,
       revealed: Boolean(questionRevealed && question),

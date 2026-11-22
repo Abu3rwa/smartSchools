@@ -85,6 +85,36 @@ const variantSchema = new Schema(
   { _id: false },
 );
 
+const lessonPageRangeSchema = new Schema(
+  {
+    first: { type: Number, required: true, min: 1 },
+    last: { type: Number, required: true, min: 1 },
+  },
+  { _id: false },
+);
+
+/**
+ * The non-interactive source chip the teacher and students see. Names, pages and
+ * counts only; a builder lesson's source text is never copied here.
+ */
+const lessonSourceMetaSchema = new Schema(
+  {
+    origin: { type: String, enum: ["paste", "upload", ""], default: "" },
+    pastedChars: { type: Number, default: 0, min: 0 },
+    files: {
+      type: [new Schema({
+        name: { type: String, default: "", maxlength: 200 },
+        sourceType: { type: String, default: "", maxlength: 20 },
+        chars: { type: Number, default: 0, min: 0 },
+        pageCount: { type: Number, default: null, min: 1 },
+        pages: { type: lessonPageRangeSchema, default: null },
+      }, { _id: false })],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
 const slideSchema = new Schema(
   {
     order: { type: Number, required: true, min: 0 },
@@ -123,10 +153,14 @@ const liveLessonSchema = new Schema(
     grade: { type: String, trim: true, maxlength: 80, default: "" },
     language: { type: String, trim: true, maxlength: 20, default: "en" },
     isDone: { type: Boolean, default: false },
-    source: { type: String, enum: ["csv"], default: "csv" },
+    source: { type: String, enum: ["csv", "ai"], default: "csv" },
+    // The builder draft that produced this lesson. Unique so a retried approval
+    // can never save the same draft twice; ordinary CSV lessons leave it unset.
+    sourceDraftId: { type: Schema.Types.ObjectId, ref: "LiveLessonDraft", default: undefined },
     originLessonId: { type: Schema.Types.ObjectId, ref: "LiveLesson", default: null },
     originOwnerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     originShareInvitationId: { type: Schema.Types.ObjectId, ref: "LiveLessonShareInvitation", default: undefined },
+    sourceMeta: { type: lessonSourceMetaSchema, default: () => ({}) },
     slides: { type: [slideSchema], required: true, validate: [(slides) => slides.length > 0 && slides.length <= 200, "Lessons need 1–200 slides"] },
   },
   { timestamps: true },
@@ -137,6 +171,10 @@ liveLessonSchema.index({ school: 1, academicYear: 1 });
 liveLessonSchema.index(
   { originShareInvitationId: 1 },
   { unique: true, partialFilterExpression: { originShareInvitationId: { $type: "objectId" } } },
+);
+liveLessonSchema.index(
+  { sourceDraftId: 1 },
+  { unique: true, partialFilterExpression: { sourceDraftId: { $type: "objectId" } } },
 );
 liveLessonSchema.plugin(tenantIsolationPlugin);
 

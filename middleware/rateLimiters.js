@@ -29,6 +29,24 @@ export const aiFeatureRateLimiter = rateLimit({
 });
 
 /**
+ * The lesson builder runs one small call per chunk, so a 50-slide lesson can
+ * legitimately make 21 calls. This ceiling still stops a scripted loop while
+ * letting the largest allowed lesson finish.
+ */
+export const liveLessonBuilderRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        code: 'AI_RATE_LIMITED',
+        message: 'Too many AI requests. Please wait a few minutes and try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * The student tutor is a conversation, so a session can legitimately hold more
  * requests than a one-shot AI feature. The student's wallet is the real cap;
  * this only stops a scripted loop.

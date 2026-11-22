@@ -10,7 +10,10 @@ import {
   linkLiveLessonLevels,
 } from "../../utils/liveLessonQuestionDraft.js";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
+import liveLessonBuilderService from "../../services/liveLessonBuilderService";
+import { useFeatureNamespaces } from "../../i18n/useFeatureNamespaces";
 import LiveLessonsHeader from "./components/LiveLessonsHeader";
+import AiDraftsStrip from "./components/AiDraftsStrip";
 import SettingsPanel from "./components/SettingsPanel";
 import SelectionBar from "./components/SelectionBar";
 import ShareInvitations from "./components/ShareInvitations";
@@ -48,6 +51,9 @@ const LiveLessonsPage = () => {
   const classes = useSelector(selectClasses);
   const subjects = useSelector(selectSubjects);
   const user = useSelector(selectUser);
+  const { t: builderT, i18n: builderI18n } =
+    useFeatureNamespaces("liveLessonBuilder");
+  const builderLocale = builderI18n.language || "en";
   const [lessons, setLessons] = useState([]);
   const [folders, setFolders] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -109,6 +115,14 @@ const LiveLessonsPage = () => {
   const [savingHtmlReviewSetting, setSavingHtmlReviewSetting] = useState(false);
   const [markDraftEnabled, setMarkDraftEnabled] = useState(false);
   const [savingMarkDraftSetting, setSavingMarkDraftSetting] = useState(false);
+  const [aiBuilderEnabled, setAiBuilderEnabled] = useState(false);
+  const [savingAiBuilderSetting, setSavingAiBuilderSetting] = useState(false);
+  const [aiBuilder, setAiBuilder] = useState({
+    available: false,
+    reason: "platform_disabled",
+  });
+  const [aiDrafts, setAiDrafts] = useState([]);
+  const [discardingDraftId, setDiscardingDraftId] = useState("");
   const [lessonListState, setLessonListState] = useState(defaultListState);
   const [sessionListState, setSessionListState] = useState(defaultListState);
   const [sessionSearchInput, setSessionSearchInput] = useState("");
@@ -312,6 +326,15 @@ const LiveLessonsPage = () => {
       setMarkDraftEnabled(
         settingsResponse.data?.data?.aiMarkDraftEnabled === true,
       );
+      setAiBuilderEnabled(
+        settingsResponse.data?.data?.aiBuilderEnabled === true,
+      );
+      setAiBuilder(
+        settingsResponse.data?.data?.aiBuilder || {
+          available: false,
+          reason: "platform_disabled",
+        },
+      );
     } catch (requestError) {
       setError(
         requestError.response?.data?.message || "Could not load live lessons.",
@@ -481,6 +504,74 @@ const LiveLessonsPage = () => {
       setSavingHtmlReviewSetting(false);
     }
   };
+
+  const updateAiBuilderSetting = async (enabled) => {
+    setSavingAiBuilderSetting(true);
+    setError("");
+    try {
+      const response = await api.patch("/live/settings", {
+        aiBuilderEnabled: enabled,
+      });
+      setAiBuilderEnabled(response.data?.data?.aiBuilderEnabled === true);
+      setAiBuilder(
+        response.data?.data?.aiBuilder || {
+          available: false,
+          reason: "school_disabled",
+        },
+      );
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Could not update the AI lesson builder setting.",
+      );
+    } finally {
+      setSavingAiBuilderSetting(false);
+    }
+  };
+
+  const loadAiDrafts = useCallback(async () => {
+    try {
+      const data = await liveLessonBuilderService.listDrafts();
+      setAiDrafts(Array.isArray(data?.drafts) ? data.drafts : []);
+    } catch (requestError) {
+      setAiDrafts([]);
+      setError(
+        requestError.response?.data?.message || builderT("drafts.error"),
+      );
+    }
+  }, [builderT]);
+
+  const resumeAiDraft = (draft) => {
+    navigate(`/portal/live-lessons/ai-builder/${draft._id}`);
+  };
+
+  const discardAiDraft = async (draft) => {
+    const title = draft.title?.trim() || builderT("head.untitled");
+    const confirmed = window.confirm(
+      `${builderT("drafts.confirmDeleteTitle")}\n\n${builderT(
+        "drafts.confirmDeleteBody",
+        { title },
+      )}`,
+    );
+    if (!confirmed) return;
+    setDiscardingDraftId(String(draft._id));
+    setError("");
+    try {
+      await liveLessonBuilderService.discardDraft(draft._id);
+      setAiDrafts((current) =>
+        current.filter((row) => String(row._id) !== String(draft._id)),
+      );
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || builderT("drafts.error"));
+    } finally {
+      setDiscardingDraftId("");
+    }
+  };
+
+  useEffect(() => {
+    if (!aiBuilder.available || tab !== "lessons") return;
+    void loadAiDrafts();
+  }, [aiBuilder.available, tab, loadAiDrafts]);
 
   useEffect(() => {
     let active = true;
@@ -1926,6 +2017,8 @@ const LiveLessonsPage = () => {
         onTabChange={setTab}
         onNewFolder={() => createFolder()}
         onImport={openImportEditor}
+        onCreateWithAi={() => navigate("/portal/live-lessons/ai-builder")}
+        aiBuilder={aiBuilder}
         folderSaving={folderSaving}
         onDeleteFinishedSessions={deleteFinishedSessions}
         deletingFinishedSessions={deletingFinishedSessions}
@@ -1959,6 +2052,9 @@ const LiveLessonsPage = () => {
             markDraftEnabled={markDraftEnabled}
             savingMarkDraftSetting={savingMarkDraftSetting}
             onToggleMarkDraft={updateMarkDraftSetting}
+            aiBuilderEnabled={aiBuilderEnabled}
+            savingAiBuilderSetting={savingAiBuilderSetting}
+            onToggleAiBuilder={updateAiBuilderSetting}
           />
         ) : loading || (tab === "lessons" && lessonLoading && !lessonPagination.total) ? (
           <div className="live-loading" role="status">
@@ -1967,6 +2063,16 @@ const LiveLessonsPage = () => {
           </div>
         ) : tab === "lessons" ? (
           <>
+            {aiBuilder.available && aiDrafts.length > 0 && (
+              <AiDraftsStrip
+                drafts={aiDrafts}
+                discardingId={discardingDraftId}
+                onResume={resumeAiDraft}
+                onDiscard={discardAiDraft}
+                t={builderT}
+                locale={builderLocale}
+              />
+            )}
             {["teacher", "admin"].includes(user?.role) &&
               selectedLessonIds.length > 0 && (
                 <SelectionBar

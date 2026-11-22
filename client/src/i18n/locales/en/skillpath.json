@@ -177,14 +177,15 @@
     "archiveSkill": "Archive skill",
     "confirmArchiveSkill": "Archive \"{{name}}\"? It tags no questions, so nothing is lost.",
     "skillArchived": "Skill archived.",
-    "skillInUse": "This skill still tags questions in packs. Remove its questions from those packs first.",
     "duplicateSkill": "This skill already exists — use it instead of adding a duplicate.",
     "deletePack": "Delete pack",
-    "confirmDeletePack": "Delete \"{{title}}\" permanently? This cannot be undone. A pack that was assigned or played can only be archived.",
+    "confirmDeletePack": "Delete \"{{title}}\"? It disappears from the studio and from student lists. If it was assigned or played, past work stays readable.",
     "packDeleted": "Pack deleted.",
+    "packDeletedArchived": "Pack removed from the studio and student lists. Past work stays readable.",
     "deleteSkill": "Delete skill",
-    "confirmDeleteSkill": "Delete \"{{name}}\" permanently? This cannot be undone.",
-    "skillDeleted": "Skill deleted."
+    "confirmDeleteSkill": "Delete \"{{name}}\"? If students have practiced it, it is archived so their history stays readable.",
+    "skillDeleted": "Skill deleted.",
+    "skillArchivedHistory": "Skill removed from the studio and student lists. Past practice stays readable."
   },
   "editor": {
     "title": "Edit pack",
@@ -296,6 +297,8 @@
     "sourcePool": "From a question pool",
     "destinationTitle": "Where these questions go",
     "destinationHelp": "Pick the skill first. Questions land in a new pack, or replace the questions of a pack you choose.",
+    "fileDestinationTitle": "Where these questions go",
+    "fileDestinationHelp": "The file decides: each row's pack_key and skill_key place its question, and pack_title or skill_name create what does not exist yet. Nothing has to be set up first.",
     "operation": "Destination",
     "operationNew": "New pack",
     "operationReplace": "Replace an existing pack",

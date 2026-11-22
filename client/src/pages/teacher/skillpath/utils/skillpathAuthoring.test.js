@@ -11,7 +11,9 @@ import {
   newSubmissionId,
   csvPreviewPayload,
   poolPreviewPayload,
-  importCommitPayload
+  importCommitPayload,
+  canPreviewImport,
+  isBulkLayout
 } from "./skillpathAuthoring.js";
 
 const SKILL = "cccccccccccccccccccccccc";
@@ -221,4 +223,28 @@ test("commit payloads add token, submission id, confirmations and row dispositio
   assert.deepEqual(payload.confirmations, ["replace", "validRows"]);
   assert.equal(payload.rowDisposition, "valid_rows");
   assert.equal(importCommitPayload({ ...state, validOnly: false }, { token: "tok" }).rowDisposition, "all");
+});
+test("the many-packs layout previews without a skill or destination", () => {
+  const bulk = {
+    source: "csv", mode: "bulk", skillId: "", operation: "create", packId: "",
+    content: "pack_key,pack_title\na,b\n"
+  };
+  assert.equal(isBulkLayout(bulk), true);
+  assert.equal(canPreviewImport(bulk), true);
+  assert.equal(canPreviewImport({ ...bulk, content: "   " }), false);
+  assert.equal(isBulkLayout({ ...bulk, source: "pool" }), false);
+});
+
+test("the one-skill layout still needs a skill and a pack when replacing", () => {
+  const single = { source: "csv", mode: "single", skillId: SKILL, operation: "create", packId: "", content: "csv" };
+  assert.equal(canPreviewImport(single), true);
+  assert.equal(canPreviewImport({ ...single, skillId: "" }), false);
+  assert.equal(canPreviewImport({ ...single, operation: "replace" }), false);
+  assert.equal(canPreviewImport({ ...single, operation: "replace", packId: "p1" }), true);
+});
+
+test("pool imports preview only after a pool is chosen", () => {
+  const pool = { source: "pool", mode: "single", skillId: SKILL, operation: "create", poolId: "", content: "" };
+  assert.equal(canPreviewImport(pool), false);
+  assert.equal(canPreviewImport({ ...pool, poolId: "pool1" }), true);
 });

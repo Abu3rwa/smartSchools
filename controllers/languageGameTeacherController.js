@@ -29,6 +29,7 @@ import {
     previewResponseFor
 } from '../services/languageGameImportPlan.js';
 import {
+    archiveWithRevision,
     ImportConflictError,
     revisionValue,
     saveWithRevision,
@@ -323,6 +324,7 @@ export const updateSkill = asyncHandler(async (req, res) => {
             skill.subject = await resolveSubjectId(req, body.subject);
         }
 
+        let saved = null;
         if (body.status === 'archived' && skill.status !== 'archived') {
             // Historical snapshots keep the skill forever; only live draft
             // questions block archiving. The transaction makes the check and
@@ -338,14 +340,13 @@ export const updateSkill = asyncHandler(async (req, res) => {
                     error.status = 409;
                     throw error;
                 }
-                skill.status = 'archived';
-                await saveWithRevision(skill, { field: 'revision', schoolId: req.schoolId, session });
+                saved = await archiveWithRevision(skill, { field: 'revision', schoolId: req.schoolId, session });
             });
         } else {
             if (body.status === 'draft' && skill.status === 'archived') skill.status = 'draft';
-            await saveWithRevision(skill, { field: 'revision', schoolId: req.schoolId });
+            saved = await saveWithRevision(skill, { field: 'revision', schoolId: req.schoolId });
         }
-        res.json({ success: true, data: { skill } });
+        res.json({ success: true, data: { skill: saved } });
     } catch (error) {
         if (error.status || error instanceof ImportConflictError) return failWith(res, error);
         throw error;
@@ -354,12 +355,14 @@ export const updateSkill = asyncHandler(async (req, res) => {
 
 // Permanent removal is only offered for a skill nothing depends on. A skill
 // that students practiced keeps their progress rows readable; those rows join
-// the skill document for their name, so deleting it would blank their history.
+// the skill document for their name, so the document is archived instead of
+// deleted and leaves every active list, exactly like a used pack.
 export const deleteSkill = asyncHandler(async (req, res) => {
     const skill = await GameSkill.findOne({ _id: req.params.id, school: req.schoolId });
     if (!skill) return res.status(404).json({ success: false, message: 'Skill not found.' });
     if (!canManage(req, skill)) return res.status(403).json({ success: false, message: 'Only the skill owner can delete it.' });
     try {
+        let archived = false;
         await withTransaction(async (session) => {
             const packsUsing = await GamePack.countDocuments({
                 school: req.schoolId,
@@ -376,13 +379,13 @@ export const deleteSkill = asyncHandler(async (req, res) => {
                 skillId: skill._id
             }).session(session);
             if (practiced > 0) {
-                const error = new Error('Students have already practiced this skill. Archive it instead so their progress stays readable.');
-                error.status = 409;
-                throw error;
+                await archiveWithRevision(skill, { field: 'revision', schoolId: req.schoolId, session });
+                archived = true;
+                return;
             }
             await GameSkill.deleteOne({ _id: skill._id, school: req.schoolId }).session(session);
         });
-        res.json({ success: true, data: { deleted: true } });
+        res.json({ success: true, data: { deleted: !archived, archived } });
     } catch (error) {
         if (error.status || error instanceof ImportConflictError) return failWith(res, error);
         throw error;
@@ -591,11 +594,12 @@ export const updatePack = asyncHandler(async (req, res) => {
         if (body.subject !== undefined) {
             pack.subject = await resolveSubjectId(req, body.subject);
         }
+        let saved = null;
         await withTransaction(async (session) => {
             if (touchedSkills) await touchReferencedSkills(touchedSkills, { schoolId: req.schoolId, session });
-            await saveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId, session });
+            saved = await saveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId, session });
         });
-        res.json({ success: true, data: { pack } });
+        res.json({ success: true, data: { pack: saved } });
     } catch (error) {
         if (error.status || error instanceof ImportConflictError) return failWith(res, error);
         throw error;
@@ -611,6 +615,7 @@ export const publishPack = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Add at least one question before publishing.' });
     }
     try {
+        let saved = null;
         await withTransaction(async (session) => {
             const skills = await GameSkill.find({
                 _id: { $in: pack.items.map((item) => item.skillId) },
@@ -631,14 +636,14 @@ export const publishPack = asyncHandler(async (req, res) => {
             };
             pack.status = 'published';
             pack.skillIds = syncPackSkillIds(pack.items);
-            await saveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId, session });
+            saved = await saveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId, session });
             await GameSkill.updateMany(
                 { _id: { $in: pack.skillIds }, school: req.schoolId, status: 'draft' },
                 { $set: { status: 'published' } },
                 { session }
             );
         });
-        res.json({ success: true, data: { pack: packSummary(pack) } });
+        res.json({ success: true, data: { pack: packSummary(saved) } });
     } catch (error) {
         if (error.status || error instanceof ImportConflictError) return failWith(res, error);
         throw error;
@@ -650,9 +655,8 @@ export const archivePack = asyncHandler(async (req, res) => {
     if (!pack) return res.status(404).json({ success: false, message: 'Pack not found.' });
     if (!canManage(req, pack)) return res.status(403).json({ success: false, message: 'Only the pack owner can archive it.' });
     try {
-        pack.status = 'archived';
-        await saveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId });
-        res.json({ success: true, data: { pack: packSummary(pack) } });
+        const saved = await archiveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId });
+        res.json({ success: true, data: { pack: packSummary(saved) } });
     } catch (error) {
         if (error instanceof ImportConflictError) return failWith(res, error);
         throw error;
@@ -660,34 +664,39 @@ export const archivePack = asyncHandler(async (req, res) => {
 });
 
 // Assignments and sessions keep the pack id for their reports and history, so
-// a pack with either is archived, not deleted. Unplayed packs delete cleanly.
+// a pack with either is archived instead of removed. Its open assignments are
+// closed in the same write, which takes it off every student list while the
+// stored pack still supplies titles and reports for past work.
 export const deletePack = asyncHandler(async (req, res) => {
     const pack = await GamePack.findOne({ _id: req.params.id, school: req.schoolId });
     if (!pack) return res.status(404).json({ success: false, message: 'Pack not found.' });
     if (!canManage(req, pack)) return res.status(403).json({ success: false, message: 'Only the pack owner can delete it.' });
     try {
+        let archived = false;
+        let closedAssignments = 0;
         await withTransaction(async (session) => {
             const assignments = await GameAssignment.countDocuments({
                 school: req.schoolId,
                 pack: pack._id
             }).session(session);
-            if (assignments > 0) {
-                const error = new Error('This pack has assignments. Archive it instead so past work stays readable.');
-                error.status = 409;
-                throw error;
-            }
             const sessions = await GameSession.countDocuments({
                 school: req.schoolId,
                 pack: pack._id
             }).session(session);
-            if (sessions > 0) {
-                const error = new Error('Students have already played this pack. Archive it instead so their progress stays readable.');
-                error.status = 409;
-                throw error;
+            if (assignments === 0 && sessions === 0) {
+                await GamePack.deleteOne({ _id: pack._id, school: req.schoolId }).session(session);
+                return;
             }
-            await GamePack.deleteOne({ _id: pack._id, school: req.schoolId }).session(session);
+            const closed = await GameAssignment.updateMany(
+                { school: req.schoolId, pack: pack._id, status: 'open' },
+                { $set: { status: 'closed' } },
+                { session }
+            );
+            closedAssignments = closed.modifiedCount ?? closed.matchedCount ?? 0;
+            await archiveWithRevision(pack, { field: 'authoringRevision', schoolId: req.schoolId, session });
+            archived = true;
         });
-        res.json({ success: true, data: { deleted: true } });
+        res.json({ success: true, data: { deleted: true, archived, closedAssignments } });
     } catch (error) {
         if (error.status || error instanceof ImportConflictError) return failWith(res, error);
         throw error;

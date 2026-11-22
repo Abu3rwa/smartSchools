@@ -17,6 +17,9 @@ const aiCreditAccountSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     kind: { type: String, enum: ['user', 'school'], default: 'user', index: true },
     balanceCents: { type: Number, default: 0 },
+    // Reserved by a running builder operation: still part of the balance, but
+    // not spendable by anything else until the operation settles or is swept.
+    heldCents: { type: Number, default: 0, min: 0 },
     schoolCents: { type: Number, default: 0 },
     grantedCents: { type: Number, default: 0 },
     spentCents: { type: Number, default: 0 },

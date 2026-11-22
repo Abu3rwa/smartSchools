@@ -165,6 +165,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.live-source-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 240px;
+  overflow: hidden;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid #dce6e5;
+  border-radius: 999px;
+  color: #4b6573;
+  background: #f3f8f6;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .live-fullscreen-toggle {
   display: grid;
   width: 40px;
@@ -880,6 +895,12 @@
     border-color: var(--border-color);
   }
 
+  [data-theme="dark"] .live-session-page .live-source-chip {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+    background: var(--bg-card);
+  }
+
   [data-theme="dark"] .live-session-page .live-student-waiting {
     background: var(--bg-card);
   }
@@ -1402,6 +1423,7 @@
   }
   .live-presentation-toolbar {
     min-height: 48px;
+    flex-wrap: wrap;
     gap: 0.4rem;
     padding: 0.3rem 0.4rem;
   }
@@ -1421,6 +1443,14 @@
   .live-presentation-title span {
     flex: 1;
     font-size: 0.64rem;
+  }
+  .live-source-chip {
+    order: 10;
+    flex: 1 0 100%;
+    max-width: 100%;
+    padding: 0.16rem 0.4rem;
+    font-size: 0.6rem;
+    text-align: center;
   }
   .live-cursor-toggle {
     min-height: 34px;

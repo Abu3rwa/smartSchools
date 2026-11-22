@@ -243,13 +243,18 @@ export const getMarkupPercent = async () => {
 /* Gate and charge                                                     */
 /* ------------------------------------------------------------------ */
 
+const availableCredit = (account) =>
+  roundCents(
+    (Number(account?.balanceCents) || 0) - (Number(account?.heldCents) || 0),
+  );
+
 /** Balance and pause check used by every metered AI call. No pricing knowledge. */
 export const assertHasCredit = async ({ schoolId, userId }) => {
   const account = await AiCreditAccount.findOne({
     school: schoolId,
     user: userId,
   })
-    .select("balanceCents paused")
+    .select("balanceCents heldCents paused")
     .lean();
   if (account?.paused) {
     throw Object.assign(
@@ -259,7 +264,7 @@ export const assertHasCredit = async ({ schoolId, userId }) => {
       { statusCode: 402, code: "AI_CREDIT_PAUSED" },
     );
   }
-  if (!account || Number(account.balanceCents) <= 0) {
+  if (!account || availableCredit(account) <= 0) {
     throw Object.assign(
       new Error(
         "You have no AI credit left. Ask your school admin for more on the AI credit page.",
@@ -267,7 +272,73 @@ export const assertHasCredit = async ({ schoolId, userId }) => {
       { statusCode: 402, code: "AI_CREDIT_REQUIRED" },
     );
   }
-  return { balanceCents: account.balanceCents };
+  return { balanceCents: availableCredit(account) };
+};
+
+/**
+ * Reserve part of the balance for a builder operation before it starts. The
+ * guard makes the check and the reservation one write, so two concurrent
+ * admissions cannot promise the same credits.
+ */
+export const holdCredit = async ({ schoolId, userId, cents }) => {
+  const amount = roundCents(Math.max(0, Number(cents) || 0));
+  if (!amount) return { ok: true, availableCents: null, heldCents: 0 };
+  const held = await AiCreditAccount.findOneAndUpdate(
+    {
+      school: schoolId,
+      user: userId,
+      paused: { $ne: true },
+      $expr: {
+        $gte: [
+          {
+            $subtract: [
+              "$balanceCents",
+              { $ifNull: ["$heldCents", 0] },
+            ],
+          },
+          amount,
+        ],
+      },
+    },
+    { $inc: { heldCents: amount } },
+    { new: true },
+  )
+    .select("balanceCents heldCents paused")
+    .lean();
+  if (held) {
+    return {
+      ok: true,
+      availableCents: availableCredit(held),
+      heldCents: amount,
+    };
+  }
+  const account = await AiCreditAccount.findOne({ school: schoolId, user: userId })
+    .select("balanceCents heldCents paused")
+    .lean();
+  if (account?.paused) {
+    throw Object.assign(
+      new Error(
+        "Your AI credit is paused by the school admin. Ask them to turn it back on.",
+      ),
+      { statusCode: 402, code: "AI_CREDIT_PAUSED" },
+    );
+  }
+  return { ok: false, availableCents: availableCredit(account), heldCents: 0 };
+};
+
+/** Gives back a reservation that will not be spent. Never lowers below zero. */
+export const releaseCreditHold = async ({ schoolId, userId, cents }) => {
+  const amount = roundCents(Math.max(0, Number(cents) || 0));
+  if (!amount) return false;
+  const released = await AiCreditAccount.updateOne(
+    {
+      school: schoolId,
+      user: userId,
+      $expr: { $gte: [{ $ifNull: ["$heldCents", 0] }, amount] },
+    },
+    { $inc: { heldCents: -amount } },
+  );
+  return released.modifiedCount === 1;
 };
 
 /** Writing's stricter gate: the balance, the markup and a verified price for its model. */
@@ -313,10 +384,14 @@ export const chargeUsage = async ({
   extraCostCents = 0,
   audio = null,
   chargedCents: fixedChargedCents = null,
+  // A builder operation settles the reservation it made before starting; the
+  // same write releases it so the held and spent amounts can never drift.
+  holdCents: reservedCents = 0,
 }) => {
   try {
     const rates = explicitRates || creditRates(env, reply.modelName);
     const tokens = tokenCounts(reply);
+    const holdAmount = roundCents(Math.max(0, Number(reservedCents) || 0));
     const providerCostCents = roundCents(
       costCents(tokens, rates) + (Number(extraCostCents) || 0),
     );
@@ -325,6 +400,24 @@ export const chargeUsage = async ({
       fixedChargedCents === null || fixedChargedCents === undefined
         ? applyMarkup(providerCostCents, markupPercent)
         : roundCents(fixedChargedCents);
+    // Whatever this charge holds is spendable by this charge and nothing else.
+    const availableGuard = {
+      $gte: [
+        {
+          $add: [
+            {
+              $subtract: [
+                "$balanceCents",
+                { $ifNull: ["$heldCents", 0] },
+              ],
+            },
+            holdAmount,
+          ],
+        },
+        chargedCents,
+      ],
+    };
+    const holdRelease = holdAmount > 0 ? { heldCents: -holdAmount } : {};
     const profitCents = roundCents(chargedCents - providerCostCents);
     const base = {
       school: schoolId,
@@ -358,6 +451,7 @@ export const chargeUsage = async ({
       assignmentTitle: String(refs.assignmentTitle || "").slice(0, 200),
       studentName: String(refs.studentName || "").slice(0, 120),
       draftNumber: refs.draftNumber,
+      operationKey: refs.operationKey ? String(refs.operationKey).slice(0, 120) : undefined,
     };
 
     const { account, source, entryId } = await mongoose.connection.transaction(
@@ -371,12 +465,14 @@ export const chargeUsage = async ({
             user: userId,
             schoolCents: { $gte: chargedCents },
             balanceCents: { $gte: chargedCents },
+            $expr: availableGuard,
           },
           {
             $inc: {
               balanceCents: -chargedCents,
               schoolCents: -chargedCents,
               spentCents: chargedCents,
+              ...holdRelease,
             },
           },
           { new: true, session },
@@ -391,6 +487,7 @@ export const chargeUsage = async ({
               user: userId,
               balanceCents: { $gte: chargedCents },
               schoolCents: { $gt: 0, $lt: chargedCents },
+              $expr: availableGuard,
             },
             [
               {
@@ -400,6 +497,16 @@ export const chargeUsage = async ({
                   spentCents: {
                     $add: [{ $ifNull: ["$spentCents", 0] }, chargedCents],
                   },
+                  ...(holdAmount > 0
+                    ? {
+                        heldCents: {
+                          $subtract: [
+                            { $ifNull: ["$heldCents", 0] },
+                            holdAmount,
+                          ],
+                        },
+                      }
+                    : {}),
                 },
               },
             ],
@@ -414,13 +521,24 @@ export const chargeUsage = async ({
               user: userId,
               balanceCents: { $gte: chargedCents },
               $expr: {
-                $gte: [
-                  { $subtract: ["$balanceCents", "$schoolCents"] },
-                  chargedCents,
+                $and: [
+                  {
+                    $gte: [
+                      { $subtract: ["$balanceCents", "$schoolCents"] },
+                      chargedCents,
+                    ],
+                  },
+                  availableGuard,
                 ],
               },
             },
-            { $inc: { balanceCents: -chargedCents, spentCents: chargedCents } },
+            {
+              $inc: {
+                balanceCents: -chargedCents,
+                spentCents: chargedCents,
+                ...holdRelease,
+              },
+            },
             { new: true, session },
           ).lean();
           paidFrom = "grant";
@@ -506,6 +624,7 @@ const usageRowBase = ({ schoolId, userId, reply, feature, outcome, refs }) => {
     assignmentTitle: String(refs.assignmentTitle || "").slice(0, 200),
     studentName: String(refs.studentName || "").slice(0, 120),
     draftNumber: refs.draftNumber,
+    operationKey: refs.operationKey ? String(refs.operationKey).slice(0, 120) : undefined,
   };
 };
 

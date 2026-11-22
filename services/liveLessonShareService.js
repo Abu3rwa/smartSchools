@@ -55,6 +55,7 @@ const getLessonSnapshot = (lesson) => ({
   grade: lesson.grade || "",
   language: lesson.language || "en",
   source: lesson.source || "csv",
+  sourceMeta: lesson.sourceMeta?.toObject ? lesson.sourceMeta.toObject() : (lesson.sourceMeta || null),
   slides: lesson.slides.map((slide) => {
     // A level is tied to the sharing teacher's own groups, which the recipient does not have, so
     // only the class-wide question travels.

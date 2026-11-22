@@ -108,6 +108,7 @@ import googleClassroomRoutes from "./routes/googleClassroomRoutes.js";
 import googleFormsAuthRoutes from "./routes/googleFormsAuthRoutes.js";
 import googleFormsRoutes from "./routes/googleFormsRoutes.js";
 import liveLessonRoutes from "./routes/liveLessonRoutes.js";
+import liveLessonDraftRoutes from "./routes/liveLessonDraftRoutes.js";
 import classworkSelfCheckRoutes from "./routes/classworkSelfCheckRoutes.js";
 import languageGameRoutes from "./routes/languageGameRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
@@ -130,6 +131,7 @@ import { expireStaleSubstitutionRequests } from "./services/substitutionExpirySe
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { runBehaviorStatusJob } from "./jobs/behaviorStatusJob.js";
+import { releaseStaleBuilderHolds } from "./jobs/builderCreditHoldJob.js";
 import { runSupportReminderSweep } from "./jobs/supportReminderJob.js";
 import { runWritingFeedbackEmailRetry } from "./jobs/writingFeedbackEmailRetryJob.js";
 import { runReadingTranscriptPurgeJob } from "./jobs/readingTranscriptPurgeJob.js";
@@ -435,6 +437,9 @@ app.use("/api/student-grouping", studentGroupingRoutes);
 app.use("/api/sbr", sbrRoutes);
 const liveLessonsEnabled = parseBooleanEnv(process.env.LIVE_LESSONS_ENABLED);
 if (liveLessonsEnabled) {
+  // The builder router parses multipart and JSON, so it must be mounted before
+  // the CSV text-body parser that owns the rest of /api/live.
+  app.use("/api/live/lesson-drafts", liveLessonDraftRoutes);
   app.use("/api/live", express.text({ type: ["text/csv", "text/plain"], limit: "22mb" }));
   app.use("/api/live", liveLessonRoutes);
 }
@@ -587,6 +592,25 @@ const server = httpServer.listen(PORT, () => {
 
     setTimeout(runBehaviorSweep, 60 * 1000);
     activeIntervals.push(setInterval(runBehaviorSweep, BEHAVIOR_STATUS_INTERVAL_MS));
+  }
+
+  // AI lesson builder: a request that died mid-run leaves its admission hold.
+  // Settle what it used, capped, and release the rest.
+  if (process.env.RUN_BUILDER_HOLD_SWEEP !== "false") {
+    const BUILDER_HOLD_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+    const runBuilderHoldSweep = async () => {
+      try {
+        const summary = await releaseStaleBuilderHolds();
+        if ((summary?.scanned || 0) > 0) {
+          logger.info("builder_credit_hold_sweep", summary);
+        }
+      } catch (err) {
+        reportJobError("Builder credit hold sweep", err);
+      }
+    };
+
+    setTimeout(runBuilderHoldSweep, 60 * 1000);
+    activeIntervals.push(setInterval(runBuilderHoldSweep, BUILDER_HOLD_SWEEP_INTERVAL_MS));
   }
 
   // Student support reminders: at most two nudges per unanswered survey, then a

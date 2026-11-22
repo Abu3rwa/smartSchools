@@ -315,6 +315,21 @@ export const importPreviewPayload = (state) => (
   state.source === "pool" ? poolPreviewPayload(state) : csvPreviewPayload(state)
 );
 
+// The one-skill layout needs a skill and a destination; the many-packs layout
+// names both in the file, so it must not demand a skill before previewing.
+export const isBulkLayout = (state) =>
+  state.source !== "pool" && state.mode === "bulk";
+
+export const canPreviewImport = (state) => {
+  const destinationReady = isBulkLayout(state)
+    ? true
+    : Boolean(state.skillId) && (state.operation !== "replace" || Boolean(state.packId));
+  const sourceReady = state.source === "pool"
+    ? Boolean(state.poolId)
+    : Boolean(state.content.trim());
+  return destinationReady && sourceReady;
+};
+
 export const importCommitPayload = (state, preview) => ({
   ...importPreviewPayload(state),
   token: preview?.token || "",

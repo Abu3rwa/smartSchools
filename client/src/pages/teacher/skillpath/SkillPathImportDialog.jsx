@@ -8,6 +8,8 @@ import {
   normalizeItemType,
   importPreviewPayload,
   importCommitPayload,
+  canPreviewImport,
+  isBulkLayout,
   newSubmissionId
 } from "./utils/skillpathAuthoring";
 
@@ -60,9 +62,8 @@ const SkillPathImportDialog = ({ skills, packs, subjects, defaultSkillId, onClos
   const selectedPool = pools.find((pool) => String(pool._id) === state.poolId) || null;
 
   const payloadKey = useMemo(() => JSON.stringify(importPreviewPayload(state)), [state]);
-  const canPreview = state.skillId
-    && (state.operation !== "replace" || state.packId)
-    && (state.source === "pool" ? state.poolId : state.content.trim());
+  const bulkLayout = isBulkLayout(state);
+  const canPreview = canPreviewImport(state);
 
   useEffect(() => {
     if (!canPreview) return undefined;
@@ -214,59 +215,66 @@ const SkillPathImportDialog = ({ skills, packs, subjects, defaultSkillId, onClos
       </div>
 
       <div className="sp-import-target">
-        <strong>{t("import.destinationTitle")}</strong>
-        <span>{t("import.destinationHelp")}</span>
+        <strong>{bulkLayout ? t("import.fileDestinationTitle") : t("import.destinationTitle")}</strong>
+        <span>{bulkLayout ? t("import.fileDestinationHelp") : t("import.destinationHelp")}</span>
       </div>
-      <div className="sp-form__row">
-        <label>
-          <span>{t("editor.skill")}</span>
-          <select value={state.skillId} onChange={(event) => patchImport({ skillId: event.target.value })}>
-            <option value="">{t("editor.chooseSkill")}</option>
-            {skills.map((skill) => (
-              <option key={skill._id} value={skill._id}>
-                {skill.name}{skill.gradeLevel ? ` · ${skill.gradeLevel}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>{t("import.operation")}</span>
-          <select value={state.operation} onChange={(event) => patchImport({ operation: event.target.value })}>
-            <option value="create">{t("import.operationNew")}</option>
-            <option value="replace">{t("import.operationReplace")}</option>
-          </select>
-        </label>
-        {state.operation === "create" ? (
+      {bulkLayout ? null : (
+        <div className="sp-form__row">
           <label>
-            <span>{t("import.newPackTitle")}</span>
-            <input
-              dir="auto"
-              value={state.newPackTitle}
-              onChange={(event) => patchImport({ newPackTitle: event.target.value })}
-              placeholder={t("studio.packTitlePlaceholder")}
-            />
-          </label>
-        ) : (
-          <label>
-            <span>{t("import.choosePack")}</span>
-            <select value={state.packId} onChange={(event) => patchImport({ packId: event.target.value })}>
-              <option value="">{t("import.choosePackPlaceholder")}</option>
-              {replaceablePacks.map((pack) => (
-                <option key={pack._id} value={pack._id}>
-                  {pack.title} · {t("home.items", { count: pack.itemCount })}
+            <span>{t("editor.skill")}</span>
+            <select value={state.skillId} onChange={(event) => patchImport({ skillId: event.target.value })}>
+              <option value="">{t("editor.chooseSkill")}</option>
+              {skills.map((skill) => (
+                <option key={skill._id} value={skill._id}>
+                  {skill.name}{skill.gradeLevel ? ` · ${skill.gradeLevel}` : ""}
                 </option>
               ))}
             </select>
           </label>
-        )}
-      </div>
+          <label>
+            <span>{t("import.operation")}</span>
+            <select value={state.operation} onChange={(event) => patchImport({ operation: event.target.value })}>
+              <option value="create">{t("import.operationNew")}</option>
+              <option value="replace">{t("import.operationReplace")}</option>
+            </select>
+          </label>
+          {state.operation === "create" ? (
+            <label>
+              <span>{t("import.newPackTitle")}</span>
+              <input
+                dir="auto"
+                value={state.newPackTitle}
+                onChange={(event) => patchImport({ newPackTitle: event.target.value })}
+                placeholder={t("studio.packTitlePlaceholder")}
+              />
+            </label>
+          ) : (
+            <label>
+              <span>{t("import.choosePack")}</span>
+              <select value={state.packId} onChange={(event) => patchImport({ packId: event.target.value })}>
+                <option value="">{t("import.choosePackPlaceholder")}</option>
+                {replaceablePacks.map((pack) => (
+                  <option key={pack._id} value={pack._id}>
+                    {pack.title} · {t("home.items", { count: pack.itemCount })}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       {state.source === "csv" ? (
         <>
           <div className="sp-form__row">
             <label>
               <span>{t("import.mode")}</span>
-              <select value={state.mode} onChange={(event) => patchImport({ mode: event.target.value })}>
+              <select
+                value={state.mode}
+                onChange={(event) => patchImport(event.target.value === "bulk"
+                  ? { mode: "bulk", operation: "create", packId: "" }
+                  : { mode: "single" })}
+              >
                 <option value="single">{t("import.modeSingle")}</option>
                 <option value="bulk">{t("import.modeBulk")}</option>
               </select>

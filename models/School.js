@@ -148,6 +148,14 @@ const schoolSchema = new mongoose.Schema({
                 default: false
             }
         },
+        // An admin turns the AI lesson builder on for the school. The platform
+        // switch must also be on; either one off hides the wizard with a reason.
+        liveLessonAiBuilder: {
+            enabled: {
+                type: Boolean,
+                default: false
+            }
+        },
         newsletter: {
             frequency: {
                 type: String,

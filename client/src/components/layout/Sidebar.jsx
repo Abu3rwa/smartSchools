@@ -14,6 +14,7 @@ import {
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
 import { fetchSubPendingCountThunk } from "../../store/slices/substitutionsSlice";
 import { PERMISSIONS } from "../../constants/permissions";
+import { actsAsAdmin, isAdminOnly } from "../../utils/adminAccess.js";
 import {
   HiOutlineChevronLeft,
   HiOutlineChevronRight,
@@ -1070,14 +1071,23 @@ const Sidebar = () => {
     if ((item.section || "overview") === "finance") {
       return false;
     }
+    // Administration belongs to the role the account acts as, never to an
+    // assigned role it has switched away from.
+    if ((item.section || "overview") === "admin" && !actsAsAdmin(user)) {
+      return false;
+    }
 
     // Check role-based access first
     let hasRoleAccess = true;
     if (item.roles) {
-      const assignedRoles = Array.isArray(user?.roles) ? user.roles : [];
-      hasRoleAccess =
-        item.roles.includes(user?.role) ||
-        assignedRoles.some((role) => item.roles.includes(role));
+      if (isAdminOnly(item.roles)) {
+        hasRoleAccess = actsAsAdmin(user);
+      } else {
+        const assignedRoles = Array.isArray(user?.roles) ? user.roles : [];
+        hasRoleAccess =
+          item.roles.includes(user?.role) ||
+          assignedRoles.some((role) => item.roles.includes(role));
+      }
     } else if (item.admin && !isAdmin) {
       hasRoleAccess = false;
     } else if (item.teacher && !isTeacher) {

@@ -1,3 +1,5 @@
+import { useFeatureNamespaces } from "../../../i18n/useFeatureNamespaces";
+
 const SettingsPanel = ({
   isAdmin,
   aiHtmlReviewEnabled,
@@ -6,7 +8,12 @@ const SettingsPanel = ({
   markDraftEnabled,
   savingMarkDraftSetting,
   onToggleMarkDraft,
-}) => (
+  aiBuilderEnabled,
+  savingAiBuilderSetting,
+  onToggleAiBuilder,
+}) => {
+  const { t } = useFeatureNamespaces("liveLessonBuilder");
+  return (
   <>
     {isAdmin && (
       <section className="live-safety-setting">
@@ -60,7 +67,29 @@ const SettingsPanel = ({
         </label>
       </section>
     )}
+    {isAdmin && (
+      <section className="live-safety-setting">
+        <div>
+          <strong>{t("settings.aiBuilderTitle")}</strong>
+          <p>{t("settings.aiBuilderCopy")}</p>
+        </div>
+        <label>
+          <input
+            type="checkbox"
+            checked={aiBuilderEnabled}
+            disabled={savingAiBuilderSetting}
+            onChange={(event) => onToggleAiBuilder(event.target.checked)}
+          />
+          {savingAiBuilderSetting
+            ? t("settings.aiBuilderSaving")
+            : aiBuilderEnabled
+              ? t("settings.aiBuilderEnabled")
+              : t("settings.aiBuilderDisabled")}
+        </label>
+      </section>
+    )}
   </>
-);
+  );
+};
 
 export default SettingsPanel;

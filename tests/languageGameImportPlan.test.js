@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import mongoose from 'mongoose';
 
 import GameSkill from '../models/GameSkill.js';
 import GamePack from '../models/GamePack.js';
@@ -39,25 +38,42 @@ const skillLean = (overrides = {}) => ({
     _id: SKILL, key: 'prefix-un', name: 'Prefix un-', gradeLevel: '5', language: 'en', status: 'draft', ...overrides
 });
 
-const packDoc = (overrides = {}) => ({
-    _id: PACK,
-    key: 'prefix-un-g5',
-    title: 'Grade 5 Prefixes — Unit 3',
-    description: '',
-    owner: TEACHER,
-    status: 'draft',
-    visibility: 'private',
-    language: 'en',
-    gradeLevels: ['5'],
-    items: [
-        { externalId: 'U3-001', type: 'mcq', prompt: 'Old question', skillId: SKILL, options: [], correctOptionId: '1', acceptedAnswers: [], difficulty: 2 },
-        { externalId: 'OLD-TYPED', type: 'fill_blank', prompt: 'Old typed: ___', skillId: SKILL, options: [], correctOptionId: '', acceptedAnswers: ['old'], difficulty: 2 }
-    ],
-    skillIds: [SKILL],
-    authoringRevision: 2,
-    save() { return Promise.resolve(this); },
-    ...overrides
-});
+const packFields = ['title', 'description', 'status', 'visibility', 'language', 'gradeLevels', 'items', 'skillIds', 'defaultSkillId', 'subject', 'publishedRevision'];
+
+// saveWithRevision writes through Model.findOneAndUpdate; the fake pack applies
+// that update to itself so assertions read the saved state.
+const packDoc = (overrides = {}) => {
+    const doc = {
+        _id: PACK,
+        key: 'prefix-un-g5',
+        title: 'Grade 5 Prefixes — Unit 3',
+        description: '',
+        owner: TEACHER,
+        status: 'draft',
+        visibility: 'private',
+        language: 'en',
+        gradeLevels: ['5'],
+        items: [
+            { externalId: 'U3-001', type: 'mcq', prompt: 'Old question', skillId: SKILL, options: [], correctOptionId: '1', acceptedAnswers: [], difficulty: 2 },
+            { externalId: 'OLD-TYPED', type: 'fill_blank', prompt: 'Old typed: ___', skillId: SKILL, options: [], correctOptionId: '', acceptedAnswers: ['old'], difficulty: 2 }
+        ],
+        skillIds: [SKILL],
+        authoringRevision: 2,
+        ...overrides
+    };
+    doc.modifiedPaths = () => packFields.filter((path) => doc[path] !== undefined);
+    doc.get = (path) => doc[path];
+    doc.constructor = {
+        findOneAndUpdate: async (filter, update) => {
+            doc.__lastSave = { filter, update };
+            if (doc.__saveResult !== undefined) return doc.__saveResult;
+            Object.assign(doc, update.$set);
+            return doc;
+        }
+    };
+    doc.__saveResult = undefined;
+    return doc;
+};
 
 const singleInput = (overrides = {}) => normalizeImportInput({
     type: 'mcq',
@@ -357,20 +373,19 @@ test('executing a replace demotes a published pack and pins the previewed revisi
     assert.equal(pack.status, 'draft');
     assert.equal(String(pack.defaultSkillId), SKILL);
     assert.equal(pack.authoringRevision, 3);
-    assert.deepEqual(pack.$where, { school: SCHOOL, authoringRevision: 2 });
+    assert.equal(pack.__lastSave.filter.authoringRevision, 2);
     assert.ok(pack.items.every((item) => !('sourceSkillKey' in item)));
 });
 
 test('a pack that moved since the preview fails the commit with a 409', async (t) => {
-    const pack = packDoc({
-        save: async () => { throw new mongoose.Error.DocumentNotFoundError({}); }
-    });
+    const pack = packDoc();
     mockSingleReads(t, { pack });
     const plan = await buildImportPlan(
         singleInput({ operation: 'replace', packId: PACK, newPack: {}, confirmations: ['replace'] }),
         ctx()
     );
     t.mock.method(GameSkill, 'updateMany', async (query) => ({ matchedCount: query._id.$in.length }));
+    pack.__saveResult = null;
     await assert.rejects(
         executeImportPlan(plan, ctx()),
         (error) => error instanceof ImportConflictError && /changed since the preview/.test(error.message)

@@ -114,38 +114,74 @@ const packItem = (overrides = {}) => ({
     ...overrides
 });
 
-const packDoc = (overrides = {}) => ({
-    _id: PACK,
-    key: 'prefixes',
-    title: 'Prefixes',
-    description: '',
-    owner: TEACHER_USER,
-    status: 'draft',
-    visibility: 'private',
-    language: 'en',
-    gradeLevels: ['5'],
-    items: [packItem()],
-    skillIds: [SKILL],
-    defaultSkillId: null,
-    authoringRevision: 0,
-    publishedRevision: null,
-    updatedAt: new Date('2026-11-19T10:00:00Z'),
-    save() { return Promise.resolve(this); },
-    ...overrides
+// saveWithRevision writes through Model.findOneAndUpdate; the fake documents
+// apply that update to themselves so assertions still read the saved state.
+// `stored` holds what the database would return for a compare-and-set, so a
+// test can simulate a counter that moved since the page was loaded.
+const revisionFields = ['authoringRevision', 'revision'];
+
+const docConstructor = (doc, { stored = {} } = {}) => ({
+    findOneAndUpdate: async (filter, update) => {
+        doc.__lastSave = { filter, update };
+        for (const field of revisionFields) {
+            if (!(field in filter) || !(field in stored)) continue;
+            const expected = filter[field];
+            const hit = expected && typeof expected === 'object' && Array.isArray(expected.$in)
+                ? expected.$in.includes(stored[field])
+                : expected === stored[field];
+            if (!hit) return null;
+        }
+        if (update.$set) Object.assign(doc, update.$set);
+        return doc;
+    }
 });
 
-const skillDoc = (overrides = {}) => ({
-    _id: SKILL,
-    owner: TEACHER_USER,
-    key: 'prefix-un',
-    name: 'Prefix un-',
-    gradeLevel: '5',
-    language: 'en',
-    revision: 0,
-    status: 'draft',
-    save() { return Promise.resolve(this); },
-    ...overrides
-});
+const packFields = ['title', 'description', 'status', 'visibility', 'language', 'gradeLevels', 'items', 'skillIds', 'defaultSkillId', 'subject', 'publishedRevision'];
+
+const packDoc = (overrides = {}, options = {}) => {
+    const doc = {
+        _id: PACK,
+        key: 'prefixes',
+        title: 'Prefixes',
+        description: '',
+        owner: TEACHER_USER,
+        status: 'draft',
+        visibility: 'private',
+        language: 'en',
+        gradeLevels: ['5'],
+        items: [packItem()],
+        skillIds: [SKILL],
+        defaultSkillId: null,
+        authoringRevision: 0,
+        publishedRevision: null,
+        updatedAt: new Date('2026-11-19T10:00:00Z'),
+        ...overrides
+    };
+    doc.modifiedPaths = () => packFields.filter((path) => doc[path] !== undefined);
+    doc.get = (path) => (typeof doc[path] === 'object' && doc[path]?.toObject ? doc[path].toObject() : doc[path]);
+    doc.constructor = docConstructor(doc, options);
+    return doc;
+};
+
+const skillFields = ['name', 'nameAr', 'description', 'learningGoal', 'category', 'gradeLevel', 'language', 'standardIds', 'subject', 'status'];
+
+const skillDoc = (overrides = {}, options = {}) => {
+    const doc = {
+        _id: SKILL,
+        owner: TEACHER_USER,
+        key: 'prefix-un',
+        name: 'Prefix un-',
+        gradeLevel: '5',
+        language: 'en',
+        revision: 0,
+        status: 'draft',
+        ...overrides
+    };
+    doc.modifiedPaths = () => skillFields.filter((path) => doc[path] !== undefined);
+    doc.get = (path) => doc[path];
+    doc.constructor = docConstructor(doc, options);
+    return doc;
+};
 
 const skillLean = () => ({ _id: SKILL, key: 'prefix-un', name: 'Prefix un-', gradeLevel: '5', language: 'en', status: 'draft' });
 
@@ -182,7 +218,8 @@ test('publishing snapshots the items into an immutable revision', async (t) => {
     assert.equal(pack.publishedRevision.items[0].correctOptionId, '1');
     assert.equal(pack.publishedRevision.skills[0].key, 'prefix-un');
     assert.equal(String(pack.skillIds[0]), SKILL);
-    assert.deepEqual(pack.$where, { school: SCHOOL, authoringRevision: 0 });
+    assert.deepEqual(pack.__lastSave.filter.authoringRevision, { $in: [0, null] });
+    assert.equal(pack.__lastSave.update.$set.authoringRevision, 1);
 });
 
 test('republishing increments the revision version', async (t) => {
@@ -1176,17 +1213,22 @@ test('a skill that still tags pack questions cannot be deleted', async (t) => {
     assert.equal(remove.mock.calls.length, 0);
 });
 
-test('a skill students already practiced cannot be deleted, only archived', async (t) => {
+test('deleting a practiced skill archives it so student history stays readable', async (t) => {
     mockSession(t);
-    t.mock.method(GameSkill, 'findOne', () => chain(skillDoc()));
+    const skill = skillDoc({}, { stored: { revision: 4 } });
+    t.mock.method(GameSkill, 'findOne', () => chain(skill));
     t.mock.method(GamePack, 'countDocuments', () => chain(0));
     t.mock.method(GameSkillProgress, 'countDocuments', () => chain(3));
     const remove = t.mock.method(GameSkill, 'deleteOne', () => chain({ deletedCount: 1 }));
 
     const res = makeRes();
     await invoke(deleteSkill, teacherReq({}, { id: SKILL }), res);
-    assert.equal(res.statusCode, 409);
-    assert.match(res.body.message, /Archive it instead/);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.data.deleted, false);
+    assert.equal(res.body.data.archived, true);
+    assert.equal(skill.status, 'archived');
+    assert.equal(skill.revision, 1);
+    assert.ok(!('revision' in skill.__lastSave.filter), 'a removed skill must not depend on the loaded counter');
     assert.equal(remove.mock.calls.length, 0);
 });
 
@@ -1211,35 +1253,69 @@ test('deleting a pack that was never assigned or played removes it', async (t) =
     await invoke(deletePack, teacherReq({}, { id: PACK }), res);
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
     assert.equal(res.body.data.deleted, true);
+    assert.equal(res.body.data.archived, false);
+    assert.equal(res.body.data.closedAssignments, 0);
     assert.equal(remove.mock.calls.length, 1);
     assert.equal(String(remove.mock.calls[0].arguments[0].school), SCHOOL);
 });
 
-test('a pack with assignments cannot be deleted', async (t) => {
+test('deleting a pack with assignments closes them and archives the pack', async (t) => {
     mockSession(t);
-    t.mock.method(GamePack, 'findOne', () => chain(packDoc()));
-    t.mock.method(GameAssignment, 'countDocuments', () => chain(1));
+    const pack = packDoc();
+    t.mock.method(GamePack, 'findOne', () => chain(pack));
+    t.mock.method(GameAssignment, 'countDocuments', () => chain(2));
+    t.mock.method(GameSession, 'countDocuments', () => chain(0));
+    const close = t.mock.method(GameAssignment, 'updateMany', async () => ({ matchedCount: 2, modifiedCount: 2 }));
     const remove = t.mock.method(GamePack, 'deleteOne', () => chain({ deletedCount: 1 }));
 
     const res = makeRes();
     await invoke(deletePack, teacherReq({}, { id: PACK }), res);
-    assert.equal(res.statusCode, 409);
-    assert.match(res.body.message, /assignments/);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.data.archived, true);
+    assert.equal(res.body.data.closedAssignments, 2);
+    assert.equal(pack.status, 'archived');
+    assert.equal(remove.mock.calls.length, 0);
+
+    const [filter, update] = close.mock.calls[0].arguments;
+    assert.equal(String(filter.school), SCHOOL);
+    assert.equal(String(filter.pack), PACK);
+    assert.equal(filter.status, 'open');
+    assert.equal(update.$set.status, 'closed');
+});
+
+test('a pack students already played is archived, not deleted', async (t) => {
+    mockSession(t);
+    const pack = packDoc();
+    t.mock.method(GamePack, 'findOne', () => chain(pack));
+    t.mock.method(GameAssignment, 'countDocuments', () => chain(0));
+    t.mock.method(GameSession, 'countDocuments', () => chain(4));
+    const close = t.mock.method(GameAssignment, 'updateMany', async () => ({ matchedCount: 0, modifiedCount: 0 }));
+    const remove = t.mock.method(GamePack, 'deleteOne', () => chain({ deletedCount: 1 }));
+
+    const res = makeRes();
+    await invoke(deletePack, teacherReq({}, { id: PACK }), res);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.data.archived, true);
+    assert.equal(res.body.data.closedAssignments, 0);
+    assert.equal(pack.status, 'archived');
+    assert.equal(close.mock.calls.length, 1);
     assert.equal(remove.mock.calls.length, 0);
 });
 
-test('a pack students already played cannot be deleted', async (t) => {
+test('a pack whose counter moved after the page loaded still deletes', async (t) => {
     mockSession(t);
-    t.mock.method(GamePack, 'findOne', () => chain(packDoc()));
-    t.mock.method(GameAssignment, 'countDocuments', () => chain(0));
-    t.mock.method(GameSession, 'countDocuments', () => chain(4));
-    const remove = t.mock.method(GamePack, 'deleteOne', () => chain({ deletedCount: 1 }));
+    const pack = packDoc({}, { stored: { authoringRevision: 7 } });
+    t.mock.method(GamePack, 'findOne', () => chain(pack));
+    t.mock.method(GameAssignment, 'countDocuments', () => chain(1));
+    t.mock.method(GameSession, 'countDocuments', () => chain(0));
+    t.mock.method(GameAssignment, 'updateMany', async () => ({ matchedCount: 1, modifiedCount: 1 }));
 
     const res = makeRes();
     await invoke(deletePack, teacherReq({}, { id: PACK }), res);
-    assert.equal(res.statusCode, 409);
-    assert.match(res.body.message, /Archive it instead/);
-    assert.equal(remove.mock.calls.length, 0);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.data.archived, true);
+    assert.equal(pack.status, 'archived');
+    assert.ok(!('authoringRevision' in pack.__lastSave.filter), 'removal must not depend on the loaded counter');
 });
 
 test('only the pack owner can delete it', async (t) => {

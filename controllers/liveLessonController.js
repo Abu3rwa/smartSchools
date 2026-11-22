@@ -71,6 +71,13 @@ import {
   validateLiveQuestion,
 } from "../services/liveLessonQuestionService.js";
 import { liveQuestionKind } from "../constants/liveLessonQuestionKinds.js";
+import {
+  isLiveLessonBuilderPlatformEnabled,
+  liveLessonBuilderModel,
+  LIVE_LESSON_GENERATION_MODES,
+} from "../config/liveLessonBuilderConfig.js";
+import { paletteSettings } from "../config/liveLessonPalettes.js";
+import { isModelPriced } from "../config/aiPricing.js";
 import logger from "../utils/logger.js";
 
 const findOwnedSession = async (req, res) => {
@@ -98,7 +105,7 @@ const findOwnedSession = async (req, res) => {
   return session;
 };
 
-const findTeacherClass = async (req, classId) => {
+export const findTeacherClass = async (req, classId) => {
   const access = await staffClassQuery(req.user, req.schoolId, classId, {
     departmentId: req.departmentId || req.user.department?._id || req.user.department,
   });
@@ -116,7 +123,7 @@ const findTeacherClass = async (req, classId) => {
 const normalizeSlideQuestion = (question, salt) =>
   question ? normalizeLiveQuestion(question, { salt }) : undefined;
 
-const normalizeSlides = (slides, saltBase = "lesson") =>
+export const normalizeSlides = (slides, saltBase = "lesson") =>
   slides.map((slide, index) => ({
     order: index,
     type: slide.type,
@@ -209,7 +216,7 @@ const deleteOwnedLiveLessonAndHistory = async ({ schoolId, ownerId, lessonId }) 
   return { ok: true };
 };
 
-const resolveLessonAssignment = async (req, classId, subjectId) => {
+export const resolveLessonAssignment = async (req, classId, subjectId) => {
   if (!classId && !subjectId) return { classId: null, subjectId: null, subject: "", academicYear: null };
   if (!validId(classId) || !validId(subjectId)) {
     return { error: "Choose both an assigned class and one of that class’s subjects." };
@@ -232,7 +239,7 @@ const resolveLessonAssignment = async (req, classId, subjectId) => {
   };
 };
 
-const validateLessonEdit = ({ title, description, subject, grade, language, slides }) => {
+export const validateLessonEdit = ({ title, description, subject, grade, language, slides }) => {
   const errors = [];
   if (!String(title || "").trim() || String(title).trim().length > 200) {
     errors.push({ field: "title", message: "Lesson title is required and must be 200 characters or fewer." });
@@ -307,7 +314,7 @@ const validateLessonEdit = ({ title, description, subject, grade, language, slid
 };
 
 /** Levelled questions may only target groups the teacher made for the lesson's own class. */
-const validateLessonGroupOwnership = async (req, { classId, slides = [] }) => {
+export const validateLessonGroupOwnership = async (req, { classId, slides = [] }) => {
   const groupIds = [];
   slides.forEach((slide) => {
     (Array.isArray(slide.variants) ? slide.variants : []).forEach((variant) => {
@@ -324,15 +331,44 @@ const validateLessonGroupOwnership = async (req, { classId, slides = [] }) => {
   return [{ field: "levels", message: "One of the levelled groups does not belong to the selected class." }];
 };
 
-const schoolHtmlReviewEnabled = async (schoolId) => {
+export const schoolHtmlReviewEnabled = async (schoolId) => {
   const school = await School.findById(schoolId).select("settings.liveLessonHtmlReview.aiReviewEnabled").lean();
   return school?.settings?.liveLessonHtmlReview?.aiReviewEnabled === true;
 };
 
 /** An admin, never a teacher, decides whether this school gets suggested marks at all. */
-const schoolMarkDraftingEnabled = async (schoolId) => {
+export const schoolMarkDraftingEnabled = async (schoolId) => {
   const school = await School.findById(schoolId).select("settings.liveLessonMarkDrafting.aiDraftEnabled").lean();
   return school?.settings?.liveLessonMarkDrafting?.aiDraftEnabled === true;
+};
+
+export const schoolAiBuilderEnabled = async (schoolId) => {
+  const school = await School.findById(schoolId).select("settings.liveLessonAiBuilder.enabled").lean();
+  return school?.settings?.liveLessonAiBuilder?.enabled === true;
+};
+
+/**
+ * Why the builder is or is not usable here, in the words the UI shows. Every
+ * null reason means available; every other value is explained instead of
+ * leaving the teacher with a dead button.
+ */
+const liveLessonAiBuilderAvailability = async (req) => {
+  if (!isLiveLessonBuilderPlatformEnabled()) {
+    return { available: false, reason: "platform_disabled" };
+  }
+  if (!["teacher", "admin"].includes(String(req.user?.role || ""))) {
+    return { available: false, reason: "role_not_allowed" };
+  }
+  const school = await School.findById(req.schoolId)
+    .select("settings.liveLessonAiBuilder.enabled")
+    .lean();
+  if (school?.settings?.liveLessonAiBuilder?.enabled !== true) {
+    return { available: false, reason: "school_disabled" };
+  }
+  if (!isModelPriced(liveLessonBuilderModel())) {
+    return { available: false, reason: "model_unpriced" };
+  }
+  return { available: true, reason: null };
 };
 
 /**
@@ -379,6 +415,11 @@ export const getLiveLessonSettings = asyncHandler(async (req, res) => {
     data: {
       aiHtmlReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
       aiMarkDraftEnabled: await schoolMarkDraftingEnabled(req.schoolId),
+      aiBuilderEnabled: await schoolAiBuilderEnabled(req.schoolId),
+      aiBuilder: await liveLessonAiBuilderAvailability(req),
+      // Names are localized by the client from these ids; the server sends colors only.
+      palettes: paletteSettings(),
+      generationModes: [...LIVE_LESSON_GENERATION_MODES],
     },
   });
 });
@@ -391,6 +432,9 @@ export const updateLiveLessonSettings = asyncHandler(async (req, res) => {
   if (typeof req.body?.aiMarkDraftEnabled === "boolean") {
     updates["settings.liveLessonMarkDrafting.aiDraftEnabled"] = req.body.aiMarkDraftEnabled;
   }
+  if (typeof req.body?.aiBuilderEnabled === "boolean") {
+    updates["settings.liveLessonAiBuilder.enabled"] = req.body.aiBuilderEnabled;
+  }
   if (!Object.keys(updates).length) {
     return res.status(400).json({ success: false, message: "Send a live lesson setting to change." });
   }
@@ -398,13 +442,15 @@ export const updateLiveLessonSettings = asyncHandler(async (req, res) => {
     req.schoolId,
     { $set: updates },
     { new: true, runValidators: true },
-  ).select("settings.liveLessonHtmlReview.aiReviewEnabled settings.liveLessonMarkDrafting.aiDraftEnabled");
+  ).select("settings.liveLessonHtmlReview.aiReviewEnabled settings.liveLessonMarkDrafting.aiDraftEnabled settings.liveLessonAiBuilder.enabled");
   if (!school) return res.status(404).json({ success: false, message: "School not found." });
   return res.json({
     success: true,
     data: {
       aiHtmlReviewEnabled: school.settings?.liveLessonHtmlReview?.aiReviewEnabled === true,
       aiMarkDraftEnabled: school.settings?.liveLessonMarkDrafting?.aiDraftEnabled === true,
+      aiBuilderEnabled: school.settings?.liveLessonAiBuilder?.enabled === true,
+      aiBuilder: await liveLessonAiBuilderAvailability(req),
     },
   });
 });
@@ -1224,6 +1270,7 @@ export const createLiveSession = asyncHandler(async (req, res) => {
       subjectId: canonicalSubjectId,
       grade: lesson.grade || "",
       language: lesson.language || "en",
+      sourceMeta: lesson.sourceMeta?.toObject ? lesson.sourceMeta.toObject() : (lesson.sourceMeta || null),
       slides: lesson.slides.map((slide) => slide.toObject()),
     },
     rosterSnapshot,

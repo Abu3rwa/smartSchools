@@ -5,8 +5,17 @@ import {
   HiOutlineCog6Tooth,
   HiOutlineFolderPlus,
   HiOutlinePresentationChartBar,
+  HiOutlineSparkles,
   HiOutlineTrash,
 } from "react-icons/hi2";
+import { useFeatureNamespaces } from "../../../i18n/useFeatureNamespaces";
+
+const AI_REASON_KEYS = {
+  platform_disabled: "entry.disabledPlatform",
+  role_not_allowed: "entry.disabledRole",
+  school_disabled: "entry.disabledSchool",
+  model_unpriced: "entry.disabledModel",
+};
 
 const LiveLessonsHeader = ({
   libraryTotal,
@@ -16,10 +25,15 @@ const LiveLessonsHeader = ({
   onTabChange,
   onNewFolder,
   onImport,
+  onCreateWithAi,
+  aiBuilder,
   folderSaving,
   onDeleteFinishedSessions,
   deletingFinishedSessions,
 }) => {
+  const { t } = useFeatureNamespaces("liveLessonBuilder");
+  const aiAvailable = aiBuilder?.available === true;
+  const aiReason = t(AI_REASON_KEYS[aiBuilder?.reason] || "entry.disabledPlatform");
   const liveTabs = [
     {
       key: "lessons",
@@ -119,6 +133,17 @@ const LiveLessonsHeader = ({
       <div className="live-topbar-actions">
         {tab === "lessons" && (
           <>
+            <button
+              type="button"
+              className="live-ai-button"
+              onClick={onCreateWithAi}
+              disabled={!aiAvailable}
+              title={aiAvailable ? t("entry.buildWithAi") : aiReason}
+              aria-label={aiAvailable ? t("entry.buildWithAi") : aiReason}
+            >
+              <HiOutlineSparkles aria-hidden="true" />
+              {t("entry.buildWithAi")}
+            </button>
             <button
               className="live-secondary-button"
               onClick={onNewFolder}

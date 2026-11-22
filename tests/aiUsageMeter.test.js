@@ -7,7 +7,7 @@ import AiCreditEntry from '../models/AiCreditEntry.js';
 import { ratesForModel, isModelPriced } from '../config/aiPricing.js';
 import { featureFromPath, runInAiUsageContext } from '../utils/aiUsageContext.js';
 import { assertAiCredit, meterAiCall } from '../services/aiUsageMeter.js';
-import { recordUnbilledUsage, recordUsage } from '../services/aiCreditService.js';
+import { recordUsage } from '../services/aiCreditService.js';
 
 const schoolId = new mongoose.Types.ObjectId();
 const userId = new mongoose.Types.ObjectId();
@@ -48,6 +48,12 @@ test('pricing knows the models this app sends and refuses to guess the rest', ()
         [75, 7.5, 450]
     );
     assert.equal(ratesForModel('gpt-5.4-mini-2026-01-01', {}).inputPerMillionCents, 75);
+    const luna = ratesForModel('gpt-6-luna', {});
+    assert.deepEqual(
+        [luna.inputPerMillionCents, luna.cachedInputPerMillionCents, luna.outputPerMillionCents],
+        [10, 1, 50]
+    );
+    assert.equal(ratesForModel('gpt-6-luna-2026-09-21', {}).outputPerMillionCents, 50);
     assert.equal(ratesForModel('gemini-2.5-flash', {}), null);
     assert.equal(isModelPriced('some-new-model', {}), false);
     assert.equal(ratesForModel('', {}), null);

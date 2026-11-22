@@ -1,0 +1,1 @@
+import{t as o}from"./format-DYaAs78D.js";function a(e,n){const t=o(e,n?.in);return t.setHours(23,59,59,999),t}function u(e,n){const t=o(e,n?.in),r=t.getMonth();return t.setFullYear(t.getFullYear(),r+1,0),t.setHours(23,59,59,999),t}export{u as a,a as e};

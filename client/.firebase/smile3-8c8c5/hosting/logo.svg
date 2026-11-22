@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Cloud Shape: #0d9488 (Primary Teal) -->
+  <g fill="#0d9488">
+    <circle cx="512" cy="530" r="240" />
+    <circle cx="270" cy="650" r="180" />
+    <circle cx="754" cy="650" r="180" />
+    <rect x="270" y="530" width="484" height="300" />
+  </g>
+  
+  <!-- Owl Base: #ffffff -->
+  <path d="M 362 830 Q 362 530 512 530 Q 662 530 662 830 Z" fill="#ffffff" />
+  
+  <!-- Graduation Cap Base/Skullcap: #0f172a (Navy) -->
+  <path d="M 432 495 L 432 560 Q 512 570 592 560 L 592 495 Z" fill="#0f172a" />
+  
+  <!-- Graduation Cap Top -->
+  <polygon points="512,390 680,460 512,530 344,460" fill="#0f172a" />
+  
+  <!-- Tassel Base String: #f59e0b (Warning Orange) -->
+  <path d="M 512 460 L 640 490 L 640 560" stroke="#f59e0b" stroke-width="12" fill="none" stroke-linejoin="round" stroke-linecap="round" />
+  
+  <!-- Tassel Fringes -->
+  <line x1="640" y1="560" x2="630" y2="590" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
+  <line x1="640" y1="560" x2="640" y2="590" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
+  <line x1="640" y1="560" x2="650" y2="590" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
+  
+  <!-- Outer Eyes: #0f172a (Navy) -->
+  <circle cx="442" cy="660" r="50" fill="#0f172a" />
+  <circle cx="582" cy="660" r="50" fill="#0f172a" />
+  
+  <!-- Irises: #ffffff -->
+  <circle cx="442" cy="660" r="15" fill="#ffffff" />
+  <circle cx="582" cy="660" r="15" fill="#ffffff" />
+  
+  <!-- Beak: #f59e0b -->
+  <polygon points="482,710 542,710 512,760" fill="#f59e0b" />
+</svg>

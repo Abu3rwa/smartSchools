@@ -55,6 +55,10 @@ const aiCreditEntrySchema = new mongoose.Schema(
     studentName: { type: String, trim: true, default: '' },
     draftNumber: { type: Number },
 
+    // Idempotency key for one builder step. The unique partial index makes a
+    // second charged row for the same step impossible, even after a retry.
+    operationKey: { type: String, trim: true, default: undefined },
+
     request: { type: mongoose.Schema.Types.ObjectId, ref: 'AiCreditRequest' },
     note: { type: String, trim: true, default: '' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
@@ -63,6 +67,10 @@ const aiCreditEntrySchema = new mongoose.Schema(
 );
 
 aiCreditEntrySchema.index({ school: 1, user: 1, createdAt: -1 });
+aiCreditEntrySchema.index(
+  { school: 1, operationKey: 1 },
+  { unique: true, partialFilterExpression: { charged: true, operationKey: { $type: 'string' } } }
+);
 aiCreditEntrySchema.index({ school: 1, type: 1, createdAt: -1 });
 aiCreditEntrySchema.plugin(tenantIsolationPlugin);
 
