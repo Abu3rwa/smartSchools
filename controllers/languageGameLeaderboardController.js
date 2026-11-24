@@ -12,6 +12,7 @@ import { DEFAULT_SCHOOL_TIMEZONE, resolveTimeZone } from '../utils/schoolTimezon
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
 import {
     accuracyFor,
+    compareLeaderboardRows,
     displayNameFor,
     leaderboardMatch,
     leaderboardPipeline,
@@ -126,7 +127,7 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
             accuracy: accuracyFor(row.correct, row.attempts),
             streakWeeks: streakMap.get(String(row._id)) || 0
         }))
-        .sort((a, b) => b.xp - a.xp || a.displayName.localeCompare(b.displayName))
+        .sort(compareLeaderboardRows)
         .map((row, index) => ({ rank: index + 1, ...row }));
 
     // A class board lists every student in the class, so each student sees
@@ -154,7 +155,7 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
                 streakWeeks: rosterStreak.get(id) || 0
             });
         }
-        ranked.sort((a, b) => b.xp - a.xp || a.displayName.localeCompare(b.displayName));
+        ranked.sort(compareLeaderboardRows);
         ranked.forEach((row, index) => { row.rank = index + 1; });
     }
 
@@ -180,6 +181,7 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
         studentId: row.studentId,
         displayName: row.displayName,
         xp: row.xp,
+        attempts: row.attempts,
         accuracy: row.accuracy,
         streakWeeks: row.streakWeeks
     }));

@@ -17,9 +17,11 @@ import { invalidateSchoolFeatureContext } from '../middleware/featureGate.js';
 import { getLeaderboard, setClassLeaderboard } from '../controllers/languageGameLeaderboardController.js';
 import {
     accuracyFor,
+    compareLeaderboardRows,
     displayNameFor,
     leaderboardMatch,
     previousWindowBoundsFor,
+    TIE_BREAK_MIN_ATTEMPTS,
     windowBoundsFor
 } from '../services/languageGameLeaderboard.js';
 import {
@@ -278,7 +280,7 @@ test('students see masked names and their own row pinned outside the limit', asy
     const data = res.body.data;
     assert.equal(data.rows.length, 1);
     assert.equal(data.rows[0].displayName, 'Omar K.');
-    assert.equal(data.rows[0].attempts, undefined, 'attempt counts stay staff-only');
+    assert.equal(data.rows[0].attempts, 12, 'answer counts are visible so the tie-break is explainable');
     assert.equal(data.myRow.displayName, 'Sara A.');
     assert.equal(data.myRow.rank, 2);
     assert.equal(data.myRow.inTop, false);
@@ -447,4 +449,77 @@ test('a foreign class is not found even for an admin', async (t) => {
     const res = makeRes();
     await invoke(setClassLeaderboard, reqAs('admin', {}, { classId: OTHER_CLASS }, { enabled: false }), res);
     assert.equal(res.statusCode, 404);
+});
+/* ------------------------------------------------------------------ */
+/* Accuracy tie-break                                                  */
+/* ------------------------------------------------------------------ */
+
+const boardRow = (displayName, xp, correct, attempts) => ({
+    displayName,
+    xp,
+    correct,
+    attempts,
+    accuracy: accuracyFor(correct, attempts)
+});
+
+test('equal XP is ordered by accuracy', () => {
+    const rows = [
+        boardRow('Sara M.', 400, 86, 100),
+        boardRow('Omar A.', 400, 98, 100)
+    ];
+    rows.sort(compareLeaderboardRows);
+    assert.deepEqual(rows.map((row) => row.displayName), ['Omar A.', 'Sara M.']);
+});
+
+test('higher XP still outranks higher accuracy', () => {
+    const rows = [
+        boardRow('Top Accuracy', 300, 100, 100),
+        boardRow('Top XP', 400, 50, 100)
+    ];
+    rows.sort(compareLeaderboardRows);
+    assert.deepEqual(rows.map((row) => row.displayName), ['Top XP', 'Top Accuracy']);
+});
+
+test(`accuracy below ${TIE_BREAK_MIN_ATTEMPTS} answers does not break the tie`, () => {
+    const rows = [
+        boardRow('Lucky One', 400, 2, 2),
+        boardRow('Steady', 400, 90, 100)
+    ];
+    rows.sort(compareLeaderboardRows);
+    assert.deepEqual(rows.map((row) => row.displayName), ['Steady', 'Lucky One']);
+});
+
+test('a fully tied pair falls back to name order', () => {
+    const rows = [
+        boardRow('Yousef', 400, 90, 100),
+        boardRow('Malik', 400, 90, 100)
+    ];
+    rows.sort(compareLeaderboardRows);
+    assert.deepEqual(rows.map((row) => row.displayName), ['Malik', 'Yousef']);
+});
+
+test('students without answers never outrank answered ties', () => {
+    const rows = [
+        boardRow('No Answers', 0, 0, 0),
+        boardRow('Answered', 0, 5, 30)
+    ];
+    rows.sort(compareLeaderboardRows);
+    assert.deepEqual(rows.map((row) => row.displayName), ['Answered', 'No Answers']);
+});
+
+test('a tied class board is ordered by accuracy, not by name', async (t) => {
+    const TIED = [
+        { _id: STUDENT, xp: 400, attempts: 30, correct: 30 },
+        { _id: OTHER_STUDENT, xp: 400, attempts: 30, correct: 27 }
+    ];
+    stubGate(t);
+    stubViewerStudent(t);
+    stubBoard(t, { board: TIED });
+    t.mock.method(GameRewardEvent, 'create', async (payload) => payload);
+    t.mock.method(GameProfile, 'updateOne', async () => ({ modifiedCount: 1 }));
+    const res = makeRes();
+    await invoke(getLeaderboard, reqAs('student', { scope: 'class', classId: CLASS }), res);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.deepEqual(res.body.data.rows.map((row) => row.displayName), ['Sara A.', 'Omar K.']);
+    assert.equal(res.body.data.myRow.rank, 1);
 });

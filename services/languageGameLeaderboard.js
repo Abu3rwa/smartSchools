@@ -80,6 +80,24 @@ export const leaderboardPipeline = (match) => [
 
 export const accuracyFor = (correct, attempts) => (attempts > 0 ? Math.round((correct / attempts) * 100) : null);
 
+// Equal XP is broken by accuracy so a capped board still shows who is
+// stronger; below the threshold the sample is too small to count.
+export const TIE_BREAK_MIN_ATTEMPTS = 20;
+
+const tieBreakAccuracy = (row) => {
+  const attempts = Number(row?.attempts) || 0;
+  if (attempts < TIE_BREAK_MIN_ATTEMPTS) return -1;
+  return accuracyFor(Number(row?.correct) || 0, attempts) ?? -1;
+};
+
+export const compareLeaderboardRows = (a, b) => {
+  const xpDiff = (Number(b?.xp) || 0) - (Number(a?.xp) || 0);
+  if (xpDiff !== 0) return xpDiff;
+  const accuracyDiff = tieBreakAccuracy(b) - tieBreakAccuracy(a);
+  if (accuracyDiff !== 0) return accuracyDiff;
+  return String(a?.displayName ?? a?._id ?? '').localeCompare(String(b?.displayName ?? b?._id ?? ''));
+};
+
 // Students see first name + last initial only; staff see full names.
 export const displayNameFor = (student, masked) => {
     const first = String(student?.firstName || '').trim();
@@ -96,7 +114,7 @@ export const settlePreviousPodium = async ({ schoolId, scope, classId, subjectId
     const bounds = previousWindowBoundsFor(window, now, timeZone);
     if (!bounds) return [];
     const rows = await GameRewardEvent.aggregate(leaderboardPipeline(leaderboardMatch({ schoolId, classId, subjectId, bounds })));
-    const top = rows.filter((row) => row.xp > 0).slice(0, 3);
+    const top = rows.sort(compareLeaderboardRows).filter((row) => row.xp > 0).slice(0, 3);
     const granted = [];
     for (const row of top) {
         const badge = podiumBadgeKey({ window, periodKey: bounds.periodKey, scope, subjectCode });

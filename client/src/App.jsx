@@ -115,10 +115,9 @@ const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practic
 const StudentSkillPathPage = lazy(() => import("./pages/student/skillpath/StudentSkillPathPage"));
 const SkillPathPlayPage = lazy(() => import("./pages/student/skillpath/SkillPathPlayPage"));
 const SkillPathProgressPage = lazy(() => import("./pages/student/skillpath/SkillPathProgressPage"));
-const SkillPathLeaderboardPage = lazy(() => import("./pages/student/skillpath/SkillPathLeaderboardPage"));
+const SkillPathLeaderboardPage = lazy(() => import("./pages/skillpath/SkillPathLeaderboardPage"));
 const SkillPathStudioPage = lazy(() => import("./pages/teacher/skillpath/SkillPathStudioPage"));
 const SkillPathEditorPage = lazy(() => import("./pages/teacher/skillpath/SkillPathEditorPage"));
-const SkillPathBoardPage = lazy(() => import("./pages/teacher/skillpath/SkillPathBoardPage"));
 const StudentMyAssignmentsPage = lazy(() => import("./pages/student/assignments/StudentMyAssignmentsPage"));
 const StudentAssessmentResultsPage = lazy(() => import("./pages/student/assignments/StudentAssessmentResultsPage"));
 const AssignmentDetailPage = lazy(() => import("./pages/assignments/AssignmentDetailPage"));
@@ -1354,7 +1353,7 @@ function App() {
               path="skillpath-studio/board"
               element={
                 <RoleRoute roles={["admin", "teacher"]}>
-                  <SkillPathBoardPage />
+                  <SkillPathLeaderboardPage staff />
                 </RoleRoute>
               }
             />
