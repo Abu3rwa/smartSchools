@@ -12,6 +12,36 @@ const EXAM_CATEGORIES = new Set([
 export const normalizeGradeCategoryKey = (category) =>
     String(category || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 
+export const KNOWN_GRADE_CATEGORY_KEYS = new Set([
+    'classwork', 'homework', 'quiz', 'project', 'participation', 'test', 'exam',
+    'midterm', 'final', 'oral', 'practical', 'assignment', 'other', 'daily',
+    'weekly', 'monthly_test', 'midterm_exam', 'semester_exam', 'final_exam'
+]);
+export const CUSTOM_CATEGORY_MAX_LENGTH = 40;
+const CUSTOM_CATEGORY_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\s'’&()/_+-]*$/u;
+
+export const validateCustomCategory = (value) => {
+    const category = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!category) {
+        return { valid: false, category: '', message: 'Enter a category name.' };
+    }
+    if (category.length > CUSTOM_CATEGORY_MAX_LENGTH) {
+        return {
+            valid: false,
+            category,
+            message: `Category must be ${CUSTOM_CATEGORY_MAX_LENGTH} characters or fewer.`
+        };
+    }
+    if (!CUSTOM_CATEGORY_PATTERN.test(category)) {
+        return {
+            valid: false,
+            category,
+            message: 'Category must start with a letter or number and use only letters, numbers, spaces, apostrophes, &, parentheses, /, _, + or -.'
+        };
+    }
+    return { valid: true, category, message: '' };
+};
+
 export const getDefaultMaxMarksForCategory = (category) => {
     const normalizedCategory = normalizeGradeCategoryKey(category);
     if (normalizedCategory === 'project') return 20;

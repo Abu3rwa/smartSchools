@@ -1,4 +1,19 @@
 {
+  "lessonLinks": {
+    "title": "Linked lesson plans (optional)",
+    "open": "Linked lesson plans",
+    "done": "Done",
+    "selectedCount": "{{count}} selected",
+    "clear": "Clear selection",
+    "searchPlaceholder": "Search by title...",
+    "selectClassSubjectFirst": "Select class and subject first to load lesson plans.",
+    "loading": "Loading lesson plans...",
+    "loadError": "Failed to load lesson plans.",
+    "noLessons": "No lesson plans found for this filter.",
+    "noSearchResults": "No lesson plans match your search.",
+    "untitledLesson": "Untitled lesson",
+    "close": "Close lesson plans"
+  },
   "entry": {
     "header": {
       "title": "Grade Entry",
@@ -10,13 +25,17 @@
       "selectSubject": "Select Subject *",
       "chooseSubject": "Choose a subject",
       "category": "Category *",
+      "categoryGroup": "Grade category",
       "customCategory": "Custom...",
       "customCategoryPlaceholder": "Enter category name",
       "date": "Date",
       "maxMarks": "Max Marks"
     },
     "table": {
-      "title": "Enter Grades ({{count}} students)",
+      "title": "Student grades",
+      "editTitle": "Edit grades ({{count}} students)",
+      "editMode": "Edit mode",
+      "regionLabel": "Student grade entry",
       "sendParentNotifications": "Send parent notifications",
       "columns": {
         "student": "Student",
@@ -26,8 +45,29 @@
       },
       "optional": "Optional",
       "summary": "{{entered}} of {{total}} grades entered",
+      "enteredLabel": "entered",
+      "remaining": "{{count}} left",
+      "entered": "Entered",
+      "checkMark": "Check mark",
+      "notEntered": "Not entered",
+      "markFor": "Mark for {{name}}",
+      "remarksFor": "Remarks for {{name}}",
+      "behavior": "Behavior",
+      "scoreBehavior": "Score behavior",
+      "enterOneToSave": "Enter at least one mark to save.",
+      "readyToSave": "{{count}} marks ready to save.",
+      "readyToUpdate": "{{count}} marks ready to update.",
       "save": "Save Grades",
+      "saveCount": "Save {{count}} grades",
+      "updateGrades": "Update grades",
+      "cancelEdit": "Cancel editing",
       "sendEmails": "Email parents and students when saving"
+    },
+    "validation": {
+      "maxMarksInvalid": "Max marks must be between 1 and 100.",
+      "fixInvalid": "Fix {{count}} invalid mark(s) before saving.",
+      "markRange": "Enter a mark from 0 to {{maxMarks}}.",
+      "customCategoryRequired": "Enter a name for the custom category before saving."
     },
     "empty": {
       "noStudents": "No students found in this class",
@@ -98,6 +138,14 @@
       "hint": "This is the exact email families receive, rendered by the server. Nothing is sent or saved from this preview.",
       "needsMark": "Enter a valid mark to preview this email",
       "rowLabel": "Preview email for {{name}}"
+    },
+    "setupLabel": "Grade entry setup",
+    "draft": {
+      "restored": "Restored your unsaved draft from {{time}}.",
+      "discard": "Discard draft",
+      "discardConfirm": "Discard this draft and clear the marks and lesson text it restored?",
+      "storageUnavailable": "This browser could not save your draft, so unsaved marks may be lost if the page closes.",
+      "discarded": "Draft discarded"
     }
   },
   "selfCheck": {
@@ -150,7 +198,8 @@
     "Custom": "Custom"
   },
   "common": {
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "notSet": "Date not set"
   },
   "toasts": {
     "enterAtLeastOne": "Please enter at least one grade",

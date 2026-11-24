@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { GRADE_CATEGORY_OPTIONS } from '../constants';
-import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const getClassLabels = (availableClasses) => {
     const nameCounts = new Map();
@@ -24,29 +22,26 @@ const GradeEntrySelectionForm = ({
     onClassChange,
     selectedSubject,
     onSubjectChange,
-    selectedCategory,
-    onCategoryChange,
-    customCategory,
-    onCustomCategoryChange,
     selectedDate,
     onDateChange,
     maxMarks,
     onMaxMarksChange,
     availableClasses,
     availableSubjects,
-    selectedLessonPlanIds,
-    onSelectedLessonPlanIdsChange,
+    lessonSlot = null,
+    noticeSlot = null,
     disabled = false
 }) => {
     const { t } = useTranslation(['grades']);
     const classLabels = useMemo(() => getClassLabels(availableClasses), [availableClasses]);
+    const maxMarksInvalid = !Number.isFinite(maxMarks) || maxMarks < 1 || maxMarks > 100;
 
     return (
-        <div className="card selection-card">
-            <div className="selection-grid">
-                <div className="form-group">
-                    <label>{t('grades:entry.form.selectClass')}</label>
-                    <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required disabled={disabled}>
+        <>
+            <div className="grade-setup-fields selection-grid">
+                <div className="form-group selection-field selection-field--class">
+                    <label htmlFor="grade-class">{t('grades:entry.form.selectClass')}</label>
+                    <select id="grade-class" value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required disabled={disabled}>
                         <option value="">{t('grades:entry.form.chooseClass')}</option>
                         {availableClasses.map((item) => (
                             <option key={item._id} value={item._id}>{classLabels.get(item._id) || item.name}</option>
@@ -54,9 +49,10 @@ const GradeEntrySelectionForm = ({
                     </select>
                 </div>
 
-                <div className="form-group">
-                    <label>{t('grades:entry.form.selectSubject')}</label>
+                <div className="form-group selection-field selection-field--subject">
+                    <label htmlFor="grade-subject">{t('grades:entry.form.selectSubject')}</label>
                     <select
+                        id="grade-subject"
                         value={selectedSubject}
                         onChange={(event) => onSubjectChange(event.target.value)}
                         required
@@ -71,34 +67,10 @@ const GradeEntrySelectionForm = ({
                     </select>
                 </div>
 
-                <div className="form-group">
-                    <label>{t('grades:entry.form.category')}</label>
-                    <div className="category-selection">
-                        <select value={selectedCategory} onChange={(event) => onCategoryChange(event.target.value)} required disabled={disabled}>
-                            {GRADE_CATEGORY_OPTIONS.map((category) => (
-                                <option key={category} value={category}>
-                                    {t(`grades:categories.${category}`, { defaultValue: category })}
-                                </option>
-                            ))}
-                            <option value="Custom">{t('grades:entry.form.customCategory')}</option>
-                        </select>
-
-                        {selectedCategory === 'Custom' && (
-                            <input
-                                type="text"
-                                placeholder={t('grades:entry.form.customCategoryPlaceholder')}
-                                value={customCategory}
-                                onChange={(event) => onCustomCategoryChange(event.target.value)}
-                                className="mt-sm"
-                                required
-                            />
-                        )}
-                    </div>
-                </div>
-
-                <div className="form-group">
-                    <label>{t('grades:entry.form.date')}</label>
+                <div className="form-group selection-field selection-field--date">
+                    <label htmlFor="grade-date">{t('grades:entry.form.date')}</label>
                     <input
+                        id="grade-date"
                         type="date"
                         value={selectedDate}
                         onChange={(event) => onDateChange(event.target.value)}
@@ -107,27 +79,34 @@ const GradeEntrySelectionForm = ({
                     />
                 </div>
 
-                <div className="form-group">
-                    <label>{t('grades:entry.form.maxMarks')}</label>
+                <div className="form-group selection-field selection-field--max">
+                    <label htmlFor="grade-max-marks">{t('grades:entry.form.maxMarks')}</label>
                     <input
+                        id="grade-max-marks"
                         type="number"
+                        inputMode="decimal"
                         value={maxMarks}
                         onChange={(event) => onMaxMarksChange(Number(event.target.value))}
                         min={1}
                         max={100}
+                        aria-invalid={maxMarksInvalid}
+                        aria-describedby={maxMarksInvalid ? 'grade-max-marks-error' : undefined}
                         disabled={disabled}
                     />
+                    {maxMarksInvalid && (
+                        <span id="grade-max-marks-error" className="setup-field-error">
+                            {t('grades:entry.validation.maxMarksInvalid')}
+                        </span>
+                    )}
                 </div>
             </div>
 
-            <LessonPlanLinkSelector
-                classId={selectedClass}
-                subjectId={selectedSubject}
-                selectedLessonPlanIds={selectedLessonPlanIds}
-                onChange={onSelectedLessonPlanIdsChange}
-                disabled={!selectedClass || !selectedSubject}
-            />
-        </div>
+            {noticeSlot}
+
+            {lessonSlot && (
+                <div className="grade-setup-lesson">{lessonSlot}</div>
+            )}
+        </>
     );
 };
 

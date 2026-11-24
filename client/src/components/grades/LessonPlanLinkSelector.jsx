@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineChevronDown } from 'react-icons/hi';
-import api from '../../config/api';
+import { useLessonPlanSearch } from './lessonPlanSearch';
 import './LessonPlanLinkSelector.css';
 
 const getLessonDateLabel = (value) => {
@@ -13,9 +13,6 @@ const getLessonDateLabel = (value) => {
 
 const normalizeLessonId = (lessonId) => String(lessonId || '').trim();
 
-const DEBOUNCE_MS = 300;
-const DEFAULT_LIMIT = 10;
-
 const LessonPlanLinkSelector = ({
     classId,
     subjectId,
@@ -25,13 +22,10 @@ const LessonPlanLinkSelector = ({
 }) => {
     const { t } = useTranslation(['grades', 'gradebook', 'studentGrades']);
     const [search, setSearch] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [lessons, setLessons] = useState([]);
     const [open, setOpen] = useState(false);
     const bodyId = useId();
-    const debounceRef = useRef(null);
+    const rootRef = useRef(null);
+    const toggleRef = useRef(null);
 
     const selectedIds = useMemo(() => {
         const ids = Array.isArray(selectedLessonPlanIds) ? selectedLessonPlanIds : [];
@@ -42,59 +36,34 @@ const LessonPlanLinkSelector = ({
 
     const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const canFetch = Boolean(classId && subjectId);
-
-    // Debounce search input
-    useEffect(() => {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
-            setDebouncedSearch(search.trim());
-        }, DEBOUNCE_MS);
-        return () => {
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-        };
-    }, [search]);
-
     // Fetch lessons only while the picker is expanded: it is optional chrome
     // sitting above the grade table.
+    const {
+        lessons,
+        loading,
+        error,
+        debouncedSearch
+    } = useLessonPlanSearch({ classId, subjectId, active: open, search, t });
+
+    // The picker floats over the roster on the grade-entry page, so a click
+    // elsewhere must dismiss it instead of leaving it pinned above the table.
     useEffect(() => {
-        let mounted = true;
-        if (!canFetch || !open) {
-            if (!canFetch) {
-                setLessons([]);
-                setError('');
-            }
-            return () => { mounted = false; };
-        }
-
-        const fetchLessons = async () => {
-            setLoading(true);
-            setError('');
-            try {
-                const params = {
-                    class: classId,
-                    subject: subjectId,
-                    page: 1,
-                    limit: DEFAULT_LIMIT
-                };
-                if (debouncedSearch) {
-                    params.search = debouncedSearch;
-                    params.limit = 20;
-                }
-                const response = await api.get('/lessons', { params });
-                if (!mounted) return;
-                setLessons(response.data?.data?.lessons || []);
-            } catch (fetchError) {
-                if (!mounted) return;
-                setLessons([]);
-                setError(fetchError.response?.data?.message || t('grades:lessonLinks.loadError', { defaultValue: 'Failed to load lesson plans.' }));
-            } finally {
-                if (mounted) setLoading(false);
-            }
+        if (!open) return undefined;
+        const handlePointerDown = (event) => {
+            if (!rootRef.current?.contains(event.target)) setOpen(false);
         };
-
-        fetchLessons();
-        return () => { mounted = false; };
-    }, [canFetch, open, classId, debouncedSearch, subjectId, t]);
+        const handleKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            setOpen(false);
+            toggleRef.current?.focus();
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [open]);
 
     const handleToggleLesson = useCallback((lessonId, checked) => {
         if (disabled) return;
@@ -117,9 +86,10 @@ const LessonPlanLinkSelector = ({
     const disabledSelector = disabled || !classId || !subjectId;
 
     return (
-        <div className={`lesson-plan-link-selector${open ? ' is-open' : ''}`}>
+        <div ref={rootRef} className={`lesson-plan-link-selector${open ? ' is-open' : ''}`}>
             <div className="lesson-plan-link-selector__header">
                 <button
+                    ref={toggleRef}
                     type="button"
                     className="lesson-plan-link-selector__toggle"
                     aria-expanded={open}

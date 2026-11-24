@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { HiOutlineClock } from 'react-icons/hi';
 import { selectClasses } from '../../../store/slices/classSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
@@ -11,10 +12,12 @@ import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { fetchMyClasses, selectMyClasses } from '../../../store/slices/teacherSlice';
 import { selectIsTeacher, selectUser } from '../../../store/slices/authSlice';
 import GradeEntryHeader from './components/GradeEntryHeader';
+import GradeEntryCategoryTabs from './components/GradeEntryCategoryTabs';
 import GradeEntrySelectionForm from './components/GradeEntrySelectionForm';
 import GradeEntryTable from './components/GradeEntryTable';
 import GradeEntryEmptyState from './components/GradeEntryEmptyState';
 import GradeEntryLessonPanel from './components/GradeEntryLessonPanel';
+import LessonPlanLinkButton from '../../../components/grades/LessonPlanLinkButton';
 import GradeEntryEmailPreviewModal from './components/GradeEntryEmailPreviewModal';
 import ClassworkSelfCheckPanel from './components/ClassworkSelfCheckPanel';
 import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
@@ -26,10 +29,14 @@ import {
 import useGradeEntryPageState from './hooks/useGradeEntryPageState';
 import {
     countEnteredGrades,
+    countInvalidGrades,
     getAvailableClasses,
     getAvailableSubjects,
-    mapGradesForSubmission
+    getGradeMarkState,
+    mapGradesForSubmission,
+    normalizeCustomCategory
 } from './utils/gradeEntryPresentation';
+import { createDraftStore, hasDraftContent } from './utils/gradeEntryDraft';
 import './GradeEntryPage.css';
 
 const GradeEntryPage = () => {
@@ -52,6 +59,14 @@ const GradeEntryPage = () => {
         getEmailLanguagePreference(user?._id || user?.id)
     ));
     const [rememberEmailLanguage, setRememberEmailLanguage] = useState(false);
+    const [categoryValidationAttempt, setCategoryValidationAttempt] = useState(0);
+    const [pendingLesson, setPendingLesson] = useState(null);
+    const [draftNotice, setDraftNotice] = useState(null);
+    const pendingDraftGradesRef = useRef(null);
+    const discardedDraftPairsRef = useRef(new Set());
+    const storageFailedRef = useRef(false);
+    const suppressDraftWriteRef = useRef(null);
+    const draftBaselineRef = useRef({ pair: '', signature: '' });
 
     const {
         selectedClass,
@@ -84,6 +99,16 @@ const GradeEntryPage = () => {
         exitEditMode
     } = useGradeEntryPageState({ initialClassId: searchParams.get('class') || '' });
 
+    const userId = user?._id || user?.id || '';
+    const draftStore = useMemo(() => {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return null;
+            return createDraftStore(window.localStorage);
+        } catch {
+            return null;
+        }
+    }, []);
+
     useEffect(() => {
         if (isTeacher) {
             dispatch(fetchMyClasses());
@@ -97,17 +122,35 @@ const GradeEntryPage = () => {
         }
     }, [dispatch, editMode, selectedClass, setGrades]);
 
+    // Lesson-plan ids are cleared by the class/subject handlers now, so a
+    // restored draft keeps its ids instead of being wiped on the same render.
     useEffect(() => {
         if (!editMode) {
             setSelectedLessonPlanIds([]);
         }
-    }, [editMode, selectedClass, selectedSubject, setSelectedLessonPlanIds]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
-        if (!editMode) {
-            resetGradesForStudents(classStudents);
-        }
-    }, [classStudents, editMode, resetGradesForStudents]);
+        if (editMode) return;
+        resetGradesForStudents(classStudents);
+        const pendingDraftGrades = pendingDraftGradesRef.current;
+        if (!pendingDraftGrades || classStudents.length === 0) return;
+        pendingDraftGradesRef.current = null;
+        setGrades((current) => {
+            const next = { ...current };
+            for (const student of classStudents) {
+                const studentId = String(student?._id || student?.id || '');
+                const restored = pendingDraftGrades[studentId];
+                if (!restored) continue;
+                next[studentId] = {
+                    ...current[studentId],
+                    marks: restored.marks ?? '',
+                    remarks: restored.remarks ?? ''
+                };
+            }
+            return next;
+        });
+    }, [classStudents, editMode, resetGradesForStudents, setGrades]);
 
     // Load grades for edit mode when navigated with ?assessmentGroupId=xxx
     useEffect(() => {
@@ -136,6 +179,35 @@ const GradeEntryPage = () => {
         return getAvailableSubjects({ selectedClass, classes, subjects, isTeacher, myClasses });
     }, [classes, selectedClass, subjects, isTeacher, myClasses]);
 
+    const enteredCount = useMemo(() => {
+        return countEnteredGrades(grades, maxMarks);
+    }, [grades, maxMarks]);
+
+    const invalidCount = useMemo(() => {
+        return countInvalidGrades(grades, maxMarks);
+    }, [grades, maxMarks]);
+
+    const maxMarksValid = getGradeMarkState(0, maxMarks).status === 'valid';
+    const readyCount = useMemo(() => {
+        if (!editMode) return enteredCount;
+        return Object.entries(grades).filter(([studentId, data]) => (
+            editGradeMap[studentId]
+            && getGradeMarkState(data?.marks, maxMarks).status === 'valid'
+        )).length;
+    }, [editGradeMap, editMode, enteredCount, grades, maxMarks]);
+
+    const clearLessonContext = useCallback(() => {
+        setLessonTitle('');
+        setLessonSummary('');
+        setPendingLesson(null);
+    }, [setLessonTitle, setLessonSummary]);
+
+    const handleLessonApply = useCallback(({ title, summary }) => {
+        setLessonTitle(title);
+        setLessonSummary(summary);
+        setPendingLesson(null);
+    }, [setLessonTitle, setLessonSummary]);
+
     // A ?class= link from a previous year no longer resolves to a listed class; clear it
     // instead of saving grades against last year's document.
     useEffect(() => {
@@ -144,40 +216,169 @@ const GradeEntryPage = () => {
             (item) => String(item._id) === String(selectedClass)
         );
         if (!stillAvailable) {
+            pendingDraftGradesRef.current = null;
             setSelectedClass('');
             setSelectedSubject('');
-            setLessonTitle('');
-            setLessonSummary('');
+            setSelectedLessonPlanIds([]);
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- stale-link cleanup must also drop lesson text, or it saves under the next class
+            clearLessonContext();
         }
-    }, [availableClasses, editMode, selectedClass, setSelectedClass, setSelectedSubject, setLessonTitle, setLessonSummary]);
+    }, [
+        availableClasses, clearLessonContext, editMode, selectedClass, setSelectedClass,
+        setSelectedLessonPlanIds, setSelectedSubject
+    ]);
 
-    const enteredCount = useMemo(() => {
-        return countEnteredGrades(grades);
-    }, [grades]);
+    const buildDraftPayload = useCallback(() => {
+        const draftGrades = {};
+        Object.entries(grades).forEach(([studentId, row]) => {
+            const marks = row?.marks ?? '';
+            const remarks = row?.remarks ?? '';
+            if (!String(marks).trim() && !String(remarks).trim()) return;
+            draftGrades[studentId] = { marks, remarks };
+        });
+        const classItem = availableClasses.find((item) => String(item._id) === String(selectedClass));
+        const subjectItem = availableSubjects.find((item) => String(item._id) === String(selectedSubject));
+        return {
+            classId: selectedClass,
+            subjectId: selectedSubject,
+            classLabel: classItem?.name || '',
+            subjectLabel: subjectItem?.name || '',
+            category: selectedCategory,
+            customCategory,
+            date: selectedDate,
+            maxMarks,
+            grades: draftGrades,
+            lessonTitle,
+            lessonSummary,
+            pendingLesson,
+            lessonPlanIds: selectedLessonPlanIds,
+            sendNotifications
+        };
+    }, [
+        availableClasses, availableSubjects, customCategory, grades, lessonSummary, lessonTitle,
+        maxMarks, pendingLesson, selectedCategory, selectedClass, selectedDate,
+        selectedLessonPlanIds, selectedSubject, sendNotifications
+    ]);
 
-    const clearLessonContext = useCallback(() => {
-        setLessonTitle('');
-        setLessonSummary('');
-    }, [setLessonTitle, setLessonSummary]);
+    const mergeDraftGrades = useCallback((draftGrades, students) => {
+        if (!draftGrades) return;
+        const rosterIds = new Set((students || []).map(
+            (student) => String(student?._id || student?.id || '')
+        ));
+        setGrades((current) => {
+            const next = { ...current };
+            Object.entries(draftGrades).forEach(([studentId, row]) => {
+                if (rosterIds.size > 0 && !rosterIds.has(studentId)) return;
+                next[studentId] = {
+                    ...current[studentId],
+                    marks: row?.marks ?? '',
+                    remarks: row?.remarks ?? ''
+                };
+            });
+            return next;
+        });
+    }, [setGrades]);
 
-    const handleLessonApply = useCallback(({ title, summary }) => {
-        setLessonTitle(title);
-        setLessonSummary(summary);
-    }, [setLessonTitle, setLessonSummary]);
+    const tryRestoreDraft = useCallback((classId, subjectId, { deferGrades = false } = {}) => {
+        if (!draftStore || !classId || !subjectId || editMode || submitting) return false;
+        const pair = `${classId}|${subjectId}`;
+        if (discardedDraftPairsRef.current.has(pair)) return false;
+        const draft = draftStore.read(userId, classId, subjectId);
+        if (!draft) return false;
+
+        if (draft.date) setSelectedDate(draft.date);
+        const restoredMaxMarks = Number(draft.maxMarks);
+        if (Number.isFinite(restoredMaxMarks) && restoredMaxMarks >= 1 && restoredMaxMarks <= 100) {
+            setMaxMarks(restoredMaxMarks);
+        }
+        if (typeof draft.category === 'string' && draft.category) setSelectedCategory(draft.category);
+        setCustomCategory(typeof draft.customCategory === 'string' ? draft.customCategory : '');
+        setLessonTitle(draft.lessonTitle || '');
+        setLessonSummary(draft.lessonSummary || '');
+        setPendingLesson(draft.pendingLesson || null);
+        setSelectedLessonPlanIds(Array.isArray(draft.lessonPlanIds) ? draft.lessonPlanIds : []);
+        setSendNotifications(Boolean(draft.sendNotifications));
+
+        const draftGrades = draft.grades && typeof draft.grades === 'object' ? draft.grades : {};
+        if (deferGrades) {
+            pendingDraftGradesRef.current = draftGrades;
+        } else {
+            mergeDraftGrades(draftGrades, classStudents);
+        }
+        setDraftNotice({ classId, subjectId, savedAt: draft.savedAt });
+        return true;
+    }, [
+        classStudents, draftStore, editMode, mergeDraftGrades, setCustomCategory,
+        setLessonSummary, setLessonTitle, setMaxMarks, setSelectedCategory, setSelectedDate,
+        setSelectedLessonPlanIds, setSendNotifications, submitting, userId
+    ]);
+
+    const handleDiscardDraft = () => {
+        if (!draftNotice) return;
+        if (!window.confirm(t('grades:entry.draft.discardConfirm'))) return;
+        draftStore?.remove(userId, draftNotice.classId, draftNotice.subjectId);
+        discardedDraftPairsRef.current.add(`${draftNotice.classId}|${draftNotice.subjectId}`);
+        pendingDraftGradesRef.current = null;
+        suppressDraftWriteRef.current = `${draftNotice.classId}|${draftNotice.subjectId}`;
+        setDraftNotice(null);
+        setSelectedLessonPlanIds([]);
+        resetGradesForStudents(classStudents);
+        clearLessonContext();
+        toast.success(t('grades:entry.draft.discarded'));
+    };
+
+    // Drafts are written after typing settles; an untouched page stores nothing.
+    useEffect(() => {
+        if (!draftStore || editMode || submitting || !selectedClass || !selectedSubject) return undefined;
+        const draft = buildDraftPayload();
+        const pair = `${selectedClass}|${selectedSubject}`;
+        const signature = JSON.stringify(draft);
+
+        if (suppressDraftWriteRef.current === pair) {
+            suppressDraftWriteRef.current = null;
+            draftBaselineRef.current = { pair, signature };
+            return undefined;
+        }
+        if (draftBaselineRef.current.pair === pair && draftBaselineRef.current.signature === signature) {
+            return undefined;
+        }
+
+        const timer = setTimeout(() => {
+            if (!hasDraftContent(draft)) return;
+            const saved = draftStore.write(userId, draft);
+            if (!saved && !storageFailedRef.current) {
+                storageFailedRef.current = true;
+                toast.error(t('grades:entry.draft.storageUnavailable'));
+            }
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [buildDraftPayload, draftStore, editMode, selectedClass, selectedSubject, submitting, t, userId]);
 
     // A scope change must never silently carry the previous lesson's text.
     const handleClassChange = (nextClass) => {
         if (nextClass === selectedClass) return;
         if ((lessonTitle || lessonSummary) && !window.confirm(t('grades:entry.lesson.scopeConfirm'))) return;
+        pendingDraftGradesRef.current = null;
         clearLessonContext();
+        setSelectedLessonPlanIds([]);
+        setDraftNotice(null);
         setSelectedClass(nextClass);
+        if (nextClass && selectedSubject) {
+            tryRestoreDraft(nextClass, selectedSubject, { deferGrades: true });
+        }
     };
 
     const handleSubjectChange = (nextSubject) => {
         if (nextSubject === selectedSubject) return;
         if ((lessonTitle || lessonSummary) && !window.confirm(t('grades:entry.lesson.scopeConfirm'))) return;
+        pendingDraftGradesRef.current = null;
         clearLessonContext();
+        setSelectedLessonPlanIds([]);
+        setDraftNotice(null);
         setSelectedSubject(nextSubject);
+        if (selectedClass && nextSubject) {
+            tryRestoreDraft(selectedClass, nextSubject);
+        }
     };
 
     const handleDateChange = (nextDate) => {
@@ -193,10 +394,35 @@ const GradeEntryPage = () => {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
+        if (!maxMarksValid) {
+            toast.error(t('grades:entry.validation.maxMarksInvalid'));
+            document.getElementById('grade-max-marks')?.focus();
+            return;
+        }
+
+        if (invalidCount > 0) {
+            toast.error(t('grades:entry.validation.fixInvalid', { count: invalidCount }));
+            document.querySelector('.marks-input[aria-invalid="true"]')?.focus();
+            return;
+        }
+
+        const submittedCategory = selectedCategory === 'Custom'
+            ? normalizeCustomCategory(customCategory)
+            : selectedCategory || '';
+        if (selectedCategory === 'Custom' && !submittedCategory) {
+            setCategoryValidationAttempt((attempt) => attempt + 1);
+            toast.error(t('grades:entry.validation.customCategoryRequired'));
+            document.querySelector('.grade-category-custom')?.focus();
+            return;
+        }
+
         if (editMode) {
             // Build update payload: only grades that have a corresponding grade document
             const gradeUpdates = Object.entries(grades)
-                .filter(([studentId, data]) => editGradeMap[studentId] && data.marks !== '' && data.marks !== null)
+                .filter(([studentId, data]) => (
+                    editGradeMap[studentId]
+                    && getGradeMarkState(data?.marks, maxMarks).status === 'valid'
+                ))
                 .map(([studentId, data]) => ({
                     _id: editGradeMap[studentId],
                     marks: Number.parseFloat(data.marks),
@@ -214,7 +440,7 @@ const GradeEntryPage = () => {
                 metadata: {
                     classId: selectedClass,
                     subject: selectedSubject,
-                    category: (selectedCategory === 'Custom' ? customCategory : selectedCategory || '').toLowerCase(),
+                    category: submittedCategory,
                     date: selectedDate,
                     maxMarks,
                     title: lessonTitle,
@@ -236,10 +462,12 @@ const GradeEntryPage = () => {
             return;
         }
 
+        const submittedClassId = selectedClass;
+        const submittedSubjectId = selectedSubject;
         const result = await dispatch(bulkAddGrades({
             classId: selectedClass,
             subject: selectedSubject,
-            category: selectedCategory === 'Custom' ? customCategory : selectedCategory,
+            category: submittedCategory,
             date: selectedDate,
             maxMarks,
             title: lessonTitle,
@@ -252,6 +480,10 @@ const GradeEntryPage = () => {
         }));
 
         if (bulkAddGrades.fulfilled.match(result)) {
+            draftStore?.remove(userId, submittedClassId, submittedSubjectId);
+            suppressDraftWriteRef.current = `${submittedClassId}|${submittedSubjectId}`;
+            setDraftNotice(null);
+            setPendingLesson(null);
             if (rememberEmailLanguage) {
                 saveEmailLanguagePreference(user?._id || user?.id, emailLanguage);
             }
@@ -313,41 +545,76 @@ const GradeEntryPage = () => {
         return selfCheckRows.find((row) => String(row.student?.id) === studentId && row.submitted) || null;
     };
 
-    return (
-        <div className="grade-entry-page">
-            <GradeEntryHeader editMode={editMode} />
-
-            <GradeEntrySelectionForm
-                selectedClass={selectedClass}
-                onClassChange={handleClassChange}
-                selectedSubject={selectedSubject}
-                onSubjectChange={handleSubjectChange}
-                selectedCategory={selectedCategory}
-                onCategoryChange={setSelectedCategory}
-                customCategory={customCategory}
-                onCustomCategoryChange={setCustomCategory}
-                selectedDate={selectedDate}
-                onDateChange={handleDateChange}
-                maxMarks={maxMarks}
-                onMaxMarksChange={setMaxMarks}
-                availableClasses={availableClasses}
-                availableSubjects={availableSubjects}
-                selectedLessonPlanIds={selectedLessonPlanIds}
-                onSelectedLessonPlanIdsChange={setSelectedLessonPlanIds}
-                disabled={false}
-            />
-
-            {selectedClass && selectedSubject && (
-                <GradeEntryLessonPanel
+    // The lesson title/summary and its plan picker share one row inside the
+    // setup card instead of stacking two optional blocks above the roster.
+    const lessonSlot = selectedClass && selectedSubject ? (
+        <GradeEntryLessonPanel
+            classId={selectedClass}
+            subjectId={selectedSubject}
+            gradeDate={selectedDate}
+            lessonTitle={lessonTitle}
+            lessonSummary={lessonSummary}
+            onApply={handleLessonApply}
+            pendingLesson={pendingLesson}
+            onPendingLessonChange={setPendingLesson}
+            linkSlot={(
+                <LessonPlanLinkButton
                     classId={selectedClass}
                     subjectId={selectedSubject}
-                    gradeDate={selectedDate}
-                    lessonTitle={lessonTitle}
-                    lessonSummary={lessonSummary}
-                    onApply={handleLessonApply}
-                    onPreviewEmail={() => openEmailPreview(null)}
+                    selectedLessonPlanIds={selectedLessonPlanIds}
+                    onChange={setSelectedLessonPlanIds}
                 />
             )}
+        />
+    ) : null;
+
+    const draftNoticeSlot = draftNotice ? (
+        <div className="grade-draft-notice" role="status">
+            <HiOutlineClock aria-hidden="true" />
+            <span>
+                {t('grades:entry.draft.restored', {
+                    time: new Date(draftNotice.savedAt).toLocaleString()
+                })}
+            </span>
+            <button type="button" className="grade-draft-notice__discard" onClick={handleDiscardDraft}>
+                {t('grades:entry.draft.discard')}
+            </button>
+        </div>
+    ) : null;
+
+    return (
+        <div className="grade-entry-page">
+            <section className="card grade-setup" aria-label={t('grades:entry.setupLabel')}>
+                <GradeEntryHeader
+                    editMode={editMode}
+                    tabs={(
+                        <GradeEntryCategoryTabs
+                            value={selectedCategory}
+                            customCategory={customCategory}
+                            onCategoryChange={setSelectedCategory}
+                            onCustomCategoryChange={setCustomCategory}
+                            validationAttempt={categoryValidationAttempt}
+                            disabled={false}
+                        />
+                    )}
+                />
+
+                <GradeEntrySelectionForm
+                    selectedClass={selectedClass}
+                    onClassChange={handleClassChange}
+                    selectedSubject={selectedSubject}
+                    onSubjectChange={handleSubjectChange}
+                    selectedDate={selectedDate}
+                    onDateChange={handleDateChange}
+                    maxMarks={maxMarks}
+                    onMaxMarksChange={setMaxMarks}
+                    availableClasses={availableClasses}
+                    availableSubjects={availableSubjects}
+                    lessonSlot={lessonSlot}
+                    noticeSlot={draftNoticeSlot}
+                    disabled={false}
+                />
+            </section>
 
             {selectedClass && selectedSubject && classStudents.length > 0 && (
                 <GradeEntryTable
@@ -367,6 +634,9 @@ const GradeEntryPage = () => {
                     )}
                     onGradeChange={handleGradeChange}
                     enteredCount={enteredCount}
+                    invalidCount={invalidCount}
+                    readyCount={readyCount}
+                    maxMarksValid={maxMarksValid}
                     submitting={submitting}
                     onSubmit={handleSubmit}
                     editMode={editMode}

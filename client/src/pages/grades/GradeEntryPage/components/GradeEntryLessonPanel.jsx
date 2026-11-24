@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
     HiOutlineBookOpen,
     HiOutlinePencil,
-    HiOutlineEye,
     HiOutlineSparkles,
     HiOutlineUpload,
     HiOutlineLink,
@@ -24,7 +23,9 @@ const GradeEntryLessonPanel = ({
     lessonTitle,
     lessonSummary,
     onApply,
-    onPreviewEmail
+    pendingLesson = null,
+    onPendingLessonChange = null,
+    linkSlot = null
 }) => {
     const { t } = useTranslation(['grades']);
     const [editorOpen, setEditorOpen] = useState(false);
@@ -66,8 +67,9 @@ const GradeEntryLessonPanel = ({
     }, [scopeKey]);
 
     const openEditor = () => {
-        setDraftTitle(lessonTitle || '');
-        setDraftSummary(lessonSummary || '');
+        const seed = (lessonTitle || lessonSummary) ? null : pendingLesson;
+        setDraftTitle(seed ? (seed.title || '') : (lessonTitle || ''));
+        setDraftSummary(seed ? (seed.summary || '') : (lessonSummary || ''));
         setApplyError('');
         setRequestError('');
         setEditorOpen(true);
@@ -78,6 +80,13 @@ const GradeEntryLessonPanel = ({
         setApplyError('');
         setRequestError('');
     };
+
+    // Unsaved editor text is part of the page draft; the page seeds the next
+    // open with it, so closing the editor does not discard what was typed.
+    useEffect(() => {
+        if (!editorOpen || !onPendingLessonChange) return;
+        onPendingLessonChange({ title: draftTitle, summary: draftSummary });
+    }, [draftTitle, draftSummary, editorOpen, onPendingLessonChange]);
 
     const handleApply = () => {
         const title = draftTitle.trim();
@@ -204,35 +213,27 @@ const GradeEntryLessonPanel = ({
     if (!editorOpen) {
         return (
             <section className="lesson-strip" aria-label={t('grades:entry.lesson.stripLabel')}>
-                <div className="lesson-strip-text">
-                    <span className="lesson-strip-kicker">
-                        <HiOutlineBookOpen aria-hidden="true" />
-                        {t('grades:entry.lesson.stripLabel')}
-                        {!hasLesson && ` · ${t('grades:entry.lesson.optional')}`}
-                    </span>
-                    {hasLesson ? (
-                        <>
-                            <h2 className="lesson-strip-title">{lessonTitle}</h2>
-                            {summaryExcerpt && (
-                                <p className="lesson-strip-excerpt">
-                                    {summaryExcerpt}{(lessonSummary || '').length > 140 ? '…' : ''}
-                                </p>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <h2 className="lesson-strip-title lesson-strip-empty">{t('grades:entry.lesson.emptyTitle')}</h2>
-                            <p className="lesson-strip-excerpt">{t('grades:entry.lesson.emptyHint')}</p>
-                        </>
+                <span className="lesson-strip-kicker">
+                    <HiOutlineBookOpen aria-hidden="true" />
+                    {t('grades:entry.lesson.stripLabel')}
+                    {!hasLesson && (
+                        <span className="lesson-strip-optional">{t('grades:entry.lesson.optional')}</span>
                     )}
-                </div>
+                </span>
+                {hasLesson ? (
+                    <>
+                        <h2 className="lesson-strip-title">{lessonTitle}</h2>
+                        {summaryExcerpt && (
+                            <p className="lesson-strip-excerpt">
+                                {summaryExcerpt}{(lessonSummary || '').length > 140 ? '…' : ''}
+                            </p>
+                        )}
+                    </>
+                ) : (
+                    <p className="lesson-strip-excerpt">{t('grades:entry.lesson.emptyHint')}</p>
+                )}
                 <div className="lesson-strip-actions">
-                    {hasLesson && (
-                        <button type="button" className="btn btn-outline btn-sm" onClick={onPreviewEmail}>
-                            <HiOutlineEye aria-hidden="true" />
-                            {t('grades:entry.lesson.previewEmail')}
-                        </button>
-                    )}
+                    {linkSlot}
                     <button type="button" className="btn btn-secondary btn-sm" onClick={openEditor}>
                         <HiOutlinePencil aria-hidden="true" />
                         {hasLesson ? t('grades:entry.lesson.editLesson') : t('grades:entry.lesson.addLesson')}
@@ -256,6 +257,7 @@ const GradeEntryLessonPanel = ({
                     <h2>{t('grades:entry.lesson.editorTitle')}</h2>
                     <p className="lesson-editor-hint">{t('grades:entry.lesson.editorHint')}</p>
                 </div>
+                {linkSlot && <div className="lesson-editor-link">{linkSlot}</div>}
             </div>
 
             <div className="lesson-method-tabs" role="group" aria-label={t('grades:entry.lesson.editorTitle')}>

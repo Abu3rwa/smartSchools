@@ -26,7 +26,11 @@ import { resolveSemesterForDate, getCategoryMaxMarks } from '../services/gradebo
 import logger from '../utils/logger.js';
 import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
 import { buildStudentGradebookDocx } from '../services/studentGradebookDocxService.js';
-import { resolveCategoryMaxMarks } from '../utils/gradebookDefaults.js';
+import {
+    KNOWN_GRADE_CATEGORY_KEYS,
+    resolveCategoryMaxMarks,
+    validateCustomCategory
+} from '../utils/gradebookDefaults.js';
 import { getParentLinkedStudentById } from '../services/parentDashboardService.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
@@ -369,12 +373,20 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
     const normalizedCategory = normalizeGradeCategory(category);
     const normalizedGradeType = String(gradeType || '').trim().toLowerCase();
     const isDailyClasswork = rawCategory === 'daily classwork' || normalizedGradeType === 'daily classwork';
-    const effectiveGradeType = normalizedGradeType && normalizedGradeType !== 'daily classwork'
+    let effectiveCategory = normalizedCategory || (isDailyClasswork ? 'classwork' : normalizedGradeType || 'classwork');
+    let effectiveGradeType = normalizedGradeType && normalizedGradeType !== 'daily classwork'
         ? normalizedGradeType
         : isDailyClasswork
             ? 'daily'
             : CATEGORY_TO_GRADE_TYPE[normalizedCategory] || normalizedCategory || 'classwork';
-    const effectiveCategory = normalizedCategory || (isDailyClasswork ? 'classwork' : effectiveGradeType || 'classwork');
+    if (normalizedCategory && !KNOWN_GRADE_CATEGORY_KEYS.has(normalizedCategory)) {
+        const customCategory = validateCustomCategory(rawCategory);
+        if (!customCategory.valid) {
+            return res.status(400).json({ success: false, message: customCategory.message });
+        }
+        effectiveCategory = customCategory.category;
+        effectiveGradeType = 'other';
+    }
     const resolvedAssessmentGroupId = req.body.assessmentGroupId || generateAssessmentGroupId('asg');
 
     // Calculate month and semester from date (Use UTC to avoid timezone shifts)
@@ -488,6 +500,22 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         ? normalizeLessonContext({ title: metadata.title, lessonSummary: metadata.lessonSummary })
         : null;
 
+    let updateCategory = 'other';
+    if (hasCategoryUpdate) {
+        const normalizedCategory = normalizeGradeCategory(metadata.category);
+        if (!normalizedCategory) {
+            updateCategory = 'other';
+        } else if (KNOWN_GRADE_CATEGORY_KEYS.has(normalizedCategory)) {
+            updateCategory = normalizedCategory;
+        } else {
+            const customCategory = validateCustomCategory(metadata.category);
+            if (!customCategory.valid) {
+                return res.status(400).json({ success: false, message: customCategory.message });
+            }
+            updateCategory = customCategory.category;
+        }
+    }
+
     let resolvedDate = null;
     let resolvedMonth = null;
     let resolvedSemester = null;
@@ -582,7 +610,7 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         if (hasMetadataMaxMarksUpdate) setFields.maxMarks = Number(metadata.maxMarks);
         if (hasClassUpdate) setFields.class = metadata.classId;
         if (hasSubjectUpdate) setFields.subject = metadata.subject;
-        if (hasCategoryUpdate) setFields.category = normalizeGradeCategory(metadata.category) || 'other';
+        if (hasCategoryUpdate) setFields.category = updateCategory;
         if (hasDateUpdate) {
             setFields.date = resolvedDate;
             setFields.month = resolvedMonth;

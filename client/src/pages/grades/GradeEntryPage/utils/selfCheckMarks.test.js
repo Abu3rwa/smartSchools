@@ -6,6 +6,11 @@ import {
   withRemovedTicks,
 } from "./selfCheckMarks.js";
 import { toggleSelectedRuleId } from "../../../../components/grades/selfCheckSelection.js";
+import {
+  countEnteredGrades,
+  countInvalidGrades,
+  getGradeMarkState,
+} from "./gradeEntryPresentation.js";
 
 const rows = [
   { studentId: "s1", marks: 4, remarks: "Completed classwork on time (+4)" },
@@ -105,4 +110,28 @@ test("removing an unfair tick rebuilds the mark and remark, and nothing removed 
   const all = withRemovedTicks(row, ["on-time", "chromebook", "effort"], 10);
   assert.equal(all.score, 0);
   assert.equal(all.remark, "");
+});
+
+test("grade marks distinguish empty, valid and invalid values", () => {
+  assert.deepEqual(getGradeMarkState("", 10), { status: "empty" });
+  assert.deepEqual(getGradeMarkState(null, 10), { status: "empty" });
+  assert.deepEqual(getGradeMarkState("0", 10), { status: "valid", value: 0 });
+  assert.deepEqual(getGradeMarkState("7.5", 10), { status: "valid", value: 7.5 });
+  assert.deepEqual(getGradeMarkState("10", 10), { status: "valid", value: 10 });
+  assert.equal(getGradeMarkState("-1", 10).status, "invalid");
+  assert.equal(getGradeMarkState("10.01", 10).status, "invalid");
+  assert.equal(getGradeMarkState("not-a-number", 10).status, "invalid");
+  assert.equal(getGradeMarkState("5", 0).status, "invalid");
+});
+
+test("grade progress counts valid marks and separates invalid entries", () => {
+  const grades = {
+    s1: { marks: "8", remarks: "" },
+    s2: { marks: "0", remarks: "" },
+    s3: { marks: "12", remarks: "" },
+    s4: { marks: "", remarks: "" },
+  };
+
+  assert.equal(countEnteredGrades(grades, 10), 2);
+  assert.equal(countInvalidGrades(grades, 10), 1);
 });

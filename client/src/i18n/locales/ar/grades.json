@@ -1,4 +1,19 @@
 {
+  "lessonLinks": {
+    "title": "خطط الدروس المرتبطة (اختياري)",
+    "open": "خطط الدروس المرتبطة",
+    "done": "تم",
+    "selectedCount": "المحدد: {{count}}",
+    "clear": "مسح التحديد",
+    "searchPlaceholder": "ابحث بالعنوان...",
+    "selectClassSubjectFirst": "اختر الصف والمادة أولًا لتحميل خطط الدروس.",
+    "loading": "جارٍ تحميل خطط الدروس...",
+    "loadError": "تعذر تحميل خطط الدروس.",
+    "noLessons": "لم يتم العثور على خطط دروس لهذا المرشح.",
+    "noSearchResults": "لا توجد خطط دروس تطابق بحثك.",
+    "untitledLesson": "درس بلا عنوان",
+    "close": "إغلاق خطط الدروس"
+  },
   "entry": {
     "header": {
       "title": "إدخال الدرجات",
@@ -10,13 +25,17 @@
       "selectSubject": "اختر المادة *",
       "chooseSubject": "اختر مادة",
       "category": "الفئة *",
+      "categoryGroup": "فئة الدرجة",
       "customCategory": "مخصص...",
       "customCategoryPlaceholder": "أدخل اسم الفئة",
       "date": "التاريخ",
       "maxMarks": "الدرجة القصوى"
     },
     "table": {
-      "title": "إدخال الدرجات ({{count}} طالب)",
+      "title": "درجات الطلاب",
+      "editTitle": "تعديل الدرجات ({{count}} طالب)",
+      "editMode": "وضع التعديل",
+      "regionLabel": "إدخال درجات الطلاب",
       "sendParentNotifications": "إرسال إشعارات لأولياء الأمور",
       "columns": {
         "student": "الطالب",
@@ -26,8 +45,29 @@
       },
       "optional": "اختياري",
       "summary": "تم إدخال {{entered}} من {{total}} درجة",
+      "enteredLabel": "تم إدخالها",
+      "remaining": "بقي {{count}}",
+      "entered": "تم الإدخال",
+      "checkMark": "تحقق من الدرجة",
+      "notEntered": "لم تُدخل",
+      "markFor": "درجة {{name}}",
+      "remarksFor": "ملاحظات {{name}}",
+      "behavior": "السلوك",
+      "scoreBehavior": "تقييم السلوك",
+      "enterOneToSave": "أدخل درجة واحدة على الأقل للحفظ.",
+      "readyToSave": "{{count}} درجة جاهزة للحفظ.",
+      "readyToUpdate": "{{count}} درجة جاهزة للتحديث.",
       "save": "حفظ الدرجات",
+      "saveCount": "حفظ {{count}} درجة",
+      "updateGrades": "تحديث الدرجات",
+      "cancelEdit": "إلغاء التعديل",
       "sendEmails": "إرسال بريد لأولياء الأمور والطلاب عند الحفظ"
+    },
+    "validation": {
+      "maxMarksInvalid": "يجب أن تكون الدرجة القصوى بين 1 و100.",
+      "fixInvalid": "صحح {{count}} درجة غير صالحة قبل الحفظ.",
+      "markRange": "أدخل درجة من 0 إلى {{maxMarks}}.",
+      "customCategoryRequired": "أدخل اسمًا للفئة المخصصة قبل الحفظ."
     },
     "empty": {
       "noStudents": "لا يوجد طلاب في هذا الصف",
@@ -98,6 +138,14 @@
       "hint": "هذا هو البريد نفسه الذي تتلقاه الأسر، ويُعرض من الخادم. لا يُرسل أو يُحفظ أي شيء من هذه المعاينة.",
       "needsMark": "أدخل درجة صحيحة لمعاينة هذا البريد",
       "rowLabel": "معاينة بريد {{name}}"
+    },
+    "setupLabel": "إعداد إدخال الدرجات",
+    "draft": {
+      "restored": "تمت استعادة مسودتك غير المحفوظة من {{time}}.",
+      "discard": "تجاهل المسودة",
+      "discardConfirm": "هل تريد تجاهل هذه المسودة ومسح الدرجات ونص الدرس الذي استعادته؟",
+      "storageUnavailable": "تعذّر على هذا المتصفح حفظ مسودتك، لذا قد تُفقد الدرجات غير المحفوظة عند إغلاق الصفحة.",
+      "discarded": "تم تجاهل المسودة"
     }
   },
   "selfCheck": {
@@ -150,7 +198,8 @@
     "Custom": "مخصص"
   },
   "common": {
-    "saving": "جارٍ الحفظ..."
+    "saving": "جارٍ الحفظ...",
+    "notSet": "التاريخ غير محدد"
   },
   "toasts": {
     "enterAtLeastOne": "يرجى إدخال درجة واحدة على الأقل",

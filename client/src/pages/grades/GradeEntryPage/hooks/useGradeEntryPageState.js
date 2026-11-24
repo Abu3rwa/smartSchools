@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { format } from 'date-fns';
-import { DEFAULT_CATEGORY, DEFAULT_MAX_MARKS } from '../constants';
+import { DEFAULT_CATEGORY, DEFAULT_MAX_MARKS, GRADE_CATEGORY_OPTIONS } from '../constants';
 import { buildInitialGrades } from '../utils/gradeEntryPresentation';
 
 const useGradeEntryPageState = ({ initialClassId = '' }) => {
@@ -58,8 +58,17 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
                 setSelectedDate(format(new Date(metadata.date), 'yyyy-MM-dd'));
             } catch { /* keep current */ }
         }
-        const cat = (metadata.category || '').charAt(0).toUpperCase() + (metadata.category || '').slice(1);
-        setSelectedCategory(cat || DEFAULT_CATEGORY);
+        const savedCategory = String(metadata.category || '').trim().toLowerCase();
+        const knownCategory = GRADE_CATEGORY_OPTIONS.find(
+            (option) => option.toLowerCase() === savedCategory
+        );
+        if (knownCategory) {
+            setSelectedCategory(knownCategory);
+            setCustomCategory('');
+        } else {
+            setSelectedCategory('Custom');
+            setCustomCategory(savedCategory ? savedCategory.charAt(0).toUpperCase() + savedCategory.slice(1) : '');
+        }
         setLessonTitle(metadata.title || '');
         setLessonSummary(metadata.lessonSummary || '');
     }, []);

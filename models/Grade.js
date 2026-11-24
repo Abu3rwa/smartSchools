@@ -39,10 +39,12 @@ const gradeSchema = new mongoose.Schema({
         enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'monthly_test', 'midterm_exam', 'semester_exam', 'final_exam', 'oral', 'practical', 'assignment', 'other', 'daily', 'weekly'],
         required: true
     },
-    // Assessment category for grouping
+    // Free assessment label, up to 40 characters; known labels retain their standard meaning.
     category: {
         type: String,
-        enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'test', 'exam', 'midterm', 'final', 'oral', 'practical', 'assignment', 'other'],
+        trim: true,
+        lowercase: true,
+        maxlength: 40,
         default: 'classwork'
     },
     // Common fields

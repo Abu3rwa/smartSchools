@@ -57,8 +57,38 @@ export const getAvailableSubjects = ({ selectedClass, classes = [], subjects = [
     return subjects;
 };
 
-export const countEnteredGrades = (grades = {}) => {
-    return Object.values(grades).filter((item) => item.marks !== '' && item.marks !== null).length;
+export const normalizeCustomCategory = (value) =>
+    String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+export const getGradeMarkState = (value, maxMarks) => {
+    const rawValue = String(value ?? '').trim();
+    if (!rawValue) return { status: 'empty' };
+
+    const numericMark = Number(rawValue);
+    const numericMaxMarks = Number(maxMarks);
+    if (
+        !Number.isFinite(numericMark)
+        || !Number.isFinite(numericMaxMarks)
+        || numericMaxMarks <= 0
+        || numericMark < 0
+        || numericMark > numericMaxMarks
+    ) {
+        return { status: 'invalid' };
+    }
+
+    return { status: 'valid', value: numericMark };
+};
+
+export const countEnteredGrades = (grades = {}, maxMarks) => {
+    return Object.values(grades).filter(
+        (item) => getGradeMarkState(item?.marks, maxMarks).status === 'valid'
+    ).length;
+};
+
+export const countInvalidGrades = (grades = {}, maxMarks) => {
+    return Object.values(grades).filter(
+        (item) => getGradeMarkState(item?.marks, maxMarks).status === 'invalid'
+    ).length;
 };
 
 export const mapGradesForSubmission = (grades = {}) => {

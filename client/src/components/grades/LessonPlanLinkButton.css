@@ -1,0 +1,38 @@
+.lesson-link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.lesson-link-button svg {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+}
+
+.lesson-link-button--compact {
+    padding-block: 0.15rem;
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.lesson-link-button--compact svg {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.lesson-link-button__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding-inline: 0.3rem;
+    border-radius: 999px;
+    background: var(--accent-amber, #f59e0b);
+    color: #1f2937;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+}
