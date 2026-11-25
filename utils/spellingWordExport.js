@@ -24,6 +24,31 @@ export const buildSpellingWordImportCsv = ({ words }) => {
     return `\uFEFF${[headers.map(csvCell).join(','), ...rows.map((row) => row.map(csvCell).join(','))].join('\r\n')}`;
 };
 
+export const ROUNDTRIP_HEADERS = Object.freeze([
+    'Grade',
+    'Week',
+    'CategoryEncoded',
+    'WordEncoded',
+    'Order',
+    'DefinitionEncoded'
+]);
+
+// JSON strings start with a quote, so the formula guard never rewrites them and
+// commas, quotes and newlines survive a spreadsheet round trip byte for byte.
+export const encodeRoundtripCell = (value) => JSON.stringify(String(value ?? ''));
+
+export const buildSpellingWordRoundtripCsv = ({ words }) => {
+    const rows = (words || []).map((word) => [
+        word.grade,
+        word.week,
+        encodeRoundtripCell(word.category),
+        encodeRoundtripCell(word.word),
+        word.order,
+        encodeRoundtripCell(word.definition || '')
+    ]);
+    return `\uFEFF${[ROUNDTRIP_HEADERS.map(csvCell).join(','), ...rows.map((row) => row.map(csvCell).join(','))].join('\r\n')}`;
+};
+
 export const buildSpellingWordAudioCsv = ({ words, audioEntries = [] }) => {
     const audioByWord = new Map(audioEntries.map((entry) => [normalizeWordKey(entry.word), entry]));
     const maxLongmanExamples = maximumLength(audioEntries, (entry) => entry.examples?.longman || []);

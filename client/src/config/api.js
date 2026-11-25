@@ -96,6 +96,9 @@ api.interceptors.request.use(
     if (selectedSemester && selectedSemester !== "null" && !isAuthRequest) {
       config.headers["x-academic-semester"] = selectedSemester;
     }
+    // The server localizes domain errors from this header; the app's chosen
+    // language wins over the browser locale.
+    config.headers["Accept-Language"] = i18n.language || "en";
     return config;
   },
   (error) => {

@@ -154,6 +154,16 @@ const studentSchema = new mongoose.Schema({
             min: 0,
             default: 0
         },
+        progressSchemaVersion: {
+            type: Number,
+            min: 0,
+            default: 0
+        },
+        traversalRevision: {
+            type: Number,
+            min: 0,
+            default: 0
+        },
         progressByGrade: [{
             grade: {
                 type: String,
@@ -166,6 +176,18 @@ const studentSchema = new mongoose.Schema({
                 required: true
             },
             lastWordIndex: {
+                type: Number,
+                min: 0,
+                default: 0
+            },
+            // Explicit minimum eligible week: advancing through a grade must not
+            // hide words inserted into an earlier eligible week.
+            placementStartWeek: {
+                type: Number,
+                min: 1,
+                default: 1
+            },
+            traversalRevision: {
                 type: Number,
                 min: 0,
                 default: 0
@@ -258,6 +280,7 @@ studentSchema.index({ school: 1, studentId: 1 }, { unique: true });
 studentSchema.index({ currentClass: 1 });
 studentSchema.index({ enrolledClasses: 1 });
 studentSchema.index({ status: 1 });
+studentSchema.index({ 'spelling.progressByGrade.grade': 1 });
 studentSchema.index({ 'parentInfo.fatherEmail': 1 });
 studentSchema.index({ 'parentInfo.motherEmail': 1 });
 

@@ -263,3 +263,31 @@ export const demoRequestLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false
 });
+
+/** Spelling library writes: 60 saves per 5 minutes per signed-in user. */
+export const spellingLibraryWriteRateLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 60,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        code: 'RATE_LIMITED',
+        message: 'Too many changes were submitted. Wait for the displayed retry time, then try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/** Attempt overrides: 120 correct/incorrect/undo calls per 15 minutes per user. */
+export const spellingCorrectionRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        code: 'RATE_LIMITED',
+        message: 'Too many attempt changes were submitted. Wait for the displayed retry time, then try again.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});

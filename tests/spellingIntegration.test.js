@@ -7,15 +7,18 @@ import SpellingWord from "../models/SpellingWord.js";
 import SpellingSession from "../models/SpellingSession.js";
 import SpellingRetestItem from "../models/SpellingRetestItem.js";
 import SpellingIntegrityEvent from "../models/SpellingIntegrityEvent.js";
+import SpellingLibraryState from "../models/SpellingLibraryState.js";
+import SpellingWordProgress from "../models/SpellingWordProgress.js";
 import {
   abandonSpellingSession,
   activateDueScheduledSpellingSessions,
   completeSpellingSession,
   getCurrentSpellingItem,
-  markSpellingAttemptCorrect,
   recordSpellingAttempt,
   startSpellingSession,
 } from "../services/spellingSessionService.js";
+import { setSpellingAttemptOutcome } from "../services/spellingCorrectionService.js";
+import SpellingRetestEvent from "../models/SpellingRetestEvent.js";
 import {
   listSpellingIntegrityEvents,
   listSpellingSessions,
@@ -767,7 +770,7 @@ integrationTest(
         },
       },
     ]);
-    await SpellingWord.create([
+    const [kindergartenWord, , terminalWord] = await SpellingWord.create([
       {
         school: schoolId,
         grade: "KG",
@@ -794,6 +797,44 @@ integrationTest(
         word: "terminal",
         normalizedWord: "terminal",
         order: 1,
+      },
+    ]);
+    // Completed grades are held in the consumed-ID ledger; seeding the
+    // migrated schema plus the consumed rows replaces the legacy pointer.
+    await SpellingLibraryState.create([
+      {
+        school: schoolId,
+        grade: "KG",
+        version: 1,
+        coordinationRevision: 0,
+        progressSchemaVersion: 1,
+        migrationStatus: "ready",
+      },
+      {
+        school: schoolId,
+        grade: "G5",
+        version: 1,
+        coordinationRevision: 0,
+        progressSchemaVersion: 1,
+        migrationStatus: "ready",
+      },
+    ]);
+    await SpellingWordProgress.create([
+      {
+        school: schoolId,
+        student: kindergartenStudentId,
+        wordId: kindergartenWord._id,
+        grade: "KG",
+        consumedAt: new Date(),
+        source: "historical-attempt",
+      },
+      {
+        school: schoolId,
+        student: terminalStudentId,
+        wordId: terminalWord._id,
+        grade: "G5",
+        consumedAt: new Date(),
+        source: "historical-attempt",
       },
     ]);
 
@@ -838,7 +879,7 @@ integrationTest(
 );
 
 integrationTest(
-  "starting a new grade ignores another grade legacy progress and repairs out-of-range weeks",
+  "starting a new grade ignores another grade progress and blocks unmigrated legacy scalars",
   async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     const schoolId = new mongoose.Types.ObjectId();
@@ -865,8 +906,8 @@ integrationTest(
         academicYear: "integration",
         spelling: {
           currentGrade: "G4",
-          currentWeek: 11,
-          lastWordIndex: 7,
+          currentWeek: 1,
+          lastWordIndex: 0,
           progressByGrade: [{ grade: "KG", week: 11, lastWordIndex: 7 }],
         },
       },
@@ -913,7 +954,37 @@ integrationTest(
     });
     assert.equal(firstGradeSession.curriculumGrade, "G4");
     assert.equal(firstGradeSession.curriculumWeek, 1);
+    const untouchedStudent = await Student.findById(studentIds[0]).lean();
+    const kindergartenEntry = untouchedStudent.spelling.progressByGrade.find(
+      (entry) => entry.grade === "KG",
+    );
+    assert.equal(kindergartenEntry.week, 11);
+    assert.equal(kindergartenEntry.lastWordIndex, 7);
 
+    // Scalars that claim progress inside the selected grade cannot be
+    // traversed with an empty ledger; the start fails closed instead of
+    // silently restarting the student.
+    await assert.rejects(
+      () =>
+        startSpellingSession({
+          schoolId,
+          studentId: studentIds[1],
+          userId,
+          mode: "self-serve",
+          maxMistakesAllowed: 3,
+          curriculumGrade: "G1",
+        }),
+      (error) => error.code === "MIGRATION_REQUIRED",
+    );
+
+    await SpellingLibraryState.create({
+      school: schoolId,
+      grade: "G1",
+      version: 1,
+      coordinationRevision: 0,
+      progressSchemaVersion: 1,
+      migrationStatus: "ready",
+    });
     const recoveredSession = await startSpellingSession({
       schoolId,
       studentId: studentIds[1],
@@ -924,9 +995,6 @@ integrationTest(
     });
     assert.equal(recoveredSession.curriculumGrade, "G1");
     assert.equal(recoveredSession.curriculumWeek, 1);
-    const repairedStudent = await Student.findById(studentIds[1]).lean();
-    assert.equal(repairedStudent.spelling.currentWeek, null);
-    assert.equal(repairedStudent.spelling.lastWordIndex, 0);
   },
   { timeout: 30000 },
 );
@@ -992,11 +1060,15 @@ integrationTest(
     }).lean();
     assert.ok(retest);
 
-    const corrected = await markSpellingAttemptCorrect({
+    const corrected = await setSpellingAttemptOutcome({
       schoolId,
       sessionId: session._id,
       attemptId: completedSession.attempts[0]._id,
-      userId,
+      actorId: userId,
+      action: "correct",
+      expectedRevision: completedSession.attempts[0].revision,
+      operationId: "integration-correction-1",
+      reason: "Teacher accepted the answer after review.",
     });
     assert.equal(corrected.session.status, "completed");
     assert.equal(corrected.session.correctCount, 1);
@@ -1028,11 +1100,15 @@ integrationTest(
       0,
     );
 
-    const repeatedCorrection = await markSpellingAttemptCorrect({
+    const repeatedCorrection = await setSpellingAttemptOutcome({
       schoolId,
       sessionId: session._id,
       attemptId: completedSession.attempts[0]._id,
-      userId,
+      actorId: userId,
+      action: "correct",
+      expectedRevision: completedSession.attempts[0].revision + 1,
+      operationId: "integration-correction-1",
+      reason: "Teacher accepted the answer after review.",
     });
     assert.equal(repeatedCorrection.idempotent, true);
     assert.equal(repeatedCorrection.session.correctCount, 1);
@@ -1056,6 +1132,15 @@ test.after(async () => {
         skipTenantFilter: true,
       }),
       SpellingRetestItem.deleteMany({ school: schoolId }).setOptions({
+        skipTenantFilter: true,
+      }),
+      SpellingRetestEvent.deleteMany({ school: schoolId }).setOptions({
+        skipTenantFilter: true,
+      }),
+      SpellingWordProgress.deleteMany({ school: schoolId }).setOptions({
+        skipTenantFilter: true,
+      }),
+      SpellingLibraryState.deleteMany({ school: schoolId }).setOptions({
         skipTenantFilter: true,
       }),
       SpellingIntegrityEvent.deleteMany({

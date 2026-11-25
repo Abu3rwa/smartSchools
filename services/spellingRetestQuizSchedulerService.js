@@ -4,6 +4,11 @@ import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
 import { queueSpellingRetestPracticeEmail } from './spellingEmailService.js';
 import { withTransaction } from '../utils/withTransaction.js';
+import { getOrCreateLibraryState, sortedGrades } from './spellingProgressService.js';
+import {
+    recordRetestEvent,
+    snapshotRetestState
+} from './spellingRetestStateService.js';
 
 const DEFAULT_INTERVAL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -73,6 +78,15 @@ export async function scheduleDueSpellingRetestQuizzes({ now = new Date(), limit
                 }).select('_id').session(dbSession).lean();
                 if (existingQuiz) return 0;
 
+                const retestGrades = sortedGrades(selectedItems.map((item) => item.grade));
+                for (const grade of retestGrades) {
+                    await getOrCreateLibraryState({
+                        schoolId: items[0].school,
+                        grade,
+                        dbSession
+                    });
+                }
+
                 const [quiz] = await SpellingSession.create([{
                     school: items[0].school,
                     student: items[0].student,
@@ -91,21 +105,36 @@ export async function scheduleDueSpellingRetestQuizzes({ now = new Date(), limit
                     emailNotification: settings?.defaultEmailAudience || 'student-and-parents'
                 }], { session: dbSession });
 
-                await SpellingRetestItem.updateMany({
-                    _id: { $in: selectedItems.map((item) => item._id) },
-                    school: items[0].school,
-                    student: items[0].student,
-                    status: 'pending'
-                }, {
-                    $set: { dueAt: nextDueAt }
-                }, { session: dbSession });
-                await SpellingRetestItem.updateMany({
-                    _id: { $in: selectedItems.map((item) => item._id) },
-                    school: items[0].school,
-                    status: 'pending'
-                }, {
-                    $set: { lastRetestedAt: now }
-                }, { session: dbSession });
+                // Each advance is a lifecycle event so a later attempt correction can
+                // replay the group and recover this scheduled due date exactly.
+                for (const selected of selectedItems) {
+                    const row = await SpellingRetestItem.findOne({
+                        _id: selected._id,
+                        school: items[0].school,
+                        student: items[0].student,
+                        status: 'pending'
+                    }).session(dbSession);
+                    if (!row) continue;
+                    const before = snapshotRetestState(row);
+                    row.dueAt = nextDueAt;
+                    row.lastRetestedAt = now;
+                    const event = await recordRetestEvent({
+                        schoolId: items[0].school,
+                        studentId: items[0].student,
+                        sourceWord: row.sourceWord,
+                        kind: 'schedule',
+                        before,
+                        after: snapshotRetestState(row),
+                        retestItemIds: [row._id],
+                        sourceSession: quiz._id,
+                        operationId: `retest-schedule:${quizKey}`,
+                        occurredAt: now,
+                        dbSession
+                    });
+                    if (Number.isInteger(event?.sequence)) row.lastEventSequence = event.sequence;
+                    row.revision = (Number(row.revision) || 1) + 1;
+                    await row.save({ session: dbSession });
+                }
 
                 await queueSpellingRetestPracticeEmail({
                     session: quiz,

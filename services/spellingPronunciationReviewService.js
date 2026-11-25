@@ -9,8 +9,7 @@
  */
 import SpellingPronunciation from '../models/SpellingPronunciation.js';
 import SpellingWord from '../models/SpellingWord.js';
-import Student from '../models/Student.js';
-import { getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
+import { teacherLibraryGrades } from './spellingLibraryAccessService.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 import { normalizeWordKey } from '../utils/wordAudio.js';
 import {
@@ -36,27 +35,8 @@ const assertAccent = (accent) => {
     return value;
 };
 
-/**
- * The spelling grades a teacher works at: the grades their students are
- * placed in. Placement is what says "this student is working on G3", so it is
- * the honest source for a teacher's scope.
- */
-export const teacherReviewGrades = async ({ schoolId, userId }) => {
-    const teacher = await getTeacherProfile(userId);
-    if (!teacher || String(teacher.school) !== String(schoolId)) return [];
-    const classIds = await getTeacherClassIds(teacher._id);
-    if (classIds.length === 0) return [];
-    const students = await Student.find({
-        school: schoolId,
-        $or: [{ currentClass: { $in: classIds } }, { enrolledClasses: { $in: classIds } }]
-    }).select('spelling.currentGrade').lean();
-    const grades = new Set();
-    for (const student of students) {
-        const grade = student.spelling?.currentGrade;
-        if (REVIEW_GRADES.includes(grade)) grades.add(grade);
-    }
-    return [...grades];
-};
+// One grade-scope calculation for pronunciation review and library editing.
+export const teacherReviewGrades = teacherLibraryGrades;
 
 const allowedGradesFor = async ({ schoolId, user, role }) => {
     if (!isTeacher(role)) return [...REVIEW_GRADES];

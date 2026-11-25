@@ -25,10 +25,26 @@ import {
 import SpellingClassSettings from "../models/SpellingClassSettings.js";
 import {
   getNextSpellingGrade,
-  getSpellingGradeProgress,
   SPELLING_CURRICULUM_GRADES,
 } from "../utils/spellingProgress.js";
+import {
+  assertStudentProgressReady,
+  getOrCreateLibraryState,
+  getPlacementFloor,
+  loadConsumedWordIds,
+  recalculateStudentProjection,
+  recordConsumedWord,
+  sortedGrades,
+} from "./spellingProgressService.js";
+import { eligibleWords, isGradeTraversalComplete, nextEligibleWord } from "./spellingTraversal.js";
+import { domainError } from "../utils/spellingLibraryErrors.js";
 import { resolveSemesterForDate } from "./gradebookConfigService.js";
+import {
+  createRetestObligation,
+  recordRetestAnswer,
+  recordRetestEvent,
+  snapshotRetestState,
+} from "./spellingRetestStateService.js";
 import logger from "../utils/logger.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -47,74 +63,6 @@ const badRequest = (message) =>
   Object.assign(new Error(message), { statusCode: 400 });
 const conflict = (message) =>
   Object.assign(new Error(message), { statusCode: 409 });
-
-const recordRetestOutcome = async ({
-  schoolId,
-  studentId,
-  retestItemId,
-  correct,
-  skipped,
-  sessionId,
-  formalTest = false,
-  at,
-  dbSession,
-}) => {
-  if (!retestItemId || skipped) return;
-  const retestItem = await SpellingRetestItem.findOne({
-    _id: retestItemId,
-    school: schoolId,
-    student: studentId,
-    status: { $in: ["pending", "practice-mastered"] },
-  }).session(dbSession);
-  if (!retestItem) return;
-
-  if (formalTest && correct) {
-    await SpellingRetestItem.updateMany(
-      {
-        school: schoolId,
-        student: studentId,
-        sourceWord: retestItem.sourceWord,
-        status: { $in: ["pending", "practice-mastered"] },
-      },
-      {
-        $set: {
-          status: "resolved",
-          resolvedAt: at,
-          resolvedBySession: sessionId,
-        },
-        $unset: { practiceMasteredAt: 1, practiceMasteredBySession: 1 },
-      },
-      { session: dbSession },
-    );
-    return;
-  }
-
-  if (formalTest) {
-    retestItem.status = "pending";
-    retestItem.practiceMasteredAt = null;
-    retestItem.practiceMasteredBySession = null;
-    retestItem.correctRetestStreak = 0;
-    retestItem.incorrectRetestCount =
-      (Number(retestItem.incorrectRetestCount) || 0) + 1;
-    await retestItem.save({ session: dbSession });
-    return;
-  }
-
-  if (correct) {
-    retestItem.correctRetestStreak =
-      (Number(retestItem.correctRetestStreak) || 0) + 1;
-    if (retestItem.correctRetestStreak >= 3) {
-      retestItem.status = "practice-mastered";
-      retestItem.practiceMasteredAt = at;
-      retestItem.practiceMasteredBySession = sessionId;
-    }
-  } else {
-    retestItem.correctRetestStreak = 0;
-    retestItem.incorrectRetestCount =
-      (Number(retestItem.incorrectRetestCount) || 0) + 1;
-  }
-  await retestItem.save({ session: dbSession });
-};
 
 export const migratePracticeResolvedRetests = async ({
   schoolId,
@@ -158,23 +106,33 @@ export const migratePracticeResolvedRetests = async ({
 
   let migratedCount = 0;
   for (const item of itemsToRestore) {
-    const result = await SpellingRetestItem.updateOne(
-      {
-        _id: item._id,
-        school: schoolId,
-        student: studentId,
-        status: "resolved",
-      },
-      {
-        $set: {
-          status: "practice-mastered",
-          practiceMasteredAt: item.resolvedAt || new Date(),
-          practiceMasteredBySession: item.resolvedBySession || null,
-        },
-        $unset: { resolvedAt: 1, resolvedBySession: 1 },
-      },
-    );
-    migratedCount += result.modifiedCount;
+    const row = await SpellingRetestItem.findOne({
+      _id: item._id,
+      school: schoolId,
+      student: studentId,
+      status: "resolved",
+    });
+    if (!row) continue;
+    const before = snapshotRetestState(row);
+    row.status = "practice-mastered";
+    row.practiceMasteredAt = item.resolvedAt || new Date();
+    row.practiceMasteredBySession = item.resolvedBySession || null;
+    row.resolvedAt = null;
+    row.resolvedBySession = null;
+    row.revision = (Number(row.revision) || 1) + 1;
+    const event = await recordRetestEvent({
+      schoolId,
+      studentId,
+      sourceWord: row.sourceWord,
+      kind: "legacy-practice-migration",
+      before,
+      after: snapshotRetestState(row),
+      retestItemIds: [row._id],
+      operationId: "legacy-practice-migration",
+    });
+    if (Number.isInteger(event?.sequence)) row.lastEventSequence = event.sequence;
+    await row.save();
+    migratedCount += 1;
   }
   return migratedCount;
 };
@@ -198,7 +156,7 @@ export const getFormalTestPrepReadiness = async ({ schoolId, studentId }) => {
   return { wordCount: wordList.plannedWords.length };
 };
 
-const saveFormalSpellingGradebookEntry = async ({
+export const saveFormalSpellingGradebookEntry = async ({
   schoolId,
   session,
   dbSession,
@@ -254,77 +212,16 @@ const saveFormalSpellingGradebookEntry = async ({
   );
 };
 
-const saveSpellingGradeProgress = async ({
-  schoolId,
-  session,
-  week,
-  lastWordIndex,
-  dbSession,
-}) => {
-  const studentFilter = { _id: session.student, school: schoolId };
-  const student = await Student.findOne(studentFilter)
-    .select("spelling")
-    .session(dbSession)
-    .lean();
-  const currentProgress = getSpellingGradeProgress(
-    student,
-    session.curriculumGrade,
-  );
-  if (
-    currentProgress.week &&
-    (currentProgress.week > week ||
-      (currentProgress.week === week &&
-        currentProgress.lastWordIndex >= lastWordIndex))
-  )
-    return;
-
-  const gradeProgressFilter = {
-    ...studentFilter,
-    "spelling.progressByGrade.grade": session.curriculumGrade,
-  };
-  const gradeProgressUpdate = {
-    $set: {
-      "spelling.progressByGrade.$.week": week,
-      "spelling.progressByGrade.$.lastWordIndex": lastWordIndex,
-    },
-  };
-  const updateOptions = dbSession ? { session: dbSession } : {};
-
-  const updated = await Student.updateOne(
-    gradeProgressFilter,
-    gradeProgressUpdate,
-    updateOptions,
-  );
-  if (updated.matchedCount === 0) {
-    await Student.updateOne(
-      studentFilter,
-      {
-        $push: {
-          "spelling.progressByGrade": {
-            grade: session.curriculumGrade,
-            week,
-            lastWordIndex,
-          },
-        },
-      },
-      updateOptions,
-    );
-  }
-
-  const legacyUpdate = {
-    ...studentFilter,
-    "spelling.currentGrade": session.curriculumGrade,
-  };
-  await Student.updateOne(
-    legacyUpdate,
-    {
-      $set: {
-        "spelling.currentWeek": week,
-        "spelling.lastWordIndex": lastWordIndex,
-      },
-    },
-    updateOptions,
-  );
+/**
+ * Active word identities for one grade, in traversal order. Archived words are
+ * returned with their tombstone so the shared traversal rule can exclude them.
+ */
+const loadGradeWords = async ({ schoolId, grade, dbSession }) => {
+  let query = SpellingWord.find({ school: schoolId, grade })
+    .select("grade week order word normalizedWord definition category revision deletedAt")
+    .sort({ week: 1, order: 1 });
+  if (dbSession) query = query.session(dbSession);
+  return query.lean();
 };
 
 const getCurrentItemData = async (session, dbSession) => {
@@ -371,7 +268,7 @@ const getCurrentItemData = async (session, dbSession) => {
       school: session.school,
     })
       .session(dbSession)
-      .select("definition")
+      .select("definition revision")
       .lean();
     return {
       wordId: plannedWord.wordId,
@@ -384,6 +281,7 @@ const getCurrentItemData = async (session, dbSession) => {
       week: plannedWord.week,
       category: plannedWord.category,
       order: plannedWord.order,
+      wordRevision: sourceWord?.revision ?? null,
       isRetest: plannedWord.isRetest,
     };
   }
@@ -414,6 +312,7 @@ const getCurrentItemData = async (session, dbSession) => {
         grade: retestItem.grade,
         week: retestItem.week,
         category: retestItem.category,
+        wordRevision: retestItem.wordRevision ?? null,
         isRetest: true,
       };
     }
@@ -437,6 +336,7 @@ const getCurrentItemData = async (session, dbSession) => {
         week: word.week,
         category: word.category,
         order: word.order,
+        wordRevision: word.revision ?? null,
         isRetest: false,
       };
     }
@@ -594,21 +494,24 @@ export async function startSpellingSession({
     );
   }
 
-  let gradeProgress = getSpellingGradeProgress(student, selectedGrade);
-  if (student.spelling?.currentGrade === selectedGrade) {
-    const lastGradeWord = await SpellingWord.findOne({
-      school: schoolId,
-      grade: selectedGrade,
-    })
-      .sort({ week: -1, order: -1 })
-      .select("week order")
-      .lean();
-    const gradeIsComplete =
-      lastGradeWord &&
-      Number(gradeProgress.week) === lastGradeWord.week &&
-      gradeProgress.lastWordIndex >= lastGradeWord.order;
+  let gradeWords = [];
+  let floorWeek = 1;
+  await assertStudentProgressReady({ schoolId, grade: selectedGrade, student });
+  gradeWords = await loadGradeWords({ schoolId, grade: selectedGrade });
+  floorWeek = getPlacementFloor({ student, grade: selectedGrade });
+  let consumedIds = await loadConsumedWordIds({
+    schoolId,
+    studentId,
+    grade: selectedGrade,
+  });
 
-    if (gradeIsComplete) {
+  if (student.spelling?.currentGrade === selectedGrade) {
+    const completion = isGradeTraversalComplete({
+      words: gradeWords,
+      consumedIds,
+      floorWeek,
+    });
+    if (completion.complete) {
       const nextGrade = getNextSpellingGrade(selectedGrade);
       if (!nextGrade) {
         throw badRequest(
@@ -616,38 +519,28 @@ export async function startSpellingSession({
         );
       }
 
-      const nextGradeWeekOne = await SpellingWord.findOne({
-        school: schoolId,
-        grade: nextGrade,
-        week: 1,
-      })
-        .sort({ order: 1 })
-        .select("week")
-        .lean();
-      if (!nextGradeWeekOne) {
-        throw badRequest(
-          `No spelling words are available for ${nextGrade} week 1`,
-        );
+      await assertStudentProgressReady({ schoolId, grade: nextGrade, student });
+      const nextWords = await loadGradeWords({ schoolId, grade: nextGrade });
+      const nextEligible = nextEligibleWord({
+        words: nextWords,
+        consumedIds: await loadConsumedWordIds({
+          schoolId,
+          studentId,
+          grade: nextGrade,
+        }),
+        floorWeek: getPlacementFloor({ student, grade: nextGrade }),
+      });
+      if (!nextEligible) {
+        throw badRequest(`No spelling words are available for ${nextGrade}`);
       }
 
-      const nextGradeProgress = getSpellingGradeProgress(student, nextGrade);
-      const nextWeek = nextGradeProgress.week || nextGradeWeekOne.week;
-      const nextWordIndex = nextGradeProgress.week
-        ? nextGradeProgress.lastWordIndex
-        : 0;
       const promotedStudent = await Student.findOneAndUpdate(
         {
           _id: studentId,
           school: schoolId,
           "spelling.currentGrade": selectedGrade,
         },
-        {
-          $set: {
-            "spelling.currentGrade": nextGrade,
-            "spelling.currentWeek": nextWeek,
-            "spelling.lastWordIndex": nextWordIndex,
-          },
-        },
+        { $set: { "spelling.currentGrade": nextGrade } },
         { new: true },
       ).lean();
 
@@ -667,69 +560,51 @@ export async function startSpellingSession({
         student.spelling = latestStudent.spelling;
       }
       selectedGrade = nextGrade;
-      gradeProgress = getSpellingGradeProgress(student, selectedGrade);
+      gradeWords = nextWords;
+      floorWeek = getPlacementFloor({ student, grade: nextGrade });
+      await recalculateStudentProjection({
+        schoolId,
+        studentId,
+        grade: nextGrade,
+        words: nextWords,
+      });
+      consumedIds = await loadConsumedWordIds({
+        schoolId,
+        studentId,
+        grade: nextGrade,
+      });
     }
   }
 
-  if (gradeProgress.week > SPELLING_GRADE_MAX_WEEK[selectedGrade]) {
-    const update = {
-      $pull: { "spelling.progressByGrade": { grade: selectedGrade } },
-    };
-    if (student.spelling?.currentGrade === selectedGrade) {
-      update.$set = {
-        "spelling.currentWeek": null,
-        "spelling.lastWordIndex": 0,
-      };
-    }
-    await Student.updateOne({ _id: studentId, school: schoolId }, update);
-    student.spelling = {
-      ...student.spelling,
-      currentWeek:
-        student.spelling?.currentGrade === selectedGrade
-          ? null
-          : student.spelling?.currentWeek,
-      lastWordIndex:
-        student.spelling?.currentGrade === selectedGrade
-          ? 0
-          : student.spelling?.lastWordIndex,
-      progressByGrade: (student.spelling?.progressByGrade || []).filter(
-        (entry) => entry.grade !== selectedGrade,
-      ),
-    };
-    gradeProgress = { week: null, lastWordIndex: 0 };
-  }
-
-  let selectedWeek = curriculumWeek || gradeProgress.week;
-  if (!selectedWeek) {
-    const firstWord = await SpellingWord.findOne({
-      school: schoolId,
-      grade: selectedGrade,
-    })
-      .sort({ week: 1, order: 1 })
-      .select("week")
-      .lean();
-    selectedWeek = firstWord?.week;
-  }
-  if (!Number.isInteger(Number(selectedWeek)) || Number(selectedWeek) < 1) {
+  const firstEligible = nextEligibleWord({
+    words: gradeWords,
+    consumedIds,
+    floorWeek,
+  });
+  const explicitWeek =
+    curriculumWeek !== undefined &&
+    curriculumWeek !== null &&
+    curriculumWeek !== "";
+  let selectedWeek = explicitWeek ? Number(curriculumWeek) : firstEligible?.week;
+  if (!Number.isInteger(selectedWeek) || selectedWeek < 1) {
     throw badRequest(
       "Select a valid spelling week before starting an assessment",
     );
   }
-  selectedWeek = Number(selectedWeek);
   if (selectedWeek > SPELLING_GRADE_MAX_WEEK[selectedGrade]) {
     throw badRequest(
       `${selectedGrade} spelling weeks cannot exceed ${SPELLING_GRADE_MAX_WEEK[selectedGrade]}`,
     );
   }
-  const wordCount = await SpellingWord.countDocuments({
-    school: schoolId,
-    grade: selectedGrade,
-    week: { $gte: selectedWeek },
-  });
-  if (wordCount === 0) {
-    throw badRequest(
-      `No spelling words remain for ${selectedGrade} from week ${selectedWeek}`,
+  if (!firstEligible) {
+    const hasRemaining = eligibleWords({ words: gradeWords, floorWeek }).some(
+      (word) => word.week >= selectedWeek,
     );
+    if (!hasRemaining) {
+      throw badRequest(
+        `No spelling words remain for ${selectedGrade} from week ${selectedWeek}`,
+      );
+    }
   }
   const targetClassId =
     student.currentClass ||
@@ -854,21 +729,37 @@ export async function startSpellingSession({
     sessionData.formalTestWordList = formalWordList.plannedWords;
   }
 
-  const scheduledResult = formalTestWordListEmail
-    ? await withTransaction(async (dbSession) => {
-        const [createdSession] = await SpellingSession.create([sessionData], {
-          session: dbSession,
-        });
-        const delivery = await queueFormalSpellingTestWordListEmail({
-          session: createdSession,
-          ...formalWordList,
-          audience: formalTestEmailAudience,
-          timeZone: formalTestWordListEmailTimezone,
-          dbSession,
-        });
-        return { session: createdSession, deliveryId: delivery._id };
-      })
-    : { session: await SpellingSession.create(sessionData), deliveryId: null };
+  // Session creation and a library edit must contend on the same grade
+  // coordination rows, so one of the two retries and re-checks the pinned
+  // guard instead of both committing an inconsistent snapshot.
+  const affectedGrades = sortedGrades([
+    selectedGrade,
+    ...(formalWordList?.plannedWords || []).map((word) => word.grade),
+  ]);
+  const scheduledResult = await withTransaction(async (dbSession) => {
+    for (const grade of affectedGrades) {
+      await getOrCreateLibraryState({
+        schoolId,
+        grade,
+        actorId: userId,
+        dbSession,
+      });
+    }
+    const [createdSession] = await SpellingSession.create([sessionData], {
+      session: dbSession,
+    });
+    if (!formalTestWordListEmail) {
+      return { session: createdSession, deliveryId: null };
+    }
+    const delivery = await queueFormalSpellingTestWordListEmail({
+      session: createdSession,
+      ...formalWordList,
+      audience: formalTestEmailAudience,
+      timeZone: formalTestWordListEmailTimezone,
+      dbSession,
+    });
+    return { session: createdSession, deliveryId: delivery._id };
+  });
   let session = scheduledResult.session;
 
   if (scheduledStartAt) {
@@ -939,8 +830,10 @@ export async function activateDueScheduledSpellingSessions({
         .lean();
       if (activeSession) return false;
 
-      if (session.formalTestWordList?.length) {
-        // Words resolved since scheduling must not be re-tested.
+      // The emailed preparation list is a promise: activation keeps its
+      // membership exactly as scheduled. Only a legacy session without a
+      // saved list resolves one now.
+      if (!session.formalTestWordList?.length) {
         const refreshed = await resolveFormalTestWordList({
           schoolId: dueSession.school,
           studentId: dueSession.student,
@@ -952,6 +845,18 @@ export async function activateDueScheduledSpellingSessions({
           return false;
         }
         session.formalTestWordList = refreshed.plannedWords;
+      }
+
+      const affectedGrades = sortedGrades([
+        session.curriculumGrade,
+        ...(session.formalTestWordList || []).map((word) => word.grade),
+      ]);
+      for (const grade of affectedGrades) {
+        await getOrCreateLibraryState({
+          schoolId: dueSession.school,
+          grade,
+          dbSession,
+        });
       }
 
       session.status = "in-progress";
@@ -1106,50 +1011,31 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
       session.curriculumGrade &&
       session.curriculumWeek
     ) {
-      const gradeProgress = getSpellingGradeProgress(
-        student,
-        session.curriculumGrade,
-      );
-      const wordQuery = {
-        school: schoolId,
+      await assertStudentProgressReady({
+        schoolId,
         grade: session.curriculumGrade,
-        week: session.curriculumWeek,
-        _id: { $nin: attemptedWordIds },
-        order: {
-          $gt:
-            gradeProgress.week === session.curriculumWeek
-              ? gradeProgress.lastWordIndex
-              : 0,
-        },
-      };
-      let word = await SpellingWord.findOne(wordQuery)
-        .sort({ order: 1 })
-        .session(dbSession)
-        .lean();
-
-      if (!word) {
-        const nextWeekWord = await SpellingWord.findOne({
-          school: schoolId,
-          grade: session.curriculumGrade,
-          week: { $gt: session.curriculumWeek },
-          _id: { $nin: attemptedWordIds },
-        })
-          .sort({ week: 1, order: 1 })
-          .session(dbSession)
-          .lean();
-
-        if (nextWeekWord) {
-          session.curriculumWeek = nextWeekWord.week;
-          await saveSpellingGradeProgress({
-            schoolId,
-            session,
-            week: nextWeekWord.week,
-            lastWordIndex: 0,
-            dbSession,
-          });
-          word = nextWeekWord;
-        }
-      }
+        student,
+        dbSession,
+      });
+      const gradeWords = await loadGradeWords({
+        schoolId,
+        grade: session.curriculumGrade,
+        dbSession,
+      });
+      const consumedIds = await loadConsumedWordIds({
+        schoolId,
+        studentId: session.student,
+        grade: session.curriculumGrade,
+        dbSession,
+      });
+      const excluded = new Set(consumedIds);
+      for (const wordId of attemptedWordIds) excluded.add(String(wordId));
+      const word = nextEligibleWord({
+        words: gradeWords,
+        consumedIds: excluded,
+        floorWeek: getPlacementFloor({ student, grade: session.curriculumGrade }),
+      });
+      if (word) session.curriculumWeek = word.week;
       item = word
         ? {
             wordId: word._id,
@@ -1220,6 +1106,20 @@ export async function recordSpellingAttempt({
     if (!item || item.sequence !== sequence)
       throw conflict("The requested spelling item is no longer current");
 
+    // A canonical word made only of punctuation normalizes to "" and would
+    // grade any punctuation input as correct. Fail closed before recording.
+    if (!normalizeForGrading(item.word)) {
+      throw domainError("LIBRARY_INVALID", {
+        details: [
+          {
+            grade: item.grade ?? null,
+            week: item.week ?? null,
+            wordId: item.wordId ? String(item.wordId) : null,
+          },
+        ],
+      });
+    }
+
     const outcome = evaluateSpellingAnswer({
       mode: session.mode,
       studentInput,
@@ -1243,6 +1143,10 @@ export async function recordSpellingAttempt({
       isRetest: item.isRetest,
       correct: evaluatedCorrect,
       skipped: isSkipped,
+      originalCorrect: evaluatedCorrect,
+      originalCountsAsMistake: outcome.countsAsMistake,
+      provenanceVersion: 1,
+      recordedSequence: sequence,
       studentInput:
         session.mode === "self-serve" ? String(studentInput ?? "") : null,
       normalizedInput:
@@ -1266,52 +1170,72 @@ export async function recordSpellingAttempt({
     };
     session.nextSequence += 1;
 
+    let retestTouched = [];
     if (item.isRetest) {
-      await recordRetestOutcome({
+      retestTouched = await recordRetestAnswer({
         schoolId,
         studentId: session.student,
         retestItemId: item.retestItemId,
         correct: evaluatedCorrect,
         skipped: isSkipped,
         sessionId: session._id,
+        sourceAttempt: attemptDocument._id,
         formalTest: session.assessmentType === "formal-spelling-test",
         at: now,
         dbSession,
       });
-    } else if (!item.isRetest && outcome.countsAsMistake) {
-      await SpellingRetestItem.updateOne(
-        {
-          school: schoolId,
-          student: session.student,
-          wordSnapshot: item.word,
-          status: "pending",
-        },
-        {
-          $setOnInsert: {
-            school: schoolId,
-            student: session.student,
-            sourceWord: item.wordId,
-            wordSnapshot: item.word,
-            grade: item.grade,
-            week: item.week,
-            category: item.category,
-            sourceSession: session._id,
-            sourceAttempt: attemptDocument._id,
-            flaggedAt: now,
-            dueAt: session.retestDeadline,
-            status: "pending",
+    } else if (outcome.countsAsMistake) {
+      const obligation = await createRetestObligation({
+        schoolId,
+        studentId: session.student,
+        session,
+        attempt: attemptDocument,
+        item,
+        at: now,
+        dbSession,
+      });
+      if (obligation?.created) {
+        retestTouched = [
+          {
+            retestItemId: obligation.item._id,
+            before: null,
+            after: snapshotRetestState(obligation.item),
           },
-        },
-        { upsert: true, session: dbSession },
-      );
+        ];
+      }
     }
+    attemptDocument.retestSnapshot = retestTouched.map(({ retestItemId, after }) => ({
+      retestItemId,
+      ...(after || {}),
+    }));
 
     if (!item.isRetest) {
-      await saveSpellingGradeProgress({
+      await assertStudentProgressReady({
         schoolId,
-        session,
-        week: item.week,
-        lastWordIndex: item.order || 0,
+        studentId: session.student,
+        grade: item.grade,
+        dbSession,
+      });
+      await recordConsumedWord({
+        schoolId,
+        studentId: session.student,
+        wordId: item.wordId,
+        grade: item.grade,
+        source: "attempt",
+        sourceSession: session._id,
+        sourceAttempt: attemptDocument._id,
+        dbSession,
+      });
+      const gradeWords = await loadGradeWords({
+        schoolId,
+        grade: item.grade,
+        dbSession,
+      });
+      await recalculateStudentProjection({
+        schoolId,
+        studentId: session.student,
+        grade: item.grade,
+        words: gradeWords,
         dbSession,
       });
     }
@@ -1345,104 +1269,6 @@ export async function recordSpellingAttempt({
   });
 }
 
-export async function markSpellingAttemptCorrect({
-  schoolId,
-  sessionId,
-  attemptId,
-  userId,
-}) {
-  if (!attemptId) throw badRequest("A spelling attempt is required");
-
-  return withTransaction(async (dbSession) => {
-    const session = await SpellingSession.findOne({
-      _id: sessionId,
-      school: schoolId,
-    }).session(dbSession);
-    if (!session) throw notFound("Spelling session not found");
-    if (session.status === "abandoned")
-      throw conflict("An abandoned spelling session cannot be corrected");
-
-    const attempt = session.attempts.find(
-      (entry) => String(entry._id) === String(attemptId),
-    );
-    if (!attempt) throw notFound("Spelling attempt not found");
-    if (attempt.skipped)
-      throw badRequest("A skipped spelling attempt cannot be marked correct");
-    if (attempt.correct) return { session, attempt, idempotent: true };
-
-    const correctedAt = new Date();
-    attempt.correct = true;
-    attempt.correctedAt = correctedAt;
-    attempt.correctedBy = userId;
-    session.correctCount += 1;
-    session.mistakeCount = Math.max(0, session.mistakeCount - 1);
-
-    if (!attempt.isRetest) {
-      await saveSpellingGradeProgress({
-        schoolId,
-        session,
-        week: attempt.week,
-        lastWordIndex: attempt.order || 0,
-        dbSession,
-      });
-    }
-
-    if (attempt.isRetest) {
-      await recordRetestOutcome({
-        schoolId,
-        studentId: session.student,
-        retestItemId: attempt.retestItemId,
-        correct: true,
-        skipped: false,
-        formalTest: session.assessmentType === "formal-spelling-test",
-        sessionId: session._id,
-        at: correctedAt,
-        dbSession,
-      });
-    } else if (session.assessmentType === "formal-spelling-test") {
-      await SpellingRetestItem.updateMany(
-        {
-          school: schoolId,
-          student: session.student,
-          sourceWord: attempt.wordId,
-          status: { $in: ["pending", "practice-mastered"] },
-        },
-        {
-          $set: {
-            status: "resolved",
-            resolvedAt: correctedAt,
-            resolvedBySession: session._id,
-          },
-          $unset: { practiceMasteredAt: 1, practiceMasteredBySession: 1 },
-        },
-        { session: dbSession },
-      );
-    } else {
-      await SpellingRetestItem.updateMany(
-        {
-          school: schoolId,
-          student: session.student,
-          sourceWord: attempt.wordId,
-          status: "pending",
-        },
-        {
-          $set: {
-            status: "practice-mastered",
-            practiceMasteredAt: correctedAt,
-            practiceMasteredBySession: session._id,
-          },
-        },
-        { session: dbSession },
-      );
-    }
-
-    await session.save({ session: dbSession });
-    if (session.status === "completed") {
-      await saveFormalSpellingGradebookEntry({ schoolId, session, dbSession });
-    }
-    return { session, attempt, idempotent: false };
-  });
-}
 
 export async function completeSpellingSession({
   schoolId,

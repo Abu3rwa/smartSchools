@@ -20,10 +20,10 @@ const SettingsPanel = ({
         <div>
           <strong>AI HTML safety review</strong>
           <p>
-            When enabled, AI reviews HTML and scripts before saving. When
-            disabled, CSS animation still works but slides containing
-            JavaScript are rejected. Approved scripts run in an isolated,
-            network-restricted sandbox.
+            When enabled, AI reviews HTML and scripts before saving and
+            rejects harmful code. When disabled, slides are saved without a
+            review. Scripts always run in an isolated, network-restricted
+            sandbox.
           </p>
         </div>
         <label>

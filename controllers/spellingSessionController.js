@@ -9,10 +9,15 @@ import {
     cancelScheduledSpellingSession,
     completeSpellingSession,
     getCurrentSpellingItem,
-    markSpellingAttemptCorrect,
     recordSpellingAttempt,
     startSpellingSession
 } from '../services/spellingSessionService.js';
+import { setSpellingAttemptOutcome } from '../services/spellingCorrectionService.js';
+import { domainError } from '../utils/spellingLibraryErrors.js';
+import {
+    correctionBodySchema,
+    parseDomainInput
+} from '../validators/spellingLibraryValidators.js';
 import { attachAudioToCurrentItem } from '../services/wordAudioService.js';
 import { listSpellingIntegrityEvents, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
@@ -223,43 +228,63 @@ export const recordAttempt = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, data: result });
 });
 
-export const markAttemptCorrect = asyncHandler(async (req, res) => {
+/**
+ * C scope: the acting staff member must already be responsible for the
+ * student's class (teacher) or department (department principal).
+ */
+const assertCorrectionScope = async (req) => {
     const session = await SpellingSession.findOne({ _id: req.params.id, school: req.schoolId }).select('student').lean();
-    if (!session) return res.status(404).json({ success: false, message: 'Spelling session not found' });
+    if (!session) throw domainError('SESSION_NOT_FOUND');
 
     const student = await Student.findOne({ _id: session.student, school: req.schoolId })
         .select('currentClass enrolledClasses department')
         .lean();
-    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found' });
+    if (!student) throw domainError('SESSION_NOT_FOUND');
+    const studentClassIds = [student.currentClass, ...(student.enrolledClasses || [])].filter(Boolean);
 
     if (req.user?.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
-        if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        if (!teacher) throw domainError('CORRECTION_SCOPE');
         const teacherClassIds = await getTeacherClassIds(teacher._id);
-        const studentClassIds = [student.currentClass, ...(student.enrolledClasses || [])].filter(Boolean).map(String);
-        if (!teacherClassIds.some((classId) => studentClassIds.includes(String(classId)))) {
-            return res.status(403).json({ success: false, message: 'Not authorized to correct this spelling attempt' });
+        if (!teacherClassIds.some((classId) => studentClassIds.map(String).includes(String(classId)))) {
+            throw domainError('CORRECTION_SCOPE');
         }
-    } else if (req.user?.role === 'department_principal') {
-        if (!req.departmentId) return res.status(403).json({ success: false, message: 'Department scope required' });
-        const classes = await Class.find({
-            _id: { $in: [student.currentClass, ...(student.enrolledClasses || [])].filter(Boolean) },
-            school: req.schoolId
-        }).select('department').lean();
-        if (student.department?.toString() !== req.departmentId.toString()
-            && !classes.some((classDoc) => classDoc.department?.toString() === req.departmentId.toString())) {
-            return res.status(403).json({ success: false, message: 'Not authorized to correct this spelling attempt' });
-        }
+        return;
     }
 
-    const result = await markSpellingAttemptCorrect({
+    if (req.user?.role === 'department_principal') {
+        if (!req.departmentId) throw domainError('CORRECTION_SCOPE');
+        const classes = await Class.find({ _id: { $in: studentClassIds }, school: req.schoolId })
+            .select('department')
+            .lean();
+        const inDepartment = student.department?.toString() === req.departmentId.toString()
+            || classes.some((classDoc) => classDoc.department?.toString() === req.departmentId.toString());
+        if (!inDepartment) throw domainError('CORRECTION_SCOPE');
+    }
+};
+
+const applyAttemptCorrection = async (req, res, action) => {
+    await assertCorrectionScope(req);
+    const body = parseDomainInput(correctionBodySchema, req.body || {});
+    const result = await setSpellingAttemptOutcome({
         schoolId: req.schoolId,
         sessionId: req.params.id,
         attemptId: req.params.attemptId,
-        userId: req.user._id
+        actorId: req.user._id,
+        action,
+        expectedRevision: body.expectedRevision,
+        targetCorrectionRevision: body.targetCorrectionRevision ?? null,
+        operationId: body.operationId,
+        reason: body.reason
     });
     return res.status(200).json({ success: true, data: result });
-});
+};
+
+export const markAttemptCorrect = asyncHandler((req, res) => applyAttemptCorrection(req, res, 'correct'));
+
+export const markAttemptIncorrect = asyncHandler((req, res) => applyAttemptCorrection(req, res, 'incorrect'));
+
+export const undoAttemptCorrection = asyncHandler((req, res) => applyAttemptCorrection(req, res, 'undo'));
 
 export const completeSession = asyncHandler(async (req, res) => {
     const result = await completeSpellingSession({

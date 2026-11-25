@@ -19,8 +19,6 @@ import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectCla
 import {
     fetchSpellingCurrentItem,
     fetchSpellingDictionaryEntry,
-    fetchSpellingWords,
-    selectSpelling,
     endSpellingSession,
     cancelScheduledSpellingSession,
     startTeacherSpellingSession,
@@ -36,7 +34,6 @@ const SpellingTeacherPage = () => {
     const classStudents = useSelector(selectClassStudents);
     const selectedClass = useSelector(selectCurrentClass);
     const classesLoading = useSelector(selectClassesLoading);
-    const spelling = useSelector(selectSpelling);
     const user = useSelector(selectUser);
     const canImportCurriculum = user?.role === 'admin';
     const canManageSpellingAudio = user?.role === 'admin';
@@ -71,9 +68,6 @@ const SpellingTeacherPage = () => {
     const [passageStyle, setPassageStyle] = useState('sentence-list');
     const [dictationEnabled, setDictationEnabled] = useState(false);
     const [dictationAutoPlay, setDictationAutoPlay] = useState(true);
-    const [importFile, setImportFile] = useState(null);
-    const [importPreview, setImportPreview] = useState(null);
-    const [importing, setImporting] = useState(false);
     const [exportingWordLibrary, setExportingWordLibrary] = useState(false);
     const [gradingFeedback, setGradingFeedback] = useState(null);
     const [dictionaryEntry, setDictionaryEntry] = useState(null);
@@ -84,9 +78,7 @@ const SpellingTeacherPage = () => {
     const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', description: '', onConfirm: null });
     const [endSessionPassageReview, setEndSessionPassageReview] = useState(null);
     const [sessionsStudent, setSessionsStudent] = useState(null);
-    const [wordFilters, setWordFilters] = useState({ grade: '', week: '', category: '' });
-    const [deletingWordId, setDeletingWordId] = useState(null);
-    const [savingWordId, setSavingWordId] = useState(null);
+    const [libraryRefreshKey, setLibraryRefreshKey] = useState(0);
     const [correctingAttemptId, setCorrectingAttemptId] = useState(null);
     const [rowLevels, setRowLevels] = useState({});
     const [savingRowId, setSavingRowId] = useState(null);
@@ -99,9 +91,6 @@ const SpellingTeacherPage = () => {
     const [sessionsError, setSessionsError] = useState('');
     const activeSessionIdRef = useRef(null);
     const [overviewLoading, setOverviewLoading] = useState(false);
-    const wordList = spelling.words;
-    const wordCategories = spelling.categories;
-    const wordsLoading = spelling.wordsLoading;
 
     const notify = useCallback((text, severity = 'info') => {
         setMessage(text);
@@ -132,11 +121,6 @@ const SpellingTeacherPage = () => {
     useEffect(() => {
         dispatch(fetchClasses({ limit: 100 }));
     }, [dispatch]);
-
-    useEffect(() => {
-        if (!classId) return;
-        dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
-    }, [classId, dispatch, wordFilters.grade]);
 
     useEffect(() => {
         if (!classId) return;
@@ -465,18 +449,31 @@ const SpellingTeacherPage = () => {
         }
     }, [activeSession, currentItem, dispatch, gradingFeedback, loadActiveSessions, loadCurrentItem, loading, notify]);
 
-    const correctSpellingAttempt = async (attempt) => {
+    const setSpellingAttemptOutcome = async (attempt, { action, reason, targetCorrectionRevision = null }) => {
         if (!activeSession?._id || !attempt?._id || correctingAttemptId) return false;
         setCorrectingAttemptId(String(attempt._id));
         try {
-            const response = await api.patch(`/spelling/sessions/${activeSession._id}/attempts/${attempt._id}/correct`);
+            const path = action === 'undo' ? 'undo-correction' : action;
+            const method = action === 'undo' ? 'post' : 'patch';
+            const body = {
+                expectedRevision: attempt.revision,
+                operationId: globalThis.crypto?.randomUUID?.() || `correction-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                reason
+            };
+            if (action === 'undo') body.targetCorrectionRevision = targetCorrectionRevision;
+            const response = await api[method](`/spelling/sessions/${activeSession._id}/attempts/${attempt._id}/${path}`, body);
             const result = response.data.data;
             if (activeSessionIdRef.current === activeSession._id) setActiveSession(result.session);
             await loadActiveSessions({ showLoading: false });
-            notify('Spelling answer marked correct; score and retest list updated.', 'success');
+            notify(
+                result.gradebookSynced
+                    ? 'Spelling answer updated; score, retest list and gradebook updated.'
+                    : 'Spelling answer updated; score and retest list updated.',
+                'success'
+            );
             return true;
         } catch (error) {
-            notify(error.response?.data?.message || 'Unable to correct the spelling attempt.', 'error');
+            notify(error.response?.data?.message || 'Unable to update the spelling attempt.', 'error');
             return false;
         } finally {
             setCorrectingAttemptId(null);
@@ -668,86 +665,62 @@ const SpellingTeacherPage = () => {
     const mistakesAllowed = activeSession?.maxMistakesAllowed || 3;
     const mistakePips = Array.from({ length: mistakesAllowed }, (_, index) => index < (activeSession?.mistakeCount || 0));
 
-    const previewWordList = async () => {
-        if (!importFile) return;
-        setImporting(true);
-        setMessage('');
+    const domainFailure = (error, fallback) => {
+        const data = error?.response?.data;
+        const failure = new Error(data?.message || fallback);
+        failure.code = data?.code || 'UNKNOWN';
+        failure.details = data?.details || null;
+        return failure;
+    };
+
+    const previewWordList = async ({ file, mode = 'merge', identityMappings = [] }) => {
         try {
             const formData = new FormData();
-            formData.append('file', importFile);
+            formData.append('file', file);
+            formData.append('mode', mode);
+            if (identityMappings.length) {
+                formData.append('identityMappings', JSON.stringify(identityMappings));
+            }
             const response = await api.post('/spelling/word-lists/import/preview', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            setImportPreview(response.data.data);
+            return response.data.data;
         } catch (error) {
-            notify(error.response?.data?.message || 'Unable to preview the word list.', 'error');
-        } finally {
-            setImporting(false);
+            throw domainFailure(error, t('previewError'));
         }
     };
 
-    const commitWordList = async (replace = false) => {
-        if (!importPreview?.importId) return;
-        setImporting(true);
+    const commitWordList = async ({ preview, reason, operationId }) => {
+        if (!preview?.importId || !operationId) throw new Error(t('library.previewRequired'));
         try {
-            const response = await api.post('/spelling/word-lists/import/commit', { importId: importPreview.importId, replace: replace === true });
-            const result = response.data.data;
-            if (result.idempotent) {
-                notify(t('importAlreadyApplied'), 'success');
-            } else if (result.replaced) {
-                notify(t('replacedWords', { inserted: result.insertedRows || 0, kept: result.updatedRows || 0, removed: result.removedRows || 0 }), 'success');
-            } else {
-                notify(t('importedWords', { inserted: result.insertedRows || 0, updated: result.updatedRows || 0 }), 'success');
-            }
-            dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
-            setImportPreview(null);
-            setImportFile(null);
+            const body = {
+                importId: preview.importId,
+                replace: preview.mode === 'replace',
+                operationId,
+                reason,
+                confirmImpact: true
+            };
+            if (preview.previewToken) body.previewToken = preview.previewToken;
+            if (preview.libraryVersions) body.expectedLibraryVersions = preview.libraryVersions;
+            if (preview.identityMappings?.length) body.identityMappings = preview.identityMappings;
+            const response = await api.post('/spelling/word-lists/import/commit', body);
+            setLibraryRefreshKey((value) => value + 1);
+            return response.data.data || {};
         } catch (error) {
-            notify(error.response?.data?.message || 'Unable to import the word list.', 'error');
-        } finally {
-            setImporting(false);
+            throw domainFailure(error, t('importError'));
         }
     };
 
-    const deleteCurriculumWord = async (word) => {
-        if (!word?._id || deletingWordId) return false;
-        setDeletingWordId(String(word._id));
-        try {
-            await api.delete(`/spelling/word-lists/${word._id}`);
-            await dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
-            notify('Word removed from the shared curriculum.', 'success');
-            return true;
-        } catch (error) {
-            notify(error.response?.data?.message || 'Unable to remove the curriculum word.', 'error');
-            return false;
-        } finally {
-            setDeletingWordId(null);
-        }
-    };
-
-    const updateCurriculumWord = async (word, updatedText) => {
-        if (!word?._id || !updatedText || savingWordId || deletingWordId) return false;
-        setSavingWordId(String(word._id));
-        try {
-            await api.patch(`/spelling/word-lists/${word._id}`, { word: updatedText });
-            await dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
-            notify('Curriculum word updated.', 'success');
-            return true;
-        } catch (error) {
-            notify(error.response?.data?.message || 'Unable to update the curriculum word.', 'error');
-            return false;
-        } finally {
-            setSavingWordId(null);
-        }
-    };
-
-    const exportWordLibrary = async () => {
+    const exportWordLibrary = async (format = 'roundtrip') => {
         setExportingWordLibrary(true);
         try {
-            const response = await api.get('/spelling/word-lists/export', { responseType: 'blob' });
+            const response = await api.get('/spelling/word-lists/export', {
+                params: { format },
+                responseType: 'blob'
+            });
             const filename = filenameFromContentDisposition(
                 response.headers?.['content-disposition'],
-                'spelling-word-library.csv'
+                format === 'roundtrip' ? 'spelling-word-library-roundtrip.csv' : 'spelling-word-library.csv'
             );
             downloadBlob(response.data, filename);
             notify(t('wordLibraryExported'), 'success');
@@ -869,7 +842,7 @@ const SpellingTeacherPage = () => {
                 dictionaryEntry={dictionaryEntry}
                 loading={loading}
                 onGradeAttempt={gradeAttempt}
-                onMarkAttemptCorrect={correctSpellingAttempt}
+                onSetAttemptOutcome={setSpellingAttemptOutcome}
                 correctingAttemptId={correctingAttemptId}
             />
 
@@ -887,29 +860,13 @@ const SpellingTeacherPage = () => {
 
             {activeTab === 1 && <SpellingCurriculumTab
                 canImport={canImportCurriculum}
-                wordFilters={wordFilters}
-                setWordFilters={(updater) => setWordFilters((current) => {
-                    const next = typeof updater === 'function' ? updater(current) : updater;
-                    if (next.grade && next.grade !== 'KG' && Number(next.week) > 36) return { ...next, week: '' };
-                    return next;
-                })}
-                wordCategories={wordCategories}
-                wordList={wordList}
-                wordsLoading={wordsLoading}
-                importFile={importFile}
-                setImportFile={setImportFile}
-                setImportPreview={setImportPreview}
-                importPreview={importPreview}
-                importing={importing}
                 exportingWordLibrary={exportingWordLibrary}
+                libraryRefreshKey={libraryRefreshKey}
                 onPreviewWordList={previewWordList}
                 onCommitWordList={commitWordList}
                 onExportWordLibrary={exportWordLibrary}
                 onExportWordAudioLibrary={exportWordAudioLibrary}
-                onUpdateWord={updateCurriculumWord}
-                savingWordId={savingWordId}
-                onDeleteWord={deleteCurriculumWord}
-                deletingWordId={deletingWordId}
+                onNotify={notify}
             />}
 
             {activeTab === 0 && <>

@@ -18,9 +18,11 @@ import {
     listRaisedHands,
     lowerHand,
     markAttemptCorrect,
+    markAttemptIncorrect,
     raiseHand,
     recordAttempt,
-    startSession
+    startSession,
+    undoAttemptCorrection
 } from '../controllers/spellingSessionController.js';
 import {
     getSession,
@@ -35,12 +37,21 @@ import {
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
 import {
+    bulkUpdateSpellingWords,
+    createSpellingWord,
     deleteSpellingWord,
     exportSpellingWordAudioLibrary,
     exportSpellingWordLibrary,
+    getSpellingWord,
     listSpellingWords,
+    moveSpellingWord,
+    previewSpellingLibraryImpact,
+    reorderSpellingWeek,
+    spellingWordHistory,
     updateSpellingWord
 } from '../controllers/spellingWordController.js';
+import { domainError, spellingDomainErrorHandler } from '../utils/spellingLibraryErrors.js';
+import { spellingCorrectionRateLimiter, spellingLibraryWriteRateLimiter } from '../middleware/rateLimiters.js';
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
@@ -93,6 +104,16 @@ const wordAudioImportUpload = multer({
     }
 });
 
+const spellingImportUpload = (req, res, next) => {
+    uploadImportTemplate.single('file')(req, res, (error) => {
+        if (!error) {
+            next();
+            return;
+        }
+        next(domainError(error?.code === 'LIMIT_FILE_SIZE' ? 'PAYLOAD_TOO_LARGE' : 'FILE_TYPE'));
+    });
+};
+
 // Sound files are fetched by an <audio> element, which cannot send the Bearer token.
 router.get('/pronunciation/:publicId', getPronunciationAudio);
 router.use(protect, requireSchoolContext);
@@ -100,16 +121,24 @@ router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'))
 router.get('/word-lists', listSpellingWords);
 router.get('/word-lists/export', exportSpellingWordLibrary);
 router.get('/word-audio/export', exportSpellingWordAudioLibrary);
-router.patch('/word-lists/:wordId', express.json(), authorize('admin', 'department_principal', 'teacher'), updateSpellingWord);
-router.delete('/word-lists/:wordId', authorize('admin', 'department_principal', 'teacher'), deleteSpellingWord);
+// Literal paths must stay above /:wordId so they are never read as an ID.
+router.post('/word-lists/impact-preview', express.json(), spellingLibraryWriteRateLimiter, previewSpellingLibraryImpact);
+router.patch('/word-lists/bulk', express.json(), spellingLibraryWriteRateLimiter, bulkUpdateSpellingWords);
+router.put('/word-lists/grades/:grade/weeks/:week/order', express.json(), spellingLibraryWriteRateLimiter, reorderSpellingWeek);
+router.post('/word-lists/import/preview', authorize('admin'), spellingLibraryWriteRateLimiter, spellingImportUpload, previewSpellingWords);
+router.post('/word-lists/import/commit', authorize('admin'), spellingLibraryWriteRateLimiter, express.json(), commitSpellingWords);
+router.post('/word-lists', express.json(), spellingLibraryWriteRateLimiter, createSpellingWord);
+router.get('/word-lists/:wordId/history', spellingWordHistory);
+router.get('/word-lists/:wordId', getSpellingWord);
+router.post('/word-lists/:wordId/move', express.json(), spellingLibraryWriteRateLimiter, moveSpellingWord);
+router.patch('/word-lists/:wordId', express.json(), spellingLibraryWriteRateLimiter, updateSpellingWord);
+router.delete('/word-lists/:wordId', express.json(), spellingLibraryWriteRateLimiter, deleteSpellingWord);
 router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
 router.patch('/classes/:classId/settings', express.json(), authorize('admin', 'department_principal', 'teacher'), updateClassSettings);
 router.get('/students/:studentId/details', authorize('admin', 'department_principal', 'teacher'), getStudentSpellingDetails);
 router.get('/students/:studentId/details/docx', authorize('admin', 'department_principal', 'teacher'), exportStudentSpellingDetailsDocx);
 router.patch('/students/:studentId/placement', authorize('admin', 'department_principal', 'teacher'), express.json(), updateStudentSpellingPlacement);
-router.post('/word-lists/import/preview', authorize('admin'), uploadImportTemplate.single('file'), previewSpellingWords);
-router.post('/word-lists/import/commit', authorize('admin'), express.json(), commitSpellingWords);
 router.post('/word-audio/import', authorize('admin'), wordAudioImportUpload.single('file'), importWordAudioCsv);
 router.get('/word-audio/search', authorize('admin'), searchWordAudio);
 router.delete('/word-audio/examples', express.json(), authorize('admin'), deleteWordAudioExample);
@@ -139,7 +168,10 @@ router.get('/sessions/:id/current-item', getCurrentItem);
 router.post('/sessions/:id/integrity-events', authorize('student'), createSpellingIntegrityEvent);
 router.get('/sessions/:id/integrity-events', authorize('admin', 'department_principal', 'teacher'), getSpellingIntegrityEvents);
 router.patch('/sessions/:id/attempt', recordAttempt);
-router.patch('/sessions/:id/attempts/:attemptId/correct', authorize('admin', 'department_principal', 'teacher'), express.json(), markAttemptCorrect);
+const correctionJson = express.json({ limit: '32kb' });
+router.patch('/sessions/:id/attempts/:attemptId/correct', authorize('admin', 'department_principal', 'teacher'), correctionJson, spellingCorrectionRateLimiter, markAttemptCorrect);
+router.patch('/sessions/:id/attempts/:attemptId/incorrect', authorize('admin', 'department_principal', 'teacher'), correctionJson, spellingCorrectionRateLimiter, markAttemptIncorrect);
+router.post('/sessions/:id/attempts/:attemptId/undo-correction', authorize('admin', 'department_principal', 'teacher'), correctionJson, spellingCorrectionRateLimiter, undoAttemptCorrection);
 router.post('/sessions/:id/complete', completeSession);
 router.post('/sessions/:id/cancel-scheduled', authorize('admin', 'department_principal', 'teacher'), cancelScheduledSession);
 router.post('/sessions/:id/abandon', abandonSession);
@@ -167,5 +199,7 @@ router.post('/analysis/cohort/narrative', authorize('admin'), requireSpellingAna
 router.post('/analysis/students/:studentId/parent-draft', authorize('admin'), requireSpellingAnalysis, express.json(), createParentDraft);
 router.patch('/analysis/parent-drafts/:draftId', authorize('admin'), requireSpellingAnalysis, express.json(), updateParentDraft);
 router.post('/analysis/parent-drafts/:draftId/send', authorize('admin', 'teacher'), requireSpellingAnalysis, express.json(), sendParentDraft);
+
+router.use(spellingDomainErrorHandler);
 
 export default router;

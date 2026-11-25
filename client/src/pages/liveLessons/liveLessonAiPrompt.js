@@ -33,7 +33,7 @@ HTML SLIDE DESIGN
 - Presentation-sized text: headings at least 2.5rem where supported, body at least 1.125rem, short lines, only a few key points per slide. Use responsive sizing such as CSS clamp() without letting text fall below those sizes, and never solve overflow by shrinking text.
 - Fit the viewport edge to edge with no scrolling: include box-sizing:border-box; set html and body width and height to 100%, margin to 0, and overflow to hidden; size the main container to 100% width and height; keep the content short enough to fit a small screen.
 - Prefer CSS animation and transition for gentle fades and reveals, and include a prefers-reduced-motion rule. CSS animation does not need JavaScript. Keep movement subtle and never make content flash.
-- JavaScript is optional. Only add a small self-contained script when an interaction genuinely needs one. Never use external libraries, scripts, stylesheets, fonts, images, iframes, forms, or embedded content. Never use network requests, browser storage or cookies, eval/Function, navigation, or code that touches the parent page. The school may reject scripts if its safety review is off.
+- JavaScript is optional. Only add a small self-contained script when an interaction genuinely needs one. Never use external libraries, scripts, stylesheets, fonts, images, iframes, forms, or embedded content. Never use network requests, browser storage or cookies, eval/Function, navigation, or code that touches the parent page. The school safety review may reject a script it finds harmful.
 - Put every slide in the lesson language I give you. For Arabic, write right-to-left content and set dir="rtl" on the slide.
 
 QUESTION RULES

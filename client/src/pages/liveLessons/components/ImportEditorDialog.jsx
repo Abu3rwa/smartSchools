@@ -277,6 +277,7 @@ const ImportEditorDialog = ({
                 index={selectedSlideIndex}
                 total={form.slides.length}
                 language={form.language}
+                allowScripts
               />
               {activeSlide && (
                 <div className="live-preview-editors">

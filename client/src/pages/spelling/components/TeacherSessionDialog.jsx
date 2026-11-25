@@ -1,60 +1,6 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogContent, Fade, IconButton, Stack, TextField, Typography } from '@mui/material';
 import { HiOutlineCheck, HiOutlineXMark, HiOutlineArrowLeft, HiOutlineClock } from 'react-icons/hi2';
-
-const isSkippedAttempt = (attempt, mode) => attempt?.skipped === true || (
-    mode === 'self-serve'
-    && attempt?.skipped === undefined
-    && !String(attempt?.studentInput ?? '').trim()
-);
-
-const AttemptReviewList = ({ session, onMarkCorrect, correctingAttemptId }) => {
-    const attempts = (session?.attempts || []).filter((attempt) => (
-        (!attempt.correct && !isSkippedAttempt(attempt, session.mode))
-        || (attempt.correctedAt && String(attempt.studentInput ?? '').trim())
-    ));
-    if (!attempts.length) return null;
-
-    return (
-        <Box sx={{ width: '100%', maxWidth: 700 }}>
-            <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                {session.status === 'in-progress' ? 'Live spelling answers' : 'Answer review'}
-            </Typography>
-            <Stack spacing={1}>
-                {attempts.map((attempt) => (
-                    <Card key={attempt._id || attempt.sequence} variant="outlined">
-                        <CardContent sx={{ '&:last-child': { pb: 1.5 }, py: 1.5 }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between">
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>
-                                    {String(attempt.studentInput ?? '').trim() && (
-                                        <Typography variant="body2">
-                                            Student typed: <strong>{attempt.studentInput}</strong>
-                                        </Typography>
-                                    )}
-                                    <Typography variant="body2">
-                                        Correct spelling: <strong>{attempt.wordSnapshot}</strong>
-                                    </Typography>
-                                    {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
-                                </Stack>
-                                {!attempt.correct && !isSkippedAttempt(attempt, session.mode) && (
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="success"
-                                        startIcon={<HiOutlineCheck />}
-                                        disabled={!attempt._id || Boolean(correctingAttemptId)}
-                                        onClick={() => onMarkCorrect(attempt)}
-                                    >
-                                        {String(correctingAttemptId) === String(attempt._id) ? 'Saving…' : 'Mark correct'}
-                                    </Button>
-                                )}
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                ))}
-            </Stack>
-        </Box>
-    );
-};
+import SpellingAttemptReviewList from './SpellingAttemptReviewList.jsx';
 
 const TeacherSessionDialog = ({
     activeSession,
@@ -84,7 +30,7 @@ const TeacherSessionDialog = ({
     dictionaryEntry,
     loading,
     onGradeAttempt,
-    onMarkAttemptCorrect,
+    onSetAttemptOutcome,
     correctingAttemptId
 }) => (
     <Dialog
@@ -163,7 +109,12 @@ const TeacherSessionDialog = ({
                                 <Typography variant="h3" textAlign="center">{t('sessionCompleted')}</Typography>
                                 <Typography variant="h5">{t('correctCount', { count: activeSession?.correctCount || 0 })} | {t('mistakeCount', { count: activeSession?.mistakeCount || 0 })}</Typography>
                                 <Typography color="text.secondary">{t('retests', { count: missedWords.length })}</Typography>
-                                <AttemptReviewList session={activeSession} onMarkCorrect={onMarkAttemptCorrect} correctingAttemptId={correctingAttemptId} />
+                                <SpellingAttemptReviewList
+                                    session={activeSession}
+                                    onSetOutcome={onSetAttemptOutcome}
+                                    busyAttemptId={correctingAttemptId}
+                                    t={t}
+                                />
                                 {missedWords.length > 0 && (
                                     <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
                                         {missedWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} icon={<HiOutlineXMark />} label={attempt.wordSnapshot} color="error" variant="outlined" />)}
@@ -294,7 +245,12 @@ const TeacherSessionDialog = ({
                             </>
                         )}
                         {activeSession?.mode === 'self-serve' && (
-                            <AttemptReviewList session={activeSession} onMarkCorrect={onMarkAttemptCorrect} correctingAttemptId={correctingAttemptId} />
+                            <SpellingAttemptReviewList
+                                session={activeSession}
+                                onSetOutcome={onSetAttemptOutcome}
+                                busyAttemptId={correctingAttemptId}
+                                t={t}
+                            />
                         )}
                     </Stack>
                 )}

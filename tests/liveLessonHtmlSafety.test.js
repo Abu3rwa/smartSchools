@@ -8,19 +8,16 @@ test("allows inline CSS animation without requiring AI review", async () => {
   await assertLiveLessonHtmlSafe({ slides: [{ type: "html", html }] });
 });
 
-test("rejects scripts when school AI review is disabled", async () => {
-  const html = "<h1>Hello</h1><script>document.body.classList.add('ready')</script>";
-  assert.match(inspectLiveLessonHtml(html), /review is disabled/);
-  await assert.rejects(
-    assertLiveLessonHtmlSafe({ slides: [{ type: "html", html }] }),
-    /review is disabled/,
-  );
+test("imports scripts when the school AI review is disabled", async () => {
+  const html = "<h1>Hello</h1><script>function ready(){document.body.classList.add('ready')} ready()</script>";
+  assert.equal(inspectLiveLessonHtml(html), "");
+  await assertLiveLessonHtmlSafe({ slides: [{ type: "html", html }] });
 });
 
-test("blocks external resources and script browser capabilities before AI review", async () => {
-  assert.match(inspectLiveLessonHtml('<img src="https://example.com/image.png">', { aiReviewEnabled: true }), /External resources/);
-  assert.match(inspectLiveLessonHtml("<script>fetch('https://example.com')</script>", { aiReviewEnabled: true }), /browser capabilities/);
-  assert.match(inspectLiveLessonHtml("<script>while (true) {}</script>", { aiReviewEnabled: true }), /Unbounded JavaScript loops/);
+test("blocks external resources but leaves script judgement to the AI review", async () => {
+  assert.match(inspectLiveLessonHtml('<img src="https://example.com/image.png">'), /External resources/);
+  assert.equal(inspectLiveLessonHtml("<script>fetch('https://example.com')</script>"), "");
+  assert.equal(inspectLiveLessonHtml("<script>while (true) {}</script>"), "");
 });
 
 test("requires a passing AI review before accepting scripts", async () => {
@@ -35,7 +32,10 @@ test("requires a passing AI review before accepting scripts", async () => {
     },
   }).then(
     () => assert.fail("Expected unsafe slide review to fail."),
-    (error) => assert.match(error.message, /Slide 1: Suspicious behavior/),
+    (error) => {
+      assert.match(error.message, /Change the script and try again/);
+      assert.match(error.message, /Slide 1: Suspicious behavior/);
+    },
   );
   assert.equal(reviews, 1);
 });

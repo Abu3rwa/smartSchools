@@ -85,6 +85,7 @@ const PreviewDialog = ({
                         index={previewSlideIndex}
                         total={slides.length}
                         language={previewLesson.language}
+                        allowScripts
                       />
                       {slide.question && (
                         <section className="live-preview-question">

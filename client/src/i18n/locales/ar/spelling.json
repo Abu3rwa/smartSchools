@@ -29,6 +29,8 @@
   "selectStudent": "اختر طالباً",
   "importTitle": "استيراد كلمات الإملاء",
   "csvColumns": "أعمدة CSV: الصف، الأسبوع، الفئة، الكلمة، الترتيب، التعريف",
+  "csvEncodedColumns": "أعمدة إعادة الاستيراد: Grade وWeek وCategoryEncoded وWordEncoded وOrder وDefinitionEncoded. تحتوي الأعمدة المشفَّرة على نصوص JSON، لذا تبقى الفواصل والاقتباسات وفواصل الأسطر سليمة. ملف التصدير لإعادة الاستيراد يستخدم هذا التنسيق بالفعل.",
+  "csvFileLimit": "ملف CSV واحد، بحجم أقصى 1 ميغابايت و5000 صف.",
   "downloadTemplate": "تنزيل نموذج CSV",
   "preview": "معاينة",
   "commitImport": "تأكيد الاستيراد",
@@ -36,6 +38,7 @@
   "valid": "صالحة",
   "importedWords": "تمت إضافة {{inserted}} كلمة جديدة وتحديث {{updated}} كلمة موجودة.",
   "importAlreadyApplied": "تم تطبيق استيراد كلمات الإملاء هذا من قبل.",
+  "importCounts": "تم حفظ الاستيراد. الكلمات المضافة: {{added}}، المحدّثة: {{changed}}، المؤرشفة: {{removed}}.",
   "creating": "جارٍ الإنشاء...",
   "studentId": "معرّف الطالب: {{id}}",
   "startStudentSession": "بدء اختبار الطالب",
@@ -98,9 +101,11 @@
   "classCreated": "تم إنشاء اختبارات لـ {{count}} طلاب في {{className}}.",
   "classStopped": "تم إنشاء {{count}} اختبارات قبل توقف عملية الفصل."
   ,"wordListTitle": "قائمة كلمات المنهج"
-  ,"exportWordLibrary": "تصدير جميع الكلمات (CSV)"
   ,"exportingWordLibrary": "جارٍ التصدير..."
-  ,"wordLibraryExportDescription": "يشمل تصدير الكلمات جميع الصفوف والمعاني. ويشمل ملف الصوت CSV تسجيلات الأمثلة والمعاني؛ أما النطق فهو صوت مولّد بالذكاء الاصطناعي ولا يُصدَّر. ولا تؤثر عوامل التصفية الحالية على التصدير."
+  ,"exportReimport": "تصدير لإعادة الاستيراد (CSV)"
+  ,"exportSpreadsheet": "تصدير جدول بيانات (CSV)"
+  ,"exportSpreadsheetHelp": "يُفتح تصدير جدول البيانات في Excel وGoogle Sheets لكنه ليس مخصصًا للاستيراد مرة أخرى. استخدم تصدير إعادة الاستيراد لتعديل الكلمات ورفعها مجددًا."
+  ,"wordLibraryExportDescription": "يشمل تصدير إعادة الاستيراد جميع الصفوف والمعاني بالتنسيق نفسه الذي يتوقعه المستورد. تصدير جدول البيانات للقراءة والمشاركة. ويشمل ملف الصوت CSV تسجيلات الأمثلة والمعاني؛ أما النطق فهو صوت مولّد بالذكاء الاصطناعي ولا يُصدَّر. ولا تؤثر عوامل التصفية الحالية على التصدير."
   ,"wordLibraryExported": "تم تصدير قائمة كلمات الإملاء."
   ,"wordLibraryExportError": "تعذر تصدير قائمة كلمات الإملاء."
   ,"exportAudioCsv": "تصدير ملف الصوت CSV"
@@ -158,7 +163,6 @@
   ,"noData": "لا توجد بيانات بعد."
   ,"switchStudent": "تبديل الطالب"
   ,"backToStudent": "العودة إلى الطالب"
-  ,"replaceExistingList": "استبدال قائمة الكلمات الحالية للصفوف الموجودة في هذا الملف"
   ,"replaceExistingWarning": "ستتم إزالة جميع الكلمات الحالية لهذه الصفوف واستبدالها بهذا الملف. يتم الاحتفاظ بسجل إنجاز الطلاب والتقارير، ولا تُطرح الكلمات الموجودة في القائمتين مرة أخرى. أنهِ الجلسات النشطة لهذه الصفوف أولاً."
   ,"replaceList": "استبدال قائمة الكلمات"
   ,"replacedWords": "تم استبدال قائمة الكلمات: {{inserted}} جديدة، {{kept}} محتفظ بها، {{removed}} قديمة محذوفة."
@@ -203,18 +207,50 @@
   ,"chooseCsvFile": "اختيار ملف CSV"
   ,"dropCsvHere": "اسحب ملف CSV وأفلته هنا، أو اختر ملفًا."
   ,"removeSelectedFile": "إزالة الملف المحدد"
-  ,"rowCount": "{{count}} صفوف"
-  ,"validRowCount": "{{count}} صالحة"
-  ,"errorRowCount": "{{count}} أخطاء"
   ,"validationErrors": "أخطاء التحقق"
   ,"validationErrorRow": "الصف {{row}}: {{message}}"
   ,"firstValidRows": "أول 5 صفوف صالحة"
   ,"importing": "جارٍ استيراد قائمة الكلمات..."
-  ,"confirmReplaceTitle": "تأكيد استبدال المنهج؟"
-  ,"confirmReplace": "تأكيد الاستبدال"
-  ,"replaceEstimate": "استنادًا إلى المنهج الحالي، ستتم إزالة {{removed}} كلمة وإضافة {{added}}."
+  ,"importModeLabel": "وضع الاستيراد"
+  ,"importModeMerge": "إضافة الكلمات وتحديثها"
+  ,"importModeMergeHelp": "تُضاف كلمات الملف، أو تُحدَّث في مكانها عند مطابقتها كلمة موجودة. الكلمات غير الموجودة في الملف تبقى في المنهج."
+  ,"importModeReplace": "استبدال الصفوف الموجودة في هذا الملف"
+  ,"importModeReplaceHelp": "يُستبدل كل صف يظهر في الملف استبدالًا كاملًا. الصفوف غير الموجودة في الملف لا تتغير."
+  ,"previewWithMatches": "معاينة بهذه المطابقات"
+  ,"previewAgain": "معاينة مرة أخرى"
+  ,"retrySave": "إعادة محاولة الحفظ"
+  ,"previewRowCount": "الصفوف: {{total}}"
+  ,"previewValidCount": "الصالحة: {{total}}"
+  ,"previewErrorCount": "الأخطاء: {{total}}"
+  ,"currentVersionsTitle": "إصدارات المنهج الحالية"
+  ,"libraryVersionChip": "{{grade}} الإصدار {{version}}"
+  ,"plannedTitle": "التغييرات المخطَّطة"
+  ,"noChangesPlanned": "هذا الملف مطابق للمنهج الحالي. سيُسجَّل الاستيراد دون تغيير أي كلمة."
+  ,"planned": {
+    "added": "المضافة: {{total}}",
+    "updated": "المحدَّثة: {{total}}",
+    "removed": "المؤرشفة: {{total}}",
+    "reusedArchived": "المستعادة من الأرشيف: {{total}}"
+  }
+  ,"replaceScopeTitle": "نطاق الاستبدال لكل صف في الملف"
+  ,"replaceScopeLine": "{{grade}}: الحالية {{current}}، المحتفظ بها {{kept}}، المحذوفة {{removed}}، المضافة {{added}}."
+  ,"identityTitle": "أكثر من كلمة قد تتطابق"
+  ,"identityHelp": "تتطابق هذه الصفوف مع أكثر من كلمة موجودة. اختر الكلمة التي يجب أن يحدّثها كل صف؛ لا يتم التخمين نيابةً عنك."
+  ,"identityRow": "الصف {{row}}"
+  ,"identityCandidate": "{{word}} (الأسبوع {{week}})"
+  ,"identityArchived": "مؤرشفة"
+  ,"confirmImportTitle": "تطبيق هذا الاستيراد؟"
+  ,"confirmImportBody": "عدد الكلمات التي ستُكتب في المنهج المشترك: {{rows}}، من الصفوف {{grades}}. لا يتغير عمل الطلاب المنجز ولا الدرجات."
+  ,"confirmImportBodyNoChanges": "هذا الملف مطابق للمنهج الحالي. سيُسجَّل الاستيراد دون تغيير أي كلمة أو إصدار، ودون المساس بعمل الطلاب."
+  ,"confirmImpactSummary": "يؤثر هذا في {{students}} من الطلاب ويغيّر {{positions}} من مواضع الكلمات."
+  ,"confirmApply": "تطبيق الاستيراد"
+  ,"importNoChanges": "لم تكن هناك حاجة إلى تغييرات. تم تسجيل الاستيراد."
   ,"invalidImportGrade": "يجب أن يكون الصف KG أو من G1 إلى G5."
-  ,"invalidImportWeek": "يجب أن يكون الأسبوع عددًا صحيحًا موجبًا."
+  ,"invalidImportWeekRange": "الأسبوع غير صالح لهذا الصف."
+  ,"invalidImportWordCharacters": "يجب أن تحتوي الكلمة على حروف أو أرقام."
+  ,"duplicateImportWord": "تظهر الكلمة نفسها مرتين في هذا الصف والأسبوع."
+  ,"invalidColumnCount": "لا يحتوي الصف على عدد الأعمدة المتوقع."
+  ,"invalidEncodedCell": "إحدى القيم المشفَّرة ليست JSON صالحة. ابدأ من تصدير إعادة الاستيراد للحفاظ على التنسيق الصحيح."
   ,"invalidImportCategory": "الفئة مطلوبة ويجب ألا يتجاوز طولها 120 حرفًا."
   ,"invalidImportWord": "الكلمة مطلوبة ويجب ألا يتجاوز طولها 200 حرف."
   ,"invalidImportDefinition": "يجب ألا يتجاوز طول التعريف 2000 حرف."
@@ -241,6 +277,24 @@
   ,"skippedAnswer": "متخطاة"
   ,"answerComparison": "مقارنة الإجابات"
   ,"acceptedByTeacher": "قبلها المعلّم"
+  ,"attemptReview": {
+    "liveTitle": "إجابات الإملاء المباشرة",
+    "title": "مراجعة الإجابات",
+    "markCorrect": "اعتبر الإجابة صحيحة",
+    "markIncorrect": "اعتبر الإجابة خاطئة",
+    "undoLastChange": "تراجع عن آخر تغيير",
+    "saving": "جارٍ الحفظ…",
+    "skippedReadOnly": "لا يمكن تعديل الإجابات المتخطاة.",
+    "historyEntry": "{{action}} في {{when}}",
+    "sentReportNote": "قد يعرض تقرير سبق إرساله النتيجة السابقة.",
+    "formalGradeNote": "يحدّث هذا المحاولة ودرجة الجلسة ودرجة الاختبار الرسمي المرتبطة بها.",
+    "practiceNote": "يحدّث هذا المحاولة ودرجة الجلسة فقط. التدريب لا يُحتسب بدرجة.",
+    "reasonLabel": "السبب",
+    "reasonHelp": "من 5 إلى 500 حرف. لا تُدرج أسماء الطلاب أو بياناتهم الشخصية.",
+    "reasonTooShort": "أدخل سببًا لا يقل عن 5 أحرف.",
+    "cancel": "إلغاء",
+    "confirm": "حفظ التغيير"
+  }
   ,"practicePassage": "فقرة للتدريب"
   ,"practicePassageHint": "هذه هي الكلمات المستهدفة للتدريب. مادة تدريبية وليست درجة."
   ,"practicePassageLoading": "جارٍ تحميل فقرة التدريب…"
@@ -433,5 +487,107 @@
     "colGenerate": "توليد",
     "generating": "جارٍ التوليد…",
     "importFirst": "استورد كلمات الإملاء أولًا؛ لا يوجد شيء لتوليده بعد."
+  },
+  "library": {
+    "title": "مكتبة الكلمات",
+    "addWord": "إضافة كلمة",
+    "refresh": "تحديث",
+    "copyRows": "نسخ الصفحة للجدول",
+    "copiedRows": "تم نسخ الصفحة.",
+    "copyFailed": "النسخ غير متاح في هذا المتصفح. حدّد الصفوف وانسخها يدويًا.",
+    "selectedSummary": "المحدد: {{selected}} من {{shown}} في هذه الصفحة",
+    "selectRow": "تحديد {{word}}",
+    "selectAll": "تحديد كل كلمات هذه الصفحة",
+    "clearSelection": "مسح التحديد",
+    "bulkEdit": "تعديل المحدد",
+    "actions": "الإجراءات",
+    "definition": "التعريف",
+    "position": "الموضع {{order}}",
+    "loadFailed": "تعذّر تحميل مكتبة الإملاء.",
+    "retry": "إعادة المحاولة",
+    "emptyLibrary": "لا تحتوي هذه المكتبة على كلمات بعد.",
+    "addFirst": "أضف الكلمة الأولى",
+    "pageState": "الصفحة {{page}} · {{shown}} من أصل {{total}}",
+    "previousPage": "الصفحة السابقة",
+    "nextPage": "الصفحة التالية",
+    "readOnly": "للقراءة فقط",
+    "permissionScope": "يمكنك تعديل مستويات الإملاء التي يدرسها طلاب صفوفك فقط.",
+    "permissionRole": "دورك الحالي لا يسمح بتعديل مكتبة الإملاء.",
+    "newWordTitle": "إضافة كلمة",
+    "editWordTitle": "تعديل الكلمة",
+    "editContext": "{{grade}}، الأسبوع {{week}}، {{category}}",
+    "wordHelp": "حتى 200 حرف.",
+    "categoryHelp": "حتى 120 حرفًا.",
+    "definitionHelp": "حتى 2000 حرف.",
+    "wordTooLong": "استخدم 200 حرف أو أقل.",
+    "categoryRequired": "أدخل فئة.",
+    "categoryTooLong": "استخدم 120 حرفًا أو أقل.",
+    "definitionTooLong": "استخدم 2000 حرف أو أقل.",
+    "reasonLabel": "سبب هذا التغيير",
+    "reasonHelp": "يُحفظ في سجل التغييرات (من 5 إلى 500 حرف).",
+    "reasonRequired": "اكتب سببًا قصيرًا (5 أحرف على الأقل).",
+    "previewChange": "معاينة التغيير",
+    "savingChange": "جارٍ الحفظ…",
+    "saveChange": "حفظ التغيير",
+    "impactTitle": "راجع هذا التغيير",
+    "impactIntro": "يغيّر هذا ما يراه الطلاب لاحقًا. الأعمال المنجزة تحتفظ بكلماتها ودرجاتها.",
+    "impactNone": "لا تتأثر أي سجلات طلاب.",
+    "impactAffectedStudents": "الطلاب المتأثرون",
+    "impactChangedPositions": "كلمات يتغير موضعها",
+    "impactNewlyEligible": "كلمات يمكن للطلاب الوصول إليها أبكر",
+    "impactRemovedEligibility": "كلمات لن يتمكن الطلاب من الوصول إليها",
+    "impactRetainedRetests": "إعادات اختبار محفوظة بالصياغة الجديدة",
+    "impactRetestsOnArchivedWords": "إعادات اختبار على كلمات مؤرشفة",
+    "archiveNote": "تُؤرشف الكلمة ولا تُمحى: تحتفظ النتائج السابقة وإعادات الاختبار بها.",
+    "confirmSave": "تأكيد وحفظ",
+    "working": "جارٍ التنفيذ…",
+    "previewRequired": "اعرض معاينة التغيير قبل حفظه.",
+    "savedNotice": "تم حفظ التغيير.",
+    "archivedNotice": "تمت أرشفة الكلمة.",
+    "movedNotice": "تم نقل الكلمة.",
+    "reorderedNotice": "تم حفظ ترتيب الأسبوع.",
+    "bulkSavedNotice": "الكلمات المحفوظة: {{changed}}.",
+    "conflictKeptDraft": "مسودتك ما زالت مفتوحة. راجع القيم الحالية ثم اعرض المعاينة من جديد.",
+    "historyTitle": "سجل التغييرات",
+    "historyEmpty": "لا توجد تغييرات مسجلة لهذه الكلمة بعد.",
+    "historyLoadMore": "تحميل المزيد",
+    "historyLoading": "جارٍ تحميل السجل…",
+    "historyFailed": "تعذّر تحميل السجل.",
+    "historyReason": "السبب",
+    "historyBefore": "قبل",
+    "historyAfter": "بعد",
+    "historyUnchanged": "لا تغيير ظاهر",
+    "moveTitle": "نقل الكلمة",
+    "moveWord": "نقل الكلمة",
+    "reorderWeek": "إعادة ترتيب الأسبوع",
+    "moveHelp": "اختر أسبوعًا وموضعًا ضمن {{grade}}.",
+    "toWeek": "الأسبوع",
+    "toPosition": "الموضع",
+    "previewMove": "معاينة النقل",
+    "reorderTitle": "إعادة ترتيب الأسبوع {{week}}",
+    "reorderHelp": "استخدم الأزرار أو مفاتيح الأسهم لنقل كلمة، ثم طبّق الترتيب. تُدرج كل كلمات الأسبوع.",
+    "moveUp": "نقل لأعلى",
+    "moveDown": "نقل لأسفل",
+    "applyOrder": "تطبيق الترتيب",
+    "bulkTitle": "تعديل الكلمات المحددة",
+    "bulkHelp": "تتغير الحقول التي تعبئها فقط. اترك الحقل فارغًا للإبقاء عليه.",
+    "bulkCategory": "الفئة الجديدة",
+    "bulkApply": "معاينة التغييرات",
+    "bulkNeedsOne": "حدّد كلمة واحدة على الأقل.",
+    "bulkTooLarge": "حدّد 200 كلمة أو أقل، ثم أعد المحاولة.",
+    "importReasonLabel": "سبب هذا الاستيراد",
+    "importReasonHelp": "يُحفظ مع هذا الاستيراد في سجل التغييرات.",
+    "historyAdd": "أُضيفت كلمة",
+    "historyArchive": "أُرشفت كلمة",
+    "historyRename": "صُححت كلمة",
+    "historyPatch": "عُدلت كلمة",
+    "historyReorder": "تغيّر الموضع",
+    "historyBy": "بواسطة {{actor}}",
+    "typoConfirm": "هذا تصحيح خطأ كتابي في الكلمة الموجودة",
+    "typoHelp": "تغيير التهجئة يحتفظ بالنتائج السابقة لهذه الكلمة ويحدّث إعادات الاختبار المعلّقة. لاستبدالها بكلمة أخرى، أرشفها وأضف الكلمة الجديدة بدلًا منها.",
+    "positionLabel": "الموضع",
+    "positionHelp": "اتركه فارغًا لوضع الكلمة في نهاية الأسبوع.",
+    "archiveTitle": "أرشفة الكلمة",
+    "archiveConfirm": "أرشفة الكلمة"
   }
 }

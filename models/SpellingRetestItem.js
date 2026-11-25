@@ -71,6 +71,13 @@ const spellingRetestItemSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    wordRevision: { type: Number, default: 1, min: 1 },
+    revision: { type: Number, default: 1, min: 1 },
+    lastEventSequence: { type: Number, default: 0, min: 0 },
+    // Retained as provenance when the originating miss is explicitly undone;
+    // excluded from obligation queries rather than falsely marked resolved.
+    suppressedAt: { type: Date, default: null },
+    suppressedByCorrection: { type: String, default: null, trim: true, maxlength: 80 },
     status: {
         type: String,
         enum: ['pending', 'practice-mastered', 'resolved', 'expired'],
@@ -106,7 +113,10 @@ spellingRetestItemSchema.index(
 );
 spellingRetestItemSchema.index(
     { school: 1, student: 1, wordSnapshot: 1 },
-    { unique: true, partialFilterExpression: { status: 'pending' } }
+    {
+        unique: true,
+        partialFilterExpression: { status: 'pending', suppressedAt: null }
+    }
 );
 spellingRetestItemSchema.plugin(tenantIsolationPlugin);
 

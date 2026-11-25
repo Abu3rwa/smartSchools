@@ -1,13 +1,32 @@
 import crypto from 'crypto';
-import { withTransaction } from '../utils/withTransaction.js';
+import { parse as parseCsv } from 'csv-parse/sync';
 import SpellingImportJob from '../models/SpellingImportJob.js';
-import SpellingWord from '../models/SpellingWord.js';
-import SpellingSession from '../models/SpellingSession.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
+import { isValidSpellingGrade, isValidSpellingWeek } from '../utils/spellingProgress.js';
+import { domainError } from '../utils/spellingLibraryErrors.js';
+import { ROUNDTRIP_HEADERS } from '../utils/spellingWordExport.js';
+import { hashPayload } from '../utils/spellingPreviewToken.js';
+import {
+    CATEGORY_MAX_LENGTH,
+    DEFINITION_MAX_LENGTH,
+    IMPORT_MAX_ROWS,
+    WORD_MAX_LENGTH
+} from '../validators/spellingLibraryValidators.js';
+import {
+    commitLibraryImport,
+    createImportPreviewState,
+    issueImportPreviewToken
+} from './spellingLibraryService.js';
 
 const REQUIRED_HEADERS = ['grade', 'week', 'category', 'word', 'order'];
 const DEFINITION_HEADER = 'definition';
-const VALID_GRADES = new Set(['KG', 'G1', 'G2', 'G3', 'G4', 'G5']);
+const ENCODED_HEADERS = ROUNDTRIP_HEADERS.map((header) => header.toLowerCase());
+const PREVIEW_TTL_MS = 15 * 60 * 1000;
+
+const rowError = (row, message, field = 'row') => ({ row, field, message });
+const csvInvalid = (message, details = null) => domainError('CSV_INVALID', {
+    details: details || [{ field: 'file', message }]
+});
 
 export const estimateSpellingReplacement = (existingWords, rows) => {
     const existingByWord = new Map();
@@ -32,63 +51,75 @@ export const estimateSpellingReplacement = (existingWords, rows) => {
     };
 };
 
-const parseCsvLine = (line, rowNumber) => {
-    const values = [];
-    let value = '';
-    let quoted = false;
-
-    for (let index = 0; index < line.length; index += 1) {
-        const character = line[index];
-        const nextCharacter = line[index + 1];
-        if (character === '"' && quoted && nextCharacter === '"') {
-            value += '"';
-            index += 1;
-        } else if (character === '"') {
-            quoted = !quoted;
-        } else if (character === ',' && !quoted) {
-            values.push(value);
-            value = '';
-        } else {
-            value += character;
-        }
-    }
-
-    if (quoted) {
-        throw new Error(`Row ${rowNumber}: quoted value was not closed`);
-    }
-
-    values.push(value);
-    return values;
-};
-
+/**
+ * Parses the uploaded CSV with the real parser so quoted commas, escaped quotes
+ * and multiline fields survive. Row numbers are the physical line where the
+ * record ends, which stays correct after blank lines are skipped.
+ */
 export const parseSpellingCsv = (content) => {
-    const lines = String(content || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim() !== '');
-    if (lines.length < 2) throw new Error('CSV must contain a header and at least one data row');
+    let records;
+    try {
+        records = parseCsv(String(content ?? ''), {
+            bom: true,
+            skip_empty_lines: true,
+            trim: true,
+            relax_column_count: true,
+            on_record: (record, context) => ({ values: record, line: context.lines })
+        });
+    } catch (error) {
+        throw csvInvalid('The CSV could not be read. Check quoted values and line breaks, then upload it again.', [
+            { field: 'file', message: error.message }
+        ]);
+    }
 
-    const headers = parseCsvLine(lines[0], 1).map((header) => header.trim().toLowerCase());
+    if (records.length < 2) throw csvInvalid('CSV must contain a header and at least one data row');
+
+    const headers = records[0].values.map((header) => String(header).trim().toLowerCase());
+    const isEncoded = headers.length === ENCODED_HEADERS.length
+        && headers.every((header, index) => header === ENCODED_HEADERS[index]);
     const hasDefinition = headers.length === REQUIRED_HEADERS.length + 1
         && headers.at(-1) === DEFINITION_HEADER;
-    const validHeaders = headers.length === REQUIRED_HEADERS.length
+    const validHeaders = isEncoded || (headers.length === REQUIRED_HEADERS.length
         ? headers.every((header, index) => header === REQUIRED_HEADERS[index])
-        : hasDefinition && REQUIRED_HEADERS.every((header, index) => headers[index] === header);
-    if (!validHeaders) throw new Error(`CSV headers must match: ${[...REQUIRED_HEADERS, DEFINITION_HEADER].join(',')}`);
+        : hasDefinition && REQUIRED_HEADERS.every((header, index) => header === REQUIRED_HEADERS[index]));
+    if (!validHeaders) {
+        throw csvInvalid(`CSV headers must match: ${[...REQUIRED_HEADERS, DEFINITION_HEADER].join(',')}`, [
+            { field: 'header', message: `Expected: ${[...REQUIRED_HEADERS, DEFINITION_HEADER].join(',')}` }
+        ]);
+    }
 
-    return lines.slice(1).map((line, index) => {
-        const rowNumber = index + 2;
-        const values = parseCsvLine(line, rowNumber);
-        const expectedColumns = hasDefinition ? REQUIRED_HEADERS.length + 1 : REQUIRED_HEADERS.length;
-        if (values.length !== expectedColumns) {
-            throw new Error(`Row ${rowNumber}: expected ${expectedColumns} columns`);
-        }
+    const expectedColumns = isEncoded || hasDefinition
+        ? REQUIRED_HEADERS.length + 1
+        : REQUIRED_HEADERS.length;
+    const decodeCell = (value) => {
+        const parsed = JSON.parse(String(value ?? ''));
+        if (typeof parsed !== 'string') throw new Error('not a string');
+        return parsed.trim();
+    };
+    return records.slice(1).map(({ values, line }) => {
         const row = {
-            rowNumber,
-            grade: values[0].trim().toUpperCase(),
-            week: values[1].trim(),
-            category: values[2].trim(),
-            word: values[3].trim(),
-            order: values[4].trim()
+            rowNumber: line,
+            grade: String(values[0] ?? '').trim().toUpperCase(),
+            week: String(values[1] ?? '').trim(),
+            category: '',
+            word: '',
+            order: String(values[4] ?? '').trim()
         };
-        if (hasDefinition) row.definition = values[5].trim();
+        if (isEncoded) {
+            try {
+                row.category = decodeCell(values[2]);
+                row.word = decodeCell(values[3]);
+                row.definition = decodeCell(values[5]);
+            } catch (error) {
+                void error;
+                row.cellError = 'encoded value is not valid JSON';
+            }
+        } else {
+            row.category = String(values[2] ?? '').trim();
+            row.word = String(values[3] ?? '').trim();
+            if (hasDefinition) row.definition = String(values[5] ?? '').trim();
+        }
+        if (values.length !== expectedColumns) row.columnError = 'wrong number of columns';
         return row;
     });
 };
@@ -96,32 +127,49 @@ export const parseSpellingCsv = (content) => {
 export const validateSpellingRows = (rows) => {
     const errors = [];
     const seenPositions = new Set();
+    const seenWords = new Set();
     const validRows = [];
 
     for (const row of rows) {
         const week = Number(row.week);
         const order = Number(row.order);
-        const position = `${row.grade}:${week}:${order}`;
+        const normalizedWord = normalizeForGrading(row.word);
+        const position = `${row.grade}:${row.week}:${order}`;
+        const wordKey = `${row.grade}:${week}:${normalizedWord}`;
         const rowErrors = [];
 
-        if (!VALID_GRADES.has(row.grade)) rowErrors.push('grade must be KG or G1-G5');
-        if (!Number.isInteger(week) || week < 1) rowErrors.push('week must be a positive integer');
-        if (!row.category || row.category.length > 120) rowErrors.push('category is required and must be at most 120 characters');
-        if (!row.word || row.word.length > 200) rowErrors.push('word is required and must be at most 200 characters');
-        if (row.definition && row.definition.length > 2000) rowErrors.push('definition must be at most 2000 characters');
+        if (row.columnError) rowErrors.push(row.columnError);
+        if (row.cellError) rowErrors.push(row.cellError);
+        if (!isValidSpellingGrade(row.grade)) rowErrors.push('grade must be KG or G1-G5');
+        if (!isValidSpellingWeek(row.grade, week)) rowErrors.push('week must be a valid week for this grade');
+        if (!row.category || row.category.length > CATEGORY_MAX_LENGTH) {
+            rowErrors.push(`category is required and must be at most ${CATEGORY_MAX_LENGTH} characters`);
+        }
+        if (!row.word || row.word.length > WORD_MAX_LENGTH) {
+            rowErrors.push(`word is required and must be at most ${WORD_MAX_LENGTH} characters`);
+        } else if (!normalizedWord) {
+            rowErrors.push('word must contain letters or numbers');
+        } else if (normalizedWord.length > WORD_MAX_LENGTH) {
+            rowErrors.push(`word must be at most ${WORD_MAX_LENGTH} characters after normalization`);
+        }
+        if (Object.hasOwn(row, 'definition') && row.definition.length > DEFINITION_MAX_LENGTH) {
+            rowErrors.push(`definition must be at most ${DEFINITION_MAX_LENGTH} characters`);
+        }
         if (!Number.isInteger(order) || order < 1) rowErrors.push('order must be a positive integer');
         if (seenPositions.has(position)) rowErrors.push('duplicate grade/week/order in file');
+        if (normalizedWord && seenWords.has(wordKey)) rowErrors.push('duplicate word in this grade and week');
 
         if (rowErrors.length > 0) {
-            errors.push(...rowErrors.map((message) => ({ row: row.rowNumber, field: 'row', message })));
+            errors.push(...rowErrors.map((message) => rowError(row.rowNumber, message)));
         } else {
             seenPositions.add(position);
+            seenWords.add(wordKey);
             const validRow = {
                 grade: row.grade,
                 week,
                 category: row.category,
                 word: row.word,
-                normalizedWord: normalizeForGrading(row.word),
+                normalizedWord,
                 order
             };
             if (Object.hasOwn(row, 'definition')) validRow.definition = row.definition.trim();
@@ -132,130 +180,184 @@ export const validateSpellingRows = (rows) => {
     return { validRows, errors };
 };
 
+export const assertImportRowLimit = (rows) => {
+    if (rows.length > IMPORT_MAX_ROWS) throw domainError('IMPORT_TOO_LARGE');
+    return rows;
+};
+
 const buildSummary = (rows) => rows.reduce((summary, row) => {
     const key = `${row.grade}/week-${row.week}`;
     summary[key] = (summary[key] || 0) + 1;
     return summary;
 }, {});
 
-export async function previewSpellingImport({ schoolId, userId, fileName, content }) {
-    const rows = parseSpellingCsv(content);
+const normalizeMappings = (mappings, rows) => {
+    if (!Array.isArray(mappings) || mappings.length === 0) return [];
+    const rowNumbers = new Set(rows.map((row) => Number(row.rowNumber)));
+    const seenRows = new Set();
+    return mappings.map((mapping) => {
+        const rowNumber = Number(mapping?.rowNumber);
+        if (!rowNumbers.has(rowNumber)) {
+            throw domainError('INVALID_REQUEST', { details: [{ row: rowNumber, field: 'identityMappings' }] });
+        }
+        if (seenRows.has(rowNumber)) {
+            throw domainError('INVALID_REQUEST', {
+                details: [{ row: rowNumber, field: 'identityMappings', message: 'each row once' }]
+            });
+        }
+        seenRows.add(rowNumber);
+        return {
+            rowNumber,
+            wordId: String(mapping.wordId),
+            ...(mapping.expectedRevision !== undefined
+                ? { expectedRevision: Number(mapping.expectedRevision) }
+                : {}),
+            ...(mapping.changeType ? { changeType: mapping.changeType } : {})
+        };
+    });
+};
+
+const proposedIdentities = ({ plan, rows }) => {
+    const sourceIds = new Set((plan.sourceWords || []).map((word) => String(word._id)));
+    const words = Object.values(plan.afterMap || {}).flat();
+    return {
+        proposedNewIds: words.filter((word) => !sourceIds.has(String(word._id))).map((word) => word._id),
+        reusedWordIds: words.filter((word) => sourceIds.has(String(word._id))).map((word) => word._id),
+        rowCount: rows.length
+    };
+};
+
+const assertImportRole = (role) => {
+    if (role !== 'admin' && role !== 'super_admin') throw domainError('ROLE_FORBIDDEN');
+};
+
+export async function previewSpellingImport({
+    schoolId,
+    userId,
+    role,
+    fileName,
+    content,
+    mode = 'merge',
+    identityMappings = []
+}) {
+    assertImportRole(role);
+    if (mode !== 'merge' && mode !== 'replace') {
+        throw domainError('INVALID_REQUEST', { details: [{ field: 'mode' }] });
+    }
+
+    const rows = assertImportRowLimit(parseSpellingCsv(content));
     const { validRows, errors } = validateSpellingRows(rows);
-    const fileHash = crypto.createHash('sha256').update(String(content)).digest('hex');
-    const grades = [...new Set(validRows.map((row) => row.grade))];
-    const existingWords = grades.length > 0
-        ? await SpellingWord.find({ school: schoolId, grade: { $in: grades } }).select('grade normalizedWord').lean()
-        : [];
-    const replaceEstimate = estimateSpellingReplacement(existingWords, validRows);
+    const mappings = normalizeMappings(identityMappings, rows);
+    const fileHash = crypto.createHash('sha256').update(String(content ?? '')).digest('hex');
+    const summary = { totalRows: rows.length, validRows: validRows.length, counts: buildSummary(validRows) };
+
+    if (errors.length > 0) {
+        const job = await SpellingImportJob.create({
+            school: schoolId,
+            uploadedBy: userId,
+            fileName,
+            fileHash,
+            mode,
+            rows: validRows,
+            errors,
+            summary,
+            identityMappings: mappings,
+            identityMappingDigest: hashPayload(mappings),
+            expiresAt: new Date(Date.now() + PREVIEW_TTL_MS)
+        });
+        return {
+            importId: job._id,
+            fileHash,
+            mode,
+            summary,
+            errors,
+            previewRows: rows.slice(0, 5),
+            committable: false
+        };
+    }
+
+    const state = await createImportPreviewState({ schoolId, rows: validRows, mode, mappings });
+    if (state.ambiguities?.length) {
+        return {
+            importId: null,
+            fileHash,
+            mode,
+            summary,
+            errors,
+            previewRows: validRows.slice(0, 5),
+            affectedGrades: state.grades,
+            libraryVersions: state.libraryVersions,
+            identityMappings: mappings,
+            ambiguities: state.ambiguities,
+            committable: false
+        };
+    }
+    const identities = proposedIdentities({ plan: state.plan, rows: validRows });
     const job = await SpellingImportJob.create({
         school: schoolId,
         uploadedBy: userId,
         fileName,
         fileHash,
+        mode,
         rows: validRows,
         errors,
-        summary: { totalRows: rows.length, validRows: validRows.length, counts: buildSummary(validRows) }
+        summary,
+        identityMappings: mappings,
+        identityMappingDigest: hashPayload(mappings),
+        expectedLibraryVersions: state.libraryVersions,
+        previewDigest: state.operationHash,
+        expiresAt: new Date(Date.now() + PREVIEW_TTL_MS)
+    });
+    const previewToken = issueImportPreviewToken({
+        schoolId,
+        user: { _id: userId },
+        operationHash: state.operationHash,
+        digest: state.digest
     });
 
     return {
         importId: job._id,
         fileHash,
-        summary: job.summary,
+        mode,
+        summary,
         errors,
         previewRows: validRows.slice(0, 5),
-        replaceEstimate
+        affectedGrades: state.grades,
+        planned: state.summary?.planned || null,
+        replaceScope: state.summary?.replaceScope || null,
+        impact: state.impact,
+        libraryVersions: state.libraryVersions,
+        identityMappings: mappings,
+        previewToken,
+        ...identities,
+        committable: true
     };
 }
 
-// Replaces the full word list of every grade present in the file. A word that exists in both the
-// old and new list (same text within the grade) keeps its _id, so students' completed-word history
-// still matches it and it is not asked again. Attempts also keep their own word snapshot.
-async function replaceSpellingWordLists({ schoolId, job }) {
-    const grades = [...new Set(job.rows.map((row) => row.grade))];
-
-    const activeSession = await SpellingSession.findOne({
-        school: schoolId,
-        curriculumGrade: { $in: grades },
-        status: 'in-progress'
-    }).select('_id').lean();
-    if (activeSession) {
-        throw Object.assign(
-            new Error(`End all active spelling sessions for ${grades.join(', ')} before replacing its word list`),
-            { statusCode: 409 }
-        );
-    }
-
-    const result = await withTransaction(async (session) => {
-        const oldWords = await SpellingWord.find({ school: schoolId, grade: { $in: grades } }).session(session).lean();
-        const oldById = new Map(oldWords.map((word) => [String(word._id), word]));
-        const idsByWord = new Map();
-        for (const word of oldWords) {
-            const key = `${word.grade}:${word.normalizedWord}`;
-            if (!idsByWord.has(key)) idsByWord.set(key, []);
-            idsByWord.get(key).push(word._id);
-        }
-
-        const newDocs = job.rows.map((row) => {
-            const plain = typeof row.toObject === 'function' ? row.toObject() : { ...row };
-            delete plain._id;
-            const reusable = idsByWord.get(`${plain.grade}:${plain.normalizedWord}`)?.shift();
-            const previous = reusable ? oldById.get(String(reusable)) : null;
-            return {
-                ...plain,
-                ...(reusable ? { _id: reusable } : {}),
-                definition: plain.definition ?? previous?.definition ?? '',
-                school: schoolId,
-                sourceImportId: job._id
-            };
-        });
-
-        const keptCount = newDocs.filter((doc) => doc._id).length;
-        await SpellingWord.deleteMany({ school: schoolId, grade: { $in: grades } }, { session });
-        if (newDocs.length > 0) await SpellingWord.insertMany(newDocs, { session, ordered: true });
-
-        job.status = 'committed';
-        job.committedAt = new Date();
-        await job.save({ session });
-        return {
-            importedRows: newDocs.length,
-            insertedRows: newDocs.length - keptCount,
-            updatedRows: keptCount,
-            removedRows: oldWords.length - keptCount
-        };
-    });
-
-    return { importId: job._id, idempotent: false, replaced: true, grades, ...result };
-}
-
-export async function commitSpellingImport({ schoolId, importId, replace = false }) {
+// Both import modes write through the library coordinator so identity matching,
+// guards, impact, versions and the audit record stay identical to manual edits.
+export async function commitSpellingImport({ schoolId, user, role, importId, input }) {
     const job = await SpellingImportJob.findOne({ _id: importId, school: schoolId });
-    if (!job) throw Object.assign(new Error('Spelling import preview not found'), { statusCode: 404 });
-    if (job.status === 'committed') return { importId: job._id, idempotent: true, importedRows: job.rows.length };
-    if (job.status !== 'preview') throw Object.assign(new Error('Spelling import is not available for commit'), { statusCode: 409 });
-    if (job.errors.length > 0) throw Object.assign(new Error('Fix CSV validation errors before committing'), { statusCode: 400 });
-
-    if (replace) return replaceSpellingWordLists({ schoolId, job });
-
-    const importedRows = await withTransaction(async (session) => {
-        const operations = job.rows.map((row) => ({
-            updateOne: {
-                filter: { school: schoolId, grade: row.grade, week: row.week, order: row.order },
-                update: { $set: { ...row, school: schoolId, sourceImportId: job._id } },
-                upsert: true
-            }
-        }));
-        const result = operations.length > 0
-            ? await SpellingWord.bulkWrite(operations, { session, ordered: true })
-            : { matchedCount: 0, upsertedCount: 0 };
-        job.status = 'committed';
-        job.committedAt = new Date();
-        await job.save({ session });
-        return {
-            importedRows: operations.length,
-            updatedRows: result.matchedCount || 0,
-            insertedRows: result.upsertedCount || 0
-        };
+    if (!job) throw domainError('IMPORT_NOT_FOUND');
+    const canonicalMappings = normalizeMappings(
+        Array.isArray(input.identityMappings) ? input.identityMappings : (job.identityMappings || []),
+        job.rows || []
+    );
+    const result = await commitLibraryImport({
+        schoolId,
+        user,
+        role,
+        job,
+        input: { ...input, identityMappings: canonicalMappings, importId: job._id }
     });
-
-    return { importId: job._id, idempotent: false, ...importedRows };
+    return {
+        importId: job._id,
+        mode: job.mode,
+        counts: {
+            added: result.addedWords?.length || 0,
+            changed: result.changedWords?.length || 0,
+            removed: result.removedIds?.length || 0
+        },
+        ...result
+    };
 }
