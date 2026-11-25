@@ -5,6 +5,8 @@ import { domainError } from '../utils/spellingLibraryErrors.js';
 export const RETEST_POLICY_VERSION = 1;
 
 const STATE_FIELDS = [
+    // The session's typed attempt snapshot requires the revision it recorded.
+    'revision',
     'status',
     'correctRetestStreak',
     'incorrectRetestCount',
