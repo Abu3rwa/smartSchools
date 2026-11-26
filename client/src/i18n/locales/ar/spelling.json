@@ -93,6 +93,22 @@
   "correct": "صحيح",
   "incorrect": "غير صحيح",
   "sessionCompleted": "اكتمل الاختبار.",
+  "previousAnswerLabel": "الإجابة السابقة",
+  "answerComparisonAria": "كتبت {{typed}}. الإملاء الصحيح {{correct}}.",
+  "playUsAria": "اسمع {{word}} باللكنة الأمريكية.",
+  "playUkAria": "اسمع {{word}} باللكنة البريطانية.",
+  "wordsToReview": "كلمات للمراجعة",
+  "reviewWordsHint": "اضغط على الكلمة أو زر US أو UK لسماعها.",
+  "allWordsCorrect": "كل الكلمات كُتبت بإملاء صحيح.",
+  "sessionEndedTitle": "انتهت الجلسة",
+  "sessionEndedHint": "راجع الكلمات أدناه قبل جلستك التالية.",
+  "retestsQueued": "اختبارات الإعادة القادمة: {{value}}",
+  "celebrationSprout": "بداية جيدة!",
+  "celebrationBunch": "عمل جيد!",
+  "celebrationGarden": "جلسة رائعة!",
+  "celebrationBouquet": "مذهل!",
+  "celebrationSubtitle": "الكلمات في هذه الجلسة: {{value}}",
+  "celebrationLightsAria": "الفوانيس المضاءة: {{lit}} من {{total}}",
   "loadingNextWord": "جارٍ تحميل الكلمة التالية...",
   "previewError": "تعذرت معاينة قائمة الكلمات.",
   "importError": "تعذر استيراد قائمة الكلمات.",
@@ -263,6 +279,7 @@
   ,"previousWords": "الكلمات السابقة"
   ,"noPreviousWords": "لم تُجب عن أي كلمة بعد."
   ,"previousWordsLegend": "✓ صحيحة   × خاطئة   • متخطاة"
+  ,"accentHint": "اضغط US أو UK لسماع الكلمة بذلك النطق."
   ,"waitingForNextWord": "بانتظار الكلمة التالية من معلّمك…"
   ,"definitionLabel": "المعنى"
   ,"raiseYourHand": "ارفع يدك"

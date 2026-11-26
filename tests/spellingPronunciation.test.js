@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import AiCreditSetting from '../models/AiCreditSetting.js';
+import SpellingPronunciation from '../models/SpellingPronunciation.js';
 import {
     AI_AUDIO_ENV,
+    getAiAudioForWords,
     getPlatformSpellingAudioSettings,
     instructionFor,
     isAiAudioAllowed,
@@ -112,4 +114,59 @@ test('stored clips are served as real audio bytes, including rows saved as base6
     assert.equal(normalizeStoredAudio(null), null);
     const notAudio = Buffer.from('hello there');
     assert.deepEqual(normalizeStoredAudio(notAudio), notAudio);
+});
+
+const clipKeysFor = (word) => {
+    const config = resolveTtsConfig({});
+    return {
+        us: pronunciationKey({ word, accent: 'us', model: config.model, voice: config.voices.us, instructions: instructionFor('us') }),
+        uk: pronunciationKey({ word, accent: 'uk', model: config.model, voice: config.voices.uk, instructions: instructionFor('uk') })
+    };
+};
+
+test('the batch lookup returns clips per known word and nothing for the rest', async (t) => {
+    t.mock.method(AiCreditSetting, 'findOne', () => stubQuery({ spellingAudio: { enabled: true } }));
+    const usId = 'f'.repeat(32);
+    const ukId = '0'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([
+        { key: clipKeysFor('cat').us, publicId: usId, accent: 'us' },
+        { key: clipKeysFor('cat').uk, publicId: ukId, accent: 'uk' },
+        { key: clipKeysFor('dog').us, publicId: '1'.repeat(32), accent: 'us' }
+    ]));
+
+    const clips = await getAiAudioForWords({ schoolId: 'school1', words: ['Cat', 'dog', ' giraffe '], env: {} });
+    assert.deepEqual([...clips.keys()].sort(), ['cat', 'dog']);
+    assert.deepEqual(clips.get('cat'), {
+        us: `/api/spelling/pronunciation/${usId}?v=2`,
+        uk: `/api/spelling/pronunciation/${ukId}?v=2`
+    });
+    assert.deepEqual(clips.get('dog'), { us: `/api/spelling/pronunciation/${'1'.repeat(32)}?v=2` });
+    assert.equal(clips.has('giraffe'), false);
+});
+
+test('removed clips are never served by the batch lookup', async (t) => {
+    t.mock.method(AiCreditSetting, 'findOne', () => stubQuery({ spellingAudio: { enabled: true } }));
+    const usId = '2'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([
+        { key: clipKeysFor('cat').us, publicId: usId, accent: 'us', removedAt: new Date() }
+    ]));
+
+    const clips = await getAiAudioForWords({ schoolId: 'school1', words: ['cat'], env: {} });
+    assert.equal(clips.size, 0);
+});
+
+test('the batch lookup follows the platform switch and the deployment override', async (t) => {
+    const platform = t.mock.method(AiCreditSetting, 'findOne', () => stubQuery({ spellingAudio: { enabled: false } }));
+    const lookup = t.mock.method(SpellingPronunciation, 'find', () => stubQuery([]));
+    assert.equal((await getAiAudioForWords({ schoolId: 'school1', words: ['cat'], env: {} })).size, 0);
+    assert.equal(lookup.mock.callCount(), 0);
+
+    platform.mock.mockImplementation(() => stubQuery({ spellingAudio: { enabled: true } }));
+    assert.equal((await getAiAudioForWords({ schoolId: 'school1', words: ['cat'], env: { [AI_AUDIO_ENV]: 'false' } })).size, 0);
+});
+
+test('the batch lookup never rejects and skips an empty word list', async (t) => {
+    assert.equal((await getAiAudioForWords({ schoolId: 'school1', words: [], env: {} })).size, 0);
+    t.mock.method(AiCreditSetting, 'findOne', () => { throw new Error('db down'); });
+    assert.equal((await getAiAudioForWords({ schoolId: 'school1', words: ['cat'], env: {} })).size, 0);
 });

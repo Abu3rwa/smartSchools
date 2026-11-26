@@ -3,7 +3,7 @@ import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingWord from '../models/SpellingWord.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport, validateAudioUrl } from '../utils/wordAudio.js';
-import { getAiAudioForWord, lookupPronunciations } from './spellingPronunciationService.js';
+import { getAiAudioForWords, lookupPronunciations } from './spellingPronunciationService.js';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
@@ -129,24 +129,74 @@ export async function isAudioEnabledForGrade(schoolId, grade) {
     return setting?.enabled === true;
 }
 
+// The words a session already answered, deduplicated by the exact snapshot the
+// student saw. Rail and review chips are keyed by that same string.
+const attemptWordSnapshots = (session) => {
+    const words = [];
+    const seen = new Set();
+    for (const attempt of session?.attempts || []) {
+        const snapshot = String(attempt?.wordSnapshot || '').trim();
+        if (!snapshot || seen.has(snapshot)) continue;
+        seen.add(snapshot);
+        words.push(snapshot);
+    }
+    return words;
+};
+
+const pronunciationsBySnapshot = (snapshots, clipsByKey) => {
+    const payload = {};
+    for (const snapshot of snapshots) {
+        const clips = clipsByKey.get(normalizeWordKey(snapshot));
+        if (clips) payload[snapshot] = clips;
+    }
+    return payload;
+};
+
+// The session is a Mongoose document on the read path; copy it so the field
+// serialises instead of being dropped by strict schema handling.
+const sessionWithPronunciations = (session, pronunciations) => {
+    if (!session || Object.keys(pronunciations).length === 0) return null;
+    const plain = typeof session.toObject === 'function' ? session.toObject() : session;
+    return { ...plain, pronunciations };
+};
+
 // Fail-safe: any error returns the original result so students never lose their word.
 export async function attachAudioToCurrentItem(result, schoolId) {
     try {
         const word = result?.item?.word;
-        if (!word) return result;
+        const snapshots = attemptWordSnapshots(result?.session);
+        if (!word && snapshots.length === 0) return result;
         // AI clips follow the platform switch; the grade switch only adds example recordings.
-        const [gradeEnabled, ai] = await Promise.all([
-            isAudioEnabledForGrade(schoolId, result.item.grade),
-            getAiAudioForWord({ schoolId, word })
+        const [gradeEnabled, clips] = await Promise.all([
+            word ? isAudioEnabledForGrade(schoolId, result.item.grade) : false,
+            getAiAudioForWords({ schoolId, words: word ? [word, ...snapshots] : snapshots })
         ]);
-        if (!gradeEnabled && !ai) return result;
+        const ai = word ? clips.get(normalizeWordKey(word)) || null : null;
+        const pronunciations = pronunciationsBySnapshot(snapshots, clips);
+        if (!gradeEnabled && !ai && Object.keys(pronunciations).length === 0) return result;
         const doc = gradeEnabled
             ? await WordAudio.findOne({ word: normalizeWordKey(word) })
                 .select('word examples.longman examples.oxford examples.webster examples.google definition')
                 .lean()
             : null;
         const item = decorateItemWithAudio(result.item, true, doc, ai);
-        return item === result.item ? result : { ...result, item };
+        const session = sessionWithPronunciations(result.session, pronunciations);
+        if (item === result.item && !session) return result;
+        return { ...result, item, ...(session ? { session } : {}) };
+    } catch {
+        return result;
+    }
+}
+
+// The attempt-submit response is the last word a completed session receives, so
+// the stored clips for every answered word must ride along with it.
+export async function attachPronunciationsToSession(result, schoolId) {
+    try {
+        const snapshots = attemptWordSnapshots(result?.session);
+        if (snapshots.length === 0) return result;
+        const clips = await getAiAudioForWords({ schoolId, words: snapshots });
+        const session = sessionWithPronunciations(result.session, pronunciationsBySnapshot(snapshots, clips));
+        return session ? { ...result, session } : result;
     } catch {
         return result;
     }

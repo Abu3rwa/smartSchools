@@ -56,6 +56,23 @@ export const getSpellingVoiceOptions = (audio) => {
         });
 };
 
+export const ACCENT_LANGS = Object.freeze({ us: 'en-US', uk: 'en-GB' });
+
+// Accent playback for words outside the current item (previous answers, review
+// lists). A generated clip wins when it exists; without one url the caller reads
+// the word with the browser voice in the same accent.
+export const getAccentPlayback = (audio, accent) => {
+    const key = ACCENT_LANGS[accent] ? accent : 'uk';
+    return {
+        accent: key,
+        lang: ACCENT_LANGS[key],
+        url: getSpellingVoiceOptions(audio).find((option) => option.accent === key)?.url || null
+    };
+};
+
+// Identifies the word+accent currently playing, so only its own button shows the spinner.
+export const accentPlaybackKey = (word, accent) => `${String(word || '').trim().toLowerCase()}|${ACCENT_LANGS[accent] ? accent : 'uk'}`;
+
 // A chosen voice that is missing for this word resolves to null, which means "use Default".
 export const resolveVoice = (audio, voiceId) => {
     if (!voiceId || voiceId === DEFAULT_VOICE_ID) return null;

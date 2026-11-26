@@ -18,7 +18,7 @@ import {
     correctionBodySchema,
     parseDomainInput
 } from '../validators/spellingLibraryValidators.js';
-import { attachAudioToCurrentItem } from '../services/wordAudioService.js';
+import { attachAudioToCurrentItem, attachPronunciationsToSession } from '../services/wordAudioService.js';
 import { listSpellingIntegrityEvents, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 export const createSpellingIntegrityEvent = asyncHandler(async (req, res) => {
@@ -225,7 +225,8 @@ export const recordAttempt = asyncHandler(async (req, res) => {
         skipped: req.body.skipped === true,
         idempotencyKey: req.body.idempotencyKey
     });
-    return res.status(200).json({ success: true, data: result });
+    const data = await attachPronunciationsToSession(result, req.schoolId);
+    return res.status(200).json({ success: true, data });
 });
 
 /**

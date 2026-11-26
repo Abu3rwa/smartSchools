@@ -8,6 +8,7 @@ import SpellingWord from '../models/SpellingWord.js';
 import WordAudio from '../models/WordAudio.js';
 import {
     attachAudioToCurrentItem,
+    attachPronunciationsToSession,
     buildAudioPayload,
     decorateItemWithAudio,
     removeSchoolWordAudioExample,
@@ -101,14 +102,96 @@ test('the platform switch never drops dictionary voices or example recordings', 
 test('AI clips reach students even when the grade switch is OFF', async (t) => {
     platformSwitch(t, true);
     t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery(null));
+    const config = resolveTtsConfig({});
     const publicId = 'b'.repeat(32);
-    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{ key: 'k1', publicId, accent: 'us' }]));
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([{
+        key: pronunciationKey({
+            word: 'cat',
+            accent: 'us',
+            model: config.model,
+            voice: config.voices.us,
+            instructions: instructionFor('us')
+        }),
+        publicId,
+        accent: 'us'
+    }]));
     const lookup = t.mock.method(WordAudio, 'findOne', () => stubQuery(doc));
 
     const result = { session: { _id: 's1' }, item };
     const withAudio = await attachAudioToCurrentItem(result, 'school1');
     assert.deepEqual(withAudio.item.audio, { ai: { us: `/api/spelling/pronunciation/${publicId}?v=2` } });
     assert.equal(lookup.mock.callCount(), 0);
+});
+
+const pronunciationKeyFor = (word, accent) => {
+    const config = resolveTtsConfig({});
+    return pronunciationKey({
+        word,
+        accent,
+        model: config.model,
+        voice: config.voices[accent],
+        instructions: instructionFor(accent)
+    });
+};
+
+test('previous words in the session carry their own stored AI clips', async (t) => {
+    platformSwitch(t, true);
+    t.mock.method(SpellingAudioSettings, 'findOne', () => stubQuery(null));
+    const usId = 'c'.repeat(32);
+    const ukId = 'd'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([
+        { key: pronunciationKeyFor('cat', 'us'), publicId: usId, accent: 'us' },
+        { key: pronunciationKeyFor('stationery', 'uk'), publicId: ukId, accent: 'uk' }
+    ]));
+    t.mock.method(WordAudio, 'findOne', () => stubQuery(null));
+
+    const session = {
+        _id: 's1',
+        attempts: [
+            { wordSnapshot: 'cat' },
+            { wordSnapshot: 'stationery' },
+            { wordSnapshot: 'cat' }
+        ]
+    };
+    const result = { session, item };
+    const enriched = await attachAudioToCurrentItem(result, 'school1');
+
+    assert.deepEqual(enriched.session.pronunciations, {
+        cat: { us: `/api/spelling/pronunciation/${usId}?v=2` },
+        stationery: { uk: `/api/spelling/pronunciation/${ukId}?v=2` }
+    });
+    assert.equal(enriched.session._id, 's1');
+    assert.equal(result.session.pronunciations, undefined);
+});
+
+test('a Mongoose session document is copied so the clip map is serialised', async (t) => {
+    platformSwitch(t, true);
+    const ukId = 'e'.repeat(32);
+    t.mock.method(SpellingPronunciation, 'find', () => stubQuery([
+        { key: pronunciationKeyFor('rabbit', 'uk'), publicId: ukId, accent: 'uk' }
+    ]));
+
+    const session = {
+        toObject: () => ({ _id: 's1', status: 'completed', attempts: [{ wordSnapshot: 'rabbit' }] }),
+        attempts: [{ wordSnapshot: 'rabbit' }]
+    };
+    const enriched = await attachPronunciationsToSession({ session, attempt: { wordSnapshot: 'rabbit' } }, 'school1');
+    assert.deepEqual(enriched.session.pronunciations, { rabbit: { uk: `/api/spelling/pronunciation/${ukId}?v=2` } });
+    assert.equal(enriched.session.toObject, undefined);
+    assert.equal(enriched.session.status, 'completed');
+});
+
+test('the attempt-submit result is untouched while the platform switch is OFF', async (t) => {
+    platformSwitch(t, false);
+    const result = { session: { attempts: [{ wordSnapshot: 'cat' }] }, attempt: { wordSnapshot: 'cat' } };
+    assert.equal(await attachPronunciationsToSession(result, 'school1'), result);
+});
+
+test('the attempt-submit attachment never breaks on errors', async (t) => {
+    platformSwitch(t, true);
+    t.mock.method(SpellingPronunciation, 'find', () => { throw new Error('db down'); });
+    const result = { session: { attempts: [{ wordSnapshot: 'cat' }] }, attempt: { wordSnapshot: 'cat' } };
+    assert.equal(await attachPronunciationsToSession(result, 'school1'), result);
 });
 
 test('an explicit false in SPELLING_AI_AUDIO keeps AI clips away', async (t) => {

@@ -15,10 +15,38 @@ import {
     submitSpellingAnswer,
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
+import SpellingCelebration, { SpellingWordBurst } from './SpellingCelebration';
+import SpellingAttemptComparison from './SpellingAttemptComparison';
+import SpellingWordAudio from './SpellingWordAudio';
 import SpellingVoicePanel from './SpellingVoicePanel';
-import { SHOW_DICTIONARY_SOURCES, getSpellingVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
+import { getReviewWords, isCelebratoryCompletion } from './spellingSessionPresentation';
+import { SHOW_DICTIONARY_SOURCES, accentPlaybackKey, getAccentPlayback, getSpellingVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolvePlaybackVoice, storeVoice } from '../../utils/voicePlayback';
 
 const HISTORY_PAGE_SIZE = 8;
+
+// MUI's success/error text colors fail WCAG AA on the light surface, so status
+// text and outlined chips pick a readable tone per theme.
+const STATUS_TONES = {
+    success: { light: '#047857', dark: '#34d399' },
+    error: { light: '#b91c1c', dark: '#f87171' },
+    warning: { light: '#9a3412', dark: '#fdba74' }
+};
+
+const statusTextSx = (tone) => (theme) => ({ color: STATUS_TONES[tone][theme.palette.mode === 'dark' ? 'dark' : 'light'] });
+
+const statusChipSx = (tone) => (theme) => {
+    const color = STATUS_TONES[tone][theme.palette.mode === 'dark' ? 'dark' : 'light'];
+    return { color, borderColor: alpha(color, 0.5), fontWeight: 600 };
+};
+
+const VISUALLY_HIDDEN = {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    clip: 'rect(0 0 0 0)',
+    whiteSpace: 'nowrap'
+};
 
 // The voice panel only makes sense when there is something to play; a payload with just
 // a shared definition keeps the plain "Hear word" button.
@@ -76,7 +104,8 @@ const pollWhenVisible = (callback, intervalMs) => {
 const SpellingStudentPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { t } = useTranslation('spelling');
+    const { t, i18n } = useTranslation('spelling');
+    const isRtl = i18n.dir() === 'rtl';
     const { history, retests, session, currentItem, loading, error } = useSelector(selectSpelling);
     const [input, setInput] = useState('');
     const [localError, setLocalError] = useState('');
@@ -87,8 +116,9 @@ const SpellingStudentPage = () => {
     const [practicePassage, setPracticePassage] = useState(null);
     const [passageLoading, setPassageLoading] = useState(false);
     const [dictionaryEntry, setDictionaryEntry] = useState(null);
-    const [revealedAttempt, setRevealedAttempt] = useState(null);
+    const [previousAttempt, setPreviousAttempt] = useState(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
+    const [playingKey, setPlayingKey] = useState(null);
     const [selectedVoice, setSelectedVoice] = useState(() => readStoredVoice());
     const [voiceNotice, setVoiceNotice] = useState('');
     const [sessionViewOpen, setSessionViewOpen] = useState(false);
@@ -211,18 +241,24 @@ const SpellingStudentPage = () => {
         };
     }, [session?._id, session?.status]);
 
-    // A new word has loaded — clear any leftover reveal card from the
-    // previous word so it never overlaps the next listening prompt.
+    // A voice notice describes the current word's audio, so the next word clears it.
     useEffect(() => {
-        setRevealedAttempt(null);
         setVoiceNotice('');
     }, [currentItem?.sequence]);
+
+    // The previous answer stays visible above the next word; only a different
+    // session clears it, so feedback never flashes away while the word loads.
+    useEffect(() => {
+        setPreviousAttempt(null);
+        setVoiceNotice('');
+    }, [session?._id]);
 
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
 
     // The only fallback is the browser's own voice. No dictionary recording is played
-    // when a generated clip is missing, switched off, or fails to load.
-    const speakWithBrowser = (word) => {
+    // when a generated clip is missing, switched off, or fails to load. The accent
+    // selects the browser voice language ("en-GB" by default).
+    const speakWithBrowser = (word, lang = 'en-GB', accent = null) => {
         const text = String(word || '').trim();
         const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
         if (activeAudioRef.current) {
@@ -232,20 +268,23 @@ const SpellingStudentPage = () => {
         }
         if (!text) {
             setAudioPlaying(false);
+            setPlayingKey(null);
             return;
         }
         if (!synth || typeof window.SpeechSynthesisUtterance !== 'function') {
             setAudioPlaying(false);
+            setPlayingKey(null);
             setVoiceNotice(t('browserVoiceUnavailable'));
             return;
         }
         synth.cancel();
         const utterance = new window.SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-GB';
+        utterance.lang = lang;
         utterance.rate = 0.9;
         utterance.onend = finishPlayback;
         utterance.onerror = finishPlayback;
         activeAudioRef.current = { pause: () => synth.cancel() };
+        setPlayingKey(accent ? accentPlaybackKey(word, accent) : null);
         setAudioPlaying(true);
         synth.speak(utterance);
     };
@@ -253,6 +292,7 @@ const SpellingStudentPage = () => {
     const finishPlayback = () => {
         activeAudioRef.current = null;
         setAudioPlaying(false);
+        setPlayingKey(null);
     };
 
     // Generated clip (or the chosen voice) first; the browser voice is the only fallback.
@@ -263,6 +303,7 @@ const SpellingStudentPage = () => {
             return;
         }
         if (activeAudioRef.current) activeAudioRef.current.pause();
+        setPlayingKey(null);
         setAudioPlaying(true);
         const { handle } = playWithFallback({
             url: voice.url,
@@ -273,8 +314,29 @@ const SpellingStudentPage = () => {
         activeAudioRef.current = { pause: handle.cancel };
     };
 
+    // Previous words only carry a stored clip for the word just answered, so an
+    // accent picks that clip when it exists and the browser voice otherwise.
+    const playWordAccent = (word, accent, audio = null) => {
+        const target = getAccentPlayback(audio, accent);
+        if (!target.url) {
+            speakWithBrowser(word, target.lang, target.accent);
+            return;
+        }
+        if (activeAudioRef.current) activeAudioRef.current.pause();
+        setPlayingKey(accentPlaybackKey(word, target.accent));
+        setAudioPlaying(true);
+        const { handle } = playWithFallback({
+            url: target.url,
+            playDefault: () => speakWithBrowser(word, target.lang, target.accent),
+            onFallback: () => setVoiceNotice(t('browserVoiceFallback')),
+            onEnded: finishPlayback
+        });
+        activeAudioRef.current = { pause: handle.cancel };
+    };
+
     const playExample = (url) => {
         if (activeAudioRef.current) activeAudioRef.current.pause();
+        setPlayingKey(null);
         setAudioPlaying(true);
         const handle = playUrl(url, {
             onEnded: finishPlayback,
@@ -352,22 +414,22 @@ const SpellingStudentPage = () => {
     const submitAttempt = async (studentInput, skipped = false) => {
         if (!currentItem || !session) return;
         const answeredWord = currentItem.word;
-        const answeredDictionaryEntry = dictionaryMatches(dictionaryEntry, currentItem.word) ? dictionaryEntry : null;
+        const answeredSequence = currentItem.sequence;
         const answeredAudio = currentItem.audio || null;
         const result = await dispatch(submitSpellingAnswer({
             sessionId: session._id,
-            sequence: currentItem.sequence,
+            sequence: answeredSequence,
             studentInput,
             skipped
         }));
         if (submitSpellingAnswer.fulfilled.match(result)) {
-            setRevealedAttempt({
+            setPreviousAttempt({
                 word: answeredWord,
-                dictionary: answeredDictionaryEntry,
                 audio: answeredAudio,
                 correct: result.payload.attempt.correct,
                 skipped: result.payload.attempt.skipped,
-                input: studentInput
+                input: studentInput,
+                sequence: answeredSequence
             });
             setInput('');
             if (result.payload.session.status === 'in-progress') {
@@ -408,20 +470,25 @@ const SpellingStudentPage = () => {
         && String(attempt.studentInput ?? '').trim()
         && (!attempt.correct || attempt.correctedAt)
     ));
-    // "giraaaa × giraffe" for a wrong answer, "giraaaa ✓ giraffe" once the teacher accepts it, "giraffe ✓" when correct.
+    // "giraaaa → giraffe" for a wrong answer, "giraaaa ✓ giraffe" once the teacher accepts it, "giraffe ✓" when correct.
     const previousWordLabel = (attempt, mode) => {
         const word = attempt.wordSnapshot;
         const typed = String(attempt.studentInput ?? '').trim();
         if (isSkippedSpellingAttempt(attempt, mode)) return word;
         if (mode === 'self-serve' && typed && attempt.correctedAt) return `${typed} ✓ ${word}`;
         if (attempt.correct) return `${word} ✓`;
-        return mode === 'self-serve' && typed ? `${typed} × ${word}` : word;
+        return mode === 'self-serve' && typed ? <SpellingAttemptComparison typed={typed} correct={word} /> : word;
     };
 
-    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
-    const mistakesAllowed = session?.maxMistakesAllowed || 3;
+    // Stored AI clips ride on the session, keyed by the exact word each attempt shows.
+    const storedClipAudio = (word) => (session?.pronunciations?.[word] ? { ai: session.pronunciations[word] } : null);
+
+    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));    const mistakesAllowed = session?.maxMistakesAllowed || 3;
     const answeredWords = session?.attempts?.length || 0;
     const mistakesRemaining = Math.max(mistakesAllowed - (session?.mistakeCount || 0), 0);
+    const reviewWords = session?.status === 'completed' ? getReviewWords(session.attempts) : [];
+    const celebratoryCompletion = isCelebratoryCompletion(session);
+    const typedPrevious = String(previousAttempt?.input || '').trim();
     // An open-ended assessment has no fixed word list on the client, so the mistake
     // budget is the only honest signal of how close the session is to ending.
     const retestWordTotal = session?.assessmentType === 'retest-quiz' ? session.retestQuizItems?.length || 0 : 0;
@@ -454,7 +521,7 @@ const SpellingStudentPage = () => {
                 <Button
                     variant="outlined"
                     size="small"
-                    startIcon={<HiOutlineArrowLeft />}
+                    startIcon={<HiOutlineArrowLeft style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />}
                     onClick={() => navigate('/portal/dashboard')}
                 >
                     {t('backToMain')}
@@ -499,8 +566,8 @@ const SpellingStudentPage = () => {
                                     {session.status === 'in-progress' ? t('testInProgress') : t('sessionCompleted')}
                                 </Typography>
                                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
-                                    <Chip size="small" variant="outlined" color="success" label={t('correctCount', { count: session.correctCount })} />
-                                    <Chip size="small" variant="outlined" color="error" label={t('mistakeCount', { count: session.mistakeCount })} />
+                                    <Chip size="small" variant="outlined" sx={statusChipSx('success')} label={t('correctCount', { count: session.correctCount })} />
+                                    <Chip size="small" variant="outlined" sx={statusChipSx('error')} label={t('mistakeCount', { count: session.mistakeCount })} />
                                 </Stack>
                             </Box>
                             <Button variant="contained" onClick={() => setSessionViewOpen(true)}>
@@ -523,14 +590,14 @@ const SpellingStudentPage = () => {
                             size="small"
                             sx={{ mt: 0.5, border: 1, borderColor: 'divider' }}
                         >
-                            <HiOutlineArrowLeft />
+                            <HiOutlineArrowLeft style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
                         </IconButton>
                         <Box sx={{ minWidth: 0 }}>
                             <Typography id="spelling-session-title" variant="h5" sx={{ fontWeight: 700 }}>{t('mySpelling')}</Typography>
                             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
-                                <Chip size="small" color="success" variant="outlined" label={t('correctCount', { count: session?.correctCount || 0 })} />
+                                <Chip size="small" variant="outlined" sx={statusChipSx('success')} label={t('correctCount', { count: session?.correctCount || 0 })} />
                                 {session?.status !== 'in-progress' && (
-                                    <Chip size="small" color="error" variant="outlined" label={t('mistakeCount', { count: session?.mistakeCount || 0 })} />
+                                    <Chip size="small" variant="outlined" sx={statusChipSx('error')} label={t('mistakeCount', { count: session?.mistakeCount || 0 })} />
                                 )}
                                 <Chip size="small" variant="outlined" label={`${t('wordsAnswered')}: ${answeredWords}`} />
                             </Stack>
@@ -592,20 +659,153 @@ const SpellingStudentPage = () => {
                     <Box sx={{
                         display: 'grid',
                         gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 2fr) minmax(280px, 1fr)' },
-                        gridTemplateRows: { xs: 'minmax(0, 1fr) auto', md: 'minmax(0, 1fr)' },
+                        // On phones the dialog scrolls; letting the single column
+                        // shrink below its content made the cards overlap on short screens.
+                        gridTemplateRows: { xs: 'auto auto', md: 'minmax(0, 1fr)' },
                         gap: 2,
                         alignItems: 'stretch',
                         maxWidth: 1400,
                         width: '100%',
                         mx: 'auto',
-                        flex: 1,
-                        minHeight: 0
+                        flex: { xs: '0 0 auto', md: 1 },
+                        minHeight: { xs: 'auto', md: 0 }
                     }}>
                         <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <Box sx={{ width: '100%', maxWidth: 620, mx: 'auto' }}>
+                        {session?.status === 'in-progress' && previousAttempt && (
+                            <Box
+                                role="status"
+                                aria-live="polite"
+                                sx={(theme) => {
+                                    const tone = previousAttempt.skipped
+                                        ? theme.palette.warning.main
+                                        : previousAttempt.correct
+                                            ? theme.palette.success.main
+                                            : theme.palette.error.main;
+                                    return {
+                                        position: 'relative',
+                                        mb: 2,
+                                        px: 2,
+                                        py: 1.25,
+                                        borderRadius: 2,
+                                        border: 1,
+                                        borderColor: alpha(tone, 0.5),
+                                        bgcolor: alpha(tone, theme.palette.mode === 'light' ? 0.07 : 0.14)
+                                    };
+                                }}
+                            >
+                                {previousAttempt.correct && <SpellingWordBurst key={previousAttempt.sequence} />}
+                                <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Box
+                                        aria-hidden="true"
+                                        sx={[
+                                            { display: 'flex', fontSize: '1.35rem' },
+                                            previousAttempt.skipped
+                                                ? statusTextSx('warning')
+                                                : previousAttempt.correct
+                                                    ? statusTextSx('success')
+                                                    : statusTextSx('error')
+                                        ]}
+                                    >
+                                        {previousAttempt.skipped ? <HiOutlineMinus /> : previousAttempt.correct ? <HiOutlineCheck /> : <HiOutlineXMark />}
+                                    </Box>
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="caption" color="text.secondary" component="p">
+                                            {t('previousAnswerLabel')}
+                                        </Typography>
+                                        <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }} dir="ltr">
+                                            {previousAttempt.correct || previousAttempt.skipped || !typedPrevious ? (
+                                                previousAttempt.word
+                                            ) : (
+                                                <>
+                                                    <Box component="span" sx={VISUALLY_HIDDEN}>
+                                                        {t('answerComparisonAria', { typed: typedPrevious, correct: previousAttempt.word })}
+                                                    </Box>
+                                                    <Box component="span" aria-hidden="true">
+                                                        <SpellingAttemptComparison typed={typedPrevious} correct={previousAttempt.word} />
+                                                    </Box>
+                                                </>
+                                            )}
+                                        </Typography>
+                                    </Box>
+                                    <Typography
+                                        variant="caption"
+                                        sx={[
+                                            { fontWeight: 700 },
+                                            previousAttempt.skipped
+                                                ? statusTextSx('warning')
+                                                : previousAttempt.correct
+                                                    ? statusTextSx('success')
+                                                    : statusTextSx('error')
+                                        ]}
+                                    >
+                                        {previousAttempt.skipped ? t('skipped') : previousAttempt.correct ? t('correct') : t('incorrect')}
+                                    </Typography>
+                                    <Box sx={{ marginInlineStart: 'auto' }}>
+                                        <SpellingWordAudio
+                                            word={previousAttempt.word}
+                                            audio={previousAttempt.audio}
+                                            disabled={audioPlaying}
+                                            playingKey={playingKey}
+                                            onPlay={playWordAccent}
+                                        />
+                                    </Box>
+                                </Stack>
+                            </Box>
+                        )}
                         {session?.status !== 'in-progress' ? (
-                            <Stack spacing={2} alignItems="center">
-                                <Alert severity="success">{t('sessionCompleted')}</Alert>
-                                {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
+                            <Stack spacing={2} alignItems="center" sx={{ width: '100%' }}>
+                                {celebratoryCompletion && answeredWords > 0 ? (
+                                    <SpellingCelebration attempts={session?.attempts} correctCount={session?.correctCount} />
+                                ) : (
+                                    <Alert severity="info" sx={{ width: '100%' }}>
+                                        <Typography component="p" sx={{ fontWeight: 700 }}>{t('sessionEndedTitle')}</Typography>
+                                        {t('sessionEndedHint')}
+                                    </Alert>
+                                )}
+                                {hasSkippedWords && <Alert severity="info" sx={{ width: '100%' }}>{t('teacherWillReviewSkippedWords')}</Alert>}
+                                <Box sx={{ width: '100%' }}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t('wordsToReview')}</Typography>
+                                    {reviewWords.length > 0 ? (
+                                        <>
+                                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                                {reviewWords.map((attempt) => {
+                                                    const word = attempt.wordSnapshot;
+                                                    return (
+                                                        <Stack key={attempt._id || attempt.sequence} direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap" sx={{ maxWidth: '100%' }}>
+                                                            <Chip
+                                                                dir="ltr"
+                                                                label={word}
+                                                                color="warning"
+                                                                variant="outlined"
+                                                                icon={<HiOutlineSpeakerWave />}
+                                                                onClick={() => speakWord(word, storedClipAudio(word))}
+                                                                aria-label={`${t('playSound')}: ${word}`}
+                                                            />
+                                                            <SpellingWordAudio
+                                                                word={word}
+                                                                audio={storedClipAudio(word)}
+                                                                disabled={audioPlaying}
+                                                                playingKey={playingKey}
+                                                                onPlay={playWordAccent}
+                                                            />
+                                                        </Stack>
+                                                    );
+                                                })}
+                                            </Stack>
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                                                {t('reviewWordsHint')}
+                                            </Typography>
+                                        </>
+                                    ) : (
+                                        <Alert severity="success" sx={{ mt: 1 }}>{t('allWordsCorrect')}</Alert>
+                                    )}
+                                    {retests.length > 0 && (
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                                            {t('retestsQueued', { value: retests.length })}
+                                        </Typography>
+                                    )}
+                                </Box>
                                 <Button
                                     variant="outlined"
                                     onClick={() => checkForSessions({ refreshCompleted: true })}
@@ -631,34 +831,38 @@ const SpellingStudentPage = () => {
                                 )}
                             </Stack>
                         ) : currentItem ? (
-                            <Box aria-live="polite" aria-atomic="true" sx={{ width: '100%' }}>
+                            <Box sx={{ width: '100%' }}>
                                 <Stack spacing={2} sx={{ width: '100%' }}>
-                                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1, justifyContent: 'center' }}>
-                                        {currentItem.category && (
-                                            <Chip size="small" color="primary" variant="outlined" label={`${t('category')}: ${currentItem.category}`} />
-                                        )}
-                                        {currentItem.grade && (
-                                            <Chip size="small" variant="outlined" label={`${t('grade')}: ${currentItem.grade}`} />
-                                        )}
-                                        {currentItem.week && (
-                                            <Chip size="small" variant="outlined" label={`${t('week')}: ${currentItem.week}`} />
-                                        )}
-                                    </Stack>
+                                    {currentItem.category && (
+                                        <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
+                                            <Chip size="small" color="primary" variant="outlined" dir="auto" label={`${t('category')}: ${currentItem.category}`} />
+                                        </Stack>
+                                    )}
                                     {currentItem.definition && (
-                                        <Box sx={{
-                                            textAlign: 'left',
+                                        <Box sx={(theme) => ({
+                                            textAlign: 'start',
                                             px: 2.5,
                                             py: 2,
                                             border: 1,
                                             borderColor: 'divider',
-                                            borderLeft: 5,
-                                            borderLeftColor: 'primary.main',
+                                            borderInlineStartWidth: '5px',
+                                            borderInlineStartStyle: 'solid',
+                                            borderInlineStartColor: theme.palette.primary.main,
                                             borderRadius: 2,
                                             bgcolor: 'background.paper',
-                                            boxShadow: (theme) => theme.shadows[2]
-                                        }}>
-                                            <Typography variant="overline" sx={{ color: 'primary.light', fontWeight: 800, letterSpacing: '.08em' }}>{t('definitionLabel')}</Typography>
-                                            <Typography variant="body1" sx={{ color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.6 }}>{currentItem.definition}</Typography>
+                                            boxShadow: theme.shadows[2]
+                                        })}>
+                                            <Typography
+                                                variant="overline"
+                                                sx={(theme) => ({
+                                                    color: theme.palette.mode === 'dark' ? 'primary.light' : 'primary.dark',
+                                                    fontWeight: 800,
+                                                    letterSpacing: '.08em'
+                                                })}
+                                            >
+                                                {t('definitionLabel')}
+                                            </Typography>
+                                            <Typography variant="body1" dir="auto" sx={{ color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.6 }}>{currentItem.definition}</Typography>
                                         </Box>
                                     )}
                                     {/* Words with any playable recording use the voice panel; others keep the original play button. */}
@@ -683,91 +887,41 @@ const SpellingStudentPage = () => {
                                             onPlayExample={playExample}
                                         />
                                     )}
-                                    <Alert
-                                        severity={currentItem.handRaised ? 'success' : 'info'}
+                                    <Box
                                         role="note"
-                                        icon={<HiOutlineHandRaised />}
-                                        action={currentItem.handRaised ? null : (
-                                        <Button color="inherit" size="small" variant="contained" onClick={raiseHand}>{t('raiseYourHand')}</Button>
-                                        )}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            flexWrap: 'wrap',
+                                            gap: 1.5,
+                                            px: 2,
+                                            py: 1,
+                                            borderRadius: 2,
+                                            border: 1,
+                                            borderColor: 'divider',
+                                            bgcolor: 'background.paper'
+                                        }}
                                     >
-                                        {currentItem.handRaised
-                                            ? t('handIsRaised')
-                                            : t('needHelpHint')}
-                                    </Alert>
-                                    {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
-                                    {revealedAttempt && (
-                                        <Card
-                                            variant="outlined"
-                                            sx={(theme) => {
-                                                const tone = revealedAttempt.skipped
-                                                    ? theme.palette.warning.main
-                                                    : revealedAttempt.correct
-                                                        ? theme.palette.success.main
-                                                        : theme.palette.error.main;
-                                                return {
-                                                    borderColor: alpha(tone, 0.5),
-                                                    bgcolor: alpha(tone, theme.palette.mode === 'light' ? 0.06 : 0.12)
-                                                };
-                                            }}
+                                        <Box
+                                            aria-hidden="true"
+                                            sx={(theme) => ({
+                                                display: 'flex',
+                                                fontSize: '1.35rem',
+                                                color: currentItem.handRaised
+                                                    ? (theme.palette.mode === 'dark' ? '#34d399' : '#047857')
+                                                    : theme.palette.text.secondary
+                                            })}
                                         >
-                                            <CardContent>
-                                                <Stack spacing={1.5}>
-                                                    <Typography
-                                                        color={revealedAttempt.skipped ? 'warning.main' : revealedAttempt.correct ? 'success.main' : 'error.main'}
-                                                        variant="h5"
-                                                        sx={{ fontWeight: 800, textAlign: 'center' }}
-                                                    >
-                                                        {revealedAttempt.skipped ? t('skipped') : revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
-                                                    </Typography>
-                                                    {!revealedAttempt.correct && (
-                                                        <Box sx={{
-                                                            display: 'grid',
-                                                            gap: 1,
-                                                            textAlign: 'center',
-                                                            gridTemplateColumns: { xs: '1fr', sm: revealedAttempt.skipped ? '1fr' : '1fr auto 1fr' }
-                                                        }}>
-                                                            <Box>
-                                                                <Typography variant="caption" color="text.secondary">{t('yourAnswerLabel')}</Typography>
-                                                                <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
-                                                                    {String(revealedAttempt.input || '').trim() || t('skippedAnswer')}
-                                                                </Typography>
-                                                            </Box>
-                                                            {!revealedAttempt.skipped && (
-                                                                <>
-                                                                    <Typography color="error.main" aria-hidden="true">×</Typography>
-                                                                    <Box>
-                                                                        <Typography variant="caption" color="text.secondary">{t('correctSpellingLabel')}</Typography>
-                                                                        <Typography sx={{ fontWeight: 700, wordBreak: 'break-word' }}>{revealedAttempt.word}</Typography>
-                                                                    </Box>
-                                                                </>
-                                                            )}
-                                                        </Box>
-                                                    )}
-                                                    {revealedAttempt.audio?.definition && (
-                                                        <Box>
-                                                            <Typography variant="caption" color="text.secondary">{t('definitionLabel')}</Typography>
-                                                            <Typography variant="body2">{revealedAttempt.audio.definition}</Typography>
-                                                        </Box>
-                                                    )}
-                                                    {revealedAttempt.dictionary?.definitions?.slice(0, 2).map((definition) => (
-                                                        <Box key={`${definition.partOfSpeech}-${definition.definition}`}>
-                                                            <Typography variant="caption" color="text.secondary">{definition.partOfSpeech}</Typography>
-                                                            <Typography variant="body2">{definition.definition}</Typography>
-                                                        </Box>
-                                                    ))}
-                                                    <Button
-                                                        size="small"
-                                                        startIcon={audioPlaying ? <CircularProgress size={14} color="inherit" /> : <HiOutlineSpeakerWave />}
-                                                        onClick={() => speakWord(revealedAttempt.word, revealedAttempt.audio)}
-                                                        disabled={audioPlaying}
-                                                    >
-                                                        {t('playSound')}
-                                                    </Button>
-                                                </Stack>
-                                            </CardContent>
-                                        </Card>
-                                    )}
+                                            <HiOutlineHandRaised />
+                                        </Box>
+                                        <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 160 }}>
+                                            {currentItem.handRaised ? t('handIsRaised') : t('needHelpHint')}
+                                        </Typography>
+                                        {!currentItem.handRaised && (
+                                            <Button size="small" variant="outlined" onClick={raiseHand}>{t('raiseYourHand')}</Button>
+                                        )}
+                                    </Box>
+                                    {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     <form onSubmit={submitAnswer} style={{ width: '100%' }}>
                                         <Stack spacing={2}>
                                             <TextField
@@ -777,9 +931,9 @@ const SpellingStudentPage = () => {
                                                 value={input}
                                                 name="spelling-answer"
                                                 autoComplete="off"
-                                                inputProps={{ autoCorrect: 'off', autoCapitalize: 'none', spellCheck: false }}
+                                                inputProps={{ autoCorrect: 'off', autoCapitalize: 'none', spellCheck: false, dir: 'ltr' }}
                                                 helperText={t('pasteBlockedHint')}
-                                                InputProps={{ sx: { fontSize: '1.15rem' } }}
+                                                InputProps={{ sx: { fontSize: '1.15rem', '& input': { textAlign: 'center', fontWeight: 700, letterSpacing: '.03em' } } }}
                                                 onChange={(event) => setInput(event.target.value)}
                                                 onPaste={(event) => event.preventDefault()}
                                                 onDrop={(event) => event.preventDefault()}
@@ -791,7 +945,15 @@ const SpellingStudentPage = () => {
                                                 size="large"
                                                 fullWidth
                                                 disabled={loading || !input.trim()}
-                                                sx={{ minHeight: 50, fontWeight: 700 }}
+                                                sx={{
+                                                    minHeight: 50,
+                                                    fontWeight: 700,
+                                                    '&.Mui-disabled': {
+                                                        background: 'none',
+                                                        bgcolor: 'action.disabledBackground',
+                                                        color: 'text.disabled'
+                                                    }
+                                                }}
                                             >
                                                 {t('submitAnswer')}
                                             </Button>
@@ -805,6 +967,7 @@ const SpellingStudentPage = () => {
                                 <Typography variant="body1" color="text.secondary">{t('loadingNextWord')}</Typography>
                             </Stack>
                         )}
+                        </Box>
                         </Box>
                         <Card
                             variant="outlined"
@@ -823,27 +986,43 @@ const SpellingStudentPage = () => {
                                     {t('previousWords')} · {answeredWords}
                                 </Typography>
                                 {session?.attempts?.length > 0 && (
-                                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>
-                                        {t('previousWordsLegend')}
-                                    </Typography>
+                                    <>
+                                        <Typography variant="caption" color="text.secondary">{t('previousWordsLegend')}</Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>{t('accentHint')}</Typography>
+                                    </>
                                 )}
-                                <Stack spacing={1} sx={{ flex: 1, overflowY: 'auto', minHeight: 0, pr: 0.5, mt: 1 }}>
+                                <Stack spacing={1} alignItems="flex-start" sx={{ flex: 1, overflowY: 'auto', minHeight: 0, pe: 0.5, mt: 1 }}>
                                     {session?.attempts?.length ? session.attempts.map((attempt) => {
                                         const skippedAttempt = isSkippedSpellingAttempt(attempt, session.mode);
                                         return (
-                                            <Chip
-                                                key={attempt._id || attempt.sequence}
-                                                label={previousWordLabel(attempt, session.mode)}
-                                                color={skippedAttempt ? 'warning' : attempt.correct ? 'success' : 'error'}
-                                                variant="outlined"
-                                                icon={skippedAttempt
-                                                    ? <HiOutlineMinus fontSize="small" />
-                                                    : attempt.correct
-                                                        ? <HiOutlineCheck fontSize="small" />
-                                                        : <HiOutlineXMark fontSize="small" />}
-                                                title={skippedAttempt ? t('skipped') : attempt.correct ? t('correct') : t('incorrect')}
-                                                sx={{ maxWidth: '100%', justifyContent: 'flex-start' }}
-                                            />
+                                            <Stack key={attempt._id || attempt.sequence} direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap" sx={{ maxWidth: '100%' }}>
+                                                <Chip
+                                                    dir="ltr"
+                                                    label={previousWordLabel(attempt, session.mode)}
+                                                    variant="outlined"
+                                                    icon={skippedAttempt
+                                                        ? <HiOutlineMinus fontSize="small" />
+                                                        : attempt.correct
+                                                            ? <HiOutlineCheck fontSize="small" />
+                                                            : <HiOutlineXMark fontSize="small" />}
+                                                    title={skippedAttempt ? t('skipped') : attempt.correct ? t('correct') : t('incorrect')}
+                                                    sx={[
+                                                        { maxWidth: '100%', justifyContent: 'flex-start' },
+                                                        skippedAttempt
+                                                            ? statusChipSx('warning')
+                                                            : attempt.correct
+                                                                ? statusChipSx('success')
+                                                                : statusChipSx('error')
+                                                    ]}
+                                                />
+                                                <SpellingWordAudio
+                                                    word={attempt.wordSnapshot}
+                                                    audio={storedClipAudio(attempt.wordSnapshot)}
+                                                    disabled={audioPlaying}
+                                                    playingKey={playingKey}
+                                                    onPlay={playWordAccent}
+                                                />
+                                            </Stack>
                                         );
                                     }) : (
                                         <Typography variant="body2" color="text.secondary">
@@ -883,38 +1062,40 @@ const SpellingStudentPage = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>{t('noSessionsYet')}</Typography>
             ) : (
                 <>
-                    <Stack spacing={1} sx={{ mt: 1 }}>{pagedHistory.map((entry) => {
+                    <Stack spacing={0.75} sx={{ mt: 1 }}>{pagedHistory.map((entry) => {
                     const gradedQuiz = entry.assessmentType === 'retest-quiz';
                     const quizTotal = entry.attempts?.length || 0;
                     const quizScore = quizTotal ? Math.round((entry.attempts.filter((attempt) => attempt.correct).length / quizTotal) * 100) : 0;
                     return (
                         <Card key={entry._id} variant="outlined">
-                            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                <Stack
-                                    direction={{ xs: 'column', sm: 'row' }}
-                                    justifyContent="space-between"
-                                    alignItems={{ xs: 'flex-start', sm: 'center' }}
-                                    spacing={1.5}
+                            <CardContent sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: 1,
+                                px: 1.5,
+                                py: 1,
+                                '&:last-child': { pb: 1 }
+                            }}>
+                                <Typography sx={{ fontWeight: 700 }}>
+                                    {new Date(entry.startedAt).toLocaleDateString()}
+                                </Typography>
+                                {gradedQuiz && <Chip size="small" color="primary" variant="outlined" label={t('gradedRetestQuiz')} />}
+                                {entry.curriculumGrade && <Chip size="small" variant="outlined" label={entry.curriculumGrade} />}
+                                {gradedQuiz && <Chip size="small" variant="outlined" label={`${t('score')}: ${quizScore}%`} />}
+                                <Typography variant="body2" sx={statusTextSx('success')}>{t('correctCount', { count: entry.correctCount })}</Typography>
+                                <Typography variant="body2" sx={statusTextSx('error')}>{t('mistakeCount', { count: entry.mistakeCount })}</Typography>
+                                {entry.practicePassage && (
+                                    <Chip size="small" color="success" variant="outlined" label={t('practicePassageAvailable')} />
+                                )}
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => openHistorySession(entry)}
+                                    sx={{ marginInlineStart: 'auto' }}
                                 >
-                                    <Box sx={{ minWidth: 0 }}>
-                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                                            <Typography sx={{ fontWeight: 700 }}>
-                                                {new Date(entry.startedAt).toLocaleDateString()}
-                                            </Typography>
-                                            {gradedQuiz && <Chip size="small" color="primary" variant="outlined" label={t('gradedRetestQuiz')} />}
-                                            {entry.curriculumGrade && <Chip size="small" variant="outlined" label={entry.curriculumGrade} />}
-                                            {gradedQuiz && <Chip size="small" variant="outlined" label={`${t('score')}: ${quizScore}%`} />}
-                                        </Stack>
-                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                                            <Typography variant="body2" color="success.main">{t('correctCount', { count: entry.correctCount })}</Typography>
-                                            <Typography variant="body2" color="error.main">{t('mistakeCount', { count: entry.mistakeCount })}</Typography>
-                                            {entry.practicePassage && (
-                                                <Chip size="small" color="success" variant="outlined" label={t('practicePassageAvailable')} />
-                                            )}
-                                        </Stack>
-                                    </Box>
-                                    <Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button>
-                                </Stack>
+                                    {t('viewDetails')}
+                                </Button>
                             </CardContent>
                         </Card>
                     );

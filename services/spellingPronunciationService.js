@@ -332,25 +332,6 @@ export const getAiCoverage = async ({ schoolId, env = process.env }) => {
     };
 };
 
-/** Student-facing URLs for one word, or null. Never throws for the caller. */
-export const getAiAudioForWord = async ({ schoolId, word, env = process.env }) => {
-    try {
-        if (!word || !(await isAiAudioEnabledForSchool(schoolId, env))) return null;
-        const config = resolveTtsConfig(env);
-        const keys = keysForWord(word, config);
-        const docs = await SpellingPronunciation.find({ key: { $in: keys.map((entry) => entry.key) }, removedAt: null })
-            .select('key publicId accent')
-            .lean();
-        if (docs.length === 0) return null;
-        const ai = {};
-        for (const doc of docs) ai[doc.accent] = pronunciationUrl(doc.publicId);
-        return Object.keys(ai).length > 0 ? ai : null;
-    } catch (error) {
-        logger.warn('spelling_pronunciation_lookup_failed', { error: error?.message });
-        return null;
-    }
-};
-
 /**
  * Admin preview: existing clips for a list of words, ignoring the switches.
  * Returns Map<normalizedWord, { clips: { us, uk }, removed: ['us'|'uk'] }> and never throws.
@@ -381,6 +362,27 @@ export const lookupPronunciations = async (words = [], env = process.env) => {
         return result;
     } catch (error) {
         logger.warn('spelling_pronunciation_preview_failed', { error: error?.message });
+        return new Map();
+    }
+};
+
+/**
+ * Student-facing batch lookup, gated by the platform switch.
+ * Returns Map<normalizedWord, { us, uk }> with clips only (never removed ones)
+ * and never throws, so one failed lookup cannot cost a student their words.
+ */
+export const getAiAudioForWords = async ({ schoolId, words = [], env = process.env }) => {
+    try {
+        const cleaned = [...new Set((words || []).map((word) => String(word ?? '').trim()).filter(Boolean))];
+        if (cleaned.length === 0 || !(await isAiAudioEnabledForSchool(schoolId, env))) return new Map();
+        const found = await lookupPronunciations(cleaned, env);
+        const result = new Map();
+        for (const [key, entry] of found) {
+            if (Object.keys(entry.clips).length > 0) result.set(key, entry.clips);
+        }
+        return result;
+    } catch (error) {
+        logger.warn('spelling_pronunciation_batch_lookup_failed', { error: error?.message });
         return new Map();
     }
 };
